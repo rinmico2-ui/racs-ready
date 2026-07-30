@@ -1,0 +1,2544 @@
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    .kpi-card {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.05);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07), 0 2px 6px rgba(2,6,23,0.03);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      padding: 18px;
+      position: relative;
+      min-height: 130px;
+    }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(2,6,23,0.09), 0 4px 10px rgba(2,6,23,0.05); }
+    .kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .kpi-text .kpi-label { font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
+    .kpi-text .kpi-value { font-size: 1.8rem; font-weight: 800; color: #0f172a; }
+    .kpi-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(14,165,233,0.12); color: #0ea5e9; font-size: 1.2rem; }
+    .kpi-card.kpi-success .kpi-icon { background: rgba(16,185,129,0.15); color: #10b981; }
+    .kpi-card.kpi-warning .kpi-icon { background: rgba(251,191,36,0.15); color: #f59e0b; }
+    .kpi-card.kpi-danger .kpi-icon { background: rgba(239,68,68,0.12); color: #ef4444; }
+    .kpi-card.kpi-purple .kpi-icon { background: rgba(124,58,237,0.15); color: #7c3aed; }
+    .kpi-micro { position: absolute; bottom: 0; left: 0; width: 100%; height: 42px; border-radius: 0 0 12px 12px; background: rgba(241,245,249,0.55); }
+  </style>
+  
+  <!-- Standard Hero Header (match stock history) -->
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-bar-chart-line me-2"></i>Inventory Management
+        </h1>
+        <p class="hero-sub">
+          Track and manage stock movement, tools, and product inventory details
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-row mb-4">
+    <div class="kpi-card kpi-primary" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Total Items</div>
+          <div class="kpi-value" id="kpiTotalItems">0</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-box-seam-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-danger" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Low Stock Items</div>
+          <div class="kpi-value" id="kpiLowStock">0</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-exclamation-triangle-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-success" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Total Value</div>
+          <div class="kpi-value" id="kpiTotalValue">₱0</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-currency-dollar"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-warning" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Assigned to Techs</div>
+          <div class="kpi-value" id="kpiAssigned">0</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-people-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+  </div>
+  <!-- Inventory Tabs -->
+  <ul class="nav nav-tabs mb-3" id="inventoryTabs" role="tablist" style="border-bottom:2px solid rgba(37,99,235,0.15);">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-aircon" data-bs-toggle="tab" data-bs-target="#pane-aircon" type="button" role="tab">
+        <i class="bi bi-snow2 me-2"></i>Aircon Products
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-tools" data-bs-toggle="tab" data-bs-target="#pane-tools" type="button" role="tab">
+        <i class="bi bi-tools me-2"></i>Tools &amp; Materials
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- ── AIRCON TAB ───────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="pane-aircon" role="tabpanel">
+
+  <!-- Premium Filters -->
+  <div class="inv-filter-card mb-4">
+    <div class="inv-filter-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="inv-filter-label"><i class="bi bi-search"></i> Search Aircon</label>
+          <div class="inv-input-wrapper">
+            <i class="bi bi-search inv-input-icon"></i>
+            <input
+              type="text"
+              class="inv-input"
+              id="airconSearchInput"
+              placeholder="Model, SKU, or Brand..."
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="inv-filter-label"><i class="bi bi-circle-half"></i> Stock Status</label>
+          <div class="inv-select-wrapper">
+            <i class="bi bi-circle-half inv-select-icon-left"></i>
+            <select class="inv-select" id="airconStatusFilter">
+              <option value="all">Any Status</option>
+              <option value="in_stock">In Stock</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
+            </select>
+            <i class="bi bi-chevron-down inv-select-icon-right"></i>
+          </div>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="inv-btn-filter w-100" id="airconFilterBtn">
+            <i class="bi bi-funnel"></i> Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aircon Table -->
+  <div class="inv-table-card">
+    <div class="inv-table-header">
+      <h6><i class="bi bi-snow2"></i> Aircon Product Stock</h6>
+      <div class="inv-table-actions">
+        <button class="inv-btn-icon" title="Export"><i class="bi bi-download"></i></button>
+        <button class="inv-btn-icon" title="Print"><i class="bi bi-printer"></i></button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table inv-table">
+        <thead>
+          <tr>
+            <th class="ps-4" style="min-width: 280px;"><i class="bi bi-box-seam me-2"></i> Product Details</th>
+            <th style="min-width: 120px;"><i class="bi bi-info-circle me-2"></i> Specifications</th>
+            <th style="min-width: 150px;"><i class="bi bi-cpu me-2"></i> HP Variants</th>
+            <th style="min-width: 140px;"><i class="bi bi-currency-dollar me-2"></i> Price Range</th>
+            <th style="min-width: 120px;"><i class="bi bi-graph-up me-2"></i> Stock Level</th>
+            <th style="min-width: 100px;"><i class="bi bi-activity me-2"></i> Availability</th>
+            <th class="text-end pe-4" style="min-width: 200px;"><i class="bi bi-gear-wide-connected me-2"></i> Actions</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTableBody">
+          <tr>
+            <td colspan="9" class="inv-loading-cell" id="loadingRow">
+              <div class="inv-spinner">
+                <div class="inv-spinner-ring"></div>
+                <div class="inv-spinner-ring"></div>
+                <div class="inv-spinner-ring"></div>
+              </div>
+              <span>Loading aircon products...</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="inv-table-footer">
+      <div class="inv-summary" id="inventorySummary">&nbsp;</div>
+      <nav aria-label="Inventory pagination">
+        <ul id="inventory-pagination" class="inv-pagination"></ul>
+      </nav>
+    </div>
+  </div>
+
+    </div><!-- end #pane-aircon -->
+
+    <!-- ── TOOLS TAB ────────────────────────────────────── -->
+    <div class="tab-pane fade" id="pane-tools" role="tabpanel">
+
+  <!-- Tool Filters -->
+  <div class="inv-filter-card mb-4">
+    <div class="inv-filter-body">
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="inv-filter-label"><i class="bi bi-search"></i> Search Tool</label>
+          <div class="inv-input-wrapper">
+            <i class="bi bi-search inv-input-icon"></i>
+            <input type="text" class="inv-input" id="toolSearchInput" placeholder="Tool name, barcode..."/>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="inv-filter-label"><i class="bi bi-circle-half"></i> Status</label>
+          <div class="inv-select-wrapper">
+            <i class="bi bi-circle-half inv-select-icon-left"></i>
+            <select class="inv-select" id="toolStatusFilter">
+              <option value="all">Any Status</option>
+              <option value="in_stock">In Stock</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
+            </select>
+            <i class="bi bi-chevron-down inv-select-icon-right"></i>
+          </div>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="inv-btn-filter w-100" id="toolFilterBtn">
+            <i class="bi bi-funnel"></i> Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tools Table -->
+  <div class="inv-table-card">
+    <div class="inv-table-header">
+      <h6><i class="bi bi-tools"></i> Tools &amp; Materials Stock</h6>
+      <div class="inv-table-actions">
+        <button class="inv-btn-icon" title="Export"><i class="bi bi-download"></i></button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table inv-table">
+        <thead>
+          <tr>
+            <th class="ps-4"><i class="bi bi-tools"></i> Item Name</th>
+            <th><i class="bi bi-upc"></i> Barcode</th>
+            <th><i class="bi bi-box-seam"></i> Unit</th>
+            <th><i class="bi bi-tag"></i> Cost Price</th>
+            <th><i class="bi bi-stack"></i> Stock</th>
+            <th><i class="bi bi-circle-fill"></i> Status</th>
+            <th><i class="bi bi-person"></i> Supplier</th>
+            <th class="text-end pe-4"><i class="bi bi-gear"></i> Actions</th>
+          </tr>
+        </thead>
+        <tbody id="toolsTableBody">
+          <tr>
+            <td colspan="8" class="inv-loading-cell">
+              <div class="inv-spinner">
+                <div class="inv-spinner-ring"></div>
+                <div class="inv-spinner-ring"></div>
+                <div class="inv-spinner-ring"></div>
+              </div>
+              <span>Loading tools...</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="inv-table-footer">
+      <div class="inv-summary" id="toolsSummary">&nbsp;</div>
+      <nav aria-label="Tools pagination">
+        <ul id="tools-pagination" class="inv-pagination"></ul>
+      </nav>
+    </div>
+  </div>
+
+    </div><!-- end #pane-tools -->
+  </div><!-- end tab-content -->
+
+  <!-- Aircon Product Modal -->
+  <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" style="margin-top: 8vh">
+      <div class="modal-content inv-modal-content">
+        <div class="modal-header inv-modal-header">
+          <h5 class="inv-modal-title" id="addItemModalTitle">
+            <i class="bi bi-snow2"></i> Add Aircon Product
+          </h5>
+          <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body inv-modal-body">
+          <div id="inventoryFormAlert" class="alert d-none mb-3"></div>
+          <form id="inventoryForm" class="row g-3">
+            <!-- Model Line -->
+            <div class="col-md-8">
+              <label class="inv-field-label" for="invModelLine">Model Line <span class="text-danger">*</span></label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-snow2 inv-input-icon"></i>
+                <input type="text" id="invModelLine" class="inv-input" placeholder="e.g. Carrier Nexus Inverter" required />
+              </div>
+            </div>
+            <!-- Brand -->
+            <div class="col-md-4">
+              <label class="inv-field-label" for="invBrand">Brand</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-building inv-input-icon"></i>
+                <input type="text" id="invBrand" class="inv-input" placeholder="e.g. Carrier, AUX, TCL" />
+              </div>
+            </div>
+            <!-- Product Image -->
+            <div class="col-md-8">
+              <label class="inv-field-label" for="invImage">Product Image</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-image inv-input-icon"></i>
+                <input type="file" id="invImage" class="inv-input" accept="image/*" />
+              </div>
+              <div class="inv-field-hint">Upload product image (JPG, PNG, max 5MB)</div>
+            </div>
+            <!-- Image Preview -->
+            <div class="col-md-4">
+              <div class="inv-image-preview" id="invImagePreview" style="display:none;">
+                <img src="" alt="Product preview" class="img-fluid rounded border" style="max-height:80px;object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="removeImageBtn">
+                  <i class="bi bi-trash"></i> Remove
+                </button>
+              </div>
+              <div class="inv-image-placeholder" id="invImagePlaceholder">
+                <div class="text-center text-muted p-3 border rounded bg-light" style="height:80px;display:flex;align-items:center;justify-content:center;">
+                  <div>
+                    <i class="bi bi-image fs-3 d-block mb-1"></i>
+                    <small>No image</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Type -->
+            <div class="col-md-4">
+              <label class="inv-field-label" for="invType">Aircon Type <span class="text-danger">*</span></label>
+              <div class="inv-select-wrapper">
+                <i class="bi bi-lightning inv-select-icon-left"></i>
+                <select class="inv-select" id="invType" required>
+                  <option value="split">Split Type</option>
+                  <option value="split_ceiling">Split Type - Ceiling Suspended</option>
+                  <option value="window_inverter">Window Type - Inverter</option>
+                  <option value="window_non_inverter">Window Type - Non Inverter</option>
+                  <option value="floor_mounted">Floor Mounted</option>
+                </select>
+                <i class="bi bi-chevron-down inv-select-icon-right"></i>
+              </div>
+            </div>
+            <!-- Inverter Toggle -->
+            <div class="col-md-6">
+              <label class="inv-field-label">Inverter</label>
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" id="invInverter" style="width:3em;height:1.5em;">
+                <label class="form-check-label text-muted" for="invInverter" style="margin-top:2px;">Inverter Tech</label>
+              </div>
+            </div>
+            <!-- Status -->
+            <div class="col-md-6">
+              <label class="inv-field-label" for="invStatus">Status</label>
+              <div class="inv-select-wrapper">
+                <i class="bi bi-circle-fill inv-select-icon-left"></i>
+                <select class="inv-select" id="invStatus">
+                  <option value="">Auto-detect</option>
+                  <option value="in_stock">In Stock</option>
+                  <option value="low_stock">Low Stock</option>
+                  <option value="out_of_stock">Out of Stock</option>
+                  <option value="coming_soon">Coming Soon</option>
+                  <option value="discontinued">Discontinued</option>
+                </select>
+                <i class="bi bi-chevron-down inv-select-icon-right"></i>
+              </div>
+            </div>
+            <!-- Warranty -->
+            <div class="col-md-6">
+              <label class="inv-field-label" for="invWarranty">Warranty</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-shield-check inv-input-icon"></i>
+                <input type="text" id="invWarranty" class="inv-input" placeholder="e.g. 5 Years Compressor, 1 Year Parts" />
+              </div>
+            </div>
+            <!-- Description -->
+            <div class="col-12">
+              <label class="inv-field-label" for="invDescription">Description</label>
+              <textarea id="invDescription" class="inv-textarea" rows="3" placeholder="Enter product description..."></textarea>
+            </div>
+            
+            <!-- HVAC Variants Section -->
+            <div class="col-12 mt-4">
+              <div class="border rounded p-3 bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-box me-2"></i>HP Variants
+                  </h6>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="addVariantBtn">
+                    <i class="bi bi-plus-circle me-1"></i>Add Variant
+                  </button>
+                </div>
+                <div id="variantsContainer" class="row g-3">
+                  <!-- Variants will be added here dynamically -->
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer inv-modal-footer">
+          <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Cancel
+          </button>
+          <button type="button" class="inv-btn-primary" id="saveInventoryBtn">
+            <i class="bi bi-check-lg"></i> Save Product
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Rating Modal with Comment -->
+  <div class="modal fade" id="invRatingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content inv-modal-content">
+        <div class="modal-header inv-modal-header">
+          <h5 class="inv-modal-title"><i class="bi bi-stars"></i> Rate Product</h5>
+          <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body inv-modal-body">
+          <div class="text-center">
+            <div class="inv-rating-big" id="invModalRating">
+              <button type="button" class="inv-star-big" data-value="1"><i class="bi bi-star"></i></button>
+              <button type="button" class="inv-star-big" data-value="2"><i class="bi bi-star"></i></button>
+              <button type="button" class="inv-star-big" data-value="3"><i class="bi bi-star"></i></button>
+              <button type="button" class="inv-star-big" data-value="4"><i class="bi bi-star"></i></button>
+              <button type="button" class="inv-star-big" data-value="5"><i class="bi bi-star"></i></button>
+            </div>
+            <p class="inv-rating-label" id="invModalRatingLabel">Tap a star to rate</p>
+          </div>
+          <div class="mt-3">
+            <label class="inv-field-label" for="invRatingComment">Comment / Feedback</label>
+            <textarea id="invRatingComment" class="inv-textarea" rows="3" placeholder="Write your review or feedback about this product..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer inv-modal-footer">
+          <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="inv-btn-primary" id="invSubmitRating">
+            <i class="bi bi-check-lg"></i> Submit Rating
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tool Add/Edit Modal -->
+  <div class="modal fade" id="addToolModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="margin-top: 8vh">
+      <div class="inv-modal-content">
+        <div class="inv-modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);">
+          <h5 class="inv-modal-title" id="addToolModalTitle">
+            <i class="bi bi-tools"></i> Add Tool / Material
+          </h5>
+          <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body inv-modal-body">
+          <div id="toolFormAlert" class="alert d-none mb-3"></div>
+          <form id="toolForm" class="row g-3">
+            <div class="col-md-8">
+              <label class="inv-field-label" for="toolItemName">Item Name <span class="text-danger">*</span></label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-tools inv-input-icon"></i>
+                <input type="text" id="toolItemName" class="inv-input" placeholder="e.g. Copper Pipe 1/2, Refrigerant R32" required />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label" for="toolUnit">Unit</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-box-seam inv-input-icon"></i>
+                <input type="text" id="toolUnit" class="inv-input" placeholder="pcs, kg, m, L" value="pcs" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label" for="toolCostPrice">Cost Price (₱)</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-cash inv-input-icon"></i>
+                <input type="number" id="toolCostPrice" class="inv-input" placeholder="0" step="0.01" min="0" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label" for="toolSellingPrice">Selling Price (₱)</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-tag inv-input-icon"></i>
+                <input type="number" id="toolSellingPrice" class="inv-input" placeholder="0" step="0.01" min="0" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label" for="toolQuantity">Stock Qty</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-stack inv-input-icon"></i>
+                <input type="number" id="toolQuantity" class="inv-input" placeholder="0" min="0" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label" for="toolMinStock">Reorder Level</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-bell inv-input-icon"></i>
+                <input type="number" id="toolMinStock" class="inv-input" placeholder="3" min="0" />
+              </div>
+              <div class="inv-field-hint">Alert when stock drops below this</div>
+            </div>
+            <div class="col-md-8">
+              <label class="inv-field-label" for="toolSupplier">Supplier</label>
+              <div class="inv-input-wrapper">
+                <i class="bi bi-person inv-input-icon"></i>
+                <input type="text" id="toolSupplier" class="inv-input" placeholder="Supplier name" />
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="inv-field-label" for="toolSpecification">Specification / Notes</label>
+              <textarea id="toolSpecification" class="inv-textarea" rows="2" placeholder="e.g. 1/2 inch, Grade A, for split-type units..."></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer inv-modal-footer">
+          <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Cancel
+          </button>
+          <button type="button" id="saveToolBtn" class="inv-btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);box-shadow:0 8px 24px rgba(15,118,110,0.3);">
+            <i class="bi bi-check-lg"></i> Save Tool
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HP Variants Management Modal -->
+  <div class="modal fade" id="variantsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="margin-top: 8vh">
+      <div class="inv-modal-content">
+        <div class="inv-modal-header" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);">
+          <h5 class="inv-modal-title" id="variantsModalTitle">
+            <i class="bi bi-box"></i> Edit Variant
+          </h5>
+          <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body inv-modal-body">
+          <div class="mb-3">
+            <h6 class="mb-0 fw-bold text-dark">
+              <i class="bi bi-box me-2"></i>Product: <span id="variantProductName">-</span>
+            </h6>
+          </div>
+          <div id="variantsContainer2" class="row g-2">
+            <!-- Single variant will be loaded here -->
+          </div>
+          <div class="text-muted text-micro mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Edit the HP, pricing, and stock details for this variant
+          </div>
+        </div>
+        <div class="modal-footer inv-modal-footer">
+          <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Styles -->
+  <style>
+    .inventory-premium {
+      --primary: #2563eb;
+      --primary-light: #3b82f6;
+      --primary-dark: #1d4ed8;
+    }
+    
+    /* Header */
+    .inv-header-premium {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+      border-radius: 24px;
+      padding: 32px 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(15,36,96,0.25);
+    }
+    .inv-header-glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%);
+      top: -150px;
+      right: -100px;
+      pointer-events: none;
+    }
+    .inv-avatar-premium {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255,255,255,0.2);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .inv-avatar-premium i {
+      font-size: 1.8rem;
+      color: #fff;
+    }
+    .inv-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #fff;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .inv-subtitle {
+      color: rgba(255,255,255,0.75);
+      margin: 0;
+      font-size: 0.9rem;
+    }
+    .inv-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .inv-btn-pill,
+    .inv-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+      min-height: 48px;
+      font-size: 0.9rem;
+    }
+    .inv-btn-pill {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border-color: rgba(255,255,255,0.3);
+      color: #fff;
+    }
+    .inv-btn-pill:hover {
+      background: rgba(255,255,255,0.25);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+      color: #fff;
+    }
+    .inv-btn-primary {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.3);
+    }
+    .inv-btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 32px rgba(16,185,129,0.4);
+      color: #fff;
+    }
+    .inv-icon-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    .inv-label-block {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+      text-align: left;
+    }
+    .inv-label-block small {
+      text-transform: uppercase;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.7);
+    }
+    .inv-label-block strong {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: inherit;
+    }
+
+    /* Section Label */
+    .inv-section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+    }
+
+    /* KPI Cards */
+    .inv-kpi-card {
+      padding: 1.5rem;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.95);
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+    }
+    .inv-kpi-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 48px rgba(15,36,96,0.12);
+    }
+    .inv-kpi-card.primary { border-left: 4px solid #2563eb; }
+    .inv-kpi-card.danger { border-left: 4px solid #ef4444; }
+    .inv-kpi-card.success { border-left: 4px solid #10b981; }
+    .inv-kpi-card.warning { border-left: 4px solid #f59e0b; }
+    .inv-kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+    .inv-kpi-label {
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .inv-kpi-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #0a1628;
+      line-height: 1;
+    }
+    .inv-kpi-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      color: #fff;
+    }
+    .inv-kpi-card.primary .inv-kpi-icon { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .inv-kpi-card.danger .inv-kpi-icon { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .inv-kpi-card.success .inv-kpi-icon { background: linear-gradient(135deg, #10b981, #059669); }
+    .inv-kpi-card.warning .inv-kpi-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .inv-kpi-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .inv-kpi-badge.positive { background: rgba(16,185,129,0.1); color: #059669; }
+    .inv-kpi-badge.negative { background: rgba(239,68,68,0.1); color: #dc2626; }
+    .inv-kpi-badge.neutral { background: rgba(148,163,184,0.15); color: #64748b; }
+
+    /* Filter Card */
+    .inv-filter-card {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+    }
+    .inv-filter-body {
+      padding: 24px;
+    }
+    .inv-filter-label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .inv-filter-label i {
+      margin-right: 0.4rem;
+      color: #2563eb;
+    }
+    .inv-input-wrapper {
+      position: relative;
+    }
+    .inv-input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      z-index: 2;
+    }
+    .inv-input {
+      width: 100%;
+      padding: 12px 14px 12px 44px;
+      border: 1.5px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.6);
+      font-size: 0.9rem;
+      color: #0a1628;
+      transition: all 0.3s ease;
+    }
+    .inv-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+    .inv-input:focus + .inv-input-icon,
+    .inv-input-wrapper:focus-within .inv-input-icon {
+      color: #2563eb;
+    }
+
+    /* Premium Select Dropdown */
+    .inv-select-wrapper {
+      position: relative;
+    }
+    .inv-select-icon-left {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 1rem;
+      z-index: 2;
+      transition: all 0.3s ease;
+    }
+    .inv-select-icon-right {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      font-size: 0.8rem;
+      pointer-events: none;
+      transition: transform 0.3s ease;
+    }
+    .inv-select-wrapper:focus-within .inv-select-icon-right {
+      transform: translateY(-50%) rotate(180deg);
+    }
+    .inv-select-wrapper:focus-within .inv-select-icon-left {
+      color: #2563eb;
+    }
+    .inv-select {
+      width: 100%;
+      padding: 12px 40px 12px 44px;
+      border: 1.5px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.6);
+      font-size: 0.9rem;
+      color: #0a1628;
+      appearance: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .inv-select:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+    .inv-btn-filter {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 12px 20px;
+      background: rgba(148,163,184,0.15);
+      border: 1.5px solid rgba(148,163,184,0.3);
+      border-radius: 12px;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .inv-btn-filter:hover {
+      background: rgba(37,99,235,0.1);
+      border-color: rgba(37,99,235,0.3);
+      color: #2563eb;
+    }
+
+    /* Table Card */
+    .inv-table-card {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.95);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+    }
+    .inv-table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      background: rgba(241,245,249,0.6);
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+    }
+    .inv-table-header h6 {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0a1628;
+      margin: 0;
+    }
+    .inv-table-header h6 i {
+      color: #2563eb;
+    }
+    .inv-table-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .inv-btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.8);
+      border: 1.5px solid rgba(148,163,184,0.2);
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .inv-btn-icon:hover {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .inv-table {
+      margin: 0;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .inv-table thead th {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 1rem;
+      border: none;
+      background: rgba(241,245,249,0.8);
+      border-bottom: 2px solid rgba(37,99,235,0.1);
+    }
+    .inv-table thead th i {
+      margin-right: 0.4rem;
+      color: #2563eb;
+    }
+    .inv-table tbody td {
+      padding: 1rem;
+      border: none;
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+      vertical-align: top;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+    .inv-table tbody tr:hover {
+      background: rgba(37,99,235,0.03);
+    }
+    .inv-product-shell {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .inv-product-media {
+      width: 60px;
+      height: 60px;
+      flex-shrink: 0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f8fafc;
+      border: 1px solid rgba(148,163,184,0.2);
+    }
+    .inv-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.45rem;
+    }
+    .inv-variant-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      gap: 0.4rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    .inv-variant-pill {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.12rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 9px;
+      border: 1px solid rgba(37,99,235,0.22);
+      background: rgba(219,234,254,0.55);
+      color: #1d4ed8;
+      line-height: 1.2;
+      min-height: 44px;
+    }
+    .inv-variant-pill strong {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: inherit;
+    }
+    .inv-variant-pill small {
+      font-size: 0.68rem;
+      color: #64748b;
+    }
+    .inv-stock-value {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      margin-bottom: 0.35rem;
+    }
+    .inv-actions-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      align-items: flex-end;
+      width: 100%;
+    }
+    .inv-action-btn {
+      min-width: 112px;
+      justify-content: center;
+      font-weight: 600;
+    }
+    .inv-loading-cell {
+      text-align: center;
+      padding: 3rem !important;
+    }
+    .inv-spinner {
+      display: inline-flex;
+      position: relative;
+      width: 40px;
+      height: 40px;
+      margin-bottom: 1rem;
+    }
+    .inv-spinner-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      border-top-color: #2563eb;
+      animation: invSpin 1.2s linear infinite;
+    }
+    .inv-spinner-ring:nth-child(2) {
+      inset: 6px;
+      border-top-color: #3b82f6;
+      animation-duration: 0.9s;
+      animation-direction: reverse;
+    }
+    .inv-spinner-ring:nth-child(3) {
+      inset: 12px;
+      border-top-color: #60a5fa;
+      animation-duration: 0.6s;
+    }
+    @keyframes invSpin {
+      to { transform: rotate(360deg); }
+    }
+    .inv-table-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: rgba(241,245,249,0.4);
+      border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .inv-summary {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .inv-pagination {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .inv-pagination .page-item .page-link {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1.5px solid rgba(148,163,184,0.3);
+      background: rgba(255,255,255,0.8);
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .inv-pagination .page-item.disabled .page-link {
+      opacity: 0.5;
+    }
+
+    /* Modal */
+    #addItemModal .modal-dialog {
+      transform: translate(0, 8vh) !important;
+    }
+    #addItemModal .modal-dialog-centered {
+      display: flex !important;
+      align-items: flex-start !important;
+    }
+    .inv-modal-content {
+      background: rgba(255,255,255,0.98);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 32px 64px rgba(15,36,96,0.2);
+      backdrop-filter: blur(20px);
+    }
+    .inv-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    }
+    .inv-modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .inv-modal-close {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .inv-modal-close:hover {
+      background: rgba(255,255,255,0.25);
+      transform: rotate(90deg);
+    }
+    .inv-modal-close:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.18), 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .inv-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1rem;
+      border-radius: 12px;
+      border: 1px solid #d7e0ea;
+      background: #ffffff;
+      color: #475569;
+      font-weight: 600;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+      transition: all 0.25s ease;
+    }
+    .inv-btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #b7c5d6;
+      color: #0f172a;
+      transform: translateY(-1px);
+    }
+    .inv-btn-secondary:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    .inv-modal-body {
+      padding: 28px;
+    }
+    .inv-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 20px 28px;
+      background: rgba(241,245,249,0.5);
+      border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .inv-field-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .inv-field-hint {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.25rem;
+    }
+    .inv-textarea {
+      width: 100%;
+      padding: 14px;
+      border: 1.5px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.6);
+      font-size: 0.95rem;
+      color: #334155;
+      resize: vertical;
+      min-height: 80px;
+      transition: all 0.3s ease;
+    }
+    .inv-textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+
+    /* Rating Modal */
+    .inv-rating-big {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+    .inv-star-big {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-size: 2.5rem;
+      color: #e2e8f0;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .inv-star-big:hover {
+      transform: scale(1.15);
+    }
+    .inv-star-big.active {
+      color: #fbbf24;
+    }
+    .inv-star-big.active i::before {
+      content: "\f586";
+    }
+    .inv-rating-label {
+      font-size: 0.9rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    /* Responsive */
+    @media (max-width: 767px) {
+      .inv-header-premium { padding: 24px; }
+      .inv-title { font-size: 1.4rem; }
+      .inv-actions { flex-direction: column; align-items: stretch; }
+      .inv-btn-pill, .inv-btn-primary { width: 100%; justify-content: center; }
+      .inv-table-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .inv-table-footer { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .inv-modal-footer { flex-direction: column; }
+      .inv-modal-footer .inv-btn-primary, .inv-modal-footer .inv-btn-secondary { width: 100%; justify-content: center; }
+      .inv-variant-grid { grid-template-columns: repeat(2, minmax(80px, 1fr)); max-width: none; }
+      .inv-actions-stack { align-items: stretch; }
+      .inv-action-btn { width: 100%; min-width: 0; }
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Move all modals to body to prevent z-index/backdrop issues in nested layouts
+      document.querySelectorAll('.modal').forEach(modal => {
+        if (modal && modal.parentElement !== document.body) {
+          document.body.appendChild(modal);
+        }
+      });
+    });
+  </script>
+
+<script>
+  // ─── Aircon Inventory Admin Logic ────────────────────────────────────────────
+  (function () {
+    const tbody = document.getElementById("inventoryTableBody");
+    const summary = document.getElementById("inventorySummary");
+    const kpiTotal = document.getElementById("kpiTotalItems");
+    const kpiLow = document.getElementById("kpiLowStock");
+    const kpiValue = document.getElementById("kpiTotalValue");
+    let inventoryData = [];
+    let editingId = null;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function fmtPrice(p) {
+      if (!p) return '₱ 0.00';
+      return '₱ ' + Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    const TYPE_LABELS = {
+      split: 'Split Type',
+      split_ceiling: 'Split - Ceiling',
+      window_inverter: 'Window (Inverter)',
+      window_non_inverter: 'Window (Non-Inv)',
+      floor_mounted: 'Floor Mounted',
+    };
+
+    const STATUS_BADGES = {
+      in_stock:      { cls: 'bg-success-subtle text-success border border-success-subtle', label: 'In Stock' },
+      low_stock:     { cls: 'bg-warning-subtle text-warning border border-warning-subtle', label: 'Low Stock' },
+      out_of_stock:  { cls: 'bg-danger-subtle text-danger border border-danger-subtle', label: 'Out of Stock' },
+      coming_soon:   { cls: 'bg-info-subtle text-info border border-info-subtle', label: 'Coming Soon' },
+      discontinued:  { cls: 'bg-secondary-subtle text-secondary border border-secondary-subtle', label: 'Discontinued' },
+    };
+
+    function starHtml(rating, count) {
+      if (!rating) return '<span class="text-muted text-micro">—</span>';
+      const stars = Array.from({ length: 5 }).map((_, i) => {
+        if (i + 1 <= Math.floor(rating)) return '<i class="bi bi-star-fill"></i>';
+        if (i < rating) return '<i class="bi bi-star-half"></i>';
+        return '<i class="bi bi-star"></i>';
+      }).join('');
+      return `<div class="text-warning">${stars}</div><div class="text-micro text-muted">${Number(rating).toFixed(1)} (${count || 0})</div>`;
+    }
+
+    // ── Group Aircons by Model Name ─────────────────────────────────────────────
+    function groupAirconsByModel(items) {
+      const grouped = {};
+      
+      items.forEach(item => {
+        const modelName = item.modelLine || item.itemName || 'Unknown';
+        const brandName = (item.brand && item.brand.name) || '';
+        const key = `${brandName}-${modelName}`;
+        
+        if (!grouped[key]) {
+          grouped[key] = {
+            modelName,
+            brandName,
+            type: item.type,
+            variants: [],
+            totalQuantity: 0,
+            imageUrl: item.imageUrl,
+            status: item.status,
+            lowestPrice: Infinity,
+            highestPrice: 0,
+            inverter: item.inverter
+          };
+        }
+        
+        grouped[key].variants.push({
+          capacity: item.capacity,
+          capacityUnit: item.capacityUnit || 'HP',
+          btu: item.btu,
+          sellingPrice: item.sellingPrice,
+          quantity: item.quantity || 0,
+          minStockLevel: item.minStockLevel || 3,
+          _id: item._id
+        });
+        
+        grouped[key].totalQuantity += (item.quantity || 0);
+        grouped[key].lowestPrice = Math.min(grouped[key].lowestPrice, item.sellingPrice || 0);
+        grouped[key].highestPrice = Math.max(grouped[key].highestPrice, item.sellingPrice || 0);
+      });
+      
+      return Object.values(grouped);
+    }
+
+    // ── Pagination ─────────────────────────────────────────────────────────────
+    let invPageSize = 10;
+    let invCurrentPage = 1;
+
+    function renderItemsPage(page) {
+      const start = (page - 1) * invPageSize;
+      const slice = inventoryData.slice(start, start + invPageSize);
+      tbody.innerHTML = '';
+
+      if (slice.length === 0 && inventoryData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted text-micro">No aircon products found.</td></tr>';
+        summary.innerText = '0 entries';
+        document.getElementById('inventory-pagination').innerHTML = '';
+        return;
+      }
+
+      slice.forEach(product => {
+        const brandName = (product.brand && product.brand.name) || product.brand || 'Unknown';
+        const modelName = product.modelLine || 'Unknown';
+        const variants = product.variants || [];
+        const totalQuantity = variants.reduce((sum, v) => sum + (v.quantity || 0), 0);
+        const inStockVariants = variants.filter(v => v.status === 'in_stock').length;
+        const stockCoverage = variants.length ? Math.round((inStockVariants / variants.length) * 100) : 0;
+        const priceRange = variants.length > 0 ? {
+          min: Math.min(...variants.map(v => v.sellingPrice || 0)),
+          max: Math.max(...variants.map(v => v.sellingPrice || 0))
+        } : { min: 0, max: 0 };
+
+        const row = document.createElement('tr');
+        row.innerHTML = 
+          '<td class="ps-4">' +
+            '<div class="inv-product-shell">' +
+              '<div class="inv-product-media">' +
+                (product.imageUrl && product.imageUrl !== '/images/products/default.png' ? 
+                  '<img src="' + product.imageUrl + '" alt="' + modelName + '" class="img-fluid rounded" style="width:60px;height:60px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<i class=\\\'bi bi-snow2 fs-3 text-primary d-flex align-items-center justify-content-center\\\' style=\\\'width:60px;height:60px;background:#f8f9fa;border-radius:8px;\\\'></i>\';">' :
+                  '<div class="d-flex align-items-center justify-content-center" style="width:60px;height:60px;background:#f8f9fa;border-radius:8px;"><i class="bi bi-snow2 fs-3 text-primary"></i></div>'
+                ) +
+              '</div>' +
+              '<div class="flex-grow-1">' +
+                '<div class="fw-bold text-dark mb-1" style="font-size:0.95rem;">' + modelName + '</div>' +
+                '<div class="text-muted inv-meta-row">' +
+                  '<span class="badge bg-light text-dark border" style="font-size:0.75rem;"><i class="bi bi-building me-1"></i>' + brandName + '</span>' +
+                  '<span class="text-muted" style="font-size:0.8rem;">' + variants.length + ' HP Options</span>' +
+                '</div>' +
+                '<div class="d-flex flex-wrap gap-1">' +
+                  (product.inverter ? '<span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.7rem;"><i class="bi bi-lightning-charge-fill me-1"></i>Inverter</span>' : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:0.7rem;"><i class="bi bi-lightning me-1"></i>Standard</span>') +
+                  '<span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.7rem;"><i class="bi bi-tag me-1"></i>' + (product.type || 'Split Type') + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</td>' +
+          '<td>' +
+            '<div class="text-muted small mb-1">Type: <strong>' + (product.type || 'Split Type') + '</strong></div>' +
+            '<div class="text-muted small">Technology: <strong>' + (product.inverter ? 'Inverter' : 'Non-Inverter') + '</strong></div>' +
+            (product.warranty ? '<div class="text-muted small">Warranty: <strong>' + product.warranty + '</strong></div>' : '') +
+          '</td>' +
+          '<td>' +
+            '<div class="inv-variant-grid">' +
+              variants.map(v => 
+                '<span class="inv-variant-pill">' + 
+                '<strong>' + (v.capacity || 'N/A') + ' HP</strong>' + 
+                (v.btu ? '<small>' + v.btu + ' BTU</small>' : '') +
+                '</span>'
+              ).join('') +
+            '</div>' +
+          '</td>' +
+          '<td>' +
+            '<div class="fw-bold text-primary mb-1" style="font-size:0.95rem;">' +
+              (priceRange.min === priceRange.max ? 
+                '₱' + priceRange.min.toLocaleString() : 
+                '₱' + priceRange.min.toLocaleString() + ' - ₱' + priceRange.max.toLocaleString()
+              ) +
+            '</div>' +
+            '<div class="text-muted small">' + 
+              (variants.length === 1 ? 'Single Price' : variants.length + ' Price Points') +
+            '</div>' +
+          '</td>' +
+          '<td>' +
+            '<div class="inv-stock-value">' +
+              '<div class="fw-bold ' + (totalQuantity > 10 ? 'text-success' : totalQuantity > 5 ? 'text-warning' : 'text-danger') + '" style="font-size:1.1rem;">' + totalQuantity + '</div>' +
+              '<div class="text-muted small">units</div>' +
+            '</div>' +
+            '<div class="progress" style="height:6px;">' +
+              '<div class="progress-bar ' + (inStockVariants === variants.length ? 'bg-success' : inStockVariants > 0 ? 'bg-warning' : 'bg-danger') + '" style="width:' + stockCoverage + '%"></div>' +
+            '</div>' +
+            '<div class="text-muted small mt-1">' + inStockVariants + '/' + variants.length + ' variants in stock</div>' +
+          '</td>' +
+          '<td>' +
+            (totalQuantity > 0 ? 
+              '<div class="d-flex align-items-center gap-2"><span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>In Stock</span></div>' : 
+              '<div class="d-flex align-items-center gap-2"><span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Out of Stock</span></div>'
+            ) +
+            (totalQuantity <= 5 && totalQuantity > 0 ? '<div class="text-warning small mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock</div>' : '') +
+          '</td>' +
+          '<td class="text-end pe-4">' +
+            '<div class="inv-actions-stack">' +
+              '<button class="btn btn-sm btn-outline-primary inv-action-btn edit-grouped" ' +
+                      'data-model="' + modelName + '" data-brand="' + brandName + '" title="Edit product details">' +
+                '<i class="bi bi-pencil me-1"></i>Edit' +
+              '</button>' +
+              '<button class="btn btn-sm btn-outline-info inv-action-btn manage-variants" ' +
+                      'data-model="' + modelName + '" data-brand="' + brandName + '" title="Manage HP variants">' +
+                '<i class="bi bi-layers me-1"></i>Variants' +
+              '</button>' +
+              '<button class="btn btn-sm btn-outline-success inv-action-btn rate-grouped" ' +
+                      'data-model="' + modelName + '" data-brand="' + brandName + '" title="Rate product">' +
+                '<i class="bi bi-star me-1"></i>Rate' +
+              '</button>' +
+              '<button class="btn btn-sm btn-outline-danger inv-action-btn delete-inventory" ' +
+                      'data-id="' + product._id + '" title="Archive product">' +
+                '<i class="bi bi-archive me-1"></i>Archive' +
+              '</button>' +
+            '</div>' +
+          '</td>';
+        tbody.appendChild(row);
+      });
+
+      const total = inventoryData.length;
+      const from = start + 1;
+      const to = Math.min(start + invPageSize, total);
+      summary.innerText = `Showing ${from}–${to} of ${total} entries`;
+
+      // Pagination
+      const pages = Math.ceil(total / invPageSize);
+      const ul = document.getElementById('inventory-pagination');
+      ul.innerHTML = '';
+      const prev = document.createElement('li');
+      prev.className = 'page-item' + (invCurrentPage <= 1 ? ' disabled' : '');
+      prev.innerHTML = '<a class="page-link" href="#">&laquo;</a>';
+      prev.addEventListener('click', e => { e.preventDefault(); if (invCurrentPage > 1) { invCurrentPage--; renderItemsPage(invCurrentPage); } });
+      ul.appendChild(prev);
+      const ind = document.createElement('li');
+      ind.className = 'page-item disabled mx-2';
+      ind.innerHTML = `<span class="page-link">${invCurrentPage} of ${pages}</span>`;
+      ul.appendChild(ind);
+      const next = document.createElement('li');
+      next.className = 'page-item' + (invCurrentPage >= pages ? ' disabled' : '');
+      next.innerHTML = '<a class="page-link" href="#">&raquo;</a>';
+      next.addEventListener('click', e => { e.preventDefault(); if (invCurrentPage < pages) { invCurrentPage++; renderItemsPage(invCurrentPage); } });
+      ul.appendChild(next);
+    }
+
+    // ── KPI Rendering ──────────────────────────────────────────────────────────
+    function renderItems(items) {
+      inventoryData = items;
+      let totalValue = 0, lowCount = 0, totalVariants = 0;
+      
+      items.forEach((product) => {
+        // Count variants
+        totalVariants += (product.variants || []).length;
+        
+        // Calculate total value across all variants
+        (product.variants || []).forEach(variant => {
+          totalValue += (variant.sellingPrice || 0) * (variant.quantity || 0);
+          if (variant.status === 'low_stock' || variant.status === 'out_of_stock') lowCount++;
+        });
+      });
+      
+      kpiTotal.innerText = totalVariants; // Total variants instead of items
+      kpiLow.innerText = lowCount;
+      kpiValue.innerText = fmtPrice(totalValue);
+
+      invCurrentPage = 1;
+      renderItemsPage(invCurrentPage);
+    }
+
+    // ── Data Fetch ─────────────────────────────────────────────────────────────
+    async function loadInventory() {
+      try {
+        const r = await fetch('/api/secretary/hvac');
+        if (!r.ok) throw new Error('fail');
+        const j = await r.json();
+        renderItems(j.products || []);
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 small text-muted text-danger">Failed to load</td></tr>';
+      }
+    }
+    loadInventory();
+
+    // ── Add New Item Button Event Listener ───────────────────────────────────────
+    const addBtn = document.getElementById('openAddItemBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function() {
+        openModal(null); // Open modal with null for adding new item
+      });
+    }
+
+    // ── Variant Management ───────────────────────────────────────────────────────
+    let variantIdCounter = 0;
+
+    // Add variant button event listener
+    const addVariantBtn = document.getElementById('addVariantBtn');
+    if (addVariantBtn) {
+      addVariantBtn.addEventListener('click', function() {
+        addVariantRow();
+      });
+    }
+
+    // Add variant row function
+    function addVariantRow(variantData = null) {
+      const variantId = variantData?._id || `variant_${++variantIdCounter}`;
+      const container = document.getElementById('variantsContainer');
+      const variantNumber = container.children.length + 1;
+      
+      const variantRow = document.createElement('div');
+      variantRow.className = 'col-12';
+      variantRow.id = `variant_${variantId}`;
+      
+      variantRow.innerHTML = `
+        <div class="border rounded p-3 bg-white">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0 fw-bold text-primary">
+              <i class="bi bi-box me-1"></i>Variant ${variantNumber}
+            </h6>
+            <div class="d-flex gap-2">
+              ${variantData ? `<button type="button" class="btn btn-sm btn-outline-danger remove-variant" data-variant-id="${variantId}" title="Remove this variant">
+                <i class="bi bi-trash"></i> Remove
+              </button>` : ''}
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="inv-field-label small">Capacity (HP) <span class="text-danger">*</span></label>
+              <input type="number" class="inv-input" step="0.5" min="0.5" max="5" placeholder="1.0" data-field="capacity" value="${variantData?.capacity || ''}" required />
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label small">BTU Rating</label>
+              <input type="number" class="inv-input" placeholder="12000" data-field="btu" value="${variantData?.btu || ''}" />
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label small">Selling Price (₱) <span class="text-danger">*</span></label>
+              <input type="number" class="inv-input" step="0.01" min="0" placeholder="15000" data-field="sellingPrice" value="${variantData?.sellingPrice || ''}" required />
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label small">Cost Price (₱)</label>
+              <input type="number" class="inv-input" step="0.01" min="0" placeholder="12000" data-field="costPrice" value="${variantData?.costPrice || ''}" />
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label small">Stock Quantity <span class="text-danger">*</span></label>
+              <input type="number" class="inv-input" min="0" placeholder="10" data-field="quantity" value="${variantData?.quantity || ''}" required />
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label small">Reorder Level</label>
+              <input type="number" class="inv-input" min="0" placeholder="3" data-field="minStockLevel" value="${variantData?.minStockLevel || ''}" />
+            </div>
+            <div class="col-md-4">
+              <label class="inv-field-label small">Status</label>
+              <select class="inv-select" data-field="status">
+                <option value="in_stock" ${variantData?.status === 'in_stock' ? 'selected' : ''}>In Stock</option>
+                <option value="low_stock" ${variantData?.status === 'low_stock' ? 'selected' : ''}>Low Stock</option>
+                <option value="out_of_stock" ${variantData?.status === 'out_of_stock' ? 'selected' : ''}>Out of Stock</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(variantRow);
+    }
+
+    // Remove variant function
+    function removeVariantRow(variantId) {
+      const variantRow = document.getElementById(`variant_${variantId}`);
+      if (variantRow) {
+        variantRow.remove();
+        // Update variant numbers
+        const container = document.getElementById('variantsContainer');
+        Array.from(container.children).forEach((row, index) => {
+          const titleElement = row.querySelector('h6');
+          if (titleElement) {
+            titleElement.innerHTML = `<i class="bi bi-box me-1"></i>Variant ${index + 1}`;
+          }
+        });
+      }
+    }
+
+    // Event delegation for remove variant buttons
+    document.body.addEventListener('click', function(e) {
+      if (e.target.matches('.remove-variant') || e.target.closest('.remove-variant')) {
+        const btn = e.target.matches('.remove-variant') ? e.target : e.target.closest('.remove-variant');
+        const variantId = btn.dataset.variantId;
+        if (confirm('Remove this variant?')) {
+          removeVariantRow(variantId);
+        }
+      }
+    });
+
+    // Get variants data function
+    function getVariantsData() {
+      const variants = [];
+      const container = document.getElementById('variantsContainer');
+      
+      Array.from(container.children).forEach(variantRow => {
+        const variantData = {};
+        variantRow.querySelectorAll('[data-field]').forEach(input => {
+          const field = input.dataset.field;
+          const value = input.type === 'number' ? 
+            (parseFloat(input.value) || 0) : input.value;
+          variantData[field] = value;
+        });
+        
+        // Only add variant if it has required fields
+        if (variantData.capacity && variantData.sellingPrice) {
+          variants.push(variantData);
+        }
+      });
+      
+      return variants;
+    }
+
+    // ── Form Alert Helpers ─────────────────────────────────────────────────────
+    const formAlertEl = document.getElementById('inventoryFormAlert');
+    function showFormAlert(type, msg) {
+      formAlertEl.className = 'alert alert-' + type + ' mb-3';
+      formAlertEl.textContent = msg;
+      formAlertEl.classList.remove('d-none');
+    }
+    function hideFormAlert() {
+      formAlertEl.classList.add('d-none');
+    }
+
+    // ── Image Upload Logic ───────────────────────────────────────────────────────
+    let uploadedImageData = null;
+    
+    // Image upload event listener
+    document.getElementById('invImage').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          showFormAlert('danger', 'Image size must be less than 5MB');
+          e.target.value = '';
+          return;
+        }
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          showFormAlert('danger', 'Please select a valid image file');
+          e.target.value = '';
+          return;
+        }
+        
+        // Read and preview the image
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedImageData = e.target.result;
+          showImagePreview(uploadedImageData);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    // Remove image button
+    document.getElementById('removeImageBtn').addEventListener('click', function() {
+      uploadedImageData = null;
+      document.getElementById('invImage').value = '';
+      hideImagePreview();
+    });
+    
+    function showImagePreview(imageSrc) {
+      try {
+        const preview = document.getElementById('invImagePreview');
+        const placeholder = document.getElementById('invImagePlaceholder');
+        const img = preview.querySelector('img');
+        
+        if (!preview || !placeholder || !img) {
+          console.error('Image preview elements not found');
+          return;
+        }
+        
+        img.src = imageSrc;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+      } catch (error) {
+        console.error('Error in showImagePreview:', error);
+      }
+    }
+    
+    function hideImagePreview() {
+      try {
+        const preview = document.getElementById('invImagePreview');
+        const placeholder = document.getElementById('invImagePlaceholder');
+        
+        if (!preview || !placeholder) {
+          console.error('Image preview elements not found');
+          return;
+        }
+        
+        preview.style.display = 'none';
+        placeholder.style.display = 'block';
+      } catch (error) {
+        console.error('Error in hideImagePreview:', error);
+      }
+    }
+
+    // ── Modal Logic ────────────────────────────────────────────────────────────
+    function openModal(item) {
+      try {
+        const mEl = document.getElementById('addItemModal');
+        if (!mEl) {
+          console.error('addItemModal element not found');
+          return;
+        }
+        
+        const modal = bootstrap && bootstrap.Modal
+          ? bootstrap.Modal.getInstance(mEl) || new bootstrap.Modal(mEl)
+          : null;
+          
+        const titleEl = document.getElementById('addItemModalTitle');
+        if (!titleEl) {
+          console.error('addItemModalTitle element not found');
+          return;
+        }
+        
+        hideFormAlert();
+
+        // Reset image state
+        uploadedImageData = null;
+        const invImageEl = document.getElementById('invImage');
+        if (invImageEl) invImageEl.value = '';
+
+        // Clear variants container
+        const variantsContainer = document.getElementById('variantsContainer');
+        if (variantsContainer) {
+          variantsContainer.innerHTML = '';
+          variantIdCounter = 0;
+        }
+
+        if (item) {
+          editingId = item._id;
+          
+          // Check if this is a variant edit (has variantId) or product edit
+          if (item.variantId) {
+            titleEl.innerHTML = '<i class="bi bi-snow2"></i> Edit HP Variant';
+            // Hide add variant button for single variant edit
+            const addVariantBtn = document.getElementById('addVariantBtn');
+            if (addVariantBtn) addVariantBtn.style.display = 'none';
+          } else {
+            titleEl.innerHTML = '<i class="bi bi-snow2"></i> Edit HVAC Product';
+            // Show add variant button for product edit
+            const addVariantBtn = document.getElementById('addVariantBtn');
+            if (addVariantBtn) addVariantBtn.style.display = 'block';
+          }
+          
+          // Product-level fields
+          const modelLineEl = document.getElementById('invModelLine');
+          if (modelLineEl) modelLineEl.value = item.modelLine || '';
+          
+          const brandEl = document.getElementById('invBrand');
+          if (brandEl) brandEl.value = (item.brand && item.brand.name) || item.brand || '';
+          
+          const typeEl = document.getElementById('invType');
+          if (typeEl) typeEl.value = item.type || 'split';
+          
+          const inverterEl = document.getElementById('invInverter');
+          if (inverterEl) inverterEl.checked = !!item.inverter;
+          
+          const statusEl = document.getElementById('invStatus');
+          if (statusEl) statusEl.value = item.status || '';
+          
+          const warrantyEl = document.getElementById('invWarranty');
+          if (warrantyEl) warrantyEl.value = item.warranty || '';
+          
+          const descriptionEl = document.getElementById('invDescription');
+          if (descriptionEl) descriptionEl.value = item.description || '';
+          
+          // Handle existing image
+          if (item.imageUrl && item.imageUrl !== '/images/products/default.png') {
+            showImagePreview(item.imageUrl);
+          } else {
+            hideImagePreview();
+          }
+
+          // Load existing variants for product edit
+          if (item.variants && item.variants.length > 0) {
+            item.variants.forEach(variant => {
+              addVariantRow(variant);
+            });
+          } else if (item.capacity && item.sellingPrice) {
+            // Single variant edit (from grouped table)
+            addVariantRow({
+              capacity: item.capacity,
+              btu: item.btu,
+              sellingPrice: item.sellingPrice,
+              costPrice: item.costPrice,
+              quantity: item.quantity,
+              minStockLevel: item.minStockLevel,
+              status: item.status,
+              _id: item._id
+            });
+          }
+        } else {
+          editingId = null;
+          titleEl.innerHTML = '<i class="bi bi-snow2"></i> Add HVAC Product';
+          
+          // Show add variant button for new product
+          const addVariantBtn = document.getElementById('addVariantBtn');
+          if (addVariantBtn) addVariantBtn.style.display = 'block';
+          
+          const formEl = document.getElementById('inventoryForm');
+          if (formEl) formEl.reset();
+          
+          hideImagePreview();
+          
+          // Add one empty variant for new product
+          addVariantRow();
+        }
+        
+        modal && modal.show();
+      } catch (error) {
+        console.error('Error in openModal:', error);
+        alert('Error opening modal: ' + error.message);
+      }
+    }
+    window.openInventoryModal = openModal;
+
+
+    // ── Event Delegation ──────────────────────────────────────────────────────
+    document.body.addEventListener('click', function (e) {
+      // Edit individual item
+      if (e.target.matches('.edit-inventory')) {
+        const id = e.target.dataset.id;
+        const item = inventoryData.find((i) => i._id === id);
+        if (item) openModal(item);
+      }
+
+      // Edit individual variant
+      if (e.target.matches('.edit-variant') || e.target.closest('.edit-variant')) {
+        const btn = e.target.matches('.edit-variant') ? e.target : e.target.closest('.edit-variant');
+        const id = btn.dataset.id;
+        const item = inventoryData.find((i) => i._id === id);
+        if (item) openModal(item);
+      }
+
+      // Edit grouped item - show first variant for now
+      if (e.target.matches('.edit-grouped') || e.target.closest('.edit-grouped')) {
+        const btn = e.target.matches('.edit-grouped') ? e.target : e.target.closest('.edit-grouped');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item && item.variants && item.variants.length > 0) {
+          // Pass the first variant for editing
+          const firstVariant = {
+            ...item,
+            capacity: item.variants[0].capacity,
+            btu: item.variants[0].btu,
+            sellingPrice: item.variants[0].sellingPrice,
+            costPrice: item.variants[0].costPrice,
+            quantity: item.variants[0].quantity,
+            minStockLevel: item.variants[0].minStockLevel,
+            variantId: item.variants[0]._id
+          };
+          openModal(firstVariant);
+        }
+      }
+
+      // Manage variants for grouped item
+      if (e.target.matches('.manage-variants') || e.target.closest('.manage-variants')) {
+        const btn = e.target.matches('.manage-variants') ? e.target : e.target.closest('.manage-variants');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item) {
+          editingId = item._id;
+          openVariantsModal();
+        }
+      }
+
+      // Rate individual item
+      if (e.target.matches('.rate-inventory')) {
+        window._ratingItemId = e.target.dataset.id;
+        // reset rating modal
+        document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+        document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+        document.getElementById('invRatingComment').value = '';
+        window._ratingScore = 0;
+        const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+        ratingModal.show();
+      }
+
+      // Rate individual variant
+      if (e.target.matches('.rate-variant') || e.target.closest('.rate-variant')) {
+        const btn = e.target.matches('.rate-variant') ? e.target : e.target.closest('.rate-variant');
+        const id = btn.dataset.id;
+        window._ratingItemId = id;
+        // reset rating modal
+        document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+        document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+        document.getElementById('invRatingComment').value = '';
+        window._ratingScore = 0;
+        const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+        ratingModal.show();
+      }
+
+      // Rate grouped item - rate first variant for now
+      if (e.target.matches('.rate-grouped') || e.target.closest('.rate-grouped')) {
+        const btn = e.target.matches('.rate-grouped') ? e.target : e.target.closest('.rate-grouped');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item && item.variants && item.variants.length > 0) {
+          window._ratingItemId = item.variants[0]._id; // Rate first variant
+          // reset rating modal
+          document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+          document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+          document.getElementById('invRatingComment').value = '';
+          window._ratingScore = 0;
+          const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+          ratingModal.show();
+        }
+      }
+
+      // Delete
+      if (e.target.matches('.delete-inventory') || e.target.closest('.delete-inventory')) {
+        const btn = e.target.matches('.delete-inventory') ? e.target : e.target.closest('.delete-inventory');
+        const id = btn.dataset.id;
+        if (!id) return;
+        if (!confirm('Archive this product? It will be hidden from active inventory.')) return;
+        fetch(`/api/secretary/hvac/${encodeURIComponent(id)}`, { method: 'DELETE' })
+          .then(async (r) => {
+            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Delete failed'); }
+            return r.json();
+          })
+          .then(() => loadInventory())
+          .catch((err) => alert(err.message || 'Delete failed'));
+      }
+    });
+
+    // ── Rating Modal Stars ────────────────────────────────────────────────────
+    window._ratingScore = 0;
+    document.querySelectorAll('#invModalRating .inv-star-big').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const val = Number(this.dataset.value);
+        window._ratingScore = val;
+        const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+        document.getElementById('invModalRatingLabel').textContent = labels[val] || '';
+        document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => {
+          s.classList.toggle('active', Number(s.dataset.value) <= val);
+        });
+      });
+    });
+
+    // Submit rating with comment
+    document.getElementById('invSubmitRating').addEventListener('click', async function () {
+      const score = window._ratingScore;
+      const comment = (document.getElementById('invRatingComment').value || '').trim();
+      const id = window._ratingItemId;
+      if (!score || score < 1 || score > 5) return alert('Please select a star rating.');
+      if (!id) return;
+      try {
+        const r = await fetch(`/api/rating/inventory/${encodeURIComponent(id)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ score, comment: comment || undefined }),
+        });
+        const d = await r.json();
+        if (d.rating !== undefined) {
+          const ratingModal = bootstrap.Modal.getInstance(document.getElementById('invRatingModal'));
+          ratingModal && ratingModal.hide();
+          loadInventory();
+        } else {
+          alert('Failed to submit rating.');
+        }
+      } catch (err) {
+        alert('Rating submission failed.');
+      }
+    });
+
+    // ── Variants Modal Management ─────────────────────────────────────────────
+    let currentEditingProduct = null;
+    let variantsData2 = [];
+    let variantIdCounter2 = 0;
+
+    function openVariantsModal() {
+      currentEditingProduct = editingId;
+      const product = inventoryData.find(i => i._id === currentEditingProduct);
+      
+      if (!product) return;
+      
+      // Set product name
+      document.getElementById('variantProductName').textContent = 
+        `${product.modelLine || 'Unknown'} - ${(product.brand && product.brand.name) || product.brand || 'Unknown'}`;
+      
+      // Clear and load all variants for this product
+      variantsData2 = [];
+      variantIdCounter2 = 0;
+      document.getElementById('variantsContainer2').innerHTML = '';
+      
+      // Load all variants of this product
+      if (product.variants && product.variants.length > 0) {
+        product.variants.forEach((variant, index) => {
+          addVariantRow2({
+            capacity: variant.capacity,
+            btu: variant.btu,
+            sellingPrice: variant.sellingPrice,
+            costPrice: variant.costPrice,
+            quantity: variant.quantity,
+            minStockLevel: variant.minStockLevel,
+            _id: variant._id
+          });
+        });
+      } else {
+        // Add empty variant if none exist
+        addVariantRow2();
+      }
+      
+      // Show modal
+      const modal = new bootstrap.Modal(document.getElementById('variantsModal'));
+      modal.show();
+    }
+
+    function addVariantRow2(variantData = null) {
+      const variantId = variantData?._id || `variant_${++variantIdCounter2}`;
+      const container = document.getElementById('variantsContainer2');
+      const variantNumber = container.children.length + 1;
+      
+      const variantRow = document.createElement('div');
+      variantRow.className = 'col-12';
+      variantRow.id = `variant2_${variantId}`;
+      
+      variantRow.innerHTML = `
+        <div class="border rounded p-4 bg-white">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0 fw-bold text-primary">
+              <i class="bi bi-box me-1"></i>Variant ${variantNumber}
+            </h6>
+            <div class="d-flex gap-2">
+              ${variantData ? `<button type="button" class="btn btn-sm btn-outline-danger remove-variant2" data-variant-id="${variantId}" title="Remove this variant">
+                <i class="bi bi-trash"></i> Remove
+              </button>` : ''}
+              <button type="button" class="btn btn-sm btn-success save-variant2" data-variant-id="${variantId}" title="Save this variant">
+                <i class="bi bi-check-lg"></i> Save
+              </button>
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="inv-field-label text-small">Capacity (HP) <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" data-field="capacity" data-variant-id="${variantId}" required>
+                <option value="">Select HP</option>
+                <option value="0.5">0.5 HP</option>
+                <option value="0.75">0.75 HP</option>
+                <option value="1.0">1.0 HP</option>
+                <option value="1.5">1.5 HP</option>
+                <option value="2.0">2.0 HP</option>
+                <option value="2.5">2.5 HP</option>
+                <option value="3.0">3.0 HP</option>
+                <option value="3.5">3.5 HP</option>
+                <option value="4.0">4.0 HP</option>
+                <option value="5.0">5.0 HP</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label text-small">BTU Rating</label>
+              <input type="number" class="form-control form-control-sm" data-field="btu" data-variant-id="${variantId}" placeholder="e.g. 9000" min="0" />
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label text-small">Selling Price (₱) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control form-control-sm" data-field="sellingPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" required />
+            </div>
+            <div class="col-md-3">
+              <label class="inv-field-label text-small">Cost Price (₱)</label>
+              <input type="number" class="form-control form-control-sm" data-field="costPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" />
+            </div>
+            <div class="col-md-6">
+              <label class="inv-field-label text-small">Stock Qty</label>
+              <input type="number" class="form-control form-control-sm" data-field="quantity" data-variant-id="${variantId}" placeholder="0" min="0" />
+            </div>
+            <div class="col-md-6">
+              <label class="inv-field-label text-small">Reorder Level</label>
+              <input type="number" class="form-control form-control-sm" data-field="minStockLevel" data-variant-id="${variantId}" placeholder="3" min="0" />
+            </div>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(variantRow);
+      
+      // Populate data if provided
+      if (variantData) {
+        const capacitySelect = variantRow.querySelector(`[data-field="capacity"]`);
+        const btuInput = variantRow.querySelector(`[data-field="btu"]`);
+        const sellingPriceInput = variantRow.querySelector(`[data-field="sellingPrice"]`);
+        const costPriceInput = variantRow.querySelector(`[data-field="costPrice"]`);
+        const quantityInput = variantRow.querySelector(`[data-field="quantity"]`);
+        const minStockLevelInput = variantRow.querySelector(`[data-field="minStockLevel"]`);
+        
+        if (capacitySelect) capacitySelect.value = variantData.capacity || '';
+        if (btuInput) btuInput.value = variantData.btu || '';
+        if (sellingPriceInput) sellingPriceInput.value = variantData.sellingPrice || '';
+        if (costPriceInput) costPriceInput.value = variantData.costPrice || '';
+        if (quantityInput) quantityInput.value = variantData.quantity || '';
+        if (minStockLevelInput) minStockLevelInput.value = variantData.minStockLevel || '';
+      }
+      
+      // Store variant data
+      variantsData2.push({ variantId, data: variantData || {} });
+    }
+
+    // Event delegation for variants modal
+    document.body.addEventListener('click', function(e) {
+      // Save variant in variants modal
+      if (e.target.matches('.save-variant2') || e.target.closest('.save-variant2')) {
+        const btn = e.target.matches('.save-variant2') ? e.target : e.target.closest('.save-variant2');
+        const variantId = btn.dataset.variantId;
+        saveIndividualVariant2(variantId);
+      }
+      
+      // Remove variant in variants modal
+      if (e.target.matches('.remove-variant2') || e.target.closest('.remove-variant2')) {
+        const btn = e.target.matches('.remove-variant2') ? e.target : e.target.closest('.remove-variant2');
+        const variantId = btn.dataset.variantId;
+        if (confirm('Remove this variant?')) {
+          removeVariantRow2(variantId);
+        }
+      }
+    });
+
+    // Save individual variant function
+    async function saveIndividualVariant2(variantId) {
+      try {
+        const variantRow = document.getElementById(`variant2_${variantId}`);
+        if (!variantRow) return;
+        
+        // Get variant data from form fields
+        const variantData = { _id: variantId };
+        variantRow.querySelectorAll('[data-field]').forEach(input => {
+          const field = input.dataset.field;
+          variantData[field] = input.type === 'number' ? 
+            (parseFloat(input.value) || 0) : input.value;
+        });
+        
+        // Find the product
+        const product = inventoryData.find(i => i._id === currentEditingProduct);
+        if (!product) {
+          alert('Product not found');
+          return;
+        }
+        
+        // Combine with product-level data for API
+        const data = {
+          modelLine: product.modelLine,
+          brand: (product.brand && product.brand.name) || product.brand,
+          type: product.type,
+          inverter: product.inverter,
+          warranty: product.warranty,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          variant: variantData // Send variant data separately
+        };
+        
+        // Determine if this is a new variant or existing
+        const isNewVariant = variantId.startsWith('variant_');
+        const url = isNewVariant ? '/api/secretary/hvac/' + currentEditingProduct + '/variants' : '/api/secretary/hvac/' + currentEditingProduct + '/variants/' + variantId;
+        const method = isNewVariant ? 'POST' : 'PATCH';
+        
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          alert('Variant saved successfully!');
+          loadInventory(); // Reload inventory data
+          // Close modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('variantsModal'));
+          modal && modal.hide();
+        } else {
+          const error = await response.json();
+          alert('Failed to save variant: ' + (error.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error saving variant:', error);
+        alert('Error saving variant: ' + error.message);
+      }
+    }
+
+    // Remove variant row function
+    function removeVariantRow2(variantId) {
+      const variantRow = document.getElementById(`variant2_${variantId}`);
+      if (variantRow) {
+        variantRow.remove();
+        // Update variant numbers
+        const container = document.getElementById('variantsContainer2');
+        Array.from(container.children).forEach((row, index) => {
+          const titleElement = row.querySelector('h6');
+          if (titleElement) {
+            titleElement.innerHTML = `<i class="bi bi-box me-1"></i>Variant ${index + 1}`;
+          }
+        });
+      }
+    }
+
+    // ── Event Delegation for Main Inventory ────────────────────────────────────────
+    document.body.addEventListener('click', function (e) {
+      // Edit individual item
+      if (e.target.matches('.edit-inventory')) {
+        const id = e.target.dataset.id;
+        const item = inventoryData.find((i) => i._id === id);
+        if (item) openModal(item);
+      }
+
+      // Edit individual variant
+      if (e.target.matches('.edit-variant') || e.target.closest('.edit-variant')) {
+        const btn = e.target.matches('.edit-variant') ? e.target : e.target.closest('.edit-variant');
+        const id = btn.dataset.id;
+        const item = inventoryData.find((i) => i._id === id);
+        if (item) openModal(item);
+      }
+
+      // Edit grouped item - show first variant for now
+      if (e.target.matches('.edit-grouped') || e.target.closest('.edit-grouped')) {
+        const btn = e.target.matches('.edit-grouped') ? e.target : e.target.closest('.edit-grouped');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item && item.variants && item.variants.length > 0) {
+          // Pass the first variant for editing
+          const firstVariant = {
+            ...item,
+            capacity: item.variants[0].capacity,
+            btu: item.variants[0].btu,
+            sellingPrice: item.variants[0].sellingPrice,
+            costPrice: item.variants[0].costPrice,
+            quantity: item.variants[0].quantity,
+            minStockLevel: item.variants[0].minStockLevel,
+            variantId: item.variants[0]._id
+          };
+          openModal(firstVariant);
+        }
+      }
+
+      // Manage variants for grouped item
+      if (e.target.matches('.manage-variants') || e.target.closest('.manage-variants')) {
+        const btn = e.target.matches('.manage-variants') ? e.target : e.target.closest('.manage-variants');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item) {
+          editingId = item._id;
+          openVariantsModal();
+        }
+      }
+
+      // Rate individual item
+      if (e.target.matches('.rate-inventory')) {
+        window._ratingItemId = e.target.dataset.id;
+        // reset rating modal
+        document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+        document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+        document.getElementById('invRatingComment').value = '';
+        window._ratingScore = 0;
+        const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+        ratingModal.show();
+      }
+
+      // Rate individual variant
+      if (e.target.matches('.rate-variant') || e.target.closest('.rate-variant')) {
+        const btn = e.target.matches('.rate-variant') ? e.target : e.target.closest('.rate-variant');
+        const id = btn.dataset.id;
+        window._ratingItemId = id;
+        // reset rating modal
+        document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+        document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+        document.getElementById('invRatingComment').value = '';
+        window._ratingScore = 0;
+        const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+        ratingModal.show();
+      }
+
+      // Rate grouped item - rate first variant for now
+      if (e.target.matches('.rate-grouped') || e.target.closest('.rate-grouped')) {
+        const btn = e.target.matches('.rate-grouped') ? e.target : e.target.closest('.rate-grouped');
+        const modelName = btn.dataset.model;
+        const brandName = btn.dataset.brand;
+        const item = inventoryData.find((i) => 
+          i.modelLine === modelName && 
+          ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
+        );
+        if (item && item.variants && item.variants.length > 0) {
+          window._ratingItemId = item.variants[0]._id; // Rate first variant
+          // reset rating modal
+          document.querySelectorAll('#invModalRating .inv-star-big').forEach(s => s.classList.remove('active'));
+          document.getElementById('invModalRatingLabel').textContent = 'Tap a star to rate';
+          document.getElementById('invRatingComment').value = '';
+          window._ratingScore = 0;
+          const ratingModal = new bootstrap.Modal(document.getElementById('invRatingModal'));
+          ratingModal.show();
+        }
+      }
+
+      // Delete
+      if (e.target.matches('.delete-inventory') || e.target.closest('.delete-inventory')) {
+        const btn = e.target.matches('.delete-inventory') ? e.target : e.target.closest('.delete-inventory');
+        const id = btn.dataset.id;
+        if (!id) return;
+        if (!confirm('Archive this product? It will be hidden from active inventory.')) return;
+        fetch(`/api/secretary/hvac/${encodeURIComponent(id)}`, { method: 'DELETE' })
+          .then(async (r) => {
+            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Delete failed'); }
+            return r.json();
+          })
+          .then(() => loadInventory())
+          .catch((err) => alert(err.message || 'Delete failed'));
+      }
+    });
+
+    // ── Save Product Handler ──────────────────────────────────────────────────
+    const saveBtn = document.getElementById('saveInventoryBtn');
+    saveBtn && saveBtn.addEventListener('click', async () => {
+      hideFormAlert();
+
+      const modelLine = document.getElementById('invModelLine').value.trim();
+      const brand = document.getElementById('invBrand').value.trim();
+      const type = document.getElementById('invType').value;
+      const inverter = document.getElementById('invInverter').checked;
+      const status = document.getElementById('invStatus').value || undefined;
+      const warranty = document.getElementById('invWarranty').value.trim();
+      const description = document.getElementById('invDescription').value.trim();
+
+      // Validation
+      if (!modelLine) return showFormAlert('warning', 'Model Line is required.');
+      if (!type) return showFormAlert('warning', 'Type is required.');
+      
+      // Get variants data
+      const variants = getVariantsData();
+      if (variants.length === 0) {
+        return showFormAlert('warning', 'At least one variant with capacity and selling price is required.');
+      }
+      
+      const data = {
+        modelLine, brand, type, inverter,
+        status, warranty, description,
+        category: 'Split Type Aircon',
+        salesChannel: 'both',
+        variants: variants
+      };
+
+      // Handle image upload
+      if (uploadedImageData) {
+        // Convert base64 to blob and create FormData
+        const response = await fetch(uploadedImageData);
+        const blob = await response.blob();
+        const formData = new FormData();
+        
+        // Add all fields to FormData
+        Object.keys(data).forEach(key => {
+          formData.append(key, data[key]);
+        });
+        formData.append('image', blob, 'product.jpg');
+        
+        try {
+          let url = '/api/secretary/hvac';
+          let method = 'POST';
+          if (editingId) { url += '/' + editingId; method = 'PATCH'; }
+
+          const r = await fetch(url, {
+            method,
+            body: formData, // Don't set Content-Type header for FormData
+          });
+          if (r.ok) {
+            const m = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
+            m && m.hide();
+            editingId = null;
+            uploadedImageData = null;
+            loadInventory();
+          } else {
+            const j = await r.json();
+            showFormAlert('danger', j.error || 'Failed to save HVAC product.');
+          }
+        } catch (e) {
+          showFormAlert('danger', 'Network error: ' + e.message);
+        }
+      } else {
+        // Save without image
+        try {
+          let url = '/api/secretary/hvac';
+          let method = 'POST';
+          if (editingId) { url += '/' + editingId; method = 'PATCH'; }
+
+          const r = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (r.ok) {
+            const m = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
+            m && m.hide();
+            editingId = null;
+            loadInventory();
+          } else {
+            const j = await r.json();
+            showFormAlert('danger', j.error || 'Failed to save HVAC product.');
+          }
+        } catch (e) {
+          showFormAlert('danger', 'Network error: ' + e.message);
+        }
+      }
+    });
+  })();
+
+  // ─── Helper Functions ────────────────────────────────────────────────────────
+  function showFormAlert(type, message) {
+    const alertEl = document.getElementById('inventoryFormAlert');
+    if (!alertEl) return;
+    alertEl.className = `alert alert-${type} mb-3`;
+    alertEl.textContent = message;
+    alertEl.classList.remove('d-none');
+  }
+
+  function hideFormAlert() {
+    const alertEl = document.getElementById('inventoryFormAlert');
+    if (!alertEl) return;
+    alertEl.classList.add('d-none');
+  }
+
+  function showImagePreview(imageSrc) {
+    const previewEl = document.getElementById('invImagePreview');
+    const placeholderEl = document.getElementById('invImagePlaceholder');
+    const imgEl = previewEl?.querySelector('img');
+    
+    if (previewEl && placeholderEl && imgEl) {
+      imgEl.src = imageSrc;
+      previewEl.style.display = 'block';
+      placeholderEl.style.display = 'none';
+    }
+  }
+
+  function hideImagePreview() {
+    const previewEl = document.getElementById('invImagePreview');
+    const placeholderEl = document.getElementById('invImagePlaceholder');
+    
+    if (previewEl && placeholderEl) {
+      previewEl.style.display = 'none';
+      placeholderEl.style.display = 'flex';
+    }
+  }
+
+  function fmtPrice(num) {
+    return '₱' + (num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+</script>
+
+<%- /* ─────────────────────────────────────────────────────────────────────────────
+   END OF INVENTORY MANAGEMENT JAVASCRIPT
+   ───────────────────────────────────────────────────────────────────────────── */ %>
+

@@ -1,0 +1,401 @@
+<div class="admin-dashboard container-fluid px-0 py-4 profile-admin-page">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═══════════════════════════════════════════════════
+       PREMIUM ADMIN PROFILE — Light Blue Cohesive Theme
+       Senior-Level UI/UX Design System
+       ═══════════════════════════════════════════════════ */
+    .profile-admin-page {
+      --pp-primary: #0ea5e9;           /* Sky 500 — main brand */
+      --pp-primary-dark: #0284c7;      /* Sky 600 */
+      --pp-primary-deeper: #0369a1;    /* Sky 700 */
+      --pp-primary-light: #e0f2fe;     /* Sky 100 */
+      --pp-primary-pale: #f0f9ff;      /* Sky 50 */
+      --pp-accent: #38bdf8;            /* Sky 400 */
+      --pp-text-dark: #0c4a6e;         /* Sky 900 */
+      --pp-text-mid: #475569;          /* Slate 600 */
+      --pp-text-muted: #94a3b8;        /* Slate 400 */
+      --pp-border: #e2e8f0;
+      --pp-surface: #ffffff;
+      --pp-radius: 18px;
+      --pp-shadow: 0 4px 6px -1px rgba(14,165,233,0.07), 0 2px 4px -2px rgba(14,165,233,0.04);
+      --pp-shadow-hover: 0 12px 28px -4px rgba(14,165,233,0.15), 0 4px 8px -4px rgba(14,165,233,0.08);
+    }
+
+    /* ─── STAT CARDS ROW ─── */
+    .profile-admin-page .stat-card {
+      background: var(--pp-surface);
+      border: 1px solid var(--pp-border);
+      border-radius: 14px;
+      padding: 1.1rem 1rem;
+      text-align: center;
+      transition: all 0.25s ease;
+      box-shadow: var(--pp-shadow);
+    }
+    .profile-admin-page .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--pp-shadow-hover);
+    }
+    .profile-admin-page .stat-card .sc-icon {
+      width: 46px; height: 46px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem;
+      margin: 0 auto 0.6rem;
+      color: #fff;
+    }
+    .profile-admin-page .stat-card .sc-icon.c1 {
+      background: linear-gradient(135deg, var(--pp-primary), var(--pp-accent));
+      box-shadow: 0 4px 14px rgba(14,165,233,0.3);
+    }
+    .profile-admin-page .stat-card .sc-icon.c2 {
+      background: linear-gradient(135deg, #0d9488, #14b8a6);
+      box-shadow: 0 4px 14px rgba(13,148,136,0.3);
+    }
+    .profile-admin-page .stat-card .sc-icon.c3 {
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      box-shadow: 0 4px 14px rgba(124,58,237,0.3);
+    }
+    .profile-admin-page .stat-card .sc-label {
+      font-size: 0.7rem;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--pp-text-muted);
+      margin-bottom: 0.15rem;
+    }
+    .profile-admin-page .stat-card .sc-value {
+      font-size: 1.15rem;
+      font-weight: 700 !important;
+      color: var(--pp-text-dark);
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* ─── INFO CARDS ─── */
+    .profile-admin-page .info-card {
+      background: var(--pp-surface);
+      border: 1px solid var(--pp-border);
+      border-radius: var(--pp-radius);
+      padding: 1.5rem 1.5rem 1.25rem;
+      box-shadow: var(--pp-shadow);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      margin-bottom: 1.25rem;
+      height: auto !important;
+    }
+    .profile-admin-page .info-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--pp-shadow-hover);
+    }
+
+    /* Section title inside cards */
+    .profile-admin-page .card-head {
+      display: flex; align-items: center; gap: 0.55rem;
+      margin-bottom: 1.1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .profile-admin-page .card-head .ch-icon {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem; flex-shrink: 0;
+      color: #fff;
+    }
+    .profile-admin-page .card-head .ch-icon.blue {
+      background: linear-gradient(135deg, var(--pp-primary), var(--pp-accent));
+      box-shadow: 0 3px 10px rgba(14,165,233,0.25);
+    }
+    .profile-admin-page .card-head .ch-icon.purple {
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      box-shadow: 0 3px 10px rgba(124,58,237,0.25);
+    }
+    .profile-admin-page .card-head h2 {
+      font-size: 0.95rem;
+      font-weight: 700 !important;
+      color: var(--pp-text-dark);
+      margin: 0;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* ─── Info Rows ─── */
+    .profile-admin-page .irow {
+      display: flex; align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #f8fafc;
+    }
+    .profile-admin-page .irow:last-child { border-bottom: none; }
+
+    .profile-admin-page .irow .ir-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem; flex-shrink: 0;
+      /* UNIFIED light-blue tint for all icons */
+      background: var(--pp-primary-light);
+      color: var(--pp-primary);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .profile-admin-page .irow:hover .ir-icon {
+      transform: scale(1.06);
+      box-shadow: 0 3px 10px rgba(14,165,233,0.18);
+    }
+
+    .profile-admin-page .irow .ir-text {
+      flex: 1; min-width: 0;
+    }
+    .profile-admin-page .irow .ir-label {
+      font-size: 0.7rem;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pp-text-muted);
+      margin-bottom: 0.1rem;
+    }
+    .profile-admin-page .irow .ir-value {
+      font-size: 0.9rem;
+      font-weight: 600 !important;
+      color: var(--pp-text-dark);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .profile-admin-page .role-pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      background: linear-gradient(135deg, var(--pp-primary), var(--pp-accent));
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700 !important;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      box-shadow: 0 3px 10px rgba(14,165,233,0.3);
+    }
+    .profile-admin-page .role-pill i { font-size: 0.7rem; }
+
+    .profile-admin-page .status-active {
+      color: #059669 !important;
+      font-weight: 600 !important;
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+    .profile-admin-page .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      box-shadow: 0 0 6px rgba(16,185,129,0.5);
+      animation: ppPulse 2s ease-in-out infinite;
+    }
+    @keyframes ppPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ─── ACTION BUTTONS ─── */
+    .profile-admin-page .action-row {
+      background: var(--pp-surface);
+      border: 1px solid var(--pp-border);
+      border-radius: 14px;
+      padding: 1rem 1.5rem;
+      box-shadow: var(--pp-shadow);
+      display: flex; align-items: center;
+      gap: 0.75rem; flex-wrap: wrap;
+      margin-top: 0.25rem;
+    }
+    .profile-admin-page .btn-act {
+      padding: 0.6rem 1.25rem;
+      border-radius: 10px;
+      font-weight: 600 !important;
+      font-size: 0.82rem;
+      transition: all 0.25s ease;
+      display: inline-flex; align-items: center;
+      gap: 0.4rem; text-decoration: none;
+      border: none; cursor: pointer;
+    }
+    .profile-admin-page .btn-act.filled {
+      background: linear-gradient(135deg, var(--pp-primary), var(--pp-accent));
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(14,165,233,0.3);
+    }
+    .profile-admin-page .btn-act.filled:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(14,165,233,0.35);
+      color: #fff; text-decoration: none;
+    }
+    .profile-admin-page .btn-act.outline {
+      background: #fff;
+      color: var(--pp-text-dark);
+      border: 1.5px solid var(--pp-border);
+    }
+    .profile-admin-page .btn-act.outline:hover {
+      border-color: var(--pp-primary);
+      color: var(--pp-primary);
+      background: var(--pp-primary-pale);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(14,165,233,0.1);
+      text-decoration: none;
+    }
+    .profile-admin-page .btn-act.outline-danger {
+      background: #fff;
+      color: #e11d48;
+      border: 1.5px solid #fecdd3;
+    }
+    .profile-admin-page .btn-act.outline-danger:hover {
+      border-color: #fb7185;
+      background: #fff1f2;
+      color: #be123c;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(225,29,72,0.1);
+      text-decoration: none;
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      .profile-admin-page .action-row { flex-direction: column; }
+      .profile-admin-page .btn-act { width: 100%; justify-content: center; }
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-person-gear"></i></div>
+        <div>
+          <h1>Admin Profile</h1>
+          <p><%= user && user.email ? user.email : 'admin@system.com' %></p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <span class="badge bg-primary me-2"><i class="bi bi-shield-fill-check me-1"></i>Administrator</span>
+        <a href="/admin" class="btn btn-light btn-sm fw-semibold" style="border-radius:10px;">
+          <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ STAT CARDS ════════ -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="sc-icon c1"><i class="bi bi-calendar2-check"></i></div>
+        <div class="sc-label">Account Created</div>
+        <div class="sc-value">
+          <%= user && user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A' %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="sc-icon c2"><i class="bi bi-clock-history"></i></div>
+        <div class="sc-label">Last Login</div>
+        <div class="sc-value">
+          <%= user && user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A' %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card">
+        <div class="sc-icon c3"><i class="bi bi-shield-lock"></i></div>
+        <div class="sc-label">Access Level</div>
+        <div class="sc-value">Full Access</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ INFO CARDS ════════ -->
+  <div class="row g-3">
+    <!-- Personal Information -->
+    <div class="col-lg-6">
+      <div class="info-card">
+        <div class="card-head">
+          <div class="ch-icon blue"><i class="bi bi-person-vcard"></i></div>
+          <h2>Personal Information</h2>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-person-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">First Name</div>
+            <div class="ir-value"><%= user.firstName || 'N/A' %></div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-person-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Last Name</div>
+            <div class="ir-value"><%= user.lastName || 'N/A' %></div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-envelope-at-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Email Address</div>
+            <div class="ir-value"><%= user.email || 'N/A' %></div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-telephone-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Phone Number</div>
+            <div class="ir-value"><%= user.phone || 'N/A' %></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Status -->
+    <div class="col-lg-6">
+      <div class="info-card">
+        <div class="card-head">
+          <div class="ch-icon purple"><i class="bi bi-shield-shaded"></i></div>
+          <h2>Account Status</h2>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-calendar3"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Account Created</div>
+            <div class="ir-value"><%= user && user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A' %></div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-clock-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Last Login</div>
+            <div class="ir-value"><%= user && user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A' %></div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-patch-check-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Role</div>
+            <div class="ir-value">
+              <span class="role-pill"><i class="bi bi-star-fill"></i> Administrator</span>
+            </div>
+          </div>
+        </div>
+        <div class="irow">
+          <div class="ir-icon"><i class="bi bi-check-circle-fill"></i></div>
+          <div class="ir-text">
+            <div class="ir-label">Account Status</div>
+            <div class="ir-value">
+              <span class="status-active"><span class="status-dot"></span> Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ ACTION BUTTONS ════════ -->
+  <div class="action-row">
+    <a href="/admin/logs" class="btn-act filled">
+      <i class="bi bi-activity"></i> View Activity Logs
+    </a>
+    <a href="#" class="btn-act outline" onclick="alert('Feature coming soon!'); return false;">
+      <i class="bi bi-pencil-square"></i> Edit Profile
+    </a>
+    <a href="#" class="btn-act outline-danger" onclick="alert('Feature coming soon!'); return false;">
+      <i class="bi bi-key-fill"></i> Change Password
+    </a>
+  </div>
+</div>

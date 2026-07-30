@@ -1,0 +1,133 @@
+<%- include('../../../partials/dashboard-styles') %>
+
+<style>
+  .wa-page-inner { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+  @media (max-width: 767px) { .wa-page-inner { padding: 0 1rem; } }
+
+  .wa-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+  .wa-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fafbfc; }
+  .wa-panel-title { font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .wa-panel-body { padding: 16px 20px; }
+
+  .wa-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; transition: all 0.2s; }
+  .wa-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
+  .wa-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+  .wa-ref { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+  .wa-customer { font-size: 1rem; font-weight: 700; color: #1e293b; }
+  .wa-service { font-size: 0.85rem; color: #64748b; }
+  .wa-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: #475569; }
+  .wa-meta i { width: 14px; color: #94a3b8; }
+  .wa-tech { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .wa-tech-avatar { width: 28px; height: 28px; border-radius: 50%; background: #f59e0b; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.7rem; flex-shrink: 0; }
+  .wa-tech-info { font-size: 0.8rem; }
+  .wa-tech-name { font-weight: 600; color: #1e293b; }
+  .wa-tech-contact { font-size: 0.72rem; color: #64748b; }
+  .wa-time { font-size: 0.72rem; color: #94a3b8; }
+  .wa-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: #fffbeb; color: #92400e; }
+
+  .wa-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
+  .wa-empty i { font-size: 3rem; display: block; margin-bottom: 12px; }
+</style>
+
+<div class="wa-page-inner pb-4">
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-hourglass-split"></i></div>
+        <div>
+          <h1>Waiting for Acceptance</h1>
+          <p>Bookings assigned to technicians awaiting their confirmation</p>
+        </div>
+      </div>
+      <div class="au-hero-stats">
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="waTotal">-</div><div class="au-hero-stat-lbl">Pending</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wa-panel">
+    <div class="wa-panel-header">
+      <h5 class="wa-panel-title"><i class="bi bi-list-check me-2"></i>Assigned Bookings</h5>
+      <small class="text-muted" id="waCountLabel">0 bookings</small>
+    </div>
+    <div class="wa-panel-body" id="waListContainer">
+      <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
+    </div>
+    <div class="d-flex justify-content-center py-3" id="waPagination"></div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let currentPage = 1;
+  const container = document.getElementById('waListContainer');
+  const pagination = document.getElementById('waPagination');
+
+  async function loadPage(page) {
+    currentPage = page;
+    container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
+    pagination.innerHTML = '';
+
+    try {
+      const res = await fetch(`/api/admin/appointments/waiting-acceptance/list?page=${page}&limit=20`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const bookings = data.bookings || [];
+      const pag = data.pagination;
+
+      document.getElementById('waTotal').textContent = pag.total;
+      document.getElementById('waCountLabel').textContent = pag.total + ' booking' + (pag.total !== 1 ? 's' : '');
+
+      if (!bookings.length) {
+        container.innerHTML = '<div class="wa-empty"><i class="bi bi-check-circle"></i><p>All assigned bookings have been accepted by technicians.</p></div>';
+        return;
+      }
+
+      container.innerHTML = bookings.map(b => {
+        const tech = b.technician;
+        const assignedDate = b.assignedAt ? new Date(b.assignedAt).toLocaleString() : '—';
+        const bookingDate = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString() : '—';
+        return '<div class="wa-card">' +
+          '<div class="wa-card-top">' +
+            '<div>' +
+              '<div class="wa-ref">' + (b.bookingReference || b._id.slice(-8).toUpperCase()) + '</div>' +
+              '<div class="wa-customer">' + (b.customer?.name || 'Unknown') + '</div>' +
+              '<div class="wa-service">' + (b.service?.name || '—') + '</div>' +
+            '</div>' +
+            '<span class="wa-badge"><i class="bi bi-clock me-1"></i>Waiting</span>' +
+          '</div>' +
+          '<div class="wa-meta">' +
+            '<span><i class="bi bi-calendar3 me-1"></i>' + bookingDate + '</span>' +
+            '<span><i class="bi bi-clock me-1"></i>' + (b.startTime || '—') + ' - ' + (b.endTime || '—') + '</span>' +
+            '<span><i class="bi bi-geo-alt me-1"></i>' + (b.address || '—') + '</span>' +
+          '</div>' +
+          (tech ? '<div class="wa-tech">' +
+            '<div class="wa-tech-avatar">' + (tech.name || 'T')[0].toUpperCase() + '</div>' +
+            '<div class="wa-tech-info">' +
+              '<div class="wa-tech-name">' + tech.name + '</div>' +
+              '<div class="wa-tech-contact">' + (tech.phone || tech.email || '—') + '</div>' +
+            '</div>' +
+            '<div class="ms-auto wa-time">Assigned: ' + assignedDate + '</div>' +
+          '</div>' : '') +
+        '</div>';
+      }).join('');
+
+      if (pag.pages > 1) {
+        let pgHtml = '<nav><ul class="pagination pagination-sm">';
+        for (let i = 1; i <= pag.pages; i++) {
+          pgHtml += '<li class="page-item' + (i === page ? ' active' : '') + '"><a class="page-link" href="#" onclick="event.preventDefault();loadPage(' + i + ')">' + i + '</a></li>';
+        }
+        pgHtml += '</ul></nav>';
+        pagination.innerHTML = pgHtml;
+      }
+    } catch(e) {
+      container.innerHTML = '<div class="alert alert-danger small">Failed to load bookings</div>';
+    }
+  }
+
+  loadPage(1);
+
+  // Refresh every 30s
+  setInterval(() => { if (document.getElementById('waListContainer').querySelector('.wa-card')) loadPage(currentPage); }, 30000);
+});
+</script>

@@ -1,0 +1,495 @@
+<style>
+  .to-page { font-family: 'Inter', 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; }
+  .to-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .to-kpi { background: #fff; border-radius: 14px; padding: 14px 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 6px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
+  .to-kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; border-radius: 4px 0 0 4px; }
+  .to-kpi.blue::before{background:#3b82f6;} .to-kpi.amber::before{background:#f59e0b;} .to-kpi.orange::before{background:#fb923c;} .to-kpi.cyan::before{background:#06b6d4;} .to-kpi.purple::before{background:#8b5cf6;} .to-kpi.green::before{background:#22c55e;} .to-kpi.red::before{background:#ef4444;}
+  .to-kpi-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; margin-bottom: 8px; }
+  .to-kpi.blue .to-kpi-icon{background:#eff6ff;color:#3b82f6;} .to-kpi.amber .to-kpi-icon{background:#fffbeb;color:#f59e0b;} .to-kpi.orange .to-kpi-icon{background:#fff7ed;color:#fb923c;} .to-kpi.cyan .to-kpi-icon{background:#ecfeff;color:#06b6d4;} .to-kpi.purple .to-kpi-icon{background:#f5f3ff;color:#8b5cf6;} .to-kpi.green .to-kpi-icon{background:#f0fdf4;color:#22c55e;} .to-kpi.red .to-kpi-icon{background:#fef2f2;color:#ef4444;}
+  .to-kpi-val { font-size: 1.45rem; font-weight: 800; color: #0f172a; line-height: 1; }
+  .to-kpi-lbl { font-size: 0.67rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-top: 2px; }
+  .to-filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  
+  .mw-split-layout { display: flex; gap: 20px; align-items: flex-start; }
+  .mw-split-left { flex: 1; min-width: 0; transition: all 0.3s ease; }
+  .mw-split-left.panel-open { flex: 0 0 38%; max-width: 38%; }
+  .mw-split-right { flex: 0 0 0; overflow: hidden; transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); border-radius: 16px; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); max-height: calc(100vh - 100px); position: sticky; top: 20px; opacity: 0; transform: translateX(20px); visibility: hidden; }
+  .mw-split-right.open { flex: 1; opacity: 1; transform: translateX(0); visibility: visible; overflow: visible; }
+  .mw-split-right-inner { display: flex; flex-direction: column; height: 100%; max-height: calc(100vh - 100px); overflow-y: auto; }
+  
+  .detail-panel-header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #2563eb 100%); color: #fff; padding: 20px 24px 16px; flex-shrink: 0; position: sticky; top: 0; z-index: 50; overflow: hidden; }
+  .detail-panel-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
+  .detail-panel-header-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .detail-panel-avatar { width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; border: 1px solid rgba(255, 255, 255, 0.1); }
+  .detail-panel-title { font-size: 1.05rem; font-weight: 700; margin: 0; line-height: 1.3; }
+  .detail-panel-subtitle { font-size: 0.72rem; opacity: 0.8; margin-top: 2px; }
+  .detail-panel-close { width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+  .detail-panel-close:hover { background: rgba(255, 255, 255, 0.25); }
+  
+  .detail-panel-workflow { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); position: relative; z-index: 1; }
+  .detail-panel-workflow .wf-step { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 0; position: relative; }
+  .detail-panel-workflow .wf-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.5); border: 2px solid rgba(255, 255, 255, 0.2); transition: all 0.3s; position: relative; z-index: 2; }
+  .detail-panel-workflow .wf-step.active .wf-dot { background: #4ade80; border-color: #4ade80; color: #065f46; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.2); }
+  .detail-panel-workflow .wf-step.completed .wf-dot { background: rgba(255, 255, 255, 0.25); border-color: rgba(255, 255, 255, 0.4); color: #fff; }
+  .detail-panel-workflow .wf-step-label { font-size: 0.55rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.5); text-align: center; white-space: nowrap; }
+  .detail-panel-workflow .wf-step.active .wf-step-label, .detail-panel-workflow .wf-step.completed .wf-step-label { color: rgba(255, 255, 255, 0.9); }
+  .detail-panel-workflow .wf-connector { flex: 1; height: 2px; background: rgba(255, 255, 255, 0.15); margin: 0 -2px; align-self: flex-start; margin-top: 13px; position: relative; z-index: 1; }
+  .detail-panel-workflow .wf-connector.completed { background: rgba(255, 255, 255, 0.4); }
+  
+  .detail-panel-body { flex: 1; overflow-y: visible; padding: 20px; background: #f8fafc; }
+  .detail-panel-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 60px 24px; text-align: center; color: #94a3b8; }
+  .detail-panel-empty i { font-size: 3rem; margin-bottom: 16px; color: #cbd5e1; }
+  .detail-panel-empty h6 { font-weight: 700; color: #475569; margin-bottom: 6px; font-size: 0.95rem; }
+  .detail-panel-actions { padding: 14px 20px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; position: sticky; bottom: 0; z-index: 50; }
+  .detail-status-badge { font-size: 0.65rem; font-weight: 700; padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.15); color: #fff; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+  
+  .to-order-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); cursor: pointer; transition: box-shadow .2s, border-color .2s; }
+  .to-order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); border-color: #cbd5e1; }
+  .to-order-card.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+  .to-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
+  .to-badge.assigned{background:#dbeafe;color:#1e40af;} .to-badge.accepted{background:#dcfce7;color:#166534;} .to-badge.declined{background:#fee2e2;color:#991b1b;} .to-badge.preparing{background:#fef9c3;color:#713f12;} .to-badge.delivery{background:#cffafe;color:#155e75;} .to-badge.arrived{background:#ede9fe;color:#4c1d95;} .to-badge.installing{background:#fef3c7;color:#92400e;} .to-badge.completed{background:#dcfce7;color:#14532d;} .to-badge.cancelled{background:#fee2e2;color:#7f1d1d;} .to-badge.pending{background:#f1f5f9;color:#334155;}
+  .to-btn { display:inline-flex; align-items:center; gap:4px; padding:6px 14px; border-radius:8px; font-size:0.76rem; font-weight:700; border:none; cursor:pointer; transition:all .15s; }
+  .to-btn-accept{background:#2563eb;color:#fff;} .to-btn-accept:hover{background:#1d4ed8;}
+  .to-btn-decline{background:#fff;color:#ef4444;border:1.5px solid #fca5a5;} .to-btn-decline:hover{background:#fef2f2;}
+  .to-btn-enroute{background:#0891b2;color:#fff;} .to-btn-enroute:hover{background:#0e7490;}
+  .to-btn-arrived{background:#7c3aed;color:#fff;} .to-btn-arrived:hover{background:#6d28d9;}
+  .to-btn-install{background:#d97706;color:#fff;} .to-btn-install:hover{background:#b45309;}
+  .to-btn-done{background:#16a34a;color:#fff;} .to-btn-done:hover{background:#15803d;}
+  .to-info-row { display:flex; justify-content:space-between; align-items:flex-start; padding:6px 0; font-size:0.85rem; border-bottom:1px solid #e2e8f0; }
+  .to-info-label{color:#64748b;font-weight:500;} .to-info-value{color:#0f172a;font-weight:600;text-align:right;max-width:60%;}
+  .to-empty{text-align:center;padding:50px 20px;}
+  .to-empty-icon{width:64px;height:64px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:1.6rem;color:#94a3b8;}
+  .to-empty h6{font-weight:700;color:#475569;margin-bottom:4px;} .to-empty p{color:#94a3b8;font-size:0.82rem;}
+  @media (max-width: 991px) {
+    .mw-split-layout { flex-direction: column; gap: 0; }
+    .mw-split-left.panel-open { display: none; }
+    .mw-split-right { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1060; border-radius: 0; max-height: 100vh; transform: translateX(100%); opacity: 1; visibility: visible; }
+    .mw-split-right.open { transform: translateX(0); }
+    .to-kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    .to-kpi { padding: 1rem; }
+    .to-kpi-icon { width: 30px; height: 30px; font-size: 0.85rem; }
+    .to-kpi-val { font-size: 1.25rem; }
+    .to-kpi-lbl { font-size: 0.6rem; }
+  }
+
+  @media (max-width: 767px) {
+    .to-page { padding: 0.75rem; }
+    .to-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    .to-kpi { padding: 0.875rem; }
+    .to-kpi-icon { width: 28px; height: 28px; font-size: 0.8rem; }
+    .to-kpi-val { font-size: 1.15rem; }
+    .to-kpi-lbl { font-size: 0.58rem; }
+    .to-filter-bar { padding: 1rem; border-radius: 12px; }
+    .to-order-card { padding: 1rem; border-radius: 10px; }
+    .to-badge { font-size: 0.65rem; padding: 2px 8px; }
+    .to-btn { padding: 0.5rem 0.875rem; font-size: 0.72rem; }
+    .to-info-row { font-size: 0.8rem; }
+    .detail-panel-header { padding: 1rem 1.25rem; }
+    .detail-panel-title { font-size: 0.95rem; }
+    .detail-panel-subtitle { font-size: 0.68rem; }
+    .detail-panel-avatar { width: 38px; height: 38px; font-size: 1rem; }
+    .detail-panel-close { width: 28px; height: 28px; }
+    .detail-panel-workflow .wf-dot { width: 24px; height: 24px; font-size: 0.6rem; }
+    .detail-panel-workflow .wf-step-label { font-size: 0.5rem; }
+    .detail-panel-body { padding: 1rem; }
+    .detail-panel-actions { padding: 0.875rem 1rem; }
+  }
+
+  @media (max-width: 480px) {
+    .to-kpi-grid { grid-template-columns: 1fr; }
+    .to-filter-bar { padding: 0.875rem; }
+    #toStatusTabs { display: flex; overflow-x: auto; gap: 0.5rem; padding-bottom: 0.5rem; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    #toStatusTabs::-webkit-scrollbar { display: none; }
+    #toStatusTabs .btn { white-space: nowrap; font-size: 0.7rem; padding: 0.35rem 0.65rem; }
+    .to-order-card { padding: 0.875rem; }
+    .to-info-row { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+    .to-info-value { text-align: left; max-width: 100%; }
+    .detail-panel-header { padding: 0.875rem 1rem; }
+    .detail-panel-workflow { margin-top: 0.75rem; padding-top: 0.75rem; }
+    .detail-panel-workflow .wf-dot { width: 22px; height: 22px; font-size: 0.55rem; }
+    .detail-panel-workflow .wf-step-label { font-size: 0.45rem; }
+  }
+</style>
+
+<div class="to-page container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="mb-1 fw-bold"><i class="bi bi-box-seam me-2 text-info"></i>Order Management</h4>
+      <p class="text-muted small mb-0">Track and fulfill delivery &amp; installation orders</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm fw-semibold" onclick="fetchOrders()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+      <a href="/technician" class="btn btn-outline-secondary btn-sm fw-semibold"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+    </div>
+  </div>
+
+  <div class="to-kpi-grid">
+    <div class="to-kpi blue"><div class="to-kpi-icon"><i class="bi bi-box-seam"></i></div><div class="to-kpi-val" id="kpiTotal">-</div><div class="to-kpi-lbl">All Orders</div></div>
+    <div class="to-kpi amber"><div class="to-kpi-icon"><i class="bi bi-bell"></i></div><div class="to-kpi-val" id="kpiAwaiting">-</div><div class="to-kpi-lbl">Needs Response</div></div>
+    <div class="to-kpi orange"><div class="to-kpi-icon"><i class="bi bi-check-circle"></i></div><div class="to-kpi-val" id="kpiAccepted">-</div><div class="to-kpi-lbl">Accepted</div></div>
+    <div class="to-kpi cyan"><div class="to-kpi-icon"><i class="bi bi-truck"></i></div><div class="to-kpi-val" id="kpiDelivery">-</div><div class="to-kpi-lbl">En Route</div></div>
+    <div class="to-kpi purple"><div class="to-kpi-icon"><i class="bi bi-tools"></i></div><div class="to-kpi-val" id="kpiInstalling">-</div><div class="to-kpi-lbl">Installing</div></div>
+    <div class="to-kpi green"><div class="to-kpi-icon"><i class="bi bi-check2-all"></i></div><div class="to-kpi-val" id="kpiCompleted">-</div><div class="to-kpi-lbl">Completed</div></div>
+  </div>
+
+  <div class="to-filter-bar">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md-auto">
+        <div class="d-flex gap-1 flex-wrap" id="toStatusTabs">
+          <button class="btn btn-sm btn-primary fw-semibold active" data-status="all">All</button>
+          <button class="btn btn-sm btn-outline-warning fw-semibold" data-status="technician_assigned">Needs Response</button>
+          <button class="btn btn-sm btn-outline-success fw-semibold" data-status="technician_accepted,preparing_unit">Accepted</button>
+          <button class="btn btn-sm btn-outline-info fw-semibold" data-status="out_for_delivery">En Route</button>
+          <button class="btn btn-sm btn-outline-secondary fw-semibold" data-status="arrived">Arrived</button>
+          <button class="btn btn-sm btn-outline-secondary fw-semibold" data-status="installing">Installing</button>
+          <button class="btn btn-sm btn-outline-secondary fw-semibold" data-status="completed">Done</button>
+        </div>
+      </div>
+      <div class="col-6 col-md-3 ms-md-auto">
+        <input type="text" class="form-control form-control-sm" id="toSearch" placeholder="Search ref, customer, model...">
+      </div>
+    </div>
+  </div>
+
+  <div class="mw-split-layout" id="splitLayout">
+    <!-- Left Pane: Order Cards -->
+    <div class="mw-split-left" id="leftPane">
+      <div id="toOrdersList">
+        <div class="to-empty"><div class="to-empty-icon"><i class="bi bi-hourglass-split"></i></div><h6>Loading orders...</h6><p>Please wait</p></div>
+      </div>
+    </div>
+
+    <!-- Right Pane: Detail Tracker -->
+    <div class="mw-split-right" id="rightPane">
+      <div class="mw-split-right-inner">
+        
+        <div class="detail-panel-header" id="detailPanelHeader" style="display:none;">
+          <div class="detail-panel-header-top">
+            <div class="detail-panel-header-left">
+              <div class="detail-panel-avatar"><i class="bi bi-box-seam"></i></div>
+              <div>
+                <h5 class="detail-panel-title" id="detailPanelCustomer">Customer Name</h5>
+                <div class="detail-panel-subtitle">
+                  <span id="detailPanelRef">Order #---</span>
+                  <span style="margin:0 6px;opacity:0.4;">|</span>
+                  <span class="detail-status-badge" id="detailPanelStatusBadge">STATUS</span>
+                </div>
+              </div>
+            </div>
+            <button class="detail-panel-close" onclick="closeDetailPanel()"><i class="bi bi-x-lg" style="font-size:0.8rem;"></i></button>
+          </div>
+          <div class="detail-panel-workflow" id="detailPanelWorkflow"></div>
+        </div>
+
+        <div class="detail-panel-body" id="detailPanelBody">
+          <div class="detail-panel-empty" id="detailPanelEmpty">
+            <i class="bi bi-hand-index-thumb"></i>
+            <h6>Select an Order</h6>
+            <p>Click on any order card to view its details and track progress.</p>
+          </div>
+          <div id="detailPanelContent" style="display:none;"></div>
+        </div>
+
+        <div class="detail-panel-actions" id="detailPanelActions" style="display:none;"></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var _page=1,_status='all',_search='',_orders=[],_selectedId=null;
+  var SCFG={
+    pending_payment:{label:'Pending Payment',cls:'pending'}, preparing_unit:{label:'Preparing Unit',cls:'preparing'},
+    technician_assigned:{label:'Needs Response',cls:'assigned'}, technician_accepted:{label:'Accepted',cls:'accepted'},
+    technician_declined:{label:'Declined',cls:'declined'}, out_for_delivery:{label:'En Route',cls:'delivery'},
+    arrived:{label:'Arrived',cls:'arrived'}, installing:{label:'Installing',cls:'installing'},
+    completed:{label:'Completed',cls:'completed'}, cancelled:{label:'Cancelled',cls:'cancelled'}
+  };
+  var SICONS={technician_assigned:'bi-bell-fill',technician_accepted:'bi-check-circle-fill',technician_declined:'bi-x-circle-fill',out_for_delivery:'bi-truck',arrived:'bi-geo-alt-fill',installing:'bi-tools',completed:'bi-check2-all',cancelled:'bi-x-circle'};
+
+  var FFLOW=['Assigned','Accepted','En Route','Arrived','Installing','Completed'];
+  var FDEL=['Assigned','Accepted','En Route','Arrived','Completed'];
+  
+  function getFlow(t) { return t==='delivery_only' ? FDEL : FFLOW; }
+  
+  function getFlowIndex(s) {
+    if(s==='technician_assigned') return 0;
+    if(s==='technician_accepted' || s==='preparing_unit') return 1;
+    if(s==='out_for_delivery') return 2;
+    if(s==='arrived') return 3;
+    if(s==='installing') return 4;
+    if(s==='completed') return 5;
+    return -1;
+  }
+
+  function badge(s){
+    var c=SCFG[s]||{label:s,cls:'pending'}, ic=SICONS[s]||'bi-circle';
+    return '<span class="to-badge '+c.cls+'"><i class="bi '+ic+'"></i>'+c.label+'</span>';
+  }
+  
+  function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):'';}
+
+  window.fetchOrders = function() {
+    _search = document.getElementById('toSearch').value.trim();
+    // Build URL — handle comma-separated multi-status by NOT sending to server; filter client-side
+    var _statuses = _status!=='all' ? _status.split(',').map(s=>s.trim()) : [];
+    var url = '/api/orders/technician/all?page='+_page+'&limit=200';
+    if(_search) url+='&search='+encodeURIComponent(_search);
+    
+    document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
+    
+    fetch(url)
+    .then(r=>r.json())
+    .then(data=>{
+      var allOrders = data.orders||[];
+      // Client-side filter for comma-separated statuses
+      _orders = _statuses.length ? allOrders.filter(o=>_statuses.includes(o.status)) : allOrders;
+      updateKPIs(data.kpi||{});
+      renderCards();
+      if(_selectedId) {
+        var found = _orders.find(o=>o._id===_selectedId);
+        if(found) openDetailPanel(found);
+        else closeDetailPanel();
+      }
+    })
+    .catch(e=>{
+      document.getElementById('toOrdersList').innerHTML = '<div class="alert alert-danger">Error loading orders: '+e.message+'</div>';
+    });
+  };
+
+  function renderCards() {
+    var c = document.getElementById('toOrdersList');
+    if(!_orders.length) {
+      c.innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-inbox"></i></div><h6>No Orders Found</h6><p>Try adjusting your filters.</p></div>';
+      return;
+    }
+    var h='';
+    _orders.forEach(o=>{
+      var items=(o.items||[]).map(i=>esc(i.brand+' '+i.modelLine)).join(', ') || '1 Item';
+      var ref=esc(o.orderReference||o._id.substring(o._id.length-6).toUpperCase());
+      var type=o.fulfillmentType==='delivery_installation'?'Delivery + Install':'Delivery Only';
+      var ddate=o.delivery?.preferredDate ? new Date(o.delivery.preferredDate).toLocaleDateString() : 'TBD';
+      var cust=esc(o.customer?.name||'Customer');
+      var sel = (_selectedId===o._id) ? ' selected' : '';
+      
+      h+='<div class="to-order-card'+sel+'" data-id="'+o._id+'">';
+      h+='<div class="d-flex justify-content-between align-items-start mb-2">';
+      h+='<div><h6 class="mb-0 fw-bold">'+cust+'</h6><small class="text-muted">#'+ref+'</small></div>';
+      h+=badge(o.status);
+      h+='</div>';
+      h+='<div style="font-size:0.75rem;color:#475569;margin-bottom:8px;"><i class="bi bi-box me-1"></i>'+items+'</div>';
+      h+='<div class="d-flex gap-3" style="font-size:0.72rem;color:#64748b;">';
+      h+='<div><i class="bi bi-truck me-1"></i>'+type+'</div>';
+      h+='<div><i class="bi bi-calendar me-1"></i>'+ddate+'</div>';
+      h+='</div>';
+      h+='</div>';
+    });
+    c.innerHTML = h;
+  }
+  
+  function updateKPIs(s) {
+    function setT(id,v){if(document.getElementById(id)) document.getElementById(id).textContent=v!=null?v:'-';}
+    setT('kpiTotal',    s.totalOrders);
+    setT('kpiAwaiting', s.awaitingAcceptance);
+    setT('kpiAccepted', s.pendingPrep);
+    setT('kpiDelivery', s.outForDelivery);
+    setT('kpiInstalling',s.installing);
+    setT('kpiCompleted', s.completed);
+  }
+
+  window.viewOrder = function(id) {
+    _selectedId = id;
+    var order = _orders.find(o=>o._id===id);
+    if(order) openDetailPanel(order);
+    renderCards();
+  };
+  
+  window.closeDetailPanel = function() {
+    _selectedId = null;
+    document.getElementById('leftPane').classList.remove('panel-open');
+    document.getElementById('rightPane').classList.remove('open');
+    document.getElementById('detailPanelEmpty').style.display = 'flex';
+    document.getElementById('detailPanelHeader').style.display = 'none';
+    document.getElementById('detailPanelContent').style.display = 'none';
+    document.getElementById('detailPanelActions').style.display = 'none';
+    renderCards();
+  };
+
+  function openDetailPanel(o) {
+    document.getElementById('leftPane').classList.add('panel-open');
+    document.getElementById('rightPane').classList.add('open');
+    document.getElementById('detailPanelEmpty').style.display = 'none';
+    
+    document.getElementById('detailPanelHeader').style.display = 'block';
+    document.getElementById('detailPanelCustomer').textContent = o.customer?.name || 'Customer';
+    document.getElementById('detailPanelRef').textContent = 'Order #' + (o.orderReference||o._id.substring(o._id.length-6).toUpperCase());
+    var b=SCFG[o.status]||{label:o.status,cls:''};
+    document.getElementById('detailPanelStatusBadge').textContent = b.label;
+    
+    var flow = getFlow(o.fulfillmentType);
+    var ai = getFlowIndex(o.status);
+    var wfHtml = '';
+    flow.forEach((step, i) => {
+      var state = i < ai ? 'completed' : (i === ai ? 'active' : '');
+      var icon = 'bi-circle';
+      if(i<ai) icon = 'bi-check-lg';
+      else if(i===ai) {
+        if(step==='Assigned') icon='bi-bell-fill';
+        else if(step==='Accepted') icon='bi-check-circle-fill';
+        else if(step==='En Route') icon='bi-truck';
+        else if(step==='Arrived') icon='bi-geo-alt-fill';
+        else if(step==='Installing') icon='bi-tools';
+        else icon='bi-circle-fill';
+      }
+      
+      wfHtml += '<div class="wf-step '+state+'">';
+      wfHtml += '  <div class="wf-dot"><i class="bi '+icon+'"></i></div>';
+      wfHtml += '  <div class="wf-step-label">'+step+'</div>';
+      wfHtml += '</div>';
+      
+      if(i < flow.length - 1) {
+        wfHtml += '<div class="wf-connector '+(i < ai ? 'completed':'')+'"></div>';
+      }
+    });
+    document.getElementById('detailPanelWorkflow').innerHTML = wfHtml;
+    
+    var h = '<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #e2e8f0;margin-bottom:16px;">';
+    h += '<h6 class="fw-bold mb-3" style="font-size:0.85rem;"><i class="bi bi-info-circle me-2 text-primary"></i>Order Info</h6>';
+    h += '<div class="to-info-row"><div class="to-info-label">Service Type</div><div class="to-info-value">'+(o.fulfillmentType==='delivery_installation'?'Delivery & Installation':'Delivery Only')+'</div></div>';
+    h += '<div class="to-info-row"><div class="to-info-label">Customer Contact</div><div class="to-info-value">'+esc(o.customer?.phone||'N/A')+'</div></div>';
+    h += '<div class="to-info-row"><div class="to-info-label">Delivery Address</div><div class="to-info-value" style="font-size:0.8rem;">'+esc(o.delivery?.address||'N/A')+'</div></div>';
+    h += '<div class="to-info-row border-0 pb-0"><div class="to-info-label">Schedule</div><div class="to-info-value">'+(o.delivery?.preferredDate?new Date(o.delivery.preferredDate).toLocaleDateString():'TBD')+'</div></div>';
+    h += '</div>';
+    
+    h += '<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #e2e8f0;">';
+    h += '<h6 class="fw-bold mb-3" style="font-size:0.85rem;"><i class="bi bi-box me-2 text-primary"></i>Items ('+(o.items?.length||0)+')</h6>';
+    (o.items||[]).forEach(i=>{
+      h += '<div style="font-size:0.8rem;border-bottom:1px dashed #e2e8f0;padding-bottom:8px;margin-bottom:8px;">';
+      h += '<strong>'+esc(i.brand+' '+i.modelLine)+'</strong><br>';
+      h += '<span class="text-muted">Capacity: '+esc(i.capacity+' '+i.capacityUnit)+'</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+    
+    document.getElementById('detailPanelContent').innerHTML = h;
+    document.getElementById('detailPanelContent').style.display = 'block';
+    
+    var aHtml = '';
+    var s = o.status;
+    var ftype = o.fulfillmentType;
+    var oid = o._id;
+    
+    if(s === 'technician_assigned') {
+      aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
+      aHtml += '<button class="to-btn to-btn-decline" data-action="decline" data-id="'+oid+'"><i class="bi bi-x-lg"></i>Decline</button>';
+    } else if(s === 'technician_accepted' || s === 'preparing_unit') {
+      aHtml += '<button class="to-btn to-btn-enroute" data-action="status" data-id="'+oid+'" data-status="out_for_delivery"><i class="bi bi-truck"></i>Mark En Route</button>';
+    } else if(s === 'out_for_delivery') {
+      aHtml += '<button class="to-btn to-btn-arrived" data-action="status" data-id="'+oid+'" data-status="arrived"><i class="bi bi-geo-alt-fill"></i>Mark Arrived</button>';
+    } else if(s === 'arrived') {
+      if(ftype === 'delivery_installation') {
+        aHtml += '<button class="to-btn to-btn-install" data-action="status" data-id="'+oid+'" data-status="installing"><i class="bi bi-tools"></i>Start Install</button>';
+      } else {
+        aHtml += '<button class="to-btn to-btn-done" data-action="status" data-id="'+oid+'" data-status="completed"><i class="bi bi-check2-all"></i>Mark Completed</button>';
+      }
+    } else if(s === 'installing') {
+      aHtml += '<button class="to-btn to-btn-done" data-action="status" data-id="'+oid+'" data-status="completed"><i class="bi bi-check2-all"></i>Mark Completed</button>';
+    }
+    
+    var actDiv = document.getElementById('detailPanelActions');
+    if(aHtml) {
+      actDiv.innerHTML = '<div style="width:100%;display:flex;gap:10px;justify-content:flex-end;">'+aHtml+'</div>';
+      actDiv.style.display = 'flex';
+    } else {
+      actDiv.style.display = 'none';
+    }
+  }
+
+  window.doAccept = async function(id) {
+    try {
+      const res = await fetch('/api/orders/'+id+'/accept', {method:'POST'});
+      if(!res.ok) throw new Error("Failed to accept");
+      Swal.fire({title:"Accepted",text:"Order accepted.",icon:"success",timer:1500,showConfirmButton:false});
+      fetchOrders();
+    } catch(e) { Swal.fire("Error",e.message,"error"); }
+  };
+  
+  window.doDecline = async function(id) {
+    Swal.fire({
+      title: 'Decline Assignment',
+      input: 'text',
+      inputLabel: 'Reason',
+      inputPlaceholder: 'Enter reason...',
+      showCancelButton: true,
+      confirmButtonText: 'Decline',
+      confirmButtonColor: '#ef4444'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          const res = await fetch('/api/orders/'+id+'/decline', {
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({reason:result.value||'No reason provided'})
+          });
+          if(!res.ok) throw new Error("Failed to decline");
+          closeDetailPanel();
+          Swal.fire({title:"Declined",text:"Order declined.",icon:"success",timer:1500,showConfirmButton:false});
+          fetchOrders();
+        } catch(e) { Swal.fire("Error",e.message,"error"); }
+      }
+    });
+  };
+  
+  window.doStatus = async function(id, status) {
+    try {
+      const res = await fetch('/api/orders/'+id+'/status', {
+        method:'PATCH',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:status,note:'Status updated to '+SCFG[status].label})
+      });
+      if(!res.ok) throw new Error("Failed to update status");
+      fetchOrders();
+    } catch(e) { Swal.fire("Error",e.message,"error"); }
+  };
+
+  // Delegated click handlers — card list (view order)
+  document.getElementById('toOrdersList').addEventListener('click', function(e) {
+    var card = e.target.closest('[data-id]');
+    if(card && card.classList.contains('to-order-card')) {
+      window.viewOrder(card.dataset.id);
+    }
+  });
+
+  // Delegated click handlers — action bar buttons
+  document.getElementById('detailPanelActions').addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    var action = btn.dataset.action;
+    var id = btn.dataset.id;
+    if(action === 'accept') window.doAccept(id);
+    else if(action === 'decline') window.doDecline(id);
+    else if(action === 'status') window.doStatus(id, btn.dataset.status);
+  });
+
+  // Setup tabs
+  document.getElementById('toStatusTabs').addEventListener('click', function(e){
+    if(e.target.tagName==='BUTTON') {
+      document.querySelectorAll('#toStatusTabs button').forEach(b=>b.classList.remove('active','btn-primary'));
+      document.querySelectorAll('#toStatusTabs button').forEach(b=>b.classList.add('btn-outline-secondary'));
+      e.target.classList.add('active','btn-primary');
+      e.target.classList.remove('btn-outline-secondary');
+      _status = e.target.getAttribute('data-status');
+      _page=1;
+      fetchOrders();
+    }
+  });
+
+  document.getElementById('toSearch').addEventListener('keyup', e=>{
+    if(e.key==='Enter') { _page=1; fetchOrders(); }
+  });
+
+  // Init
+  fetchOrders();
+
+})();
+</script>

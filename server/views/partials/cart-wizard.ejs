@@ -1,0 +1,1432 @@
+<!-- Leaflet CSS & JS for map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Flatpickr for Premium Date Pickers -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<style>
+  /* ── Progress Stepper (like services.ejs) ── */
+  .wizard-progress {
+    background: #fff;
+    padding: 1.25rem 1.75rem 0.75rem;
+    margin-bottom: 0;
+  }
+  .wizard-ph {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .wizard-ph span:first-child {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .wizard-ph span:last-child {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .wizard-pt {
+    display: flex;
+    justify-content: space-between;
+    background: #f1f5f9;
+    border-radius: 9999px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .wizard-ps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
+  }
+  .wizard-ps.active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+  }
+  .wizard-ps.completed {
+    background: #f0fdf4;
+    color: #16a34a;
+  }
+  .wizard-ps:hover:not(.active) {
+    background: #e2e8f0;
+    color: #475569;
+  }
+  .wizard-ps-icon {
+    font-size: 0.85rem;
+    display: flex;
+  }
+
+  .payment-method-card.selected {
+    border-color: #2563eb !important;
+    background: #eff6ff !important;
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1) !important;
+    transform: translateY(-3px);
+  }
+
+  .fulfill-card {
+    border: 2px solid #e2e8f0;
+    border-radius: 1.5rem;
+    padding: 2rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .fulfill-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    opacity: 0;
+    transition: opacity 0.35s;
+  }
+
+  .fulfill-card:hover {
+    border-color: #93c5fd;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.05);
+  }
+
+  .fulfill-card.selected {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff, #faf5ff);
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
+  }
+
+  .fulfill-card.selected::before {
+    opacity: 1;
+  }
+
+  .fulfill-card.selected .fulfill-icon {
+    transform: scale(1.1);
+    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.2);
+  }
+
+  .fulfill-title {
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 0.5rem;
+    font-size: 1.15rem;
+  }
+
+  .fulfill-desc {
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  .wizard-panel {
+    display: none;
+    animation: fadeSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .wizard-panel.active {
+    display: block;
+  }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .review-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
+  }
+
+  .review-row:last-child {
+    border-bottom: none;
+  }
+
+  .review-label {
+    color: #64748b;
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+
+  .review-value {
+    color: #0f172a;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  #wizardMap {
+    height: 280px;
+    width: 100%;
+    border-radius: 1rem;
+    z-index: 1;
+    border: 1.5px solid #e0e7ef;
+    box-shadow: 0 4px 24px rgba(15,23,42,0.07);
+    transition: border-color 0.2s;
+  }
+  #wizardMap:hover {
+    border-color: #6366f1;
+  }
+
+  /* ── Route Info Panel ───────────────────────────────── */
+  .route-info-panel {
+    display: none;
+    background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+    border: 1.5px solid #c7d2fe;
+    border-radius: 0.875rem;
+    padding: 0.85rem 1rem;
+    margin-top: 0.6rem;
+    animation: fadeInUp 0.35s cubic-bezier(.22,.68,0,.99);
+    position: relative;
+    overflow: hidden;
+  }
+  .route-info-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+    background: linear-gradient(180deg, #6366f1, #0284c7);
+    border-radius: 4px 0 0 4px;
+  }
+  .route-info-panel.has-route {
+    display: block;
+  }
+  .route-stat-card {
+    background: #fff;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e0e7ef;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(99,102,241,0.07);
+    transition: box-shadow 0.2s;
+  }
+  .route-stat-card:hover { box-shadow: 0 3px 12px rgba(99,102,241,0.13); }
+  .route-stat-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .route-stat-value {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1e293b;
+    line-height: 1.2;
+  }
+  .route-stat-value.fare-value {
+    color: #4f46e5;
+  }
+  .route-stat-icon {
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+  }
+  .route-method-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: #e0e7ff;
+    color: #4f46e5;
+    letter-spacing: 0.04em;
+  }
+  .route-method-badge.haversine {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .route-calculation-detail {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-align: center;
+    margin-top: 0.35rem;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .map-locating-spinner {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 0.5rem;
+    padding: 4px 10px;
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: #4f46e5;
+    display: none;
+    align-items: center;
+    gap: 5px;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .map-locating-spinner.show { display: flex; }
+
+  .custom-map-pin {
+    position: relative;
+    width: 40px;
+    height: 40px;
+  }
+
+  .custom-map-pin .pin-body {
+    width: 30px;
+    height: 30px;
+    background: #ef4444;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    position: absolute;
+    top: 0;
+    left: 5px;
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+    border: 3px solid white;
+  }
+
+  .custom-map-pin .pin-body::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 7px;
+    left: 7px;
+  }
+
+  .custom-map-pin.tech-pin .pin-body::after {
+    display: none;
+  }
+  .custom-map-pin.tech-pin .pin-body i {
+    transform: rotate(45deg);
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  @media (max-width: 576px) {
+    .wizard-ps {
+      padding: 5px 8px;
+      font-size: 0.65rem;
+      gap: 4px;
+    }
+    .wizard-ps-icon {
+      font-size: 0.75rem;
+    }
+    .wizard-progress {
+      padding: 1rem 1rem 0.5rem;
+    }
+  }
+</style>
+
+<div class="modal fade wizard-modal" id="checkoutOrderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
+
+      <!-- Progress Steps -->
+      <div class="wizard-progress" id="wizardProgress">
+        <div class="wizard-ph">
+          <span>Checkout Progress</span>
+          <span>Step <span id="wizardStepCurrent">1</span> of 4</span>
+        </div>
+        <div class="wizard-pt">
+          <div class="wizard-ps active" data-step="1" onclick="navigateWizardStep(1)">
+            <div class="wizard-ps-icon"><i class="bi bi-truck"></i></div>
+            <span>Fulfillment</span>
+          </div>
+          <div class="wizard-ps" data-step="2" onclick="navigateWizardStep(2)">
+            <div class="wizard-ps-icon"><i class="bi bi-calendar-check"></i></div>
+            <span>Details</span>
+          </div>
+          <div class="wizard-ps" data-step="3" onclick="navigateWizardStep(3)">
+            <div class="wizard-ps-icon"><i class="bi bi-credit-card"></i></div>
+            <span>Payment</span>
+          </div>
+          <div class="wizard-ps" data-step="4" onclick="navigateWizardStep(4)">
+            <div class="wizard-ps-icon"><i class="bi bi-receipt"></i></div>
+            <span>Review</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-header border-0 pb-0 px-4 pt-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span style="font-size:0.55rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">HVAC Solutions</span>
+            <span style="width:3px; height:3px; border-radius:50%; background:#cbd5e1; display:inline-block;"></span>
+            <span style="font-size:0.55rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">Checkout</span>
+          </div>
+          <h5 class="modal-title fw-bolder fs-4" id="wizardModalTitle" style="color: #0f172a; letter-spacing:-0.5px;">
+            <i class="bi bi-truck me-2" style="color:#2563eb;"></i>Choose Fulfillment
+          </h5>
+        </div>
+        <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" style="opacity:0.5;transition:all 0.2s;" onmouseover="this.style.opacity='1';this.style.transform='rotate(90deg)'" onmouseout="this.style.opacity='0.5';this.style.transform='rotate(0deg)'"></button>
+      </div>
+
+      <div class="modal-body position-relative px-4 pt-4 pb-2">
+
+        <!-- STEP 1 — Fulfillment Option -->
+        <div class="wizard-panel active" id="wizardStep1">
+          <div class="text-center mb-4">
+            <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">How would you like to receive your items?</h5>
+            <p class="text-secondary fw-medium small">Select the best option tailored for your convenience.</p>
+          </div>
+          <div class="row g-3 px-md-3 justify-content-center">
+            <div class="col-md-5">
+              <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
+                data-fulfill="delivery_installation" onclick="selectFulfillment('delivery_installation')">
+                <div class="fulfill-icon"
+                  style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb; border: 2px solid #fff; transition: all 0.3s;">
+                  <i class="bi bi-tools fs-2"></i></div>
+                <div class="fulfill-title fs-6">Delivery + Installation</div>
+                <div class="fulfill-desc small mb-3">Delivered and installed by experts.</div>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
+                data-fulfill="customer_pickup" onclick="selectFulfillment('customer_pickup')">
+                <div class="fulfill-icon"
+                  style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a; border: 2px solid #fff; transition: all 0.3s;">
+                  <i class="bi bi-shop fs-2"></i></div>
+                <div class="fulfill-title fs-6">Customer Pickup</div>
+                <div class="fulfill-desc small mb-3">Pick up securely at our main branch.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2 — Delivery / Pickup Details -->
+        <div class="wizard-panel" id="wizardStep2">
+          <div class="px-md-2">
+            <div class="text-center mb-4">
+              <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">Delivery & Schedule Details</h5>
+              <p class="text-secondary fw-medium small">Provide your delivery or pickup information.</p>
+            </div>
+            <!-- Delivery fields -->
+            <div id="deliveryFields" style="display: none;" class="p-4 bg-white shadow-sm border rounded-4 mb-3"
+              style="border-color: #f1f5f9;">
+              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a; font-size:0.88rem;"><i
+                  class="bi bi-geo-alt-fill text-primary me-2"></i> Delivery Location & Details</h6>
+
+              <!-- 1. Contact Number (auto-populated) -->
+              <div class="col-md-6 mb-3">
+                <label class="form-label small fw-bold"><i class="bi bi-telephone me-1 text-primary"></i> Contact
+                  Number</label>
+                <input type="tel" class="form-control form-control-sm rounded-3 py-2" id="wizardContact"
+                  placeholder="09XXX XXX XXX">
+              </div>
+
+              <!-- 2. Delivery Address -->
+              <div class="mb-3 position-relative">
+                <label class="form-label small fw-bold"><i class="bi bi-house me-1 text-primary"></i> Complete Delivery
+                  Address</label>
+                <div class="input-group input-group-sm">
+                  <input type="text" class="form-control rounded-start-3 py-2" id="wizardAddress"
+                    placeholder="Enter full street address..." autocomplete="off">
+                  <button class="btn btn-outline-primary border-start-0 rounded-end-3 px-3" type="button"
+                    id="searchAddressBtn">
+                    <i class="bi bi-search"></i>
+                  </button>
+                </div>
+                <!-- Suggestions Dropdown -->
+                <div id="addressSuggestions"
+                  class="list-group position-absolute w-100 mt-1 shadow-lg border-0 rounded-3 overflow-hidden"
+                  style="display: none; z-index: 1060; max-height: 200px; overflow-y: auto;"></div>
+              </div>
+
+              <!-- 3. Map for location pinning -->
+              <div class="mb-3">
+                <label class="form-label d-flex justify-content-between small fw-bold">
+                  <span><i class="bi bi-map me-1 text-indigo" style="color:#6366f1;"></i> Delivery Route Map</span>
+                  <span>
+                    <button type="button" class="btn btn-sm btn-outline-primary border-0 me-2" onclick="locateMe()" style="font-size:0.75rem;padding:2px 8px;" title="Detect my location">
+                      <i class="bi bi-crosshair me-1"></i>Fetch Location
+                    </button>
+                    <span class="text-secondary fw-normal" style="font-size:0.72rem;"><i class="bi bi-info-circle me-1"></i>Drag pin or click map</span>
+                  </span>
+                </label>
+
+                <!-- Map container with spinner overlay -->
+                <div class="position-relative">
+                  <div id="wizardMap"></div>
+                  <div class="map-locating-spinner" id="mapLocatingSpinner">
+                    <span class="spinner-border spinner-border-sm" role="status"></span> Calculating route...
+                  </div>
+                </div>
+
+                <!-- ── Route Details Panel ───────────────────── -->
+                <div class="route-info-panel" id="routeInfoPanel">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Route Details</span>
+                    <span class="route-method-badge" id="routeMethodBadge"><i class="bi bi-diagram-3 me-1"></i>Road Route</span>
+                  </div>
+                  <div class="d-flex gap-2 mb-1">
+                    <div class="route-stat-card">
+                      <span class="route-stat-icon text-primary"><i class="bi bi-rulers"></i></span>
+                      <span class="route-stat-label">Distance</span>
+                      <span class="route-stat-value" id="routeDistDisplay">— km</span>
+                    </div>
+                    <div class="route-stat-card">
+                      <span class="route-stat-icon text-warning"><i class="bi bi-clock"></i></span>
+                      <span class="route-stat-label">Est. Travel</span>
+                      <span class="route-stat-value" id="routeDurDisplay">— min</span>
+                    </div>
+                    <div class="route-stat-card">
+                      <span class="route-stat-icon" style="color:#4f46e5;"><i class="bi bi-tag"></i></span>
+                      <span class="route-stat-label">Rate</span>
+                      <span class="route-stat-value" id="routeRateDisplay" style="color:#4f46e5;">₱—/km</span>
+                    </div>
+                    <div class="route-stat-card" style="border-color:#a5b4fc;background:linear-gradient(135deg,#eef2ff,#f0f4ff);">
+                      <span class="route-stat-icon" style="color:#4f46e5;"><i class="bi bi-truck"></i></span>
+                      <span class="route-stat-label">Delivery Fee</span>
+                      <span class="route-stat-value fare-value" id="routeFareDisplay">₱—</span>
+                    </div>
+                  </div>
+                  <div class="route-calculation-detail" id="routeCalcFormula"></div>
+                </div>
+
+                <input type="hidden" id="wizardLat">
+                <input type="hidden" id="wizardLng">
+              </div>
+
+              <!-- 5. Checkout Calendar Container -->
+              <div id="checkoutCalendarContainer"></div>
+
+              <!-- Hidden inputs to store selection -->
+              <input type="hidden" id="wizardDate">
+              <input type="hidden" id="wizardTimeSlot">
+              <div class="small mt-1 text-danger fw-semibold" id="wizardDateError" style="display: none;"></div>
+
+              <!-- 6. Notes -->
+              <div class="mb-1 mt-3">
+                <label class="form-label small fw-bold"><i class="bi bi-chat-left-text me-1 text-primary"></i> Notes
+                  (optional)</label>
+                <textarea class="form-control form-control-sm rounded-3" id="wizardNotes" rows="2"
+                  placeholder="Specific gate codes or delivery instructions..."></textarea>
+              </div>
+            </div>
+
+            <!-- Pickup fields -->
+            <div id="pickupFields" style="display: none;" class="p-4 bg-white shadow-sm border rounded-4 mb-3"
+              style="border-color: #f1f5f9;">
+              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i
+                  class="bi bi-shop text-success me-2"></i> Pickup Information</h6>
+
+              <div class="p-3 rounded-4 mb-3 position-relative overflow-hidden"
+                style="background: linear-gradient(135deg, #f0f7ff, #e0f2fe); border: 1px solid #bae6fd;">
+                <div class="position-absolute top-0 end-0 opacity-10" style="transform: translate(20%, -20%);"><i
+                    class="bi bi-shop" style="font-size: 6rem; color: #0284c7;"></i></div>
+                <div class="fw-bolder fs-6 position-relative z-index-1" style="color: #0369a1;"><i
+                    class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
+                <p class="mt-1 mb-0 position-relative z-index-1 small fw-medium" style="color: #0284c7;">Our complete
+                  store address and routing link will be provided upon order confirmation.</p>
+              </div>
+
+              <div class="mb-1">
+                <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i> Preferred
+                  Pickup Date</label>
+                <input type="text" class="form-control form-control-sm rounded-3 py-2 bg-white" id="wizardPickupDate"
+                  placeholder="Select a date...">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3 — Payment Option -->
+        <div class="wizard-panel" id="wizardStep3">
+          <div class="text-center mb-4">
+            <h5 class="fw-bolder mb-2" style="color: #0f172a; letter-spacing:-0.5px;">Choose Payment Method</h5>
+            <p class="text-secondary fw-medium small">Select how you want to pay for this order.</p>
+          </div>
+          
+          <div class="row g-3 px-md-3" id="paymentOptionsContainer">
+             <!-- Options dynamically rendered by JS based on fulfillment type -->
+          </div>
+          <input type="hidden" id="wizardPaymentMethod" value="">
+
+          <!-- GCash Details Panel (shown when a GCash method is picked) -->
+          <div id="gcashFieldsWizard" class="d-none mt-4 px-md-3">
+            <div class="p-4 bg-white shadow-sm border rounded-4" style="border-color: #dcfce7;">
+              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i class="bi bi-phone-fill text-success me-2"></i>GCash Payment Details</h6>
+
+              <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-phone text-success fs-4"></i>
+                  <span class="fw-semibold">Manual GCash Transfer</span>
+                </div>
+                <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;">
+                  <li>Scan our GCash QR code below in your GCash app.</li>
+                  <li>Send the required payment amount.</li>
+                  <li>Upload your receipt screenshot before confirming the order.</li>
+                </ol>
+              </div>
+
+              <!-- QR Code -->
+              <div class="text-center mb-3">
+                <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
+                <img id="gcashQrImageWizard" src="" alt="GCash QR Code" class="img-thumbnail" style="max-width:220px;border-radius:12px;" />
+                <div class="form-text">Send to the GCash number shown below.</div>
+              </div>
+
+              <!-- Receipt Upload -->
+              <div class="mb-3">
+                <label class="form-label text-muted">Receipt Screenshot <span class="text-danger">*</span></label>
+                <input id="gcashProofWizard" type="file" class="form-control" accept="image/*" />
+                <div class="form-text">Accepted: image files only (JPG, PNG, WEBP).</div>
+                <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:160px;border-radius:10px;" />
+              </div>
+
+              <!-- Amount Display -->
+              <div class="rounded-3 p-3 mb-3" style="background:#f8fdff;border:1px solid #bee3f8;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted small">Amount to send via GCash</span>
+                  <span class="fw-bold text-primary fs-5" id="gcashAmountDisplayWizard">&mdash;</span>
+                </div>
+                <div class="text-muted" style="font-size:0.75rem;margin-top:4px;"><i class="bi bi-info-circle me-1"></i>Please send this amount, then upload the receipt screenshot.</div>
+              </div>
+
+              <div class="alert alert-success border-0" role="alert" style="background:#f0fdf4;border-left:4px solid #16a34a !important;">
+                <div class="d-flex align-items-start gap-2">
+                  <i class="bi bi-lock-fill text-success mt-1"></i>
+                  <div>
+                    <div class="fw-semibold small">Manual verification required</div>
+                    <small class="text-muted">Your payment proof will be reviewed by admin before final confirmation.</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4 — Review & Confirm -->
+        <div class="wizard-panel" id="wizardStep4">
+          <h6 class="fw-bolder mb-3 text-center" style="color: #0f172a;">Review Your Order</h6>
+
+          <div class="px-md-2">
+            <div class="p-3 rounded-4 mb-3 bg-white border"
+              style="border-color: #e2e8f0; box-shadow: 0 4px 15px rgba(15,36,96,0.03); max-height: 250px; overflow-y: auto;">
+              <div id="cartItemsReviewList">
+                <!-- Cart items will be listed here -->
+              </div>
+            </div>
+
+            <div class="p-3 rounded-4 mb-2 bg-white border" style="border-color: #e2e8f0;">
+              <h6 class="fw-bold fs-6 mb-2 border-bottom pb-2">Order Details</h6>
+              <div id="reviewDetails" class="mb-1"></div>
+            </div>
+
+            <div class="p-4 rounded-4 position-relative overflow-hidden"
+              style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid rgba(59,130,246,0.2);">
+              <div class="position-absolute rounded-circle"
+                style="width: 150px; height: 150px; background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 60%); top: -30px; right: -30px; pointer-events: none;">
+              </div>
+              <div class="position-relative z-index-1">
+                <div class="review-row py-1">
+                  <span class="review-label">Product Subtotal</span>
+                  <span class="review-value" id="reviewSubtotal"></span>
+                </div>
+                <div id="transportBreakdownRow" style="display: none;">
+                   <div class="review-row py-1 border-bottom-0 pb-0">
+                      <span class="review-label">Transportation Fee</span>
+                      <span class="review-value" id="reviewTransportTotal">₱0</span>
+                   </div>
+                   <div class="ps-3 mb-2">
+                      <span class="text-muted" style="font-size: 0.75rem;" id="reviewTransportCalc">0 km x ₱40/km</span>
+                   </div>
+                </div>
+                <!-- Legacy/Backup row just in case -->
+                <div class="review-row py-1" id="reviewDeliveryRow" style="display: none;">
+                  <span class="review-label">Delivery Fee</span>
+                  <span class="review-value" id="reviewDeliveryFee"></span>
+                </div>
+                <div class="review-row py-1" id="reviewInstallRow" style="display: none;">
+                  <span class="review-label">Installation Fee</span>
+                  <span class="review-value" id="reviewInstallFee"></span>
+                </div>
+                <div
+                  class="d-flex justify-content-between align-items-center mt-2 pt-3 border-top border-primary border-opacity-25">
+                  <span class="text-uppercase fw-bold"
+                    style="color: #475569; font-size: 0.8rem; letter-spacing: 1px;">Grand Total</span>
+                  <span class="fw-bolder text-primary" style="font-size: 1.5rem; letter-spacing: -0.5px;"
+                    id="reviewTotal"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between border-0 px-4 pb-4 pt-3">
+        <button class="btn btn-sm" id="wizardBackBtn" onclick="wizardBack()"
+          style="border-radius: 8px; padding: 0.5rem 1.25rem; color: #64748b; font-weight: 600; display: none; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.82rem; transition: all 0.2s;"
+          onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </button>
+        <div class="ms-auto d-flex gap-2">
+          <button class="btn btn-sm" data-bs-dismiss="modal"
+            style="border-radius: 8px; padding: 0.5rem 1.25rem; font-weight: 600; color: #64748b; background: #fff; border: 1.5px solid #e2e8f0; font-size: 0.82rem; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">Cancel</button>
+          <button class="btn btn-sm px-4" id="wizardNextBtn" onclick="wizardNext()"
+            style="border-radius: 8px; padding: 0.55rem 1.75rem; font-weight: 600; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.25);"
+            onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'">
+            Next Step <i class="bi bi-arrow-right ms-2"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/checkout-calendar.js"></script>
+
+<script>
+  let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}) %>;
+  const USER_PHONE = '<%- (user && user.phone) ? user.phone : "" %>';
+
+  // Fetch dynamic installation fee & fare per km
+  window.airconInstallFee = 1500;
+  window._farePerKm = 40;
+  fetch('/api/services/fare-per-km')
+    .then(r => r.json())
+    .then(data => {
+      if (data.airconInstallFee !== undefined) window.airconInstallFee = data.airconInstallFee;
+      if (data.farePerKm !== undefined) window._farePerKm = data.farePerKm;
+    })
+    .catch(() => console.warn('Failed to fetch pricing config'));
+
+  // Company base location for distance calculation
+  window._companyBaseLocation = { configured: false, lat: 14.676049, lng: 121.043731 };
+  window._companyBaseLocationPromise = fetch('/api/public/company/location')
+    .then(r => r.json())
+    .then(d => { window._companyBaseLocation = d || window._companyBaseLocation; return window._companyBaseLocation; })
+    .catch(() => window._companyBaseLocation);
+
+  (function () {
+    let currentStep = 1;
+    let selectedFulfillment = null;
+    let leafletMap = null;
+    let leafletMarker = null;
+    let fpDateDelivery = null;
+    let fpDatePickup = null;
+    let addressSearchTimeout = null;
+    let checkoutCalendar = null;
+    let _routeDistanceKm = 0;
+    let _routeDurationMin = 0;
+    let _transportFee = 0;
+
+    const stepTitles = {
+      1: '<i class="bi bi-truck me-2"></i>Choose Fulfillment',
+      2: '<i class="bi bi-calendar-check me-2"></i>Delivery / Pickup Details',
+      3: '<i class="bi bi-credit-card me-2"></i>Choose Payment Method',
+      4: '<i class="bi bi-receipt me-2"></i>Review & Confirm Order'
+    };
+
+    let CART_ITEMS = cartObj.items || [];
+    let SUB_TOTAL = cartObj.totalAmount || 0;
+
+    window.openCheckoutWizard = function (dynamicCart) {
+      if (dynamicCart) {
+        CART_ITEMS = dynamicCart.items || [];
+        SUB_TOTAL = dynamicCart.totalAmount || 0;
+      }
+      if (CART_ITEMS.length === 0) {
+        Swal.fire('Empty Cart', 'Please add items to your cart before checking out.', 'warning');
+        return;
+      }
+
+      currentStep = 1;
+      selectedFulfillment = null;
+
+      // Reset status badges
+      document.querySelectorAll('.fulfill-card').forEach(c => c.classList.remove('selected'));
+
+      updateWizardUI();
+
+      // Auto-populate contact number
+      const contactInput = document.getElementById('wizardContact');
+      if (contactInput && USER_PHONE) {
+        contactInput.value = USER_PHONE;
+      }
+
+      // Calculate estimated installation duration based on total quantity
+      const totalQty = CART_ITEMS.reduce((sum, it) => sum + (it.quantity || 1), 0);
+      const estDuration = Math.max(60, totalQty * 60); // 60 min per unit, min 60
+
+      if (!checkoutCalendar) {
+        checkoutCalendar = new CheckoutCalendar('checkoutCalendarContainer', {
+          fulfillmentType: selectedFulfillment,
+          duration: estDuration,
+          onDateSelect: (dateStr) => {
+            document.getElementById('wizardDate').value = dateStr;
+            document.getElementById('wizardDateError').style.display = 'none';
+          },
+          onTimeSelect: (timeStr) => {
+            document.getElementById('wizardTimeSlot').value = timeStr;
+          }
+        });
+      } else {
+        checkoutCalendar.setDuration(estDuration);
+      }
+
+      // Set min date for date pickers via Flatpickr for pickup
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const fpConfig = {
+        minDate: tomorrow,
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+      };
+
+      if (!fpDatePickup) {
+        fpDatePickup = flatpickr("#wizardPickupDate", fpConfig);
+      } else {
+        fpDatePickup.clear();
+      }
+
+      const modal = new bootstrap.Modal(document.getElementById('checkoutOrderModal'));
+      modal.show();
+    };
+    window.selectFulfillment = function (type) {
+      selectedFulfillment = type;
+      document.querySelectorAll('.fulfill-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.fulfill === type);
+      });
+      if (checkoutCalendar) {
+        checkoutCalendar.setFulfillmentType(type);
+      }
+    };
+
+    window.wizardNext = function () {
+      if (currentStep === 1 && !selectedFulfillment) {
+        Swal.fire('Attention', 'Please choose a fulfillment option.', 'warning');
+        return;
+      }
+      if (currentStep === 2) {
+        if (selectedFulfillment !== 'customer_pickup') {
+          const addr = document.getElementById('wizardAddress').value.trim();
+          const contact = document.getElementById('wizardContact').value.trim();
+          const date = document.getElementById('wizardDate').value;
+          if (!addr) { Swal.fire('Attention', 'Please enter your delivery address.', 'warning'); return; }
+          if (!contact) { Swal.fire('Attention', 'Please enter your contact number.', 'warning'); return; }
+          if (!date) { Swal.fire('Attention', 'Please select a delivery date.', 'warning'); return; }
+        } else {
+          const pickupDate = document.getElementById('wizardPickupDate').value;
+          if (!pickupDate) { Swal.fire('Attention', 'Please select a pickup date.', 'warning'); return; }
+        }
+      }
+      if (currentStep === 3) {
+         const payMethod = document.getElementById('wizardPaymentMethod').value;
+         if (!payMethod) { Swal.fire('Attention', 'Please choose a payment method.', 'warning'); return; }
+          // Validate GCash fields when GCash method is selected
+          if (payMethod === 'gcash_full' || payMethod === 'cod') {
+            const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
+            if (!gcashFile) { Swal.fire('Attention', 'Please upload your GCash receipt screenshot.', 'warning'); return; }
+          }
+      }
+      if (currentStep === 4) {
+        submitCartOrder();
+        return;
+      }
+
+      currentStep++;
+
+      if (currentStep === 2) {
+        const isDelivery = selectedFulfillment !== 'customer_pickup';
+        document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
+        document.getElementById('pickupFields').style.display = isDelivery ? 'none' : 'block';
+        if (isDelivery) { setTimeout(() => initMap(), 500); }
+      }
+
+      if (currentStep === 3) {
+        renderPaymentOptions();
+      }
+
+      if (currentStep === 4) { populateReview(); }
+      updateWizardUI();
+    };
+
+    window.wizardBack = function () {
+      if (currentStep <= 1) return;
+      currentStep--;
+      updateWizardUI();
+    };
+
+    window.navigateWizardStep = function (step) {
+      if (step < 1 || step > 4) return;
+      if (step > currentStep) {
+        var canProceed = true;
+        if (currentStep === 1 && !selectedFulfillment) canProceed = false;
+        if (currentStep === 2 && !validateStep2()) canProceed = false;
+        if (currentStep === 3 && !document.getElementById('wizardPaymentMethod').value) canProceed = false;
+        if (!canProceed) { Swal.fire('Incomplete', 'Please complete the current step first.', 'info'); return; }
+      }
+      currentStep = step;
+      updateWizardUI();
+    };
+
+    function validateStep2() {
+      if (selectedFulfillment === 'customer_pickup') {
+        return document.getElementById('wizardPickupDate').value.trim() !== '';
+      }
+      return document.getElementById('wizardAddress').value.trim() !== '' && document.getElementById('wizardDate').value !== '';
+    }
+
+    function updateWizardUI() {
+      for (let i = 1; i <= 4; i++) {
+        const panel = document.getElementById(`wizardStep${i}`);
+        if (panel) panel.classList.toggle('active', i === currentStep);
+      }
+      document.getElementById('wizardModalTitle').innerHTML = stepTitles[currentStep] || '';
+      document.getElementById('wizardStepCurrent').textContent = currentStep;
+
+      document.querySelectorAll('.wizard-ps').forEach(p => {
+        const step = parseInt(p.dataset.step);
+        p.classList.remove('active', 'completed');
+        if (step === currentStep) p.classList.add('active');
+        else if (step < currentStep) p.classList.add('completed');
+      });
+
+      document.getElementById('wizardBackBtn').style.display = currentStep > 1 ? 'inline-flex' : 'none';
+      const nextBtn = document.getElementById('wizardNextBtn');
+      if (currentStep === 4) {
+        nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
+        nextBtn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+        nextBtn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.25)';
+        nextBtn.onmouseover = function() { this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(16,185,129,0.35)'; };
+        nextBtn.onmouseout = function() { this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.25)'; };
+      } else {
+        nextBtn.innerHTML = 'Next Step <i class="bi bi-arrow-right ms-2"></i>';
+        nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
+        nextBtn.style.boxShadow = '0 4px 12px rgba(37,99,235,0.25)';
+        nextBtn.onmouseover = function() { this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'; };
+        nextBtn.onmouseout = function() { this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'; };
+      }
+    }
+
+    window.selectPaymentMethods = function(method) {
+      document.getElementById('wizardPaymentMethod').value = method;
+      document.querySelectorAll('.payment-method-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.method === method);
+      });
+
+      const showGcashPanel = method === 'gcash_full' || method === 'cod';
+      const gcashPanel = document.getElementById('gcashFieldsWizard');
+      if (gcashPanel) {
+        gcashPanel.classList.toggle('d-none', !showGcashPanel);
+      }
+      if (showGcashPanel) {
+        const qrImg = document.getElementById('gcashQrImageWizard');
+        if (qrImg) {
+          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=FAKE_GCASH_QR_CODE_FOR_TESTING';
+        }
+        const itemTotal = SUB_TOTAL;
+        const installFee = (selectedFulfillment === 'delivery_installation') ? (window.airconInstallFee || 1500) : 0;
+        const grandTotal = itemTotal + installFee;
+        const payAmount = method === 'cod' ? Math.ceil(grandTotal * 0.1) : grandTotal;
+        const amountEl = document.getElementById('gcashAmountDisplayWizard');
+        if (amountEl) {
+          amountEl.textContent = '₱' + payAmount.toLocaleString();
+          const labelEl = document.getElementById('wizardGcashLabel');
+          if (labelEl) labelEl.textContent = method === 'cod' ? '10% Downpayment (via GCash)' : 'Full Payment';
+        }
+      }
+    };
+
+    // Preview uploaded receipt
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.id === 'gcashProofWizard') {
+        const file = e.target.files[0];
+        const preview = document.getElementById('gcashProofPreviewWizard');
+        if (file && preview) {
+          const reader = new FileReader();
+          reader.onload = ev => { preview.src = ev.target.result; preview.classList.remove('d-none'); };
+          reader.readAsDataURL(file);
+        } else if (preview) {
+          preview.classList.add('d-none');
+        }
+      }
+    });
+
+    function renderPaymentOptions() {
+      const container = document.getElementById('paymentOptionsContainer');
+      document.getElementById('wizardPaymentMethod').value = '';
+
+      const paymentCardStyle = `
+        border: 2px solid #e2e8f0;
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: white;
+        text-align: center;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      `;
+
+      let html = '';
+
+      const paymentCardsHtml = `
+        <div class="col-md-6">
+          <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
+            <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+              <i class="bi bi-phone fs-3"></i>
+            </div>
+            <div class="fw-bolder fs-6 mb-1 text-dark">GCash (Full Payment)</div>
+            <div class="small text-muted">Pay full amount via GCash.</div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
+            <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
+              <i class="bi bi-truck fs-3"></i>
+            </div>
+            <div class="fw-bolder fs-6 mb-1 text-dark">Cash on Delivery</div>
+            <div class="small text-muted">Pay 10% downpayment via GCash, remainder in cash on delivery.</div>
+          </div>
+        </div>
+      `;
+
+      if (selectedFulfillment === 'customer_pickup') {
+         // Pickup: Cash On-Site + Downpayment + GCash
+         html = `
+            <div class="col-md-6">
+              <div class="payment-method-card" data-method="cash_onsite" onclick="selectPaymentMethods('cash_onsite')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a;">
+                  <i class="bi bi-cash-stack fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Cash On-Site</div>
+                <div class="small text-muted">Pay full amount at our store during pickup.</div>
+              </div>
+            </div>
+
+            ${paymentCardsHtml}
+         `;
+      } else {
+         html = `
+
+            ${paymentCardsHtml}
+         `;
+      }
+
+      container.innerHTML = html;
+
+      // Reset GCash panel when switching fulfillment
+      const gcashPanel = document.getElementById('gcashFieldsWizard');
+      if (gcashPanel) gcashPanel.classList.add('d-none');
+    }
+
+    // ── Transport fare calculation ──────────────────────────────────────
+    function updateRoutePanel(distKm, durMin, farePerKm, fee, isRoad) {
+      var panel = document.getElementById('routeInfoPanel');
+      var distEl  = document.getElementById('routeDistDisplay');
+      var durEl   = document.getElementById('routeDurDisplay');
+      var rateEl  = document.getElementById('routeRateDisplay');
+      var fareEl  = document.getElementById('routeFareDisplay');
+      var formulaEl = document.getElementById('routeCalcFormula');
+      var badgeEl = document.getElementById('routeMethodBadge');
+      var spinner = document.getElementById('mapLocatingSpinner');
+      if (spinner) spinner.classList.remove('show');
+      if (!panel) return;
+      panel.classList.add('has-route');
+      if (distEl)  distEl.textContent  = distKm.toFixed(1) + ' km';
+      if (durEl)   durEl.textContent   = durMin + ' min';
+      if (rateEl)  rateEl.textContent  = '\u20b1' + farePerKm.toFixed(2) + '/km';
+      if (fareEl)  fareEl.textContent  = '\u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if (formulaEl) formulaEl.textContent = distKm.toFixed(1) + ' km \u00d7 \u20b1' + farePerKm.toFixed(2) + '/km = \u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' delivery fee';
+      if (badgeEl) {
+        if (isRoad) {
+          badgeEl.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>Road Route';
+          badgeEl.className = 'route-method-badge';
+        } else {
+          badgeEl.innerHTML = '<i class="bi bi-calculator me-1"></i>Estimated (straight-line)';
+          badgeEl.className = 'route-method-badge haversine';
+        }
+      }
+      // Also update legacy meta element if present
+      var meta = document.getElementById('reviewTransportCalc');
+      if (meta) meta.textContent = distKm.toFixed(1) + ' km \u00d7 \u20b1' + farePerKm + '/km';
+    }
+
+    function calcTransportFare(custLat, custLng) {
+      // Show spinner
+      var spinner = document.getElementById('mapLocatingSpinner');
+      if (spinner) spinner.classList.add('show');
+      window._companyBaseLocationPromise.then(function(base) {
+        if (!base || !base.lat || !base.lng) { if (spinner) spinner.classList.remove('show'); return; }
+        var farePerKm = window._farePerKm || 40;
+        var url = '/api/services/osrm-route?coords=' + encodeURIComponent(base.lng + ',' + base.lat + ';' + custLng + ',' + custLat);
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(routeData) {
+            var isRoad = false;
+            if (routeData && routeData.routes && routeData.routes.length > 0) {
+              var distKm = routeData.routes[0].distance / 1000;
+              var durMin = Math.round(routeData.routes[0].duration / 60);
+              _routeDistanceKm = Math.round(distKm * 10) / 10;
+              _routeDurationMin = durMin;
+              isRoad = true;
+
+              if (leafletMap && routeData.routes[0].geometry) {
+                if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
+                window._routeLayer = L.geoJSON(routeData.routes[0].geometry, {
+                  style: { color: '#6366f1', weight: 5, opacity: 0.85, dashArray: null }
+                }).addTo(leafletMap);
+                leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
+              }
+            } else {
+              var R = 6371;
+              var dLat = ((custLat - base.lat) * Math.PI) / 180;
+              var dLng = ((custLng - base.lng) * Math.PI) / 180;
+              var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+              var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              _routeDistanceKm = Math.round(R * c * 14) / 10;
+              _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
+            }
+            _transportFee = Math.round(_routeDistanceKm * farePerKm);
+            updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, isRoad);
+          })
+          .catch(function() {
+            var R = 6371;
+            var dLat = ((custLat - base.lat) * Math.PI) / 180;
+            var dLng = ((custLng - base.lng) * Math.PI) / 180;
+            var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            _routeDistanceKm = Math.round(R * c * 14) / 10;
+            _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
+            var farePerKm = window._farePerKm || 40;
+            _transportFee = Math.round(_routeDistanceKm * farePerKm);
+            updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, false);
+          });
+      });
+    }
+
+    function populateReview() {
+      let html = '';
+      CART_ITEMS.forEach(it => {
+        const inv = it.inventoryId;
+        html += `
+        <div class="d-flex align-items-center mb-2 pb-2 border-bottom">
+          <img src="${inv.imageUrl || '/images/products/default.png'}" style="width: 45px; height: 45px; object-fit: contain; background: #f8fafc; border-radius: 8px; padding: 4px;" class="me-3 border">
+          <div class="flex-grow-1">
+            <div class="fw-bold small text-dark lh-sm">${inv.modelLine}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">${inv.capacity} ${inv.capacityUnit} · ${it.quantity}x</div>
+          </div>
+          <div class="fw-bolder small text-primary">₱${((inv.sellingPrice || 0) * (it.quantity)).toLocaleString()}</div>
+        </div>
+      `;
+      });
+      document.getElementById('cartItemsReviewList').innerHTML = html;
+
+      const details = [];
+      const fulfillLabels = { delivery_installation: '🔧 Delivery + Installation', customer_pickup: '🏪 Customer Pickup' };
+      details.push({ label: 'Fulfillment', value: fulfillLabels[selectedFulfillment] || '' });
+
+      let deliveryFee = 0;
+      let installFee = 0;
+
+      if (selectedFulfillment !== 'customer_pickup') {
+        deliveryFee = 0; // Handled dynamically via routeFareAmount
+        const addr = document.getElementById('wizardAddress').value.trim();
+        const contact = document.getElementById('wizardContact').value.trim();
+        const date = document.getElementById('wizardDate').value;
+        const timeSlot = document.getElementById('wizardTimeSlot').value;
+        details.push({ label: 'Address', value: addr });
+        details.push({ label: 'Contact', value: contact });
+        details.push({ label: selectedFulfillment === 'delivery_installation' ? 'Installation' : 'Delivery', value: `${date} ${timeSlot ? 'at ' + timeSlot : ''}` });
+        if (selectedFulfillment === 'delivery_installation') { installFee = window.airconInstallFee !== undefined ? window.airconInstallFee : 1500; }
+      } else {
+        details.push({ label: 'Pickup Date', value: document.getElementById('wizardPickupDate').value });
+        details.push({ label: 'Pickup Location', value: 'CALIDRO RACS Store' });
+      }
+      
+      const payMethod = document.getElementById('wizardPaymentMethod').value;
+      const payLabels = {
+        cash_onsite:  '💵 Cash On-Site (Pay upon visit)',
+        cash:         '💵 Cash on Delivery (Full amount)',
+        downpayment:  '💰 Downpayment — 10% via GCash, balance on delivery',
+        gcash_full:   '📱 GCash — Full payment now',
+        cod:          '🚚 Cash on Delivery — 10% down via GCash, balance on delivery'
+      };
+      details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
+
+      document.getElementById('reviewDetails').innerHTML = details.map(d => `<div class="review-row py-1"><span class="review-label small">${d.label}</span><span class="review-value small">${d.value}</span></div>`).join('');
+
+      // Fallback: if SUB_TOTAL is 0 (API didn't compute it), derive from items
+      let effectiveTotal = SUB_TOTAL;
+      if (!effectiveTotal || effectiveTotal === 0) {
+        effectiveTotal = CART_ITEMS.reduce((sum, it) => {
+          const inv = it.inventoryId;
+          const price = (inv && typeof inv === 'object') ? (inv.sellingPrice || 0) : 0;
+          return sum + price * (it.quantity || 1);
+        }, 0);
+      }
+
+      document.getElementById('reviewSubtotal').textContent = `₱${effectiveTotal.toLocaleString()}`;
+      
+      const transportRow = document.getElementById('transportBreakdownRow');
+      const deliveryRow = document.getElementById('reviewDeliveryRow');
+      if (deliveryRow) deliveryRow.style.display = 'none';
+
+      if (selectedFulfillment !== 'customer_pickup' && _transportFee > 0) {
+        document.getElementById('reviewTransportTotal').textContent = '₱' + _transportFee.toLocaleString();
+        if (transportRow) transportRow.style.display = 'block';
+      } else {
+        if (transportRow) transportRow.style.display = 'none';
+      }
+
+      if (installFee > 0) {
+        document.getElementById('reviewInstallRow').style.display = 'flex';
+        document.getElementById('reviewInstallFee').textContent = `₱${installFee.toLocaleString()}`;
+      } else {
+        document.getElementById('reviewInstallRow').style.display = 'none';
+      }
+      const total = effectiveTotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+      document.getElementById('reviewTotal').textContent = `₱${total.toLocaleString()}`;
+    }
+
+    // Same Map Init logic
+    function initMap() {
+      const mapEl = document.getElementById('wizardMap');
+      if (!mapEl) return;
+      if (leafletMap) { leafletMap.remove(); leafletMap = null; leafletMarker = null; }
+      const defaultLat = 14.5995; const defaultLng = 120.9842;
+      leafletMap = L.map('wizardMap', { zoomControl: false }).setView([defaultLat, defaultLng], 12);
+      L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(leafletMap);
+      const customPinIcon = L.divIcon({ className: 'custom-map-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body"></div>' });
+      leafletMarker = L.marker([defaultLat, defaultLng], { icon: customPinIcon, draggable: true }).addTo(leafletMap);
+
+      window._companyBaseLocationPromise.then(function(base) {
+        if (!base || !base.lat || !base.lng || !leafletMap) return;
+        const companyIcon = L.divIcon({ className: 'custom-map-pin tech-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></i></div>' });
+        if (window._companyMarker) { window._companyMarker.remove(); }
+        window._companyMarker = L.marker([base.lat, base.lng], { icon: companyIcon, zIndexOffset: -100 }).addTo(leafletMap).bindPopup("<b>Company Location</b><br/>" + (base.address || ""));
+      });
+
+      // Helper: update calendar with new customer position
+      window.updateCustomerLocation = function(lat, lng) {
+        document.getElementById('wizardLat').value = lat;
+        document.getElementById('wizardLng').value = lng;
+      };
+
+      // Updates
+      leafletMarker.on('dragend', function () {
+        const pos = leafletMarker.getLatLng();
+        updateCustomerLocation(pos.lat, pos.lng);
+        calcTransportFare(pos.lat, pos.lng);
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`)
+          .then(r => r.json()).then(d => { if (d.display_name) document.getElementById('wizardAddress').value = d.display_name; }).catch(() => { });
+      });
+
+      leafletMap.on('click', function (e) {
+        leafletMarker.setLatLng(e.latlng);
+        updateCustomerLocation(e.latlng.lat, e.latlng.lng);
+        calcTransportFare(e.latlng.lat, e.latlng.lng);
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+          .then(r => r.json()).then(d => { if (d.display_name) document.getElementById('wizardAddress').value = d.display_name; }).catch(() => { });
+      });
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+          leafletMap.flyTo([lat, lng], 15);
+          leafletMarker.setLatLng([lat, lng]);
+          updateCustomerLocation(lat, lng);
+          calcTransportFare(lat, lng);
+        }, () => { }, { enableHighAccuracy: true });
+      }
+      setTimeout(() => leafletMap.invalidateSize(), 150);
+    }
+    window.locateMe = function () {
+      if (!leafletMap || !leafletMarker) return;
+      if (navigator.geolocation) {
+        const addrInput = document.getElementById('wizardAddress');
+        if (addrInput) addrInput.value = 'Detecting your location...';
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          leafletMap.flyTo([lat, lng], 16);
+          leafletMarker.setLatLng([lat, lng]);
+          updateCustomerLocation(lat, lng);
+          calcTransportFare(lat, lng);
+          if (addrInput) addrInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(r => r.json()).then(d => { if (d.display_name && addrInput) addrInput.value = d.display_name; }).catch(() => {});
+        }, function () {
+          Swal.fire('Location Error', 'Unable to retrieve your location. Please check your GPS settings.', 'warning');
+        }, { enableHighAccuracy: true });
+      } else {
+        Swal.fire('Not Supported', 'Geolocation is not supported by your browser.', 'warning');
+      }
+    };
+
+    // Address Search
+    const addrInput = document.getElementById('wizardAddress');
+    const suggestBox = document.getElementById('addressSuggestions');
+    const searchBtn = document.getElementById('searchAddressBtn');
+
+    if (addrInput) {
+      addrInput.addEventListener('input', function () {
+        clearTimeout(addressSearchTimeout);
+        const q = this.value.trim();
+        if (q.length < 3) { suggestBox.style.display = 'none'; return; }
+        addressSearchTimeout = setTimeout(() => searchAddress(q), 500);
+      });
+      addrInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchAddress(addrInput.value); } });
+    }
+    if (searchBtn) { searchBtn.onclick = () => searchAddress(addrInput.value); }
+
+    async function searchAddress(q) {
+      if (!q) return;
+      try {
+        const res = await fetch(`/api/services/geocode-suggest?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          suggestBox.innerHTML = data.suggestions.map(s => `
+          <button class="list-group-item list-group-item-action border-0 py-2 small" onclick="selectSuggestion('${s.lat}', '${s.lon}', '${s.display_name.replace(/'/g, "\\'")}')">
+            <i class="bi bi-geo-alt me-2 text-primary"></i>${s.display_name}
+          </button>
+        `).join('');
+          suggestBox.style.display = 'block';
+        } else { suggestBox.style.display = 'none'; }
+      } catch (e) { }
+    }
+
+    window.selectSuggestion = function (lat, lon, name) {
+      addrInput.value = name;
+      suggestBox.style.display = 'none';
+      const flat = parseFloat(lat); const flon = parseFloat(lon);
+      document.getElementById('wizardLat').value = flat;
+      document.getElementById('wizardLng').value = flon;
+      if (leafletMap && leafletMarker) { leafletMap.flyTo([flat, flon], 16); leafletMarker.setLatLng([flat, flon]); }
+      calcTransportFare(flat, flon);
+    }
+
+    document.addEventListener('click', (e) => { if (suggestBox && !suggestBox.contains(e.target) && e.target !== addrInput) { suggestBox.style.display = 'none'; } });
+
+    async function submitCartOrder() {
+      const nextBtn = document.getElementById('wizardNextBtn');
+      nextBtn.disabled = true;
+      nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+      const orderItems = CART_ITEMS.map(it => ({
+        inventoryId: it.inventoryId._id || it.inventoryId,
+        quantity: it.quantity
+      }));
+
+      const payMethod = document.getElementById('wizardPaymentMethod').value || 'cash';
+      const needsGcashProof = payMethod === 'gcash_full' || payMethod === 'cod';
+
+      // Build delivery / pickup data
+      let deliveryData = null;
+      if (selectedFulfillment !== 'customer_pickup') {
+        deliveryData = {
+          address: document.getElementById('wizardAddress').value.trim(),
+          contactNumber: document.getElementById('wizardContact').value.trim(),
+          preferredDate: document.getElementById('wizardDate').value,
+          notes: document.getElementById('wizardNotes').value.trim(),
+          coordinates: {
+            lat: parseFloat(document.getElementById('wizardLat').value) || 0,
+            lng: parseFloat(document.getElementById('wizardLng').value) || 0,
+          }
+        };
+      }
+
+      // Use FormData so we can attach the GCash receipt image
+      const fd = new FormData();
+      fd.append('items', JSON.stringify(orderItems));
+      fd.append('fulfillmentType', selectedFulfillment);
+      fd.append('paymentMethod', payMethod);
+      fd.append('technicianId', '');
+      fd.append('timeSlot', document.getElementById('wizardTimeSlot')?.value || '');
+      fd.append('transportationFee', String(_transportFee));
+      fd.append('routeDistanceKm', String(_routeDistanceKm));
+      fd.append('routeDurationMin', String(_routeDurationMin));
+
+      if (deliveryData) {
+        fd.append('delivery', JSON.stringify(deliveryData));
+      }
+      if (selectedFulfillment === 'customer_pickup') {
+        fd.append('pickupDate', document.getElementById('wizardPickupDate').value);
+      }
+
+      if (needsGcashProof) {
+        fd.append('gcashNumber', document.getElementById('wizardContact')?.value || USER_PHONE);
+        const proofFile = document.getElementById('gcashProofWizard')?.files[0];
+        if (proofFile) fd.append('gcashProof', proofFile);
+      }
+
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          body: fd  // No Content-Type header — browser sets multipart boundary automatically
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          Swal.fire('Error', data.error || 'Failed to place order.', 'error');
+          nextBtn.disabled = false;
+          nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
+          return;
+        }
+
+        // Order success - clear cart
+        await fetch('/api/aircon-cart/clear', { method: 'POST' });
+
+        const modalBody = document.querySelector('#checkoutOrderModal .modal-body');
+        modalBody.innerHTML = `
+        <div class="text-center py-5" style="animation: fadeSlideUp 0.4s ease;">
+          <div style="font-size: 4rem; color: #10b981; margin-bottom: 1rem;"><i class="bi bi-check-circle-fill"></i></div>
+          <h4 class="fw-bold" style="color: #0a1628;">Order Placed!</h4>
+          <p style="color: #64748b;">Your order reference is:</p>
+          <div class="d-inline-block px-4 py-2 rounded-pill fw-bold mb-4" style="background: #f0fdf4; color: #059669; font-size: 1.25rem; letter-spacing: 1px;">
+            ${data.order.orderReference}
+          </div>
+          <p class="small text-muted mb-0">Check <a href="/my-orders" class="text-primary fw-bold text-decoration-none">My Orders</a> to track status.</p>
+        </div>
+      `;
+        document.querySelector('#checkoutOrderModal .modal-footer').innerHTML = `
+        <a href="/my-orders" class="btn btn-primary px-4 shadow-sm mx-auto" style="border-radius: 50px;">View My Orders</a>
+      `;
+      } catch (e) {
+        Swal.fire('Error', 'Network error. Try again.', 'error');
+        nextBtn.disabled = false;
+        nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
+      }
+    }
+  })();
+</script>

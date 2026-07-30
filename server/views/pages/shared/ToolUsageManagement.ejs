@@ -1,0 +1,992 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    /* Fix modal z-index and backdrop issues */
+    .modal {
+      z-index: 1055 !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      overflow: auto !important;
+    }
+    
+    .modal-backdrop {
+      z-index: 1050 !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: rgba(0, 0, 0, 0.5) !important;
+    }
+    
+    .modal.show {
+      display: block !important;
+    }
+    
+    .modal-dialog {
+      z-index: 1056 !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      margin: 1.75rem auto !important;
+    }
+    
+    .modal-content {
+      z-index: 1057 !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      background: white !important;
+      border: 1px solid rgba(0, 0, 0, 0.2) !important;
+      border-radius: 0.3rem !important;
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175) !important;
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+      pointer-events: auto !important;
+      z-index: 1058 !important;
+      position: relative !important;
+    }
+    
+    /* Ensure all form elements are clickable */
+    .modal input,
+    .modal select,
+    .modal textarea,
+    .modal button,
+    .modal label,
+    .modal .form-control,
+    .modal .form-select,
+    .modal .btn {
+      pointer-events: auto !important;
+      z-index: 1059 !important;
+      position: relative !important;
+    }
+    
+    /* Ensure modal is above all admin elements */
+    .admin-dashboard {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Fix modal backdrop animation */
+    .modal-backdrop.fade {
+      opacity: 0;
+    }
+    
+    .modal-backdrop.show {
+      opacity: 0.5;
+    }
+    
+    /* Ensure modal is properly positioned */
+    .modal.fade .modal-dialog {
+      transform: translate(0, -50px);
+      transition: transform 0.3s ease-out;
+    }
+    
+    .modal.show .modal-dialog {
+      transform: translate(0, 0);
+    }
+    
+    /* Remove any conflicting admin styles */
+    .admin-sidebar,
+    .admin-topbar,
+    .admin-content {
+      z-index: auto !important;
+    }
+    
+    /* Navigation Bar in Front, Content Behind */
+    .admin-sidebar {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 250px !important;
+      height: 100vh !important;
+      z-index: 998 !important;  /* Lower z-index for sidebar */
+      background: #2c3e50 !important;
+      overflow-y: auto !important;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1) !important;
+      transition: transform 0.3s ease, margin-left 0.3s ease !important;
+    }
+    
+    .admin-topbar {
+      position: fixed !important;
+      top: 0 !important;
+      left: 250px !important;
+      right: 0 !important;
+      height: 60px !important;
+      z-index: 1000 !important;  /* Higher z-index for topbar */
+      background: #ffffff !important;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+      transition: left 0.3s ease !important;
+    }
+    
+    .admin-content {
+      margin-left: 250px !important;
+      margin-top: 60px !important;
+      padding: 20px !important;
+      z-index: 1 !important;
+      position: relative !important;
+      transition: margin-left 0.3s ease !important;
+    }
+    
+    /* Ensure arrow button and toggle buttons are on top */
+    .admin-topbar button,
+    .admin-topbar .btn,
+    [data-sidebar-toggle],
+    .sidebar-toggle,
+    .menu-toggle,
+    .toggle-sidebar,
+    .nav-toggle,
+    .arrow-toggle {
+      position: relative !important;
+      z-index: 1001 !important;  /* Highest z-index for buttons */
+    }
+    
+    /* Sidebar collapsed state */
+    .admin-sidebar.collapsed {
+      transform: translateX(-250px) !important;
+      margin-left: -250px !important;
+    }
+    
+    .admin-sidebar.collapsed + .admin-topbar,
+    .admin-topbar.sidebar-collapsed {
+      left: 0 !important;  /* Topbar expands to full width */
+    }
+    
+    .admin-sidebar.collapsed ~ .admin-content,
+    .admin-content.sidebar-collapsed {
+      margin-left: 0 !important;  /* Content expands to full width */
+    }
+    
+    /* Alternative class-based approach */
+    body.sidebar-collapsed .admin-sidebar {
+      transform: translateX(-250px) !important;
+    }
+    
+    body.sidebar-collapsed .admin-topbar {
+      left: 0 !important;  /* Topbar expands to full width */
+    }
+    
+    body.sidebar-collapsed .admin-content {
+      margin-left: 0 !important;  /* Content expands to full width */
+    }
+    
+    /* Ensure navigation is always in front */
+    .admin-sidebar { z-index: 998 !important; }
+    .admin-topbar { z-index: 1000 !important; }
+    
+    /* Make sure content stays behind navigation */
+    .card, .table, .kpi-row, .dashboard-hero {
+      position: relative !important;
+      z-index: 1 !important;
+    }
+
+    /* Stockhistory-style KPI cards (shared for tool usage and service tracking) */
+    /* KPI rows handled by kpi-cards partial and dashboard-styles */
+
+    /* Ensure modal is above everything */
+    .modal-open .modal {
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+  /* Professional Designer Modal Styles */
+    .custom-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 999999;
+      background: radial-gradient(circle at center, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.8) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      box-sizing: border-box;
+      backdrop-filter: blur(8px);
+      overflow: hidden !important;
+    }
+    
+    .custom-modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.7) 100%);
+      z-index: 999998;
+    }
+    
+    .custom-modal-dialog {
+      position: fixed;
+      z-index: 1000000;
+      width: 100%;
+      max-width: 900px;
+      max-height: 95vh;
+      overflow: hidden;
+      animation: professionalModalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      margin: 0;
+      flex-shrink: 0;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 24px;
+    }
+    
+    .custom-modal-content {
+      background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
+      border-radius: 24px;
+      box-shadow: 
+        0 32px 64px rgba(0, 0, 0, 0.25),
+        0 16px 32px rgba(0, 0, 0, 0.15),
+        0 8px 16px rgba(0, 0, 0, 0.1),
+        0 4px 8px rgba(0, 0, 0, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+      position: relative;
+      z-index: 1000001;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .custom-modal-header {
+      background: linear-gradient(135deg, #1a365d 0%, #2c5282 25%, #3182ce 50%, #2c5282 75%, #1a365d 100%);
+      color: white;
+      padding: 2rem 2.5rem;
+      border-radius: 24px 24px 0 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 
+        0 4px 20px rgba(26, 54, 93, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .custom-modal-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      animation: shimmer 3s infinite;
+    }
+    
+    .custom-modal-title {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: white;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      position: relative;
+      z-index: 2;
+    }
+    
+    .custom-modal-title i {
+      font-size: 1.5rem;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 0.5rem;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .custom-modal-close {
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      color: white;
+      font-size: 1.25rem;
+      cursor: pointer;
+      padding: 0.75rem;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(20px);
+      margin-left: auto;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .custom-modal-close:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    
+    .custom-modal-close:active {
+      transform: scale(0.95) rotate(90deg);
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .custom-modal-body {
+      padding: 2.5rem;
+      max-height: 70vh;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      position: relative;
+    }
+    
+    .custom-modal-body::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .custom-modal-body::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 4px;
+    }
+    
+    .custom-modal-body::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #cbd5e0 0%, #a0aec0 100%);
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .custom-modal-body::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #a0aec0 0%, #718096 100%);
+    }
+    
+    .custom-modal-footer {
+      padding: 2rem 2.5rem;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-end;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border-radius: 0 0 24px 24px;
+      box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Professional Form Styling */
+    .custom-modal .form-control,
+    .custom-modal .form-select {
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    
+    .custom-modal .form-control:focus,
+    .custom-modal .form-select:focus {
+      border-color: #3182ce;
+      box-shadow: 
+        0 0 0 4px rgba(49, 130, 206, 0.1),
+        0 4px 12px rgba(49, 130, 206, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      outline: none;
+      transform: translateY(-2px);
+      background: #ffffff;
+    }
+    
+    .custom-modal .form-label {
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 0.75rem;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+    
+    .custom-modal .form-label::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 24px;
+      height: 2px;
+      background: linear-gradient(90deg, #3182ce, #2b6cb0);
+      border-radius: 1px;
+    }
+    
+    .custom-modal .btn {
+      border-radius: 12px;
+      padding: 1rem 2rem;
+      font-weight: 700;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      border: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .custom-modal .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    .custom-modal .btn:hover::before {
+      left: 100%;
+    }
+    
+    .custom-modal .btn-primary {
+      background: linear-gradient(135deg, #1a365d 0%, #2c5282 50%, #1a365d 100%);
+      color: white;
+      box-shadow: 
+        0 6px 20px rgba(26, 54, 93, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    
+    .custom-modal .btn-primary:hover {
+      background: linear-gradient(135deg, #2c5282 0%, #1a365d 50%, #2c5282 100%);
+      transform: translateY(-3px);
+      box-shadow: 
+        0 12px 32px rgba(26, 54, 93, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    
+    .custom-modal .btn-primary:active {
+      transform: translateY(-1px);
+      box-shadow: 
+        0 6px 20px rgba(26, 54, 93, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    
+    .custom-modal .btn-secondary {
+      background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+      color: white;
+      box-shadow: 
+        0 6px 20px rgba(74, 85, 104, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    
+    .custom-modal .btn-secondary:hover {
+      background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+      transform: translateY(-3px);
+      box-shadow: 
+        0 12px 32px rgba(74, 85, 104, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    
+    /* Section headers with professional styling */
+    .custom-modal h6 {
+      font-size: 1rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 3px solid transparent;
+      border-image: linear-gradient(90deg, #3182ce, #2b6cb0, #3182ce) 1;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: #1a365d;
+      position: relative;
+    }
+    
+    .custom-modal h6 i {
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #3182ce, #2b6cb0);
+      color: white;
+      padding: 0.5rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(49, 130, 206, 0.3);
+    }
+    
+    /* Input group styling */
+    .custom-modal .input-group-text {
+      background: linear-gradient(135deg, #3182ce, #2b6cb0);
+      border: 2px solid #3182ce;
+      color: white;
+      font-weight: 700;
+      border-radius: 12px 0 0 12px;
+      padding: 0 1.25rem;
+      box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
+    }
+    
+    .custom-modal .input-group .form-control {
+      border-radius: 0 12px 12px 0;
+    }
+    
+    .custom-modal .input-group .form-control:focus {
+      border-left-color: #3182ce;
+    }
+    
+    /* Form switch styling */
+    .custom-modal .form-check-input {
+      width: 3rem;
+      height: 1.5rem;
+      background-color: #e2e8f0;
+      border: 2px solid #cbd5e0;
+      border-radius: 1rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .custom-modal .form-check-input:checked {
+      background: linear-gradient(135deg, #3182ce, #2b6cb0);
+      border-color: #3182ce;
+      box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.1);
+    }
+    
+    .custom-modal .form-check-input:focus {
+      border-color: #3182ce;
+      box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.1);
+    }
+    
+    .custom-modal .form-check-label {
+      font-weight: 600;
+      color: #4a5568;
+      margin-left: 0.5rem;
+    }
+    
+    /* Professional animations */
+    @keyframes professionalModalSlideIn {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8) rotateX(10deg);
+        filter: blur(10px);
+      }
+      50% {
+        opacity: 0.8;
+        transform: translate(-50%, -50%) scale(1.05) rotateX(0deg);
+        filter: blur(0px);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) rotateX(0deg);
+        filter: blur(0px);
+      }
+    }
+    
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+    
+    @keyframes professionalModalSlideOut {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) rotateX(0deg);
+        filter: blur(0px);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8) rotateX(-10deg);
+        filter: blur(10px);
+      }
+    }
+    
+    .custom-modal.closing {
+      animation: professionalModalSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    
+    @keyframes modalSlideOut {
+      from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+      }
+    }
+    
+    .custom-modal.closing {
+      animation: modalSlideOut 0.3s ease-out;
+    }
+    
+    /* Ensure form elements are fully interactive */
+    .custom-modal input,
+    .custom-modal select,
+    .custom-modal textarea,
+    .custom-modal button,
+    .custom-modal label {
+      position: relative;
+      z-index: 10002;
+    }
+    
+    .custom-modal .form-control:focus,
+    .custom-modal .form-select:focus {
+      z-index: 10003;
+      position: relative;
+    }
+  </style>
+
+  <script>
+    // Sidebar toggle functionality
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.admin-sidebar');
+      const topbar = document.querySelector('.admin-topbar');
+      const content = document.querySelector('.admin-content');
+      
+      if (sidebar && topbar && content) {
+        // Toggle body class
+        document.body.classList.toggle('sidebar-collapsed');
+        
+        // Toggle individual classes as fallback
+        sidebar.classList.toggle('collapsed');
+        topbar.classList.toggle('sidebar-collapsed');
+        content.classList.toggle('sidebar-collapsed');
+      }
+    }
+    
+    // Add keyboard shortcut (Ctrl+B) to toggle sidebar
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    });
+    
+    // Add click event listener for existing sidebar toggle buttons
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check for any existing sidebar toggle buttons
+      const existingToggleBtns = document.querySelectorAll('[data-sidebar-toggle], .sidebar-toggle, .menu-toggle, .toggle-sidebar, .nav-toggle, .arrow-toggle');
+      existingToggleBtns.forEach(btn => {
+        btn.onclick = function(e) {
+          e.preventDefault();
+          toggleSidebar();
+        };
+      });
+      
+      // Also check for buttons with common icons that might be toggle buttons
+      const iconToggleBtns = document.querySelectorAll('button .bi-arrow-left, button .bi-arrow-right, button .bi-chevron-left, button .bi-chevron-right');
+      iconToggleBtns.forEach(icon => {
+        const btn = icon.closest('button');
+        if (btn && !btn.hasAttribute('data-sidebar-connected')) {
+          btn.onclick = function(e) {
+            e.preventDefault();
+            toggleSidebar();
+          };
+          btn.setAttribute('data-sidebar-connected', 'true');
+        }
+      });
+    });
+  </script>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-tools me-2"></i>Tool Usage Management
+        </h1>
+        <p class="hero-sub">
+          Track materials and costs; materials added here are shared to the technician tool catalog.
+        </p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="/admin/inventory" class="btn btn-outline-light btn-sm me-2">
+          <i class="bi bi-box-arrow-left me-1"></i>Back to Aircon
+        </a>
+        <button class="btn btn-light btn-sm" id="toolUsageRefreshBtn">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <%- include('../../partials/kpi-cards', { 
+    kpiItems: [
+      { id: 'kpiEntries', icon: 'bi bi-tools', label: 'Total Tools', variant: 'primary' },
+      { id: 'kpiQty', icon: 'bi bi-box-seam', label: 'Total Quantity', variant: 'info' },
+      { id: 'kpiLowStock', icon: 'bi bi-exclamation-triangle', label: 'Low Stock Items', variant: 'warning' },
+      { id: 'kpiCost', icon: 'bi bi-currency-dollar', label: 'Total Value', variant: 'success' }
+    ]
+  }) %>
+  <script>
+    // Map sparkline IDs to the ones generated by the partial
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new MutationObserver(() => {
+        const entriesCanvas = document.getElementById('spark_kpiEntries');
+        if (entriesCanvas) {
+          // You might need to alias these in the global scope if the main script expects the old IDs
+          window.kpiEntriesChart = entriesCanvas;
+          window.kpiQtyChart = document.getElementById('spark_kpiQty');
+          window.kpiLowStockChart = document.getElementById('spark_kpiLowStock');
+          window.kpiCostChart = document.getElementById('spark_kpiCost');
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  </script>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-bold">Filters</div>
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">From</label>
+          <input type="date" id="filterStart" class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">To</label>
+          <input type="date" id="filterEnd" class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Technician</label>
+          <select id="filterTech" class="form-select form-select-sm">
+            <option value="">All technicians</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button class="btn btn-sm btn-primary w-100" id="applyFilterBtn">Apply</button>
+          <button class="btn btn-sm btn-outline-secondary w-100" id="clearFilterBtn">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+      <span>Tool Catalog</span>
+      <div class="d-flex gap-2">
+        <span class="small text-muted" id="toolUsageCount">—</span>
+        <button class="btn btn-sm btn-primary" id="addToolBtn">
+          <i class="bi bi-plus-circle me-1"></i>Add New Tool
+        </button>
+      </div>
+    </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+      <span>Usage Records</span>
+      <span class="small text-muted" id="toolUsageCount">—</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Tool Name</th>
+            <th>Unit</th>
+            <th>Cost Price (₱)</th>
+            <th>Selling Price (₱)</th>
+            <th>Quantity</th>
+            <th>Status</th>
+            <th>Min Stock Level</th>
+            <th>Created Date</th>
+            <th>Notes</th>
+            <th style="width:180px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="toolUsageBody">
+          <tr><td colspan="10" class="text-center text-muted py-4">Loading tool usage…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Tool Management Modal -->
+<div id="toolManagementModal" class="custom-modal" style="display: none;">
+  <div class="custom-modal-backdrop" onclick="toolManagement.hideModal()"></div>
+  <div class="custom-modal-dialog">
+    <div class="custom-modal-content">
+      <div class="custom-modal-header">
+        <h5 class="custom-modal-title">
+          <i class="bi bi-tools me-2"></i>
+          <span id="modalTitle">Add New Tool</span>
+        </h5>
+        <button type="button" class="custom-modal-close" onclick="toolManagement.hideModal()">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <form id="toolManagementForm" novalidate>
+        <div class="custom-modal-body">
+          <!-- Basic Information Section -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <h6 class="text-primary fw-bold mb-3">
+                <i class="bi bi-info-circle me-2"></i>Basic Information
+              </h6>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Tool Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="toolName" name="itemName" required 
+                     placeholder="e.g., Copper Wire, Refrigerant Gas, Wrench Set">
+              <div class="invalid-feedback">Please provide a tool name</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Unit <span class="text-danger">*</span></label>
+              <select class="form-select" id="toolUnit" name="unit" required>
+                <option value="">Select Unit</option>
+                <option value="pcs">Pieces (pcs)</option>
+                <option value="kg">Kilograms (kg)</option>
+                <option value="liters">Liters (L)</option>
+                <option value="meters">Meters (m)</option>
+                <option value="set">Set</option>
+                <option value="box">Box</option>
+                <option value="bottle">Bottle</option>
+                <option value="roll">Roll</option>
+              </select>
+              <div class="invalid-feedback">Please select a unit</div>
+            </div>
+          </div>
+
+          <!-- Stock Management Section -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <h6 class="text-success fw-bold mb-3">
+                <i class="bi bi-box-seam me-2"></i>Stock Management
+              </h6>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Initial Quantity <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="toolQuantity" name="quantity" 
+                     min="0" step="1" required placeholder="0">
+              <div class="invalid-feedback">Please provide a valid quantity</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Min Stock Level <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="toolMinStock" name="minStockLevel" 
+                     min="0" step="1" required value="3" placeholder="3">
+              <div class="invalid-feedback">Please provide minimum stock level</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Stock Status <span class="text-danger">*</span></label>
+              <select class="form-select" id="toolStatus" name="status" required>
+                <option value="">Select Status</option>
+                <option value="in_stock">In Stock</option>
+                <option value="low_stock">Low Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+                <option value="discontinued">Discontinued</option>
+              </select>
+              <div class="invalid-feedback">Please select stock status</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Is Stock Item</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="toolIsStockItem" name="isStockItem" checked>
+                <label class="form-check-label" for="toolIsStockItem">
+                  Track as inventory item
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pricing Section -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <h6 class="text-warning fw-bold mb-3">
+                <i class="bi bi-currency-dollar me-2"></i>Pricing Information
+              </h6>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Cost Price (₱) <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" class="form-control" id="toolCostPrice" name="costPrice" 
+                       min="0" step="0.01" required placeholder="0.00">
+              </div>
+              <div class="invalid-feedback">Please provide a valid cost price</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Selling Price (₱) <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text">₱</span>
+                <input type="number" class="form-control" id="toolSellingPrice" name="sellingPrice" 
+                       min="0" step="0.01" required placeholder="0.00">
+              </div>
+              <div class="invalid-feedback">Please provide a valid selling price</div>
+            </div>
+          </div>
+
+          <!-- Additional Details Section -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <h6 class="text-info fw-bold mb-3">
+                <i class="bi bi-clipboard-data me-2"></i>Additional Details
+              </h6>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label fw-semibold">Supplier</label>
+              <input type="text" class="form-control" id="toolSupplier" name="supplier" 
+                     placeholder="Supplier name (optional)">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Specification</label>
+              <textarea class="form-control" id="toolSpecification" name="specification" 
+                        rows="2" placeholder="Technical specifications (optional)"></textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Description</label>
+              <textarea class="form-control" id="toolDescription" name="description" 
+                        rows="3" placeholder="Detailed description (optional)"></textarea>
+            </div>
+          </div>
+
+          <!-- Active Status -->
+          <div class="row">
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="toolActive" name="active" checked>
+                <label class="form-check-label" for="toolActive">
+                  <strong>Active</strong> - Tool is available for use
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="custom-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="toolManagement.hideModal()">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" id="saveToolBtn">
+            <i class="bi bi-check-circle me-1"></i>Save Tool
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.TOOL_USAGE_CONTEXT = {
+    apiBase: "<%= apiBase %>",
+    roleLabel: "<%= roleLabel %>",
+  };
+</script>
+<script src="/js/tool-management.js"></script>

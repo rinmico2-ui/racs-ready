@@ -1,0 +1,449 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <!-- Premium Stats Header -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-circle bg-info-subtle text-info rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+              <i class="bi bi-clock-history fs-5"></i>
+            </div>
+            <div>
+              <div class="small text-muted text-uppercase mb-1">Total Active Jobs</div>
+              <div class="h4 mb-0 fw-bold">24</div>
+              <div class="small text-success"><i class="bi bi-arrow-up text-success"></i> 3 new today</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-circle bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+              <i class="bi bi-person-check fs-5"></i>
+            </div>
+            <div>
+              <div class="small text-muted text-uppercase mb-1">Technicians Assigned</div>
+              <div class="h4 mb-0 fw-bold">8</div>
+              <div class="small text-info">4 in-progress</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-circle bg-warning-subtle text-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+              <i class="bi bi-lightning-charge fs-5"></i>
+            </div>
+            <div>
+              <div class="small text-muted text-uppercase mb-1">Urgent Jobs</div>
+              <div class="h4 mb-0 fw-bold">3</div>
+              <div class="small text-danger">Requires immediate attention</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-circle bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+              <i class="bi bi-currency-dollar fs-5"></i>
+            </div>
+            <div>
+              <div class="small text-muted text-uppercase mb-1">Revenue Today</div>
+              <div class="h4 mb-0 fw-bold">₱24,850</div>
+              <div class="small text-success">From 4 completed jobs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-hammer"></i></div>
+        <div>
+          <h1>Active Jobs</h1>
+          <p>Manage ongoing service requests and technician assignments</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Search by job ID, customer, or technician..."
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Status</label
+          >
+          <select class="form-select">
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="assigned">Assigned</option>
+            <option value="in-progress">In Progress</option>
+            <option value="on-hold">On Hold</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Service Type</label
+          >
+          <select class="form-select">
+            <option value="all">All Services</option>
+            <option value="repair">Repair</option>
+            <option value="installation">Installation</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light w-100 border">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jobs Table -->
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Current Active List</h6>
+      <span class="badge bg-primary-subtle text-primary rounded-pill px-3"
+        >Total: 12</span
+      >
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Job ID</th>
+            <th>Service</th>
+            <th>Customer</th>
+            <th>Technician</th>
+            <th>Schedule</th>
+            <th>Status</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Prototype Row 1: In Progress -->
+          <tr>
+            <td class="ps-4">
+              <span class="fw-bold text-dark">#JOB-2024-001</span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="icon-square bg-primary-subtle text-primary rounded me-2 d-flex align-items-center justify-content-center"
+                  style="width: 32px; height: 32px"
+                >
+                  <i class="bi bi-tools"></i>
+                </div>
+                <div>
+                  <div class="fw-bold">Aircon Repair</div>
+                  <div class="text-muted text-micro">Split Type - 2.0HP</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-secondary-subtle text-secondary me-2 d-flex align-items-center justify-content-center fw-bold"
+                  style="width: 32px; height: 32px"
+                >
+                  JD
+                </div>
+                <div>
+                  <div class="fw-semibold">John Doe</div>
+                  <div class="text-muted text-micro">Quezon City</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <img
+                  src="/images/technicianWork/tech1.jpg"
+                  onerror="
+                    this.src =
+                      'https://ui-avatars.com/api/?name=Mike+Ross&background=0D8ABC&color=fff'
+                  "
+                  class="rounded-circle me-2"
+                  width="32"
+                  height="32"
+                  alt="Tech"
+                />
+                <span class="text-dark">Mike Ross</span>
+              </div>
+            </td>
+            <td>
+              <div class="text-dark">Feb 20, 2024</div>
+              <div class="text-muted text-micro">09:00 AM - 11:00 AM</div>
+            </td>
+            <td>
+              <span
+                class="badge bg-warning text-dark border border-warning-subtle"
+                ><i class="bi bi-clock me-1"></i>In Progress</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <div class="dropdown">
+                <button
+                  class="btn btn-micro btn-light border dropdown-toggle"
+                  type="button"
+                  data-bs-toggle="dropdown"
+                >
+                  Action
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                  <li>
+                    <a class="dropdown-item" href="#"
+                      ><i class="bi bi-eye me-2 text-primary"></i>View
+                      Details</a
+                    >
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="#"
+                      ><i class="bi bi-pencil me-2 text-muted"></i>Edit
+                      Status</a
+                    >
+                  </li>
+                  <li><hr class="dropdown-divider" /></li>
+                  <li>
+                    <a class="dropdown-item text-danger" href="#"
+                      ><i class="bi bi-x-circle me-2"></i>Cancel Job</a
+                    >
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Prototype Row 2: Assigned/Scheduled -->
+          <tr>
+            <td class="ps-4">
+              <span class="fw-bold text-dark">#JOB-2024-002</span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="icon-square bg-info-subtle text-info rounded me-2 d-flex align-items-center justify-content-center"
+                  style="width: 32px; height: 32px"
+                >
+                  <i class="bi bi-wind"></i>
+                </div>
+                <div>
+                  <div class="fw-bold">Cleaning</div>
+                  <div class="text-muted text-micro">Window Type</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-success-subtle text-success me-2 d-flex align-items-center justify-content-center fw-bold"
+                  style="width: 32px; height: 32px"
+                >
+                  AS
+                </div>
+                <div>
+                  <div class="fw-semibold">Alice Smith</div>
+                  <div class="text-muted text-micro">Makati City</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge bg-secondary-subtle text-secondary border border-secondary fw-normal"
+                >Unassigned</span
+              >
+            </td>
+            <td>
+              <div class="text-dark">Feb 21, 2024</div>
+              <div class="text-muted text-micro">01:00 PM - 03:00 PM</div>
+            </td>
+            <td>
+              <span class="badge bg-info text-dark border border-info-subtle"
+                ><i class="bi bi-calendar-check me-1"></i>Scheduled</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-primary">
+                <i class="bi bi-person-plus me-1"></i>Assign
+              </button>
+            </td>
+          </tr>
+
+          <!-- Prototype Row 3: Pending -->
+          <tr>
+            <td class="ps-4">
+              <span class="fw-bold text-dark">#JOB-2024-003</span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="icon-square bg-danger-subtle text-danger rounded me-2 d-flex align-items-center justify-content-center"
+                  style="width: 32px; height: 32px"
+                >
+                  <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <div>
+                  <div class="fw-bold">Emergency Repair</div>
+                  <div class="text-muted text-micro">Leaking Unit conversation</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-warning-subtle text-warning me-2 d-flex align-items-center justify-content-center fw-bold"
+                  style="width: 32px; height: 32px"
+                >
+                  RJ
+                </div>
+                <div>
+                  <div class="fw-semibold">Robert Jones</div>
+                  <div class="text-muted text-micro">Pasig City</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge bg-secondary-subtle text-secondary border border-secondary fw-normal"
+                >Unassigned</span
+              >
+            </td>
+            <td>
+              <div class="text-dark fw-bold text-danger">Urgent</div>
+              <div class="text-muted text-micro">ASAP</div>
+            </td>
+            <td>
+              <span
+                class="badge bg-danger-subtle text-danger border border-danger"
+                ><i class="bi bi-hourglass-split me-1"></i>Pending</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-primary">
+                <i class="bi bi-check-lg me-1"></i>Approve
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm justify-content-end mb-0">
+          <li class="page-item disabled">
+            <a class="page-link" href="#">Previous</a>
+          </li>
+          <li class="page-item active"><a class="page-link" href="#">1</a></li>
+          <li class="page-item"><a class="page-link" href="#">2</a></li>
+          <li class="page-item"><a class="page-link" href="#">3</a></li>
+          <li class="page-item"><a class="page-link" href="#">Next</a></li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Create Job Modal -->
+  <div class="modal fade" id="createJobModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Create New Service Job</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <form class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Customer Name</label>
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Search customer..."
+              />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Service Type</label>
+              <select class="form-select">
+                <option selected>Select service...</option>
+                <option>Aircon Cleaning</option>
+                <option>Repair</option>
+                <option>Installation</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Scheduled Date</label>
+              <input type="date" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Time Slot</label>
+              <select class="form-select">
+                <option>09:00 AM - 11:00 AM</option>
+                <option>01:00 PM - 03:00 PM</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Address</label>
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Auto-filled from customer profile..."
+              />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Notes/Issues</label>
+              <textarea class="form-control" rows="3"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Close
+          </button>
+          <button type="button" class="btn btn-primary">Create Job</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

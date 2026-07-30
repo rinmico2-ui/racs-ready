@@ -1,0 +1,63 @@
+<!-- ═══ Enterprise Chart Drilldown Modal ═══ -->
+<!-- Include this partial in any report page that needs clickable chart modals -->
+<div class="modal fade" id="chartDrilldownModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content cdm-content">
+      <!-- Header -->
+      <div class="cdm-header">
+        <div class="cdm-header-left">
+          <div class="cdm-header-icon"><i class="bi bi-bar-chart-line"></i></div>
+          <div>
+            <h5 class="cdm-title" id="cdmTitle">Chart Details</h5>
+            <p class="cdm-subtitle" id="cdmSubtitle">Click any slice or bar to filter the details below</p>
+          </div>
+        </div>
+        <button type="button" class="cdm-close" data-bs-dismiss="modal" aria-label="Close">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <!-- Body: Split View -->
+      <div class="cdm-body">
+        <!-- Left: Chart -->
+        <div class="cdm-chart-panel">
+          <div class="cdm-chart-wrapper">
+            <canvas id="cdmChartCanvas"></canvas>
+          </div>
+          <!-- Summary Stats -->
+          <div class="cdm-summary-bar" id="cdmSummaryBar"></div>
+        </div>
+
+        <!-- Right: Details -->
+        <div class="cdm-detail-panel">
+          <!-- Filter Chips -->
+          <div class="cdm-filter-bar" id="cdmFilterBar">
+            <span class="cdm-filter-label"><i class="bi bi-funnel"></i> Filter:</span>
+            <div class="cdm-filter-chips" id="cdmFilterChips"></div>
+          </div>
+
+          <!-- Detail Table -->
+          <div class="cdm-table-wrap">
+            <table class="cdm-table" id="cdmTable">
+              <thead>
+                <tr id="cdmTableHead">
+                  <th>Item</th>
+                  <th class="text-end">Value</th>
+                </tr>
+              </thead>
+              <tbody id="cdmTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Export -->
+          <div class="cdm-export-bar">
+            <button type="button" class="cdm-export-btn" id="cdmExportBtn">
+              <i class="bi bi-download"></i> Export CSV
+            </button>
+            <span class="cdm-row-count" id="cdmRowCount"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

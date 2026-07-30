@@ -1,0 +1,241 @@
+  <div class="admin-dashboard container-fluid py-4 payments-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-credit-card-2-front-fill me-2"></i>Payments Overview
+        </h1>
+        <p class="hero-sub">
+          Monitor transactions, reconciliation status, and collection
+          performance
+        </p>
+      </div>
+      <!-- right side blank for future controls -->
+    </div>
+  </div>
+
+  <div class="kpi-row mb-4">
+    <div class="kpi-card kpi-primary" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Total Transactions</div>
+          <div class="kpi-value" id="statTotalTx">1,876</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-credit-card-2-front-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-success" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Collected (MTD)</div>
+          <div class="kpi-value" id="statCollected">₱ 2.34M</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-warning" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Pending Verification</div>
+          <div class="kpi-value" id="statPending">86</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-danger" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Failed Payments</div>
+          <div class="kpi-value" id="statFailed">21</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              id="paymentsSearch"
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Booking reference, transaction ID, customer, or invoice #"
+            />
+          </div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Status</label
+          >
+          <select class="form-select" id="paymentsStatusFilter">
+            <option>All</option>
+            <option>Paid</option>
+            <option>Partial</option>
+            <option>Pending</option>
+            <option>Failed</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Method</label
+          >
+          <select class="form-select" id="paymentsMethodFilter">
+            <option>All</option>
+            <option>GCash</option>
+            <option>COD</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Gateway</label
+          >
+          <select class="form-select" id="paymentsGatewayFilter">
+            <option>All</option>
+            <option>GCash</option>
+            <option>COD</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Gateway status</label
+          >
+          <select class="form-select" id="paymentsGatewayStatusFilter">
+            <option>All</option>
+            <option>pending</option>
+            <option>verified</option>
+            <option>paid</option>
+            <option>failed</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Date</label
+          >
+          <input type="date" class="form-control" id="paymentsDateFilter" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light border w-100" id="paymentsFilterBtn">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Payment Transactions</h6>
+      <span class="text-muted small">Manual GCash verification flow</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Transaction</th>
+            <th>Customer</th>
+            <th>Booking Ref</th>
+            <th class="d-none">Method</th>
+            <th class="d-none">Reference</th>
+            <th class="d-none">Receipt</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Date / Time</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="paymentsTableBody">
+          <tr>
+            <td colspan="10" class="text-center text-muted py-4">Loading payments...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <ul class="pagination justify-content-end mb-0">
+        <li class="page-item disabled">
+          <a class="page-link" href="#">Previous</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">Next</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header border-0 text-white" style="background:linear-gradient(135deg,#0d6efd,#0a58ca);padding:26px 26px 18px;">
+        <div class="w-100 text-center">
+          <div class="mb-2" style="font-size:2rem;">&#128295;</div>
+          <h5 class="modal-title fw-bold mb-1" style="font-size:1.1rem;letter-spacing:.3px;">Booking & Payment Details</h5>
+          <div class="mt-2 d-inline-block px-3 py-1 rounded" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);font-size:.95rem;font-weight:700;letter-spacing:1px;color:#fff;" id="detailsBookingReference">&mdash;</div>
+          <div class="mt-1 text-white" style="font-size:.85rem;">Booking status: <span id="detailsBookingStatus">&mdash;</span></div>
+        </div>
+        <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body px-4 pt-3 pb-2">
+        <div class="text-center mb-3">
+          <span class="badge rounded-pill px-3 py-2" id="detailsStatusBadge" style="background:#fff8e1;color:#e65100;border:1px solid #ffd54f;font-size:.78rem;font-weight:700;">&#9203; PENDING</span>
+        </div>
+
+        <div class="rounded-3 p-3 mb-3" style="background:#f8f9fa;font-size:.88rem;">
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Customer</span><span class="fw-semibold" id="detailsCustomer">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Service</span><span class="fw-semibold" id="detailsService">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Date</span><span class="fw-semibold" id="detailsDate">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Time</span><span class="fw-semibold" id="detailsTime">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Location</span><span class="fw-semibold text-end" id="detailsLocation">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Payment Method</span><span class="fw-semibold" id="detailsMethod">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">GCash Number</span><span class="fw-semibold" id="detailsGcashNumber">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Reference #</span><span class="fw-semibold" id="detailsReference">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Travel Fare</span><span class="fw-semibold" id="detailsTravelFare">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Downpayment</span><span class="fw-semibold" id="detailsDownpayment">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1"><span class="text-muted">Estimated Fee</span><span class="fw-bold text-success" id="detailsEstimatedFee">&mdash;</span></div>
+        </div>
+
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-1">Issue Description</h6>
+          <p class="text-muted small mb-0" id="detailsIssue">&mdash;</p>
+        </div>
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-1">Payment Notes</h6>
+          <p class="text-muted small mb-0" id="detailsNotes">&mdash;</p>
+        </div>
+
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-1">Receipt Screenshot</h6>
+          <a id="detailsProofLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-none"><i class="bi bi-image me-1"></i>Open Receipt</a>
+          <span id="detailsNoProof" class="text-muted small">No receipt uploaded.</span>
+        </div>
+      </div>
+      <div class="modal-footer border-0 px-4 pb-4 pt-0 gap-2 justify-content-center">
+        <button type="button" class="btn btn-outline-danger px-4" id="detailsFailBtn">Fail</button>
+        <button type="button" class="btn btn-outline-warning px-4" id="detailsPartialBtn">Partial Payment</button>
+        <button type="button" class="btn btn-outline-success px-4" id="detailsVerifyBtn">Mark Paid</button>
+        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/secretary-payments.js"></script>

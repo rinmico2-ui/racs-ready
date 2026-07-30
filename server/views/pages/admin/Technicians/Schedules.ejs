@@ -1,0 +1,2481 @@
+<%# ───────────────────────────────────────────── Technician Schedules —
+FullCalendar view /admin/technicians/schedules
+───────────────────────────────────────────── %> <%# NOTE: FullCalendar v6
+global build injects its own JS, but the Bootstrap theme requires its own CSS
+file. We load the CDN above and fall back to the local stub. %>
+<!-- FullCalendar Bootstrap theme stylesheet was served with incorrect MIME type from CDN.
+     Using local CSS instead (core styles).  Add theme manually if needed. -->
+<link rel="stylesheet" href="/vendor/fullcalendar/main.min.css" />
+<!-- <link rel="stylesheet" href="/vendor/fullcalendar/bootstrap.min.css" /> -->
+<style>
+  /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
+</style>
+<div
+  class="admin-dashboard container-fluid py-4"
+>
+  <%- include('../../../partials/dashboard-styles') %>
+  <div class="ts-page">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-calendar2-week-fill"></i></div>
+          <div>
+            <h1>Technician Schedules</h1>
+            <p>View per-technician working hours, rest days, holidays and booked appointments on a unified calendar.</p>
+          </div>
+        </div>
+        <div class="au-hero-actions">
+          <a href="/admin/technicians/scheduling" class="btn btn-light btn-sm fw-semibold" style="border-radius:10px;">
+            <i class="bi bi-gear me-1"></i>Edit global rules
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TECH SELECTOR BAR ═════════════════════════════════════════════ -->
+    <div class="ts-selector-bar card">
+      <div class="ts-selector-inner">
+        <label for="techSelect" class="ts-sel-label">
+          <i class="bi bi-person-gear me-1"></i>Technician
+        </label>
+        <select
+          id="techSelect"
+          class="form-select form-select-sm ts-sel-select"
+        >
+          <option value="">— select a technician —</option>
+        </select>
+        <div id="techInfoBadge" class="ts-badge d-none">
+          <span id="techBadgeName"></span>
+          <span id="techBadgeStatus" class="badge bg-success ms-2">Active</span>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button
+            id="btnRefresh"
+            class="btn btn-sm btn-outline-secondary d-none"
+            title="Refresh calendar"
+          >
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MAIN CONTENT (calendar + info panel) ═══════════════════════════ -->
+    <div class="ts-main row g-3">
+      <!-- CALENDAR COLUMN -->
+      <div class="col-xl-9 col-lg-8 col-12">
+        <div class="card ts-cal-card">
+          <!-- Legend -->
+          <div class="ts-legend">
+            <span class="ts-leg-item">
+              <span
+                class="ts-leg-bg"
+                style="background: #dcfce7; border: 1px solid #bbf7d0"
+              ></span>
+              <span class="ts-leg-text">Available</span>
+            </span>
+            <span class="ts-leg-item">
+              <span class="ts-leg-dot" style="background: #fde68a"></span>
+              <span class="ts-leg-text">Booked</span>
+            </span>
+            <span class="ts-leg-item">
+              <span class="ts-leg-dot" style="background: #ef4444"></span>
+              <span class="ts-leg-text">Cancelled</span>
+            </span>
+            <span class="ts-leg-sep">|</span>
+            <span class="ts-leg-item">
+              <span
+                class="ts-leg-bg"
+                style="background: #f1f5f9; border: 1px solid #e2e8f0"
+              ></span>
+              <span class="ts-leg-text">Non-working / Rest / Holiday</span>
+            </span>
+          </div>
+
+          <!-- FullCalendar mount point -->
+          <div id="techCalendar"></div>
+
+          <!-- Placeholder when no technician selected -->
+          <div id="calPlaceholder" class="ts-cal-placeholder">
+            <div class="ts-cal-ph-content">
+              <i class="bi bi-calendar2-week ts-cal-ph-icon"></i>
+              <div class="ts-cal-ph-title">Select a Technician</div>
+              <div class="ts-cal-ph-sub">
+                Choose a technician from the dropdown above to view their
+                schedule on the calendar.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO PANEL COLUMN -->
+      <div class="col-xl-3 col-lg-4 col-12 d-flex flex-column gap-3">
+        <!-- Weekly working hours -->
+        <div class="card ts-info-card" id="workingDaysCard">
+          <div class="ts-info-card-heading">
+            <i class="bi bi-clock-history me-2 text-success"></i>Weekly Working
+            Hours
+          </div>
+          <div id="workingDaysList" class="ts-info-card-body text-muted small">
+            Select a technician to see their schedule.
+          </div>
+        </div>
+
+        <!-- Rest / exception dates -->
+        <div class="card ts-info-card" id="restDatesCard">
+          <div class="ts-info-card-heading">
+            <i class="bi bi-calendar-x me-2 text-warning"></i>Upcoming Rest
+            &amp; Exceptions
+          </div>
+          <div id="restDatesList" class="ts-info-card-body text-muted small">
+            No exceptions found.
+          </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="card ts-info-card" id="statsCard">
+          <div class="ts-info-card-heading">
+            <i class="bi bi-bar-chart-line me-2 text-primary"></i>This Month
+          </div>
+          <div id="statsList" class="ts-info-card-body">
+            <div class="ts-stat-row">
+              <span class="ts-stat-label">Working days</span>
+              <span class="ts-stat-val" id="statWorkDays">—</span>
+            </div>
+            <div class="ts-stat-row">
+              <span class="ts-stat-label">Booked slots</span>
+              <span class="ts-stat-val" id="statBooked">—</span>
+            </div>
+            <div class="ts-stat-row">
+              <span class="ts-stat-label">Pending</span>
+              <span class="ts-stat-val" id="statPending">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /.ts-main -->
+
+    <!-- ══ EVENT DETAIL MODAL ════════════════════════════════════════════ -->
+    <!-- NOTE: modal is moved to <body> on page load to avoid stacking-context issues -->
+    <div
+      class="modal fade"
+      id="apptDetailModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-calendar-event me-2"></i>
+              <span id="apptModalTitle">Appointment Details</span>
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="apptModalBody">
+            <div class="text-center text-muted py-3">Loading…</div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+            <a
+              id="apptModalLink"
+              href="#"
+              target="_blank"
+              class="btn btn-sm btn-primary d-none"
+            >
+              <i class="bi bi-box-arrow-up-right me-1"></i>View full record
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* ── Page layout ───────────────────────────────────────────────── */
+      .ts-page {
+        padding: 0;
+        max-width: 1600px;
+      }
+      /* ensure general page text inherits the admin-dashboard setting */
+      .admin-dashboard {
+        color: #212529;
+      }
+      /* ── Selector bar ────────────────────────────────────────────────── */
+      .ts-selector-bar {
+        border-radius: 12px;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      }
+      .ts-selector-inner {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .ts-sel-label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #374151;
+        white-space: nowrap;
+      }
+      .ts-sel-select {
+        max-width: 280px;
+        min-width: 200px;
+      }
+      .ts-badge {
+        display: flex;
+        align-items: center;
+        font-size: 0.875rem;
+        color: #374151;
+        background: #f3f4f6;
+        border-radius: 999px;
+        padding: 4px 14px;
+      }
+      /* ── Calendar card ───────────────────────────────────────────────── */
+      .ts-cal-card {
+        border-radius: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        /* keep top/side padding but remove bottom so the calendar can extend */
+        padding: 1.25rem 1.25rem 0 1.25rem;
+        position: relative;
+        /* flex with viewport height instead of hardcoded value */
+        min-height: calc(100vh - 260px);
+        display: flex;
+        flex-direction: column;
+      }
+      #techCalendar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: #f1f5f9; /* match cell color so grey fills card */
+        /* extend into the card's removed bottom padding */
+        margin-bottom: -1.25rem;
+        padding-bottom: 1.25rem;
+        box-sizing: border-box;
+      }
+      #techCalendar .fc {
+        flex: 1;
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0;
+      }
+      /* Make month-view daygrid fill the card to the bottom */
+      #techCalendar .fc .fc-view-harness {
+        flex: 1 !important;
+        min-height: 0;
+      }
+      /* The liquid-absolute scroller already uses position:absolute to fill
+         its parent cell.  Make every element INSIDE it stretch to 100%. */
+      #techCalendar .fc-daygrid .fc-scrollgrid {
+        height: 100% !important;
+      }
+      #techCalendar .fc-scroller-liquid-absolute {
+        position: absolute !important;
+        inset: 0 !important;
+        height: 100% !important;
+        width: 100% !important;
+      }
+      /* ensure the inner table and tbody also stretch so the rows grow */
+      #techCalendar .fc-daygrid-body,
+      #techCalendar .fc-daygrid-body table,
+      #techCalendar .fc-daygrid-body table tbody {
+        height: 100% !important;
+      }
+      #techCalendar .fc-scrollgrid-sync-table {
+        height: 100% !important;
+      }
+      /* make the card itself flex with the viewport rather than fixed 680px */
+      .ts-cal-card {
+        min-height: calc(100vh - 260px);
+      }
+      /* ── Legend ──────────────────────────────────────────────────────── */
+      .ts-legend {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .ts-leg-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.78rem;
+        color: #4b5563;
+      }
+      .ts-leg-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .ts-leg-bg {
+        display: inline-block;
+        width: 14px;
+        height: 10px;
+        border-radius: 2px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        flex-shrink: 0;
+      }
+      .ts-leg-sep {
+        color: #d1d5db;
+        font-size: 1rem;
+        margin: 0 2px;
+      }
+      .ts-leg-text {
+        white-space: nowrap;
+      }
+      /* ── Calendar placeholder ────────────────────────────────────────── */
+      .ts-cal-placeholder {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.92);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        border-radius: 14px;
+        transition: opacity 0.3s;
+      }
+      .ts-cal-placeholder.d-none {
+        display: none !important;
+      }
+      .ts-cal-ph-content {
+        text-align: center;
+        max-width: 320px;
+      }
+      .ts-cal-ph-icon {
+        font-size: 3rem;
+        color: #d1d5db;
+        display: block;
+        margin-bottom: 0.75rem;
+      }
+      .ts-cal-ph-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.4rem;
+      }
+      .ts-cal-ph-sub {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      /* ── Info panel cards ───────────────────────────────────────────── */
+      .ts-info-card {
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        padding: 1rem 1.1rem;
+      }
+      .ts-info-card-heading {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #374151;
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.01em;
+      }
+      .ts-info-card-body {
+        font-size: 0.82rem;
+      }
+      .ts-wd-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid #f9fafb;
+        color: #374151;
+      }
+      .ts-wd-row:last-child {
+        border-bottom: none;
+      }
+      .ts-wd-day {
+        font-weight: 600;
+        width: 40px;
+      }
+      .ts-wd-time {
+        color: #6b7280;
+      }
+      .ts-rd-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid #f9fafb;
+        color: #374151;
+        gap: 8px;
+      }
+      .ts-rd-row:last-child {
+        border-bottom: none;
+      }
+      .ts-rd-date {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .ts-rd-reason {
+        color: #6b7280;
+        text-align: right;
+        font-size: 0.78rem;
+      }
+      .ts-rd-section {
+        padding: 4px 0;
+        font-weight: 600;
+        color: #374151;
+      }
+      .ts-badge-holiday {
+        font-size: 0.7rem;
+        background: #e5e7eb;
+        color: #374151;
+        border-radius: 4px;
+        padding: 1px 6px;
+      }
+      .ts-badge-rest {
+        font-size: 0.7rem;
+        background: #fef3c7;
+        color: #92400e;
+        border-radius: 4px;
+        padding: 1px 6px;
+      }
+      /* ── Stats ──────────────────────────────────────────────────────── */
+      .ts-stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #f9fafb;
+      }
+      .ts-stat-row:last-child {
+        border-bottom: none;
+      }
+      .ts-stat-label {
+        color: #6b7280;
+        font-size: 0.82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ts-stat-val {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 50%;
+        text-align: right;
+      }
+      /* ── FullCalendar overrides ──────────────────────────────────────── */
+      /* responsive tweaks */
+      @media (max-width: 576px) {
+        .ts-page {
+          padding: 0 0.5rem;
+        }
+        .ts-legend {
+          font-size: 0.7rem;
+          gap: 6px;
+        }
+        .ts-leg-text {
+          white-space: normal;
+        }
+        #techCalendar .fc-toolbar .btn {
+          margin: 0 0.25rem 0.25rem 0;
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+        }
+        #techCalendar .fc-toolbar-title {
+          font-size: 1rem !important;
+        }
+        #techCalendar .fc-daygrid-event {
+          font-size: 0.7rem !important;
+        }
+      }
+      @media (max-width: 768px) {
+        .ts-page {
+          padding: 0 1rem;
+        }
+        .ts-legend {
+          gap: 8px;
+        }
+        #techCalendar .fc-toolbar .btn {
+          margin-right: 0.25rem;
+        }
+      }
+      @media (min-width: 1600px) {
+        .ts-page {
+          max-width: 100%;
+        }
+      }
+
+      /* ── FullCalendar overrides ──────────────────────────────────────── */
+      /* make all calendar text use Inter (Google font loaded via layout) */
+      #techCalendar,
+      #techCalendar .fc,
+      #techCalendar .fc * {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+      }
+      /* use Bootstrap typography and spacing */
+      #techCalendar .fc {
+        font-size: 0.9rem;
+      }
+      /* allow vertical scrolling in timegrid but not horizontal */
+      #techCalendar .fc .fc-scroller,
+      #techCalendar .fc .fc-scrollgrid,
+      #techCalendar .fc .fc-daygrid-body {
+        overflow-x: hidden !important;
+      }
+      /* allow vertical scroll on main scroller for tall timegrid */
+      #techCalendar .fc-scroller,
+      #techCalendar .fc-scroller-liquid,
+      #techCalendar .fc-scroller-liquid-absolute {
+        overflow-y: auto !important;
+      }
+      #techCalendar .fc-toolbar .btn {
+        margin-right: 0.5rem;
+      }
+      /* no direction override; arrows are text now so the toolbar
+         order will remain correct based on DOM structure */
+      #techCalendar .fc-event {
+        border-radius: 0.375rem !important; /* match Bootstrap default */
+        font-size: 0.82rem !important;
+        font-weight: 500;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.1s ease;
+      }
+      #techCalendar .fc-event:hover {
+        transform: scale(1.02);
+        overflow: hidden !important; /* suppress any scrollbars on event itself */
+      }
+      #techCalendar .fc-daygrid-event {
+        padding: 0.2rem 0.4rem !important;
+        margin: 0.1rem 0.2rem !important;
+        overflow: hidden !important; /* prevent inner scrollbars */
+        white-space: pre-wrap !important; /* respect explicit newlines */
+        text-align: center;
+        font-size: 0.78rem !important; /* smaller text to fit better */
+        font-weight: 600 !important;
+        line-height: 1.1;
+      }
+      /* hide the time element in month-view block events only */
+      #techCalendar .fc-daygrid-event .fc-event-time {
+        display: none !important;
+      }
+      /* ── Background day shading ───────────────────────────────────────── */
+      /* FullCalendar v6 sets opacity:0.3 on .fc-bg-event by default — override to 1 */
+      #techCalendar .fc-daygrid-bg-harness {
+        opacity: 1 !important;
+      }
+      /* ensure day cell frames never show scrollbars */
+      #techCalendar .fc-daygrid-day-frame {
+        overflow: hidden !important;
+      }
+      #techCalendar .fc-daygrid-day-top {
+        overflow: hidden !important;
+      }
+      /* position month numbers consistently top-right */
+      #techCalendar .fc-daygrid-day-top {
+        display: flex !important;
+        flex-direction: row-reverse !important;
+        padding: 6px 8px 2px 8px !important;
+        position: relative;
+        z-index: 4 !important; /* above bg events */
+      }
+      #techCalendar .fc-daygrid-day-number {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        color: #374151 !important;
+        line-height: 1 !important;
+        position: relative;
+        z-index: 4 !important;
+      }
+      #techCalendar .fc-daygrid-day-number a {
+        color: inherit !important;
+        text-decoration: none !important;
+      }
+      #techCalendar .fc-bg-event {
+        opacity: 1 !important;
+        z-index: 1 !important; /* keep below day numbers and foreground events */
+      }
+      /* Background harness contained within its cell */
+      #techCalendar .fc-daygrid-bg-harness {
+        position: absolute !important;
+        inset: 0 !important;
+        overflow: hidden !important;
+        z-index: 1 !important;
+      }
+      /* explicit class for gray backgrounds (rest/nonwork/past/holiday) */
+      #techCalendar .ts-bg-gray {
+        background-color: #f1f5f9 !important;
+      }
+      #techCalendar .ts-bg-rest {
+        /* explicit rest dates (vacation/exception) */
+        background-color: #f1f5f9 !important;
+      }
+      #techCalendar .ts-bg-weekly-nonwork {
+        /* weekly non-working weekdays */
+        background-color: #f1f5f9 !important;
+      }
+      #techCalendar .fc-toolbar-title {
+        font-size: 1.25rem !important;
+        font-weight: 400 !important; /* normal weight */
+        color: #111827 !important;
+        margin: 0 auto !important; /* center inside flex toolbar */
+        text-align: center !important;
+      }
+
+
+      /* ── Toolbar layout tweaks ─────────────────────────────────── */
+      #techCalendar .fc-toolbar {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-wrap: wrap !important;
+        background: #fff !important;
+        border-radius: 12px !important;
+        padding: 0.5rem 1rem !important;
+        margin-bottom: 1rem !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+      }
+      #techCalendar .fc-toolbar .fc-toolbar-title {
+        flex: 0 0 100% !important; /* allow title on its own line for small widths */
+      }
+
+      /* ── Navigation buttons (prev / next) ────────────────────────── */
+      #techCalendar .fc-prev-button,
+      #techCalendar .fc-next-button {
+        background-color: #2563eb !important;
+        border-color: #2563eb !important;
+        color: #fff !important;
+        border-radius: 50% !important;
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1rem !important;
+        margin-right: 4px !important;
+        box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
+      }
+      #techCalendar .fc-prev-button:hover,
+      #techCalendar .fc-next-button:hover {
+        background-color: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+        outline: none !important;
+      }
+      #techCalendar .fc-prev-button .fc-icon,
+      #techCalendar .fc-next-button .fc-icon {
+        color: #fff !important;
+      }
+
+      /* ── Today button ────────────────────────────────────────── */
+      #techCalendar .fc-today-button {
+        background-color: #fff !important;
+        border: 1px solid #d1d5db !important;
+        color: #374151 !important;
+        border-radius: 6px !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        padding: 5px 16px !important;
+        margin-left: 6px !important;
+      }
+      #techCalendar .fc-today-button:hover {
+        background-color: #f3f4f6 !important;
+        color: #111827 !important;
+        outline: none !important;
+      }
+
+      /* ── View switcher (Day / Week / Month) — pill group ─────────── */
+      #techCalendar .fc-button-group {
+        border: 1px solid #d1d5db !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+      }
+      #techCalendar .fc-button-group .fc-button {
+        background-color: #fff !important;
+        border: none !important;
+        border-right: 1px solid #d1d5db !important;
+        color: #374151 !important;
+        border-radius: 0 !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        padding: 5px 14px !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+      #techCalendar .fc-button-group .fc-button:last-child {
+        border-right: none !important;
+      }
+      #techCalendar .fc-button-group .fc-button:hover {
+        background-color: #f3f4f6 !important;
+        color: #111827 !important;
+        outline: none !important;
+      }
+      #techCalendar .fc-button-group .fc-button-active {
+        background-color: #2563eb !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+      }
+      #techCalendar .fc-button-group .fc-button-active:hover {
+        background-color: #1d4ed8 !important;
+        color: #fff !important;
+      }
+      #techCalendar .fc-col-header-cell {
+        background: #fff !important;
+        font-weight: 500 !important;
+        font-size: 0.88rem !important;
+        color: #374151 !important;
+        padding: 10px 0 !important;
+        border-bottom: 1px solid #e5e7eb !important;
+      }
+      #techCalendar .fc-col-header-cell a,
+      #techCalendar .fc-col-header-cell a:hover,
+      #techCalendar .fc-col-header-cell a:focus,
+      #techCalendar .fc-col-header-cell a:active {
+        color: #374151 !important;
+        text-decoration: none !important;
+        outline: none !important; /* kill any focus ring/underline effect */
+      }
+      #techCalendar .fc-daygrid-day-number {
+        font-size: 0.82rem;
+        color: #374151;
+        font-weight: 500;
+      }
+      /* ensure day number links do not appear blue */
+      #techCalendar .fc-daygrid-day-number a {
+        color: inherit !important;
+        text-decoration: none !important;
+      }
+      /* remove today-number circle entirely */
+      #techCalendar .fc-day-today .fc-daygrid-day-number {
+        background: transparent !important;
+        color: #374151 !important;
+        font-weight: 500 !important;
+        border-radius: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        display: inline !important;
+        padding: 0 !important;
+        line-height: normal !important;
+      }
+      #techCalendar .fc-day-today .fc-daygrid-day-number a {
+        color: #374151 !important;
+        text-decoration: none !important;
+      }
+      #techCalendar .fc-day-today {
+        background-color: rgba(37, 99, 235, 0.03) !important;
+      }
+      #techCalendar .fc-scrollgrid {
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      /* ── Appointment modal ──────────────────────────────────────────── */
+      .appt-detail-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px 16px;
+        font-size: 0.875rem;
+      }
+      .appt-detail-label {
+        font-weight: 600;
+        color: #374151;
+        white-space: nowrap;
+      }
+      .appt-detail-val {
+        color: #111827;
+      }
+      /* ▪ modal tweaks for professional appearance */
+      #apptDetailModal .modal-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+      }
+      #apptDetailModal .modal-title .bi {
+        font-size: 1.2rem;
+      }
+      #apptDetailModal .modal-body {
+        font-size: 0.95rem;
+      }
+      #apptDetailModal .modal-footer .btn {
+        min-width: 80px;
+      }
+      /* ══ Time-Grid (Week / Day) — SimplePractice-inspired ════════════ */
+
+      /* ── Full-page layout when in week / day view ─────────────────── */
+      /* Legend stays visible in week/day — compact inline style */
+      .ts-page.ts-week-full .ts-legend {
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 1rem;
+        justify-content: flex-start;
+        gap: 14px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .ts-page.ts-week-full .col-xl-3,
+      .ts-page.ts-week-full .col-lg-4 {
+        display: none !important;
+      }
+      .ts-page.ts-week-full .ts-main .col-xl-9,
+      .ts-page.ts-week-full .ts-main .col-lg-8 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+      }
+      .ts-page.ts-week-full .ts-cal-card {
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        min-height: calc(100vh - 260px) !important;
+      }
+      /* month view uses larger card so grid fits without scrolling */
+      .ts-page.ts-month-full .ts-cal-card {
+        min-height: auto !important;
+        overflow: visible !important;
+      }
+      .ts-page.ts-month-full #techCalendar .fc {
+        height: auto !important;
+      }
+      .ts-page.ts-month-full #techCalendar {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+      }
+      .ts-page.ts-month-full #techCalendar .fc .fc-view-harness,
+      .ts-page.ts-month-full #techCalendar .fc-daygrid .fc-scrollgrid,
+      .ts-page.ts-month-full #techCalendar .fc-daygrid-body,
+      .ts-page.ts-month-full #techCalendar .fc-scrollgrid-sync-table {
+        height: auto !important;
+      }
+      .ts-page.ts-month-full #techCalendar .fc-scroller,
+      .ts-page.ts-month-full #techCalendar .fc-scroller-liquid,
+      .ts-page.ts-month-full #techCalendar .fc-scroller-liquid-absolute {
+        overflow: visible !important;
+      }
+      /* week/day views: height handled via JS (calc(100vh - 140px)).
+         remove the internal scrollbar – the container is now tall enough
+         to display every slot.  The calendar will grow with the page.
+         */
+      /* (overflow rule removed to eliminate vertical scroll) */
+      /* NOTE: we no longer force a hard height on the root .fc element
+         because that was causing clipping when the JS set "auto". */
+
+      /* ── Slot rows ────────────────────────────────────────────────── */
+      /* Auto-size slots so all 14 hours (6 AM–7 PM) fit within the
+         viewport-based height without any internal scrollbar. */
+      #techCalendar .fc-timegrid-slot {
+        height: 60px !important; /* Force tall rows to stretch the schedule */
+        background: transparent !important;
+        position: relative !important;
+        border-top-color: transparent !important; /* hide horizontal gridlines so they don't bleed through bg-events */
+      }
+      #techCalendar .fc-timegrid-slot-minor {
+        background: transparent !important;
+        border-top: none !important;
+      }
+      /* grey base for the entire body area (visible where there is no bg-event) */
+      #techCalendar .fc-timegrid-body {
+        background: #f1f5f9 !important;
+        min-height: 100% !important;
+        height: 100% !important;
+      }
+
+      /* ── Time-axis labels ─────────────────────────────────────────── */
+      #techCalendar .fc-timegrid-axis,
+      #techCalendar .fc-timegrid-slot-label {
+        width: 72px !important;
+        min-width: 72px !important;
+        background: #fff !important; /* axis area should be solid white */
+      }
+      /* make sure the axis background spans full height and hides
+         any leftover grey behind the time labels */
+      #techCalendar .fc-timegrid-axis-cushion,
+      #techCalendar .fc-timegrid-slot-label-cushion {
+        background: #fff !important;
+      }
+      #techCalendar .fc-timegrid-slot-label-cushion {
+        font-size: 0.8rem !important;
+        font-weight: 500 !important;
+        color: #6b7280 !important;
+        padding: 0 12px 0 0 !important;
+        text-transform: lowercase;
+      }
+
+      /* ── Column headers ──────────────────────────────────────────── */
+      #techCalendar .fc-col-header-cell {
+        padding: 10px 0 !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        color: #374151 !important;
+        background: #f9fafb !important;
+        border-bottom: 2px solid #e5e7eb !important;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      /* today column should look like any other header – no blue underline */
+      #techCalendar .fc-col-header-cell.fc-day-today {
+        background: #fff !important;
+        border-bottom: 1px solid #e5e7eb !important;
+      }
+      #techCalendar .fc-col-header-cell.fc-day-today a {
+        /* remove blue today link styling – keep same colour as other headers */
+        color: #374151 !important;
+        text-decoration: none !important;
+        font-weight: 500 !important;
+      }
+
+      /* ── Today column tint ───────────────────────────────────────── */
+      #techCalendar .fc-day-today.fc-timegrid-col {
+        background-color: rgba(37, 99, 235, 0.02) !important;
+      }
+
+      /* ── Sidebar fold/unfold: smooth calendar resize ──────────────── */
+      .admin-root.sidebar-collapsed .ts-page .ts-cal-card {
+        transition: all 0.3s ease;
+      }
+
+      /* ── Current-time indicator: HIDDEN ───────────────────────── */
+      #techCalendar .fc-timegrid-now-indicator-line,
+      #techCalendar .fc-timegrid-now-indicator-arrow {
+        display: none !important;
+      }
+
+      /* ── All-day row: hide in timegrid views only ──────────────── */
+      .ts-page.ts-week-full #techCalendar .fc-daygrid-body {
+        display: none !important;
+      }
+
+      /* ── Event cards in time-grid (SimplePractice style) ──────────── */
+
+      /* remove custom harness styles completely; let FullCalendar
+         handle positioning and sizing of events.  previous rules forced
+         absolute/inset layout which made every appointment full-width and
+         caused overlap even with eventOverlap:false. */
+
+
+      /* the event block itself */
+      #techCalendar .fc-timegrid-event {
+        border-radius: 6px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+        font-size: 0.82rem !important;
+        padding: 5px 8px !important;
+        background-color: #d1fae5 !important;
+        color: #064e3b !important;
+        border: 1px solid #6ee7b7 !important;
+        border-left: 3px solid #10b981 !important;
+        overflow: hidden !important;
+        /* remove horizontal gutter so side-by-side events touch each other */
+        margin: 0 !important;
+        line-height: 1.35 !important;
+        width: auto !important;
+      }
+      #techCalendar .fc-timegrid-event .fc-event-main {
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        overflow: hidden !important;
+      }
+      #techCalendar .fc-timegrid-event .fc-event-time {
+        font-size: 0.76rem !important;
+        font-weight: 700;
+        display: block !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 2px;
+        color: #064e3b !important;
+      }
+      #techCalendar .fc-timegrid-event .fc-event-title {
+        font-weight: 600;
+        font-size: 0.78rem !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #064e3b !important;
+        line-height: 1.3;
+        flex: 1;
+      }
+
+      /* ── Non-business hours ──────────────────────────────────────── */
+      #techCalendar .fc-non-business {
+        background: #f8fafc !important; /* solid color instead of rgba */
+      }
+
+      /* ── Background event opacity ────────────────────────────────── */
+      /* Working hours: vivid green matching month view */
+      #techCalendar .fc-timegrid-col .fc-bg-event {
+        opacity: 1 !important;
+        border-top: none !important;
+        z-index: 2 !important; /* above slot gridlines */
+        background-color: #dcfce7 !important; /* Solid light green to block grid lines */
+      }
+      /* Non-working shade: same as month view */
+      #techCalendar .fc-timegrid-col .ts-bg-gray.fc-bg-event {
+        opacity: 1 !important;
+        background-color: #f1f5f9 !important; /* Solid gray */
+      }
+      /* Non-working shade in yellow (matching month view) */
+      #techCalendar .fc-timegrid-col .ts-bg-nonwork-yellow.fc-bg-event {
+        opacity: 1 !important;
+        background-color: #fef9c3 !important; /* Solid yellow */
+      }
+
+      /* force the timegrid structure to put columns (with bg events) on top of the slot gridlines */
+      #techCalendar .fc-timegrid-cols {
+        z-index: 2 !important;
+      }
+      #techCalendar .fc-timegrid-slots {
+        z-index: 1 !important;
+      }
+
+      /* ── Grid lines: visible outlines ─────────────────────────────── */
+      /* Month view cell borders */
+      #techCalendar .fc-scrollgrid {
+        border: 1px solid #e5e7eb !important;
+      }
+      /* only show horizontal borders on the time-axis side, hide inside columns */
+      #techCalendar .fc-scrollgrid td {
+        border-color: #e5e7eb !important;
+      }
+      #techCalendar .fc-timegrid-slot {
+        border-color: transparent !important;
+        height: 60px !important; /* explicitly size the container for the rows */
+      }
+      /* Must also target the TRs in the slots table or they won't stretch */
+      #techCalendar .fc-timegrid-slots table tr {
+        height: 60px !important;
+      }
+      /* keep the major hour lines visible but very subtle */
+      #techCalendar .fc-timegrid-slot-label {
+        border-top: 1px solid #e5e7eb !important;
+      }
+      #techCalendar .fc-scrollgrid th {
+        border-color: #e5e7eb !important;
+      }
+      /* Week/Day timegrid column separators */
+      #techCalendar .fc-timegrid-col {
+        border-right: 1px solid #e5e7eb !important;
+      }
+      #techCalendar .fc-timegrid-col:last-child {
+        border-right: none !important;
+      }
+      /* ── Timegrid stacking: slots table ABOVE columns layer ──────
+         .fc-timegrid-slots and .fc-timegrid-cols are siblings inside
+         .fc-timegrid-body.  By giving slots a HIGHER z-index than cols
+         the slot borders (grid lines) paint ON TOP of the bg-events.
+         pointer-events:none lets clicks pass through to events below. */
+      #techCalendar .fc-timegrid-slots {
+        position: relative !important;
+        z-index: 4 !important;
+        pointer-events: none !important;
+      }
+      #techCalendar .fc-timegrid-cols {
+        z-index: 3 !important;
+      }
+      /* slot backgrounds must be transparent so bg-event colours show */
+      #techCalendar .fc-timegrid-slots td {
+        background: transparent !important;
+      }
+      /* row borders — visible above bg-events because slots table is z:4 */
+      #techCalendar .fc-timegrid-slot {
+        position: relative !important;
+        border-bottom: 1px solid #d1d5db !important;
+      }
+      #techCalendar .fc-timegrid-slot-minor {
+        position: relative !important;
+        border-bottom: 1px dashed #e5e7eb !important;
+      }
+      /* foreground events sit above bg-events inside the cols layer */
+      #techCalendar .fc-timegrid-event,
+      #techCalendar .fc-timegrid-event-harness {
+        z-index: 6 !important;
+      }
+      /* Month daygrid cell borders */
+      #techCalendar .fc-daygrid-day {
+        border: 1px solid #e5e7eb !important;
+      }
+      /* ── Loading spinner ────────────────────────────────────────────── */
+      .ts-spinner-wrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.7);
+        z-index: 20;
+        border-radius: 14px;
+      }
+    </style>
+
+    <script>
+      (function () {
+        "use strict";
+
+        /* ── helpers ─────────────────────────────────────────────────── */
+        const $ = (id) => document.getElementById(id);
+        const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+        function adjustLayoutForWeekView(view) {
+          const root = document.querySelector(".ts-page");
+          if (!root) return;
+          const isTimegrid =
+            view.type === "timeGridWeek" || view.type === "timeGridDay";
+          const isMonth = view.type === "dayGridMonth";
+          if (isTimegrid) {
+            root.classList.add("ts-week-full");
+          } else {
+            root.classList.remove("ts-week-full");
+          }
+          if (isMonth) {
+            root.classList.add("ts-month-full");
+          } else {
+            root.classList.remove("ts-month-full");
+          }
+          /* adjust calendar height according to view */
+          if (techCal) {
+            if (isTimegrid) {
+              // shrink the calendar slightly more to avoid the page itself
+              // getting a scrollbar.  200px offset accounts for header,
+              // legend and any surrounding padding.  All slots still fit.
+              techCal.setOption("height", "calc(100vh - 200px)");
+            } else if (isMonth) {
+              // month view should auto-expand so all month rows (dates) are visible
+              techCal.setOption("height", "auto");
+            } else {
+              techCal.setOption("height", "100%");
+            }
+            // force grid recalculation after height / class changes
+            // Use staggered timeouts so the browser has time to apply
+            // the CSS class changes before FullCalendar measures.
+            setTimeout(() => {
+              if (techCal) techCal.updateSize();
+            }, 0);
+            setTimeout(() => {
+              if (techCal) techCal.updateSize();
+            }, 150);
+            setTimeout(() => {
+              if (techCal) techCal.updateSize();
+            }, 400);
+            // after possible resize, also recompute exact timegrid height
+            adjustTimegridHeight();
+          }
+        }
+
+        function adjustTimegridHeight() {
+          if (!techCal) return;
+          const view = techCal.view;
+          if (!view) return;
+          if (view.type !== "timeGridWeek" && view.type !== "timeGridDay")
+            return;
+          // method1: measure first-to-last slot positions
+          const slots = document.querySelectorAll(
+            ".fc-timegrid-slot:not(.fc-timegrid-slot-minor)",
+          );
+          let slotsHeight = 0;
+          if (slots.length) {
+            const first = slots[0];
+            const last = slots[slots.length - 1];
+            const rect1 = first.getBoundingClientRect();
+            const rectN = last.getBoundingClientRect();
+            slotsHeight = rectN.bottom - rect1.top + 1; // include border
+          }
+          // method2: scrollHeight of body (more authoritative)
+          const body = document.querySelector(".fc-timegrid-body");
+          let bodyHeight = body ? body.scrollHeight : 0;
+
+          const headerEl = document.querySelector(".fc-col-header");
+          const headerH = headerEl
+            ? headerEl.getBoundingClientRect().height
+            : 0;
+          const axisEl = document.querySelector(".fc-timegrid-axis");
+          const axisH = axisEl ? axisEl.getBoundingClientRect().height : 0;
+
+          // choose maximum of the two measurements, add padding to cover
+          // any rounding/edge pixels
+          const contentH = Math.max(slotsHeight, bodyHeight);
+          if (contentH <= 0) return;
+          const target = contentH + headerH + axisH + 8;
+          techCal.setOption("height", target);
+        }
+        function minToHHMM(m) {
+          const h = Math.floor(m / 60);
+          const mm = String(m % 60).padStart(2, "0");
+          return String(h).padStart(2, "0") + ":" + mm;
+        }
+        function minTo12(m) {
+          const h = Math.floor(m / 60);
+          const mm = String(m % 60).padStart(2, "0");
+          const period = h < 12 ? "AM" : "PM";
+          const h12 = ((h + 11) % 12) + 1;
+          return h12 + ":" + mm + " " + period;
+        }
+        function parseMinuteValue(value) {
+          if (value === null || value === undefined) return NaN;
+          const raw = String(value).trim();
+          if (!raw) return NaN;
+          if (/^\d{1,4}$/.test(raw)) return Number(raw);
+          const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
+          if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+          const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          if (ampm) {
+            let hh = Number(ampm[1]) % 12;
+            if (ampm[3].toUpperCase() === "PM") hh += 12;
+            return hh * 60 + Number(ampm[2]);
+          }
+          return NaN;
+        }
+        function toCalendarTime(value, fallbackMinutes) {
+          const mins = parseMinuteValue(value);
+          if (Number.isFinite(mins)) return minToHHMM(mins) + ":00";
+          return minToHHMM(fallbackMinutes) + ":00";
+        }
+        function mergeIntervals(intervals) {
+          const sorted = (intervals || [])
+            .filter(
+              (slot) =>
+                Number.isFinite(slot.start) &&
+                Number.isFinite(slot.end) &&
+                slot.end > slot.start,
+            )
+            .sort((a, b) => a.start - b.start);
+          const merged = [];
+          sorted.forEach((slot) => {
+            const last = merged[merged.length - 1];
+            if (!last || slot.start > last.end) {
+              merged.push({ start: slot.start, end: slot.end });
+            } else {
+              last.end = Math.max(last.end, slot.end);
+            }
+          });
+          return merged;
+        }
+        function remainingIntervals(workStart, workEnd, bookedIntervals) {
+          if (
+            !Number.isFinite(workStart) ||
+            !Number.isFinite(workEnd) ||
+            workEnd <= workStart
+          )
+            return [];
+          const clampedBooked = mergeIntervals(
+            (bookedIntervals || []).map((slot) => ({
+              start: Math.max(workStart, Number(slot.start)),
+              end: Math.min(workEnd, Number(slot.end)),
+            })),
+          );
+          const remaining = [];
+          let cursor = workStart;
+          clampedBooked.forEach((slot) => {
+            if (slot.start > cursor) {
+              remaining.push({ start: cursor, end: slot.start });
+            }
+            cursor = Math.max(cursor, slot.end);
+          });
+          if (cursor < workEnd) {
+            remaining.push({ start: cursor, end: workEnd });
+          }
+          return remaining;
+        }
+        function isoDate(d) {
+          // Use LOCAL date components to avoid UTC timezone shift (e.g. UTC+8
+          // midnight = previous day in UTC, causing off-by-one on date keys)
+          const dt = d instanceof Date ? d : new Date(String(d));
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, "0");
+          const day = String(dt.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}`;
+        }
+        function fmtDate(d) {
+          return new Date(d).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+        function resolveServiceName(a) {
+          if (!a) return "Appointment";
+          if (a.serviceType === "core") return "Core Service";
+          if (a.serviceType === "repair") return "Repair";
+          if (typeof a.service === "string" && a.service.trim())
+            return a.service.trim();
+          if (a.service && typeof a.service === "object") {
+            return (
+              a.service.name ||
+              a.service.title ||
+              a.service.serviceName ||
+              a.service.label ||
+              "Appointment"
+            );
+          }
+          if (a.serviceId && typeof a.serviceId === "object") {
+            return a.serviceId.name || a.serviceId.title || "Appointment";
+          }
+          if (typeof a.title === "string" && a.title.trim())
+            return a.title.trim();
+          return "Appointment";
+        }
+        function resolveCustomerName(a) {
+          if (!a) return "—";
+          if (typeof a.customerName === "string" && a.customerName.trim())
+            return a.customerName.trim();
+          if (a.customer && typeof a.customer === "object") {
+            const full =
+              a.customer.name ||
+              a.customer.fullName ||
+              `${a.customer.firstName || ""} ${a.customer.lastName || ""}`.trim();
+            if (full) return full;
+            if (a.customer.email) return a.customer.email;
+          }
+          if (typeof a.customer === "string" && a.customer.trim())
+            return a.customer.trim();
+          return "—";
+        }
+        function resolveAddressText(a) {
+          if (!a) return "—";
+          const addr = a.location && a.location.address;
+          if (typeof addr === "string" && addr.trim()) return addr.trim();
+          if (addr && typeof addr === "object") {
+            const joined = Object.values(addr)
+              .filter(
+                (v) => v !== null && v !== undefined && String(v).trim() !== "",
+              )
+              .join(", ");
+            if (joined) return joined;
+          }
+          if (
+            a.location &&
+            a.location.coordinates &&
+            Array.isArray(a.location.coordinates.coordinates)
+          ) {
+            const [lng, lat] = a.location.coordinates.coordinates.map(Number);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+              return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            }
+          }
+          if (typeof a.address === "string" && a.address.trim())
+            return a.address.trim();
+          if (a.address && typeof a.address === "object") {
+            const joined = Object.values(a.address)
+              .filter(
+                (v) => v !== null && v !== undefined && String(v).trim() !== "",
+              )
+              .join(", ");
+            if (joined) return joined;
+          }
+          return "—";
+        }
+        function formatApptTimeRange(a) {
+          const startMin = parseMinuteValue(a && a.startTime);
+          const endMin = parseMinuteValue(a && a.endTime);
+          if (
+            Number.isFinite(startMin) &&
+            Number.isFinite(endMin) &&
+            endMin > startMin
+          ) {
+            return `${minTo12(startMin)} – ${minTo12(endMin)}`;
+          }
+          if (Number.isFinite(startMin)) return minTo12(startMin);
+          const rawStart = a && a.startTime ? String(a.startTime) : "";
+          const rawEnd = a && a.endTime ? String(a.endTime) : "";
+          if (rawStart && rawEnd) return `${rawStart} – ${rawEnd}`;
+          if (rawStart) return rawStart;
+          return "—";
+        }
+        function statusBadge(status) {
+          const map = {
+            confirmed: ["bg-success", "Confirmed"],
+            pending: ["bg-warning text-dark", "Pending"],
+            completed: ["bg-success", "Completed"],
+            cancelled: ["bg-secondary", "Cancelled"],
+            "re-scheduled": ["bg-info text-dark", "Re-scheduled"],
+          };
+          const [cls, label] = map[status] || ["bg-secondary", status];
+          return `<span class="badge ${cls}">${label}</span>`;
+        }
+
+        /* ── state ───────────────────────────────────────────────────── */
+        let techCal = null;
+        let currentTechId = null;
+        let loadingCtrl = null;
+        const technicianIdentityMap = new Map();
+
+        /* ── FullCalendar loader ─────────────────────────────────────── */
+        async function ensureFC() {
+          if (window.FullCalendar && window.FullCalendar.Calendar) return;
+          // FullCalendar v6 global build injects its own CSS — no separate
+          // CSS file needed. Load JS only.
+          // IMPORTANT: v6 uses index.global.min.js (main.min.js does not exist in v6)
+          const sources = [
+            "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js",
+            "/vendor/fullcalendar/main.min.js", // offline stub fallback
+          ];
+
+          await new Promise((resolve, reject) => {
+            const load = (srcs) => {
+              if (!srcs.length)
+                return reject(new Error("FullCalendar failed to load"));
+              const s = document.createElement("script");
+              s.src = srcs[0];
+              s.async = true;
+              try {
+                s.crossOrigin = "anonymous";
+              } catch (_) {}
+              s.onload = resolve;
+              s.onerror = () => setTimeout(() => load(srcs.slice(1)), 50);
+              document.head.appendChild(s);
+            };
+            load(sources);
+          });
+        }
+
+        /* ── Init calendar ───────────────────────────────────────────── */
+        async function initCalendar() {
+          await ensureFC();
+          const FC = window.FullCalendar;
+          const el = $("techCalendar");
+          if (!el || techCal) return;
+
+          console.log(
+            "[Calendar] Initializing FullCalendar v" +
+              (FC.version || "unknown"),
+          );
+          console.log("[Calendar] FullCalendar object:", FC);
+
+          techCal = new FC.Calendar(el, {
+            initialView: "timeGridWeek",
+            themeSystem: "bootstrap",
+            height: "100%",
+            expandRows: true, // stretch rows to fill container
+            nowIndicator: false,
+            eventDisplay: "block",
+            events: [],
+            businessHours: false,
+            fixedWeekCount: false, // drop extra blank rows at month start/end
+            headerToolbar: {
+              left: "prev,next today",
+              center: "title",
+              right: "timeGridWeek,timeGridDay,dayGridMonth",
+            },
+            buttonText: {
+              prev: "‹",
+              next: "›",
+              today: "Today",
+              month: "Month",
+              week: "Week",
+              day: "Day",
+            },
+            buttonIcons: false,
+            dayMaxEvents: 4,
+            moreLinkContent: (args) => `+${args.num} more`,
+            slotMinTime: "06:00:00",
+            slotMaxTime: "20:00:00",
+            slotDuration: "01:00:00",
+            slotLabelInterval: "01:00",
+            // allow overlapping appointments to sit side-by-side; we no
+            // longer force vertical stacking because width:auto will let
+            // FullCalendar split the column evenly
+            // slotEventOverlap: false,
+            // eventOverlap: false,
+            slotLabelFormat: {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+              meridiem: "short",
+            },
+            eventTimeFormat: {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            },
+            allDaySlot: false,
+            viewDidMount: function (info) {
+              // called after a view is mounted in the DOM –
+              // ensure the grid measures correctly after CSS settles
+              setTimeout(() => {
+                if (techCal) techCal.updateSize();
+              }, 60);
+            },
+            datesSet: function (info) {
+              if (!currentTechId) return;
+              adjustLayoutForWeekView(info.view);
+              const start = isoDate(info.view.activeStart);
+              const end = isoDate(
+                new Date(info.view.activeEnd.getTime() - 86400000),
+              );
+              loadCalendarData(currentTechId, start, end);
+            },
+            eventClick: function (info) {
+              const appt = info.event.extendedProps.appointment;
+              if (!appt) {
+                showInfoModal(info.event);
+                return;
+              }
+              openApptModal(appt);
+            },
+          });
+          techCal.render();
+          // ensure the height matches the freshly rendered slots
+          adjustTimegridHeight();
+
+          /* keep calendar size in sync whenever the container dimensions
+             change (sidebar toggle, CSS transitions, window resize, etc.) */
+          const _calEl = $("techCalendar");
+          if (_calEl && window.ResizeObserver) {
+            let _rTick = 0;
+            new ResizeObserver(() => {
+              cancelAnimationFrame(_rTick);
+              _rTick = requestAnimationFrame(() => {
+                if (techCal) techCal.updateSize();
+              });
+            }).observe(_calEl);
+          }
+        }
+
+        /* ── Load technician list from DB ───────────────────────────── */
+        async function loadTechnicians() {
+          try {
+            const r = await fetch("/api/admin/technicians", {
+              cache: "no-store",
+            });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const j = await r.json();
+            const sel = $("techSelect");
+            const prev = sel.value; // preserve current selection if any
+            sel.innerHTML = '<option value="">Select a technician</option>';
+            technicianIdentityMap.clear();
+            const techs = j.technicians || [];
+            if (!techs.length) {
+              const opt = document.createElement("option");
+              opt.disabled = true;
+              opt.textContent = "No technicians found in database";
+              sel.appendChild(opt);
+              return;
+            }
+            techs.forEach((t) => {
+              const name =
+                t.name ||
+                ((t.firstName || "") + " " + (t.lastName || "")).trim() ||
+                t.email ||
+                t._id;
+              const opt = document.createElement("option");
+              opt.value = t._id;
+              opt.textContent =
+                name + (t.active === false ? " \u2014 inactive" : "");
+              if (t.active === false) opt.style.color = "#9ca3af";
+              sel.appendChild(opt);
+              technicianIdentityMap.set(String(t._id), {
+                id: String(t._id),
+                user: t.user ? String(t.user) : "",
+              });
+            });
+            // restore previous selection after reload
+            if (prev) sel.value = prev;
+          } catch (e) {
+            console.warn("loadTechnicians:", e);
+            const sel = $("techSelect");
+            sel.innerHTML =
+              '<option value="" disabled>\u26a0 Failed to load technicians</option>';
+          }
+        }
+
+        /* ── Load schedule from scheduling configuration ─────────────── */
+        async function loadScheduleInfo(techId) {
+          if (!techId) return;
+          try {
+            // fetch the technician's schedule from the scheduling config
+            const [schedRes, holidayRes] = await Promise.all([
+              fetch(
+                "/api/admin/technician-schedules/" + encodeURIComponent(techId),
+                { cache: "no-store" },
+              ),
+              fetch("/api/admin/dayoffs", { cache: "no-store" }),
+            ]);
+
+            const schedJson = schedRes.ok ? await schedRes.json() : null;
+            const holidayJson = holidayRes.ok ? await holidayRes.json() : null;
+
+            const schedule = schedJson
+              ? schedJson.schedule || {
+                  workingDays: [],
+                  nonWorkingWeekdays: [],
+                  restDates: [],
+                }
+              : { workingDays: [], nonWorkingWeekdays: [], restDates: [] };
+
+            // /api/admin/dayoffs returns { dayoffs: [...] }
+            const rawHolidays = holidayJson ? holidayJson.dayoffs || [] : [];
+
+            // normalise holiday dates to YYYY-MM-DD strings
+            const normHolidays = rawHolidays.map((h) => ({
+              ...h,
+              date:
+                typeof h.date === "string"
+                  ? h.date.slice(0, 10)
+                  : new Date(h.date).toISOString().slice(0, 10),
+              reason: h.note || h.reason || "Holiday",
+            }));
+
+            renderWorkingDays(
+              schedule.workingDays,
+              schedule.nonWorkingWeekdays || [],
+            );
+            renderRestAndHolidays(
+              schedule.restDates,
+              normHolidays,
+              schedule.workingDays,
+              schedule.nonWorkingWeekdays || [],
+              new Set(), // no busy info yet
+            );
+            updateStats(schedule.workingDays, 0, 0); // booking counts updated via loadCalendarData
+          } catch (e) {
+            console.warn("loadScheduleInfo:", e);
+          }
+        }
+
+        /* ── Load calendar data for a date range ─────────────────────── */
+        async function loadCalendarData(techId, start, end) {
+          if (!techCal) return;
+          if (loadingCtrl) {
+            loadingCtrl.abort();
+          }
+          loadingCtrl = new AbortController();
+          const signal = loadingCtrl.signal;
+          showCalSpinner(true);
+          try {
+            const schedRes = await fetch(
+              `/api/admin/technicians/${encodeURIComponent(techId)}/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+              { cache: "no-store", signal },
+            );
+            if (!schedRes.ok) throw new Error("schedule fetch failed");
+            const data = await schedRes.json();
+            console.log("[Calendar] Schedule data:", data);
+
+            // pull technician appointments, but keep only confirmed + pending for this calendar view
+            const apptRes = await fetch("/api/appointments?limit=500", {
+              cache: "no-store",
+              signal,
+            });
+            let appointments = [];
+            if (apptRes.ok) {
+              const aj = await apptRes.json();
+              console.log(
+                "[Calendar] All appointments count:",
+                (aj.items || aj.appointments || []).length,
+              );
+              const selectedTech = technicianIdentityMap.get(String(techId));
+              const allowedIds = new Set([String(techId)]);
+              if (selectedTech && selectedTech.user) {
+                allowedIds.add(String(selectedTech.user));
+              }
+
+              appointments = (aj.items || aj.appointments || []).filter((a) => {
+                const ids = [];
+                if (a.technicianId) {
+                  if (typeof a.technicianId === "string") {
+                    ids.push(String(a.technicianId));
+                  } else {
+                    if (a.technicianId._id)
+                      ids.push(String(a.technicianId._id));
+                    if (a.technicianId.user)
+                      ids.push(String(a.technicianId.user));
+                  }
+                }
+                if (a.technician && a.technician._id) {
+                  ids.push(String(a.technician._id));
+                }
+                const status = String(a.status || "").toLowerCase();
+                return (
+                  ids.some((id) => allowedIds.has(String(id))) &&
+                  ["confirmed", "pending"].includes(status)
+                );
+              });
+              console.log(
+                "[Calendar] Filtered appointments for tech",
+                techId,
+                ":",
+                appointments.length,
+                appointments,
+              );
+            }
+            // build busy date set (any appointment on that day)
+            const busySet = new Set();
+            appointments.forEach((a) => {
+              const dRaw = a.bookingDate || a.date || a.start || new Date();
+              const iso = isoDate(dRaw);
+              busySet.add(iso);
+            });
+
+            /* ── Batch removeAll + addEvent calls so the grid redraws
+               only once, preventing partial-column / clipping issues ── */
+            techCal.batchRendering(() => {
+              techCal.removeAllEvents();
+              _batchAddEvents(data, appointments, busySet);
+            }); // end batchRendering
+
+            /* wrap the event-building logic so batchRendering can call it */
+            function _batchAddEvents(data, appointments, busySet) {
+              const schedule = data.schedule || {
+                workingDays: [],
+                restDates: [],
+              };
+              const holidays = data.holidays || [];
+              console.log("[Calendar] Working days:", schedule.workingDays);
+              console.log("[Calendar] Rest dates:", schedule.restDates);
+              console.log("[Calendar] Holidays:", holidays);
+              const holidaySet = new Set(holidays.map((h) => h.date || ""));
+              const restSet = new Set(
+                (schedule.restDates || []).map((r) =>
+                  typeof r === "string" ? r : r.date || "",
+                ),
+              );
+              const nonWeekSet = new Set(
+                (schedule.nonWorkingWeekdays || []).map((n) => Number(n)),
+              );
+              console.log(
+                "[Calendar] Weekly non-working weekdays:",
+                Array.from(nonWeekSet),
+              );
+              console.log("[Calendar] Holiday set:", Array.from(holidaySet));
+              console.log("[Calendar] Rest set:", Array.from(restSet));
+
+              const sDate = new Date(start + "T00:00:00");
+              const eDate = new Date(end + "T00:00:00");
+
+              const todayKey = isoDate(new Date());
+              // helper for time-grid column shading
+              const isTimeGrid =
+                techCal.view &&
+                (techCal.view.type === "timeGridWeek" ||
+                  techCal.view.type === "timeGridDay");
+              const nextDayKey = (k) => {
+                const nd = new Date(k + "T00:00:00");
+                nd.setDate(nd.getDate() + 1);
+                return isoDate(nd);
+              };
+
+              const bookedIntervalsByDate = new Map();
+              appointments.forEach((a) => {
+                const dateKey = isoDate(
+                  a.bookingDate || a.date || a.start || new Date(),
+                );
+                const startMin = parseMinuteValue(a.startTime);
+                if (!Number.isFinite(startMin)) return;
+                const rawEndMin = parseMinuteValue(a.endTime);
+                const endMin =
+                  Number.isFinite(rawEndMin) && rawEndMin > startMin
+                    ? rawEndMin
+                    : startMin + 60;
+                const current = bookedIntervalsByDate.get(dateKey) || [];
+                current.push({ start: startMin, end: endMin });
+                bookedIntervalsByDate.set(dateKey, current);
+              });
+
+              for (
+                let d = new Date(sDate);
+                d <= eDate;
+                d.setDate(d.getDate() + 1)
+              ) {
+                const key = isoDate(d);
+                // past dates should not be marked available
+                if (key < todayKey) {
+                  console.log("[Calendar] Skipping past date", key);
+                  techCal.addEvent({
+                    id: "past_" + key,
+                    start: key,
+                    allDay: true,
+                    display: "background",
+                    backgroundColor: "#f1f5f9", // gray like non-working
+                    classNames: ["ts-bg-gray"],
+                    extendedProps: { type: "past" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "past_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      backgroundColor: "#f1f5f9",
+                      classNames: ["ts-bg-gray"],
+                      extendedProps: { type: "past" },
+                    });
+                  }
+                  continue;
+                }
+                const dow = d.getDay();
+                const rule = (schedule.workingDays || []).find(
+                  (w) => Number(w.dayOfWeek) === dow,
+                );
+
+                if (holidaySet.has(key)) {
+                  const hol = holidays.find((h) => h.date === key) || {};
+                  techCal.addEvent({
+                    id: "hol_" + key,
+                    title: hol.reason || hol.note || "Holiday",
+                    start: key,
+                    allDay: true,
+                    display: "block",
+                    backgroundColor: "#f1f5f9",
+                    borderColor: "#d1d5db",
+                    textColor: "#111827", // dark text for holiday label
+                    extendedProps: { type: "holiday" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "hol_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      classNames: ["ts-bg-gray"],
+                      extendedProps: { type: "holiday" },
+                    });
+                  }
+                  continue;
+                }
+                if (restSet.has(key)) {
+                  const rd =
+                    (schedule.restDates || []).find(
+                      (r) => (typeof r === "string" ? r : r.date) === key,
+                    ) || {};
+                  techCal.addEvent({
+                    id: "rest_" + key,
+                    title: rd.reason || "Rest day",
+                    start: key,
+                    allDay: true,
+                    display: "block",
+                    backgroundColor: "#f1f5f9",
+                    borderColor: "#d1d5db",
+                    textColor: "#6b7280",
+                    extendedProps: { type: "rest" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "rest_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      classNames: ["ts-bg-gray"],
+                      extendedProps: { type: "rest" },
+                    });
+                  }
+                  continue;
+                }
+                if (nonWeekSet.has(dow)) {
+                  techCal.addEvent({
+                    id: "weekoff_" + key,
+                    title: "Weekly off",
+                    start: key,
+                    allDay: true,
+                    display: "block",
+                    backgroundColor: "#f1f5f9",
+                    borderColor: "#d1d5db",
+                    textColor: "#6b7280",
+                    extendedProps: { type: "weekly-nonworking" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "weekoff_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      classNames: ["ts-bg-nonwork-yellow"],
+                      extendedProps: { type: "weekly-nonworking" },
+                    });
+                  }
+                  continue;
+                }
+                if (nonWeekSet.has(dow)) {
+                  techCal.addEvent({
+                    id: "weekoff_" + key,
+                    start: key,
+                    allDay: true,
+                    display: "background",
+                    // weekly off should use distinct colour even in month view
+                    classNames: ["ts-bg-weekly-nonwork"],
+                    extendedProps: { type: "weekly-nonworking" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "weekoff_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      classNames: ["ts-bg-nonwork-yellow"],
+                      extendedProps: { type: "weekly-nonworking" },
+                    });
+                  }
+                  continue;
+                }
+                if (rule) {
+                  const workStart = Number(rule.startMinutes);
+                  const workEnd = Number(rule.endMinutes);
+                  const bookedDayIntervals =
+                    bookedIntervalsByDate.get(key) || [];
+                  const remainingSlots = remainingIntervals(
+                    workStart,
+                    workEnd,
+                    bookedDayIntervals,
+                  );
+                  const hasBookedSlots = bookedDayIntervals.length > 0;
+                  const startIso = key + "T" + minToHHMM(workStart) + ":00";
+                  const endIso = key + "T" + minToHHMM(workEnd) + ":00";
+
+                  if (techCal.view && techCal.view.type === "dayGridMonth") {
+                    techCal.addEvent({
+                      id: "avail_bg_" + key,
+                      start: key,
+                      allDay: true,
+                      display: "background",
+                      backgroundColor: hasBookedSlots ? "#fef3c7" : "#dcfce7",
+                      extendedProps: { type: "work_bg" },
+                    });
+                    if (remainingSlots.length) {
+                      techCal.addEvent({
+                        id: "avail_" + key,
+                        title: remainingSlots
+                          .map(
+                            (slot) =>
+                              `${minTo12(slot.start)}–${minTo12(slot.end)}`,
+                          )
+                          .join("\n"),
+                        start: startIso,
+                        end: endIso,
+                        display: "block",
+                        backgroundColor: "#16a34a",
+                        borderColor: "#15803d",
+                        textColor: "#ffffff",
+                        extendedProps: { type: "available" },
+                      });
+                    } else {
+                      techCal.addEvent({
+                        id: "full_" + key,
+                        title: "Fully booked",
+                        start: startIso,
+                        end: endIso,
+                        display: "block",
+                        backgroundColor: "#f59e0b",
+                        borderColor: "#d97706",
+                        textColor: "#111827",
+                        extendedProps: { type: "fully-booked" },
+                      });
+                    }
+                  } else {
+                    if (!remainingSlots.length) {
+                      techCal.addEvent({
+                        id: "full_bg_" + key,
+                        start: startIso,
+                        end: endIso,
+                        display: "background",
+                        backgroundColor: "#fef3c7",
+                        extendedProps: { type: "work_bg_full" },
+                      });
+                    } else {
+                      remainingSlots.forEach((slot, idx) => {
+                        techCal.addEvent({
+                          id: `avail_bg_${key}_${idx}`,
+                          start: key + "T" + minToHHMM(slot.start) + ":00",
+                          end: key + "T" + minToHHMM(slot.end) + ":00",
+                          display: "background",
+                          backgroundColor: "#dcfce7",
+                          extendedProps: { type: "work_bg" },
+                        });
+                      });
+                    }
+                  }
+                } else {
+                  techCal.addEvent({
+                    id: "nonwork_" + key,
+                    start: key,
+                    allDay: true,
+                    display: "background",
+                    backgroundColor: "#f1f5f9",
+                    classNames: ["ts-bg-gray"],
+                    extendedProps: { type: "nonworking" },
+                  });
+                  if (isTimeGrid) {
+                    techCal.addEvent({
+                      id: "nonwork_shade_" + key,
+                      start: key + "T00:00:00",
+                      end: nextDayKey(key) + "T00:00:00",
+                      display: "background",
+                      backgroundColor: "#f1f5f9",
+                      classNames: ["ts-bg-gray"],
+                      extendedProps: { type: "nonworking" },
+                    });
+                  }
+                }
+              }
+
+              let bookedCount = 0,
+                pendingCount = 0;
+              console.log(
+                "[Calendar] Adding",
+                appointments.length,
+                "appointment events...",
+              );
+              appointments.forEach((a, idx) => {
+                try {
+                  const dateRaw =
+                    a.bookingDate || a.date || a.start || new Date();
+                  // Use isoDate() to avoid UTC timezone shift (consistent with calendar keys)
+                  const dateKey = isoDate(dateRaw);
+                  const startISO =
+                    dateKey + "T" + toCalendarTime(a.startTime, 9 * 60);
+                  const endMins = parseMinuteValue(a.endTime);
+                  const startMins = parseMinuteValue(a.startTime);
+                  const safeEnd = Number.isFinite(endMins)
+                    ? endMins
+                    : Number.isFinite(startMins)
+                      ? startMins + 60
+                      : 10 * 60;
+                  const endISO =
+                    dateKey + "T" + toCalendarTime(safeEnd, 10 * 60);
+                  const status = String(a.status || "confirmed").toLowerCase();
+                  const service = resolveServiceName(a);
+                  const customer = resolveCustomerName(a);
+                  const colorMap = {
+                    confirmed: {
+                      bg: "#fde68a",
+                      border: "#f59e0b",
+                    }, // yellow – booked
+                    pending: {
+                      bg: "#fde68a",
+                      border: "#f59e0b",
+                    }, // yellow – booked
+                  };
+                  const c = colorMap[status] || colorMap.confirmed;
+                  if (["confirmed", "pending"].includes(status)) bookedCount++;
+                  if (status === "pending") pendingCount++;
+                  const ev = {
+                    id: a._id || "appt_" + idx,
+                    // only show service name on calendar event, hide customer
+                    title: service,
+                    start: startISO,
+                    allDay: false,
+                    backgroundColor: c.bg,
+                    borderColor: c.border,
+                    textColor: "#111827",
+                    extendedProps: {
+                      type: "appointment",
+                      appointment: a,
+                      status,
+                    },
+                  };
+                  if (endISO) ev.end = endISO;
+                  console.log("[Calendar] Adding appointment event:", ev);
+                  techCal.addEvent(ev);
+                } catch (e) {
+                  console.warn("add appt event:", e);
+                }
+              });
+
+              renderWorkingDays(
+                schedule.workingDays,
+                schedule.nonWorkingWeekdays || [],
+              );
+              renderRestAndHolidays(
+                schedule.restDates,
+                holidays,
+                schedule.workingDays,
+                schedule.nonWorkingWeekdays || [],
+                busySet,
+              );
+              updateStats(schedule.workingDays, bookedCount, pendingCount);
+
+              const bh = (schedule.workingDays || []).map((w) => ({
+                daysOfWeek: [Number(w.dayOfWeek)],
+                startTime: minToHHMM(Number(w.startMinutes || 480)),
+                endTime: minToHHMM(Number(w.endMinutes || 1020)),
+              }));
+              techCal.setOption("businessHours", bh);
+            } // end _batchAddEvents
+          } catch (e) {
+            if (e.name === "AbortError") return;
+            console.error("loadCalendarData failed:", e);
+          } finally {
+            showCalSpinner(false);
+            // force FullCalendar to recalculate grid columns / row heights
+            if (techCal) {
+              setTimeout(() => {
+                if (techCal) techCal.updateSize();
+              }, 0);
+              setTimeout(() => {
+                if (techCal) techCal.updateSize();
+              }, 200);
+            }
+            const allEvents = techCal.getEvents ? techCal.getEvents() : [];
+            console.log(
+              "[Calendar] Final event count on calendar:",
+              allEvents.length,
+            );
+            if (allEvents.length > 0) {
+              console.log(
+                "[Calendar] Sample events:",
+                allEvents.slice(0, 5).map((e) => ({
+                  id: e.id,
+                  title: e.title,
+                  start: e.start,
+                  type: e.extendedProps?.type,
+                })),
+              );
+            }
+          }
+        }
+
+        /* ── Render info cards ──────────────────────────────────────── */
+        function renderWorkingDays(workingDays, nonWorkingWeekdays) {
+          const el = $("workingDaysList");
+          if (
+            (!workingDays || !workingDays.length) &&
+            (!nonWorkingWeekdays || !nonWorkingWeekdays.length)
+          ) {
+            el.innerHTML =
+              '<span class="text-muted">No working day rules configured.</span>';
+            return;
+          }
+          let html = "";
+          if (workingDays && workingDays.length) {
+            const sorted = [...workingDays].sort(
+              (a, b) => Number(a.dayOfWeek) - Number(b.dayOfWeek),
+            );
+            html += sorted
+              .map((w) => {
+                const from = minTo12(Number(w.startMinutes || 480));
+                const to = minTo12(Number(w.endMinutes || 1020));
+                const hrs = ((w.endMinutes - w.startMinutes) / 60).toFixed(1);
+                return `<div class="ts-wd-row">
+        <span class="ts-wd-day">${DAY_SHORT[Number(w.dayOfWeek)]}</span>
+        <span class="ts-wd-time">${from} \u2013 ${to}</span>
+        <span class="text-muted" style="font-size:0.75rem">${hrs}h</span>
+      </div>`;
+              })
+              .join("");
+          }
+          if (nonWorkingWeekdays && nonWorkingWeekdays.length) {
+            const names = nonWorkingWeekdays
+              .map((d) => DAY_SHORT[Number(d)])
+              .join(", ");
+            html += `<div class="ts-wd-row">
+        <span class="ts-wd-day text-warning">Off</span>
+        <span class="ts-wd-time">${names}</span>
+      </div>`;
+          }
+          el.innerHTML = html;
+        }
+
+        function renderRestAndHolidays(
+          restDates,
+          holidays,
+          workingDays,
+          nonWorkingWeekdays,
+          busySet,
+        ) {
+          const el = $("restDatesList");
+          const today = isoDate(new Date());
+          // show weekday names for weekly offs
+          const weekNames = (nonWorkingWeekdays || [])
+            .map((n) => DAY_SHORT[Number(n)])
+            .filter(Boolean);
+
+          // upcoming rest dates
+          const restArr = [];
+          (restDates || []).forEach((r) => {
+            const d = typeof r === "string" ? r : r.date;
+            if (d && d >= today) {
+              let label = (r.reason && r.reason.trim()) || "Rest";
+              if (busySet && busySet.has(d)) label += " / Busy";
+              restArr.push({ date: d, label });
+            }
+          });
+
+          // upcoming holidays
+          const holArr = [];
+          (holidays || []).forEach((h) => {
+            if (h.date >= today) {
+              holArr.push({
+                date: h.date,
+                label: (h.reason && h.reason.trim()) || h.note || "Holiday",
+              });
+            }
+          });
+
+          if (!weekNames.length && !restArr.length && !holArr.length) {
+            el.innerHTML =
+              '<span class="text-muted">No upcoming rest dates or holidays.</span>';
+            return;
+          }
+
+          let html = "";
+          if (weekNames.length) {
+            html += `<div class="ts-rd-section">Weekly off: ${weekNames.join(", ")}</div>`;
+          }
+          if (restArr.length) {
+            html += '<div class="ts-rd-section">Rest dates</div>';
+            html += restArr
+              .map(
+                (r) =>
+                  `<div class="ts-rd-row"><span class="ts-rd-date">${r.date}</span><span class="ts-rd-reason">${r.label}</span></div>`,
+              )
+              .join("");
+          }
+          if (holArr.length) {
+            html += '<div class="ts-rd-section">Holidays</div>';
+            html += holArr
+              .map(
+                (h) =>
+                  `<div class="ts-rd-row"><span class="ts-rd-date">${h.date}</span><span class="ts-rd-reason">${h.label}</span></div>`,
+              )
+              .join("");
+          }
+          el.innerHTML = html;
+        }
+        function updateStats(workingDays, booked, pending) {
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = now.getMonth();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          const workSet = new Set(
+            (workingDays || []).map((w) => Number(w.dayOfWeek)),
+          );
+          let workCount = 0;
+          for (let d = 1; d <= daysInMonth; d++) {
+            if (workSet.has(new Date(year, month, d).getDay())) workCount++;
+          }
+          $("statWorkDays").textContent = workCount;
+          $("statBooked").textContent = booked;
+          $("statPending").textContent = pending;
+        }
+
+        /* ── Spinner ────────────────────────────────────────────────── */
+
+        /* ensure modal sits above everything */
+        const css = document.createElement("style");
+        css.textContent =
+          ".modal { z-index: 2000 !important; } " +
+          ".modal-backdrop { z-index: 1500 !important; backdrop-filter: none !important; }";
+        document.head.appendChild(css);
+        function showCalSpinner(show) {
+          const card = document.querySelector(".ts-cal-card");
+          if (!card) return;
+          let sp = card.querySelector(".ts-spinner-wrap");
+          if (show) {
+            if (!sp) {
+              sp = document.createElement("div");
+              sp.className = "ts-spinner-wrap";
+              sp.innerHTML =
+                '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading\u2026</span></div>';
+              card.appendChild(sp);
+            }
+          } else {
+            if (sp) sp.remove();
+          }
+        }
+
+        /* ── Event modals ────────────────────────────────────────────── */
+        function showInfoModal(event) {
+          // if sidebar backdrop is still visible, hide it so the modal isn't blocked
+          if (window.hideBackdrop) hideBackdrop();
+          const type = (event.extendedProps || {}).type;
+          const titles = {
+            holiday: "Holiday",
+            rest: "Rest Day",
+            available: "Available",
+            work_bg: "Working Day",
+          };
+          const titleText = titles[type] || event.title || "";
+          $("apptModalTitle").textContent = titleText;
+
+          // build a more structured body using the existing grid styles
+          let details = `<div class="appt-detail-grid">`;
+          if (event.title) {
+            details +=
+              `<span class="appt-detail-label"><i class="bi bi-clock-history me-1 text-primary"></i>Time</span>` +
+              `<span class="appt-detail-val">${event.title}</span>`;
+          }
+          details += `</div>`;
+          $("apptModalBody").innerHTML = details;
+          $("apptModalLink").classList.add("d-none");
+          bootstrap.Modal.getOrCreateInstance($("apptDetailModal")).show();
+        }
+
+        function openApptModal(a) {
+          if (window.hideBackdrop) hideBackdrop();
+          const status = String(a.status || "confirmed").toLowerCase();
+          const service = resolveServiceName(a);
+          const customer = resolveCustomerName(a);
+          const date = a.bookingDate ? fmtDate(a.bookingDate) : "\u2014";
+          const timeRange = formatApptTimeRange(a);
+          const payment = a.paymentMethod || "\u2014";
+          const address = resolveAddressText(a);
+          $("apptModalTitle").textContent = service;
+          $("apptModalBody").innerHTML = `
+      <div class="d-flex align-items-center gap-2 mb-3">
+        ${statusBadge(status)}
+        <span class="text-muted small">#${String(a._id || "").slice(-6)}</span>
+      </div>
+      <div class="appt-detail-grid">
+        <span class="appt-detail-label">Service</span>   <span class="appt-detail-val">${service}</span>
+        <span class="appt-detail-label">Date</span>      <span class="appt-detail-val">${date}</span>
+        <span class="appt-detail-label"><i class="bi bi-clock-history me-1 text-primary"></i></span><span class="appt-detail-val">${timeRange}</span>
+        <span class="appt-detail-label">Customer</span>  <span class="appt-detail-val">${customer}</span>
+        <span class="appt-detail-label">Payment</span>
+        <span class="appt-detail-val" style="text-transform:uppercase">
+          ${payment}
+          ${a.paymentMethod === "cash" && a.downpaymentAmount ? `(down ₱${Number(a.downpaymentAmount).toLocaleString()})` : ""}
+          ${a.paymentMethod === "cash" && !a.downpaymentAmount ? `<span class="text-danger small ms-1">(no downpayment)</span>` : ""}
+        </span>
+        <span class="appt-detail-label">Address</span>   <span class="appt-detail-val">${address}</span>
+      </div>`;
+          const link = $("apptModalLink");
+          if (a._id) {
+            link.href = "/admin/appointments/" + a._id;
+            link.classList.remove("d-none");
+          } else {
+            link.classList.add("d-none");
+          }
+          bootstrap.Modal.getOrCreateInstance($("apptDetailModal")).show();
+        }
+
+        /* ── Technician change ───────────────────────────────────────── */
+        $("techSelect").addEventListener("change", async function () {
+          const techId = this.value;
+          currentTechId = techId || null;
+          if (!techId) {
+            // no tech selected → reset everything
+            $("calPlaceholder").classList.remove("d-none");
+            $("btnRefresh").classList.add("d-none");
+            $("techInfoBadge").classList.add("d-none");
+            $("workingDaysList").innerHTML =
+              '<span class="text-muted">Select a technician to see their schedule.</span>';
+            $("restDatesList").innerHTML =
+              '<span class="text-muted">No exceptions found.</span>';
+            $("statWorkDays").textContent = "\u2014";
+            $("statBooked").textContent = "\u2014";
+            $("statPending").textContent = "\u2014";
+            if (techCal) {
+              techCal.removeAllEvents();
+              techCal.setOption("businessHours", false);
+            }
+            // hide legend when calendar empty
+            const legend = document.querySelector(".ts-legend");
+            if (legend) legend.classList.add("d-none");
+            return;
+          }
+          // tech selected – ensure legend visible
+          const legend = document.querySelector(".ts-legend");
+          if (legend) legend.classList.remove("d-none");
+          const selOpt = this.options[this.selectedIndex];
+          // Show tech name in badge, strip the " — inactive" suffix for display
+          $("techBadgeName").textContent = selOpt.textContent.replace(
+            / \u2014 inactive$/,
+            "",
+          );
+          const isActive = !selOpt.textContent.includes("\u2014 inactive");
+          $("techBadgeStatus").textContent = isActive ? "Active" : "Inactive";
+          $("techBadgeStatus").className =
+            "badge ms-2 " + (isActive ? "bg-success" : "bg-secondary");
+          $("techInfoBadge").classList.remove("d-none");
+          $("btnRefresh").classList.remove("d-none");
+          $("calPlaceholder").classList.add("d-none");
+
+          // ① Immediately populate info panel from scheduling config (no date range needed)
+          loadScheduleInfo(techId);
+
+          // ② Initialize calendar (loads FullCalendar if needed) and trigger data fetch
+          const calExisted = !!techCal;
+          await initCalendar();
+          if (techCal) {
+            adjustLayoutForWeekView(techCal.view);
+            techCal.updateSize();
+            // If calendar already existed (switching techs), datesSet won't
+            // fire from render(), so explicitly reload data.
+            if (calExisted) {
+              const view = techCal.view;
+              const start = isoDate(view.activeStart);
+              const end = isoDate(
+                new Date(view.activeEnd.getTime() - 86400000),
+              );
+              loadCalendarData(techId, start, end);
+            }
+          }
+        });
+
+        $("btnRefresh").addEventListener("click", () => {
+          if (!currentTechId || !techCal) return;
+          const view = techCal.view;
+          const start = isoDate(view.activeStart);
+          const end = isoDate(new Date(view.activeEnd.getTime() - 86400000));
+          loadCalendarData(currentTechId, start, end);
+        });
+
+        /* ── Init ────────────────────────────────────────────────────── */
+        // move modal element to body so it's not constrained by parent stacking
+        document.addEventListener("DOMContentLoaded", () => {
+          const modalEl = document.getElementById("apptDetailModal");
+          if (modalEl && modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+          }
+        });
+        // Only load the technician list. The calendar is initialised lazily when
+        // the first technician is selected so that datesSet fires with
+        // currentTechId already set and immediately populates the calendar.
+        loadTechnicians();
+        // legend should be hidden until a tech is chosen
+        const lg = document.querySelector(".ts-legend");
+        if (lg) lg.classList.add("d-none");
+
+        window.addEventListener("storage", (e) => {
+          if (e.key !== "techScheduleUpdated" || !currentTechId || !techCal)
+            return;
+          try {
+            const msg = JSON.parse(e.newValue || "{}");
+            if (
+              msg.technicianId === "ALL" ||
+              msg.technicianId === currentTechId
+            ) {
+              const view = techCal.view;
+              const start = isoDate(view.activeStart);
+              const end = isoDate(
+                new Date(view.activeEnd.getTime() - 86400000),
+              );
+              loadCalendarData(currentTechId, start, end);
+            }
+          } catch (_) {}
+        });
+
+        /* ── Sidebar fold/unfold: tell FullCalendar to recalculate ──── */
+        const sidebarToggleBtn = document.getElementById("sidebarToggle");
+        if (sidebarToggleBtn) {
+          sidebarToggleBtn.addEventListener("click", () => {
+            // wait for the CSS transition to finish (~420ms)
+            setTimeout(() => {
+              if (techCal) techCal.updateSize();
+            }, 450);
+          });
+        }
+      })();
+    </script>
+  </div>
+  <!-- /.ts-page -->
+</div>
+<!-- /.admin-dashboard -->

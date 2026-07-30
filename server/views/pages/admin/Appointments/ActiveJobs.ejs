@@ -1,0 +1,1210 @@
+<div class="main-content" style="background:#f0f2f5;min-height:100vh;">
+  <div class="container-fluid py-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+          <div>
+            <h1>Active Jobs</h1>
+            <p>Real-time service operations dashboard</p>
+          </div>
+        </div>
+        <div class="au-hero-actions">
+          <div class="input-group input-group-sm" style="max-width:240px;">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control border-start-0" placeholder="Search jobs, customers..." id="searchInput">
+          </div>
+          <button class="btn btn-light btn-sm fw-semibold" onclick="loadList()" style="border-radius:10px;">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Filter Pills -->
+    <div class="aj-filter-bar">
+      <div class="aj-filter-pills" id="filterPills">
+        <button class="aj-pill active" data-status="" onclick="filterByStatus(this, '')">
+          <span class="aj-pill-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+          <span class="aj-pill-text">All Active</span>
+          <span class="aj-pill-badge" id="pillAll">0</span>
+        </button>
+        <div class="aj-pill-divider"></div>
+        <button class="aj-pill" data-status="confirmed" onclick="filterByStatus(this, 'confirmed')">
+          <span class="aj-pill-dot" style="background:#10b981;"></span>
+          <span class="aj-pill-text">Confirmed</span>
+          <span class="aj-pill-badge" id="pillConfirmed">0</span>
+        </button>
+        <button class="aj-pill" data-status="on-the-way" onclick="filterByStatus(this, 'on-the-way')">
+          <span class="aj-pill-dot" style="background:#3b82f6;"></span>
+          <span class="aj-pill-text">En Route</span>
+          <span class="aj-pill-badge" id="pillOnWay">0</span>
+        </button>
+        <button class="aj-pill" data-status="arrived" onclick="filterByStatus(this, 'arrived')">
+          <span class="aj-pill-dot" style="background:#f59e0b;"></span>
+          <span class="aj-pill-text">Arrived</span>
+          <span class="aj-pill-badge" id="pillArrived">0</span>
+        </button>
+        <button class="aj-pill" data-status="in-progress" onclick="filterByStatus(this, 'in-progress')">
+          <span class="aj-pill-dot" style="background:#8b5cf6;"></span>
+          <span class="aj-pill-text">In Progress</span>
+          <span class="aj-pill-badge" id="pillProgress">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="aj-stats-row">
+      <div class="aj-stat-card">
+        <div class="aj-stat-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);"><i class="bi bi-briefcase-fill"></i></div>
+        <div class="aj-stat-info">
+          <span class="aj-stat-value" id="statTotal">0</span>
+          <span class="aj-stat-label">Total Jobs</span>
+        </div>
+      </div>
+      <div class="aj-stat-card">
+        <div class="aj-stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-lightning-charge-fill"></i></div>
+        <div class="aj-stat-info">
+          <span class="aj-stat-value" id="statOngoing">0</span>
+          <span class="aj-stat-label">Ongoing</span>
+        </div>
+      </div>
+      <div class="aj-stat-card">
+        <div class="aj-stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="bi bi-people-fill"></i></div>
+        <div class="aj-stat-info">
+          <span class="aj-stat-value" id="statTechs">0</span>
+          <span class="aj-stat-label">Technicians</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Jobs Grid -->
+    <div class="row g-3" id="jobsContainer">
+      <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:440px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon bg-info-subtle"><i class="bi bi-info-circle text-info"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0" id="detailTitle">Job Details</h6>
+            <small class="text-muted" id="detailModalSubtitle">Loading...</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" id="detailBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Enterprise Tracking Drawer ═══ -->
+<div id="trackDrawer" class="track-drawer" role="dialog" aria-label="Tracking panel">
+  <div class="track-drawer-backdrop" onclick="closeTrackDrawer()"></div>
+  <div class="track-drawer-panel" id="trackDrawerPanel">
+    <div class="track-drawer-header">
+      <div class="track-drawer-h-left">
+        <div class="track-drawer-h-icon"><i class="bi bi-send-fill"></i></div>
+        <div class="track-drawer-h-titles">
+          <div class="track-drawer-h-title" id="trackDrawerTitle">Track Job</div>
+          <div class="track-drawer-h-sub" id="trackDrawerSubtitle">Live location tracking</div>
+        </div>
+      </div>
+      <div class="track-drawer-h-actions">
+        <button class="track-drawer-btn-icon" onclick="toggleTrackDrawerPin()" id="trackDrawerPinBtn" title="Keep open"><i class="bi bi-pin-angle"></i></button>
+        <button class="track-drawer-btn-icon" onclick="closeTrackDrawer()" title="Close"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </div>
+    <div class="track-drawer-progress" id="trackDrawerProgress">
+      <div class="td-progress-step" id="tdStep0"><div class="td-progress-dot"></div><span>Confirmed</span></div>
+      <div class="td-progress-line" id="tdLine0"></div>
+      <div class="td-progress-step" id="tdStep1"><div class="td-progress-dot"></div><span>En Route</span></div>
+      <div class="td-progress-line" id="tdLine1"></div>
+      <div class="td-progress-step" id="tdStep2"><div class="td-progress-dot"></div><span>Arrived</span></div>
+      <div class="td-progress-line" id="tdLine2"></div>
+      <div class="td-progress-step" id="tdStep3"><div class="td-progress-dot"></div><span>In Progress</span></div>
+      <div class="td-progress-line" id="tdLine3"></div>
+      <div class="td-progress-step" id="tdStep4"><div class="td-progress-dot"></div><span>Done</span></div>
+    </div>
+    <div class="track-drawer-map-wrap">
+      <div id="trackDrawerMap" class="track-drawer-map"></div>
+      <div class="track-drawer-legend">
+        <div class="td-legend-item"><div class="td-legend-dot" style="background:#2563eb;"></div><span>Customer</span></div>
+        <div class="td-legend-item"><div class="td-legend-dot" style="background:#16a34a;"></div><span>Technician</span></div>
+        <div class="td-legend-item"><div class="td-legend-line"></div><span>Route</span></div>
+      </div>
+    </div>
+    <div class="track-drawer-footer">
+      <div class="td-footer-row">
+        <div class="td-footer-item">
+          <div class="td-fi-label">Customer</div>
+          <div class="td-fi-value" id="tdInfoCustomer">—</div>
+          <div class="td-fi-sub" id="tdInfoCustomerAddr">—</div>
+        </div>
+        <div class="td-footer-divider"></div>
+        <div class="td-footer-item">
+          <div class="td-fi-label">Technician</div>
+          <div class="td-fi-value" id="tdInfoTechnician">—</div>
+          <div class="td-fi-sub" id="tdInfoTechStatus">—</div>
+        </div>
+        <div class="td-footer-divider"></div>
+        <div class="td-footer-item">
+          <div class="td-fi-label">Status</div>
+          <div class="td-fi-value" id="tdInfoStatus">—</div>
+          <div class="td-fi-sub" id="tdInfoRef">—</div>
+        </div>
+      </div>
+      <div class="td-footer-actions">
+        <button class="td-btn td-btn-primary" id="tdBtnEnroute" onclick="markEnRoute()" style="display:none;"><i class="bi bi-truck me-1"></i>Mark En Route</button>
+        <button class="td-btn td-btn-outline" onclick="refreshTracking()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+        <button class="td-btn td-btn-ghost" onclick="openInFullMap()"><i class="bi bi-box-arrow-up-right me-1"></i>Open Maps</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ═══ Enterprise Modal ═══ */
+  .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+  .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; }
+  .ent-modal-header-danger { background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); }
+  .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .ent-modal-body { padding: 16px 18px; }
+  .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+  .ent-detail-grid { display: flex; flex-direction: column; gap: 10px; }
+  .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .ent-detail-card-wide { }
+  .ent-detail-card-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+  .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ent-detail-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+  .ent-detail-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+  .ent-detail-sub { font-size: 0.8rem; color: #64748b; }
+  @media (max-width: 767px) { .ent-detail-card { padding: 10px 12px; } }
+
+  /* ═══ Active Jobs Modern Design ═══ */
+
+  /* ── Filter Pills ── */
+  .aj-filter-bar {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 6px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .aj-filter-pills {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .aj-filter-pills::-webkit-scrollbar { display: none; }
+  .aj-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .aj-pill:hover {
+    background: #f1f5f9;
+    color: #334155;
+  }
+  .aj-pill.active {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+  }
+  .aj-pill-icon {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+  }
+  .aj-pill.active .aj-pill-icon {
+    color: #fff;
+  }
+  .aj-pill-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .aj-pill.active .aj-pill-dot {
+    background: #fff !important;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+  }
+  .aj-pill-text {
+    line-height: 1;
+  }
+  .aj-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .aj-pill.active .aj-pill-badge {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+  }
+  .aj-pill-divider {
+    width: 1px;
+    height: 24px;
+    background: #e2e8f0;
+    margin: 0 4px;
+    flex-shrink: 0;
+  }
+
+  /* ── Stats Row ── */
+  .aj-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .aj-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+  }
+  .aj-stat-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+  }
+  .aj-stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .aj-stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .aj-stat-value {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+    letter-spacing: -0.3px;
+  }
+  .aj-stat-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Job Cards ── */
+  .job-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.25s ease;
+  }
+  .job-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+    border-color: #cbd5e1;
+  }
+  .job-card-header {
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    background: linear-gradient(135deg, #fafbfc 0%, #f8fafc 100%);
+  }
+  .job-card-body {
+    padding: 14px 16px;
+  }
+  .job-status {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .job-confirmed { background: #dcfce7; color: #166534; }
+  .job-on-the-way { background: #dbeafe; color: #1e40af; }
+  .job-arrived { background: #fef3c7; color: #92400e; }
+  .job-in-progress { background: #ede9fe; color: #5b21b6; }
+
+  /* ── Responsive ── */
+  @media (max-width: 992px) {
+    .aj-stats-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 768px) {
+    .aj-filter-pills {
+      padding: 2px 0;
+    }
+    .aj-pill {
+      padding: 7px 10px;
+      font-size: 0.72rem;
+    }
+    .aj-pill-badge {
+      min-width: 18px;
+      height: 16px;
+      font-size: 0.6rem;
+    }
+    .aj-stats-row {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .aj-stat-card {
+      padding: 10px 12px;
+    }
+    .aj-stat-icon {
+      width: 34px;
+      height: 34px;
+      font-size: 0.85rem;
+    }
+    .aj-stat-value {
+      font-size: 0.95rem;
+    }
+    .aj-stat-label {
+      font-size: 0.58rem;
+    }
+  }
+  @media (max-width: 480px) {
+    .aj-stats-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  /* ── Status Progress Tracker ── */
+  .track-progress{display:flex;align-items:flex-start;gap:0;margin-bottom:16px;padding:14px 10px;background:#fff;border-radius:10px;border:1px solid #e2e8f0}
+  .track-step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;min-width:0}
+  .track-step-dot{width:32px;height:32px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:#94a3b8;transition:all .3s;border:2px solid #e2e8f0}
+  .track-step.done .track-step-dot{background:#2563eb;border-color:#2563eb;color:#fff}
+  .track-step.current .track-step-dot{background:#fff;border-color:#2563eb;color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.15)}
+  .track-step-label{font-size:0.62rem;font-weight:600;color:#94a3b8;text-align:center;white-space:nowrap}
+  .track-step.done .track-step-label{color:#2563eb}
+  .track-step.current .track-step-label{color:#1e293b;font-weight:700}
+  .track-step-line{flex:0 0 auto;width:20px;height:2px;background:#e2e8f0;margin-top:15px;border-radius:1px}
+  .track-step-line.done{background:#2563eb}
+
+  .pm-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .pm-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all .2s}
+  .pm-card:hover{border-color:#cbd5e1;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+  .pm-card-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #f1f5f9;background:#fafbfc}
+  .pm-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+  .pm-card-title{font-size:.8rem;font-weight:700;color:#1e293b;margin:0}
+  .pm-card-body{padding:10px 16px}
+  .pm-row{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid #f8fafc;font-size:.8rem}
+  .pm-row:last-child{border-bottom:none;padding-bottom:0}
+  .pm-row:first-child{padding-top:0}
+  .pm-lbl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8}
+  .pm-val{color:#1e293b;font-weight:500;text-align:right;max-width:60%;word-break:break-word}
+  .pm-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px}
+  .pm-photo-item{border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:all .15s}
+  .pm-photo-item:hover{border-color:#3b82f6;box-shadow:0 2px 8px rgba(59,130,246,0.15)}
+  .pm-photo-item img{width:100%;height:80px;object-fit:cover;display:block}
+
+  /* ═══ Enterprise Tracking Drawer ═══ */
+  .track-drawer { position: fixed; inset: 0; z-index: 1060; pointer-events: none; }
+  .track-drawer.open { pointer-events: auto; }
+  .track-drawer-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,0.45); opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  .track-drawer.open .track-drawer-backdrop { opacity: 1; }
+  .track-drawer-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 100vw; background: #fff; box-shadow: -8px 0 40px rgba(0,0,0,0.18); transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); display: flex; flex-direction: column; z-index: 1; }
+  .track-drawer.open .track-drawer-panel { transform: translateX(0); }
+
+  .track-drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%); color: #fff; flex-shrink: 0; gap: 12px; }
+  .track-drawer-h-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .track-drawer-h-icon { width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .track-drawer-h-titles { min-width: 0; }
+  .track-drawer-h-title { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track-drawer-h-sub { font-size: 0.7rem; color: rgba(255,255,255,0.6); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track-drawer-h-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .track-drawer-btn-icon { width: 32px; height: 32px; border: none; border-radius: 8px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; cursor: pointer; transition: all 0.15s; }
+  .track-drawer-btn-icon:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  .track-drawer-btn-icon.pinned { color: #fbbf24; background: rgba(251,191,36,0.15); }
+
+  .track-drawer-progress { display: flex; align-items: center; padding: 10px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; gap: 0; }
+  .td-progress-step { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 0; cursor: default; }
+  .td-progress-dot { width: 20px; height: 20px; border-radius: 50%; background: #e2e8f0; border: 2px solid #e2e8f0; transition: all 0.3s; flex-shrink: 0; }
+  .td-progress-step.active .td-progress-dot { background: #2563eb; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  .td-progress-step.done .td-progress-dot { background: #2563eb; border-color: #2563eb; }
+  .td-progress-step span { font-size: 0.58rem; font-weight: 600; color: #94a3b8; text-align: center; white-space: nowrap; }
+  .td-progress-step.active span { color: #1e293b; font-weight: 700; }
+  .td-progress-step.done span { color: #2563eb; }
+  .td-progress-line { flex: 0 0 auto; width: 100%; height: 2px; background: #e2e8f0; margin: 0; margin-top: -16px; border-radius: 1px; }
+  .td-progress-line.done { background: #2563eb; }
+
+  .track-drawer-map-wrap { position: relative; flex: 1; min-height: 55vh; }
+  .track-drawer-map { width: 100%; height: 100%; position: absolute; inset: 0; }
+  .track-drawer-legend { position: absolute; bottom: 12px; left: 12px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 10px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 1000; display: flex; flex-direction: column; gap: 4px; }
+  .td-legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.68rem; font-weight: 500; color: #334155; }
+  .td-legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); flex-shrink: 0; }
+  .td-legend-line { width: 18px; height: 3px; background: #2563eb; border-radius: 2px; opacity: 0.6; flex-shrink: 0; }
+
+  .track-drawer-footer { flex-shrink: 0; background: #fff; border-top: 1px solid #e2e8f0; padding: 10px 16px; }
+  .td-footer-row { display: flex; align-items: stretch; gap: 0; }
+  .td-footer-item { flex: 1; min-width: 0; padding: 4px 8px; }
+  .td-fi-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; margin-bottom: 0; }
+  .td-fi-value { font-size: 0.82rem; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td-fi-sub { font-size: 0.68rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td-footer-divider { width: 1px; background: #e2e8f0; margin: 4px 0; flex-shrink: 0; }
+  .td-footer-actions { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; }
+  .td-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border: none; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .td-btn-primary { background: #2563eb; color: #fff; }
+  .td-btn-primary:hover { background: #1d4ed8; }
+  .td-btn-outline { background: #fff; color: #475569; border: 1px solid #e2e8f0; }
+  .td-btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .td-btn-ghost { background: transparent; color: #64748b; padding: 6px 10px; }
+  .td-btn-ghost:hover { background: #f1f5f9; color: #334155; }
+
+  @media (max-width: 640px) {
+    .track-drawer-panel { width: 100vw; }
+    .track-drawer-map-wrap { min-height: 40vh; }
+    .td-footer-row { flex-direction: column; gap: 4px; }
+    .td-footer-divider { display: none; }
+    .td-footer-item { padding: 2px 0; }
+    .td-footer-actions { flex-direction: column; }
+    .td-btn { width: 100%; justify-content: center; }
+    .td-progress-step span { font-size: 0.5rem; }
+  }
+  @media(min-width:767px){.pm-grid{grid-template-columns:1fr}}
+</style>
+
+<script>
+  let currentStatus = '';
+
+  const STATUS_LABELS = {
+    'confirmed': 'Confirmed',
+    'scheduled': 'Scheduled',
+    'on-the-way': 'On The Way',
+    'arrived': 'Arrived',
+    'in-progress': 'In Progress',
+  };
+
+  const STATUS_CLASSES = {
+    'confirmed': 'job-confirmed',
+    'scheduled': 'job-confirmed',
+    'on-the-way': 'job-on-the-way',
+    'arrived': 'job-arrived',
+    'in-progress': 'job-in-progress',
+  };
+
+  async function loadList() {
+    const search = document.getElementById('searchInput')?.value || '';
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        fetch(`/api/admin/appointments/list?stage=active&status=${currentStatus}&search=${encodeURIComponent(search)}&limit=50`),
+        fetch('/api/admin/appointments/flow-stats')
+      ]);
+      const listData = await listRes.json();
+      const statsData = await statsRes.json();
+
+      updateCounts(listData.bookings || []);
+      renderJobs(listData.bookings);
+    } catch (e) { console.error(e); }
+  }
+
+  function updateCounts(bookings) {
+    const counts = { all: 0, confirmed: 0, 'on-the-way': 0, arrived: 0, 'in-progress': 0 };
+    bookings.forEach(b => {
+      counts.all++;
+      if (counts[b.status] !== undefined) counts[b.status]++;
+    });
+
+    document.getElementById('pillAll').textContent = counts.all;
+    document.getElementById('pillConfirmed').textContent = counts.confirmed;
+    document.getElementById('pillOnWay').textContent = counts['on-the-way'];
+    document.getElementById('pillArrived').textContent = counts.arrived;
+    document.getElementById('pillProgress').textContent = counts['in-progress'];
+
+    document.getElementById('statTotal').textContent = counts.all;
+    document.getElementById('statOngoing').textContent = counts['in-progress'] + counts['on-the-way'];
+    document.getElementById('statTechs').textContent = new Set(bookings.map(b => b.technicianId).filter(Boolean)).size;
+  }
+
+  function filterByStatus(btn, status) {
+    currentStatus = status;
+    document.querySelectorAll('.aj-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    loadList();
+  }
+
+  function renderJobs(bookings) {
+    const container = document.getElementById('jobsContainer');
+    if (!bookings.length) {
+      container.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+        <div style="width:64px;height:64px;border-radius:50%;background:#f1f5f9;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+          <i class="bi bi-inbox" style="font-size:1.8rem;color:#94a3b8;"></i>
+        </div>
+        <div class="fw-semibold" style="color:#475569;">No active jobs</div>
+        <div style="font-size:0.8rem;color:#94a3b8;">All clear — no jobs in this status</div>
+      </div>`;
+      return;
+    }
+    container.innerHTML = bookings.map(b => {
+      const date = new Date(b.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const statusClass = STATUS_CLASSES[b.status] || 'job-confirmed';
+      const statusLabel = STATUS_LABELS[b.status] || b.status;
+      return `<div class="col-md-6 col-xl-4">
+        <div class="job-card">
+          <div class="job-card-header">
+            <div class="d-flex align-items-center gap-2">
+              <code style="font-size:0.75rem;color:#3b82f6;font-weight:600;">${b.bookingReference || b.workOrderNumber || 'N/A'}</code>
+            </div>
+            <span class="job-status ${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="job-card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="fw-semibold" style="font-size:0.88rem;color:#0f172a;">${b.customer?.name || 'N/A'}</div>
+                <div style="font-size:0.72rem;color:#94a3b8;">${b.customer?.phone || ''}</div>
+              </div>
+              <div class="text-end">
+                <div style="font-size:1rem;font-weight:800;color:#059669;">₱${(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</div>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div style="font-size:0.78rem;color:#64748b;"><i class="bi bi-tools me-1"></i>${b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</div>
+              <div style="font-size:0.72rem;color:#94a3b8;"><i class="bi bi-calendar3 me-1"></i>${date}</div>
+            </div>
+            ${b.technician?.name ? `
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f8fafc;border-radius:8px;margin-bottom:10px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;">
+                <i class="bi bi-person-fill" style="font-size:0.65rem;color:#fff;"></i>
+              </div>
+              <span style="font-size:0.78rem;font-weight:600;color:#1e293b;">${b.technician.name}</span>
+            </div>` : ''}
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm flex-fill" style="background:#f1f5f9;border:none;color:#475569;font-weight:600;font-size:0.75rem;border-radius:8px;" onclick="viewDetail('${b._id}')">
+                <i class="bi bi-eye me-1"></i>Details
+              </button>
+              <button class="btn btn-sm" style="background:#f1f5f9;border:none;color:#475569;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;padding:0;" onclick="trackOnMap('${b._id}')" title="Track">
+                <i class="bi bi-geo-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function viewDetail(id) {
+    const body = document.getElementById('detailBody');
+    const subtitle = document.getElementById('detailModalSubtitle');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading job details...</p></div>';
+    subtitle.textContent = 'Loading...';
+    new bootstrap.Modal(document.getElementById('detailModal')).show();
+
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch job details');
+      const data = await res.json();
+      const b = data.booking;
+      if (!b) { body.innerHTML = '<div class="alert alert-danger">Job not found</div>'; return; }
+
+      const refText = b.bookingReference || b.workOrderNumber || `#${b._id.toString().slice(-8).toUpperCase()}`;
+      document.getElementById('detailTitle').textContent = `Job ${refText}`;
+      subtitle.textContent = refText;
+
+      const isRepair = b.serviceModel === 'RepairService' || b.serviceType === 'repair';
+      const isMulti = b.isMultiService || (b.services && b.services.length > 0);
+
+      const dateLabel = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+      const timeLabel = b.selectedTimeLabel || b.startTime || b.preferredTime || '—';
+      const endLabel = b.endTime || '—';
+
+      const statusColors = {
+        confirmed: 'bg-primary', scheduled: 'bg-primary',
+        'on-the-way': 'bg-info', arrived: 'bg-dark',
+        'in-progress': 'bg-primary', completed: 'bg-success',
+        cancelled: 'bg-secondary', rejected: 'bg-danger',
+        assigned: 'bg-info',
+      };
+      const statusLabel = (b.status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      // Collect photos from all sources
+      const allPhotos = [];
+      if (b.paymentProof) allPhotos.push({ src: b.paymentProof, label: 'Payment Proof' });
+      if (data.payment && data.payment.proofUrl && !allPhotos.some(p => p.src === data.payment.proofUrl))
+        allPhotos.push({ src: data.payment.proofUrl, label: 'Receipt' });
+      if (b.imageUrl && !allPhotos.some(p => p.src === b.imageUrl))
+        allPhotos.push({ src: b.imageUrl, label: 'Image' });
+      if (b.unitInfo && Array.isArray(b.unitInfo.photos))
+        b.unitInfo.photos.forEach(p => { if (p && !allPhotos.some(x => x.src === p)) allPhotos.push({ src: p, label: 'Unit Photo' }); });
+
+      // Pricing breakdown
+      const totalPrice = b.totalPrice || b.estimatedFee || 0;
+      const servicePrice = b.servicePrice || 0;
+      const travelFare = b.travelFare || 0;
+      const downpayment = b.downpaymentAmount || 0;
+      const amountPaid = b.amountPaid || 0;
+      const balanceAmount = b.balanceAmount || Math.max(0, totalPrice - amountPaid);
+
+      body.innerHTML = `
+        <div class="pm-status-bar">
+          <span class="badge ${statusColors[b.status] || 'bg-secondary'}" style="font-size:.85rem;padding:6px 14px;">${statusLabel}</span>
+          ${b.priority ? `<span class="badge ${b.priority === 'critical' || b.priority === 'high' ? 'bg-danger' : b.priority === 'medium' ? 'bg-warning text-dark' : 'bg-info'}">${b.priority.toUpperCase()}</span>` : ''}
+          ${b.paymentStatus ? `<span class="badge ${b.paymentStatus === 'paid' ? 'bg-success' : b.paymentStatus === 'partial' ? 'bg-info' : 'bg-warning text-dark'}">Payment: ${b.paymentStatus}</span>` : ''}
+          ${b.bookingReference ? `<span class="badge bg-light text-dark border">${b.bookingReference}</span>` : ''}
+          ${b.workOrderNumber ? `<span class="badge bg-light text-dark border">${b.workOrderNumber}</span>` : ''}
+          ${b.isMultiService ? '<span class="badge" style="background:#7c3aed;">Multi-Service</span>' : ''}
+          ${b.serviceDurationMinutes ? `<span class="badge bg-secondary">${b.serviceDurationMinutes} min</span>` : ''}
+          ${b.distanceKm ? `<span class="badge bg-light text-dark border">${b.distanceKm} km</span>` : ''}
+          ${data.assignment ? `<span class="badge bg-light text-dark border">Assignment: ${data.assignment.status || 'N/A'}</span>` : ''}
+        </div>
+
+        ${(() => {
+          const trackerSteps = [
+            { key: 'confirmed', label: 'Confirmed', icon: 'bi-check-circle' },
+            { key: 'on-the-way', label: 'En Route', icon: 'bi-sign-turn-right' },
+            { key: 'arrived', label: 'Arrived', icon: 'bi-geo-alt' },
+            { key: 'in-progress', label: 'In Progress', icon: 'bi-tools' },
+            { key: 'completed', label: 'Completed', icon: 'bi-check-circle-fill' }
+          ];
+          const statusOrder = ['confirmed','scheduled','assigned','on-the-way','arrived','in-progress','completed'];
+          const currentIdx = statusOrder.indexOf(b.status);
+          return `
+          <div class="track-progress">
+            ${trackerSteps.map((step, i) => {
+              const stepIdx = statusOrder.indexOf(step.key);
+              const isDone = currentIdx > stepIdx;
+              const isCurrent = step.key === b.status || (step.key === 'confirmed' && ['confirmed','scheduled','assigned'].includes(b.status));
+              return `
+              <div class="track-step ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}">
+                <div class="track-step-dot">
+                  <i class="bi ${step.icon}"></i>
+                </div>
+                <span class="track-step-label">${step.label}</span>
+              </div>
+              ${i < trackerSteps.length - 1 ? `<div class="track-step-line ${isDone ? 'done' : ''}"></div>` : ''}`;
+            }).join('')}
+          </div>`;
+        })()}
+
+        <div class="pm-grid">
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person"></i></div><h3 class="pm-card-title">Customer Profile</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Full Name</span><span class="pm-val">${b.customer?.name || 'N/A'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${b.customer?.email || '—'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${b.customer?.phone || '—'}</span></div>
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-gear"></i></div><h3 class="pm-card-title">Service Information</h3></div>
+            <div class="pm-card-body">
+              ${isMulti && b.services && b.services.length > 0
+                ? b.services.map(s => `
+                <div class="pm-row">
+                  <span class="pm-lbl">${s.name || 'Service'} ${s.type ? '(' + s.type + ')' : ''} ${s.hp ? s.hp + 'HP' : ''} × ${s.quantity || 1}</span>
+                  <span class="pm-val">₱${Number(s.totalPrice || s.unitPrice || 0).toLocaleString()}</span>
+                </div>`).join('')
+                : `
+              <div class="pm-row"><span class="pm-lbl">Service Name</span><span class="pm-val">${b.service?.name || (isRepair ? 'Repair Service' : 'Service')}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Type</span><span class="pm-val">${b.serviceType || b.serviceModel || 'N/A'}${b.serviceDurationMinutes ? ' | Duration: ' + b.serviceDurationMinutes + ' min' : ''}</span></div>
+              ${b.serviceDescription ? `<div class="pm-row"><span class="pm-lbl">Description</span><span class="pm-val" style="font-weight:400;font-size:.82rem;">${b.serviceDescription.substring(0, 120)}${b.serviceDescription.length > 120 ? '...' : ''}</span></div>` : ''}
+              `}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-calendar-event"></i></div><h3 class="pm-card-title">Schedule & Timeline</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Booking Date</span><span class="pm-val">${dateLabel}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${timeLabel}${endLabel !== ' —' ? ' — ' + endLabel : ''}</span></div>
+              ${b.preferredDate && b.preferredDate !== b.bookingDate ? `<div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${new Date(b.preferredDate).toLocaleDateString('en-PH')} ${b.preferredTime || ''}</span></div>` : ''}
+              ${b.selectedTimeLabel && b.selectedTimeLabel !== timeLabel ? `<div class="pm-row"><span class="pm-lbl">Selected Slot</span><span class="pm-val">${b.selectedTimeLabel}</span></div>` : ''}
+              ${b.rescheduleReason ? `<div class="pm-row"><span class="pm-lbl">Last Reschedule</span><span class="pm-val" style="color:#dc2626;">${b.rescheduleReason}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#f3e8ff;color:#9333ea;"><i class="bi bi-cash-stack"></i></div><h3 class="pm-card-title">Pricing & Costs</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row" style="padding-bottom:10px;border-bottom:2px solid #e2e8f0;"><span class="pm-lbl">Total Amount</span><span class="pm-val" style="font-size:1.15rem;color:#16a34a;">₱${totalPrice.toLocaleString()}</span></div>
+              ${servicePrice > 0 ? `<div class="pm-row"><span class="pm-lbl">Service Price</span><span class="pm-val">₱${servicePrice.toLocaleString()}</span></div>` : ''}
+              ${travelFare > 0 ? `<div class="pm-row"><span class="pm-lbl">Travel Fare</span><span class="pm-val">₱${travelFare.toLocaleString()}</span></div>` : ''}
+              ${b.distanceKm != null ? `<div class="pm-row"><span class="pm-lbl">Distance</span><span class="pm-val">${Number(b.distanceKm).toFixed(2)} km${b.travelDurationMinutes ? ' (' + b.travelDurationMinutes + ' min)' : ''}</span></div>` : ''}
+              ${b.initialCost ? `<div class="pm-row"><span class="pm-lbl">Initial Cost</span><span class="pm-val">₱${b.initialCost.toLocaleString()}</span></div>` : ''}
+              ${b.finalCost ? `<div class="pm-row"><span class="pm-lbl">Final Cost</span><span class="pm-val">₱${b.finalCost.toLocaleString()}</span></div>` : ''}
+              ${b.estimatedFee ? `<div class="pm-row"><span class="pm-lbl">Estimated Fee</span><span class="pm-val">₱${b.estimatedFee.toLocaleString()}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-credit-card"></i></div><h3 class="pm-card-title">Payment Information</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Payment Method</span><span class="pm-val">${(b.paymentMethod || 'cod').toUpperCase()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Payment Status</span><span class="pm-val">${b.paymentStatus === 'paid' ? '<i class="bi bi-check-circle text-success me-1"></i>Paid' : b.paymentStatus === 'partial' ? '<i class="bi bi-clock text-warning me-1"></i>Partial' : '<i class="bi bi-wallet text-info me-1"></i>Pending'}</span></div>
+              ${b.paymentMethod === 'cod' ? `
+              ${downpayment > 0 ? `<div class="pm-row"><span class="pm-lbl">Downpayment</span><span class="pm-val">₱${downpayment.toLocaleString()}</span></div>` : ''}
+              <div class="pm-row"><span class="pm-lbl">Amount Paid</span><span class="pm-val" style="color:#16a34a;">₱${amountPaid.toLocaleString()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Balance Due</span><span class="pm-val" style="color:${balanceAmount > 0 ? '#dc2626' : '#16a34a'};">₱${balanceAmount.toLocaleString()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">On-site Collection</span><span class="pm-val">${b.balanceCollected ? '<i class="bi bi-check-circle text-success me-1"></i>Collected' : '<i class="bi bi-clock text-warning me-1"></i>Pending'}</span></div>
+              ` : `
+              <div class="pm-row"><span class="pm-lbl">Amount Paid</span><span class="pm-val" style="color:#16a34a;">₱${amountPaid.toLocaleString()}</span></div>
+              `}
+              ${b.gcashNumber ? `<div class="pm-row"><span class="pm-lbl">GCash Number</span><span class="pm-val">${b.gcashNumber}</span></div>` : ''}
+              ${b.paymentReference ? `<div class="pm-row"><span class="pm-lbl">Payment Reference</span><span class="pm-val" style="font-family:monospace;">${b.paymentReference}</span></div>` : ''}
+              ${b.paymentNotes ? `<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;font-size:.82rem;">${b.paymentNotes}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#e2e8f0;color:#475569;"><i class="bi bi-geo-alt"></i></div><h3 class="pm-card-title">Service Location</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Service Address</span><span class="pm-val" style="font-weight:400;">${b.location?.address || 'No address provided'}</span></div>
+              ${b.location?.lat && b.location?.lng ? `<div class="pm-row"><span class="pm-lbl">Coordinates</span><span class="pm-val" style="font-family:monospace;font-size:.8rem;">${b.location.lat}, ${b.location.lng}</span></div>` : ''}
+              ${b.location?.coordinates?.coordinates ? `<div class="pm-row"><span class="pm-lbl">Raw Coordinates</span><span class="pm-val" style="font-family:monospace;font-size:.8rem;">[${b.location.coordinates.coordinates.join(', ')}]</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person-badge"></i></div><h3 class="pm-card-title">Technician Assignment</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Technician</span><span class="pm-val">${b.technician?.name || (b.technicianName || 'Unassigned')}</span></div>
+              ${b.technician?.email ? `<div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${b.technician.email}</span></div>` : ''}
+              ${b.technician?.phone ? `<div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${b.technician.phone}</span></div>` : ''}
+              ${b.assignedAt ? `<div class="pm-row"><span class="pm-lbl">Assigned At</span><span class="pm-val">${new Date(b.assignedAt).toLocaleString('en-PH')}</span></div>` : ''}
+              ${data.assignment ? `<div class="pm-row"><span class="pm-lbl">Assignment Status</span><span class="pm-val">${data.assignment.status || 'N/A'}</span></div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        ${isRepair ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-wrench" style="color:#dc2626;"></i><span class="pm-section-title">Repair Details</span></div>
+          <div class="pm-grid">
+            ${b.issueDescription ? `
+            <div class="pm-card" style="border-left:3px solid #dc2626;">
+              <div class="pm-card-head" style="background:#fef2f2;"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-exclamation-triangle"></i></div><h3 class="pm-card-title">Issue Description</h3></div>
+              <div class="pm-card-body"><span class="pm-val" style="font-weight:400;">${b.issueDescription}</span></div>
+            </div>` : ''}
+            ${b.unitInfo ? `
+            <div class="pm-card" style="border-left:3px solid #d97706;">
+              <div class="pm-card-head" style="background:#fffbeb;"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-box"></i></div><h3 class="pm-card-title">Unit Information</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Unit</span><span class="pm-val">${[b.unitInfo.unitType, b.unitInfo.brand, b.unitInfo.model].filter(Boolean).join(' — ') || 'N/A'}</span></div>
+                ${b.unitInfo.problemDescription ? `<div class="pm-row"><span class="pm-lbl">Problem</span><span class="pm-val" style="font-weight:400;">${b.unitInfo.problemDescription}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.inspection ? `
+            <div class="pm-card" style="border-left:3px solid #16a34a;">
+              <div class="pm-card-head" style="background:#f0fdf4;"><div class="pm-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-clipboard-check"></i></div><h3 class="pm-card-title">Inspection</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Findings</span><span class="pm-val" style="font-weight:400;">${b.inspection.findings || '—'}</span></div>
+                ${b.inspection.scheduledDate ? `<div class="pm-row"><span class="pm-lbl">Scheduled</span><span class="pm-val">${new Date(b.inspection.scheduledDate).toLocaleDateString('en-PH')} ${b.inspection.scheduledTime || ''}</span></div>` : ''}
+                ${b.inspection.completedAt ? `<div class="pm-row"><span class="pm-lbl">Completed</span><span class="pm-val">${new Date(b.inspection.completedAt).toLocaleString('en-PH')}</span></div>` : ''}
+                ${b.inspection.estimatedRepairCost ? `<div class="pm-row"><span class="pm-lbl">Est. Repair Cost</span><span class="pm-val">₱${b.inspection.estimatedRepairCost.toLocaleString()}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.quotation ? `
+            <div class="pm-card" style="border-left:3px solid #ca8a04;">
+              <div class="pm-card-head" style="background:#fefce8;"><div class="pm-icon" style="background:#fef9c3;color:#ca8a04;"><i class="bi bi-receipt"></i></div><h3 class="pm-card-title">Quotation</h3></div>
+              <div class="pm-card-body">
+                ${(b.quotation.parts || []).map(p => `<div class="pm-row"><span class="pm-lbl">• ${p.name} ×${p.quantity || 1}</span><span class="pm-val">₱${((p.cost||0)*(p.quantity||1)).toLocaleString()}</span></div>`).join('')}
+                <div class="pm-row"><span class="pm-lbl">Labor</span><span class="pm-val">₱${(b.quotation.laborCost||0).toLocaleString()}</span></div>
+                <div class="pm-row" style="border-top:2px solid #e2e8f0;padding-top:8px;"><span class="pm-lbl">Total</span><span class="pm-val" style="font-size:1.05rem;">₱${(b.quotation.totalCost||0).toLocaleString()}</span></div>
+                ${b.quotation.notes ? `<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;">${b.quotation.notes}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.approval ? `
+            <div class="pm-card" style="border-left:3px solid ${b.approval.status === 'approved' ? '#16a34a' : '#dc2626'};">
+              <div class="pm-card-head" style="background:${b.approval.status === 'approved' ? '#f0fdf4' : '#fef2f2'};"><div class="pm-icon" style="background:${b.approval.status === 'approved' ? '#dcfce7' : '#fee2e2'};color:${b.approval.status === 'approved' ? '#16a34a' : '#dc2626'};"><i class="bi ${b.approval.status === 'approved' ? 'bi-check-circle' : 'bi-x-circle'}"></i></div><h3 class="pm-card-title">Customer Approval</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Status</span><span class="pm-val">${b.approval.status === 'approved' ? 'Approved' : b.approval.status === 'declined' ? 'Declined' : 'Pending'}</span></div>
+                ${b.approval.decidedAt ? `<div class="pm-row"><span class="pm-lbl">Decided</span><span class="pm-val">${new Date(b.approval.decidedAt).toLocaleString('en-PH')}</span></div>` : ''}
+                ${b.approval.reason ? `<div class="pm-row"><span class="pm-lbl">Reason</span><span class="pm-val" style="font-weight:400;">${b.approval.reason}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+          </div>
+        </div>` : ''}
+
+        ${allPhotos.length > 0 ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-images" style="color:#0891b2;"></i><span class="pm-section-title">Photos & Proof (${allPhotos.length})</span></div>
+          <div class="pm-photo-grid">
+            ${allPhotos.map((p, i) => `
+            <div class="pm-photo-item">
+              <img src="${p.src}" alt="${p.label}" onclick="window.open('${p.src.replace(/'/g, "\\'")}', '_blank')" onerror="this.closest('.pm-photo-item').innerHTML='<div style=\\'padding:20px;text-align:center;color:#94a3b8;font-size:.8rem;\\'>Image unavailable</div>'">
+              <div style="margin-top:4px;text-align:center;font-size:.68rem;color:#94a3b8;">${p.label} ${i+1}</div>
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${(b.statusHistory && b.statusHistory.length > 0) ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-clock-history" style="color:#64748b;"></i><span class="pm-section-title">Status History</span></div>
+          <div style="max-height:200px;overflow-y:auto;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:8px 12px;">
+            ${b.statusHistory.slice().reverse().map(h => {
+              const ts = h.timestamp || h.date || h.createdAt;
+              const statusVal = h.toStatus || h.status || h.fromStatus || '—';
+              const label = statusVal.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `<div class="pm-history-item">
+                <div style="flex:1;min-width:0;"><span class="badge bg-secondary" style="font-size:.65rem;">${label}</span>${h.reason || h.message || h.notes ? `<span style="color:#64748b;font-size:.8rem;margin-left:6px;">— ${(h.reason || h.message || h.notes).substring(0, 80)}</span>` : ''}</div>
+                <div style="flex-shrink:0;text-align:right;">${h.changedByName ? `<span style="color:#94a3b8;font-size:.7rem;margin-right:6px;">by ${h.changedByName}</span>` : ''}<span style="color:#94a3b8;font-size:.7rem;">${ts ? new Date(ts).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span></div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
+        ${b.cancellationHistory && b.cancellationHistory.length > 0 ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-arrow-repeat" style="color:#dc2626;"></i><span class="pm-section-title">Technician Cancellation History</span></div>
+          <div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
+            ${b.cancellationHistory.slice().reverse().map(h => `
+            <div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;">
+              <span class="badge ${h.action === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:.65rem;flex-shrink:0;">${h.action}</span>
+              <span style="font-size:.8rem;"><strong>${h.technicianName || 'Technician'}</strong> — ${h.reason || 'No reason'}</span>
+              <span style="color:#94a3b8;font-size:.7rem;margin-left:auto;flex-shrink:0;">${h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : ''}</span>
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${b.rescheduleRequest && b.rescheduleRequest.requested ? `
+        <div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-top:16px;">
+          <i class="bi bi-calendar-event"></i>
+          <div><strong>Reschedule Request:</strong> ${b.rescheduleRequest.requestedDate || ''} ${b.rescheduleRequest.requestedTime || ''}${b.rescheduleRequest.reason ? ' — ' + b.rescheduleRequest.reason : ''} <small style="color:#94a3b8;">(${b.rescheduleRequest.status || 'pending'})</small></div>
+        </div>` : ''}
+
+        ${b.notes ? `<div class="pm-alert" style="background:#f8fafc;border:1px solid #e2e8f0;color:#475569;margin-top:16px;"><i class="bi bi-journal-text"></i><div><strong>Notes:</strong> ${b.notes}</div></div>` : ''}
+        ${b.rejectionReason ? `<div class="pm-alert" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;margin-top:16px;"><i class="bi bi-x-circle"></i><div><strong>Rejected:</strong> ${b.rejectionReason.replace(/_/g, ' ')}${b.rejectionNote ? ' — ' + b.rejectionNote : ''}${b.rejectedAt ? ' <small style="color:#94a3b8;">at ' + new Date(b.rejectedAt).toLocaleString('en-PH') + '</small>' : ''}</div></div>` : ''}
+        ${b.cancellationReason ? `<div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-top:16px;"><i class="bi bi-exclamation-triangle"></i><div><strong>Cancellation Reason:</strong> ${b.cancellationReason}</div></div>` : ''}
+        ${b.noShowRescheduleToken ? `<div class="pm-alert" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;margin-top:16px;"><i class="bi bi-clock"></i><div><strong>No-Show Reschedule:</strong> Status: ${b.noShowRescheduleStatus || 'pending'} ${b.noShowAt ? 'at ' + new Date(b.noShowAt).toLocaleString('en-PH') : ''}</div></div>` : ''}
+
+        ${b.slaTracking ? `
+        <div style="margin-top:16px;padding:10px 14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:.82rem;">
+          <i class="bi bi-speedometer2 me-1" style="color:#475569;"></i><strong style="color:#475569;">SLA:</strong>
+          ${b.slaTracking.responseTarget ? `Response by: ${new Date(b.slaTracking.responseTarget).toLocaleString('en-PH')}${b.slaTracking.responseBreached ? ' <span style="color:#dc2626;">⚠ Breached</span>' : ''} | ` : ''}
+          ${b.slaTracking.resolutionTarget ? `Resolution by: ${new Date(b.slaTracking.resolutionTarget).toLocaleString('en-PH')}${b.slaTracking.resolutionBreached ? ' <span style="color:#dc2626;">⚠ Breached</span>' : ''}` : ''}
+          ${b.slaTracking.escalationLevel > 0 ? ` | Escalation: Level ${b.slaTracking.escalationLevel}` : ''}
+        </div>` : ''}
+
+        <div class="pm-footer">
+          ${['confirmed', 'scheduled', 'assigned'].includes(b.status) ? `
+            <button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById('detailModal')).hide();setTimeout(()=>{ trackingBookingId='${b._id}'; markEnRoute(); },300);">
+              <i class="bi bi-truck me-1"></i>Mark En Route
+            </button>
+          ` : ''}
+          ${['in-progress', 'on-the-way', 'arrived', 'confirmed', 'scheduled'].includes(b.status) ? `
+            <button class="btn btn-outline-secondary btn-sm" onclick="bootstrap.Modal.getInstance(document.getElementById('detailModal')).hide();setTimeout(()=>trackOnMap('${b._id}'),300);">
+              <i class="bi bi-geo-alt me-1"></i>Track on Map
+            </button>
+          ` : ''}
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      `;
+    } catch(e) {
+      body.innerHTML = '<div class="alert alert-danger">Failed to load job details: ' + e.message + '</div>';
+    }
+  }
+
+  // ═══ Enterprise Tracking Drawer ═══════════════════════════════════════
+  let trackMap = null;
+  let trackMarkers = {};
+  let trackPolyline = null;
+  let trackingBookingId = null;
+  let trackingData = null;
+  let trackingInterval = null;
+  let trackDrawerPinned = false;
+
+  function ensureLeaflet() {
+    return new Promise((resolve) => {
+      if (window.L) { resolve(); return; }
+      if (!document.getElementById('leaflet-css')) {
+        const css = document.createElement('link');
+        css.id = 'leaflet-css'; css.rel = 'stylesheet';
+        css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+      }
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+      s.onload = resolve;
+      document.head.appendChild(s);
+    });
+  }
+
+  function parseCoords(coords) {
+    if (!coords) return null;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const [lng, lat] = coords.map(Number);
+      if (!isFinite(lng) || !isFinite(lat)) return null;
+      return { lat, lng };
+    }
+    if (typeof coords === 'object' && coords.coordinates) return parseCoords(coords.coordinates);
+    if (typeof coords === 'object' && coords.lat != null && coords.lng != null) {
+      const lat = Number(coords.lat), lng = Number(coords.lng);
+      if (!isFinite(lat) || !isFinite(lng)) return null;
+      return { lat, lng };
+    }
+    return null;
+  }
+
+  function updateProgressBar(status) {
+    const steps = ['confirmed', 'on-the-way', 'arrived', 'in-progress', 'completed'];
+    const order = ['confirmed', 'scheduled', 'assigned', 'on-the-way', 'arrived', 'in-progress', 'completed'];
+    const currentIdx = order.indexOf(status);
+    steps.forEach((step, i) => {
+      const stepIdx = order.indexOf(step);
+      const el = document.getElementById('tdStep' + i);
+      const line = document.getElementById('tdLine' + i);
+      const isDone = currentIdx > stepIdx;
+      const isCurrent = step === status || (step === 'confirmed' && ['confirmed', 'scheduled', 'assigned'].includes(status));
+      el.className = 'td-progress-step';
+      if (isDone) el.classList.add('done');
+      if (isCurrent) el.classList.add('active');
+      if (line) line.className = 'td-progress-line' + (isDone ? ' done' : '');
+    });
+  }
+
+  function initMapInDrawer(custLoc, techLoc, custName, techName, serviceAddr) {
+    const mapEl = document.getElementById('trackDrawerMap');
+    if (trackMap) { trackMap.remove(); trackMap = null; }
+
+    const defaultCenter = custLoc || techLoc || { lat: 14.5995, lng: 120.9842 };
+    trackMap = L.map(mapEl, { zoomControl: true, attributionControl: false }).setView([defaultCenter.lat, defaultCenter.lng], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'
+    }).addTo(trackMap);
+
+    trackMarkers = {};
+
+    if (custLoc) {
+      const custIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:34px;height:34px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(37,99,235,0.35);display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-fill" style="color:#fff;font-size:15px;"></i></div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17]
+      });
+      trackMarkers.customer = L.marker([custLoc.lat, custLoc.lng], { icon: custIcon })
+        .addTo(trackMap)
+        .bindPopup(`<b>${custName}</b><br><span style="font-size:0.8rem;color:#666;">${serviceAddr}</span>`);
+    }
+
+    if (techLoc) {
+      const techIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:34px;height:34px;background:#16a34a;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(22,163,74,0.35);display:flex;align-items:center;justify-content:center;"><i class="bi bi-tools" style="color:#fff;font-size:15px;"></i></div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17]
+      });
+      trackMarkers.technician = L.marker([techLoc.lat, techLoc.lng], { icon: techIcon })
+        .addTo(trackMap)
+        .bindPopup(`<b>${techName}</b><br><span style="font-size:0.8rem;color:#666;">Current location</span>`);
+    }
+
+    if (custLoc && techLoc) {
+      trackPolyline = L.polyline([[custLoc.lat, custLoc.lng], [techLoc.lat, techLoc.lng]], {
+        color: '#2563eb', weight: 3, dashArray: '8, 8', opacity: 0.7
+      }).addTo(trackMap);
+      trackMap.fitBounds(L.latLngBounds([custLoc, techLoc]).pad(0.2));
+    } else {
+      trackMap.setView([defaultCenter.lat, defaultCenter.lng], 14);
+    }
+
+    setTimeout(() => trackMap.invalidateSize(), 100);
+  }
+
+  function openTrackDrawer() {
+    document.getElementById('trackDrawer').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (trackMap) setTimeout(() => trackMap.invalidateSize(), 300);
+  }
+
+  function closeTrackDrawer() {
+    if (trackDrawerPinned) return;
+    document.getElementById('trackDrawer').classList.remove('open');
+    document.body.style.overflow = '';
+    stopTrackingRefresh();
+  }
+
+  function toggleTrackDrawerPin() {
+    trackDrawerPinned = !trackDrawerPinned;
+    const btn = document.getElementById('trackDrawerPinBtn');
+    btn.classList.toggle('pinned', trackDrawerPinned);
+    btn.title = trackDrawerPinned ? 'Unpin (allow close)' : 'Keep open';
+  }
+
+  async function loadTrackingData(id) {
+    const res = await fetch(`/api/admin/appointments/${id}`);
+    const data = await res.json();
+    trackingData = data;
+    const b = data.booking;
+
+    const custLoc = parseCoords(b.location?.coordinates?.coordinates) ||
+      (b.location?.lat && b.location?.lng ? { lat: Number(b.location.lat), lng: Number(b.location.lng) } : null) ||
+      parseCoords(b.coordinates) ||
+      (data.assignment?.coordinates ? parseCoords(data.assignment.coordinates) : null);
+
+    const techLoc = data.technicianLocation ? parseCoords(data.technicianLocation) : null;
+    const techName = b.technician?.name || 'Technician';
+    const custName = b.customer?.name || 'Customer';
+    const serviceAddr = b.location?.address || data.assignment?.address || 'Service location';
+    const ref = b.bookingReference || b.workOrderNumber || '#' + b._id.toString().slice(-8).toUpperCase();
+
+    document.getElementById('trackDrawerTitle').textContent = ref;
+    document.getElementById('trackDrawerSubtitle').textContent = custName + (b.customer?.phone ? ' · ' + b.customer.phone : '');
+
+    document.getElementById('tdInfoCustomer').textContent = custName;
+    document.getElementById('tdInfoCustomerAddr').textContent = serviceAddr.length > 50 ? serviceAddr.substring(0, 47) + '...' : serviceAddr;
+    document.getElementById('tdInfoTechnician').textContent = techName;
+    document.getElementById('tdInfoTechStatus').textContent = techLoc ? '📍 Live' : (b.status === 'on-the-way' ? '🚚 En route' : '📍 Awaiting');
+    document.getElementById('tdInfoStatus').textContent = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    document.getElementById('tdInfoRef').textContent = ref;
+
+    updateProgressBar(b.status);
+
+    const enrouteBtn = document.getElementById('tdBtnEnroute');
+    if (['confirmed', 'scheduled', 'assigned'].includes(b.status)) {
+      enrouteBtn.style.display = 'inline-flex';
+      enrouteBtn.dataset.id = b._id;
+    } else {
+      enrouteBtn.style.display = 'none';
+    }
+
+    await ensureLeaflet();
+    initMapInDrawer(custLoc, techLoc, custName, techName, serviceAddr);
+    if (document.getElementById('trackDrawer').classList.contains('open')) {
+      setTimeout(() => trackMap?.invalidateSize(), 200);
+    }
+  }
+
+  async function trackOnMap(id) {
+    trackingBookingId = id;
+    trackDrawerPinned = false;
+    document.getElementById('trackDrawerPinBtn').classList.remove('pinned');
+    document.getElementById('trackDrawerPinBtn').title = 'Keep open';
+    await loadTrackingData(id);
+    openTrackDrawer();
+    startTrackingRefresh();
+  }
+
+  function startTrackingRefresh() {
+    stopTrackingRefresh();
+    if (!trackingBookingId) return;
+    trackingInterval = setInterval(async () => {
+      if (document.getElementById('trackDrawer').classList.contains('open')) {
+        await loadTrackingData(trackingBookingId);
+      }
+    }, 15000);
+  }
+
+  function stopTrackingRefresh() {
+    if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; }
+  }
+
+  async function refreshTracking() {
+    if (trackingBookingId) {
+      showNotification({ type: 'info', title: 'Refreshing', message: 'Updating tracking data...', duration: 2000 });
+      await loadTrackingData(trackingBookingId);
+    }
+  }
+
+  async function markEnRoute() {
+    const btn = document.getElementById('tdBtnEnroute');
+    const id = btn.dataset.id || trackingBookingId;
+    if (!id) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Setting...';
+    try {
+      const res = await fetch(`/api/appointments/${id}/on-the-way`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showNotification({ type: 'success', title: 'En Route', message: 'Technician marked as en route', duration: 4000 });
+      await loadTrackingData(id);
+      loadList();
+    } catch (e) {
+      showNotification({ type: 'error', title: 'Error', message: e.message, duration: 4000 });
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-truck me-1"></i>Mark En Route';
+    }
+  }
+
+  function openInFullMap() {
+    if (trackingData && trackingData.booking) {
+      const b = trackingData.booking;
+      const loc = b.location;
+      const coords = loc?.lat && loc?.lng ? `${loc.lat},${loc.lng}` : '';
+      const addr = encodeURIComponent(loc?.address || 'Service Location');
+      if (coords) window.open(`https://www.google.com/maps?q=${coords}`, '_blank');
+      else window.open(`https://www.google.com/maps/search/${addr}`, '_blank');
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('trackDrawer').classList.contains('open')) {
+      closeTrackDrawer();
+    }
+  });
+
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : 'success'} border-0`;
+    t.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+    document.body.appendChild(t); new bootstrap.Toast(t).show(); setTimeout(() => t.remove(), 4000);
+  }
+
+  // Enterprise notification system
+  function showNotification({ type = 'info', title = '', message = '', duration = 3000 }) {
+    const colors = {
+      success: { bg: '#f0fdf4', border: '#22c55e', icon: 'bi-check-circle-fill', iconColor: '#16a34a' },
+      error: { bg: '#fef2f2', border: '#ef4444', icon: 'bi-x-circle-fill', iconColor: '#dc2626' },
+      warning: { bg: '#fffbeb', border: '#f59e0b', icon: 'bi-exclamation-triangle-fill', iconColor: '#d97706' },
+      info: { bg: '#eff6ff', border: '#3b82f6', icon: 'bi-info-circle-fill', iconColor: '#2563eb' }
+    };
+    const c = colors[type] || colors.info;
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:20px;right:20px;z-index:99999;min-width:340px;max-width:420px;background:${c.bg};border:1px solid ${c.border};border-left:4px solid ${c.border};border-radius:12px;padding:16px 20px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:12px;animation:slideInRight 0.3s ease;`;
+    el.innerHTML = `<i class="bi ${c.icon}" style="font-size:1.3rem;color:${c.iconColor};margin-top:2px;"></i><div style="flex:1;"><div style="font-weight:700;font-size:0.9rem;color:#1e293b;margin-bottom:2px;">${title}</div><div style="font-size:0.82rem;color:#64748b;">${message}</div></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;">&times;</button>`;
+    document.body.appendChild(el);
+    if (!document.getElementById('notif-styles')) {
+      const style = document.createElement('style'); style.id = 'notif-styles';
+      style.textContent = '@keyframes slideInRight{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}';
+      document.head.appendChild(style);
+    }
+    setTimeout(() => { el.style.transition='all 0.3s ease'; el.style.opacity='0'; el.style.transform='translateX(100%)'; setTimeout(()=>el.remove(),300); }, duration);
+  }
+
+  loadList();
+  let st; document.getElementById('searchInput')?.addEventListener('input', () => { clearTimeout(st); st = setTimeout(loadList, 400); });
+</script>

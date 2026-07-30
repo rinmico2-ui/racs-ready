@@ -1,0 +1,328 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    /* Custom customer page overrides removed to match admin-dashboard.ejs */
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-people-fill"></i></div>
+        <div>
+          <h1>Customer Directory</h1>
+          <p>Manage customer records, lifecycle status, and account health</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Customers</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="custTotal">2,148</span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7" id="badgeCustTotal"></div>
+            <small class="text-muted">Registered accounts</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-people-fill text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="custSparkTotal" height="40"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Accounts</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="custActive">2,021</span>
+            </div>
+            <div class="badge bg-info-subtle text-info fs-7" id="badgeCustActive"></div>
+            <small class="text-muted">In good standing</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+            <i class="bi bi-person-check-fill text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="custSparkActive" height="40"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Verification</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="custPending">97</span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7" id="badgeCustPending"></div>
+            <small class="text-muted">Awaiting review</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-hourglass-split text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="custSparkPending" height="40"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Blocked Accounts</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="custBlocked">30</span>
+            </div>
+            <div class="badge bg-danger-subtle text-danger fs-7" id="badgeCustBlocked"></div>
+            <small class="text-muted">Suspended access</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <i class="bi bi-slash-circle-fill text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="custSparkBlocked" height="40"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search Customer</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Name, email, phone, or customer ID"
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Status</label
+          >
+          <select class="form-select">
+            <option>All Status</option>
+            <option>Active</option>
+            <option>Pending Verification</option>
+            <option>Blocked</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light w-100 border">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Customer Records</h6>
+      <span class="text-muted small">Updated 5 min ago</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Customer</th>
+            <th>Contact</th>
+            <th>Address</th>
+            <th>Bookings</th>
+            <th>Status</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center">
+                <div
+                  class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-2"
+                  style="width: 34px; height: 34px"
+                >
+                  JD
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">John Dela Cruz</div>
+                  <div class="text-muted text-micro">CUS-10234</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="text-dark text-micro">john.delacruz@gmail.com</div>
+              <div class="text-muted text-micro">+63 917 456 1123</div>
+            </td>
+            <td class="text-muted text-micro">Quezon City, Metro Manila</td>
+            
+            <td><span class="fw-bold text-dark">16</span></td>
+            <td>
+              <span
+                class="badge bg-success-subtle text-success border border-success-subtle"
+                >Active</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-light border">
+                <i class="bi bi-eye text-primary"></i>
+              </button>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center">
+                <div
+                  class="rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center fw-bold me-2"
+                  style="width: 34px; height: 34px"
+                >
+                  MS
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">Maria Santos</div>
+                  <div class="text-muted text-micro">CUS-10991</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="text-dark text-micro">maria.santos@gmail.com</div>
+              <div class="text-muted text-micro">+63 998 223 1105</div>
+            </td>
+            <td class="text-muted text-micro">Makati City, Metro Manila</td>>
+            <td><span class="fw-bold text-dark">34</span></td>
+            <td>
+              <span
+                class="badge bg-success-subtle text-success border border-success-subtle"
+                >Active</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <div class="dropdown">
+                <button
+                  class="btn btn-micro btn-light border dropdown-toggle"
+                  data-bs-toggle="dropdown"
+                >
+                  Action
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <a class="dropdown-item" href="#"
+                      ><i class="bi bi-eye me-2"></i>View Profile</a
+                    >
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="#"
+                      ><i class="bi bi-stars me-2 text-warning"></i>Manage
+                      Privilege</a
+                    >
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center">
+                <div
+                  class="rounded-circle bg-danger-subtle text-danger d-flex align-items-center justify-content-center fw-bold me-2"
+                  style="width: 34px; height: 34px"
+                >
+                  RL
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">Ramon Lim</div>
+                  <div class="text-muted text-micro">CUS-11107</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="text-dark text-micro">ramon.lim@gmail.com</div>
+              <div class="text-muted text-micro">+63 966 900 7812</div>
+            </td>
+            <td class="text-muted text-micro">Pasig City, Metro Manila</td>
+            <td><span class="fw-bold text-dark">8</span></td>
+            <td>
+              <span
+                class="badge bg-danger-subtle text-danger border border-danger-subtle"
+                >Blocked</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-outline-success">
+                <i class="bi bi-unlock me-1"></i>Restore
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <div class="row align-items-center">
+        <div class="col-md-6 text-muted text-micro">
+          Showing 1 to 10 of 2,148 records
+        </div>
+        <div class="col-md-6">
+          <ul class="pagination pagination-sm justify-content-end mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#">Previous</a>
+            </li>
+            <li class="page-item active">
+              <a class="page-link" href="#">1</a>
+            </li>
+            <li class="page-item"><a class="page-link" href="#">2</a></li>
+            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item"><a class="page-link" href="#">Next</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- wrapper end -->
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function(){
+    function applyBadge(id,text){
+      var el=document.getElementById(id);
+      if(!el)return;
+      el.innerHTML=text;
+      el.classList.remove('positive','negative','neutral');
+      if(/^[+]/.test(text))el.classList.add('positive');
+      else if(/^[-]/.test(text))el.classList.add('negative');
+      else el.classList.add('neutral');
+    }
+    var badgeData = { total: '+4.5%', active: '+3.2%', pending: '-1.1%', blocked: '+0.0%' };
+    applyBadge('badgeCustTotal', badgeData.total);
+    applyBadge('badgeCustActive', badgeData.active);
+    applyBadge('badgeCustPending', badgeData.pending);
+    applyBadge('badgeCustBlocked', badgeData.blocked);
+
+    function createSparkline(id,data,color){
+      var c=document.getElementById(id);
+      if(!c||typeof Chart==='undefined')return;
+      return new Chart(c,{type:'line',data:{labels:data.map((_,i)=>i+1),datasets:[{data:data,borderColor:color,backgroundColor:color.replace('rgb','rgba').replace(')',',0.12)'),fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},elements:{point:{radius:0}},scales:{x:{display:false},y:{display:false}}}});
+    }
+    createSparkline('custSparkTotal',[5,7,6,8,7,9,8],'#4361ee');
+    createSparkline('custSparkActive',[4,6,5,7,6,8,7],'#2ec4b6');
+    createSparkline('custSparkPending',[3,4,3,5,4,6,5],'#f59e0b');
+    createSparkline('custSparkBlocked',[1,2,1,2,1,1,0],'#dc3545');
+  })();
+</script>

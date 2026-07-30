@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALIDRO RACS — Entity Relationship Diagram</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); border-bottom: 1px solid #334155; padding: 12px 20px; position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 16px; font-weight: 700; color: #f8fafc; }
+  .header p { font-size: 10px; color: #94a3b8; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 20px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 10px; color: #94a3b8; }
+  .legend svg { vertical-align: middle; margin-right: 3px; }
+  .canvas { position: relative; width: 2400px; height: 1800px; margin: 16px 20px; }
+  .canvas svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .entity { position: absolute; background: #1e293b; border: 1px solid #334155; border-radius: 5px; min-width: 150px; max-width: 180px; }
+  .entity:hover { border-color: #60a5fa; z-index: 10; }
+  .eh { padding: 5px 8px; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; gap: 4px; }
+  .eh .d { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .eb { padding: 2px 0; }
+  .f { padding: 1px 8px; font-size: 8px; display: flex; gap: 4px; font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .f .t { color: #64748b; margin-left: auto; flex-shrink: 0; }
+  .f .n { color: #e2e8f0; }
+  .f .pk { color: #fbbf24; }
+  .f .fk { color: #60a5fa; }
+  .au .eh { background: #7c3aed22; color: #a78bfa; } .au .d { background: #a78bfa; }
+  .bk .eh { background: #f59e0b22; color: #fbbf24; } .bk .d { background: #fbbf24; }
+  .tx .eh { background: #10b98122; color: #34d399; } .tx .d { background: #34d399; }
+  .sv .eh { background: #3b82f622; color: #60a5fa; } .sv .d { background: #60a5fa; }
+  .iv .eh { background: #ec489922; color: #f472b6; } .iv .d { background: #f472b6; }
+  .fn .eh { background: #14b8a622; color: #2dd4bf; } .fn .d { background: #2dd4bf; }
+  .sy .eh { background: #64748b22; color: #94a3b8; } .sy .d { background: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>CALIDRO RACS — Entity Relationship Diagram</h1>
+  <p>33 Models | Crow's Foot Notation | All relationships connected</p>
+</div>
+
+<div class="legend">
+  <span><svg width="44" height="12"><line x1="0" y1="6" x2="44" y2="6" stroke="#60a5fa" stroke-width="1.2"/><line x1="38" y1="1" x2="38" y2="11" stroke="#60a5fa" stroke-width="1.2"/><line x1="42" y1="1" x2="42" y2="11" stroke="#60a5fa" stroke-width="1.2"/></svg> || exactly one</span>
+  <span><svg width="44" height="12"><line x1="0" y1="6" x2="44" y2="6" stroke="#34d399" stroke-width="1.2"/><circle cx="36" cy="6" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/><line x1="42" y1="1" x2="42" y2="11" stroke="#34d399" stroke-width="1.2"/></svg> |o zero or one</span>
+  <span><svg width="48" height="12"><line x1="0" y1="6" x2="38" y2="6" stroke="#f472b6" stroke-width="1.2"/><circle cx="32" cy="6" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/><path d="M36,6 L46,0 M36,6 L46,6 M36,6 L46,12" stroke="#f472b6" stroke-width="1" fill="none"/></svg> }o zero or many</span>
+  <span><svg width="48" height="12"><line x1="0" y1="6" x2="38" y2="6" stroke="#f472b6" stroke-width="1.2"/><line x1="32" y1="1" x2="32" y2="11" stroke="#f472b6" stroke-width="1.2"/><path d="M36,6 L46,0 M36,6 L46,6 M36,6 L46,12" stroke="#f472b6" stroke-width="1" fill="none"/></svg> }| one or many</span>
+  <span style="color:#fbbf24; margin-left:8px;">&#9733; PK</span>
+  <span style="color:#60a5fa;">&rarr; FK</span>
+</div>
+
+<div class="canvas">
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- RELATIONSHIP LINES WITH CROW'S FOOT -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- USER ||--o| TECHNICIAN: User(170,130) bottom → Technician(80,290) top -->
+<line x1="170" y1="130" x2="120" y2="290" stroke="#34d399" stroke-width="1.2"/>
+<line x1="166" y1="126" x2="166" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<line x1="162" y1="126" x2="162" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="124" cy="282" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="116" y1="286" x2="116" y2="294" stroke="#34d399" stroke-width="1.2"/>
+<line x1="124" y1="286" x2="124" y2="294" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- USER ||--o| SECRETARY: User(200,130) bottom → Secretary(280,290) top -->
+<line x1="200" y1="130" x2="300" y2="290" stroke="#34d399" stroke-width="1.2"/>
+<line x1="196" y1="126" x2="196" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<line x1="192" y1="126" x2="192" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="296" cy="282" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="292" y1="286" x2="292" y2="294" stroke="#34d399" stroke-width="1.2"/>
+<line x1="300" y1="286" x2="300" y2="294" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- USER ||--o{ AUTH_SESSION: User(80,130) bottom → AuthSession(50,290) top -->
+<line x1="80" y1="130" x2="60" y2="290" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="76" y1="126" x2="76" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="72" y1="126" x2="72" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="56" cy="282" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M54,284 L44,276 M54,284 L44,284 M54,284 L44,292" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- USER ||--o{ LOGIN_HISTORY: User(120,130) bottom → LoginHistory(150,290) top -->
+<line x1="120" y1="130" x2="160" y2="290" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="116" y1="126" x2="116" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="112" y1="126" x2="112" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="156" cy="282" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M154,284 L144,276 M154,284 L144,284 M154,284 L144,292" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- USER ||--o{ FAILED_LOGIN: User(260,130) bottom → FailedLogin(390,290) top -->
+<line x1="260" y1="130" x2="400" y2="290" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="256" y1="126" x2="256" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="252" y1="126" x2="252" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="396" cy="282" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M394,284 L384,276 M394,284 L384,284 M394,284 L384,292" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TECHNICIAN ||--|| TECHNICIAN_SCHEDULE: Tech(170,390) bottom → Schedule(100,530) top -->
+<line x1="170" y1="390" x2="140" y2="530" stroke="#34d399" stroke-width="1.2"/>
+<line x1="166" y1="386" x2="166" y2="394" stroke="#34d399" stroke-width="1.2"/>
+<line x1="162" y1="386" x2="162" y2="394" stroke="#34d399" stroke-width="1.2"/>
+<line x1="136" y1="526" x2="136" y2="534" stroke="#34d399" stroke-width="1.2"/>
+<line x1="132" y1="526" x2="132" y2="534" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- TECHNICIAN ||--o{ TECHNICIAN_ATTENDANCE: Tech(200,390) bottom → Attendance(270,530) top -->
+<line x1="200" y1="390" x2="290" y2="530" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="196" y1="386" x2="196" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="192" y1="386" x2="192" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="286" cy="522" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M284,524 L274,516 M284,524 L274,524 M284,524 L274,532" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TECHNICIAN ||--o{ LEAVE_REQUEST: Tech(240,390) bottom → Leave(410,530) top -->
+<line x1="240" y1="390" x2="430" y2="530" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="236" y1="386" x2="236" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="232" y1="386" x2="232" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="426" cy="522" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M424,524 L414,516 M424,524 L414,524 M424,524 L414,532" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TECHNICIAN ||--o{ EXPENSE: Tech(280,390) bottom → Expense(540,530) top -->
+<line x1="280" y1="390" x2="560" y2="530" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="276" y1="386" x2="276" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="272" y1="386" x2="272" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="556" cy="522" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M554,524 L544,516 M554,524 L544,524 M554,524 L544,532" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- USER ||--o{ BOOKING_SERVICE: User(300,130) bottom → Booking(850,420) left -->
+<line x1="300" y1="130" x2="700" y2="420" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="296" y1="126" x2="296" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="292" y1="126" x2="292" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="708" cy="412" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M706,414 L696,406 M706,414 L696,414 M706,414 L696,422" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TECHNICIAN ||--o{ BOOKING_SERVICE: Tech(300,390) bottom → Booking(750,420) left -->
+<line x1="300" y1="390" x2="700" y2="440" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="296" y1="386" x2="296" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="292" y1="386" x2="292" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="708" cy="432" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M706,434 L696,426 M706,434 L696,434 M706,434 L696,442" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- CORE_SERVICE ||--o{ BOOKING_SERVICE: CoreSvc(650,640) top → Booking(850,490) bottom -->
+<line x1="720" y1="640" x2="850" y2="490" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="716" y1="636" x2="716" y2="644" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="712" y1="636" x2="712" y2="644" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="846" cy="498" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M848,496 L858,488 M848,496 L858,496 M848,496 L858,504" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- REPAIR_SERVICE ||--o{ BOOKING_SERVICE: RepairSvc(850,640) top → Booking(950,490) bottom -->
+<line x1="900" y1="640" x2="950" y2="490" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="896" y1="636" x2="896" y2="644" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="892" y1="636" x2="892" y2="644" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="946" cy="498" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M948,496 L958,488 M948,496 L958,496 M948,496 L958,504" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- BOOKING_SERVICE ||--|| ASSIGNMENT: Booking(1050,420) right → Assignment(1200,420) left -->
+<line x1="1050" y1="420" x2="1200" y2="420" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1046" y1="416" x2="1046" y2="424" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1042" y1="416" x2="1042" y2="424" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1196" y1="416" x2="1196" y2="424" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1192" y1="416" x2="1192" y2="424" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- BOOKING_SERVICE ||--o| SERVICE_REPORT: Booking(1050,450) right → Report(1200,550) left -->
+<line x1="1050" y1="450" x2="1200" y2="550" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1046" y1="446" x2="1046" y2="454" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1042" y1="446" x2="1042" y2="454" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="1192" cy="542" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="1188" y1="546" x2="1188" y2="554" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1196" y1="546" x2="1196" y2="554" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- ASSIGNMENT ||--o| SERVICE_REPORT: Assignment(1300,460) bottom → Report(1250,550) top -->
+<line x1="1300" y1="460" x2="1280" y2="550" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1296" y1="456" x2="1296" y2="464" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1292" y1="456" x2="1292" y2="464" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="1276" cy="542" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="1272" y1="546" x2="1272" y2="554" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1280" y1="546" x2="1280" y2="554" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- BOOKING_SERVICE ||--o| PAYMENT: Booking(1050,480) right → Payment(1200,680) left -->
+<line x1="1050" y1="480" x2="1200" y2="680" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1046" y1="476" x2="1046" y2="484" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1042" y1="476" x2="1042" y2="484" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="1192" cy="672" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="1188" y1="676" x2="1188" y2="684" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1196" y1="676" x2="1196" y2="684" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- ORDER ||--o| PAYMENT: Order(1400,460) left → Payment(1350,680) top -->
+<line x1="1400" y1="460" x2="1370" y2="680" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1396" y1="456" x2="1396" y2="464" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1392" y1="456" x2="1392" y2="464" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="1366" cy="672" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="1362" y1="676" x2="1362" y2="684" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1370" y1="676" x2="1370" y2="684" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- USER ||--o{ ORDER: User(380,130) bottom → Order(1450,420) left -->
+<line x1="380" y1="130" x2="1300" y2="420" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="376" y1="126" x2="376" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="372" y1="126" x2="372" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="1308" cy="412" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M1306,414 L1296,406 M1306,414 L1296,414 M1306,414 L1296,422" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- USER ||--o| AIRCON_CART: User(420,130) bottom → Cart(1600,420) left -->
+<line x1="420" y1="130" x2="1500" y2="420" stroke="#34d399" stroke-width="1.2"/>
+<line x1="416" y1="126" x2="416" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<line x1="412" y1="126" x2="412" y2="134" stroke="#34d399" stroke-width="1.2"/>
+<circle cx="1496" cy="412" r="2.5" fill="none" stroke="#34d399" stroke-width="1"/>
+<line x1="1492" y1="416" x2="1492" y2="424" stroke="#34d399" stroke-width="1.2"/>
+<line x1="1500" y1="416" x2="1500" y2="424" stroke="#34d399" stroke-width="1.2"/>
+
+<!-- BRAND ||--o{ INVENTORY: Brand(1650,130) bottom → Inventory(1700,310) top -->
+<line x1="1700" y1="130" x2="1730" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1696" y1="126" x2="1696" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1692" y1="126" x2="1692" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="1726" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M1724,304 L1714,296 M1724,304 L1714,304 M1724,304 L1714,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- CATEGORY ||--o{ INVENTORY: Category(1850,130) bottom → Inventory(1780,310) top -->
+<line x1="1880" y1="130" x2="1800" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1876" y1="126" x2="1876" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1872" y1="126" x2="1872" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="1796" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M1794,304 L1784,296 M1794,304 L1784,304 M1794,304 L1784,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- BRAND ||--o{ HVAC_PRODUCT: Brand(1700,130) bottom → HVAC(1950,310) top -->
+<line x1="1720" y1="130" x2="1980" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1716" y1="126" x2="1716" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1712" y1="126" x2="1712" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="1976" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M1974,304 L1964,296 M1974,304 L1964,304 M1974,304 L1964,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- CATEGORY ||--o{ HVAC_PRODUCT: Category(1900,130) bottom → HVAC(2050,310) top -->
+<line x1="1920" y1="130" x2="2060" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1916" y1="126" x2="1916" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1912" y1="126" x2="1912" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="2056" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M2054,304 L2044,296 M2054,304 L2044,304 M2054,304 L2044,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TOOL ||--o{ TOOL_ASSIGNMENT: Tool(2100,130) bottom → ToolAsn(2100,310) top -->
+<line x1="2150" y1="130" x2="2150" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="2146" y1="126" x2="2146" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="2142" y1="126" x2="2142" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="2146" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M2144,304 L2134,296 M2144,304 L2134,304 M2144,304 L2134,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- TOOL ||--o{ SERVICE_TOOL_USAGE: Tool(2200,130) bottom → Usage(2250,310) top -->
+<line x1="2250" y1="130" x2="2280" y2="310" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="2246" y1="126" x2="2246" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="2242" y1="126" x2="2242" y2="134" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="2276" cy="302" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M2274,304 L2264,296 M2274,304 L2264,304 M2274,304 L2264,312" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- INVENTORY ||--o{ ORDER: Inventory(1780,390) bottom → Order(1450,420) right -->
+<line x1="1780" y1="390" x2="1550" y2="420" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1776" y1="386" x2="1776" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<line x1="1772" y1="386" x2="1772" y2="394" stroke="#60a5fa" stroke-width="1.2"/>
+<circle cx="1558" cy="412" r="2.5" fill="none" stroke="#60a5fa" stroke-width="1"/>
+<path d="M1556,414 L1546,406 M1556,414 L1546,414 M1556,414 L1546,422" stroke="#60a5fa" stroke-width="1" fill="none"/>
+
+<!-- RATING }o--o{ USER: Rating(2200,480) left → User(450,80) bottom -->
+<line x1="2200" y1="480" x2="450" y2="130" stroke="#f472b6" stroke-width="1.2"/>
+<circle cx="2192" cy="488" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M2194,486 L2204,478 M2194,486 L2204,486 M2194,486 L2204,494" stroke="#f472b6" stroke-width="1" fill="none"/>
+<circle cx="458" cy="122" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M456,124 L446,116 M456,124 L446,124 M456,124 L446,132" stroke="#f472b6" stroke-width="1" fill="none"/>
+
+<!-- RATING }o--o{ TECHNICIAN: Rating(2250,500) left → Tech(300,350) right -->
+<line x1="2200" y1="500" x2="300" y2="350" stroke="#f472b6" stroke-width="1.2"/>
+<circle cx="2192" cy="508" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M2194,506 L2204,498 M2194,506 L2204,506 M2194,506 L2204,514" stroke="#f472b6" stroke-width="1" fill="none"/>
+<circle cx="308" cy="342" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M306,344 L296,336 M306,344 L296,344 M306,344 L296,352" stroke="#f472b6" stroke-width="1" fill="none"/>
+
+<!-- RATING }o--o{ BOOKING_SERVICE: Rating(2200,520) left → Booking(1050,500) right -->
+<line x1="2200" y1="520" x2="1050" y2="500" stroke="#f472b6" stroke-width="1.2"/>
+<circle cx="2192" cy="528" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M2194,526 L2204,518 M2194,526 L2204,526 M2194,526 L2204,534" stroke="#f472b6" stroke-width="1" fill="none"/>
+<circle cx="1058" cy="492" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M1056,494 L1046,486 M1056,494 L1046,494 M1056,494 L1046,502" stroke="#f472b6" stroke-width="1" fill="none"/>
+
+<!-- PAYMENT }o--o{ BOOKING_SERVICE: Payment(1300,720) left → Booking(1050,500) right -->
+<line x1="1250" y1="720" x2="1050" y2="500" stroke="#f472b6" stroke-width="1.2"/>
+<circle cx="1258" cy="712" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M1256,714 L1246,706 M1256,714 L1246,714 M1256,714 L1246,722" stroke="#f472b6" stroke-width="1" fill="none"/>
+<circle cx="1058" cy="508" r="2.5" fill="none" stroke="#f472b6" stroke-width="1"/>
+<path d="M1056,506 L1046,498 M1056,506 L1046,506 M1056,506 L1046,514" stroke="#f472b6" stroke-width="1" fill="none"/>
+
+</svg>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ENTITY BOXES -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ROW 1: USERS -->
+<div class="entity au" style="left:50px; top:20px; width:170px;">
+  <div class="eh"><div class="d"></div> USER</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span> <span class="t">ObjectId</span></div>
+    <div class="f"><span class="n">email</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">firstName</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">lastName</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">phone</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">role</span> <span class="t">customer|admin|tech</span></div>
+    <div class="f"><span class="n">blocked / vip</span> <span class="t">Boolean</span></div>
+  </div>
+</div>
+
+<div class="entity au" style="left:300px; top:20px; width:120px;">
+  <div class="eh"><div class="d"></div> ROLE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">name</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">permissions</span> <span class="t">[String]</span></div>
+  </div>
+</div>
+
+<div class="entity au" style="left:50px; top:170px; width:100px;">
+  <div class="eh"><div class="d"></div> AUTH_SESSION</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">revoked</span></div>
+  </div>
+</div>
+
+<div class="entity au" style="left:170px; top:170px; width:110px;">
+  <div class="eh"><div class="d"></div> LOGIN_HISTORY</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">suspicious</span></div>
+  </div>
+</div>
+
+<div class="entity au" style="left:280px; top:170px; width:110px;">
+  <div class="eh"><div class="d"></div> SECRETARY</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">user</span></div>
+    <div class="f"><span class="n">extension</span></div>
+  </div>
+</div>
+
+<div class="entity au" style="left:400px; top:170px; width:100px;">
+  <div class="eh"><div class="d"></div> FAILED_LOGIN</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">count</span></div>
+  </div>
+</div>
+
+<!-- ROW 2: TECHNICIAN -->
+<div class="entity tx" style="left:50px; top:290px; width:250px;">
+  <div class="eh"><div class="d"></div> TECHNICIAN</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span> <span class="t">ObjectId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">user</span> <span class="t">→ User</span></div>
+    <div class="f"><span class="n">name</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">userEmail</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">phone</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">rating</span> <span class="t">Number</span></div>
+    <div class="f"><span class="n">availabilityStatus</span> <span class="t">enum</span></div>
+    <div class="f"><span class="n">location</span> <span class="t">{Point}</span></div>
+  </div>
+</div>
+
+<div class="entity tx" style="left:50px; top:530px; width:170px;">
+  <div class="eh"><div class="d"></div> TECHNICIAN_SCHEDULE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="n">workingDays[]</span></div>
+    <div class="f"><span class="n">restDates[]</span></div>
+  </div>
+</div>
+
+<div class="entity tx" style="left:230px; top:530px; width:160px;">
+  <div class="eh"><div class="d"></div> ATTENDANCE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">date</span></div>
+    <div class="f"><span class="n">status</span></div>
+  </div>
+</div>
+
+<div class="entity tx" style="left:400px; top:530px; width:150px;">
+  <div class="eh"><div class="d"></div> LEAVE_REQUEST</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">reviewedBy</span></div>
+    <div class="f"><span class="n">startDate</span></div>
+    <div class="f"><span class="n">status</span></div>
+  </div>
+</div>
+
+<div class="entity tx" style="left:560px; top:530px; width:150px;">
+  <div class="eh"><div class="d"></div> EXPENSE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span></div>
+    <div class="f"><span class="n">type / amount</span></div>
+    <div class="f"><span class="n">status</span></div>
+  </div>
+</div>
+
+<!-- ROW 3: BOOKING FLOW -->
+<div class="entity sv" style="left:600px; top:640px; width:160px;">
+  <div class="eh"><div class="d"></div> CORE_SERVICE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">name</span></div>
+    <div class="f"><span class="n">basePrice</span></div>
+    <div class="f"><span class="n">isAirconService</span></div>
+    <div class="f"><span class="n">hpPricing[]</span></div>
+  </div>
+</div>
+
+<div class="entity sv" style="left:800px; top:640px; width:160px;">
+  <div class="eh"><div class="d"></div> REPAIR_SERVICE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">name</span></div>
+    <div class="f"><span class="n">initialPrice</span></div>
+    <div class="f"><span class="n">allowTechnicianPricing</span></div>
+    <div class="f"><span class="n">warrantyDays</span></div>
+  </div>
+</div>
+
+<div class="entity bk" style="left:700px; top:400px; width:350px;">
+  <div class="eh"><div class="d"></div> BOOKING_SERVICE <span style="margin-left:auto;font-size:7px;color:#94a3b8;">Central Hub</span></div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span> <span class="t">ObjectId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">customerId</span> <span class="t">→ User</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span> <span class="t">→ Technician</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">serviceId</span> <span class="t">→ CoreService|Repair</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">assignmentId</span> <span class="t">→ Assignment</span></div>
+    <div class="f"><span class="n">status</span> <span class="t">30 values</span></div>
+    <div class="f"><span class="n">bookingReference</span> <span class="t">String</span></div>
+    <div class="f"><span class="n">bookingDate</span> <span class="t">Date</span></div>
+    <div class="f"><span class="n">totalPrice</span> <span class="t">Number</span></div>
+    <div class="f"><span class="n">priority</span> <span class="t">enum</span></div>
+    <div class="f"><span class="n">inspection</span> <span class="t">{findings}</span></div>
+    <div class="f"><span class="n">quotation</span> <span class="t">{parts[],totalCost}</span></div>
+    <div class="f"><span class="n">warranty</span> <span class="t">{days,status}</span></div>
+    <div class="f"><span class="n">slaTracking</span> <span class="t">{targets}</span></div>
+    <div class="f"><span class="n">paymentMethod</span> <span class="t">cod|gcash</span></div>
+  </div>
+</div>
+
+<div class="entity bk" style="left:1180px; top:400px; width:160px;">
+  <div class="eh"><div class="d"></div> ASSIGNMENT</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="n">status</span></div>
+    <div class="f"><span class="n">priority</span></div>
+    <div class="f"><span class="n">assignedAt</span></div>
+    <div class="f"><span class="n">slaDeadline</span></div>
+  </div>
+</div>
+
+<div class="entity bk" style="left:1180px; top:550px; width:160px;">
+  <div class="eh"><div class="d"></div> SERVICE_REPORT</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">assignmentId</span></div>
+    <div class="f"><span class="n">findings</span></div>
+    <div class="f"><span class="n">totalCost</span></div>
+    <div class="f"><span class="n">status</span></div>
+  </div>
+</div>
+
+<!-- ROW 4: INVENTORY -->
+<div class="entity iv" style="left:1620px; top:20px; width:130px;">
+  <div class="eh"><div class="d"></div> BRAND</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">name</span></div>
+    <div class="f"><span class="n">active</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:1820px; top:20px; width:130px;">
+  <div class="eh"><div class="d"></div> CATEGORY</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">name</span></div>
+    <div class="f"><span class="n">active</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:1680px; top:310px; width:200px;">
+  <div class="eh"><div class="d"></div> INVENTORY <span style="margin-left:auto;font-size:7px;color:#94a3b8;">Aircon</span></div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">brand</span> <span class="t">→ Brand</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">category</span> <span class="t">→ Category</span></div>
+    <div class="f"><span class="n">modelLine</span></div>
+    <div class="f"><span class="n">capacity</span></div>
+    <div class="f"><span class="n">sku</span></div>
+    <div class="f"><span class="n">sellingPrice</span></div>
+    <div class="f"><span class="n">quantity</span></div>
+    <div class="f"><span class="n">status</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:1920px; top:310px; width:200px;">
+  <div class="eh"><div class="d"></div> HVAC_PRODUCT <span style="margin-left:auto;font-size:7px;color:#94a3b8;">Pro</span></div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">brand</span> <span class="t">→ Brand</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">category</span> <span class="t">→ Category</span></div>
+    <div class="f"><span class="n">modelLine</span></div>
+    <div class="f"><span class="n">variants[]</span></div>
+    <div class="f"><span class="n">specifications</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:2080px; top:130px; width:160px;">
+  <div class="eh"><div class="d"></div> TOOL <span style="margin-left:auto;font-size:7px;color:#94a3b8;">Parts</span></div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">itemName</span></div>
+    <div class="f"><span class="n">quantity</span></div>
+    <div class="f"><span class="n">costPrice</span></div>
+    <div class="f"><span class="n">sellingPrice</span></div>
+    <div class="f"><span class="n">category</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:2080px; top:310px; width:160px;">
+  <div class="eh"><div class="d"></div> TOOL_ASSIGNMENT</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">toolId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="n">status</span></div>
+    <div class="f"><span class="n">condition</span></div>
+  </div>
+</div>
+
+<div class="entity iv" style="left:2220px; top:310px; width:160px;">
+  <div class="eh"><div class="d"></div> SERVICE_TOOL_USAGE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">toolItemId</span></div>
+    <div class="f"><span class="n">quantityUsed</span></div>
+  </div>
+</div>
+
+<!-- ROW 5: FINANCE -->
+<div class="entity fn" style="left:1180px; top:680px; width:200px;">
+  <div class="eh"><div class="d"></div> PAYMENT</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span> <span class="t">→ BookingService</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">orderId</span> <span class="t">→ Order</span></div>
+    <div class="f"><span class="n">amount</span> <span class="t">Number</span></div>
+    <div class="f"><span class="n">method</span> <span class="t">gcash|cod</span></div>
+    <div class="f"><span class="n">type</span> <span class="t">downpayment|final</span></div>
+    <div class="f"><span class="n">status</span> <span class="t">pending|paid</span></div>
+  </div>
+</div>
+
+<div class="entity fn" style="left:1350px; top:420px; width:200px;">
+  <div class="eh"><div class="d"></div> ORDER <span style="margin-left:auto;font-size:7px;color:#94a3b8;">Products</span></div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span> <span class="t">→ User</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">technicianId</span> <span class="t">→ Tech</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">bookingId</span> <span class="t">→ Booking</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">paymentId</span> <span class="t">→ Payment</span></div>
+    <div class="f"><span class="n">items[]</span></div>
+    <div class="f"><span class="n">status</span></div>
+    <div class="f"><span class="n">total</span></div>
+  </div>
+</div>
+
+<div class="entity fn" style="left:1570px; top:420px; width:120px;">
+  <div class="eh"><div class="d"></div> PURCHASE</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">items[]</span></div>
+    <div class="f"><span class="n">total</span></div>
+  </div>
+</div>
+
+<div class="entity fn" style="left:1470px; top:420px; width:100px;">
+  <div class="eh"><div class="d"></div> CART</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">items[]</span></div>
+  </div>
+</div>
+
+<!-- ROW 6: SYSTEM -->
+<div class="entity sy" style="left:2100px; top:480px; width:130px;">
+  <div class="eh"><div class="d"></div> RATING</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">customerId</span></div>
+    <div class="f"><span class="n">targetType</span></div>
+    <div class="f"><span class="n">targetId</span></div>
+    <div class="f"><span class="n">score</span></div>
+  </div>
+</div>
+
+<div class="entity sy" style="left:2100px; top:620px; width:130px;">
+  <div class="eh"><div class="d"></div> NOTIFICATION</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">userId</span></div>
+    <div class="f"><span class="n">type</span></div>
+    <div class="f"><span class="n">read</span></div>
+  </div>
+</div>
+
+<div class="entity sy" style="left:2250px; top:620px; width:130px;">
+  <div class="eh"><div class="d"></div> ACTIVITY_LOG</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">actor</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">target</span></div>
+    <div class="f"><span class="n">action</span></div>
+  </div>
+</div>
+
+<div class="entity sy" style="left:2250px; top:480px; width:130px;">
+  <div class="eh"><div class="d"></div> SITE_SETTING</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">key</span></div>
+    <div class="f"><span class="n">value</span></div>
+  </div>
+</div>
+
+<div class="entity sy" style="left:50px; top:700px; width:130px;">
+  <div class="eh"><div class="d"></div> NON_WORKING_DAY</div>
+  <div class="eb">
+    <div class="f"><span class="pk">&#9733;</span> <span class="n">_id</span></div>
+    <div class="f"><span class="n">date</span></div>
+    <div class="f"><span class="fk">&rarr;</span> <span class="n">service</span></div>
+    <div class="f"><span class="n">reason</span></div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>

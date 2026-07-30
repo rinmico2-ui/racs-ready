@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book a Service - RACSREADY</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .booking-step { display: none; }
+    .booking-step:not(.d-none) { display: block; }
+    .service-card { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+    .service-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+    .stepper-step { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    .stepper-icon { width: 32px; height: 32px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .stepper-step.active .stepper-icon { background: #0d6efd; color: white; }
+    .stepper-step.completed .stepper-icon { background: #198754; color: white; }
+    .booking-layout { display: grid; grid-template-columns: 200px 1fr; gap: 2rem; }
+    @media (max-width: 991px) { .booking-layout { grid-template-columns: 1fr; } }
+    .technician-map { height: 300px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <h2 class="mb-4">Book a Service</h2>
+    
+    <div class="booking-layout">
+      <!-- Stepper Sidebar -->
+      <aside class="booking-stepper">
+        <ol class="stepper-list">
+          <li class="stepper-step active" data-step="1">
+            <span class="stepper-icon">1</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Account</span>
+            </span>
+          </li>
+          <li class="stepper-step" data-step="2">
+            <span class="stepper-icon">2</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Services</span>
+            </span>
+          </li>
+          <li class="stepper-step" data-step="3">
+            <span class="stepper-icon">3</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Technician</span>
+            </span>
+          </li>
+          <li class="stepper-step" data-step="4">
+            <span class="stepper-icon">4</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Location</span>
+            </span>
+          </li>
+          <li class="stepper-step" data-step="5">
+            <span class="stepper-icon">5</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Schedule</span>
+            </span>
+          </li>
+          <li class="stepper-step" data-step="6">
+            <span class="stepper-icon">6</span>
+            <span class="stepper-text">
+              <span class="stepper-title">Payment</span>
+            </span>
+          </li>
+        </ol>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="booking-body">
+        
+        <!-- Step 1: Account -->
+        <div class="booking-step" data-step="1">
+          <h5>Step 1: Account</h5>
+          <p>Please log in to continue.</p>
+          <button class="btn btn-primary" onclick="continueToStep(2)">Continue to Services</button>
+        </div>
+
+        <!-- Step 2: Select Services -->
+        <div class="booking-step d-none" data-step="2">
+          <h5>Step 2: Select Services</h5>
+          <div class="row g-3" id="serviceCards">
+            <!-- Services populated dynamically -->
+          </div>
+          
+          <div class="mt-4 text-center">
+            <button type="button" class="btn btn-primary btn-lg" id="continueToNextStep" onclick="advanceToNextStep()">
+              Continue to Next Step
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Choose Technician -->
+        <div class="booking-step d-none" data-step="3">
+          <h5>Step 3: Choose Technician</h5>
+          <p class="text-muted">Select a technician to handle your request.</p>
+          <div class="mb-3">
+            <label for="technicianSelect" class="form-label">Choose Technician</label>
+            <select id="technicianSelect" class="form-select">
+              <option value="">Loading technicians...</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="advanceToNextStep()">Continue</button>
+        </div>
+
+        <!-- Step 4: Location -->
+        <div class="booking-step d-none" data-step="4">
+          <h5>Step 4: Location & Schedule</h5>
+          <div id="technicianMap" class="technician-map bg-light mb-3"></div>
+          <button class="btn btn-primary" onclick="advanceToNextStep()">Continue</button>
+        </div>
+
+        <!-- Step 5: Schedule -->
+        <div class="booking-step d-none" data-step="5">
+          <h5>Step 5: Schedule</h5>
+          <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-outline-primary">Suggested Dates</button>
+            <button class="btn btn-outline-primary">Manual Calendar</button>
+          </div>
+          <button class="btn btn-primary" onclick="advanceToNextStep()">Continue</button>
+        </div>
+
+        <!-- Step 6: Payment -->
+        <div class="booking-step d-none" data-step="6">
+          <h5>Step 6: Payment</h5>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary">GCash</button>
+            <button class="btn btn-outline-primary">Cash</button>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Simple step navigation
+    function continueToStep(step) {
+      document.querySelectorAll('.booking-step').forEach(el => el.classList.add('d-none'));
+      document.querySelector(`.booking-step[data-step="${step}"]`).classList.remove('d-none');
+      updateStepper(step);
+    }
+    
+    function advanceToNextStep() {
+      const currentStep = getCurrentVisibleStep();
+      continueToStep(currentStep + 1);
+    }
+    
+    function getCurrentVisibleStep() {
+      const visibleStep = document.querySelector('.booking-step:not(.d-none)');
+      return visibleStep ? parseInt(visibleStep.dataset.step) : 1;
+    }
+    
+    function updateStepper(activeStep) {
+      document.querySelectorAll('.stepper-step').forEach(step => {
+        const stepNum = parseInt(step.dataset.step);
+        step.classList.remove('active', 'completed');
+        if (stepNum < activeStep) step.classList.add('completed');
+        else if (stepNum === activeStep) step.classList.add('active');
+      });
+    }
+  </script>
+</body>
+</html>

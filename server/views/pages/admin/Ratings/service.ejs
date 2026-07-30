@@ -1,0 +1,734 @@
+<div class="container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link rel="stylesheet" href="/css/analytics.css">
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-wrench-adjustable"></i></div>
+        <div>
+          <h1>Service Ratings</h1>
+          <p>Customer feedback and ratings for service quality</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <button class="btn btn-outline-success" onclick="generateReport()">
+          <i class="bi bi-file-earmark-text me-2"></i>Generate Report
+        </button>
+        <button class="btn btn-primary" onclick="refreshServiceRatings()">
+          <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Rating Stats -->
+  <div class="row mb-4">
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="text-muted mb-3">Service Performance</h6>
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span>Overall Rating</span>
+              <span class="fw-bold" id="serviceAvgRating">4.5</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+              <div class="progress-bar bg-success" style="width: 90%"></div>
+            </div>
+          </div>
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="text-success fw-bold">92%</div>
+              <small class="text-muted">Satisfaction</small>
+            </div>
+            <div class="col-4">
+              <div class="text-primary fw-bold">4.8</div>
+              <small class="text-muted">Response</small>
+            </div>
+            <div class="col-4">
+              <div class="text-info fw-bold">24h</div>
+              <small class="text-muted">Avg Time</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="text-muted mb-3">Rating Breakdown</h6>
+          <div class="rating-breakdown">
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2">5★</span>
+              <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                <div class="progress-bar bg-success" style="width: 65%"></div>
+              </div>
+              <span class="small">65%</span>
+            </div>
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2">4★</span>
+              <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                <div class="progress-bar bg-primary" style="width: 20%"></div>
+              </div>
+              <span class="small">20%</span>
+            </div>
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2">3★</span>
+              <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                <div class="progress-bar bg-info" style="width: 10%"></div>
+              </div>
+              <span class="small">10%</span>
+            </div>
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2">2★</span>
+              <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                <div class="progress-bar bg-warning" style="width: 3%"></div>
+              </div>
+              <span class="small">3%</span>
+            </div>
+            <div class="d-flex align-items-center">
+              <span class="me-2">1★</span>
+              <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                <div class="progress-bar bg-danger" style="width: 2%"></div>
+              </div>
+              <span class="small">2%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="text-muted mb-3">Service Categories</h6>
+          <div class="service-categories">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span><i class="bi bi-gear text-primary me-1"></i> Installation</span>
+              <span class="badge bg-success">4.7</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span><i class="bi bi-wrench text-info me-1"></i> Repair</span>
+              <span class="badge bg-primary">4.5</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span><i class="bi bi-arrow-clockwise text-warning me-1"></i> Maintenance</span>
+              <span class="badge bg-info">4.6</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-shield-check text-success me-1"></i> Inspection</span>
+              <span class="badge bg-warning">4.4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Section -->
+  <div class="row mb-4">
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Rating Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="serviceRatingDistChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Monthly Trend</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="serviceMonthlyTrendChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Category Performance</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="serviceCategoryChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters and Search -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Date Range</label>
+          <select class="form-select" id="dateRange">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 3 months</option>
+            <option value="365">Last year</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Service Type</label>
+          <select class="form-select" id="serviceType">
+            <option value="">All Services</option>
+            <option value="installation">Installation</option>
+            <option value="repair">Repair</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="inspection">Inspection</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Rating</label>
+          <select class="form-select" id="ratingFilter">
+            <option value="">All Ratings</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="2">2 Stars</option>
+            <option value="1">1 Star</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Search</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="searchInput" placeholder="Search customer or comment...">
+            <button class="btn btn-outline-primary" onclick="applyFilters()">
+              <i class="bi bi-search"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Ratings Table -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Service Ratings</h5>
+        <div class="d-flex gap-2">
+          <span class="text-muted" id="resultCount">Showing 0 results</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Service Type</th>
+              <th>Technician</th>
+              <th>Rating</th>
+              <th>Comment</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="serviceRatingsTable">
+            <tr>
+              <td colspan="8" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Loading service ratings...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      <nav aria-label="Service ratings pagination" class="mt-3">
+        <ul class="pagination justify-content-center" id="pagination">
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <%- include('../../../partials/chart-drilldown-modal') %>
+</div>
+
+<!-- Rating Details Modal -->
+<div class="modal fade" id="ratingModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Service Rating Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="ratingModalBody">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="respondToRating()">Respond</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Styles -->
+<style>
+  .rating-stars {
+    color: #ffc107;
+    font-size: 0.9rem;
+  }
+  .service-categories .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.875rem;
+  }
+  .customer-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+  }
+</style>
+
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/chart-drilldown.js"></script>
+<script>
+  // @ts-nocheck
+  let serviceRatings = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  let serviceCharts = {};
+
+  function openDrill(title, subtitle, chartCfg, details, filters, ff, summary) {
+    if (typeof ChartDrilldown === 'undefined') return;
+    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: ff || 'category', summary: summary || {} });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadServiceRatings();
+  });
+
+  async function loadServiceRatings() {
+    try {
+      showLoadingState();
+      const response = await fetch('/api/admin/ratings/service');
+      if (response.ok) {
+        const data = await response.json();
+        serviceRatings = data.ratings || [];
+        totalPages = data.totalPages || 1;
+        renderServiceRatings();
+        updateResultCount();
+        initializeServiceCharts(data);
+      } else {
+        showErrorState();
+      }
+    } catch (error) {
+      console.error('Error loading service ratings:', error);
+      showErrorState();
+    }
+  }
+
+  function initializeServiceCharts(data) {
+    var starBreakdown = data.starBreakdown || [45, 30, 15, 7, 3];
+    var categories = data.categories || ['Installation', 'Repair', 'Maintenance', 'Inspection'];
+    var categoryRatings = data.categoryRatings || [4.7, 4.5, 4.6, 4.4];
+    var monthlyTrend = data.monthlyTrend || {};
+    var trendLabels = monthlyTrend.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    var trendData = monthlyTrend.data || [4.3, 4.4, 4.5, 4.4, 4.6, 4.7];
+
+    var starLabels = ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
+    var starColors = ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'];
+
+    // Rating Distribution Doughnut
+    var distCtx = document.getElementById('serviceRatingDistChart').getContext('2d');
+    var ratingDistCfg = {
+      type: 'doughnut',
+      data: {
+        labels: starLabels,
+        datasets: [{
+          data: starBreakdown,
+          backgroundColor: starColors
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    };
+    var distCanvas = distCtx.canvas;
+    distCanvas.style.cursor = 'pointer';
+    distCanvas.onclick = function(evt) {
+      var elements = serviceCharts.ratingDist.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var clickedVal = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = starLabels[idx] || '';
+        clickedVal = starBreakdown[idx] || 0;
+      }
+      var details = [{ category: label, value: clickedVal }];
+      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
+      openDrill(
+        'Service Rating Distribution - ' + label,
+        'Drilldown for ' + (label || 'all ratings'),
+        ratingDistCfg, details, filters, 'category',
+        { total: clickedVal }
+      );
+    };
+    serviceCharts.ratingDist = new Chart(distCtx, ratingDistCfg);
+
+    // Monthly Trend Line
+    var trendCtx = document.getElementById('serviceMonthlyTrendChart').getContext('2d');
+    var monthlyTrendCfg = {
+      type: 'line',
+      data: {
+        labels: trendLabels,
+        datasets: [{
+          label: 'Average Rating',
+          data: trendData,
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13, 110, 253, 0.1)',
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 3,
+            max: 5
+          }
+        }
+      }
+    };
+    var trendCanvas = trendCtx.canvas;
+    trendCanvas.style.cursor = 'pointer';
+    trendCanvas.onclick = function(evt) {
+      var elements = serviceCharts.monthlyTrend.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var val = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = trendLabels[idx] || '';
+        val = trendData[idx] || 0;
+      }
+      var details = categories.map(function(c, i) { return { category: c, value: categoryRatings[i] }; });
+      var filters = categories.map(function(c, i) { return { id: c.toLowerCase(), label: c, active: i === 0 }; });
+      openDrill(
+        'Monthly Trend - ' + label,
+        'Category breakdown for ' + (label || 'selected month'),
+        monthlyTrendCfg, details, filters, 'category',
+        { total: categoryRatings.reduce(function(a, b) { return a + b; }, 0) }
+      );
+    };
+    serviceCharts.monthlyTrend = new Chart(trendCtx, monthlyTrendCfg);
+
+    // Category Performance Bar
+    var catCtx = document.getElementById('serviceCategoryChart').getContext('2d');
+    var categoryCfg = {
+      type: 'bar',
+      data: {
+        labels: categories,
+        datasets: [{
+          label: 'Average Rating',
+          data: categoryRatings,
+          backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#0891b2']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 3,
+            max: 5
+          }
+        }
+      }
+    };
+    var catCanvas = catCtx.canvas;
+    catCanvas.style.cursor = 'pointer';
+    catCanvas.onclick = function(evt) {
+      var elements = serviceCharts.category.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var val = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = categories[idx] || '';
+        val = categoryRatings[idx] || 0;
+      }
+      var details = starLabels.map(function(l, i) { return { category: l, value: starBreakdown[i] }; });
+      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: i === 0 }; });
+      openDrill(
+        'Category Performance - ' + label,
+        'Star distribution for ' + (label || 'all categories'),
+        categoryCfg, details, filters, 'category',
+        { total: starBreakdown.reduce(function(a, b) { return a + b; }, 0) }
+      );
+    };
+    serviceCharts.category = new Chart(catCtx, categoryCfg);
+  }
+
+  function renderServiceRatings() {
+    const tbody = document.getElementById('serviceRatingsTable');
+    
+    if (serviceRatings.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center py-4">
+            <div class="text-muted">
+              <i class="bi bi-wrench-adjustable fs-1 d-block mb-2"></i>
+              No service ratings found
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = serviceRatings.map(rating => `
+      <tr>
+        <td>${formatDate(rating.date)}</td>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="customer-avatar me-2">${getInitials(rating.customer)}</div>
+            <div>
+              <div class="fw-medium">${rating.customer}</div>
+              <small class="text-muted">${rating.email}</small>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="badge bg-${getServiceTypeColor(rating.serviceType)}">
+            ${rating.serviceType}
+          </span>
+        </td>
+        <td>${rating.technician || 'N/A'}</td>
+        <td>
+          <div class="rating-stars">
+            ${generateStars(rating.rating)}
+          </div>
+        </td>
+        <td>
+          <div class="text-truncate" style="max-width: 200px;" title="${rating.comment}">
+            ${rating.comment || 'No comment provided'}
+          </div>
+        </td>
+        <td>
+          <span class="badge bg-${rating.responded ? 'success' : 'warning'}">
+            ${rating.responded ? 'Responded' : 'Pending'}
+          </span>
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" onclick="viewRatingDetails('${rating.id}')" title="View Details">
+              <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-outline-success" onclick="respondToRating('${rating.id}')" title="Respond">
+              <i class="bi bi-reply"></i>
+            </button>
+            <button class="btn btn-outline-danger" onclick="deleteRating('${rating.id}')" title="Delete">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    renderPagination();
+  }
+
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }
+
+  function getInitials(name) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
+
+  function generateStars(rating) {
+    let stars = '';
+    for (let i = 1; i <= 5; i++) {
+      if (i <= rating) {
+        stars += '<i class="bi bi-star-fill"></i>';
+      } else {
+        stars += '<i class="bi bi-star"></i>';
+      }
+    }
+    return stars;
+  }
+
+  function getServiceTypeColor(type) {
+    const colors = {
+      'installation': 'primary',
+      'repair': 'info',
+      'maintenance': 'warning',
+      'inspection': 'success'
+    };
+    return colors[type] || 'secondary';
+  }
+
+  function updateResultCount() {
+    const count = serviceRatings.length;
+    document.getElementById('resultCount').textContent = `Showing ${count} result${count !== 1 ? 's' : ''}`;
+  }
+
+  function showLoadingState() {
+    const tbody = document.getElementById('serviceRatingsTable');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <div class="mt-2">Loading service ratings...</div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function showErrorState() {
+    const tbody = document.getElementById('serviceRatingsTable');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center py-4">
+          <div class="text-danger">
+            <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+            Error loading service ratings
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function refreshServiceRatings() {
+    loadServiceRatings();
+  }
+
+  function applyFilters() {
+    console.log('Applying filters...');
+    loadServiceRatings();
+  }
+
+  function viewRatingDetails(id) {
+    const rating = serviceRatings.find(r => r.id === id);
+    if (!rating) return;
+
+    const modalBody = document.getElementById('ratingModalBody');
+    modalBody.innerHTML = `
+      <div class="row">
+        <div class="col-md-6">
+          <h6>Customer Information</h6>
+          <p><strong>Name:</strong> ${rating.customer}</p>
+          <p><strong>Email:</strong> ${rating.email}</p>
+          <p><strong>Phone:</strong> ${rating.phone || 'N/A'}</p>
+        </div>
+        <div class="col-md-6">
+          <h6>Service Details</h6>
+          <p><strong>Type:</strong> ${rating.serviceType}</p>
+          <p><strong>Date:</strong> ${formatDate(rating.date)}</p>
+          <p><strong>Technician:</strong> ${rating.technician || 'N/A'}</p>
+        </div>
+      </div>
+      <hr>
+      <div class="row">
+        <div class="col-12">
+          <h6>Rating & Feedback</h6>
+          <div class="mb-2">
+            <div class="rating-stars fs-5">
+              ${generateStars(rating.rating)}
+            </div>
+          </div>
+          <p><strong>Comment:</strong></p>
+          <p>${rating.comment || 'No comment provided'}</p>
+        </div>
+      </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('ratingModal'));
+    modal.show();
+  }
+
+  function respondToRating(id) {
+    console.log('Respond to rating:', id);
+    alert('Response functionality would be implemented here');
+  }
+
+  function deleteRating(id) {
+    if (confirm('Are you sure you want to delete this service rating?')) {
+      console.log('Delete rating:', id);
+    }
+  }
+
+  function generateReport() {
+    console.log('Generating service ratings report...');
+    alert('Report generation would be implemented here');
+  }
+
+  function renderPagination() {
+    const pagination = document.getElementById('pagination');
+    if (totalPages <= 1) {
+      pagination.innerHTML = '';
+      return;
+    }
+
+    let paginationHTML = '';
+    
+    paginationHTML += `
+      <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+      </li>
+    `;
+
+    for (let i = 1; i <= totalPages; i++) {
+      paginationHTML += `
+        <li class="page-item ${currentPage === i ? 'active' : ''}">
+          <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+        </li>
+      `;
+    }
+
+    paginationHTML += `
+      <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+      </li>
+    `;
+
+    pagination.innerHTML = paginationHTML;
+  }
+
+  function changePage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    loadServiceRatings();
+  }
+</script>

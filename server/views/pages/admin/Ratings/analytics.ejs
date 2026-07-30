@@ -1,0 +1,1771 @@
+<div class="container-fluid py-4">
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-bar-chart-line"></i></div>
+        <div>
+          <h1>Rating Analytics</h1>
+          <p>Detailed insights and trends for customer ratings and reviews</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <button class="btn btn-outline-success" onclick="exportAnalytics()">
+          <i class="bi bi-file-earmark-excel me-2"></i>Export Analytics
+        </button>
+        <button class="btn btn-outline-info" onclick="scheduleReport()">
+          <i class="bi bi-calendar-check me-2"></i>Schedule Report
+        </button>
+        <button class="btn btn-primary" onclick="refreshAnalytics()">
+          <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Period Selector -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="period" id="period7" value="7" checked>
+            <label class="btn btn-outline-primary" for="period7">Last 7 Days</label>
+            
+            <input type="radio" class="btn-check" name="period" id="period30" value="30">
+            <label class="btn btn-outline-primary" for="period30">Last 30 Days</label>
+            
+            <input type="radio" class="btn-check" name="period" id="period90" value="90">
+            <label class="btn btn-outline-primary" for="period90">Last 3 Months</label>
+            
+            <input type="radio" class="btn-check" name="period" id="period365" value="365">
+            <label class="btn btn-outline-primary" for="period365">Last Year</label>
+            
+            <input type="radio" class="btn-check" name="period" id="periodcustom" value="custom">
+            <label class="btn btn-outline-primary" for="periodcustom">Custom Range</label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex gap-2">
+            <input type="date" class="form-control" id="startDate" style="display: none;">
+            <input type="date" class="form-control" id="endDate" style="display: none;">
+            <button class="btn btn-primary" onclick="applyPeriod()">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <h6 class="text-muted mb-2">Total Ratings</h6>
+              <h3 class="mb-0" id="totalRatings">0</h3>
+              <div class="d-flex align-items-center mt-2">
+                <span class="badge bg-success">+12.5%</span>
+                <small class="text-muted ms-2">vs last period</small>
+              </div>
+            </div>
+            <div class="ms-3">
+              <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-star-fill text-primary fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <h6 class="text-muted mb-2">Average Rating</h6>
+              <h3 class="mb-0" id="avgRating">0.0</h3>
+              <div class="d-flex align-items-center mt-2">
+                <span class="badge bg-success">+0.3</span>
+                <small class="text-muted ms-2">improvement</small>
+              </div>
+            </div>
+            <div class="ms-3">
+              <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-trophy text-success fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <h6 class="text-muted mb-2">Response Rate</h6>
+              <h3 class="mb-0" id="responseRate">0%</h3>
+              <div class="d-flex align-items-center mt-2">
+                <span class="badge bg-warning">-2.1%</span>
+                <small class="text-muted ms-2">vs last period</small>
+              </div>
+            </div>
+            <div class="ms-3">
+              <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-chat-dots text-info fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <h6 class="text-muted mb-2">Sentiment Score</h6>
+              <h3 class="mb-0" id="sentimentScore">0%</h3>
+              <div class="d-flex align-items-center mt-2">
+                <span class="badge bg-success">+5.2%</span>
+                <small class="text-muted ms-2">positive</small>
+              </div>
+            </div>
+            <div class="ms-3">
+              <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-emoji-smile text-warning fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent User Ratings -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recent User Ratings</h5>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-primary" onclick="loadRecentRatings()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+          <button class="btn btn-sm btn-outline-success" onclick="exportRatings()">
+            <i class="bi bi-download"></i> Export
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="ratings-chart-container">
+            <canvas id="recentRatingsChart" height="300"></canvas>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="recent-ratings-list" id="recentRatingsList">
+            <h6 class="text-muted mb-3">Latest Reviews</h6>
+            <div id="recentRatingsContent">
+              <!-- Recent ratings will be loaded here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Section -->
+  <div class="row mb-4">
+    <div class="col-lg-8 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Rating Trends Over Time</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="ratingTrendsChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Rating Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="ratingDistributionChart" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Category Performance</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="categoryPerformanceChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-6 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Monthly Comparison</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="monthlyComparisonChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Analytics Tables -->
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Top Rated Items</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Type</th>
+                  <th>Rating</th>
+                  <th>Reviews</th>
+                  <th>Trend</th>
+                </tr>
+              </thead>
+              <tbody id="topRatedTable">
+                <tr>
+                  <td colspan="5" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-6 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Rating Insights</h5>
+        </div>
+        <div class="card-body">
+          <div class="insights-list" id="insightsList">
+            <div class="d-flex align-items-center mb-3">
+              <div class="bg-success bg-opacity-10 rounded-circle p-2 me-3">
+                <i class="bi bi-arrow-up text-success"></i>
+              </div>
+              <div>
+                <div class="fw-medium">Service ratings improved by 15%</div>
+                <small class="text-muted">Compared to last month</small>
+              </div>
+            </div>
+            <div class="d-flex align-items-center mb-3">
+              <div class="bg-warning bg-opacity-10 rounded-circle p-2 me-3">
+                <i class="bi bi-exclamation text-warning"></i>
+              </div>
+              <div>
+                <div class="fw-medium">Product reviews decreased by 5%</div>
+                <small class="text-muted">Needs attention</small>
+              </div>
+            </div>
+            <div class="d-flex align-items-center mb-3">
+              <div class="bg-info bg-opacity-10 rounded-circle p-2 me-3">
+                <i class="bi bi-info text-info"></i>
+              </div>
+              <div>
+                <div class="fw-medium">Technician ratings stable at 4.5</div>
+                <small class="text-muted">Consistent performance</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enhanced Sentiment Analysis -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Advanced Sentiment Analysis</h5>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-primary" onclick="refreshSentiment()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+          <button class="btn btn-sm btn-outline-success" onclick="exportSentiment()">
+            <i class="bi bi-download"></i> Export
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="mb-3">
+            <h6 class="text-muted">Sentiment Score Timeline</h6>
+            <div class="chart-fixed-container">
+              <canvas id="sentimentTimelineChart"></canvas>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <h6 class="text-muted">Sentiment by Category</h6>
+              <div class="chart-fixed-container">
+                <canvas id="sentimentByCategoryChart"></canvas>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted">Sentiment Distribution</h6>
+              <div class="chart-fixed-container">
+                <canvas id="sentimentDistributionChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="sentiment-metrics">
+            <div class="text-center mb-4">
+              <div class="sentiment-score-display">
+                <div class="score-value" id="overallSentimentScore">0</div>
+                <div class="score-label">Overall Sentiment Score</div>
+                <div class="sentiment-indicator" id="sentimentIndicator">
+                  <i class="bi bi-emoji-neutral"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div class="sentiment-breakdown">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <i class="bi bi-emoji-smile text-success me-2"></i>
+                  <span>Positive</span>
+                </div>
+                <div class="text-end">
+                  <span class="badge bg-success" id="positiveCount">0</span>
+                  <small class="text-muted ms-1" id="positivePercent">0%</small>
+                </div>
+              </div>
+              <div class="progress mb-3" style="height: 8px;">
+                <div class="progress-bar bg-success" id="positiveProgress" style="width: 0%"></div>
+              </div>
+              
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <i class="bi bi-emoji-neutral text-warning me-2"></i>
+                  <span>Neutral</span>
+                </div>
+                <div class="text-end">
+                  <span class="badge bg-warning" id="neutralCount">0</span>
+                  <small class="text-muted ms-1" id="neutralPercent">0%</small>
+                </div>
+              </div>
+              <div class="progress mb-3" style="height: 8px;">
+                <div class="progress-bar bg-warning" id="neutralProgress" style="width: 0%"></div>
+              </div>
+              
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <i class="bi bi-emoji-frown text-danger me-2"></i>
+                  <span>Negative</span>
+                </div>
+                <div class="text-end">
+                  <span class="badge bg-danger" id="negativeCount">0</span>
+                  <small class="text-muted ms-1" id="negativePercent">0%</small>
+                </div>
+              </div>
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-danger" id="negativeProgress" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div class="sentiment-recommendations mt-4">
+              <h6 class="text-muted mb-3">AI Recommendations</h6>
+              <div id="recommendationsList">
+                <div class="alert alert-info">
+                  <i class="bi bi-lightbulb me-2"></i>
+                  <strong>Insight:</strong> Loading sentiment analysis...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Charts with Comments Panel -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Interactive Rating Analysis</h5>
+        <div class="d-flex gap-2">
+          <select class="form-select form-select-sm" id="chartType" style="width: 150px;">
+            <option value="timeline">Timeline</option>
+            <option value="distribution">Distribution</option>
+            <option value="comparison">Comparison</option>
+          </select>
+          <button class="btn btn-sm btn-outline-primary" onclick="resetCharts()">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <!-- Left Side: Charts -->
+        <div class="col-lg-6">
+          <div class="chart-container">
+            <canvas id="mainInteractiveChart" height="400"></canvas>
+            <div class="chart-overlay" id="chartOverlay" style="display: none;">
+              <div class="overlay-content">
+                <i class="bi bi-hand-index"></i>
+                <p>Click on data points to view detailed comments</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Chart Legend -->
+          <div class="chart-legend mt-3" id="chartLegend">
+            <div class="d-flex flex-wrap gap-2">
+              <span class="legend-item">
+                <span class="legend-color bg-primary"></span>
+                Service Ratings
+              </span>
+              <span class="legend-item">
+                <span class="legend-color bg-success"></span>
+                Product Ratings
+              </span>
+              <span class="legend-item">
+                <span class="legend-color bg-warning"></span>
+                Technician Ratings
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right Side: Comments Panel -->
+        <div class="col-lg-6">
+          <div class="comments-panel">
+            <div class="comments-header">
+              <h6 class="mb-0">User Comments & Ratings</h6>
+              <div class="d-flex gap-2">
+                <span class="badge bg-primary" id="selectedDataPoint">No selection</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearComments()">
+                  <i class="bi bi-x"></i> Clear
+                </button>
+              </div>
+            </div>
+            
+            <div class="comments-filters">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <select class="form-select form-select-sm" id="sentimentFilter">
+                    <option value="">All Sentiments</option>
+                    <option value="positive">Positive</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="negative">Negative</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <select class="form-select form-select-sm" id="ratingFilter">
+                    <option value="">All Ratings</option>
+                    <option value="5">5 Stars</option>
+                    <option value="4">4 Stars</option>
+                    <option value="3">3 Stars</option>
+                    <option value="2">2 Stars</option>
+                    <option value="1">1 Star</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <input type="text" class="form-control form-control-sm" id="commentSearch" placeholder="Search comments...">
+                </div>
+              </div>
+            </div>
+            
+            <div class="comments-list" id="commentsList">
+              <div class="text-center text-muted py-5">
+                <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>
+                <p>Click on chart data points to view detailed comments and ratings</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Insights and Recommendations -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">AI-Powered Insights & Recommendations</h5>
+        <button class="btn btn-sm btn-outline-primary" onclick="generateInsights()">
+          <i class="bi bi-magic"></i> Generate Insights
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="insights-grid">
+            <div class="insight-card">
+              <div class="insight-header">
+                <i class="bi bi-graph-up-arrow text-success"></i>
+                <h6>Performance Trends</h6>
+              </div>
+              <div class="insight-content">
+                <p id="trendInsight">Analyzing rating patterns...</p>
+                <div class="insight-metrics">
+                  <span class="metric">Trend: <strong id="trendMetric">--</strong></span>
+                  <span class="metric">Confidence: <strong id="trendConfidence">--</strong></span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="insight-card">
+              <div class="insight-header">
+                <i class="bi bi-exclamation-triangle text-warning"></i>
+                <h6>Areas for Improvement</h6>
+              </div>
+              <div class="insight-content">
+                <p id="improvementInsight">Identifying improvement opportunities...</p>
+                <div class="improvement-list" id="improvementList">
+                  <!-- Dynamic improvement items -->
+                </div>
+              </div>
+            </div>
+            
+            <div class="insight-card">
+              <div class="insight-header">
+                <i class="bi bi-star text-primary"></i>
+                <h6>Key Strengths</h6>
+              </div>
+              <div class="insight-content">
+                <p id="strengthInsight">Analyzing top performing areas...</p>
+                <div class="strength-list" id="strengthList">
+                  <!-- Dynamic strength items -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-4">
+          <div class="action-recommendations">
+            <h6 class="text-muted mb-3">Recommended Actions</h6>
+            <div class="action-list" id="actionList">
+              <div class="action-item priority-high">
+                <div class="action-priority">HIGH</div>
+                <div class="action-content">
+                  <h6>Address Negative Feedback</h6>
+                  <p>Respond to 12 unresolved negative reviews</p>
+                  <button class="btn btn-sm btn-outline-primary">Take Action</button>
+                </div>
+              </div>
+              
+              <div class="action-item priority-medium">
+                <div class="action-priority">MEDIUM</div>
+                <div class="action-content">
+                  <h6>Improve Service Response Time</h6>
+                  <p>Current average exceeds target by 2 hours</p>
+                  <button class="btn btn-sm btn-outline-primary">View Details</button>
+                </div>
+              </div>
+              
+              <div class="action-item priority-low">
+                <div class="action-priority">LOW</div>
+                <div class="action-content">
+                  <h6>Update Product Information</h6>
+                  <p>3 products have outdated specifications</p>
+                  <button class="btn btn-sm btn-outline-primary">Update</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Options -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0">
+      <h5 class="mb-0">Export Options</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <div class="d-grid">
+            <button class="btn btn-outline-primary" onclick="exportFormat('pdf')">
+              <i class="bi bi-file-earmark-pdf me-2"></i>Export as PDF
+            </button>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="d-grid">
+            <button class="btn btn-outline-success" onclick="exportFormat('excel')">
+              <i class="bi bi-file-earmark-excel me-2"></i>Export as Excel
+            </button>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="d-grid">
+            <button class="btn btn-outline-info" onclick="exportFormat('csv')">
+              <i class="bi bi-file-earmark-csv me-2"></i>Export as CSV
+            </button>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="d-grid">
+            <button class="btn btn-outline-warning" onclick="exportFormat('json')">
+              <i class="bi bi-file-earmark-code me-2"></i>Export as JSON
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Styles -->
+<style>
+  .insights-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .sentiment-summary {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+  }
+  .trend-indicator {
+    font-size: 0.875rem;
+  }
+  .trend-up {
+    color: #198754;
+  }
+  .trend-down {
+    color: #dc3545;
+  }
+  .trend-stable {
+    color: #6c757d;
+  }
+
+  /* Enhanced Sentiment Analysis Styles */
+  .sentiment-score-display {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .score-value {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .score-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin-top: 0.5rem;
+  }
+  .sentiment-indicator {
+    font-size: 2rem;
+    margin-top: 1rem;
+  }
+  .sentiment-breakdown {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.5rem;
+  }
+  .sentiment-recommendations {
+    margin-top: 1rem;
+  }
+
+  /* Fixed Chart Container Styles */
+  .chart-fixed-container {
+    position: relative;
+    height: 200px !important;
+    width: 100% !important;
+    overflow: hidden;
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+  }
+  .chart-fixed-container canvas {
+    max-height: 180px !important;
+    max-width: 100% !important;
+  }
+
+  /* Interactive Charts Styles */
+  .chart-container {
+    position: relative;
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+  }
+  .chart-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+  }
+  .overlay-content {
+    text-align: center;
+    color: #6c757d;
+  }
+  .overlay-content i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  /* Comments Panel Styles */
+  .comments-panel {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+  }
+  .comments-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+  }
+  .comments-filters {
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .comments-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+  .comment-item {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .comment-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  .comment-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .comment-rating {
+    color: #ffc107;
+  }
+  .comment-sentiment {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+  }
+  .sentiment-positive {
+    background: #d4edda;
+    color: #155724;
+  }
+  .sentiment-neutral {
+    background: #fff3cd;
+    color: #856404;
+  }
+  .sentiment-negative {
+    background: #f8d7da;
+    color: #721c24;
+  }
+
+  /* AI Insights Styles */
+  .insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+  .insight-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease;
+  }
+  .insight-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  .insight-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .insight-header i {
+    font-size: 1.25rem;
+  }
+  .insight-metrics {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+  .metric {
+    font-size: 0.875rem;
+    color: #6c757d;
+  }
+
+  /* Action Recommendations Styles */
+  .action-recommendations {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+  }
+  .action-item {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .action-item.priority-high {
+    border-left-color: #dc3545;
+  }
+  .action-item.priority-medium {
+    border-left-color: #ffc107;
+  }
+  .action-item.priority-low {
+    border-left-color: #28a745;
+  }
+  .action-priority {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    color: white;
+    min-width: 60px;
+    text-align: center;
+  }
+  .priority-high .action-priority {
+    background: #dc3545;
+  }
+  .priority-medium .action-priority {
+    background: #ffc107;
+    color: #212529;
+  }
+  .priority-low .action-priority {
+    background: #28a745;
+  }
+  .action-content h6 {
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+  .action-content p {
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: #6c757d;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .insights-grid {
+      grid-template-columns: 1fr;
+    }
+    .comments-panel {
+      height: 400px;
+    }
+    .sentiment-score-display {
+      padding: 1.5rem;
+    }
+    .score-value {
+      font-size: 2.5rem;
+    }
+  }
+</style>
+
+<!-- Chart Detail Modal -->
+<div class="modal fade" id="chartDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="chartDetailModalTitle">Chart Detail</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <h6 id="chartDetailPoint" class="text-muted"></h6>
+        </div>
+        <div id="chartDetailContent">
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+        <div id="chartDetailChartContainer" style="height: 250px; display: none;">
+          <canvas id="chartDetailChart"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="exportChartDetail()">
+          <i class="bi bi-download"></i> Export
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  let analyticsData = {
+    totalRatings: 0,
+    avgRating: 0,
+    responseRate: 0,
+    sentimentScore: 0,
+    topRated: [],
+    sentiment: {
+      positive: 0,
+      neutral: 0,
+      negative: 0
+    },
+    detailedComments: []
+  };
+
+  let mainInteractiveChart = null;
+  let sentimentTimelineChart = null;
+  let sentimentByCategoryChart = null;
+  let sentimentDistributionChart = null;
+  let recentRatingsChart = null;
+
+  // Initialize analytics
+  document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners();
+    showChartOverlay();
+    loadAnalyticsData();
+  });
+
+  // Load analytics data
+  async function loadAnalyticsData() {
+    try {
+      const response = await fetch('/api/admin/ratings/analytics');
+      if (response.ok) {
+        const data = await response.json();
+        analyticsData = data;
+        updateMetrics();
+        updateSentimentAnalysis();
+        generateAIRecommendations();
+        initializeAllCharts();
+        loadRecentRatings();
+      } else {
+        console.error('Failed to load analytics data');
+      }
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    }
+  }
+
+
+
+  // Update key metrics
+  function updateMetrics() {
+    document.getElementById('totalRatings').textContent = analyticsData.totalRatings || 0;
+    document.getElementById('avgRating').textContent = (analyticsData.avgRating || 0).toFixed(1);
+    document.getElementById('responseRate').textContent = (analyticsData.responseRate || 0) + '%';
+    document.getElementById('sentimentScore').textContent = (analyticsData.sentimentScore || 0) + '%';
+
+    // Populate top rated table
+    const topRated = analyticsData.topRated || [];
+    const tbody = document.getElementById('topRatedTable');
+    if (tbody) {
+      if (topRated.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No ratings data available</td></tr>';
+      } else {
+        tbody.innerHTML = topRated.map(t => {
+          const trendIcon = t.trend === 'up' ? 'bi-arrow-up text-success' : t.trend === 'down' ? 'bi-arrow-down text-danger' : 'bi-dash text-muted';
+          return `<tr>
+            <td>${t.name}</td>
+            <td><span class="badge bg-${getTypeColor(t.type)}">${t.category || t.type}</span></td>
+            <td>${t.rating} <small class="text-muted">/ 5</small></td>
+            <td>${t.reviews}</td>
+            <td><i class="bi ${trendIcon}"></i></td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
+  // Enhanced sentiment analysis
+  function updateSentimentAnalysis() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const total = sentiment.positive + sentiment.neutral + sentiment.negative;
+    
+    if (total > 0) {
+      // Update counts and percentages
+      document.getElementById('positiveCount').textContent = sentiment.positive;
+      document.getElementById('positivePercent').textContent = Math.round((sentiment.positive / total) * 100) + '%';
+      document.getElementById('positiveProgress').style.width = (sentiment.positive / total * 100) + '%';
+      
+      document.getElementById('neutralCount').textContent = sentiment.neutral;
+      document.getElementById('neutralPercent').textContent = Math.round((sentiment.neutral / total) * 100) + '%';
+      document.getElementById('neutralProgress').style.width = (sentiment.neutral / total * 100) + '%';
+      
+      document.getElementById('negativeCount').textContent = sentiment.negative;
+      document.getElementById('negativePercent').textContent = Math.round((sentiment.negative / total) * 100) + '%';
+      document.getElementById('negativeProgress').style.width = (sentiment.negative / total * 100) + '%';
+
+      // Update overall sentiment score
+      const overallScore = ((sentiment.positive * 1) + (sentiment.neutral * 0.5) + (sentiment.negative * 0)) / total;
+      document.getElementById('overallSentimentScore').textContent = (overallScore * 100).toFixed(1);
+      
+      // Update sentiment indicator
+      const indicator = document.getElementById('sentimentIndicator');
+      if (overallScore >= 0.7) {
+        indicator.innerHTML = '<i class="bi bi-emoji-smile"></i>';
+        indicator.className = 'sentiment-indicator text-success';
+      } else if (overallScore >= 0.4) {
+        indicator.innerHTML = '<i class="bi bi-emoji-neutral"></i>';
+        indicator.className = 'sentiment-indicator text-warning';
+      } else {
+        indicator.innerHTML = '<i class="bi bi-emoji-frown"></i>';
+        indicator.className = 'sentiment-indicator text-danger';
+      }
+    }
+
+    updateSentimentCharts();
+  }
+
+  // Initialize all charts
+  function initializeAllCharts() {
+    initializeMainInteractiveChart();
+    initializeSentimentCharts();
+    initializeRecentRatingsChart();
+    initializeOriginalCharts();
+  }
+
+  // Initialize recent ratings chart
+  function initializeRecentRatingsChart() {
+    const ctx = document.getElementById('recentRatingsChart').getContext('2d');
+    const trend = analyticsData.weeklyTrend || { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], data: [0, 0, 0, 0] };
+    const labels = trend.labels;
+    const avg = trend.data.length ? trend.data.reduce((s, v) => s + v, 0) / trend.data.length : 0;
+
+    const chartData = {
+      labels: labels,
+      datasets: [{
+        label: 'Overall Avg Rating',
+        data: trend.data,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+        tension: 0.4,
+        fill: true,
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }]
+    };
+
+    recentRatingsChart = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const el = elements[0];
+            const label = recentRatingsChart.data.labels[el.index];
+            const value = recentRatingsChart.data.datasets[el.datasetIndex].data[el.index];
+            showChartDetailModal('Recent Ratings', label, value, analyticsData.recent || []);
+          }
+        },
+        plugins: {
+          legend: { display: true, position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: Math.max(0, avg - 1),
+            max: Math.min(5, avg + 1),
+            ticks: { stepSize: 0.5 }
+          }
+        }
+      }
+    });
+  }
+
+  // Load recent ratings
+  function loadRecentRatings() {
+    const recent = (analyticsData.recent || []).slice(0, 10);
+    displayRecentRatings(recent);
+  }
+
+  // Display recent ratings
+  function displayRecentRatings(ratings) {
+    const ratingsContent = document.getElementById('recentRatingsContent');
+    
+    if (ratings.length === 0) {
+      ratingsContent.innerHTML = `
+        <div class="text-center text-muted py-3">
+          <i class="bi bi-star fs-1 d-block mb-2"></i>
+          <p>No recent ratings found</p>
+        </div>
+      `;
+      return;
+    }
+
+    ratingsContent.innerHTML = ratings.map(rating => `
+      <div class="rating-item mb-3 p-3 border rounded">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <strong>${rating.customer}</strong>
+            <small class="text-muted ms-2">${formatDate(rating.date)}</small>
+          </div>
+          <div class="rating-stars">
+            ${generateStars(rating.rating)}
+          </div>
+        </div>
+        <p class="mb-1">${rating.comment}</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge bg-${getTypeColor(rating.type)}">${rating.type}</span>
+          <small class="text-muted">
+            ${rating.technician ? `• ${rating.technician}` : ''}
+            ${rating.product ? `• ${rating.product}` : ''}
+          </small>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Handle recent ratings chart click
+  function handleRecentRatingsClick(event, elements) {
+    if (elements.length > 0) {
+      const element = elements[0];
+      const index = element.index;
+      const label = recentRatingsChart.data.labels[index];
+      const value = recentRatingsChart.data.datasets[element.datasetIndex].data[index];
+      showChartDetailModal('Recent Ratings', label, value, analyticsData.recent || []);
+    }
+  }
+
+  // Initialize main interactive chart
+  function initializeMainInteractiveChart() {
+    const ctx = document.getElementById('mainInteractiveChart').getContext('2d');
+    const trend = analyticsData.weeklyTrend || { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], data: [0, 0, 0, 0] };
+    const labels = trend.labels;
+    const avg = trend.data.length ? trend.data.reduce((s, v) => s + v, 0) / trend.data.length : 0;
+
+    const chartData = {
+      labels: labels,
+      datasets: [{
+        label: 'Overall Rating Trend',
+        data: trend.data,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+        tension: 0.4,
+        fill: true,
+        pointRadius: 6,
+        pointHoverRadius: 8
+      }]
+    };
+
+    mainInteractiveChart = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const el = elements[0];
+            const label = mainInteractiveChart.data.labels[el.index];
+            const value = mainInteractiveChart.data.datasets[el.datasetIndex].data[el.index];
+            document.getElementById('selectedDataPoint').textContent = 'Week ' + (el.index + 1) + ': ' + value.toFixed(1);
+            showChartDetailModal('Rating Trend', label, value, analyticsData.recent || []);
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + context.parsed.y.toFixed(1);
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: Math.max(0, avg - 1),
+            max: Math.min(5, avg + 1)
+          }
+        }
+      }
+    });
+  }
+
+  // Initialize sentiment charts
+  function initializeSentimentCharts() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const totalSent = sentiment.positive + sentiment.neutral + sentiment.negative || 1;
+    const pct = (v) => +(v / totalSent * 100).toFixed(1);
+    const timelineData = analyticsData.weeklyTrend ? analyticsData.weeklyTrend.data.map(v => v / 5) : [0, 0, 0, 0];
+    const timelineLabels = analyticsData.weeklyTrend ? analyticsData.weeklyTrend.labels : ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+
+    // Sentiment Timeline Chart
+    const timelineCtx = document.getElementById('sentimentTimelineChart').getContext('2d');
+    sentimentTimelineChart = new Chart(timelineCtx, {
+      type: 'line',
+      data: {
+        labels: timelineLabels,
+        datasets: [{
+          label: 'Sentiment Score',
+          data: timelineData,
+          borderColor: '#667eea',
+          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        resizeDelay: 0,
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const idx = elements[0].index;
+            showChartDetailModal('Sentiment Timeline', timelineLabels[idx], timelineData[idx] * 5, analyticsData.recent || []);
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 1,
+            ticks: {
+              callback: function(value) { return (value * 100).toFixed(0) + '%'; },
+              font: { size: 11 }
+            },
+            grid: { drawBorder: false }
+          },
+          x: {
+            ticks: { font: { size: 11 } },
+            grid: { drawBorder: false }
+          }
+        }
+      }
+    });
+
+    // Sentiment by Category Chart
+    const byCat = analyticsData.byCategory || {};
+    const catLabels = Object.keys(byCat).length ? Object.keys(byCat) : ['service', 'product', 'technician'];
+    const catPositive = catLabels.map(k => (byCat[k] || { positive: 0 }).positive);
+    const catNeutral = catLabels.map(k => (byCat[k] || { neutral: 0 }).neutral);
+    const catNegative = catLabels.map(k => (byCat[k] || { negative: 0 }).negative);
+
+    const categoryCtx = document.getElementById('sentimentByCategoryChart').getContext('2d');
+    sentimentByCategoryChart = new Chart(categoryCtx, {
+      type: 'bar',
+      data: {
+        labels: catLabels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+        datasets: [{
+          label: 'Positive',
+          data: catPositive,
+          backgroundColor: '#198754'
+        }, {
+          label: 'Neutral',
+          data: catNeutral,
+          backgroundColor: '#ffc107'
+        }, {
+          label: 'Negative',
+          data: catNegative,
+          backgroundColor: '#dc3545'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        resizeDelay: 0,
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const idx = elements[0].index;
+            const dsIdx = elements[0].datasetIndex;
+            const label = sentimentByCategoryChart.data.labels[idx];
+            const dsLabel = sentimentByCategoryChart.data.datasets[dsIdx].label;
+            const value = sentimentByCategoryChart.data.datasets[dsIdx].data[idx];
+            showChartDetailModal('Sentiment by Category', label + ' - ' + dsLabel, value, analyticsData.recent || []);
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { font: { size: 11 } },
+            grid: { drawBorder: false }
+          },
+          y: {
+            stacked: true,
+            ticks: { font: { size: 11 } },
+            grid: { drawBorder: false }
+          }
+        }
+      }
+    });
+
+    // Sentiment Distribution Chart
+    const distributionCtx = document.getElementById('sentimentDistributionChart').getContext('2d');
+    sentimentDistributionChart = new Chart(distributionCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Positive', 'Neutral', 'Negative'],
+        datasets: [{
+          data: [sentiment.positive, sentiment.neutral, sentiment.negative],
+          backgroundColor: ['#198754', '#ffc107', '#dc3545']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        resizeDelay: 0,
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const idx = elements[0].index;
+            const label = sentimentDistributionChart.data.labels[idx];
+            const value = sentimentDistributionChart.data.datasets[0].data[idx];
+            showChartDetailModal('Sentiment Distribution', label, value, analyticsData.recent || []);
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { size: 11 }, padding: 10 }
+          }
+        }
+      }
+    });
+  }
+
+  // Update sentiment charts with data (now handled by initialize, this is a no-op)
+  function updateSentimentCharts() {}
+
+  // Handle chart click events
+  function handleChartClick(event, elements) {
+    if (elements.length > 0) {
+      const el = elements[0];
+      const label = mainInteractiveChart.data.labels[el.index];
+      const value = mainInteractiveChart.data.datasets[el.datasetIndex].data[el.index];
+      document.getElementById('selectedDataPoint').textContent = label + ': ' + value.toFixed(1);
+      showChartDetailModal('Rating Trend', label, value, analyticsData.recent || []);
+      document.getElementById('chartOverlay').style.display = 'none';
+    }
+  }
+
+  // Display comments in the panel
+  function displayComments(comments) {
+    const commentsList = document.getElementById('commentsList');
+    if (comments.length === 0) {
+      commentsList.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-chat-dots fs-1 d-block mb-2"></i><p>No comments found for this selection</p></div>';
+      return;
+    }
+    commentsList.innerHTML = comments.map(c => `
+      <div class="comment-item">
+        <div class="comment-header">
+          <div><strong>${c.customer || 'Customer'}</strong><small class="text-muted ms-2">${formatDate(c.date || c.createdAt)}</small></div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="comment-rating">${generateStars(c.rating || c.score)}</div>
+            <span class="comment-sentiment sentiment-${c.sentiment || 'neutral'}">${(c.sentiment || 'neutral').charAt(0).toUpperCase() + (c.sentiment || 'neutral').slice(1)}</span>
+          </div>
+        </div>
+        <div class="comment-content">
+          <p class="mb-1">${c.comment || 'No comment'}</p>
+          <small class="text-muted">Rating: ${c.rating || c.score}/5</small>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Generate AI recommendations
+  function generateAIRecommendations() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const total = sentiment.positive + sentiment.neutral + sentiment.negative || 1;
+    const posPct = Math.round(sentiment.positive / total * 100);
+    const negPct = Math.round(sentiment.negative / total * 100);
+    const recommendationsList = document.getElementById('recommendationsList');
+
+    const recs = [];
+    recs.push({
+      type: posPct >= 60 ? 'positive' : 'info',
+      icon: 'bi-graph-up',
+      text: `Customer satisfaction is at ${posPct}% positive rating${analyticsData.avgRating ? ' (avg: ' + analyticsData.avgRating + '/5)' : ''}`,
+      action: posPct >= 60 ? 'Maintain current service quality standards' : 'Focus on improving service quality'
+    });
+    if (negPct > 10) {
+      recs.push({
+        type: 'warning',
+        icon: 'bi-exclamation-triangle',
+        text: `${negPct}% of ratings are negative — that's ${sentiment.negative} reviews`,
+        action: 'Respond to negative feedback and identify improvement areas'
+      });
+    }
+    recs.push({
+      type: 'info',
+      icon: 'bi-info-circle',
+      text: `Total of ${analyticsData.totalRatings || 0} ratings collected across all categories`,
+      action: 'Encourage more customers to leave feedback'
+    });
+
+    recommendationsList.innerHTML = recs.map(r => `
+      <div class="alert alert-${r.type === 'positive' ? 'success' : r.type === 'warning' ? 'warning' : 'info'}">
+        <i class="bi ${r.icon} me-2"></i><strong>Insight:</strong> ${r.text}
+        <div class="mt-2"><small><strong>Recommendation:</strong> ${r.action}</small></div>
+      </div>
+    `).join('');
+    generateInsights();
+  }
+
+  // Generate AI insights
+  function generateInsights() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const total = sentiment.positive + sentiment.neutral + sentiment.negative || 1;
+    document.getElementById('trendInsight').textContent =
+      `Overall rating average is ${analyticsData.avgRating || 0}/5 with ${Math.round(sentiment.positive / total * 100)}% positive feedback.`;
+    document.getElementById('trendMetric').textContent = analyticsData.avgRating >= 4 ? 'Excellent' : analyticsData.avgRating >= 3 ? 'Average' : 'Needs Improvement';
+    document.getElementById('trendConfidence').textContent = Math.min(95, 50 + Math.round(sentiment.positive / total * 50)) + '%';
+    document.getElementById('improvementInsight').textContent =
+      sentiment.negative > 0 ? `${sentiment.negative} negative ratings need attention. Focus on addressing common complaints.` : 'No negative ratings found. Keep up the good work!';
+    document.getElementById('strengthInsight').textContent =
+      `Top rated categories: ${(analyticsData.topRated || []).slice(0, 2).map(t => t.name + ' (' + t.rating + ')').join(', ') || 'N/A'}`;
+  }
+
+  // Setup event listeners
+  function setupEventListeners() {
+    document.getElementById('chartType').addEventListener('change', function() { updateChartType(this.value); });
+    document.getElementById('sentimentFilter').addEventListener('change', filterComments);
+    document.getElementById('ratingFilter').addEventListener('change', filterComments);
+    document.getElementById('commentSearch').addEventListener('input', filterComments);
+  }
+
+  // Update chart type
+  function updateChartType(type) {
+    if (!mainInteractiveChart) return;
+    let newConfig;
+    const recent = analyticsData.recent || [];
+    const ratingDist = [0, 0, 0, 0, 0];
+    recent.forEach(r => { const s = r.rating || r.score; if (s >= 1 && s <= 5) ratingDist[5 - s]++; });
+    const totalDist = ratingDist.reduce((a, b) => a + b, 0) || 1;
+
+    switch(type) {
+      case 'distribution':
+        newConfig = {
+          type: 'bar',
+          data: {
+            labels: ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'],
+            datasets: [{
+              label: 'Rating Distribution',
+              data: ratingDist,
+              backgroundColor: ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545']
+            }]
+          }
+        };
+        break;
+      case 'comparison':
+        newConfig = {
+          type: 'radar',
+          data: {
+            labels: ['Service', 'Product', 'Technician', 'Booking'],
+            datasets: [{
+              label: 'Avg Ratings by Category',
+              data: (analyticsData.topRated || []).map(t => t.rating).concat([analyticsData.avgRating || 0]).slice(0, 4),
+              borderColor: '#0d6efd',
+              backgroundColor: 'rgba(13,110,253,0.1)'
+            }]
+          }
+        };
+        break;
+      default:
+        return;
+    }
+    mainInteractiveChart.destroy();
+    const ctx = document.getElementById('mainInteractiveChart').getContext('2d');
+    mainInteractiveChart = new Chart(ctx, {
+      type: newConfig.type, data: newConfig.data,
+      options: { responsive: true, maintainAspectRatio: false, onClick: handleChartClick }
+    });
+  }
+
+  // Filter comments
+  function filterComments() {
+    const sentimentFilter = document.getElementById('sentimentFilter').value;
+    const ratingFilter = document.getElementById('ratingFilter').value;
+    const searchTerm = document.getElementById('commentSearch').value.toLowerCase();
+    let comments = analyticsData.recent || [];
+    if (sentimentFilter) comments = comments.filter(c => c.sentiment === sentimentFilter);
+    if (ratingFilter) comments = comments.filter(c => (c.rating || c.score) == ratingFilter);
+    if (searchTerm) comments = comments.filter(c =>
+      (c.comment || '').toLowerCase().includes(searchTerm) ||
+      (c.customer || '').toLowerCase().includes(searchTerm)
+    );
+    displayComments(comments);
+  }
+
+  // Clear comments
+  function clearComments() {
+    document.getElementById('selectedDataPoint').textContent = 'No selection';
+    document.getElementById('commentsList').innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i><p>Click on chart data points to view detailed comments and ratings</p></div>';
+    showChartOverlay();
+  }
+
+  function showChartOverlay() { document.getElementById('chartOverlay').style.display = 'flex'; }
+
+  function resetCharts() { initializeMainInteractiveChart(); clearComments(); }
+  function refreshSentiment() { loadAnalyticsData(); }
+  function exportSentiment() { alert('Sentiment data export would be implemented here'); }
+
+  // Generate insights on demand
+  function generateInsights() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const total = sentiment.positive + sentiment.neutral + sentiment.negative || 1;
+    setTimeout(() => {
+      document.getElementById('trendInsight').textContent = `AI analysis: ${Math.round(sentiment.positive / total * 100)}% positive, avg ${analyticsData.avgRating || 0}/5`;
+      document.getElementById('trendMetric').textContent = analyticsData.avgRating >= 4 ? 'Excellent' : 'Needs Attention';
+      document.getElementById('trendConfidence').textContent = Math.min(95, 50 + Math.round(sentiment.positive / total * 50)) + '%';
+    }, 500);
+  }
+
+  // ─── Original Charts (Rating Trends, Distribution, Category Performance, Monthly Comparison) ───────
+  function initializeOriginalCharts() {
+    const sentiment = analyticsData.sentiment || { positive: 0, neutral: 0, negative: 0 };
+    const totalSent = sentiment.positive + sentiment.neutral + sentiment.negative || 1;
+    const recent = analyticsData.recent || [];
+    const byCat = analyticsData.byCategory || {};
+    const catKeys = Object.keys(byCat).length ? Object.keys(byCat) : ['service', 'product', 'technician'];
+
+    // ratingTrendsChart — Line chart using weeklyTrend
+    const trend = analyticsData.weeklyTrend || { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], data: [0, 0, 0, 0] };
+    const rtc = document.getElementById('ratingTrendsChart');
+    if (rtc) {
+      new Chart(rtc.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: trend.labels,
+          datasets: [{
+            label: 'Avg Rating',
+            data: trend.data,
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13,110,253,0.1)',
+            tension: 0.4, fill: true
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          onClick: function(_, els) {
+            if (els.length) showChartDetailModal('Rating Trends', trend.labels[els[0].index], trend.data[els[0].index], recent);
+          },
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: false, min: 0, max: 5 } }
+        }
+      });
+    }
+
+    // ratingDistributionChart — Doughnut (star distribution)
+    const rdc = document.getElementById('ratingDistributionChart');
+    if (rdc) {
+      const dist = [0, 0, 0, 0, 0];
+      recent.forEach(r => { const s = r.rating || r.score; if (s >= 1 && s <= 5) dist[5 - s]++; });
+      new Chart(rdc.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'],
+          datasets: [{ data: dist, backgroundColor: ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'] }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          onClick: function(_, els) {
+            if (els.length) showChartDetailModal('Rating Distribution', ['5 Stars','4 Stars','3 Stars','2 Stars','1 Star'][els[0].index], dist[els[0].index], recent);
+          },
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+    }
+
+    // categoryPerformanceChart — Bar chart
+    const cpc = document.getElementById('categoryPerformanceChart');
+    if (cpc) {
+      const catLabels = catKeys.map(k => k.charAt(0).toUpperCase() + k.slice(1));
+      const catAvgs = catKeys.map(k => { const g = byCat[k]; if (!g) return 0; const t = g.positive + g.neutral + g.negative; return t ? +((g.positive * 5 + g.neutral * 3 + g.negative * 1) / t).toFixed(1) : 0; });
+      new Chart(cpc.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: catLabels,
+          datasets: [{ label: 'Avg Rating', data: catAvgs, backgroundColor: '#0d6efd' }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          onClick: function(_, els) {
+            if (els.length) showChartDetailModal('Category Performance', catLabels[els[0].index], catAvgs[els[0].index], recent);
+          },
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, max: 5 } }
+        }
+      });
+    }
+
+    // monthlyComparisonChart — Bar chart with sentiment
+    const mcc = document.getElementById('monthlyComparisonChart');
+    if (mcc) {
+      new Chart(mcc.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Positive', 'Neutral', 'Negative'],
+          datasets: [{
+            label: 'Sentiment Count',
+            data: [sentiment.positive, sentiment.neutral, sentiment.negative],
+            backgroundColor: ['#198754', '#ffc107', '#dc3545']
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          onClick: function(_, els) {
+            if (els.length) showChartDetailModal('Monthly Comparison', ['Positive','Neutral','Negative'][els[0].index], [sentiment.positive, sentiment.neutral, sentiment.negative][els[0].index], recent);
+          },
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  }
+
+  // ─── Chart Detail Modal ──────────────────────────────────────────────────────
+  function showChartDetailModal(title, label, value, data) {
+    document.getElementById('chartDetailModalTitle').textContent = title;
+    document.getElementById('chartDetailPoint').textContent = label + ': ' + (typeof value === 'number' ? value.toFixed(1) : value);
+    const content = document.getElementById('chartDetailContent');
+    if (data && data.length) {
+      const filtered = data.slice(0, 20);
+      content.innerHTML = filtered.map(r => `
+        <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+          <div>
+            <strong>${r.customer || 'Customer'}</strong>
+            <span class="badge bg-${r.sentiment === 'positive' ? 'success' : r.sentiment === 'negative' ? 'danger' : 'warning'} ms-2">${r.rating || r.score}/5</span>
+            <small class="text-muted ms-2">${formatDate(r.date || r.createdAt)}</small>
+          </div>
+          <small class="text-truncate ms-3" style="max-width:250px">${r.comment || ''}</small>
+        </div>
+      `).join('');
+    } else {
+      content.innerHTML = '<div class="text-center text-muted py-3"><p>Value: ' + (typeof value === 'number' ? value.toFixed(2) : value) + '</p><p class="small">No detailed data available</p></div>';
+    }
+    const modal = new bootstrap.Modal(document.getElementById('chartDetailModal'));
+    modal.show();
+  }
+
+  function exportChartDetail() {
+    alert('Export chart detail would be implemented here');
+  }
+
+  // Helper functions
+  function generateStars(rating) {
+    let stars = '';
+    for (let i = 1; i <= 5; i++) stars += i <= rating ? '<i class="bi bi-star-fill"></i>' : '<i class="bi bi-star"></i>';
+    return stars;
+  }
+
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  // Export ratings data
+  function exportRatings() {
+    const ratings = analyticsData.recent || [];
+    const csvContent = [
+      ['Customer', 'Rating', 'Type', 'Comment', 'Date', 'Sentiment', 'Sentiment Score'],
+      ...ratings.slice(0, 100).map(r => [
+        r.customer || 'Customer',
+        r.rating || r.score,
+        r.type || 'N/A',
+        `"${(r.comment || '').replace(/"/g, '""')}"`,
+        formatDate(r.date || r.createdAt),
+        r.sentiment || 'neutral',
+        ((r.sentimentScore || 0.5) * 100).toFixed(1) + '%'
+      ])
+    ].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ratings_export_' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  function exportAnalytics() { alert('Analytics export functionality would be implemented here'); }
+  function scheduleReport() { alert('Report scheduling functionality would be implemented here'); }
+  function exportFormat(format) { alert('Export as ' + format.toUpperCase() + ' functionality would be implemented here'); }
+  function applyPeriod() { loadAnalyticsData(); }
+
+  function getTypeColor(type) {
+    const colors = { service: 'primary', product: 'success', technician: 'warning', booking: 'info', inventory: 'secondary', order: 'dark' };
+    return colors[type] || 'secondary';
+  }
+</script>

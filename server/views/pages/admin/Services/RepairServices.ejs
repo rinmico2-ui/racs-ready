@@ -1,0 +1,578 @@
+<div class="admin-dashboard container-fluid py-4 repair-services-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .repair-services-page .dash-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .repair-services-page .dash-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .repair-services-page .kpi-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    .repair-services-page .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
+    .repair-services-page .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .repair-services-page .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .repair-services-page .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .repair-services-page .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .repair-services-page .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .repair-services-page .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .repair-services-page .fs-7 { font-size: 0.75rem; }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-wrench-adjustable-circle-fill"></i></div>
+        <div>
+          <h1>Repair Services Matrix</h1>
+          <p>Manage diagnostics, repair categories, parts policy, and SLA targets</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <div class="btn-group">
+          <button class="btn btn-light btn-sm fw-semibold new-repair-service">
+            <i class="bi bi-plus-lg me-1"></i>Add Repair Service
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- original header removed -->
+
+  <% const totalRepairs = repairServices ? repairServices.length : 0; %>
+  <% const activeRepairs = repairServices ? repairServices.filter(r=>r.active).length : 0; %>
+  <% const inactiveRepairs = totalRepairs - activeRepairs; %>
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Repair Services</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statOpen"><%= totalRepairs %></span>
+            </div>
+            <div class="badge bg-danger-subtle text-danger fs-7">All</div>
+            <small class="text-muted">Registered repair types</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <i class="bi bi-exclamation-octagon-fill text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Services</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statComplex"><%= activeRepairs %></span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7">Live</div>
+            <small class="text-muted">Available for booking</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-tools text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Inactive/Review</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statResolved"><%= inactiveRepairs %></span>
+            </div>
+            <div class="badge bg-success-subtle text-success fs-7">Review</div>
+            <small class="text-muted">Needs attention</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-check-circle text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Avg Est. Duration</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statSLA">
+                <% if (repairServices && repairServices.length) { %>
+                  <%= fmtDuration(Math.round(repairServices.reduce((sum,r)=>sum+(r.estimatedDurationMinutes||0),0)/repairServices.length)) %>
+                <% } else { %>-<% } %>
+              </span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7">Avg</div>
+            <small class="text-muted">Across all repairs</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-clock text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search Repair Service</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Issue type, code, or service name"
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Severity</label
+          >
+          <select class="form-select">
+            <option>All Severities</option>
+            <option>Minor</option>
+            <option>Major</option>
+            <option>Critical</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Skill Requirement</label
+          >
+          <select class="form-select">
+            <option>All Levels</option>
+            <option>Level 1 Technician</option>
+            <option>Level 2 Technician</option>
+            <option>Senior Specialist</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light border w-100">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<% /* helper functions for repair table */ %>
+  <% function fmtPrice(p) { if (p == null) return ''; return '₱ ' + Number(p).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); } %>
+  <% function fmtDuration(mins) { if (!mins && mins !== 0) return ''; const h=Math.floor(mins/60); const m=mins%60; let out=''; if(h) out+=h+'h'; if(m) out+=(out?' ':'')+m+'m'; return out||'0m'; } %>
+  <% function statusBadge(active) { if(active) return 'bg-success-subtle text-success border border-success-subtle'; return 'bg-secondary-subtle text-secondary border border-secondary-subtle'; } %>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Repair Service Definitions</h6>
+      <span class="text-muted small">Updated with diagnostic matrix</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Repair Service</th>
+            <th>Code</th>
+            <th>Category/Type</th>
+            <th>Pricing Structure</th>
+            <th>Est. Duration</th>
+            <th>Config</th>
+            <th>Status</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (repairServices && repairServices.length) { %>
+            <% repairServices.forEach(function(svc) { %>
+              <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
+                <td class="ps-4">
+                  <div class="fw-bold text-dark"><%= svc.name %></div>
+                  <div class="text-muted text-micro"><%= svc.applianceType || '' %></div>
+                </td>
+                <td>
+                  <span class="font-monospace text-muted text-micro"><%= svc.slug || svc._id %></span>
+                </td>
+                <td>
+                  <% if (svc.isAirconService) { %>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-snow me-1"></i>Aircon</span>
+                  <% } else { %>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Appliance</span>
+                  <% } %>
+                </td>
+                <td>
+                  <div class="text-micro">Base: <span class="fw-bold text-dark"><%= fmtPrice(svc.basePrice) || 'N/A' %></span></div>
+                  <div class="text-micro text-muted">Diag: <%= fmtPrice(svc.initialPrice) || '-' %> | Labor: <%= svc.laborPerHour != null ? '₱ ' + svc.laborPerHour + '/hr' : '-' %></div>
+                </td>
+                <td class="text-muted text-micro"><i class="bi bi-stopwatch text-secondary me-1"></i><%= fmtDuration(svc.estimatedDurationMinutes) %></td>
+                <td>
+                  <span class="badge <%= svc.allowTechnicianPricing !== false ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-light text-muted border' %>">
+                    <%= svc.allowTechnicianPricing !== false ? 'Tech Pricing' : 'Fixed Price' %>
+                  </span>
+                </td>
+                <td>
+                  <span class="badge <%= statusBadge(svc.active) %>"><%= svc.active ? 'Active' : 'Inactive' %></span>
+                </td>
+                <td class="text-end pe-4">
+                  <button class="btn btn-sm btn-light border edit-repair-service"><i class="bi bi-pencil me-1"></i>Edit</button>
+                </td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">No repair services defined.</td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom">
+      <h6 class="mb-0 fw-bold">Repair Policy Notes</h6>
+    </div>
+    <div class="card-body">
+      <ul class="mb-0 text-muted">
+        <li>
+          Critical repairs require pre-approval and parts availability
+          confirmation.
+        </li>
+        <li>
+          All final quotes should include service labor + parts + warranty
+          scope.
+        </li>
+        <li>
+          Draft services are hidden from booking until approved by an admin
+          reviewer.
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- modal for repair service create/edit -->
+<div class="modal fade" id="repairServiceModal" tabindex="-1" aria-labelledby="repairServiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form id="repairServiceForm" class="modal-content border-0 shadow">
+      <div class="modal-header bg-light border-bottom-0 pb-3">
+        <h5 class="modal-title fw-bold" id="repairServiceModalLabel">Repair Service</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-4">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 class="fw-bold text-muted mb-3 text-uppercase small">Basic Info</h6>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Service Name</label>
+              <input type="text" name="name" class="form-control bg-light" required placeholder="e.g. Compressor Replacement" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Slug / Code</label>
+              <input type="text" name="slug" class="form-control bg-light" required placeholder="e.g. rep-compressor" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Appliance Type</label>
+              <input type="text" name="applianceType" class="form-control bg-light" placeholder="e.g. Split Type Aircon" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Estimated Duration (mins)</label>
+              <div class="input-group">
+                <input type="number" name="estimatedDurationMinutes" class="form-control bg-light" placeholder="120" />
+                <span class="input-group-text bg-light text-muted">min</span>
+              </div>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input type="checkbox" name="isAirconService" class="form-check-input" id="isAirconServiceCheck" />
+              <label class="form-check-label ms-2" for="isAirconServiceCheck">Is Aircon Service?</label>
+              <div class="form-text mt-0">Enables specific cooling flows.</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="fw-bold text-muted mb-3 text-uppercase small">Pricing Structure</h6>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Base Price (Legacy)</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted">₱</span>
+                <input type="number" step="0.01" name="basePrice" class="form-control bg-light" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Initial / Diagnostic Fee</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted">₱</span>
+                <input type="number" step="0.01" name="initialPrice" class="form-control bg-light" placeholder="0.00" />
+              </div>
+              <div class="form-text mt-1">Charged upfront for inspection.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">Labor Rate per Hour</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted">₱</span>
+                <input type="number" step="0.01" name="laborPerHour" class="form-control bg-light" placeholder="0.00" />
+              </div>
+            </div>
+            
+            <div class="card border-0 bg-light mt-4">
+              <div class="card-body p-3">
+                <div class="form-check form-switch mb-2">
+                  <input type="checkbox" name="allowTechnicianPricing" class="form-check-input" id="allowTechnicianPricingCheck" checked />
+                  <label class="form-check-label fw-bold ms-2 text-dark" for="allowTechnicianPricingCheck">Tech Adjusted Pricing</label>
+                </div>
+                <div class="text-muted small lh-sm">
+                  Allows technicians to set the final cost after diagnosis via the technician dashboard.
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-check form-switch mt-4">
+              <input type="checkbox" name="active" class="form-check-input bg-success border-success" id="repairActiveCheck" checked />
+              <label class="form-check-label fw-bold ms-2" for="repairActiveCheck">Active in Catalog</label>
+            </div>
+          </div>
+          
+          <!-- AIRCON TYPES CONFIGURATION (Dynamic) -->
+          <div class="col-12 d-none" id="airconConfigSection">
+            <div class="card border border-info-subtle shadow-sm">
+              <div class="card-header bg-info-subtle text-info-emphasis d-flex justify-content-between align-items-center py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-snow me-2"></i>Aircon Types & HP Matrix</h6>
+                <button type="button" class="btn btn-sm btn-info text-white fw-bold shadow-sm" id="btnAddAirconType"><i class="bi bi-plus me-1"></i>Add Type</button>
+              </div>
+              <div class="card-body bg-light" id="airconTypesContainer">
+                <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
+                  No aircon types configured. Click "Add Type" to start defining HP prices.
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary px-4 shadow-sm">Save Service</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // relocate modal to top-level to avoid being clipped by parent stacking contexts
+    const modalEl = document.getElementById('repairServiceModal');
+    if (modalEl && modalEl.parentElement !== document.body) {
+      document.body.appendChild(modalEl);
+    }
+    const css = document.createElement('style');
+    css.textContent = ".modal { z-index: 2050 !important; } .modal-backdrop { z-index: 2040 !important; }";
+    document.head.appendChild(css);
+    if (!modalEl) return;
+    const modal = window.bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
+    const form = document.getElementById('repairServiceForm');
+    let editingId = null;
+    let currentAirconTypes = [];
+
+    const isAirconToggle = document.getElementById('isAirconServiceCheck');
+    const airconSection = document.getElementById('airconConfigSection');
+    const airconContainer = document.getElementById('airconTypesContainer');
+    const msgEmpty = document.getElementById('noAirconTypesMsg');
+    
+    isAirconToggle.addEventListener('change', () => {
+      if (isAirconToggle.checked) {
+        airconSection.classList.remove('d-none');
+      } else {
+        airconSection.classList.add('d-none');
+      }
+    });
+
+    document.getElementById('btnAddAirconType').addEventListener('click', () => {
+      currentAirconTypes.push({
+        type: 'split',
+        name: 'Split Type',
+        description: '',
+        hpPricing: []
+      });
+      renderMatrix();
+    });
+
+    function renderMatrix() {
+      if(currentAirconTypes.length === 0) {
+        msgEmpty.style.display = 'block';
+        Array.from(airconContainer.querySelectorAll('.aircon-type-card')).forEach(e => e.remove());
+        return;
+      }
+      msgEmpty.style.display = 'none';
+      Array.from(airconContainer.querySelectorAll('.aircon-type-card')).forEach(e => e.remove());
+
+      currentAirconTypes.forEach((ac, i) => {
+        const card = document.createElement('div');
+        card.className = 'card border-0 shadow-sm mb-3 aircon-type-card';
+        
+        let hpRows = '';
+        ac.hpPricing.forEach((hpObj, j) => {
+          hpRows += `
+            <div class="row g-2 align-items-center mb-2 bg-white p-2 border rounded shadow-sm">
+              <div class="col-2"><input type="number" step="0.1" class="form-control form-control-sm bg-light" placeholder="HP (e.g. 1.0)" value="${hpObj.hp||''}" oninput="updateHP(${i}, ${j}, 'hp', this.value)"></div>
+              <div class="col-2"><div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" step="0.01" class="form-control bg-light" placeholder="Price" value="${hpObj.price||''}" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div></div>
+              <div class="col-2"><div class="input-group input-group-sm"><span class="input-group-text">₱/hr</span><input type="number" step="0.01" class="form-control bg-light" placeholder="Labor" value="${hpObj.laborPerHour||''}" oninput="updateHP(${i}, ${j}, 'laborPerHour', this.value)"></div></div>
+              <div class="col-3"><div class="input-group input-group-sm"><input type="number" class="form-control bg-light" placeholder="Est. Mins" value="${hpObj.estimatedDurationMinutes||''}" oninput="updateHP(${i}, ${j}, 'estimatedDurationMinutes', this.value)"><span class="input-group-text">m</span></div></div>
+              <div class="col-2"><input type="text" class="form-control form-control-sm bg-light" placeholder="Notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)"></div>
+              <div class="col-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeHP(${i}, ${j})"><i class="bi bi-trash"></i></button></div>
+            </div>`;
+        });
+
+        card.innerHTML = `
+          <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex gap-2 w-75">
+              <select class="form-select form-select-sm w-auto fw-bold" onchange="updateAC(${i}, 'type', this.value)">
+                <option value="split" ${ac.type==='split'?'selected':''}>Split Type</option>
+                <option value="window" ${ac.type==='window'?'selected':''}>Window Type</option>
+                <option value="floor_mounted" ${ac.type==='floor_mounted'?'selected':''}>Floor Mounted</option>
+                <option value="split_suspended" ${ac.type==='split_suspended'?'selected':''}>Split Suspended</option>
+                <option value="cassette" ${ac.type==='cassette'?'selected':''}>Cassette</option>
+                <option value="central" ${ac.type==='central'?'selected':''}>Central</option>
+              </select>
+              <input type="text" class="form-control form-control-sm" placeholder="Display Name" value="${ac.name||''}" oninput="updateAC(${i}, 'name', this.value)">
+            </div>
+            <button type="button" class="btn btn-sm text-danger" onclick="removeAC(${i})"><i class="bi bi-x-circle-fill"></i></button>
+          </div>
+          <div class="card-body p-3 bg-light">
+            <div class="mb-3">
+              <input type="text" class="form-control form-control-sm bg-white" placeholder="Type Description..." value="${ac.description||''}" oninput="updateAC(${i}, 'description', this.value)">
+            </div>
+            <div class="px-2">
+              <label class="form-label text-muted micro-text fw-bold text-uppercase mb-1" style="font-size:0.75rem;">HP Pricing Tiers</label>
+              ${hpRows}
+              <button type="button" class="btn btn-sm btn-light border w-100 text-info fw-bold shadow-sm mt-1" onclick="addHP(${i})"><i class="bi bi-plus-circle me-1"></i>Add HP Tier</button>
+            </div>
+          </div>
+        `;
+        airconContainer.appendChild(card);
+      });
+    }
+
+    window.updateAC = (i, field, val) => { currentAirconTypes[i][field] = val; };
+    window.removeAC = (i) => { currentAirconTypes.splice(i, 1); renderMatrix(); };
+    window.addHP = (i) => { currentAirconTypes[i].hpPricing.push({hp: '', price: '', laborPerHour: '', estimatedDurationMinutes: '', description: ''}); renderMatrix(); };
+    window.updateHP = (i, j, field, val) => { currentAirconTypes[i].hpPricing[j][field] = val; };
+    window.removeHP = (i, j) => { currentAirconTypes[i].hpPricing.splice(j, 1); renderMatrix(); };
+
+    function openForm(data) {
+      if (data) {
+        editingId = data._id;
+        modalEl.querySelector('.modal-title').innerText = 'Edit Repair Service';
+        form.name.value = data.name || '';
+        form.slug.value = data.slug || '';
+        form.applianceType.value = data.applianceType || '';
+        form.basePrice.value = data.basePrice || '';
+        form.initialPrice.value = data.initialPrice || '';
+        form.laborPerHour.value = data.laborPerHour || '';
+        form.estimatedDurationMinutes.value = data.estimatedDurationMinutes || '';
+        form.isAirconService.checked = !!data.isAirconService;
+        form.allowTechnicianPricing.checked = data.allowTechnicianPricing !== false;
+        form.active.checked = !!data.active;
+        currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
+      } else {
+        editingId = null;
+        modalEl.querySelector('.modal-title').innerText = 'New Repair Service';
+        form.reset();
+        form.active.checked = true;
+        form.allowTechnicianPricing.checked = true;
+        currentAirconTypes = [];
+      }
+      isAirconToggle.dispatchEvent(new Event('change'));
+      renderMatrix();
+      modal && modal.show();
+    }
+
+    document.querySelector('.new-repair-service').addEventListener('click', function() {
+      openForm();
+    });
+
+    document.body.addEventListener('click', function(e) {
+      if (e.target.closest('.edit-repair-service')) {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        const svc = JSON.parse(decodeURIComponent(tr.dataset.svc || '{}'));
+        openForm(svc);
+      }
+    });
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const cleanAirconTypes = currentAirconTypes.map(ac => ({
+        type: ac.type,
+        name: ac.name,
+        description: ac.description,
+        hpPricing: ac.hpPricing.filter(hp => hp.hp !== '' && hp.price !== '').map(hp => ({
+          hp: parseFloat(hp.hp),
+          price: parseFloat(hp.price),
+          laborPerHour: hp.laborPerHour ? parseFloat(hp.laborPerHour) : undefined,
+          estimatedDurationMinutes: hp.estimatedDurationMinutes ? parseInt(hp.estimatedDurationMinutes) : undefined,
+          description: hp.description
+        }))
+      }));
+
+      const payload = {
+        name: form.name.value.trim(),
+        slug: form.slug.value.trim(),
+        applianceType: form.applianceType.value.trim(),
+        basePrice: form.basePrice.value ? parseFloat(form.basePrice.value) : undefined,
+        initialPrice: form.initialPrice.value ? parseFloat(form.initialPrice.value) : undefined,
+        laborPerHour: form.laborPerHour.value ? parseFloat(form.laborPerHour.value) : undefined,
+        estimatedDurationMinutes: form.estimatedDurationMinutes.value ? parseInt(form.estimatedDurationMinutes.value) : undefined,
+        isAirconService: form.isAirconService.checked,
+        allowTechnicianPricing: form.allowTechnicianPricing.checked,
+        airconTypes: cleanAirconTypes,
+        active: form.active.checked,
+      };
+      let url = '/api/admin/repair-services';
+      let method = 'POST';
+      if (editingId) {
+        url += '/' + editingId;
+        method = 'PATCH';
+      }
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          location.reload();
+        } else {
+          const j = await r.json();
+          alert(j.error || 'Save failed');
+        }
+      } catch (err) {
+        alert('Save failed');
+      }
+    });
+  });
+</script>

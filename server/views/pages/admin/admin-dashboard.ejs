@@ -1,0 +1,1285 @@
+<div class="admin-dashboard container-fluid px-0 py-4">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    /* ══════════════════════════════════════════════════════
+       OPERATIONAL ADMIN DASHBOARD
+       ══════════════════════════════════════════════════════ */
+
+    /* ── Hero ── */
+
+    /* ── Entrance Animations ── */
+    @keyframes dashFadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes dashFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .health-banner { animation: dashFadeInUp 0.5s ease both; }
+    .exec-summary-card { animation: dashFadeInUp 0.5s ease 0.05s both; }
+    .kpi-grid .kpi-enterprise { animation: dashFadeInUp 0.45s ease both; }
+    .kpi-grid .kpi-enterprise:nth-child(1) { animation-delay: 0.10s; }
+    .kpi-grid .kpi-enterprise:nth-child(2) { animation-delay: 0.15s; }
+    .kpi-grid .kpi-enterprise:nth-child(3) { animation-delay: 0.20s; }
+    .kpi-grid .kpi-enterprise:nth-child(4) { animation-delay: 0.25s; }
+    .kpi-grid .kpi-enterprise:nth-child(5) { animation-delay: 0.30s; }
+    .kpi-grid .kpi-enterprise:nth-child(6) { animation-delay: 0.35s; }
+    .quick-bar { animation: dashFadeInUp 0.45s ease 0.40s both; }
+    .dash-card { animation: dashFadeInUp 0.5s ease both; }
+    .row.g-4 > div:nth-child(1) .dash-card { animation-delay: 0.10s; }
+    .row.g-4 > div:nth-child(2) .dash-card { animation-delay: 0.15s; }
+    .row.g-4 > div:nth-child(3) .dash-card { animation-delay: 0.20s; }
+    .row.g-4 > div:nth-child(4) .dash-card { animation-delay: 0.25s; }
+
+    /* ── Health Card (inside dash-card) ── */
+    .dash-card#healthBanner { border-color: rgba(226, 232, 240, 0.6); }
+    .dash-card#healthBanner .dash-card-header h6 #healthIcon { font-size: 1rem; }
+    .dash-card#healthBanner .health-issues { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .health-issue-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    }
+    .health-issue-chip.warning { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
+    .health-issue-chip.critical { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+    .health-issue-chip.ok { background: #f0fdf4; color: #065f46; border: 1px solid #86efac; }
+
+    /* ── KPI Detail Modal (Business Analytics) ── */
+    .kpi-modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(8px);
+      z-index: 9999; display: none; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.35s ease;
+    }
+    .kpi-modal-overlay.active { display: flex; opacity: 1; }
+    .kpi-modal {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 26px;
+      box-shadow: 0 30px 100px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(226, 232, 240, 0.45);
+      width: 92%; max-width: 900px; max-height: 88vh;
+      overflow: hidden;
+      transform: scale(0.92) translateY(30px);
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .kpi-modal-overlay.active .kpi-modal { transform: scale(1) translateY(0); }
+    .kpi-modal-header {
+      padding: 22px 28px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.6) 100%);
+    }
+    .kpi-modal-title { display: flex; align-items: center; gap: 14px; }
+    .kpi-modal-title-text { display: flex; flex-direction: column; gap: 2px; }
+    .kpi-modal-title-text h3 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .kpi-modal-title-text p { margin: 0; font-size: 0.75rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.03em; }
+    .kpi-modal-icon {
+      width: 50px; height: 50px; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.35rem; color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .kpi-modal-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #059669; background: rgba(16,185,129,0.12); padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(16,185,129,0.18); margin-left: 14px; }
+    .kpi-modal-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: kpiLivePulse 2s infinite; }
+    @keyframes kpiLivePulse { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+    .kpi-modal-close { width: 40px; height: 40px; border-radius: 12px; border: none; background: #f1f5f9; color: #64748b; font-size: 1.2rem; cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+    .kpi-modal-close:hover { background: #e2e8f0; color: #0f172a; transform: rotate(90deg) scale(1.08); }
+    .kpi-modal-body { padding: 0; overflow-y: auto; max-height: calc(88vh - 100px); display: flex; }
+    .kpi-modal-chart-wrap { flex: 1 1 52%; padding: 24px; min-width: 0; border-right: 1px solid #f1f5f9; background: linear-gradient(180deg, rgba(248,250,252,0.35) 0%, rgba(255,255,255,0) 100%); display: flex; flex-direction: column; }
+    .kpi-modal-chart-title { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .kpi-modal-chart-title::before { content: ''; width: 4px; height: 14px; border-radius: 2px; background: currentColor; }
+    .kpi-modal-chart { flex: 1; min-height: 260px; height: 260px; position: relative; }
+    .kpi-modal-chart canvas { width: 100% !important; height: 100% !important; }
+    .kpi-modal-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+    .kpi-modal-mini { background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; padding: 12px 6px; text-align: center; transition: all 0.25s ease; }
+    .kpi-modal-mini:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(15,23,42,0.06); border-color: #e2e8f0; }
+    .kpi-modal-mini-val { font-size: 1.1rem; font-weight: 800; color: #0f172a; line-height: 1; letter-spacing: -0.02em; }
+    .kpi-modal-mini-lbl { font-size: 0.55rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 5px; }
+    .kpi-modal-stats { flex: 1 1 48%; padding: 24px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+    .kpi-modal-section-title { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #475569; margin-bottom: 8px; padding: 0 0 6px 8px; border-left: 3px solid #cbd5e1; }
+    .kpi-modal-section-title.blue { border-color: #2563eb; color: #1e40af; }
+    .kpi-modal-section-title.amber { border-color: #f59e0b; color: #92400e; }
+    .kpi-modal-section-title.purple { border-color: #8b5cf6; color: #5b21b6; }
+    .kpi-modal-section-title.green { border-color: #10b981; color: #065f46; }
+    .kpi-modal-section-title.cyan { border-color: #06b6d4; color: #0e7490; }
+    .kpi-modal-section-title.red { border-color: #ef4444; color: #991b1b; }
+    .kpi-modal-stat { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f8fafc; border-radius: 12px; margin-bottom: 6px; border: 1px solid transparent; transition: all 0.2s ease; }
+    .kpi-modal-stat:hover { background: #fff; border-color: #e2e8f0; box-shadow: 0 4px 14px rgba(15,23,42,0.04); transform: translateX(3px); }
+    .kpi-modal-stat-label { font-size: 0.77rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .kpi-modal-stat-label i { font-size: 0.85rem; color: #94a3b8; }
+    .kpi-modal-stat-value { font-size: 0.95rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .kpi-modal-progress { margin-top: 4px; }
+    .kpi-modal-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .kpi-modal-progress-label { font-size: 0.69rem; font-weight: 700; color: #64748b; width: 80px; text-align: right; white-space: nowrap; }
+    .kpi-modal-progress-track { flex: 1; height: 7px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+    .kpi-modal-progress-fill { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .kpi-modal-progress-val { font-size: 0.69rem; font-weight: 700; color: #0f172a; width: 30px; text-align: right; }
+    .kpi-modal-pill-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .kpi-modal-pill { background: #f8fafc; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s ease; }
+    .kpi-modal-pill:hover { background: #fff; box-shadow: 0 4px 14px rgba(15,23,42,0.04); }
+    .kpi-modal-pill-lbl { font-size: 0.69rem; color: #64748b; font-weight: 600; }
+    .kpi-modal-pill-val { font-size: 0.83rem; font-weight: 800; color: #0f172a; }
+    .kpi-modal-body::-webkit-scrollbar { width: 7px; }
+    .kpi-modal-body::-webkit-scrollbar-track { background: transparent; }
+    .kpi-modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .kpi-modal-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    @keyframes kpiModalSlideIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+    .kpi-modal-overlay.active .kpi-modal-section,
+    .kpi-modal-overlay.active .kpi-modal-mini,
+    .kpi-modal-overlay.active .kpi-modal-stat,
+    .kpi-modal-overlay.active .kpi-modal-pill,
+    .kpi-modal-overlay.active .kpi-modal-progress-row { animation: kpiModalSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    @media (max-width: 767px) {
+      .kpi-modal { max-width: 96%; max-height: 92vh; }
+      .kpi-modal-body { flex-direction: column; }
+      .kpi-modal-chart-wrap { border-right: none; border-bottom: 1px solid #f1f5f9; padding: 20px; }
+      .kpi-modal-chart { min-height: 220px; height: 220px; }
+      .kpi-modal-stats { padding: 20px; }
+      .kpi-modal-mini-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* ── KPI Enterprise Cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 1199px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 767px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+    @media (max-width: 480px)  { .kpi-grid { grid-template-columns: 1fr; } }
+    .kpi-grid-4 { grid-template-columns: repeat(4, 1fr); margin-bottom: 0; }
+    @media (max-width: 1199px) { .kpi-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px)  { .kpi-grid-4 { grid-template-columns: 1fr; } }
+
+    .kpi-enterprise {
+      position: relative;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 20px;
+      padding: 16px 16px 12px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .kpi-enterprise:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    .kpi-enterprise::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .kpi-enterprise:hover::before { opacity: 1; }
+    .kpi-enterprise[data-accent="blue"]::before { background: linear-gradient(90deg, #2563eb, #1d4ed8); }
+    .kpi-enterprise[data-accent="amber"]::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .kpi-enterprise[data-accent="purple"]::before { background: linear-gradient(90deg, #8b5cf6, #6d28d9); }
+    .kpi-enterprise[data-accent="green"]::before { background: linear-gradient(90deg, #10b981, #059669); }
+    .kpi-enterprise[data-accent="cyan"]::before { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .kpi-enterprise[data-accent="red"]::before { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .kpi-enterprise-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:8px; }
+    .kpi-enterprise-icon {
+      width:44px;height:44px;min-width:44px;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.1rem;box-shadow:0 4px 12px rgba(0,0,0,0.1);flex-shrink:0;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .kpi-enterprise:hover .kpi-enterprise-icon { transform: scale(1.12) rotate(5deg); }
+    .kpi-enterprise-icon.blue { background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff; }
+    .kpi-enterprise-icon.amber { background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff; }
+    .kpi-enterprise-icon.purple { background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff; }
+    .kpi-enterprise-icon.green { background:linear-gradient(135deg,#10b981,#059669);color:#fff; }
+    .kpi-enterprise-icon.cyan { background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff; }
+    .kpi-enterprise-icon.red { background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff; }
+    .kpi-enterprise-badge { display:inline-flex;align-items:center;gap:4px;font-size:0.6rem;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:999px;white-space:nowrap; }
+    .kpi-enterprise-badge.blue { background:rgba(59,130,246,0.10);color:#2563eb; }
+    .kpi-enterprise-badge.amber { background:rgba(245,158,11,0.10);color:#d97706; }
+    .kpi-enterprise-badge.purple { background:rgba(168,85,247,0.10);color:#7c3aed; }
+    .kpi-enterprise-badge.green { background:rgba(16,185,129,0.10);color:#059669; }
+    .kpi-enterprise-badge.cyan { background:rgba(6,182,212,0.10);color:#0891b2; }
+    .kpi-enterprise-badge.red { background:rgba(239,68,68,0.10);color:#dc2626; }
+    .kpi-enterprise-body { flex:1;display:flex;flex-direction:column;justify-content:flex-start; min-height: 60px; }
+    .kpi-enterprise-label { font-size:0.72rem;font-weight:500;color:#64748b;margin:0 0 2px;line-height:1.3; }
+    .kpi-enterprise-value { font-size:1.4rem;font-weight:700;color:#0f172a;line-height:1.2;letter-spacing:-0.02em;margin-bottom:4px; }
+    .kpi-enterprise-sparkline { margin-top:6px;height:24px;position:relative; }
+    .kpi-enterprise-sparkline canvas { width:100% !important;height:100% !important; }
+    .kpi-enterprise-footer {
+      display:flex;align-items:center;justify-content:space-between;
+      margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;
+      transition: border-top-color 0.3s ease;
+    }
+    .kpi-percent-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 999px; background: rgba(100,116,139,0.1);
+      color: #64748b; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .kpi-enterprise-secondary {
+      font-size:0.62rem;font-weight:500;color:#94a3b8;
+      text-transform:uppercase;letter-spacing:0.03em;
+    }
+    .kpi-trend {
+      font-size:0.62rem;font-weight:700;padding:2px 7px;
+      border-radius:999px;display:inline-flex;align-items:center;gap:3px;
+    }
+    .kpi-trend.up { background:rgba(16,185,129,0.1);color:#059669; }
+    .kpi-trend.down { background:rgba(239,68,68,0.1);color:#dc2626; }
+    .kpi-trend.neutral { background:rgba(100,116,139,0.1);color:#64748b; }
+    .kpi-trend i { font-size:0.55rem; }
+    .kpi-enterprise:hover .kpi-enterprise-footer { border-top-color:#cbd5e1; }
+
+    /* ── Quick Action Bar ── */
+    .quick-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 1.5rem; padding: 14px 22px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 20px;
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .quick-bar:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.10), 0 6px 16px rgba(15, 23, 42, 0.06);
+    }
+    .quick-bar-label { font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;margin-right:8px;white-space:nowrap; }
+    .quick-btn { display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;padding:6px 14px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#475569;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);text-decoration:none;white-space:nowrap; }
+    .quick-btn i { font-size:0.85rem; }
+    .quick-btn:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.08);border-color:#cbd5e1;text-decoration:none;color:#0f172a; }
+    .quick-btn:active { transform:translateY(0); }
+
+    /* ── Generic Dash Card ── */
+    .dash-card {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 20px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+    }
+    .dash-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    .dash-card-header {
+      padding: 16px 22px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .dash-card-header h6 { font-size: 0.9rem; font-weight: 700; margin: 0; color: #0f172a; transition: transform 0.3s ease; }
+    .dash-card:hover .dash-card-header h6 { transform: translateX(2px); }
+    .dash-card-header .meta { font-size: 0.7rem; color: #94a3b8; }
+    .dash-card-body { padding: 16px 22px 20px; }
+
+    /* ── List Items ── */
+    .dash-list-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 0; border-bottom: 1px solid #f1f5f9;
+      transition: background 0.2s ease, padding 0.2s ease;
+      border-radius: 8px;
+    }
+    .dash-list-item:hover { background: #f8fafc; padding-left: 6px; padding-right: 6px; }
+    .dash-list-item:last-child { border-bottom: none; }
+    .dash-list-icon {
+      width: 40px; height: 40px; min-width: 40px;
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .dash-list-body { flex: 1; min-width: 0; }
+    .dash-list-title { font-size: 0.85rem; font-weight: 600; color: #0f172a; }
+    .dash-list-sub { font-size: 0.73rem; color: #94a3b8; }
+    .dash-list-badge {
+      font-size: 0.65rem; font-weight: 600; padding: 3px 10px;
+      border-radius: 999px; white-space: nowrap;
+    }
+    .dash-list-badge.success { background: rgba(16,185,129,0.10); color: #059669; }
+    .dash-list-badge.warning { background: rgba(245,158,11,0.10); color: #d97706; }
+    .dash-list-badge.danger { background: rgba(239,68,68,0.10); color: #dc2626; }
+    .dash-list-badge.info { background: rgba(59,130,246,0.10); color: #2563eb; }
+    .dash-list-badge.purple { background: rgba(139,92,246,0.10); color: #7c3aed; }
+    .dash-list-badge.neutral { background: rgba(100,116,139,0.10); color: #64748b; }
+
+    /* ── Status Dot ── */
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.online { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+    .status-dot.offline { background: #94a3b8; }
+    .status-dot.busy { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+
+    /* ── Pipeline Bars ── */
+    .pipeline-bar {
+      flex: 1; height: 6px; border-radius: 3px;
+      background: #f1f5f9; overflow: hidden;
+    }
+    .pipeline-bar-fill {
+      height: 100%; border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* ── Technician Table ── */
+    .table-dash {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .table-dash th {
+      text-align: left; font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: #94a3b8; padding: 8px 0 6px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .table-dash td {
+      padding: 8px 0; border-bottom: 1px solid #f4f6f9;
+    }
+    .table-dash tr:last-child td { border-bottom: none; }
+
+    /* ── Timeline ── */
+    .timeline-line { position: relative; padding-left: 24px; }
+    .timeline-line::before {
+      content: ''; position: absolute; left: 8px; top: 6px; bottom: 6px;
+      width: 2px; background: #e2e8f0; border-radius: 1px;
+    }
+    .timeline-item {
+      position: relative; padding: 8px 0 8px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.2s ease;
+      border-radius: 8px;
+    }
+    .timeline-item:hover { background: #f8fafc; }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-dot {
+      position: absolute; left: -20px; top: 14px;
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 2px solid #fff; box-shadow: 0 0 0 2px #e2e8f0;
+      z-index: 1;
+    }
+    .timeline-dot.blue { background: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+    .timeline-dot.amber { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+    .timeline-dot.green { background: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,0.3); }
+    .timeline-dot.red { background: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.3); }
+
+    /* ── Notification Items ── */
+    .notif-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+      transition: background 0.2s ease;
+      border-radius: 8px;
+    }
+    .notif-item:hover { background: #f8fafc; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-icon {
+      width: 32px; height: 32px; min-width: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; flex-shrink: 0;
+    }
+
+    /* ── Chart Containers ── */
+    .chart-container {
+      height: 200px; width: 100%; padding: 0;
+    }
+    .chart-container canvas { width: 100% !important; height: 100% !important; }
+
+    /* ── Inventory Product Cards ── */
+    .inv-prod-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 480px) { .inv-prod-grid { grid-template-columns: 1fr 1fr; } }
+    .inv-prod-card {
+      background: #fff; border-radius: 14px;
+      border: 1px solid rgba(226,232,240,0.6);
+      overflow: hidden; position: relative;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1);
+      cursor: default;
+    }
+    .inv-prod-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 36px rgba(15,23,42,0.10), 0 4px 12px rgba(15,23,42,0.06);
+    }
+    .inv-prod-img {
+      height: 100px; background: #f8fafc;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+    .inv-prod-img img { max-height: 80px; max-width: 90%; object-fit: contain; }
+    .inv-prod-img .fallback-icon {
+      font-size: 2rem; color: #cbd5e1;
+    }
+    .inv-prod-body { padding: 10px 12px 12px; }
+    .inv-prod-name { font-size: 0.8rem; font-weight: 700; color: #0f172a; line-height: 1.3; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-prod-meta { font-size: 0.68rem; color: #94a3b8; margin-bottom: 6px; }
+    .inv-prod-footer { display: flex; align-items: center; justify-content: space-between; }
+    .inv-prod-price { font-size: 0.9rem; font-weight: 700; color: #0f172a; }
+    .inv-prod-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 0.6rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 999px; white-space: nowrap;
+    }
+    .inv-prod-badge.in-stock { background: rgba(16,185,129,0.12); color: #059669; }
+    .inv-prod-badge.low-stock { background: rgba(245,158,11,0.12); color: #d97706; }
+    .inv-prod-badge.out-of-stock { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .inv-prod-badge.coming-soon { background: rgba(59,130,246,0.10); color: #2563eb; }
+    .inv-prod-inverter {
+      position: absolute; top: 6px; left: 6px;
+      font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em;
+      padding: 2px 7px; border-radius: 999px;
+      background: rgba(6,182,212,0.15); color: #0891b2;
+      text-transform: uppercase;
+    }
+
+    /* ── Empty / Loading ── */
+    .dash-empty { text-align: center; padding: 1rem; color: #94a3b8; font-size: 0.8rem; }
+
+    /* ── Small Quick Button Variant ── */
+    .quick-btn-sm { font-size: 0.7rem !important; padding: 4px 10px !important; }
+
+    /* ═══════════════════════════════════════════════════════
+       EXECUTIVE SUMMARY CARD — Enterprise Company Overview
+       ═══════════════════════════════════════════════════════ */
+    .exec-summary-card {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 20px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+    }
+    .exec-summary-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #2563eb, #8b5cf6, #10b981);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .exec-summary-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    .exec-summary-card:hover::before { opacity: 1; }
+    .exec-summary-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .exec-summary-icon {
+      width: 48px; height: 48px; min-width: 48px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .exec-summary-card:hover .exec-summary-icon { transform: scale(1.1) rotate(5deg); }
+    .exec-summary-title {
+      font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--dash-dark);
+    }
+    .exec-summary-sub {
+      font-size: 0.75rem; color: var(--dash-muted); margin: 2px 0 0;
+    }
+    .exec-summary-live {
+      margin-left: auto;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      color: #059669; background: rgba(16,185,129,0.12);
+      padding: 5px 12px; border-radius: 999px;
+      border: 1px solid rgba(16,185,129,0.2);
+      box-shadow: 0 2px 8px rgba(16,185,129,0.15);
+      transition: all 0.3s ease;
+    }
+    .exec-summary-live:hover {
+      background: rgba(16,185,129,0.2);
+      box-shadow: 0 4px 12px rgba(16,185,129,0.25);
+      transform: scale(1.05);
+    }
+    .exec-summary-live i {
+      animation: execPulse 2s ease infinite;
+    }
+    @keyframes execPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+    .exec-summary-narrative {
+      padding: 10px 22px;
+      font-size: 0.82rem; line-height: 1.5; color: #334155;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border-bottom: 1px solid #f1f5f9;
+      display: flex; flex-wrap: wrap; gap: 0;
+      align-items: stretch;
+    }
+    .exec-summary-narrative > * {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 8px 12px; border-radius: 0;
+      background: #fff; border: none;
+      font-size: 0.76rem; white-space: nowrap;
+      font-weight: 400; color: #64748b;
+      letter-spacing: 0.01em;
+      flex: 1 1 0; min-width: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .exec-summary-narrative > *::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, currentColor, transparent);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    .exec-summary-narrative > *:hover {
+      background: #f8fafc;
+      transform: translateY(-2px);
+    }
+    .exec-summary-narrative > *:hover::after { transform: scaleX(1); }
+    .exec-summary-narrative > *:first-child { border-radius: 8px 0 0 8px; }
+    .exec-summary-narrative > *:last-child { border-radius: 0 8px 8px 0; }
+    .exec-summary-narrative > * + * { border-left: 1px solid #f1f5f9; }
+    .exec-summary-narrative .narr-bookings { border-left: 3px solid #2563eb; }
+    .exec-summary-narrative .narr-bookings b { color: #1d4ed8; }
+    .exec-summary-narrative .narr-revenue { border-left: 3px solid #10b981; }
+    .exec-summary-narrative .narr-revenue b { color: #059669; }
+    .exec-summary-narrative .narr-attention { border-left: 3px solid #f59e0b; }
+    .exec-summary-narrative .narr-attention b { color: #d97706; }
+    .exec-summary-narrative .narr-techs { border-left: 3px solid #8b5cf6; }
+    .exec-summary-narrative .narr-techs b { color: #7c3aed; }
+    .exec-summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    @media (max-width: 1199px) { .exec-summary-metrics { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 767px) { .exec-summary-metrics { grid-template-columns: repeat(2, 1fr); } }
+    .exec-metric {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      border-right: 1px solid #f1f5f9;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      cursor: pointer;
+    }
+    .exec-metric:last-child { border-right: none; }
+    .exec-metric:hover {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      transform: translateY(-3px);
+    }
+    .exec-metric:hover .exec-metric-icon {
+      transform: scale(1.15) rotate(-5deg);
+    }
+    .exec-metric:hover .exec-metric-val {
+      transform: scale(1.05);
+    }
+    .exec-metric-icon {
+      width: 38px; height: 38px; min-width: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .exec-metric-icon.blue { background: rgba(59,130,246,0.1); color: #2563eb; }
+    .exec-metric-icon.green { background: rgba(16,185,129,0.1); color: #059669; }
+    .exec-metric-icon.amber { background: rgba(245,158,11,0.1); color: #d97706; }
+    .exec-metric-icon.purple { background: rgba(139,92,246,0.1); color: #7c3aed; }
+    .exec-metric-icon.teal { background: rgba(6,182,212,0.1); color: #0891b2; }
+    .exec-metric-icon.red { background: rgba(239,68,68,0.1); color: #dc2626; }
+    .exec-metric-val {
+      font-size: 1rem; font-weight: 800; color: var(--dash-dark); line-height: 1;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .exec-metric-lbl {
+      font-size: 0.65rem; font-weight: 600; color: var(--dash-muted);
+      text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px;
+    }
+    .exec-summary-insights {
+      padding: 10px 22px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .exec-insight-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .exec-insight-chip.info { background: rgba(59,130,246,0.08); color: #1e40af; border-color: rgba(59,130,246,0.15); }
+    .exec-insight-chip.success { background: rgba(16,185,129,0.08); color: #065f46; border-color: rgba(16,185,129,0.15); }
+    .exec-insight-chip.warning { background: rgba(245,158,11,0.08); color: #92400e; border-color: rgba(245,158,11,0.15); }
+    .exec-insight-chip.danger { background: rgba(239,68,68,0.08); color: #991b1b; border-color: rgba(239,68,68,0.15); }
+    .exec-insight-chip i { font-size: 0.7rem; }
+
+    /* ── Financial Deep-Dive Card ── */
+    .finance-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    @media (max-width: 575px) { .finance-grid { grid-template-columns: 1fr; } }
+    .finance-row {
+      display: flex; align-items: center; gap: 10px; padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .finance-row:last-child { border-bottom: none; }
+    .finance-icon {
+      width: 36px; height: 36px; min-width: 36px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+    }
+    .finance-label { font-size: 0.78rem; color: var(--dash-muted); }
+    .finance-value { font-size: 0.95rem; font-weight: 700; color: var(--dash-dark); }
+    .finance-change {
+      font-size: 0.68rem; font-weight: 700; padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .finance-change.up { background: rgba(16,185,129,0.1); color: #059669; }
+    .finance-change.down { background: rgba(239,68,68,0.1); color: #dc2626; }
+
+    /* ── Rating Stars ── */
+    .rating-stars { display: flex; gap: 2px; }
+    .rating-stars i { font-size: 0.8rem; color: #f59e0b; }
+    .rating-stars i.empty { color: #e2e8f0; }
+    .rating-bar-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    .rating-bar-label { font-size: 0.7rem; font-weight: 600; color: var(--dash-muted); width: 14px; text-align: right; }
+    .rating-bar-track { flex: 1; height: 6px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+    .rating-bar-fill { height: 100%; background: #f59e0b; border-radius: 999px; transition: width 0.5s ease; }
+    .rating-bar-count { font-size: 0.68rem; font-weight: 600; color: var(--dash-muted); width: 20px; }
+    /* ── Rating Overview Layout ── */
+    .rating-overview { display: flex; gap: 0; align-items: stretch; }
+    .rating-overview-left { flex: 0 0 130px; padding: 12px; text-align: center; border-right: 1px solid #f1f5f9; display: flex; flex-direction: column; justify-content: center; }
+    .rating-overview-score { font-size: 2.5rem; font-weight: 800; color: #0f172a; line-height: 1; }
+    .rating-overview-stars { display: flex; justify-content: center; gap: 2px; margin: 6px 0 4px; }
+    .rating-overview-stars i { font-size: 0.85rem; color: #f59e0b; }
+    .rating-overview-stars i.empty { color: #e2e8f0; }
+    .rating-overview-count { font-size: 0.68rem; color: #94a3b8; }
+    .rating-overview-right { flex: 1; padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+    .rating-dist-row { display: flex; align-items: center; gap: 8px; }
+    .rating-dist-label { font-size: 0.68rem; font-weight: 600; color: #64748b; width: 28px; display: flex; align-items: center; gap: 2px; }
+    .rating-dist-label i { font-size: 0.6rem; color: #f59e0b; }
+    .rating-dist-track { flex: 1; height: 7px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+    .rating-dist-fill { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .rating-dist-fill.f5 { background: linear-gradient(90deg, #10b981, #059669); }
+    .rating-dist-fill.f4 { background: linear-gradient(90deg, #84cc16, #65a30d); }
+    .rating-dist-fill.f3 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .rating-dist-fill.f2 { background: linear-gradient(90deg, #f97316, #ea580c); }
+    .rating-dist-fill.f1 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .rating-dist-count { font-size: 0.68rem; font-weight: 600; color: #475569; width: 24px; text-align: right; }
+    .rating-summary-row { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+    .rating-summary-chip { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; background: #f8fafc; }
+    .rating-summary-chip-val { font-size: 0.9rem; font-weight: 700; color: #0f172a; }
+    .rating-summary-chip-lbl { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 1px; }
+
+    .dash-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+    .dash-stat-card { background: #f8fafc; border-radius: 12px; padding: 12px 10px; text-align: center; transition: all 0.2s ease; }
+    .dash-stat-card:hover { background: #fff; box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
+    .dash-stat-card-val { font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1; }
+    .dash-stat-card-lbl { font-size: 0.58rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+    .dash-stat-card-sub { font-size: 0.65rem; color: #64748b; margin-top: 2px; }
+    .dash-progress-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+    .dash-progress-label { font-size: 0.72rem; font-weight: 700; color: #64748b; width: 85px; text-align: right; white-space: nowrap; }
+    .dash-progress-track { flex: 1; height: 7px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+    .dash-progress-fill { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .dash-progress-val { font-size: 0.75rem; font-weight: 800; color: #0f172a; width: 28px; text-align: right; }
+    .dash-list-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .dash-list-row:last-child { border-bottom: none; }
+    .dash-list-label { font-size: 0.78rem; color: #64748b; font-weight: 600; }
+    .dash-list-value { font-size: 0.95rem; font-weight: 800; color: #0f172a; }
+    .dash-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+    .dash-chip.success { background: rgba(16,185,129,0.12); color: #065f46; }
+    .dash-chip.warning { background: rgba(245,158,11,0.12); color: #92400e; }
+    .dash-chip.danger { background: rgba(239,68,68,0.12); color: #991b1b; }
+    .dash-chip.info { background: rgba(59,130,246,0.12); color: #1e40af; }
+    .dash-tech-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .dash-tech-table th { text-align: left; font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+    .dash-tech-table td { padding: 9px 0; border-bottom: 1px solid #f4f6f9; }
+    .dash-tech-table tr:last-child td { border-bottom: none; }
+    .dash-tech-name { display: flex; align-items: center; gap: 10px; }
+    .dash-tech-avatar { width: 28px; height: 28px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; color: #64748b; }
+
+    /* ── Responsive ── */
+    @media (max-width: 767px) {
+      .dash-card-body { padding: 14px 16px; }
+      .exec-summary-metrics { grid-template-columns: repeat(2, 1fr); }
+      .kpi-grid { gap: 12px; }
+      .kpi-enterprise { padding: 14px 14px 10px; }
+    }
+  </style>
+
+  <script>
+    (function() {
+      function updateHeroTime() {
+        var now = new Date();
+        var hours = now.getHours() % 12 || 12;
+        var min = now.getMinutes().toString().padStart(2,'0');
+        var ampm = now.getHours() < 12 ? 'AM' : 'PM';
+        var d = document.getElementById('hero-time');
+        if (d) d.textContent = hours + ':' + min + ' ' + ampm;
+        d = document.getElementById('hero-date');
+        if (d) d.textContent = now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      if (typeof setInterval === 'function') setInterval(updateHeroTime, 30000);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateHeroTime);
+      } else { updateHeroTime(); }
+    })();
+  </script>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-grid-1x2-fill"></i></div>
+        <div>
+          <h1>Dashboard</h1>
+          <p>Operational overview — bookings, technicians, revenue, and system status at a glance.</p>
+        </div>
+      </div>
+      <div class="au-hero-stats">
+        <div class="au-hero-stat">
+          <div class="au-hero-stat-val" id="hero-time">--:-- --</div>
+          <div class="au-hero-stat-lbl" id="hero-date">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXECUTIVE SUMMARY ═══ -->
+  <div class="exec-summary-card" id="execSummaryCard">
+    <div class="exec-summary-header">
+      <div class="exec-summary-icon"><i class="bi bi-building"></i></div>
+      <div>
+        <h3 class="exec-summary-title">Company Overview</h3>
+        <p class="exec-summary-sub">Real-time business intelligence summary</p>
+      </div>
+      <span class="exec-summary-live"><i class="bi bi-broadcast"></i> Live</span>
+    </div>
+    <div class="exec-summary-narrative" id="execNarrative">Loading company overview...</div>
+    <div class="exec-summary-metrics" id="execMetrics">
+      <div class="exec-metric">
+        <div class="exec-metric-icon blue"><i class="bi bi-people-fill"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execTotalCustomers">--</div>
+          <div class="exec-metric-lbl">Total Customers</div>
+        </div>
+      </div>
+      <div class="exec-metric">
+        <div class="exec-metric-icon green"><i class="bi bi-person-plus-fill"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execNewCustomers">--</div>
+          <div class="exec-metric-lbl">New This Month</div>
+        </div>
+      </div>
+      <div class="exec-metric">
+        <div class="exec-metric-icon amber"><i class="bi bi-star-fill"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execAvgRating">--</div>
+          <div class="exec-metric-lbl">Customer Rating</div>
+        </div>
+      </div>
+      <div class="exec-metric">
+        <div class="exec-metric-icon purple"><i class="bi bi-kanban-fill"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execActiveProjects">--</div>
+          <div class="exec-metric-lbl">Active Projects</div>
+        </div>
+      </div>
+      <div class="exec-metric">
+        <div class="exec-metric-icon teal"><i class="bi bi-check2-all"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execCompletionRate">--</div>
+          <div class="exec-metric-lbl">Completion Rate</div>
+        </div>
+      </div>
+      <div class="exec-metric">
+        <div class="exec-metric-icon red"><i class="bi bi-graph-up-arrow"></i></div>
+        <div class="exec-metric-body">
+          <div class="exec-metric-val" id="execProfitMargin">--</div>
+          <div class="exec-metric-lbl">Profit Margin</div>
+        </div>
+      </div>
+    </div>
+    <div class="exec-summary-insights" id="execInsights"></div>
+  </div>
+
+  <style>
+    /* ── Stat Cards (copied from Ratings Overview) ── */
+    .admin-dashboard .stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+    }
+    .admin-dashboard .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .admin-dashboard .stat-card .stat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .admin-dashboard .stat-card .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+    .admin-dashboard .stat-sparkline {
+      height: 40px;
+      margin-top: 0.5rem;
+    }
+    .admin-dashboard .stat-sparkline canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .admin-dashboard .kpi-percent-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+    }
+  </style>
+
+  <!-- ═══ KPI GRID ═══ -->
+  <div class="row g-3 mb-4" id="kpiGrid">
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="blue">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Bookings Today</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-total-bookings">--</span>
+              <span class="kpi-trend up" id="kpi-total-bookings-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-total-bookings-percent">100%</span>
+            </div>
+            <small class="text-muted" id="kpi-total-bookings-sub">All bookings</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-calendar-check-fill text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkTotal" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="amber">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Review</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-pending-review">--</span>
+              <span class="kpi-trend up" id="kpi-pending-review-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-pending-review-percent">0%</span>
+            </div>
+            <small class="text-muted" id="kpi-pending-review-sub">Payments</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-clock-history text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkPending" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="purple">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Awaiting Assignment</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-awaiting-assignment">--</span>
+              <span class="kpi-trend up" id="kpi-awaiting-assignment-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-awaiting-assignment-percent">0%</span>
+            </div>
+            <small class="text-muted" id="kpi-awaiting-assignment-sub">Unassigned</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+            <i class="bi bi-person-plus-fill text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkAwaiting" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="green">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Services</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-active-services">--</span>
+              <span class="kpi-trend up" id="kpi-active-services-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-active-services-percent">0%</span>
+            </div>
+            <small class="text-muted" id="kpi-active-services-sub">On-site jobs</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-tools text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkActive" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="cyan">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Available Technicians</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-available-techs">--</span>
+              <span class="kpi-trend up" id="kpi-available-techs-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-tech-badge">Available</span>
+            </div>
+            <small class="text-muted" id="kpi-available-techs-sub">0 total</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+            <i class="bi bi-people-fill text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkTechs" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg col-md-6">
+      <div class="stat-card h-100" data-accent="red">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Today's Revenue</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpi-revenue-today">--</span>
+              <span class="kpi-trend up" id="kpi-revenue-today-trend"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge" id="kpi-revenue-today-percent">0%</span>
+            </div>
+            <small class="text-muted" id="kpi-revenue-today-sub">Gross revenue</small>
+          </div>
+          <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <i class="bi bi-currency-dollar text-white"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="kpiSparkRevenue" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ QUICK ACTIONS ═══ -->
+  <div class="quick-bar">
+    <span class="quick-bar-label"><i class="bi bi-lightning-fill me-1" style="color:#2563eb;"></i>Quick</span>
+    <a href="/admin/appointments" class="quick-btn"><i class="bi bi-plus-lg" style="color:#2563eb;"></i>Appointment</a>
+    <a href="/admin/customers/list" class="quick-btn"><i class="bi bi-person-plus" style="color:#8b5cf6;"></i>Customer</a>
+    <a href="/admin/jobs/active" class="quick-btn"><i class="bi bi-briefcase" style="color:#059669;"></i>Job</a>
+    <a href="/admin/payments" class="quick-btn"><i class="bi bi-currency-dollar" style="color:#10b981;"></i>Payment</a>
+    <a href="/admin/inventory" class="quick-btn"><i class="bi bi-box-seam" style="color:#ef4444;"></i>Inventory</a>
+    <a href="/admin/staff/list" class="quick-btn"><i class="bi bi-people" style="color:#7c3aed;"></i>Staff</a>
+    <a href="/admin/technicians" class="quick-btn"><i class="bi bi-wrench" style="color:#f59e0b;"></i>Technician</a>
+    <a href="/admin/reports/service" class="quick-btn"><i class="bi bi-graph-up" style="color:#0891b2;"></i>Reports</a>
+  </div>
+
+  <!-- ═══ MAIN LAYOUT ═══ -->
+  <div class="row g-4">
+    <!-- LEFT COL -->
+    <div class="col-xl-8 col-lg-7 d-flex flex-column gap-4">
+
+      <!-- Row: Bookings Trend + Service Distribution -->
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="dash-card h-100" data-card-type="bookingsTrend" style="cursor:pointer;">
+            <div class="dash-card-header">
+              <h6><i class="bi bi-graph-up-arrow me-1" style="color:#2563eb;"></i>Bookings Trend</h6>
+              <span class="meta">7-day</span>
+            </div>
+            <div class="dash-card-body">
+              <div class="chart-container">
+                <canvas id="chartBookingsTrend"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="dash-card h-100" data-card-type="serviceDistribution" style="cursor:pointer;">
+            <div class="dash-card-header">
+              <h6><i class="bi bi-pie-chart-fill me-1" style="color:#8b5cf6;"></i>Service Distribution</h6>
+              <span class="meta">All time</span>
+            </div>
+            <div class="dash-card-body">
+              <div class="chart-container">
+                <canvas id="chartServiceDist"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technician Status Table -->
+      <div class="dash-card" data-card-type="technicianStatus" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-people-fill me-1" style="color:#f59e0b;"></i>Technician Status</h6>
+          <span class="meta" id="techStatusMeta">Loading...</span>
+        </div>
+        <div class="dash-card-body" id="techStatusTable">
+          <div class="dash-empty">Loading technicians...</div>
+        </div>
+      </div>
+
+      <!-- Today's Schedule Timeline -->
+      <div class="dash-card" data-card-type="todaySchedule" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-calendar3 me-1" style="color:#3b82f6;"></i>Today's Schedule</h6>
+          <span class="meta" id="scheduleCount">Loading...</span>
+        </div>
+        <div class="dash-card-body" id="todayScheduleBody">
+          <div class="dash-empty">Loading schedule...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COL -->
+    <div class="col-xl-4 col-lg-5 d-flex flex-column gap-4">
+
+      <!-- System Health -->
+      <div class="dash-card" id="healthBanner" data-card-type="healthBanner" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-shield-check me-1" style="color:#10b981;" id="healthIcon"></i><span id="healthTitle">Loading system status...</span></h6>
+        </div>
+        <div class="dash-card-body">
+          <div class="health-issues" id="healthIssues"></div>
+        </div>
+      </div>
+
+      <!-- Booking Pipeline -->
+      <div class="dash-card" data-card-type="bookingPipeline" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-funnel-fill me-1" style="color:#06b6d4;"></i>Booking Pipeline</h6>
+          <span class="meta" id="pipelineTotal">Loading...</span>
+        </div>
+        <div class="dash-card-body" id="pipelineBody">
+          <div class="dash-empty">Loading pipeline...</div>
+        </div>
+      </div>
+
+      <!-- Revenue & Financial Deep-Dive -->
+      <div class="dash-card" data-card-type="financialOverview" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-cash-stack me-1" style="color:#059669;"></i>Financial Overview</h6>
+          <span class="meta" id="revenueCurrencyLabel">PHP</span>
+        </div>
+        <div class="dash-card-body" id="revenueBody">
+          <div class="dash-empty">Loading revenue...</div>
+        </div>
+      </div>
+
+      <!-- Customer Ratings -->
+      <div class="dash-card" data-card-type="customerSatisfaction" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-star-fill me-1" style="color:#f59e0b;"></i>Customer Satisfaction</h6>
+          <span class="meta" id="ratingMeta">Loading...</span>
+        </div>
+        <div class="dash-card-body" id="ratingBody">
+          <div class="dash-empty">Loading ratings...</div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="dash-card" data-card-type="notifications" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-bell-fill me-1" style="color:#f59e0b;"></i>Notifications</h6>
+          <span class="meta" id="notifCount">Loading...</span>
+        </div>
+        <div class="dash-card-body" id="notificationsBody">
+          <div class="dash-empty">Loading notifications...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ CUSTOMER & OPERATIONS SUMMARY ═══ -->
+  <div class="row g-4 mt-1">
+    <div class="col-xl-3 col-md-6">
+      <div class="dash-card" data-card-type="customerInsights" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-people-fill me-1" style="color:#3b82f6;"></i>Customer Insights</h6>
+        </div>
+        <div class="dash-card-body" id="customerInsightsBody">
+          <div class="dash-empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <div class="dash-card" data-card-type="largeScaleProjects" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-kanban-fill me-1" style="color:#8b5cf6;"></i>Large-Scale Projects</h6>
+        </div>
+        <div class="dash-card-body" id="projectInsightsBody">
+          <div class="dash-empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <div class="dash-card" data-card-type="teamPerformance" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-wrench-adjustable-circle-fill me-1" style="color:#f59e0b;"></i>Team Performance</h6>
+        </div>
+        <div class="dash-card-body" id="teamPerfBody">
+          <div class="dash-empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+      <div class="dash-card" data-card-type="expenseSummary" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-receipt-cutoff me-1" style="color:#ef4444;"></i>Expense Summary</h6>
+        </div>
+        <div class="dash-card-body" id="expenseBody">
+          <div class="dash-empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ AIRCON INVENTORY ═══ -->
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="dash-card" data-card-type="airconInventory" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-box-seam-fill me-1" style="color:#2563eb;"></i>Aircon Inventory</h6>
+          <a href="/admin/inventory" class="quick-btn quick-btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Manage Inventory
+          </a>
+        </div>
+        <div class="dash-card-body">
+          <div class="kpi-grid kpi-grid-4">
+            <div class="kpi-enterprise" data-accent="blue">
+              <div class="kpi-enterprise-top">
+                <div class="kpi-enterprise-icon blue"><i class="bi bi-boxes"></i></div>
+                <span class="kpi-enterprise-badge blue">Products</span>
+              </div>
+              <div class="kpi-enterprise-body">
+                <p class="kpi-enterprise-label">Total Products</p>
+                <div class="kpi-enterprise-value" id="inv-total-products">--</div>
+                <span class="kpi-enterprise-secondary" id="inv-products-sub">Active variants</span>
+              </div>
+              <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkInvProducts"></canvas></div>
+              <div class="kpi-enterprise-footer">
+                <span class="kpi-trend neutral" id="inv-products-trend"><i class="bi bi-minus"></i> --</span>
+              </div>
+            </div>
+            <div class="kpi-enterprise" data-accent="green">
+              <div class="kpi-enterprise-top">
+                <div class="kpi-enterprise-icon green"><i class="bi bi-box-seam"></i></div>
+                <span class="kpi-enterprise-badge green">Stock</span>
+              </div>
+              <div class="kpi-enterprise-body">
+                <p class="kpi-enterprise-label">Total Stock Units</p>
+                <div class="kpi-enterprise-value" id="inv-total-units">--</div>
+                <span class="kpi-enterprise-secondary" id="inv-units-sub">All products</span>
+              </div>
+              <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkInvUnits"></canvas></div>
+              <div class="kpi-enterprise-footer">
+                <span class="kpi-trend neutral" id="inv-units-trend"><i class="bi bi-minus"></i> --</span>
+              </div>
+            </div>
+            <div class="kpi-enterprise" data-accent="purple">
+              <div class="kpi-enterprise-top">
+                <div class="kpi-enterprise-icon purple"><i class="bi bi-coin"></i></div>
+                <span class="kpi-enterprise-badge purple">Value</span>
+              </div>
+              <div class="kpi-enterprise-body">
+                <p class="kpi-enterprise-label">Inventory Value</p>
+                <div class="kpi-enterprise-value" id="inv-total-value">--</div>
+                <span class="kpi-enterprise-secondary" id="inv-value-sub">Total asset value</span>
+              </div>
+              <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkInvValue"></canvas></div>
+              <div class="kpi-enterprise-footer">
+                <span class="kpi-trend neutral" id="inv-value-trend"><i class="bi bi-minus"></i> --</span>
+              </div>
+            </div>
+            <div class="kpi-enterprise" data-accent="red">
+              <div class="kpi-enterprise-top">
+                <div class="kpi-enterprise-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+                <span class="kpi-enterprise-badge red">Alert</span>
+              </div>
+              <div class="kpi-enterprise-body">
+                <p class="kpi-enterprise-label">Low / Out of Stock</p>
+                <div class="kpi-enterprise-value" id="inv-lowstock-count">--</div>
+                <span class="kpi-enterprise-secondary" id="inv-lowstock-sub">Needs attention</span>
+              </div>
+              <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkInvLow"></canvas></div>
+              <div class="kpi-enterprise-footer">
+                <span class="kpi-trend neutral" id="inv-lowstock-trend"><i class="bi bi-minus"></i> --</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="dash-card" data-card-type="topAirconProducts" style="cursor:pointer;">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-grid-fill me-1" style="color:#2563eb;"></i>Top Aircon Products</h6>
+          <a href="/admin/inventory" class="quick-btn quick-btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Manage Inventory
+          </a>
+        </div>
+        <div class="dash-card-body" id="topProductsBody">
+          <div class="dash-empty">Loading products...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Detail Modal -->
+  <div class="kpi-modal-overlay" id="kpiModalOverlay">
+    <div class="kpi-modal">
+      <div class="kpi-modal-header">
+        <div class="kpi-modal-title">
+          <div class="kpi-modal-icon" id="kpiModalIcon"><i class="bi bi-graph-up"></i></div>
+          <div class="kpi-modal-title-text">
+            <h3 id="kpiModalTitle">KPI Details</h3>
+            <p id="kpiModalSubtitle">Real-time analytics</p>
+          </div>
+          <span class="kpi-modal-live" id="kpiModalLive"><i class="bi bi-broadcast"></i> Live</span>
+        </div>
+        <button class="kpi-modal-close" id="kpiModalClose"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="kpi-modal-body" id="kpiModalBody">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/admin-dashboard.js"></script>

@@ -1,0 +1,18 @@
+<%/*
+  Hero slider partial
+  expects variables:
+    slides: array of image URLs
+    content: HTML string rendered on top
+*/%>
+<section class="hero">
+  <div class="hero-slider-inner">
+    <% (slides || []).forEach(function(url) { %>
+      <div class="hero-slide" style="background-image:url('<%= url %>');"></div>
+    <% }); %>
+  </div>
+  <% if (content) { %>
+    <div class="hero-overlay">
+      <%- content %>
+    </div>
+  <% } %>
+</section>

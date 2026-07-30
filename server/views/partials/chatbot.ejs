@@ -1,0 +1,1333 @@
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- RACS AI Chatbot – ChatGPT-Style                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="racs-ai-chatbot" id="racsChatbot">
+  <!-- Toggle Button -->
+  <button class="racbot-toggle" id="racbotToggle" aria-label="Open AI Assistant">
+    <i class="bi bi-chat-dots-fill"></i>
+  </button>
+
+  <!-- Chat Window -->
+  <div class="racbot-window" id="racbotWindow">
+    <!-- Header -->
+    <div class="racbot-header">
+      <div class="racbot-header-left">
+        <span class="racbot-header-title">RACS</span>
+        <span class="racbot-header-model"><i class="bi bi-stars"></i> AI Assistant</span>
+      </div>
+      <div class="racbot-header-actions">
+        <button class="racbot-header-btn" id="racbotNewChat" title="New chat">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+        <button class="racbot-header-btn" id="racbotClose" title="Close">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div class="racbot-messages" id="racbotMessages"></div>
+
+    <!-- Input Area -->
+    <div class="racbot-input-area">
+      <div class="racbot-input-container">
+        <textarea class="racbot-input" id="racbotInput" rows="1" placeholder="Message RACS AI..." aria-label="Type your message"></textarea>
+        <button class="racbot-send" id="racbotSend" aria-label="Send" disabled>
+          <i class="bi bi-arrow-up"></i>
+        </button>
+      </div>
+      <div class="racbot-footer">RACS AI can make mistakes. Verify important info.</div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   RACS AI Chatbot – ChatGPT Free Tier Style
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Container ── */
+.racs-ai-chatbot {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  font-family: 'Söhne', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  touch-action: none;
+  user-select: none;
+}
+
+/* ── Toggle Button ── */
+.racbot-toggle {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.4);
+  transition: all 0.25s ease;
+  color: white;
+  font-size: 22px;
+}
+
+.racbot-toggle:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 32px rgba(37, 99, 235, 0.5);
+}
+
+.racbot-toggle:active {
+  transform: scale(0.95);
+}
+
+/* ── Chat Window ── */
+.racbot-window {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 440px;
+  height: 640px;
+  max-height: calc(100vh - 110px);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.racbot-window.active {
+  display: flex;
+  animation: racbotFadeIn 0.2s ease;
+}
+
+@keyframes racbotFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.racbot-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-bottom: 1px solid #1e293b;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.racbot-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.racbot-header-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.racbot-header-model {
+  font-size: 11px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.racbot-header-model i {
+  color: #60a5fa;
+}
+
+.racbot-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.racbot-header-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.racbot-header-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* ── Messages ── */
+.racbot-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  scroll-behavior: smooth;
+}
+
+.racbot-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.racbot-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.racbot-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.racbot-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ── Message Rows ── */
+.racbot-msg-row {
+  padding: 16px 0;
+  animation: racbotMsgIn 0.25s ease;
+}
+
+@keyframes racbotMsgIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.racbot-msg-row.user {
+  background: transparent;
+}
+
+.racbot-msg-row.assistant {
+  background: #f8fafc;
+}
+
+.racbot-msg-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── User Message ── */
+.racbot-msg-row.user .racbot-msg-inner {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.racbot-user-bubble {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 16px;
+  max-width: 85%;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+/* ── Assistant Message ── */
+.racbot-assistant-content {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #1e293b;
+}
+
+.racbot-assistant-content p {
+  margin: 0 0 10px;
+}
+
+.racbot-assistant-content p:last-child {
+  margin-bottom: 0;
+}
+
+.racbot-assistant-content strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.racbot-assistant-content em {
+  font-style: italic;
+  color: #475569;
+}
+
+.racbot-assistant-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.racbot-assistant-content a:hover {
+  color: #1d4ed8;
+}
+
+/* ── Code ── */
+.racbot-assistant-content code {
+  background: #f1f5f9;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 0.88em;
+  color: #7c3aed;
+  border: 1px solid #e2e8f0;
+}
+
+.racbot-assistant-content pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  margin: 10px 0;
+  position: relative;
+}
+
+.racbot-assistant-content pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border: none;
+  font-size: inherit;
+}
+
+/* ── Lists ── */
+.racbot-assistant-content .racbot-list {
+  margin: 8px 0;
+  padding-left: 0;
+}
+
+.racbot-assistant-content .racbot-list-item {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  line-height: 1.55;
+}
+
+.racbot-assistant-content .racbot-list-bullet {
+  color: #2563eb;
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-weight: 600;
+}
+
+.racbot-assistant-content .racbot-numbered-list {
+  counter-reset: racbot-counter;
+}
+
+.racbot-assistant-content .racbot-numbered-list .racbot-list-item {
+  counter-increment: racbot-counter;
+}
+
+.racbot-assistant-content .racbot-numbered-list .racbot-list-bullet {
+  counter-reset: none;
+}
+
+.racbot-assistant-content .racbot-numbered-item::before {
+  content: counter(racbot-counter) ".";
+  color: #64748b;
+  margin-right: 6px;
+  font-size: 13px;
+}
+
+/* ── Headings ── */
+.racbot-assistant-content .racbot-h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 16px 0 8px;
+  color: #0f172a;
+}
+
+.racbot-assistant-content .racbot-h2 {
+  font-size: 1.2em;
+  font-weight: 700;
+  margin: 14px 0 6px;
+  color: #1e293b;
+}
+
+.racbot-assistant-content .racbot-h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: 12px 0 4px;
+  color: #334155;
+}
+
+/* ── Tables ── */
+.racbot-assistant-content .racbot-table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.racbot-assistant-content .racbot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.racbot-assistant-content .racbot-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.racbot-assistant-content .racbot-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.racbot-assistant-content .racbot-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Blockquotes ── */
+.racbot-assistant-content .racbot-blockquote {
+  border-left: 3px solid #2563eb;
+  padding-left: 14px;
+  margin: 10px 0;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* ── Horizontal Rule ── */
+.racbot-assistant-content .racbot-hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 14px 0;
+}
+
+/* ── Timestamp & Actions ── */
+.racbot-msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.racbot-msg-row:hover .racbot-msg-meta {
+  opacity: 1;
+}
+
+.racbot-msg-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.racbot-msg-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.racbot-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.racbot-action-btn:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.racbot-action-btn.active {
+  color: #2563eb;
+}
+
+/* ── Typing Indicator ── */
+.racbot-typing-row {
+  padding: 16px 0;
+  background: #f8fafc;
+}
+
+.racbot-typing-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.racbot-typing-avatar {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.racbot-typing-dots {
+  display: flex;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.racbot-typing-dot {
+  width: 7px;
+  height: 7px;
+  background: #cbd5e1;
+  border-radius: 50%;
+  animation: racbotBounce 1.4s ease-in-out infinite;
+}
+
+.racbot-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.racbot-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes racbotBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+/* ── Welcome ── */
+.racbot-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.racbot-welcome-icon {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+}
+
+.racbot-welcome h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.racbot-welcome p {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 24px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.racbot-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.racbot-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: #334155;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.racbot-suggestion:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.racbot-suggestion i {
+  color: #64748b;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.racbot-suggestion:hover i {
+  color: #2563eb;
+}
+
+/* ── Inline suggestion chips (after bot replies) ── */
+.racbot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.racbot-chip {
+  padding: 6px 12px;
+  background: #eef2ff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2563eb;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.racbot-chip:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+/* ── Input Area ── */
+.racbot-input-area {
+  border-top: 1px solid #e2e8f0;
+  padding: 12px 16px 14px;
+  background: #ffffff;
+}
+
+.racbot-input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 6px 6px 6px 16px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s;
+}
+
+.racbot-input-container:focus-within {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.racbot-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  max-height: 120px;
+  line-height: 1.45;
+  color: #0f172a;
+}
+
+.racbot-input::placeholder {
+  color: #94a3b8;
+}
+
+.racbot-send {
+  width: 32px;
+  height: 32px;
+  background: #2563eb;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.racbot-send:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.racbot-send:not(:disabled):hover {
+  background: #1d4ed8;
+}
+
+.racbot-footer {
+  text-align: center;
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-top: 8px;
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .racs-ai-chatbot {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .racbot-toggle {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+
+  .racbot-window {
+    width: calc(100vw - 32px);
+    right: -8px;
+    bottom: 66px;
+    height: 80vh;
+    max-height: 600px;
+    border-radius: 12px;
+  }
+
+  .racbot-msg-inner {
+    padding: 0 16px;
+  }
+
+  .racbot-input-area {
+    padding: 10px 12px 12px;
+  }
+
+  .racbot-welcome {
+    padding: 32px 24px;
+  }
+}
+</style>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   RACS AI Chatbot – ChatGPT-Style Engine with Streaming
+   ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────
+  const HISTORY_KEY = 'racs_chat_history';
+  const SID_KEY = 'racs_chat_sid';
+
+  let history = loadHistory();
+  let isStreaming = false;
+  let abortController = null;
+
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const chatbot = document.getElementById('racsChatbot');
+  if (!chatbot) return;
+
+  const toggleBtn = document.getElementById('racbotToggle');
+  const win = document.getElementById('racbotWindow');
+  const closeBtn = document.getElementById('racbotClose');
+  const newChatBtn = document.getElementById('racbotNewChat');
+  const input = document.getElementById('racbotInput');
+  const sendBtn = document.getElementById('racbotSend');
+  const messages = document.getElementById('racbotMessages');
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  function init() {
+    toggleBtn.addEventListener('click', toggleChat);
+    closeBtn.addEventListener('click', closeChat);
+    newChatBtn.addEventListener('click', newChat);
+    sendBtn.addEventListener('click', sendMessage);
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      sendBtn.disabled = !input.value.trim();
+    });
+
+    // Draggable toggle button
+    initDraggable();
+
+    if (history.length > 0) {
+      renderHistory();
+    } else {
+      renderWelcome();
+    }
+  }
+
+  // ── Draggable Toggle Button ────────────────────────────────────────────
+  function initDraggable() {
+    const DRAG_KEY = 'racbot_drag_pos';
+    let isDragging = false;
+    let hasMoved = false;
+    let startX, startY, startLeft, startTop;
+    let clickTimeout = null;
+
+    // Restore saved position
+    try {
+      const saved = JSON.parse(localStorage.getItem(DRAG_KEY));
+      if (saved && typeof saved.bottom === 'number' && typeof saved.right === 'number') {
+        chatbot.style.bottom = saved.bottom + 'px';
+        chatbot.style.right = saved.right + 'px';
+      }
+    } catch (e) {}
+
+    function savePosition() {
+      try {
+        const rect = chatbot.getBoundingClientRect();
+        localStorage.setItem(DRAG_KEY, JSON.stringify({
+          bottom: Math.round(window.innerHeight - rect.bottom),
+          right: Math.round(window.innerWidth - rect.right)
+        }));
+      } catch (e) {}
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+
+    toggleBtn.style.cursor = 'grab';
+
+    toggleBtn.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.racbot-window')) return;
+      isDragging = true;
+      hasMoved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = chatbot.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      chatbot.style.transition = 'none';
+      toggleBtn.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    document.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+      if (!hasMoved) return;
+
+      const w = chatbot.offsetWidth;
+      const h = chatbot.offsetHeight;
+      const initialRight = window.innerWidth - startLeft - w;
+      const initialBottom = window.innerHeight - startTop - h;
+      let newRight = clamp(initialRight - dx, 0, window.innerWidth - w);
+      let newBottom = clamp(initialBottom - dy, 0, window.innerHeight - h);
+
+      chatbot.style.right = newRight + 'px';
+      chatbot.style.bottom = newBottom + 'px';
+      chatbot.style.left = 'auto';
+      chatbot.style.top = 'auto';
+    });
+
+    document.addEventListener('pointerup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      toggleBtn.style.cursor = 'grab';
+      chatbot.style.transition = '';
+      if (hasMoved) {
+        savePosition();
+      }
+    });
+
+    // Prevent click from firing after drag
+    toggleBtn.addEventListener('click', (e) => {
+      if (hasMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+        hasMoved = false;
+      }
+    }, true);
+  }
+
+  // ── Chat Toggle ────────────────────────────────────────────────────────
+  function toggleChat() {
+    win.classList.toggle('active');
+    if (win.classList.contains('active')) {
+      setTimeout(() => input.focus(), 100);
+    }
+  }
+
+  function closeChat() {
+    win.classList.remove('active');
+  }
+
+  // ── New Chat ───────────────────────────────────────────────────────────
+  function newChat() {
+    history = [];
+    saveHistory();
+    localStorage.removeItem(SID_KEY);
+    messages.innerHTML = '';
+    renderWelcome();
+  }
+
+  // ── Welcome Screen ─────────────────────────────────────────────────────
+  function renderWelcome() {
+    messages.innerHTML = `
+      <div class="racbot-welcome">
+        <div class="racbot-welcome-icon"><i class="bi bi-stars"></i></div>
+        <h3>How can I help you today?</h3>
+        <p>I'm RACS AI, your HVAC assistant. Ask me anything about air conditioning products, services, or booking.</p>
+        <div class="racbot-suggestions">
+          <button class="racbot-suggestion" data-q="What aircon services do you offer?">
+            <i class="bi bi-tools"></i> Services & pricing
+          </button>
+          <button class="racbot-suggestion" data-q="I want to book a service appointment">
+            <i class="bi bi-calendar-check"></i> Book a service
+          </button>
+          <button class="racbot-suggestion" data-q="How do I track my booking?">
+            <i class="bi bi-geo-alt"></i> Track my booking
+          </button>
+          <button class="racbot-suggestion" data-q="My AC is not cooling, what should I do?">
+            <i class="bi bi-exclamation-triangle"></i> My AC isn't working
+          </button>
+        </div>
+      </div>`;
+
+    messages.querySelectorAll('.racbot-suggestion').forEach(btn => {
+      btn.addEventListener('click', () => {
+        input.value = btn.dataset.q;
+        sendBtn.disabled = false;
+        sendMessage();
+      });
+    });
+  }
+
+  // ── Render History ─────────────────────────────────────────────────────
+  function renderHistory() {
+    messages.innerHTML = '';
+    for (const msg of history) {
+      appendMessage(msg.role, msg.content, msg.timestamp, false);
+    }
+    scrollBottom();
+  }
+
+  // ── Send Message (Streaming) ───────────────────────────────────────────
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || isStreaming) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    isStreaming = true;
+
+    const userTime = new Date().toISOString();
+    appendMessage('user', text, userTime);
+    history.push({ role: 'user', content: text, timestamp: userTime });
+
+    // Show typing
+    showTyping();
+
+    try {
+      abortController = new AbortController();
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: history.slice(-20),
+          sessionId: getOrCreateSessionId(),
+        }),
+        signal: abortController.signal,
+      });
+
+      hideTyping();
+
+      if (!response.ok) throw new Error('Stream failed');
+
+      // Create assistant message container
+      const msgRow = document.createElement('div');
+      msgRow.className = 'racbot-msg-row assistant';
+      const msgInner = document.createElement('div');
+      msgInner.className = 'racbot-msg-inner';
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'racbot-assistant-content';
+      msgInner.appendChild(contentDiv);
+      msgRow.appendChild(msgInner);
+      messages.appendChild(msgRow);
+
+      // Read stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let buffer = '';
+      let lastSuggests = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') break;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) {
+                fullText += parsed.text;
+                contentDiv.innerHTML = formatMarkdown(fullText);
+                scrollBottom();
+              }
+              if (parsed.done) {
+                if (parsed.suggests) lastSuggests = parsed.suggests;
+                history.push({ role: 'bot', content: parsed.fullText || fullText, timestamp: new Date().toISOString() });
+                saveHistory();
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      if (lastSuggests && lastSuggests.length) {
+        renderSuggestions(contentDiv.parentElement, lastSuggests);
+      }
+
+      // If stream didn't send a done event, save what we have
+      if (fullText && !history.some(h => h.role === 'bot' && h.content === fullText)) {
+        history.push({ role: 'bot', content: fullText, timestamp: new Date().toISOString() });
+        saveHistory();
+      }
+
+      // Add timestamp and actions
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const meta = document.createElement('div');
+      meta.className = 'racbot-msg-meta';
+      meta.innerHTML = `
+        <span class="racbot-msg-time">${time}</span>
+        <div class="racbot-msg-actions">
+          <button class="racbot-action-btn" onclick="racbotCopyMsg(this)" title="Copy"><i class="bi bi-clipboard"></i></button>
+          <button class="racbot-action-btn" onclick="racbotThumbsUp(this)" title="Good response"><i class="bi bi-hand-thumbs-up"></i></button>
+          <button class="racbot-action-btn" onclick="racbotThumbsDown(this)" title="Bad response"><i class="bi bi-hand-thumbs-down"></i></button>
+        </div>`;
+      msgInner.appendChild(meta);
+
+    } catch (err) {
+      hideTyping();
+      if (err.name !== 'AbortError') {
+        const fallback = "I'm having trouble connecting. Please try again or call **+63 917 888 9999** for immediate help.";
+        appendMessage('bot', fallback, new Date().toISOString());
+        history.push({ role: 'bot', content: fallback, timestamp: new Date().toISOString() });
+        saveHistory();
+      }
+    }
+
+    isStreaming = false;
+    abortController = null;
+    input.focus();
+  }
+
+  // ── Append Message ─────────────────────────────────────────────────────
+  function appendMessage(role, text, timestamp, animate = true) {
+    const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isUser = role === 'user';
+
+    const row = document.createElement('div');
+    row.className = `racbot-msg-row ${role}`;
+    if (!animate) row.style.animation = 'none';
+
+    const inner = document.createElement('div');
+    inner.className = 'racbot-msg-inner';
+
+    if (isUser) {
+      inner.innerHTML = `<div class="racbot-user-bubble">${escapeHtml(text)}</div>`;
+    } else {
+      const content = document.createElement('div');
+      content.className = 'racbot-assistant-content';
+      content.innerHTML = formatMarkdown(text);
+      inner.appendChild(content);
+
+      const meta = document.createElement('div');
+      meta.className = 'racbot-msg-meta';
+      meta.innerHTML = `
+        <span class="racbot-msg-time">${time}</span>
+        <div class="racbot-msg-actions">
+          <button class="racbot-action-btn" onclick="racbotCopyMsg(this)" title="Copy"><i class="bi bi-clipboard"></i></button>
+          <button class="racbot-action-btn" onclick="racbotThumbsUp(this)" title="Good response"><i class="bi bi-hand-thumbs-up"></i></button>
+          <button class="racbot-action-btn" onclick="racbotThumbsDown(this)" title="Bad response"><i class="bi bi-hand-thumbs-down"></i></button>
+        </div>`;
+      inner.appendChild(meta);
+    }
+
+    row.appendChild(inner);
+    messages.appendChild(row);
+    if (animate) scrollBottom();
+  }
+
+  // ── Typing Indicator ───────────────────────────────────────────────────
+  function showTyping() {
+    const html = `
+      <div class="racbot-typing-row" id="racbotTyping">
+        <div class="racbot-typing-inner">
+          <div class="racbot-typing-avatar"><i class="bi bi-stars"></i></div>
+          <div class="racbot-typing-dots">
+            <div class="racbot-typing-dot"></div>
+            <div class="racbot-typing-dot"></div>
+            <div class="racbot-typing-dot"></div>
+          </div>
+        </div>
+      </div>`;
+    messages.insertAdjacentHTML('beforeend', html);
+    scrollBottom();
+  }
+
+  function hideTyping() {
+    const el = document.getElementById('racbotTyping');
+    if (el) el.remove();
+  }
+
+  // ── Suggestion Chips (guided next steps) ────────────────────────────────
+  function renderSuggestions(container, suggests) {
+    if (!container || !suggests || !suggests.length) return;
+    let chipBar = container.querySelector('.racbot-chips');
+    if (!chipBar) {
+      chipBar = document.createElement('div');
+      chipBar.className = 'racbot-chips';
+      container.appendChild(chipBar);
+    }
+    chipBar.innerHTML = '';
+    suggests.forEach((q) => {
+      const btn = document.createElement('button');
+      btn.className = 'racbot-chip';
+      btn.type = 'button';
+      btn.textContent = q;
+      btn.addEventListener('click', () => {
+        input.value = q;
+        sendBtn.disabled = false;
+        sendMessage();
+      });
+      chipBar.appendChild(btn);
+    });
+  }
+
+  // ── Markdown Formatter ─────────────────────────────────────────────────
+  function formatMarkdown(text) {
+    // Handle code blocks first
+    let html = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+      return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+    });
+
+    // Handle tables
+    html = html.replace(/\|(.+)\|\n\|[-|\s]+\|\n((?:\|.+\|\n?)+)/g, (match, header, body) => {
+      const headers = header.split('|').map(h => h.trim()).filter(Boolean);
+      const rows = body.trim().split('\n').map(row =>
+        row.split('|').map(c => c.trim()).filter(Boolean)
+      );
+      let table = '<div class="racbot-table-wrap"><table class="racbot-table"><thead><tr>';
+      headers.forEach(h => { table += `<th>${h}</th>`; });
+      table += '</tr></thead><tbody>';
+      rows.forEach(row => {
+        table += '<tr>';
+        row.forEach(c => { table += `<td>${c}</td>`; });
+        table += '</tr>';
+      });
+      table += '</tbody></table></div>';
+      return table;
+    });
+
+    // Process line by line
+    const lines = html.split('\n');
+    const processed = [];
+    let inList = false;
+    let listType = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // Code blocks pass through
+      if (line.startsWith('<pre>')) {
+        if (inList) { processed.push(`</div>`); inList = false; }
+        processed.push(line);
+        continue;
+      }
+
+      // Headings
+      if (/^###\s+/.test(line)) {
+        if (inList) { processed.push('</div>'); inList = false; }
+        processed.push(`<div class="racbot-h3">${inlineFormat(line.replace(/^###\s+/, ''))}</div>`);
+        continue;
+      }
+      if (/^##\s+/.test(line)) {
+        if (inList) { processed.push('</div>'); inList = false; }
+        processed.push(`<div class="racbot-h2">${inlineFormat(line.replace(/^##\s+/, ''))}</div>`);
+        continue;
+      }
+      if (/^#\s+/.test(line)) {
+        if (inList) { processed.push('</div>'); inList = false; }
+        processed.push(`<div class="racbot-h1">${inlineFormat(line.replace(/^#\s+/, ''))}</div>`);
+        continue;
+      }
+
+      // Horizontal rule
+      if (/^---+$/.test(line.trim())) {
+        if (inList) { processed.push('</div>'); inList = false; }
+        processed.push('<hr class="racbot-hr">');
+        continue;
+      }
+
+      // Blockquote
+      if (/^>\s+/.test(line)) {
+        if (inList) { processed.push('</div>'); inList = false; }
+        processed.push(`<div class="racbot-blockquote">${inlineFormat(line.replace(/^>\s+/, ''))}</div>`);
+        continue;
+      }
+
+      // Bullet points
+      if (/^[•\-\*]\s+/.test(line)) {
+        if (!inList || listType !== 'bullet') {
+          if (inList) processed.push('</div>');
+          processed.push('<div class="racbot-list">');
+          inList = true;
+          listType = 'bullet';
+        }
+        processed.push(`<div class="racbot-list-item"><span class="racbot-list-bullet">•</span><span>${inlineFormat(line.replace(/^[•\-\*]\s+/, ''))}</span></div>`);
+        continue;
+      }
+
+      // Numbered list
+      if (/^\d+\.\s+/.test(line)) {
+        if (!inList || listType !== 'number') {
+          if (inList) processed.push('</div>');
+          processed.push('<div class="racbot-list racbot-numbered-list">');
+          inList = true;
+          listType = 'number';
+        }
+        const num = line.match(/^(\d+)\.\s+/)[1];
+        processed.push(`<div class="racbot-list-item racbot-numbered-item"><span class="racbot-list-bullet">${num}</span><span>${inlineFormat(line.replace(/^\d+\.\s+/, ''))}</span></div>`);
+        continue;
+      }
+
+      // Close list
+      if (inList) { processed.push('</div>'); inList = false; }
+
+      // Empty line
+      if (line.trim() === '') {
+        continue;
+      }
+
+      // Regular paragraph
+      processed.push(`<p>${inlineFormat(line)}</p>`);
+    }
+
+    if (inList) processed.push('</div>');
+    return processed.join('');
+  }
+
+  function inlineFormat(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ── Scroll ─────────────────────────────────────────────────────────────
+  function scrollBottom() {
+    requestAnimationFrame(() => {
+      messages.scrollTop = messages.scrollHeight;
+    });
+  }
+
+  // ── Session ID ────────────────────────────────────────────────────────
+  function getOrCreateSessionId() {
+    let sid = localStorage.getItem(SID_KEY);
+    if (!sid) {
+      sid = 'cs_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 8);
+      localStorage.setItem(SID_KEY, sid);
+    }
+    return sid;
+  }
+
+  // ── Persistence ────────────────────────────────────────────────────────
+  function loadHistory() {
+    try {
+      const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+      if (h && h.length > 0) {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        return h.filter(m => new Date(m.timestamp).getTime() > cutoff);
+      }
+      return [];
+    } catch { return []; }
+  }
+
+  function saveHistory() {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-100)));
+    } catch {}
+  }
+
+  // ── Global Actions ─────────────────────────────────────────────────────
+  window.racbotCopyMsg = function(btn) {
+    const content = btn.closest('.racbot-msg-inner').querySelector('.racbot-assistant-content');
+    if (content) {
+      navigator.clipboard.writeText(content.textContent).catch(() => {});
+      btn.innerHTML = '<i class="bi bi-check"></i>';
+      setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500);
+    }
+  };
+
+  window.racbotThumbsUp = function(btn) {
+    btn.classList.toggle('active');
+    const sibling = btn.parentElement.querySelector('[onclick*="ThumbsDown"]');
+    if (sibling) sibling.classList.remove('active');
+  };
+
+  window.racbotThumbsDown = function(btn) {
+    btn.classList.toggle('active');
+    const sibling = btn.parentElement.querySelector('[onclick*="ThumbsUp"]');
+    if (sibling) sibling.classList.remove('active');
+  };
+
+  // ── Start ──────────────────────────────────────────────────────────────
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>

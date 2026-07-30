@@ -1,0 +1,475 @@
+<div class="admin-dashboard container-fluid py-4 company-location-settings-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .company-location-settings-page {
+      --ss-primary: #0ea5e9;
+      --ss-primary-dark: #0284c7;
+      --ss-accent: #38bdf8;
+      --ss-surface: #ffffff;
+      --ss-surface-soft: #f0f9ff;
+      --ss-line: rgba(15, 23, 42, 0.08);
+      --ss-line-strong: rgba(15, 23, 42, 0.14);
+      --ss-muted: #64748b;
+      --ss-text: #0c4a6e;
+      --ss-radius: 16px;
+      --ss-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+      --ss-shadow-hover: 0 14px 34px rgba(15, 23, 42, 0.08);
+    }
+
+    .company-location-settings-page .dashboard-hero .hero-sub {
+      color: var(--ss-muted);
+    }
+
+    .company-location-settings-page .card {
+      border: 1px solid var(--ss-line);
+      border-radius: var(--ss-radius);
+      background: linear-gradient(180deg, #ffffff, #fbfdff);
+      box-shadow: var(--ss-shadow);
+      overflow: hidden;
+    }
+
+    .company-location-settings-page .card:hover {
+      box-shadow: var(--ss-shadow-hover);
+      transform: translateY(-2px);
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .company-location-settings-page .card-head {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--ss-line);
+      background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .company-location-settings-page .head-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent));
+      box-shadow: 0 10px 26px rgba(14,165,233,0.25);
+    }
+
+    .company-location-settings-page h1.page-title {
+      color: var(--ss-text);
+    }
+
+    .company-location-settings-page .form-control,
+    .company-location-settings-page .form-select {
+      border-radius: 10px;
+      border-color: var(--ss-line-strong);
+      font-size: 0.9rem;
+    }
+
+    .company-location-settings-page .form-control:focus,
+    .company-location-settings-page .form-select:focus {
+      border-color: rgba(14,165,233,0.45);
+      box-shadow: 0 0 0 0.15rem rgba(14,165,233,0.16);
+    }
+
+    .company-location-settings-page .label-micro {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ss-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .company-location-settings-page .btn-ss {
+      padding: 0.6rem 1.1rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      text-decoration: none;
+      justify-content: center;
+    }
+
+    .company-location-settings-page .btn-ss.primary {
+      background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent));
+      color: #fff;
+      box-shadow: 0 8px 22px rgba(14,165,233,0.25);
+    }
+
+    .company-location-settings-page .btn-ss.primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(14,165,233,0.32);
+    }
+
+    .company-location-settings-page .btn-ss.outline {
+      background: #fff;
+      border: 1.5px solid var(--ss-line-strong);
+      color: var(--ss-text);
+    }
+
+    .company-location-settings-page .btn-ss.outline:hover {
+      border-color: rgba(14,165,233,0.55);
+      color: var(--ss-primary-dark);
+    }
+
+    .company-location-settings-page .help {
+      color: var(--ss-muted);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    .company-location-settings-page .coord-preview {
+      background: var(--ss-surface-soft);
+      border: 1px solid var(--ss-line);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+    }
+
+    .company-location-settings-page .coord-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+
+    @media (min-width: 992px) {
+      .company-location-settings-page .coord-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .company-location-settings-page .kv {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .company-location-settings-page .kv small {
+      color: var(--ss-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+    }
+
+    .company-location-settings-page .kv div {
+      font-weight: 800;
+      color: var(--ss-text);
+      word-break: break-word;
+    }
+
+    .company-location-settings-page .map-box {
+      width: 100%;
+      height: 340px;
+      border-radius: 12px;
+      border: 1px solid var(--ss-line);
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .company-location-settings-page .alert {
+      border-radius: 12px;
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-geo-alt-fill"></i></div>
+        <div>
+          <h1>Company Locations</h1>
+          <p>Manage office and branch location details for the platform</p>
+        </div>
+      </div>
+    </div>
+  </div>
+    </div>
+  </div>
+
+  <div id="companyLocationAlert" class="alert d-none" role="alert"></div>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-head">
+          <div class="head-icon"><i class="bi bi-map"></i></div>
+          <h4 class="m-0 fw-bold text-dark">Set Company/Base Coordinates</h4>
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-3">
+            <div class="col-12">
+              <div class="label-micro">Company Address</div>
+              <input id="companyAddress" type="text" class="form-control" placeholder="e.g., 123 Main St, Metro Manila" />
+              <div class="help mt-2">
+                Used only for display/autocomplete. Distance calculations use Lat/Lng.
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="label-micro">Latitude</div>
+              <input id="companyLat" type="number" class="form-control" step="any" placeholder="e.g., 14.676049" />
+            </div>
+
+            <div class="col-md-6">
+              <div class="label-micro">Longitude</div>
+              <input id="companyLng" type="number" class="form-control" step="any" placeholder="e.g., 121.043731" />
+            </div>
+
+            <div class="col-12 d-flex gap-2 flex-wrap">
+              <button type="button" id="saveCompanyLocationBtn" class="btn-ss primary">
+                <i class="bi bi-floppy"></i> Save Company Location
+              </button>
+
+              <button type="button" id="useMyLocationBtn" class="btn-ss outline">
+                <i class="bi bi-crosshair"></i> Use My Location (optional)
+              </button>
+            </div>
+
+            <div class="col-12 coord-preview">
+              <div class="help mb-2"><i class="bi bi-info-circle me-2 text-primary"></i>Current baseline preview</div>
+              <div class="coord-grid">
+                <div class="kv">
+                  <small>Address</small>
+                  <div id="baselineAddressPreview">—</div>
+                </div>
+                <div class="kv">
+                  <small>Coordinates</small>
+                  <div id="baselineCoordsPreview">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-head">
+          <div class="head-icon" style="background: linear-gradient(135deg,#22c55e,#16a34a)"><i class="bi bi-pin-map"></i></div>
+          <h4 class="m-0 fw-bold text-dark">Map Preview</h4>
+        </div>
+        <div class="card-body p-4">
+          <div class="map-box" id="companyLocationMap" data-lat="14.676049" data-lng="121.043731"></div>
+          <div class="help mt-3">
+            This is a visual preview only. The saved values are what booking uses.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const alertEl = document.getElementById('companyLocationAlert');
+      const setAlert = (msg, type) => {
+        alertEl.className = 'alert alert-' + (type || 'info');
+        alertEl.textContent = msg;
+        alertEl.classList.remove('d-none');
+        setTimeout(() => alertEl.classList.add('d-none'), 5000);
+      };
+
+      const addressInput = document.getElementById('companyAddress');
+      const latInput = document.getElementById('companyLat');
+      const lngInput = document.getElementById('companyLng');
+
+      const addrPreview = document.getElementById('baselineAddressPreview');
+      const coordsPreview = document.getElementById('baselineCoordsPreview');
+
+      function renderPreview(payload) {
+        addressInput.value = payload.address || '';
+        latInput.value = payload.lat ?? '';
+        lngInput.value = payload.lng ?? '';
+
+        addrPreview.textContent = payload.address || '—';
+        coordsPreview.textContent =
+          (Number.isFinite(payload.lat) ? payload.lat : '—') + ', ' + (Number.isFinite(payload.lng) ? payload.lng : '—');
+
+        const mapBox = document.getElementById('companyLocationMap');
+        if (mapBox) {
+          mapBox.dataset.lat = payload.lat ?? mapBox.dataset.lat;
+          mapBox.dataset.lng = payload.lng ?? mapBox.dataset.lng;
+        }
+      }
+
+      // Lazy Leaflet loading (if not already loaded on admin layout)
+      function ensureLeaflet() {
+        return new Promise((resolve) => {
+          if (window.L && window.L.map) return resolve(true);
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+          document.head.appendChild(css);
+
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+          script.onload = () => resolve(true);
+          script.onerror = () => resolve(false);
+          document.head.appendChild(script);
+        });
+      }
+
+      let mapInstance = null;
+      let marker = null;
+      async function initMapIfNeeded() {
+        const mapEl = document.getElementById('companyLocationMap');
+        if (!mapEl) return;
+
+        const ok = await ensureLeaflet();
+        if (!ok) return;
+
+        const lat = parseFloat(mapEl.dataset.lat);
+        const lng = parseFloat(mapEl.dataset.lng);
+        const center = [Number.isFinite(lat) ? lat : 14.676049, Number.isFinite(lng) ? lng : 121.043731];
+
+        if (mapInstance) {
+          mapInstance.setView(center, 13);
+          if (marker) marker.setLatLng(center);
+          return;
+        }
+
+        mapInstance = window.L.map(mapEl).setView(center, 13);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(mapInstance);
+
+        const icon = window.L.divIcon({
+          className: 'company-marker',
+          html: '<div style="background:#16a34a;border:3px solid white;border-radius:50% 50% 50% 0;width:34px;height:34px;transform: rotate(-45deg);position:relative;"><div style="background:white;border-radius:50%;width:12px;height:12px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"></div></div>',
+          iconSize: [34, 34],
+          iconAnchor: [17, 34],
+          popupAnchor: [0, -34]
+        });
+
+        marker = window.L.marker(center, { icon }).addTo(mapInstance);
+      }
+
+      async function loadCurrent() {
+        try {
+          const resp = await fetch('/api/public/company/location', { credentials: 'same-origin' });
+          const data = await resp.json();
+
+          renderPreview(data);
+          await initMapIfNeeded();
+
+          // Drop marker into map with latest coords
+          const mapEl = document.getElementById('companyLocationMap');
+          if (marker && mapEl) {
+            marker.setLatLng([
+              parseFloat(mapEl.dataset.lat),
+              parseFloat(mapEl.dataset.lng)
+            ]);
+          }
+        } catch (e) {
+          setAlert('Failed to load current company location.', 'danger');
+        }
+      }
+
+      async function save() {
+        const address = (addressInput.value || '').trim();
+        const lat = Number(latInput.value);
+        const lng = Number(lngInput.value);
+
+        if (!address) {
+          setAlert('Company address is required.', 'warning');
+          return;
+        }
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          setAlert('Latitude and Longitude must be valid numbers.', 'warning');
+          return;
+        }
+
+        const btn = document.getElementById('saveCompanyLocationBtn');
+        btn.disabled = true;
+        const prev = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+
+        try {
+          const resp = await fetch('/api/admin/settings/company-location', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              address,
+              lat,
+              lng
+            })
+          });
+
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || 'Save failed');
+
+          setAlert('Company location saved successfully.', 'success');
+
+          // Update map preview if initialized
+          await initMapIfNeeded();
+          if (marker) marker.setLatLng([lat, lng]);
+          if (mapInstance) mapInstance.setView([lat, lng], 13);
+
+        } catch (e) {
+          setAlert('Save failed: ' + (e.message || e), 'danger');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = prev;
+        }
+      }
+
+      async function useMyLocation() {
+        if (!navigator.geolocation) {
+          setAlert('Geolocation is not supported by this browser.', 'warning');
+          return;
+        }
+
+        const btn = document.getElementById('useMyLocationBtn');
+        const prev = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Getting location…';
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          // Try reverse geocode via existing API
+          try {
+            const r = await fetch(`/api/geocoding/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`);
+            const j = await r.json();
+            const address = j && j.display_name ? j.display_name : 'Lat/Lng saved (address not resolved)';
+
+            renderPreview({ address, lat, lng });
+            setAlert('Location captured from your device. Click save to persist.', 'info');
+
+            await initMapIfNeeded();
+            if (marker) marker.setLatLng([lat, lng]);
+            if (mapInstance) mapInstance.setView([lat, lng], 13);
+          } catch (e) {
+            renderPreview({ address: 'Lat/Lng saved (address not resolved)', lat, lng });
+          }
+
+        }, (err) => {
+          setAlert('Failed to get your location.', 'danger');
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = prev;
+        }, 12000);
+      }
+
+      document.getElementById('saveCompanyLocationBtn').addEventListener('click', save);
+      document.getElementById('useMyLocationBtn').addEventListener('click', useMyLocation);
+
+      loadCurrent();
+      // Attempt to initialize map right after load
+      setTimeout(initMapIfNeeded, 500);
+    })();
+  </script>
+</div>
+

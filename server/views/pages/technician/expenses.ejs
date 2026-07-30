@@ -1,0 +1,280 @@
+<div class="technician-page">
+  <div class="container-fluid px-4 py-4">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-receipt-cutoff me-2"></i>Expenses</h4>
+        <small class="text-muted">Track daily fuel, materials, and other expenses</small>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openExpenseModal()">
+        <i class="bi bi-plus-lg me-1"></i>New Expense
+      </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="exp-summary-card blue">
+          <div class="exp-summary-icon"><i class="bi bi-check-circle"></i></div>
+          <div><span class="exp-summary-value" id="sumApproved">₱0</span><span class="exp-summary-label">Approved</span></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="exp-summary-card amber">
+          <div class="exp-summary-icon"><i class="bi bi-hourglass-split"></i></div>
+          <div><span class="exp-summary-value" id="sumPending">₱0</span><span class="exp-summary-label">Pending</span></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="exp-summary-card green">
+          <div class="exp-summary-icon"><i class="bi bi-fuel-pump"></i></div>
+          <div><span class="exp-summary-value" id="sumFuel">₱0</span><span class="exp-summary-label">Fuel (Month)</span></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="exp-summary-card violet">
+          <div class="exp-summary-icon"><i class="bi bi-receipt"></i></div>
+          <div><span class="exp-summary-value" id="sumCount">0</span><span class="exp-summary-label">Total Records</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <select class="form-select form-select-sm" id="filterType" style="width:150px;">
+        <option value="">All Types</option>
+        <option value="fuel">Fuel</option>
+        <option value="material">Materials</option>
+        <option value="transport">Transport</option>
+        <option value="meal">Meal</option>
+        <option value="other">Other</option>
+      </select>
+      <select class="form-select form-select-sm" id="filterStatus" style="width:150px;">
+        <option value="">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+
+    <!-- Expenses Table -->
+    <div class="table-responsive">
+      <table class="table table-hover align-middle" id="expensesTable">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="expensesBody">
+          <tr><td colspan="7" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-center mt-3" id="expPagination"></div>
+  </div>
+</div>
+
+<!-- Expense Modal -->
+<div class="modal fade" id="expenseModal" tabindex="-1">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold"><i class="bi bi-receipt me-2"></i>New Expense</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="expenseForm" onsubmit="submitExpense(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Type *</label>
+            <select class="form-select" id="expType" required>
+              <option value="fuel">Fuel</option>
+              <option value="material">Materials</option>
+              <option value="transport">Transport</option>
+              <option value="meal">Meal</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Amount (₱) *</label>
+            <input type="number" class="form-control" id="expAmount" step="0.01" min="0.01" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description *</label>
+            <textarea class="form-control" id="expDesc" rows="2" maxlength="500" required></textarea>
+          </div>
+          <div id="fuelFields" style="display:none;">
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Liters</label>
+                <input type="number" class="form-control" id="expLiters" step="0.01" min="0">
+              </div>
+              <div class="col-6">
+                <label class="form-label fw-semibold">Price/Liter (₱)</label>
+                <input type="number" class="form-control" id="expPricePerLiter" step="0.01" min="0">
+              </div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label fw-semibold">Odometer</label>
+                <input type="number" class="form-control" id="expOdometer" min="0">
+              </div>
+              <div class="col-6">
+                <label class="form-label fw-semibold">Gas Station</label>
+                <input type="text" class="form-control" id="expStation" maxlength="100">
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Date</label>
+            <input type="date" class="form-control" id="expDate">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .exp-summary-card {
+    background: #fff; border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; gap: 14px;
+    border: 1px solid #eef2f7; transition: all 0.2s;
+  }
+  .exp-summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(15,23,42,0.05); }
+  .exp-summary-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+  .exp-summary-card.blue .exp-summary-icon { background: #eff6ff; color: #3b82f6; }
+  .exp-summary-card.amber .exp-summary-icon { background: #fffbeb; color: #f59e0b; }
+  .exp-summary-card.green .exp-summary-icon { background: #f0fdf4; color: #22c55e; }
+  .exp-summary-card.violet .exp-summary-icon { background: #f5f3ff; color: #8b5cf6; }
+  .exp-summary-value { font-size: 1.3rem; font-weight: 800; color: #1e293b; display: block; }
+  .exp-summary-label { font-size: 0.75rem; color: #64748b; }
+</style>
+
+<script>
+(function() {
+  const typeColors = { fuel: 'bg-info text-dark', material: 'bg-primary', transport: 'bg-secondary', meal: 'bg-warning text-dark', other: 'bg-dark' };
+  const statusColors = { pending: 'bg-warning text-dark', approved: 'bg-success', rejected: 'bg-danger' };
+  const typeLabels = { fuel: 'Fuel', material: 'Materials', transport: 'Transport', meal: 'Meal', other: 'Other' };
+
+  function formatPeso(n) { return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }); }
+
+  function renderRow(e) {
+    const date = e.expenseDate ? new Date(e.expenseDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    return `<tr>
+      <td>${date}</td>
+      <td><span class="badge ${typeColors[e.type] || 'bg-secondary'}">${typeLabels[e.type] || e.type}</span></td>
+      <td>${e.description || ''}</td>
+      <td class="fw-bold">${formatPeso(e.amount)}</td>
+      <td><span class="badge ${statusColors[e.status] || 'bg-secondary'}">${(e.status || '').charAt(0).toUpperCase() + (e.status || '').slice(1)}</span></td>
+      <td>${e.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteExpense('${e._id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
+    </tr>`;
+  }
+
+  async function loadExpenses(page) {
+    const type = document.getElementById('filterType').value;
+    const status = document.getElementById('filterStatus').value;
+    let url = `/api/technician/expenses?page=${page || 1}&limit=15`;
+    if (type) url += `&type=${type}`;
+    if (status) url += `&status=${status}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      const tbody = document.getElementById('expensesBody');
+      if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-inbox" style="font-size:2rem;"></i><br>No expenses found</td></tr>';
+      } else {
+        tbody.innerHTML = data.items.map(renderRow).join('');
+      }
+      if (data.summary) {
+        document.getElementById('sumApproved').textContent = formatPeso(data.summary.approvedTotal);
+        document.getElementById('sumPending').textContent = formatPeso(data.summary.pendingTotal);
+        document.getElementById('sumFuel').textContent = formatPeso(data.summary.fuelTotal);
+        document.getElementById('sumCount').textContent = (data.summary.approvedCount || 0) + (data.summary.pendingCount || 0);
+      }
+    } catch(e) {
+      document.getElementById('expensesBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Failed to load</td></tr>';
+    }
+  }
+
+  document.getElementById('filterType').addEventListener('change', () => loadExpenses(1));
+  document.getElementById('filterStatus').addEventListener('change', () => loadExpenses(1));
+
+  // loadBookings removed — expenses are no longer linked to specific services
+
+  window.openExpenseModal = function() {
+    document.getElementById('expenseForm').reset();
+    document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('fuelFields').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('expenseModal')).show();
+  };
+
+  document.getElementById('expType').addEventListener('change', function() {
+    document.getElementById('fuelFields').style.display = this.value === 'fuel' ? '' : 'none';
+  });
+
+  window.submitExpense = async function(e) {
+    e.preventDefault();
+    const body = {
+      type: document.getElementById('expType').value,
+      amount: parseFloat(document.getElementById('expAmount').value),
+      description: document.getElementById('expDesc').value,
+      expenseDate: document.getElementById('expDate').value,
+    };
+    if (body.type === 'fuel') {
+      body.fuelLiters = parseFloat(document.getElementById('expLiters').value) || 0;
+      body.pricePerLiter = parseFloat(document.getElementById('expPricePerLiter').value) || 0;
+      body.odometerReading = parseFloat(document.getElementById('expOdometer').value) || 0;
+      body.gasStation = document.getElementById('expStation').value;
+    }
+    try {
+      const res = await fetch('/api/technician/expenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('expenseModal')).hide();
+        showToast('Expense recorded!', 'success');
+        loadExpenses(1);
+      } else {
+        showToast(data.error || 'Failed', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  window.deleteExpense = async function(id) {
+    if (!confirm('Delete this expense?')) return;
+    try {
+      const res = await fetch(`/api/technician/expenses/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) { showToast('Deleted', 'info'); loadExpenses(1); }
+      else showToast(data.error || 'Failed', 'danger');
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  function showToast(msg, type) {
+    var container = document.getElementById('globalToastContainer');
+    if (!container) return;
+    var id = 'toast_' + Date.now();
+    var bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-primary';
+    var html = '<div id="' + id + '" class="toast align-items-center text-white ' + bgClass + ' border-0 show" role="alert">' +
+      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+    container.insertAdjacentHTML('beforeend', html);
+    setTimeout(function() { var el = document.getElementById(id); if (el) el.remove(); }, 4000);
+  }
+
+  loadExpenses(1);
+})();
+</script>

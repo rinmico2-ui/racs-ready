@@ -1,0 +1,1968 @@
+<div
+  class="container py-5 page-min-height purchase-history-premium"
+  data-aos="fade-up"
+  data-aos-duration="800"
+>
+  <!-- Premium Header -->
+  <div class="ph-header-premium mb-4">
+    <div style="position:absolute; inset:0; overflow:hidden; border-radius:24px; pointer-events:none;">
+      <div class="ph-header-glow"></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center position-relative" style="z-index:2;">
+      <div class="d-flex align-items-center gap-3">
+        <div class="ph-avatar-premium">
+          <i class="bi bi-bag-check-fill"></i>
+        </div>
+        <div>
+          <h1 class="ph-title">Purchase History</h1>
+          <p class="ph-subtitle">View your orders, track deliveries, and rate products</p>
+        </div>
+      </div>
+      <!-- Filter Dropdown -->
+      <div class="ph-dropdown-wrapper">
+        <button class="ph-dropdown-trigger" id="phFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-funnel"></i>
+          <span>Filter</span>
+          <i class="bi bi-chevron-down ph-dropdown-arrow"></i>
+        </button>
+        <div class="ph-dropdown-menu dropdown-menu dropdown-menu-end">
+          <div class="ph-dropdown-header">
+            <i class="bi bi-funnel"></i> Filter Orders
+          </div>
+          <div class="ph-dropdown-item active" data-filter="all">
+            <i class="bi bi-grid"></i> All Orders
+          </div>
+          <div class="ph-dropdown-item" data-filter="delivered">
+            <i class="bi bi-check-circle"></i> Delivered
+          </div>
+          <div class="ph-dropdown-item" data-filter="pending">
+            <i class="bi bi-clock"></i> Pending
+          </div>
+          <div class="ph-dropdown-item" data-filter="cancelled">
+            <i class="bi bi-x-circle"></i> Cancelled
+          </div>
+          <div class="ph-dropdown-divider"></div>
+          <div class="ph-dropdown-header">
+            <i class="bi bi-calendar"></i> Date Range
+          </div>
+          <div class="ph-dropdown-dates">
+            <input type="text" class="ph-date-input" id="phDateFrom" placeholder="From" readonly />
+            <span>to</span>
+            <input type="text" class="ph-date-input" id="phDateTo" placeholder="To" readonly />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="ph-stat-card">
+        <div class="ph-stat-icon blue"><i class="bi bi-bag"></i></div>
+        <div class="ph-stat-content">
+          <span class="ph-stat-value"><%= (orders || []).length %></span>
+          <span class="ph-stat-label">Total Orders</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="ph-stat-card">
+        <div class="ph-stat-icon emerald"><i class="bi bi-check-circle"></i></div>
+        <div class="ph-stat-content">
+          <span class="ph-stat-value"><%= (orders || []).filter(function(o){ return o.status === 'completed'; }).length %></span>
+          <span class="ph-stat-label">Completed</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="ph-stat-card">
+        <div class="ph-stat-icon amber"><i class="bi bi-clock"></i></div>
+        <div class="ph-stat-content">
+          <span class="ph-stat-value"><%= (orders || []).filter(function(o){ return o.status !== 'completed' && o.status !== 'cancelled'; }).length %></span>
+          <span class="ph-stat-label">In Progress</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="ph-stat-card">
+        <div class="ph-stat-icon purple"><i class="bi bi-x-circle"></i></div>
+        <div class="ph-stat-content">
+          <span class="ph-stat-value"><%= (orders || []).filter(function(o){ return o.status === 'cancelled'; }).length %></span>
+          <span class="ph-stat-label">Cancelled</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders List -->
+  <div class="ph-orders-container">
+    <% var allOrders = orders || []; %>
+    <% if (allOrders.length > 0) { %>
+      <% allOrders.forEach(function(order) { %>
+        <%
+          var statusMap = {
+            'pending_payment': { label: 'Pending Payment', badge: 'pending', icon: 'bi-clock' },
+            'preparing_unit': { label: 'Preparing', badge: 'pending', icon: 'bi-box-seam' },
+            'technician_assigned': { label: 'Assigned', badge: 'pending', icon: 'bi-person-check' },
+            'out_for_delivery': { label: 'Out for Delivery', badge: 'pending', icon: 'bi-truck' },
+            'arrived': { label: 'Arrived', badge: 'pending', icon: 'bi-geo-alt' },
+            'installing': { label: 'Installing', badge: 'pending', icon: 'bi-tools' },
+            'completed': { label: 'Completed', badge: 'delivered', icon: 'bi-check-circle' },
+            'cancelled': { label: 'Cancelled', badge: 'cancelled', icon: 'bi-x-circle' }
+          };
+          var si = statusMap[order.status] || { label: order.status || 'Unknown', badge: 'pending', icon: 'bi-question-circle' };
+          var od = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+          var oref = order.orderReference || ('ORD-' + String(order._id).slice(-8).toUpperCase());
+        %>
+        <div class="ph-order-card" data-status="<%= si.badge %>">
+          <div class="ph-order-header">
+            <div class="ph-order-info">
+              <div class="ph-order-id"><i class="bi bi-hash"></i> <%= oref %></div>
+              <div class="ph-order-date"><i class="bi bi-calendar3"></i> <%= od %></div>
+            </div>
+            <span class="ph-status-badge <%= si.badge %>">
+              <i class="bi <%= si.icon %>"></i> <%= si.label %>
+            </span>
+          </div>
+          <div class="ph-order-body">
+            <% (order.items || []).forEach(function(item) { %>
+              <div class="ph-product-item">
+                <div class="ph-product-image">
+                  <% if (item.imageUrl) { %>
+                    <img src="<%= item.imageUrl %>" alt="Product" style="width:100%;height:100%;object-fit:cover;border-radius:12px;" />
+                  <% } else { %>
+                    <i class="bi bi-image"></i>
+                  <% } %>
+                </div>
+                <div class="ph-product-details">
+                  <h6 class="ph-product-name"><%= item.brand ? item.brand + ' ' : '' %><%= item.modelLine || 'Aircon Unit' %></h6>
+                  <p class="ph-product-variant"><%= item.capacity ? item.capacity + ' ' + (item.capacityUnit || 'HP') : '' %></p>
+                  <div class="ph-product-meta">
+                    <span class="ph-product-qty">Qty: <%= item.quantity || 1 %></span>
+                    <span class="ph-product-price">₱<%= (item.totalPrice || item.unitPrice || 0).toLocaleString() %></span>
+                  </div>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+          <div class="ph-order-footer">
+            <div class="ph-order-total">
+              <span>Total:</span>
+              <strong>₱<%= (order.total || 0).toLocaleString() %></strong>
+            </div>
+            <div class="ph-order-actions mt-3 w-100 d-flex justify-content-between align-items-center" style="border-top: 1px dashed rgba(148,163,184,0.3); padding-top: 1rem;">
+              <div class="d-flex align-items-center gap-2">
+                <% if (order.fulfillmentType) { %>
+                  <span class="ph-status-badge" style="background:rgba(37,99,235,0.1);color:#2563eb;font-size:0.75rem;">
+                    <i class="bi bi-<%= order.fulfillmentType === 'delivery_installation' ? 'tools' : order.fulfillmentType === 'delivery_only' ? 'truck' : 'shop' %>"></i>
+                    <%= order.fulfillmentType === 'delivery_installation' ? 'Delivery + Install' : order.fulfillmentType === 'delivery_only' ? 'Delivery Only' : 'Pickup' %>
+                  </span>
+                <% } %>
+                <% if (order.paymentMethod) { %>
+                  <span class="ph-status-badge" style="background:rgba(16,185,129,0.1);color:#059669;font-size:0.75rem;">
+                    <i class="bi bi-credit-card"></i> <%= order.paymentMethod.replace('_', ' ').toUpperCase() %>
+                  </span>
+                <% } %>
+              </div>
+
+              <div class="d-flex align-items-center gap-2">
+                <% const isPending = ['pending_payment', 'preparing_unit', 'technician_assigned', 'out_for_delivery', 'arrived', 'installing'].includes(order.status); %>
+                <% if (isPending) { %>
+                  <button class="btn btn-sm btn-outline-warning ph-reschedule-btn"
+                    data-id="<%= order._id %>"
+                    data-ref="<%= oref %>"
+                    data-technician-id="<%= order.technicianId %>"
+                    data-technician-name="<%= order.technician && order.technician.name ? order.technician.name : '' %>"
+                    data-is-project="<%= order.isProject ? 'true' : 'false' %>"
+                    style="padding: 6px 14px; border-radius: 999px; background: transparent; transition: all 0.3s ease;">
+                    <i class="bi bi-calendar-event me-1"></i> Re-schedule
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger ph-cancel-btn" data-id="<%= order._id %>" data-ref="<%= oref %>" style="padding: 6px 14px; border-radius: 999px; background: transparent; transition: all 0.3s ease;">
+                    <i class="bi bi-x-circle me-1"></i> Cancel
+                  </button>
+                <% } %>
+
+                <% if (order.status === 'completed') { %>
+                  <div class="ph-rating-section">
+                    <% if (order.customerRating) { %>
+                      <div class="ph-rating-wrapper rated">
+                        <span class="ph-rating-label">Your Rating:</span>
+                        <div class="ph-star-rating readonly">
+                          <% for(let i=1; i<=5; i++) { %>
+                            <span class="ph-star-btn <%= i <= Math.floor(order.customerRating) ? 'active' : '' %>">
+                              <i class="bi bi-star<%= i <= Math.floor(order.customerRating) ? '-fill' : '' %>"></i>
+                            </span>
+                          <% } %>
+                        </div>
+                      </div>
+                    <% } else { %>
+                      <button class="ph-btn-outline ph-rate-order-btn" data-id="<%= order._id %>" data-ref="<%= oref %>" data-tech="<%= order.technician && order.technician.name ? order.technician.name : 'Technician' %>" style="border: 1.5px solid #f59e0b; color: #d97706; padding: 6px 14px; border-radius: 999px; background: transparent; transition: all 0.3s ease;">
+                        <i class="bi bi-star me-1"></i> Rate Service
+                      </button>
+                    <% } %>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% }); %>
+    <% } %>
+  </div>
+
+  <!-- Empty State -->
+  <div class="ph-empty-state <%= (orders && orders.length > 0) ? 'd-none' : '' %>">
+    <div class="ph-empty-icon"><i class="bi bi-bag-x"></i></div>
+    <h4>No orders found</h4>
+    <p>You haven't made any purchases yet.</p>
+    <a href="/aircons" class="ph-btn-primary" style="text-decoration:none;">
+      <i class="bi bi-shop"></i> Browse Aircons
+    </a>
+  </div>
+
+
+
+  <!-- Premium Styles -->
+  <style>
+    .purchase-history-premium {
+      --primary: #2563eb;
+      --primary-light: #3b82f6;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --purple: #8b5cf6;
+    }
+    
+    /* Header */
+    .ph-header-premium {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+      border-radius: 24px;
+      padding: 32px 40px;
+      position: relative;
+      box-shadow: 0 24px 60px rgba(15,36,96,0.25);
+    }
+    .ph-header-glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%);
+      top: -150px;
+      right: -100px;
+      pointer-events: none;
+    }
+    .ph-avatar-premium {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255,255,255,0.2);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .ph-avatar-premium i {
+      font-size: 1.8rem;
+      color: #fff;
+    }
+    .ph-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #fff;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .ph-subtitle {
+      color: rgba(255,255,255,0.75);
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    /* Premium Dropdown */
+    .ph-dropdown-wrapper {
+      position: relative;
+    }
+    .ph-dropdown-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 14px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .ph-dropdown-trigger:hover {
+      background: rgba(255,255,255,0.25);
+      transform: translateY(-2px);
+    }
+    .ph-dropdown-arrow {
+      transition: transform 0.3s ease;
+    }
+    .ph-dropdown-wrapper.show .ph-dropdown-arrow {
+      transform: rotate(180deg);
+    }
+    .ph-dropdown-menu {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 16px;
+      box-shadow: 0 24px 48px rgba(15,36,96,0.15);
+      backdrop-filter: blur(20px);
+      padding: 12px;
+      min-width: 280px;
+      margin-top: 8px !important;
+    }
+    .ph-dropdown-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .ph-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+    .ph-dropdown-item:hover,
+    .ph-dropdown-item.active {
+      background: rgba(37,99,235,0.1);
+      color: #2563eb;
+    }
+    .ph-dropdown-item.active {
+      font-weight: 600;
+    }
+    .ph-dropdown-item i {
+      font-size: 1rem;
+      width: 20px;
+      text-align: center;
+    }
+    .ph-dropdown-divider {
+      height: 1px;
+      background: rgba(148,163,184,0.2);
+      margin: 8px 0;
+    }
+    .ph-dropdown-dates {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+    }
+    .ph-dropdown-dates span {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    .ph-date-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1.5px solid rgba(148,163,184,0.2);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #334155;
+      background: rgba(255,255,255,0.6);
+    }
+    .ph-date-input:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+
+    /* Stats Cards */
+    .ph-stat-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.25rem;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 18px;
+      box-shadow: 0 8px 24px rgba(15,36,96,0.06);
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+    }
+    .ph-stat-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(15,36,96,0.1);
+    }
+    .ph-stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    .ph-stat-icon.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .ph-stat-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
+    .ph-stat-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .ph-stat-icon.purple { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+    .ph-stat-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #0a1628;
+      line-height: 1;
+    }
+    .ph-stat-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Order Cards */
+    .ph-orders-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .ph-order-card {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.95);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .ph-order-card:hover {
+      box-shadow: 0 16px 48px rgba(15,36,96,0.12);
+      transform: translateY(-2px);
+    }
+    .ph-order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.25rem 1.5rem;
+      background: rgba(241,245,249,0.6);
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+    }
+    .ph-order-info {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .ph-order-id {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0a1628;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .ph-order-id i {
+      color: #2563eb;
+    }
+    .ph-order-date {
+      font-size: 0.85rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .ph-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .ph-status-badge.delivered {
+      background: rgba(16,185,129,0.1);
+      color: #059669;
+    }
+    .ph-status-badge.pending {
+      background: rgba(245,158,11,0.1);
+      color: #d97706;
+    }
+    .ph-status-badge.cancelled {
+      background: rgba(239,68,68,0.1);
+      color: #dc2626;
+    }
+    .ph-order-body {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .ph-product-item {
+      display: flex;
+      gap: 1rem;
+    }
+    .ph-product-image {
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+    .ph-product-details {
+      flex: 1;
+    }
+    .ph-product-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0a1628;
+      margin-bottom: 0.25rem;
+    }
+    .ph-product-variant {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 0.5rem;
+    }
+    .ph-product-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.9rem;
+    }
+    .ph-product-qty {
+      color: #64748b;
+    }
+    .ph-product-price {
+      font-weight: 700;
+      color: #0a1628;
+    }
+    .ph-order-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: rgba(241,245,249,0.4);
+      border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .ph-order-total {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+    }
+    .ph-order-total span {
+      color: #64748b;
+    }
+    .ph-order-total strong {
+      font-size: 1.2rem;
+      color: #0a1628;
+    }
+    .ph-order-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Premium Star Rating Component */
+    .ph-rating-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .ph-rating-label {
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .ph-star-rating {
+      display: flex;
+      gap: 4px;
+    }
+    .ph-star-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-size: 1.3rem;
+      color: #cbd5e1;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .ph-star-btn:hover {
+      transform: scale(1.2);
+    }
+    .ph-star-btn.active {
+      color: #fbbf24;
+    }
+    .ph-star-btn.active i::before {
+      content: "\f586";
+    }
+    .ph-star-rating.readonly {
+      pointer-events: none;
+    }
+    .ph-star-rating.readonly i {
+      color: #cbd5e1;
+      font-size: 1.1rem;
+    }
+    .ph-star-rating.readonly i.active {
+      color: #fbbf24;
+    }
+    .ph-rating-text {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .ph-rating-text.rated {
+      color: #059669;
+      font-weight: 600;
+    }
+    .ph-rating-wrapper.rated .ph-rating-label {
+      color: #059669;
+    }
+
+    /* Delivery Calendar Widget */
+    .ph-delivery-calendar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 8px 14px;
+      background: rgba(245,158,11,0.1);
+      border: 1.5px solid rgba(245,158,11,0.2);
+      border-radius: 14px;
+    }
+    .ph-calendar-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: #d97706;
+      font-weight: 600;
+    }
+    .ph-calendar-date {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #fff;
+      border-radius: 10px;
+      padding: 4px 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .ph-calendar-day {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #d97706;
+      line-height: 1;
+    }
+    .ph-calendar-month {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    /* Buttons */
+    .ph-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 10px 18px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 8px 20px rgba(37,99,235,0.3);
+    }
+    .ph-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(37,99,235,0.4);
+    }
+    .ph-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 10px 18px;
+      background: rgba(148,163,184,0.15);
+      border: 1.5px solid rgba(148,163,184,0.3);
+      border-radius: 12px;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .ph-btn-secondary:hover {
+      background: rgba(148,163,184,0.25);
+      color: #475569;
+    }
+
+    /* Empty State */
+    .ph-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem;
+      text-align: center;
+      background: rgba(255,255,255,0.6);
+      border-radius: 20px;
+      border: 2px dashed rgba(148,163,184,0.3);
+    }
+    .ph-empty-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.05));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .ph-empty-icon i {
+      font-size: 2.5rem;
+      color: #94a3b8;
+    }
+    .ph-empty-state h4 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #0a1628;
+      margin-bottom: 0.5rem;
+    }
+    .ph-empty-state p {
+      color: #64748b;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Pagination */
+    .ph-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2rem;
+      padding: 0 0.5rem;
+    }
+    .ph-count {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .ph-page-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .ph-btn-page {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.8);
+      border: 1.5px solid rgba(148,163,184,0.3);
+      border-radius: 12px;
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .ph-btn-page:hover:not(:disabled):not(.active) {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .ph-btn-page.active {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border-color: transparent;
+      color: #fff;
+    }
+    .ph-btn-page:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Rating Modal */
+    .ph-modal-content {
+      background: rgba(255,255,255,0.98);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 32px 64px rgba(15,36,96,0.2);
+      backdrop-filter: blur(20px);
+    }
+    .ph-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    }
+    .ph-modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .ph-modal-close {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .ph-modal-close:hover {
+      background: rgba(255,255,255,0.25);
+      transform: rotate(90deg);
+    }
+    .ph-modal-body {
+      padding: 28px;
+    }
+    .ph-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 20px 28px;
+      background: rgba(241,245,249,0.5);
+      border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .ph-rating-modal-product {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(241,245,249,0.6);
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+    }
+    .ph-product-thumb {
+      width: 60px;
+      height: 60px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: #94a3b8;
+    }
+    .ph-product-info h6 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0a1628;
+      margin-bottom: 0.25rem;
+    }
+    .ph-product-info p {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin: 0;
+    }
+    .ph-rating-modal-stars {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .ph-rating-big {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 0.75rem;
+    }
+    .ph-star-big {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-size: 2.5rem;
+      color: #e2e8f0;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .ph-star-big:hover {
+      transform: scale(1.15);
+    }
+    .ph-star-big.active {
+      color: #fbbf24;
+    }
+    .ph-star-big.active i::before {
+      content: "\f586";
+    }
+    .ph-rating-modal-label {
+      font-size: 0.9rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .ph-rating-modal-comment label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .ph-textarea {
+      width: 100%;
+      padding: 14px;
+      border: 1.5px solid rgba(148,163,184,0.2);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.8);
+      font-size: 0.95rem;
+      color: #334155;
+      resize: vertical;
+      min-height: 100px;
+      transition: all 0.3s ease;
+    }
+    .ph-textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+
+    @media (max-width: 767.98px) {
+      .ph-header-premium { padding: 24px; }
+      .ph-title { font-size: 1.4rem; }
+      .ph-order-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .ph-order-footer { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .ph-order-actions { flex-wrap: wrap; }
+      .ph-modal-footer { flex-direction: column; }
+      .ph-btn-primary, .ph-btn-secondary { width: 100%; justify-content: center; }
+    }
+  </style>
+
+  <!-- Flatpickr for Premium Date Pickers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    /* Flatpickr Premium Overrides */
+    .flatpickr-calendar { border-radius: 1rem !important; border: none !important; box-shadow: 0 20px 40px rgba(15,36,96,0.1) !important; font-family: inherit !important; padding: 0.5rem !important; z-index: 1060 !important; }
+    .flatpickr-day.selected { background: #2563eb !important; border-color: #2563eb !important; box-shadow: 0 4px 10px rgba(37,99,235,0.3) !important; font-weight: 700 !important; color: #fff !important; }
+    .flatpickr-day:hover { background: #f0f7ff !important; border-color: transparent !important; color: #2563eb !important; }
+    .flatpickr-current-month { font-weight: 800 !important; color: #0a1628 !important; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- Rating Interaction Script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      // Modal rating variables
+      let currentOrderId = null;
+      let currentOrderRef = null;
+      let currentRating = 0;
+      
+      // Wire up Open Modal Buttons
+      document.querySelectorAll('.ph-rate-order-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          currentOrderId = this.getAttribute('data-id');
+          currentOrderRef = this.getAttribute('data-ref');
+          const techName = this.getAttribute('data-tech');
+          
+          document.getElementById('phModalTechName').textContent = techName || 'Technician';
+          document.getElementById('phModalComment').value = '';
+          currentRating = 0;
+          updateModalStars(document.querySelectorAll('#phModalRating .ph-star-big'), 0);
+          document.getElementById('phModalRatingLabel').textContent = 'Tap a star to rate';
+          
+          const modal = new bootstrap.Modal(document.getElementById('phRatingModal'));
+          modal.show();
+        });
+      });
+
+      // Modal rating interaction
+      const modalRating = document.getElementById('phModalRating');
+      const modalLabel = document.getElementById('phModalRatingLabel');
+      const labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+      
+      if (modalRating) {
+        const stars = modalRating.querySelectorAll('.ph-star-big');
+        stars.forEach((star, index) => {
+          star.addEventListener('mouseenter', () => {
+             updateModalStars(stars, index + 1);
+             modalLabel.textContent = labels[index];
+          });
+          star.addEventListener('click', () => {
+             currentRating = index + 1;
+             updateModalStars(stars, currentRating);
+             modalLabel.textContent = labels[index];
+          });
+        });
+        
+        modalRating.addEventListener('mouseleave', () => {
+          updateModalStars(stars, currentRating);
+          modalLabel.textContent = currentRating > 0 ? labels[currentRating - 1] : 'Tap a star to rate';
+        });
+      }
+      
+      function updateModalStars(stars, value) {
+        stars.forEach((star, index) => {
+          if (index < value) {
+            star.classList.add('active');
+            star.querySelector('i').classList.remove('bi-star');
+            star.querySelector('i').classList.add('bi-star-fill');
+          } else {
+            star.classList.remove('active');
+            star.querySelector('i').classList.remove('bi-star-fill');
+            star.querySelector('i').classList.add('bi-star');
+          }
+        });
+      }
+
+      // Submit Rating
+      const submitBtn = document.getElementById('phSubmitOrderRating');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+          if (!currentRating) {
+            alert('Please select a star rating.');
+            return;
+          }
+          
+          const comment = document.getElementById('phModalComment').value.trim();
+          const originalText = submitBtn.innerHTML;
+          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Submitting...';
+          submitBtn.disabled = true;
+          
+          try {
+            const res = await fetch(`/api/rating/order/${encodeURIComponent(currentOrderId)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ score: currentRating, comment })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+               // success: close modal and reload to show new rating
+               const modalEl = document.getElementById('phRatingModal');
+               const modalInst = bootstrap.Modal.getInstance(modalEl);
+               if (modalInst) modalInst.hide();
+               window.location.reload();
+            } else {
+               alert(data.error || 'Failed to submit rating.');
+               submitBtn.innerHTML = originalText;
+               submitBtn.disabled = false;
+            }
+          } catch(e) {
+             console.error(e);
+             alert('Network error submitting rating.');
+             submitBtn.innerHTML = originalText;
+             submitBtn.disabled = false;
+          }
+        });
+      }
+
+      // Premium Flatpickr Initialization
+      if (typeof flatpickr !== 'undefined') {
+        const menu = document.querySelector('.ph-dropdown-menu');
+        const fpConfig = {
+          dateFormat: "Y-m-d",
+          disableMobile: "true",
+          appendTo: menu,
+          onChange: function(selectedDates, dateStr, instance) {
+            instance.element.value = dateStr;
+            instance.element.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        };
+        flatpickr("#phDateFrom", fpConfig);
+        flatpickr("#phDateTo", fpConfig);
+
+        if (menu) {
+          menu.addEventListener('click', function(e) {
+            e.stopPropagation();
+          });
+        }
+      }
+
+      // Cancel order button handlers
+      document.querySelectorAll('.ph-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const orderId = this.getAttribute('data-id');
+          const orderRef = this.getAttribute('data-ref');
+          const reason = prompt(`Please provide a reason for cancelling order ${orderRef}:`);
+          if (reason === null) return; // User clicked cancel
+          if (reason.trim() === "") {
+            alert("Please provide a reason for cancellation.");
+            return;
+          }
+          if (confirm(`Are you sure you want to cancel order ${orderRef}?`)) {
+            cancelOrder(orderId, reason.trim());
+          }
+        });
+      });
+
+      // Reschedule order button handlers
+      document.querySelectorAll('.ph-reschedule-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const orderId = this.getAttribute('data-id');
+          const orderRef = this.getAttribute('data-ref');
+          const technicianId = this.getAttribute('data-technician-id');
+          const technicianName = this.getAttribute('data-technician-name');
+          const isProject = this.getAttribute('data-is-project') === 'true';
+
+          // Create order object
+          const order = {
+            _id: orderId,
+            orderReference: orderRef,
+            technicianId: technicianId,
+            technician: technicianName ? { name: technicianName } : null,
+            technicianName: technicianName,
+            isProject: isProject
+          };
+
+          openRescheduleModal(order);
+        });
+      });
+
+      // Reschedule modal state
+      let currentRescheduleOrder = null;
+      let currentRescheduleTechnicianId = null;
+      let selectedRescheduleDate = null;
+      let selectedRescheduleTime = null;
+      let rescheduleCalendarState = {
+        currentMonth: new Date().getMonth(),
+        currentYear: new Date().getFullYear(),
+        availableDates: []
+      };
+
+      // Open reschedule modal for orders
+      function openRescheduleModal(order) {
+        currentRescheduleOrder = order;
+        currentRescheduleTechnicianId = order.technicianId || order.technician?._id;
+        selectedRescheduleDate = null;
+        selectedRescheduleTime = null;
+
+        // Show loading state
+        document.getElementById('phRescheduleLoading').classList.remove('d-none');
+        document.getElementById('phRescheduleError').classList.add('d-none');
+        document.getElementById('phRescheduleCalendarContent').classList.add('d-none');
+        document.getElementById('phSubmitReschedule').disabled = true;
+
+        // Set technician name
+        const techName = order.technicianName || order.technician?.name || 'Not assigned';
+        document.getElementById('phRescheduleTechName').textContent = techName;
+
+        // Open modal
+        const modal = new bootstrap.Modal(document.getElementById('phRescheduleModal'));
+        modal.show();
+
+        // If no technician assigned, show error
+        if (!currentRescheduleTechnicianId) {
+          document.getElementById('phRescheduleLoading').classList.add('d-none');
+          document.getElementById('phRescheduleError').textContent = 'No technician assigned to this order. Please contact customer support.';
+          document.getElementById('phRescheduleError').classList.remove('d-none');
+          return;
+        }
+
+        // Fetch available slots for this technician
+        fetchAvailableSlotsForOrder();
+      }
+
+      // Fetch available slots for the technician (orders)
+      async function fetchAvailableSlotsForOrder() {
+        try {
+          const response = await fetch(`/api/schedule/technician/${encodeURIComponent(currentRescheduleTechnicianId)}/available-slots`);
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch available slots');
+          }
+
+          rescheduleCalendarState.availableDates = data.availableDates || [];
+
+          // Initialize calendar
+          rescheduleCalendarState.currentMonth = new Date().getMonth();
+          rescheduleCalendarState.currentYear = new Date().getFullYear();
+
+          // Show calendar content
+          document.getElementById('phRescheduleLoading').classList.add('d-none');
+          document.getElementById('phRescheduleCalendarContent').classList.remove('d-none');
+
+          renderRescheduleCalendarForOrder();
+        } catch (error) {
+          console.error('Error fetching available slots:', error);
+          document.getElementById('phRescheduleLoading').classList.add('d-none');
+          document.getElementById('phRescheduleError').textContent = error.message || 'Failed to load available slots. Please try again.';
+          document.getElementById('phRescheduleError').classList.remove('d-none');
+        }
+      }
+
+      // Render reschedule calendar for orders
+      function renderRescheduleCalendarForOrder() {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        document.getElementById('phCalendarTitle').textContent = `${monthNames[rescheduleCalendarState.currentMonth]} ${rescheduleCalendarState.currentYear}`;
+
+        const grid = document.getElementById('phCalendarGrid');
+        grid.innerHTML = '';
+
+        const firstDay = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth, 1);
+        const lastDay = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth + 1, 0);
+        const startingDay = firstDay.getDay();
+        const totalDays = lastDay.getDate();
+
+        // Add empty cells for days before the first day of the month
+        for (let i = 0; i < startingDay; i++) {
+          const emptyCell = document.createElement('div');
+          emptyCell.className = 'calendar-cell disabled';
+          grid.appendChild(emptyCell);
+        }
+
+        // Add days of the month
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let day = 1; day <= totalDays; day++) {
+          const date = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth, day);
+          const dateStr = date.toISOString().split('T')[0];
+
+          const cell = document.createElement('button');
+          cell.className = 'calendar-cell';
+          cell.innerHTML = `<span class="date-num">${day}</span>`;
+
+          // Check if date is available
+          const isAvailable = rescheduleCalendarState.availableDates.some(availableDate =>
+            availableDate.date === dateStr && availableDate.available
+          );
+
+          // Check if date is in the past
+          const isPast = date < today;
+
+          if (isAvailable && !isPast) {
+            cell.setAttribute('data-status', 'available');
+            cell.onclick = function() {
+              selectRescheduleDateForOrder(date, dateStr, this);
+            };
+          } else if (isPast) {
+            cell.classList.add('disabled');
+            cell.setAttribute('data-status', 'blocked');
+          } else {
+            cell.setAttribute('data-status', 'blocked');
+            cell.classList.add('disabled');
+          }
+
+          // Check if this date is selected
+          if (selectedRescheduleDate === dateStr) {
+            cell.classList.add('is-selected');
+          }
+
+          grid.appendChild(cell);
+        }
+      }
+
+      // Select reschedule date for orders
+      function selectRescheduleDateForOrder(date, dateStr, cellElement) {
+        selectedRescheduleDate = dateStr;
+        selectedRescheduleTime = null;
+
+        // Update calendar selection
+        document.querySelectorAll('#phCalendarGrid .calendar-cell').forEach(cell => {
+          cell.classList.remove('is-selected');
+        });
+        cellElement.classList.add('is-selected');
+
+        // For project bookings, hide time slots — date only is sufficient
+        const container = document.getElementById('phTimeSlotsContainer');
+        const isProject = currentRescheduleOrder && currentRescheduleOrder.isProject;
+        if (isProject) {
+          if (container) {
+            container.classList.remove('d-none');
+            container.innerHTML = `
+              <div class="alert alert-info mb-0">
+                <i class="bi bi-kanban me-2"></i>
+                <strong>Project Booking</strong> — Only a new start date is needed. The Operations Team will prepare the multi-day schedule.
+              </div>`;
+          }
+          const reason = document.getElementById('phRescheduleReason').value.trim();
+          document.getElementById('phSubmitReschedule').disabled = !reason;
+          return;
+        }
+
+        // Find available time slots for this date
+        const availableDate = rescheduleCalendarState.availableDates.find(ad => ad.date === dateStr);
+        const timeSlots = availableDate ? availableDate.timeSlots : [];
+
+        // Render time slots
+        renderTimeSlotsForOrder(timeSlots);
+      }
+
+      // Render time slots for orders
+      function renderTimeSlotsForOrder(timeSlots) {
+        const container = document.getElementById('phTimeSlotsContainer');
+        const slotsContainer = document.getElementById('phTimeSlots');
+
+        if (timeSlots.length === 0) {
+          container.classList.add('d-none');
+          document.getElementById('phSubmitReschedule').disabled = true;
+          return;
+        }
+
+        container.classList.remove('d-none');
+        slotsContainer.innerHTML = '';
+
+        timeSlots.forEach(slot => {
+          const slotBtn = document.createElement('button');
+          slotBtn.className = 'time-slot';
+          slotBtn.innerHTML = `
+            <div class="time-slot-time">${slot.time}</div>
+            <div class="text-muted small">${slot.duration || '60 min'}</div>
+          `;
+          slotBtn.onclick = () => selectRescheduleTimeForOrder(slot.time, slotBtn);
+          slotsContainer.appendChild(slotBtn);
+        });
+
+        document.getElementById('phSubmitReschedule').disabled = true;
+      }
+
+      // Select reschedule time for orders
+      function selectRescheduleTimeForOrder(time, btnElement) {
+        selectedRescheduleTime = time;
+
+        // Update selection
+        document.querySelectorAll('#phTimeSlots .time-slot').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        btnElement.classList.add('active');
+
+        // Enable submit button if reason is provided
+        const reason = document.getElementById('phRescheduleReason').value.trim();
+        document.getElementById('phSubmitReschedule').disabled = !reason;
+      }
+
+      // Setup calendar navigation for orders
+      document.getElementById('phPrevMonth').addEventListener('click', () => {
+        rescheduleCalendarState.currentMonth--;
+        if (rescheduleCalendarState.currentMonth < 0) {
+          rescheduleCalendarState.currentMonth = 11;
+          rescheduleCalendarState.currentYear--;
+        }
+        renderRescheduleCalendarForOrder();
+      });
+
+      document.getElementById('phNextMonth').addEventListener('click', () => {
+        rescheduleCalendarState.currentMonth++;
+        if (rescheduleCalendarState.currentMonth > 11) {
+          rescheduleCalendarState.currentMonth = 0;
+          rescheduleCalendarState.currentYear++;
+        }
+        renderRescheduleCalendarForOrder();
+      });
+
+      // Handle reason input change for orders
+      document.getElementById('phRescheduleReason').addEventListener('input', function() {
+        const reason = this.value.trim();
+        document.getElementById('phSubmitReschedule').disabled = !reason || !selectedRescheduleDate || !selectedRescheduleTime;
+      });
+
+      // Submit reschedule request for orders
+      document.getElementById('phSubmitReschedule').addEventListener('click', async function() {
+        const reason = document.getElementById('phRescheduleReason').value.trim();
+        const isProject = currentRescheduleOrder && currentRescheduleOrder.isProject;
+
+        if (!reason || !selectedRescheduleDate) {
+          alert('Please select a date and provide a reason for rescheduling.');
+          return;
+        }
+
+        if (!isProject && !selectedRescheduleTime) {
+          alert('Please select a preferred time.');
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/orders/${encodeURIComponent(currentRescheduleOrder._id)}/reschedule-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestedDate: selectedRescheduleDate,
+              requestedTime: selectedRescheduleTime || null,
+              reason: reason,
+              isProject: isProject
+            })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to submit reschedule request');
+          }
+
+          // Close modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('phRescheduleModal'));
+          modal.hide();
+
+          alert('Reschedule request submitted successfully! The secretary will review your request and you will be notified once it is approved.');
+          window.location.reload();
+        } catch (error) {
+          console.error('Error submitting reschedule request:', error);
+          alert('Failed to submit reschedule request: ' + error.message);
+        }
+      });
+    });
+
+    // Cancel order function
+    async function cancelOrder(orderId, reason) {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          alert('Order cancelled successfully');
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to cancel order');
+        }
+      } catch(e) {
+        console.error(e);
+        alert('Network error cancelling order');
+      }
+    }
+  </script>
+</div>
+
+  <!-- Rating Modal -->
+  <div class="modal fade" id="phRatingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="ph-modal-content">
+        <div class="ph-modal-header">
+          <h5 class="ph-modal-title">
+            <i class="bi bi-stars"></i> Rate Product
+          </h5>
+          <button type="button" class="ph-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="ph-modal-body">
+          <div class="d-flex flex-column align-items-center p-3 rounded-4 bg-light border border-light-subtle shadow-sm mb-4">
+            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm mb-2" style="width: 48px; height: 48px; font-size: 1.5rem;">
+              <i class="bi bi-person-badge"></i>
+            </div>
+            <p class="fw-bold mb-0 text-dark" id="phModalTechName">Technician Name</p>
+            <p class="small text-muted mb-0">Technician</p>
+          </div>
+          
+          <div class="ph-rating-modal-stars">
+            <div class="ph-rating-big" id="phModalRating">
+              <button type="button" class="ph-star-big" data-value="1"><i class="bi bi-star"></i></button>
+              <button type="button" class="ph-star-big" data-value="2"><i class="bi bi-star"></i></button>
+              <button type="button" class="ph-star-big" data-value="3"><i class="bi bi-star"></i></button>
+              <button type="button" class="ph-star-big" data-value="4"><i class="bi bi-star"></i></button>
+              <button type="button" class="ph-star-big" data-value="5"><i class="bi bi-star"></i></button>
+            </div>
+            <p class="ph-rating-modal-label mb-0" id="phModalRatingLabel">Tap a star to rate</p>
+          </div>
+          <div class="ph-rating-modal-comment mt-4">
+            <label>Review (Optional)</label>
+            <textarea class="ph-textarea" id="phModalComment" placeholder="Share your experience with the service..." style="height: auto; min-height: 80px;"></textarea>
+          </div>
+        </div>
+        <div class="ph-modal-footer">
+          <button type="button" class="ph-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="ph-btn-primary" id="phSubmitOrderRating">
+            <i class="bi bi-check-lg"></i> Submit Rating
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reschedule Order Modal -->
+  <div class="modal fade" id="phRescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen-lg-down modal-dialog-centered">
+      <div class="ph-modal-content">
+        <div class="ph-modal-header">
+          <h5 class="ph-modal-title"><i class="bi bi-calendar-event"></i> Reschedule Order</h5>
+          <button type="button" class="ph-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="ph-modal-body">
+          <div id="phRescheduleContent">
+            <!-- Loading state -->
+            <div id="phRescheduleLoading" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-2 text-muted">Loading available slots...</p>
+            </div>
+
+            <!-- Error state -->
+            <div id="phRescheduleError" class="d-none alert alert-danger"></div>
+
+            <!-- Calendar content -->
+            <div id="phRescheduleCalendarContent" class="d-none">
+              <!-- Technician info -->
+              <div class="alert alert-info d-flex align-items-center gap-3">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                  <i class="bi bi-person-badge fs-5"></i>
+                </div>
+                <div>
+                  <div class="fw-bold">Technician</div>
+                  <div id="phRescheduleTechName" class="mb-0">Loading...</div>
+                </div>
+              </div>
+
+              <!-- Calendar -->
+              <div class="calendar-widget mb-4">
+                <div class="calendar-header d-flex justify-content-between align-items-center mb-3">
+                  <button type="button" class="btn-icon" id="phPrevMonth">
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+                  <h5 class="mb-0" id="phCalendarTitle"></h5>
+                  <button type="button" class="btn-icon" id="phNextMonth">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+                <div class="calendar-weekdays">
+                  <div>Sun</div>
+                  <div>Mon</div>
+                  <div>Tue</div>
+                  <div>Wed</div>
+                  <div>Thu</div>
+                  <div>Fri</div>
+                  <div>Sat</div>
+                </div>
+                <div class="calendar-grid" id="phCalendarGrid"></div>
+              </div>
+
+              <!-- Time slots -->
+              <div id="phTimeSlotsContainer" class="d-none">
+                <h6 class="mb-3 fw-semibold">Select Preferred Time</h6>
+                <div class="d-flex flex-wrap gap-2" id="phTimeSlots"></div>
+              </div>
+
+              <!-- Reschedule reason -->
+              <div class="mt-4">
+                <label class="form-label fw-semibold">Reason for Rescheduling</label>
+                <textarea class="form-control" id="phRescheduleReason" rows="3" placeholder="Please provide a reason for rescheduling..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ph-modal-footer">
+          <button type="button" class="ph-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="ph-btn-primary" id="phSubmitReschedule" disabled>
+            <i class="bi bi-check-lg"></i> Submit Reschedule Request
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enterprise-level Reschedule Calendar Styles -->
+  <style>
+    /* Reschedule Modal Styles */
+    #phRescheduleModal .modal-dialog {
+      max-width: 95vw !important;
+      width: 1100px !important;
+      margin: 1.75rem auto;
+    }
+
+    #phRescheduleModal .ph-modal-content {
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      height: 90vh;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #phRescheduleModal .ph-modal-body {
+      padding: 24px;
+      background: #f8f9fa;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    #phRescheduleModal .ph-modal-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 24px;
+      border-bottom: none;
+      flex-shrink: 0;
+    }
+
+    #phRescheduleModal .ph-modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    #phRescheduleModal .ph-modal-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    #phRescheduleModal .ph-modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: rotate(90deg);
+    }
+
+    #phRescheduleModal .ph-modal-footer {
+      background: white;
+      padding: 20px 24px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 0 0 16px 16px;
+      flex-shrink: 0;
+    }
+
+    /* Technician Info Card */
+    #phRescheduleModal .alert-info {
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+      border: 1px solid rgba(25, 118, 210, 0.1);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    #phRescheduleModal .alert-info .bg-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Calendar Widget */
+    #phRescheduleModal .calendar-widget {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    #phRescheduleModal .calendar-header {
+      padding: 0 8px 16px 8px;
+      border-bottom: 2px solid #f0f0f0;
+      margin-bottom: 20px !important;
+    }
+
+    #phRescheduleModal .calendar-header .btn-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 1px solid #dee2e6;
+      color: #495057;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #phRescheduleModal .calendar-header .btn-icon:hover {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    #phRescheduleModal #phCalendarTitle {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #212529;
+      letter-spacing: -0.3px;
+    }
+
+    #phRescheduleModal .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    #phRescheduleModal .calendar-weekdays div {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 0;
+    }
+
+    #phRescheduleModal .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+
+    #phRescheduleModal .calendar-cell {
+      border: none;
+      background: transparent;
+      padding: 0;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.95rem;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      color: #212529;
+      cursor: default;
+      border: 2px solid transparent;
+      pointer-events: auto !important;
+      z-index: 1;
+    }
+
+    #phRescheduleModal .calendar-cell .date-num {
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="available"] {
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+      color: #1976d2;
+      border: 2px solid rgba(25, 118, 210, 0.2);
+      cursor: pointer !important;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+      pointer-events: auto !important;
+      z-index: 10;
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="available"]:hover {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+      z-index: 20;
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="available"]::before {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #4caf50;
+      border-radius: 50%;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="available"]:hover::before {
+      background: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="blocked"] {
+      background: #f8f9fa;
+      color: #adb5bd;
+      border: 2px solid #e9ecef;
+      cursor: not-allowed;
+    }
+
+    #phRescheduleModal .calendar-cell[data-status="blocked"].disabled {
+      opacity: 0.5;
+    }
+
+    #phRescheduleModal .calendar-cell.is-selected {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: 2px solid #667eea;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+      transform: scale(1.05);
+    }
+
+    #phRescheduleModal .calendar-cell.is-selected::before {
+      background: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    /* Time Slots */
+    #phTimeSlotsContainer {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    #phTimeSlotsContainer h6 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #495057;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    #phTimeSlots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    #phTimeSlots .time-slot {
+      border: 2px solid #e9ecef;
+      background: white;
+      color: #495057;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      min-width: 120px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #phTimeSlots .time-slot::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #phTimeSlots .time-slot:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+    }
+
+    #phTimeSlots .time-slot:hover::before {
+      opacity: 1;
+    }
+
+    #phTimeSlots .time-slot.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      transform: translateY(-2px) scale(1.02);
+    }
+
+    #phTimeSlots .time-slot.active::before {
+      opacity: 0;
+    }
+
+    #phTimeSlots .time-slot .time-slot-time {
+      position: relative;
+      z-index: 1;
+      font-weight: 700;
+    }
+
+    #phTimeSlots .time-slot .text-muted {
+      position: relative;
+      z-index: 1;
+      font-size: 0.75rem;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+
+    /* Reason Input */
+    #phRescheduleModal .form-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #495057;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    #phRescheduleModal .form-control {
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+
+    #phRescheduleModal .form-control:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      outline: none;
+    }
+
+    /* Buttons */
+    #phRescheduleModal .ph-btn-secondary {
+      background: #f8f9fa;
+      border: 2px solid #dee2e6;
+      color: #495057;
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    #phRescheduleModal .ph-btn-secondary:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+      transform: translateY(-1px);
+    }
+
+    #phRescheduleModal .ph-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    #phRescheduleModal .ph-btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #5568d3 0%, #6a3f8c 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+
+    #phRescheduleModal .ph-btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Loading and Error States */
+    #phRescheduleModal .spinner-border {
+      width: 3rem;
+      height: 3rem;
+      border-width: 0.25em;
+    }
+
+    #phRescheduleModal .alert-danger {
+      border-radius: 12px;
+      border: 2px solid #f8d7da;
+      background: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%);
+    }
+  </style>

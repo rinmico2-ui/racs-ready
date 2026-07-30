@@ -1,0 +1,349 @@
+<style>
+  .premium-nav .navbar-nav .nav-link::after { display: none !important; }
+  .premium-nav .navbar-nav .nav-link { padding-bottom: 0; }
+  .premium-nav {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+  }
+  .premium-nav.nav-scrolled {
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+  .premium-nav .navbar-brand {
+    font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    font-size: 1.05rem; padding: 0.5rem 1rem; border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .premium-nav .navbar-brand .brand-text {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .premium-nav .navbar-brand i {
+    color: #2563eb !important; font-size: 1.5rem;
+    filter: drop-shadow(0 2px 6px rgba(37,99,235,0.2));
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .premium-nav .navbar-brand:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(96,165,250,0.15); }
+  .premium-nav .navbar-brand:hover i { transform: scale(1.1) rotate(-5deg); }
+  .premium-nav .nav-link {
+    font-weight: 600; color: #475569; padding: 0.55rem 1.05rem;
+    border-radius: 8px; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    position: relative; overflow: hidden; margin: 0 0.1rem;
+  }
+  .premium-nav .nav-link i.nav-icon {
+    width: 26px; height: 26px; border-radius: 6px; font-size: 0.85rem;
+    background: rgba(37,99,235,0.06); display: inline-flex;
+    align-items: center; justify-content: center; color: #64748b;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .premium-nav .nav-text { color: inherit; transition: color 0.3s ease; }
+  .premium-nav .nav-link:hover .nav-text, .premium-nav .nav-link.active .nav-text { color: #1d4ed8; font-weight: 700; }
+  .premium-nav .nav-link:hover, .premium-nav .nav-link.active { transform: translateY(-1px); }
+  .premium-nav .nav-link:hover i.nav-icon, .premium-nav .nav-link.active i.nav-icon { color: #2563eb; background: rgba(37,99,235,0.1); }
+
+  /* ── Services dropdown ── */
+  .premium-nav .nav-dropdown { position: relative; }
+  .premium-nav .dropdown-menu-nav {
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%) translateY(8px);
+    min-width: 210px; padding: 6px; border-radius: 12px; list-style: none;
+    background: #fff; border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.1);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  .premium-nav .nav-dropdown:hover > .dropdown-menu-nav {
+    opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0);
+  }
+  .premium-nav .dropdown-menu-nav .dropdown-item-nav {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+    color: #475569; font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none;
+    transition: all 0.2s ease; white-space: nowrap;
+  }
+  .premium-nav .dropdown-menu-nav .dropdown-item-nav i {
+    width: 28px; height: 28px; border-radius: 6px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 0.85rem;
+    background: rgba(37,99,235,0.06); color: #64748b;
+    transition: all 0.2s ease;
+  }
+  .premium-nav .dropdown-menu-nav .dropdown-item-nav:hover {
+    background: rgba(37,99,235,0.06); color: #1d4ed8; transform: translateX(2px);
+  }
+  .premium-nav .dropdown-menu-nav .dropdown-item-nav:hover i {
+    background: rgba(37,99,235,0.1); color: #2563eb;
+  }
+  .premium-nav .nav-link .chevron {
+    font-size: 0.65rem; transition: transform 0.3s ease; margin-left: 2px;
+  }
+  .premium-nav .nav-dropdown:hover > .nav-link .chevron { transform: rotate(180deg); }
+
+  /* ── Login button ── */
+  .premium-nav .btn-login-premium {
+    position: relative; padding: 0.65rem 1.6rem; font-weight: 700;
+    font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #fff; border: none; border-radius: 999px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+    box-shadow: 0 8px 24px rgba(37,99,235,0.35), 0 0 0 1px rgba(255,255,255,0.15) inset, 0 2px 0 rgba(255,255,255,0.25) inset;
+    overflow: hidden; transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    display: inline-flex; align-items: center; gap: 0.5rem;
+  }
+  .premium-nav .btn-login-premium::before {
+    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.6s ease;
+  }
+  .premium-nav .btn-login-premium::after {
+    content: ''; position: absolute; inset: 0; border-radius: 999px; padding: 1.5px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.5), rgba(255,255,255,0.1));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+  }
+  .premium-nav .btn-login-premium i, .premium-nav .btn-login-premium span { position: relative; z-index: 1; }
+  .premium-nav .btn-login-premium i { font-size: 1rem; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+  .premium-nav .btn-login-premium span { transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+  .premium-nav .btn-login-premium:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 16px 40px rgba(37,99,235,0.5), 0 0 0 1px rgba(255,255,255,0.2) inset, 0 2px 0 rgba(255,255,255,0.35) inset, 0 0 30px rgba(59,130,246,0.3);
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  }
+  .premium-nav .btn-login-premium:hover::before { left: 100%; }
+  .premium-nav .btn-login-premium:hover i { transform: translateX(4px) scale(1.1); }
+  .premium-nav .btn-login-premium:hover span { transform: translateX(2px); }
+  .premium-nav .btn-login-premium:active { transform: translateY(-1px) scale(0.98); }
+
+  /* ── Profile & Toggler ── */
+  .premium-nav .btn-outline-primary { display: none; }
+  .premium-nav #profileToggle {
+    background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.12); transition: all 0.3s ease;
+  }
+  .premium-nav #profileToggle i { color: #1d4ed8 !important; }
+  .premium-nav .navbar-toggler { border-color: rgba(0,0,0,0.15); }
+  .nav-greeting { color: #475569; font-size: 0.85rem; }
+
+  /* ══ Mobile / responsive ══ */
+  @media (max-width: 991.98px) {
+    .premium-nav { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+    .premium-nav .navbar-brand { font-size: 0.95rem; padding: 0.4rem 0.5rem; }
+    .premium-nav .navbar-brand i { font-size: 1.3rem; }
+
+    .premium-nav .navbar-toggler {
+      padding: 0.35rem 0.5rem;
+      border-radius: 10px;
+      background: rgba(37,99,235,0.06);
+      border: 1px solid rgba(37,99,235,0.12);
+    }
+    .premium-nav .navbar-toggler:focus { box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+
+    /* Collapsed panel as a clean card */
+    #mainNav {
+      margin-top: 0.6rem;
+      padding: 0.75rem;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.07);
+      border-radius: 16px;
+      box-shadow: 0 14px 36px rgba(15,23,42,0.10);
+    }
+    .premium-nav .navbar-nav {
+      width: 100%;
+      align-items: stretch !important;
+      gap: 0.15rem;
+    }
+    .premium-nav .navbar-nav .nav-item { margin-right: 0 !important; }
+
+    /* Links become full-width tappable rows */
+    .premium-nav .nav-link {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 0.7rem 0.85rem !important;
+      margin: 0 !important;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      background: transparent;
+    }
+    .premium-nav .nav-link:hover {
+      background: rgba(37,99,235,0.06);
+      transform: none;
+    }
+    .premium-nav .nav-link.active {
+      background: rgba(37,99,235,0.08);
+      transform: none;
+    }
+    .premium-nav .nav-link i.nav-icon {
+      width: 30px; height: 30px; font-size: 0.95rem;
+    }
+
+    /* Services dropdown becomes an inline expandable submenu */
+    .premium-nav .nav-dropdown { position: static; }
+    .premium-nav .dropdown-menu-nav {
+      position: static !important;
+      transform: none !important;
+      opacity: 1; visibility: visible; pointer-events: auto;
+      min-width: 100%;
+      box-shadow: none;
+      border: 1px solid rgba(15,23,42,0.06);
+      background: #f8fafc;
+      border-radius: 12px;
+      margin: 0.3rem 0 0.2rem;
+      padding: 0.4rem;
+      display: none;
+    }
+    .premium-nav .nav-dropdown.open > .nav-link .chevron { transform: rotate(180deg); }
+    .premium-nav .nav-dropdown.open > .dropdown-menu-nav { display: block; }
+    .premium-nav .dropdown-menu-nav .dropdown-item-nav {
+      padding: 0.6rem 0.85rem;
+      font-size: 0.78rem;
+      border-radius: 8px;
+    }
+
+    /* Auth area at bottom of panel */
+    #mainNav > div:last-child,
+    #mainNav > a.btn-login-premium {
+      margin-top: 0.6rem;
+      width: 100%;
+    }
+    .premium-nav .btn-login-premium {
+      width: 100%;
+      justify-content: center;
+      padding: 0.75rem 1.6rem;
+    }
+    #mainNav .d-flex.align-items-center { width: 100%; justify-content: space-between; }
+    .premium-nav .nav-greeting { display: inline !important; }
+  }
+</style>
+
+<nav id="publicNavbar" class="navbar navbar-expand-lg premium-nav fixed-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
+      <i class="bi bi-snow2 fs-4 me-2"></i>
+      <span class="brand-text">CALIDRO RACS</span>
+    </a>
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav ms-auto align-items-lg-center">
+        <li class="nav-item me-4">
+          <a class="nav-link" href="/">
+            <i class="bi bi-house-door nav-icon"></i>
+            <span class="nav-text">Home</span>
+          </a>
+        </li>
+
+        <li class="nav-item me-4 nav-dropdown">
+          <a class="nav-link" href="/services">
+            <i class="bi bi-tools nav-icon"></i>
+            <span class="nav-text">Services</span>
+            <i class="bi bi-chevron-down chevron"></i>
+          </a>
+          <ul class="dropdown-menu-nav">
+            <li>
+              <a class="dropdown-item-nav" href="/services">
+                <i class="bi bi-tools"></i>
+                <span>Core Service</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item-nav" href="/repair-request">
+                <i class="bi bi-wrench-adjustable"></i>
+                <span>Repair Request</span>
+              </a>
+            </li>
+          </ul>
+        </li>
+
+        <li class="nav-item me-4">
+          <a class="nav-link" href="/products">
+            <i class="bi bi-box-seam nav-icon"></i>
+            <span class="nav-text">Products</span>
+          </a>
+        </li>
+
+        <li class="nav-item me-4">
+          <a class="nav-link" href="/about">
+            <i class="bi bi-info-circle nav-icon"></i>
+            <span class="nav-text">About Us</span>
+          </a>
+        </li>
+
+        <li class="nav-item me-4">
+          <a class="nav-link" href="/contact">
+            <i class="bi bi-envelope nav-icon"></i>
+            <span class="nav-text">Contact</span>
+          </a>
+        </li>
+      </ul>
+
+      <% if (typeof user !== 'undefined' && user) { %>
+        <div class="d-flex align-items-center">
+          <button id="profileToggle" class="btn btn-light border rounded-circle me-2" aria-label="Profile">
+            <i class="bi bi-person-circle fs-4"></i>
+          </button>
+          <span class="d-none d-lg-inline me-3 nav-greeting">Hello, <%= user.email.split('@')[0] %></span>
+        </div>
+        <%- include('../partials/sidebar') %>
+      <% } else { %>
+        <a href="/login" class="btn btn-login-premium ms-lg-3">
+          <i class="bi bi-box-arrow-in-right"></i>
+          <span>Sign In</span>
+        </a>
+      <% } %>
+    </div>
+  </div>
+</nav>
+
+<script>
+  (function () {
+    var nav = document.getElementById('publicNavbar');
+    if (!nav) return;
+
+    function adjustPublicNav() {
+      var h = nav.offsetHeight || 56;
+      document.body.style.paddingTop = h + 'px';
+    }
+    window.addEventListener('load', adjustPublicNav);
+    window.addEventListener('resize', adjustPublicNav);
+
+    var scrolled = false;
+    function onScroll() {
+      var y = window.scrollY || document.documentElement.scrollTop;
+      if (y > 40 && !scrolled) {
+        nav.classList.add('nav-scrolled');
+        scrolled = true;
+      } else if (y <= 40 && scrolled) {
+        nav.classList.remove('nav-scrolled');
+        scrolled = false;
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var path = window.location.pathname.replace(/\/$/, '') || '/';
+      document.querySelectorAll('#publicNavbar .nav-link').forEach(function (link) {
+        var href = (link.getAttribute('href') || '').replace(/\/$/, '') || '/';
+        if (href === path) link.classList.add('active');
+      });
+
+      // Mobile: tap Services to expand its submenu (hover doesn't work on touch)
+      var dd = nav.querySelector('.nav-dropdown');
+      var ddLink = dd ? dd.querySelector('.nav-link') : null;
+      if (dd && ddLink) {
+        ddLink.addEventListener('click', function (e) {
+          var isMobile = window.matchMedia('(max-width: 991.98px)').matches;
+          if (!isMobile) return;
+          if (dd.classList.contains('open')) return; // second tap navigates
+          e.preventDefault();
+          dd.classList.add('open');
+        });
+      }
+    });
+  })();
+</script>

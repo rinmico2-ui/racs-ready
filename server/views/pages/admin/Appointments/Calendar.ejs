@@ -1,0 +1,1286 @@
+<div class="admin-dashboard container-fluid py-4 appointments-calendar">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
+
+  <style>
+    .appointments-calendar {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.45;
+      background: #f3f4f6;
+      min-height: 100vh;
+      --cal-radius: 14px;
+      --cal-border: rgba(0,0,0,0.06);
+      --cal-muted: #6b7280;
+      --cal-title: #0f172a;
+      --cal-bg: #f8fafc;
+      --blue-50: #eff6ff;
+      --blue-100: #dbeafe;
+      --blue-600: #2563eb;
+      --blue-700: #1d4ed8;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-500: #64748b;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+    }
+
+    /* ── Hero Header ───────────────────────────────────────────── */
+    .cal-hero {
+      position: relative; padding: 24px 28px; border-radius: 16px; overflow: hidden;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #3730a3 100%);
+      box-shadow: 0 4px 24px rgba(49,46,129,0.2);
+    }
+    .cal-hero-bg {
+      position: absolute; top: 0; right: 0; width: 100%; height: 100%; opacity: 0.06;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(255,255,255,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(129,140,248,0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .cal-hero-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; position: relative; z-index: 1; }
+    .cal-hero-left { display: flex; align-items: center; gap: 16px; }
+    .cal-hero-icon {
+      width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.08));
+      backdrop-filter: blur(8px); font-size: 1.35rem; color: #fff; flex-shrink: 0;
+    }
+    .cal-hero-title { font-size: 1.3rem; font-weight: 700; color: #fff; margin: 0; line-height: 1.2; letter-spacing: -0.02em; }
+    .cal-hero-sub { font-size: 0.85rem; color: rgba(255,255,255,0.55); margin: 3px 0 0 0; line-height: 1.4; }
+    .cal-hero-range {
+      font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.7); padding: 5px 12px;
+      background: rgba(255,255,255,0.08); border-radius: 8px; white-space: nowrap; backdrop-filter: blur(4px);
+    }
+    @media (max-width: 767px) {
+      .cal-hero { padding: 20px; }
+      .cal-hero-icon { width: 42px; height: 42px; font-size: 1.2rem; }
+      .cal-hero-title { font-size: 1.15rem; }
+      .cal-hero-sub { font-size: 0.8rem; }
+    }
+
+    .appointments-calendar .fc-event.pending          { background: rgba(245,158,11,0.12) !important; color:#92400e !important; border-left: 3px solid #f59e0b !important; }
+    .appointments-calendar .fc-event.payment_verified  { background: rgba(37,99,235,0.12) !important; color:#1e40af !important; border-left: 3px solid #2563eb !important; }
+    .appointments-calendar .fc-event.awaiting_assignment,
+    .appointments-calendar .fc-event.assigned,
+    .appointments-calendar .fc-event.pending_reassignment { background: rgba(139,92,246,0.12) !important; color:#5b21b6 !important; border-left: 3px solid #8b5cf6 !important; }
+    .appointments-calendar .fc-event.confirmed         { background: rgba(14,165,233,0.12) !important; color:#0e7490 !important; border-left: 3px solid #0ea5e9 !important; }
+    .appointments-calendar .fc-event.scheduled         { background: rgba(99,102,241,0.12) !important; color:#4338ca !important; border-left: 3px solid #6366f1 !important; }
+    .appointments-calendar .fc-event.on-the-way        { background: rgba(59,130,246,0.12) !important; color:#1e40af !important; border-left: 3px solid #3b82f6 !important; }
+    .appointments-calendar .fc-event.arrived           { background: rgba(20,184,166,0.12) !important; color:#115e59 !important; border-left: 3px solid #14b8a6 !important; }
+    .appointments-calendar .fc-event.in-progress       { background: rgba(34,197,94,0.12) !important; color:#166534 !important; border-left: 3px solid #22c55e !important; }
+    .appointments-calendar .fc-event.completed         { background: rgba(22,163,74,0.12) !important; color:#14532d !important; border-left: 3px solid #16a34a !important; }
+    .appointments-calendar .fc-event.repair_approved  { background: rgba(5,150,105,0.12) !important; color:#064e3b !important; border-left: 3px solid #059669 !important; }
+    .appointments-calendar .fc-event.rejected          { background: rgba(220,38,38,0.12) !important; color:#991b1b !important; border-left: 3px solid #dc2626 !important; }
+    .appointments-calendar .fc-event.cancelled         { background: rgba(107,114,128,0.12) !important; color:#4b5563 !important; border-left: 3px solid #6b7280 !important; }
+    .appointments-calendar .fc-event.expired           { background: rgba(217,119,6,0.12) !important; color:#92400e !important; border-left: 3px solid #d97706 !important; }
+    /* ── Order / Delivery Events ──────────────────────── */
+    .appointments-calendar .fc-event.order-pending_payment,
+    .appointments-calendar .fc-event.order-preparing_unit { background: rgba(245,158,11,0.12) !important; color:#92400e !important; border-left: 3px solid #f59e0b !important; border-style: solid !important; }
+    .appointments-calendar .fc-event.order-technician_assigned { background: rgba(139,92,246,0.12) !important; color:#5b21b6 !important; border-left: 3px solid #8b5cf6 !important; }
+    .appointments-calendar .fc-event.order-out_for_delivery { background: rgba(249,115,22,0.12) !important; color:#9a3412 !important; border-left: 3px solid #f97316 !important; }
+    .appointments-calendar .fc-event.order-arrived { background: rgba(20,184,166,0.12) !important; color:#115e59 !important; border-left: 3px solid #14b8a6 !important; }
+    .appointments-calendar .fc-event.order-installing { background: rgba(236,72,153,0.12) !important; color:#9d174d !important; border-left: 3px solid #ec4899 !important; }
+    .appointments-calendar .fc-event.order-completed { background: rgba(22,163,74,0.12) !important; color:#14532d !important; border-left: 3px solid #16a34a !important; }
+    .appointments-calendar .fc-event.order-cancelled { background: rgba(107,114,128,0.12) !important; color:#4b5563 !important; border-left: 3px solid #6b7280 !important; }
+    .appointments-calendar .fc-event.order-event { border-radius: 7px !important; }
+    .appointments-calendar .fc-event.order-event .event-content-wrapper { gap: 0; }
+    .appointments-calendar .fc-event.order-event .event-customer { font-weight: 600; }
+    .appointments-calendar .fc-event.order-event .event-service { font-style: italic; }
+    .appointments-calendar .fc-event { border: none !important; border-radius: 7px !important; }
+    .appointments-calendar .fc-event:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important; }
+
+    .appointments-calendar .calendar-spinner {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 44px; height: 44px; border: 3.5px solid rgba(0,0,0,0.08); border-top-color: var(--blue-600);
+      border-radius: 50%; animation: spin 0.8s linear infinite; display: none; z-index: 10;
+    }
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    .appointments-calendar .page-shell { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 1200px) { .appointments-calendar .page-shell { grid-template-columns: minmax(0, 1fr) 400px; } }
+
+    .appointments-calendar .cal-card,
+    .appointments-calendar .list-card {
+      background: #fff; border: none; border-radius: var(--cal-radius);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.02);
+      overflow: hidden; transition: box-shadow 0.2s ease;
+    }
+    .appointments-calendar .cal-card:hover,
+    .appointments-calendar .list-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03); }
+
+    .appointments-calendar .cal-body { padding: 16px; background: #fff; position: relative; }
+    .appointments-calendar #adminAppointmentsCalendar { min-height: 620px; background: #fff; border-radius: 12px; padding: 4px; width: 100%; }
+
+    /* ── Filter Bar ────────────────────────────────────────────── */
+    .cal-filter-bar {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+      padding: 14px 22px; background: #fff;
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .cal-filter-bar .filter-left { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .cal-filter-bar .filter-label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--slate-400); margin-right: 2px; white-space: nowrap;
+    }
+    .cal-filter-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px 5px 9px;
+      border-radius: 8px; font-size: 0.76rem; font-weight: 600; color: #475569;
+      background: #fff; border: 1px solid #e2e8f0; cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: all 0.2s ease; white-space: nowrap; user-select: none;
+    }
+    .cal-filter-chip:hover { background: #f8fafc; border-color: #cbd5e1; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(15,23,42,0.06); }
+    .cal-filter-chip.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .cal-filter-chip.active:hover { box-shadow: 0 6px 16px rgba(37,99,235,0.3); }
+    .cal-filter-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .cal-filter-chip.active .chip-dot { background: rgba(255,255,255,0.95) !important; }
+    .cal-filter-chip .chip-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 19px; height: 19px; border-radius: 6px; font-size: 0.66rem; font-weight: 700;
+      background: #f1f5f9; color: #64748b; padding: 0 5px; margin-left: 1px;
+    }
+    .cal-filter-chip.active .chip-count { background: rgba(255,255,255,0.2); color: #fff; }
+    .cal-filter-divider { width: 1px; height: 22px; background: #e2e8f0; margin: 0 2px; }
+    .cal-clear-filters {
+      font-family: "Inter", sans-serif; font-size: 0.75rem; font-weight: 600; color: #64748b; background: none; border: none;
+      cursor: pointer; padding: 5px 8px; border-radius: 6px; transition: all 0.15s;
+    }
+    .cal-clear-filters:hover { background: #f1f5f9; color: #1e293b; }
+
+    /* ── Technician Filter ────────────────────────────────────── */
+    .tech-filter-wrapper { position: relative; }
+    .tech-filter-trigger {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px 6px 11px; border-radius: 8px;
+      font-size: 0.8rem; font-weight: 600; color: #475569;
+      background: #fff; border: 1px solid #e2e8f0; cursor: pointer;
+      transition: all 0.2s ease; white-space: nowrap; user-select: none;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .tech-filter-trigger:hover { background: var(--slate-50); border-color: var(--slate-300); }
+    .tech-filter-trigger.active { border-color: var(--blue-600); box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    .tech-filter-trigger .trigger-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 19px; height: 19px; border-radius: 5px;
+      background: var(--blue-600); color: #fff; font-size: 0.63rem; font-weight: 700; padding: 0 5px;
+    }
+    .tech-filter-trigger .trigger-arrow { font-size: 0.6rem; color: var(--slate-400); transition: transform 0.2s; }
+    .tech-filter-trigger.active .trigger-arrow { transform: rotate(180deg); }
+
+    .tech-filter-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; min-width: 250px; max-width: 300px;
+      background: #fff; border: 1px solid var(--slate-200); border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+      z-index: 100; display: none; overflow: hidden;
+    }
+    .tech-filter-dropdown.open { display: block; }
+    .tech-filter-dropdown .tech-search {
+      padding: 10px 12px; border-bottom: 1px solid var(--slate-200);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .tech-filter-dropdown .tech-search i { color: var(--slate-400); font-size: 0.85rem; }
+    .tech-filter-dropdown .tech-search input {
+      flex: 1; border: none; outline: none; font-size: 0.82rem;
+      color: var(--slate-700); background: transparent;
+    }
+    .tech-filter-dropdown .tech-search input::placeholder { color: var(--slate-400); }
+    .tech-filter-dropdown .tech-select-all {
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      border-bottom: 1px solid var(--slate-100); cursor: pointer;
+      font-size: 0.78rem; font-weight: 600; color: var(--slate-600);
+      transition: background 0.1s; user-select: none;
+    }
+    .tech-filter-dropdown .tech-select-all:hover { background: var(--slate-50); }
+    .tech-filter-dropdown .tech-options { max-height: 240px; overflow-y: auto; }
+    .tech-filter-dropdown .tech-option {
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      cursor: pointer; font-size: 0.82rem; color: var(--slate-700);
+      transition: background 0.1s; user-select: none;
+    }
+    .tech-filter-dropdown .tech-option:hover { background: var(--slate-50); }
+    .tech-filter-dropdown .tech-option.selected { background: rgba(37,99,235,0.06); }
+    .tech-filter-dropdown .tech-color-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      border: 2px solid transparent; transition: border-color 0.15s;
+    }
+    .tech-filter-dropdown .tech-option.selected .tech-color-dot { border-color: currentColor; }
+    .tech-filter-dropdown .tech-checkbox {
+      width: 16px; height: 16px; border-radius: 4px; border: 2px solid var(--slate-300);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .tech-filter-dropdown .tech-option.selected .tech-checkbox {
+      background: var(--blue-600); border-color: var(--blue-600);
+    }
+    .tech-filter-dropdown .tech-checkbox i { display: none; color: #fff; font-size: 0.55rem; }
+    .tech-filter-dropdown .tech-option.selected .tech-checkbox i { display: block; }
+    .tech-filter-dropdown .tech-name { flex: 1; }
+    .tech-filter-dropdown .tech-status-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .tech-filter-dropdown .tech-status-dot.available { background: #22c55e; }
+    .tech-filter-dropdown .tech-status-dot.busy { background: #f59e0b; }
+    .tech-filter-dropdown .tech-status-dot.offline { background: var(--slate-300); }
+
+    /* ── View Toggle ──────────────────────────────────────────── */
+    .filter-controls { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
+    .view-toggle {
+      display: flex; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04); background: #fff;
+    }
+    .view-toggle button {
+      background: #fff; border: none; border-right: 1px solid #e2e8f0;
+      color: #64748b; font-size: 0.76rem; font-weight: 600;
+      padding: 6px 14px; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .view-toggle button:last-child { border-right: none; }
+    .view-toggle button:hover { background: #f8fafc; color: #334155; }
+    .view-toggle button.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-weight: 700; border-right-color: transparent; }
+    .view-toggle button.active:hover { background: linear-gradient(135deg, #1d4ed8, #1e40af); }
+
+    /* ── Working Hours Badge ───────────────────────────────────── */
+    .cal-hours-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+      border-radius: 8px; font-size: 0.72rem; font-weight: 600; margin-left: auto;
+      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+      border: 1px solid #bbf7d0; color: #166534; white-space: nowrap;
+    }
+    .cal-hours-badge i { font-size: 0.85rem; }
+    .cal-hours-badge.off-hours {
+      background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+      border-color: #fde68a; color: #92400e;
+    }
+
+    /* ── Event Content ─────────────────────────────────────────── */
+    #adminAppointmentsCalendar .event-content-wrapper { display: flex; flex-direction: column; gap: 1px; padding: 0; line-height: 1.25; }
+    #adminAppointmentsCalendar .event-time { font-weight: 700; margin-right: 6px; color: inherit; font-size: 0.78rem; }
+    #adminAppointmentsCalendar .event-customer {
+      font-weight: 600; color: var(--slate-800);
+      font-size: 0.8rem; white-space: normal; line-height: 1.2; word-break: break-word;
+    }
+    #adminAppointmentsCalendar .event-service {
+      font-weight: 400; color: var(--slate-600);
+      font-size: 0.73rem; white-space: normal; line-height: 1.2; word-break: break-word;
+    }
+    #adminAppointmentsCalendar .event-tech {
+      font-size: 0.66rem; color: var(--slate-500); display: flex; align-items: center; gap: 3px; margin-top: 1px;
+    }
+    #adminAppointmentsCalendar .event-tech .tech-inline-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+    /* TimeGrid: clip text to event box to prevent overlap */
+    #adminAppointmentsCalendar .fc-timegrid .event-customer,
+    #adminAppointmentsCalendar .fc-timegrid .event-service {
+      white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+    }
+    #adminAppointmentsCalendar .fc-timegrid-event { overflow: hidden !important; }
+    #adminAppointmentsCalendar .fc-timegrid-event .fc-event-main { overflow: hidden !important; }
+    /* List view: dark text on light/white rows */
+    #adminAppointmentsCalendar .fc-list .event-time,
+    #adminAppointmentsCalendar .fc-list .event-customer,
+    #adminAppointmentsCalendar .fc-list .event-service,
+    #adminAppointmentsCalendar .fc-list .event-tech { color: #0f172a !important; text-shadow: none !important; }
+    #adminAppointmentsCalendar .fc-daygrid-event-harness { height: auto !important; }
+    #adminAppointmentsCalendar .fc-daygrid-event { height: auto !important; min-height: auto; }
+    #adminAppointmentsCalendar .fc-event-main { padding: 4px 6px; }
+
+    /* ═══ FullCalendar — Enterprise ═══════════════════════════════ */
+    #adminAppointmentsCalendar,
+    #adminAppointmentsCalendar .fc,
+    #adminAppointmentsCalendar .fc * { font-family: "Inter", system-ui, sans-serif !important; }
+    #adminAppointmentsCalendar .fc { font-size: 0.9rem; width: 100%; }
+
+    #adminAppointmentsCalendar .fc-toolbar {
+      display: flex !important; align-items: center !important; justify-content: space-between !important;
+      flex-wrap: wrap !important; background: #fff !important; border-radius: 12px !important;
+      padding: 12px 16px !important; margin-bottom: 16px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.03) !important;
+    }
+    #adminAppointmentsCalendar .fc-toolbar-title { display: none !important; }
+
+    #adminAppointmentsCalendar .fc-prev-button,
+    #adminAppointmentsCalendar .fc-next-button {
+      background-color: #fff !important; border: 1px solid var(--slate-200) !important;
+      color: var(--slate-600) !important; border-radius: 8px !important;
+      width: 34px !important; height: 34px !important; padding: 0 !important;
+      display: inline-flex !important; align-items: center !important; justify-content: center !important;
+      font-size: 0.85rem !important; margin-right: 4px !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; transition: all 0.15s ease !important;
+    }
+    #adminAppointmentsCalendar .fc-prev-button:hover,
+    #adminAppointmentsCalendar .fc-next-button:hover {
+      background-color: var(--slate-100) !important; border-color: var(--slate-300) !important; color: var(--slate-800) !important;
+    }
+
+    #adminAppointmentsCalendar .fc-today-button {
+      background-color: #fff !important; border: 1px solid var(--slate-200) !important;
+      color: var(--slate-600) !important; border-radius: 8px !important; font-size: 0.78rem !important;
+      font-weight: 600 !important; padding: 6px 14px !important; margin: 0 !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; transition: all 0.15s ease !important;
+    }
+    #adminAppointmentsCalendar .fc-today-button:hover {
+      background-color: var(--slate-100) !important; border-color: var(--slate-300) !important; color: var(--slate-800) !important;
+    }
+    #adminAppointmentsCalendar .fc-today-button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
+
+    #adminAppointmentsCalendar .fc-button-group { border: 1px solid var(--slate-200) !important; border-radius: 8px !important; overflow: hidden !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; }
+    #adminAppointmentsCalendar .fc-button-group .fc-button {
+      background-color: #fff !important; border: none !important; border-right: 1px solid var(--slate-200) !important;
+      color: var(--slate-500) !important; border-radius: 0 !important; font-size: 0.76rem !important;
+      font-weight: 600 !important; padding: 6px 16px !important; margin: 0 !important;
+      box-shadow: none !important; outline: none !important; transition: all 0.15s ease !important;
+    }
+    #adminAppointmentsCalendar .fc-button-group .fc-button:last-child { border-right: none !important; }
+    #adminAppointmentsCalendar .fc-button-group .fc-button:hover { background-color: var(--slate-100) !important; color: var(--slate-700) !important; }
+    #adminAppointmentsCalendar .fc-button-group .fc-button-active { background-color: var(--blue-600) !important; color: #fff !important; font-weight: 700 !important; }
+    #adminAppointmentsCalendar .fc-button-group .fc-button-active:hover { background-color: var(--blue-700) !important; color: #fff !important; }
+
+    #adminAppointmentsCalendar .fc-col-header-cell {
+      background: linear-gradient(180deg, var(--slate-50) 0%, var(--slate-100) 100%) !important;
+      font-weight: 700 !important; font-size: 0.76rem !important; color: var(--slate-600) !important;
+      padding: 11px 0 !important; border-bottom: 2px solid var(--slate-200) !important;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    #adminAppointmentsCalendar .fc-col-header-cell a,
+    #adminAppointmentsCalendar .fc-col-header-cell a:hover { color: var(--slate-700) !important; text-decoration: none !important; }
+
+    #adminAppointmentsCalendar .fc-daygrid-day-top { display: flex !important; flex-direction: row-reverse !important; padding: 8px 10px 2px 10px !important; }
+    #adminAppointmentsCalendar .fc-daygrid-day-number {
+      font-size: 0.82rem !important; font-weight: 500 !important; color: var(--slate-500) !important;
+      width: 28px !important; height: 28px !important; display: flex !important;
+      align-items: center !important; justify-content: center !important;
+      border-radius: 8px !important; transition: all 0.15s ease !important;
+    }
+    #adminAppointmentsCalendar .fc-daygrid-day-number a { color: inherit !important; text-decoration: none !important; }
+    #adminAppointmentsCalendar .fc-daygrid-day:hover .fc-daygrid-day-number { background: var(--slate-100) !important; color: var(--slate-800) !important; }
+
+    #adminAppointmentsCalendar .fc-day-today { background: rgba(37,99,235,0.04) !important; }
+    #adminAppointmentsCalendar .fc-day-today .fc-daygrid-day-number { background: var(--blue-600) !important; color: #fff !important; font-weight: 700 !important; box-shadow: 0 2px 8px rgba(37,99,235,0.3) !important; }
+
+    #adminAppointmentsCalendar .fc-scrollgrid { border: 1px solid var(--slate-200) !important; border-radius: 12px; overflow: hidden; width: 100%; }
+    #adminAppointmentsCalendar .fc-scrollgrid td, #adminAppointmentsCalendar .fc-scrollgrid th { border-color: var(--slate-100) !important; }
+    #adminAppointmentsCalendar .fc-daygrid-day { border: 1px solid var(--slate-100) !important; transition: background 0.15s ease !important; }
+    #adminAppointmentsCalendar .fc-daygrid-day:hover { background: var(--slate-50) !important; }
+
+    #adminAppointmentsCalendar .fc-daygrid-event { border-radius: 6px !important; font-size: 0.76rem !important; font-weight: 600 !important; padding: 3px 8px !important; margin: 2px 4px !important; overflow: hidden !important; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease !important; min-height: auto !important; line-height: 1.4 !important; }
+    #adminAppointmentsCalendar .fc-daygrid-event:hover { transform: translateY(-1px) !important; box-shadow: 0 3px 10px rgba(0,0,0,0.1) !important; }
+    #adminAppointmentsCalendar .fc-daygrid-day-events { padding: 0 2px 4px 2px !important; }
+
+    /* ── Timegrid (Week/Day) ───────────────────────────────────── */
+    #adminAppointmentsCalendar .fc-timegrid-slot { height: 72px !important; min-height: 72px !important; position: relative !important; background: transparent !important; }
+    #adminAppointmentsCalendar .fc-timegrid-slot-minor { border-top: none !important; }
+    #adminAppointmentsCalendar .fc-timegrid-body { background: var(--slate-50) !important; }
+    #adminAppointmentsCalendar .fc-timegrid-axis, #adminAppointmentsCalendar .fc-timegrid-slot-label { width: 68px !important; min-width: 68px !important; background: #fff !important; }
+    #adminAppointmentsCalendar .fc-timegrid-slot-label-cushion { font-size: 0.78rem !important; font-weight: 500 !important; color: var(--slate-500) !important; padding: 0 12px 0 0 !important; text-transform: lowercase; }
+    #adminAppointmentsCalendar .fc-timegrid-col { border-right: 1px solid var(--slate-200) !important; }
+    #adminAppointmentsCalendar .fc-timegrid-col:last-child { border-right: none !important; }
+    #adminAppointmentsCalendar .fc-timegrid-slot { border-bottom: 1px solid var(--slate-100) !important; }
+    #adminAppointmentsCalendar .fc-timegrid-slot-minor { border-bottom: 1px dashed var(--slate-100) !important; }
+
+    /* Non-working hours overlay */
+    #adminAppointmentsCalendar .fc-non-working-bg {
+      position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+      background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(148,163,184,0.04) 8px, rgba(148,163,184,0.04) 16px);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* Working hours indicator line */
+    #adminAppointmentsCalendar .fc-working-hours-start,
+    #adminAppointmentsCalendar .fc-working-hours-end {
+      position: absolute; left: 68px; right: 0; height: 2px; z-index: 2; pointer-events: none;
+    }
+    #adminAppointmentsCalendar .fc-working-hours-start { background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); }
+    #adminAppointmentsCalendar .fc-working-hours-end { background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%); }
+
+    /* Timegrid events */
+    #adminAppointmentsCalendar .fc-timegrid-event-harness { overflow: hidden !important; width: 100% !important; padding: 0 !important; margin: 0 !important; position: relative !important; }
+    #adminAppointmentsCalendar .fc-timegrid-event {
+      box-sizing: border-box !important; border-radius: 7px !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; font-size: 0.82rem !important;
+      padding: 6px 8px !important; display: flex !important; flex-direction: column !important;
+      justify-content: flex-start !important; align-items: flex-start !important;
+      text-align: left !important; white-space: normal !important; word-break: normal !important;
+      overflow-wrap: break-word !important; overflow: hidden !important; height: 100% !important;
+      margin: 0 !important; line-height: 1.35;
+      width: 100% !important; min-width: 0 !important; position: absolute !important;
+      top: 0 !important; left: 0 !important; right: 0 !important;
+    }
+    #adminAppointmentsCalendar .fc-timegrid-event .fc-event-time { font-size: 0.82rem !important; font-weight: 600; display: none !important; margin-bottom: 2px; line-height: 1.2; }
+    #adminAppointmentsCalendar .fc-timegrid-event .fc-event-title { font-weight: 500; font-size: 0.82rem !important; line-height: 1.2; display: none !important; }
+
+    /* List view */
+    #adminAppointmentsCalendar .fc-list-event { border-bottom: 1px solid var(--slate-100) !important; }
+    #adminAppointmentsCalendar .fc-list-event:hover td { background: var(--slate-50) !important; }
+    #adminAppointmentsCalendar .fc-list-event-dot { border-radius: 50% !important; width: 8px !important; height: 8px !important; border: none !important; }
+    #adminAppointmentsCalendar .fc-list-day-text, #adminAppointmentsCalendar .fc-list-day-link { font-size: 0.82rem !important; font-weight: 600 !important; color: var(--slate-700) !important; }
+    #adminAppointmentsCalendar .fc-list-event-time { font-size: 0.78rem !important; color: var(--slate-500) !important; font-weight: 500 !important; }
+    #adminAppointmentsCalendar .fc-list-event-title { font-size: 0.85rem !important; font-weight: 600 !important; color: var(--slate-800) !important; }
+
+    #adminAppointmentsCalendar .fc-now-indicator { height: 2px !important; background-color: #dc2626 !important; left: 0 !important; right: 0 !important; width: 100% !important; z-index: 3 !important; }
+    #adminAppointmentsCalendar .fc-scroller::-webkit-scrollbar { display: none !important; }
+    #adminAppointmentsCalendar .fc-scroller { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+    #adminAppointmentsCalendar .fc-day-today.fc-timegrid-col { background-color: rgba(37,99,235,0.03) !important; }
+    #adminAppointmentsCalendar .fc-col-header-cell.fc-day-today { background: rgba(37,99,235,0.04) !important; border-bottom: 2px solid var(--blue-600) !important; }
+    #adminAppointmentsCalendar .fc-col-header-cell.fc-day-today a { color: var(--blue-600) !important; font-weight: 700 !important; text-decoration: none !important; }
+
+    .slide-in { animation: slideIn 0.3s ease forwards; }
+    @keyframes slideIn { from { transform: translateX(20px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+    /* ═══ Sidebar List ════════════════════════════════════════════ */
+    .list-card { display: flex; flex-direction: column; background: #fff; border: none; border-radius: var(--cal-radius); box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.02); overflow: hidden; }
+    .list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--slate-200); }
+    .list-head h5 { margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--slate-800); }
+    .list-head small { color: var(--slate-500); font-size: 0.75rem; }
+    .list-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 6px; background: var(--blue-600); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 0 6px; }
+    .list-body { padding: 6px 8px; max-height: 700px; overflow-y: auto; background: var(--slate-50); }
+
+    .appt-item {
+      display: flex; align-items: stretch; background: #fff;
+      border-radius: 8px; margin-bottom: 5px; overflow: hidden; cursor: pointer;
+      border: 1px solid var(--slate-200);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      transition: all 0.15s ease;
+    }
+    .appt-item:hover { border-color: var(--slate-300); box-shadow: 0 2px 8px rgba(15,23,42,0.06); }
+    .appt-item:last-child { margin-bottom: 0; }
+    .appt-marker { width: 4px; flex-shrink: 0; }
+    .appt-body { flex: 1; padding: 9px 11px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .appt-body:active { opacity: 0.85; }
+    .appt-row1 { display: flex; align-items: center; gap: 8px; }
+    .appt-time { font-size: 0.73rem; font-weight: 700; color: var(--slate-500); white-space: nowrap; letter-spacing: -0.01em; }
+    .appt-name { font-size: 0.84rem; font-weight: 700; color: var(--slate-800); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .appt-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+    .appt-row2 { display: flex; align-items: center; gap: 3px; font-size: 0.72rem; color: var(--slate-500); flex-wrap: wrap; }
+    .appt-row2 .tdot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 2px; }
+    .appt-sep { color: var(--slate-300); font-size: 0.55rem; margin: 0 1px; }
+    .appt-chevron {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; border: none; background: transparent;
+      color: var(--slate-300); cursor: pointer; font-size: 0.65rem;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .appt-chevron:hover { color: var(--blue-600); }
+
+    .appt-item.order-item { background: linear-gradient(135deg, #fff7ed 0%, #fff 100%); }
+    .appt-item.order-item .appt-type-badge {
+      display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 3px;
+      font-size: 0.6rem; font-weight: 700; background: rgba(249,115,22,0.12); color: #c2410c;
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+
+    .empty-state {
+      border: 1px dashed var(--slate-300); border-radius: 10px; padding: 28px 20px;
+      text-align: center; color: var(--slate-500); background: #fff; font-size: 0.85rem;
+    }
+    .empty-state i { font-size: 1.5rem; color: var(--slate-300); display: block; margin-bottom: 8px; }
+
+    /* ═══ Enterprise Detail Modal ════════════════════════════════ */
+    .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+    .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 18px 24px; border: none; }
+    .ent-modal-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .ent-modal-body { padding: 20px 24px; }
+    .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .ent-detail-card {
+      display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+      background: var(--slate-50); border-radius: 10px; border: 1px solid var(--slate-200);
+      transition: box-shadow 0.15s ease;
+    }
+    .ent-detail-card-wide { grid-column: span 2; }
+    .ent-detail-card-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+    .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ent-detail-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--slate-400); }
+    .ent-detail-value { font-size: 0.9rem; font-weight: 600; color: var(--slate-800); }
+    .ent-detail-sub { font-size: 0.78rem; color: var(--slate-500); }
+    .ent-status-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: var(--slate-50); border-radius: 10px; border: 1px solid var(--slate-200); }
+    .ent-status-bar .status-badge { font-size: 0.76rem; font-weight: 700; padding: 4px 11px; border-radius: 6px; }
+    .ent-status-bar .ref-no { font-size: 0.82rem; font-weight: 600; color: var(--slate-700); margin-left: auto; }
+    .ent-timeline { margin-top: 14px; padding: 14px 16px; background: var(--slate-50); border-radius: 10px; border: 1px solid var(--slate-200); }
+    .ent-timeline h6 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--slate-400); margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+    .ent-timeline-item { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; }
+    .ent-timeline-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--slate-300); }
+    .ent-timeline-dot.current { background: var(--blue-600); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+    .ent-timeline-text { font-size: 0.78rem; color: var(--slate-600); }
+    .ent-timeline-text strong { color: var(--slate-800); }
+    .ent-items-box {
+      margin-top: 14px; padding: 12px 16px; background: var(--slate-50); border-radius: 10px;
+      border: 1px solid var(--slate-200);
+    }
+    .ent-items-box h6 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--slate-400); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+    .pm-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.82rem; }
+    .pm-row + .pm-row { border-top: 1px solid var(--slate-200); }
+    .pm-lbl { color: var(--slate-700); font-weight: 500; }
+    .pm-val { color: var(--slate-800); font-weight: 600; }
+
+    @media (max-width: 767px) {
+      .ent-detail-grid { grid-template-columns: 1fr; }
+      .ent-detail-card-wide { grid-column: span 1; }
+      .cal-filter-bar { padding: 10px 14px; gap: 4px; }
+      .cal-filter-chip { padding: 4px 8px 4px 6px; font-size: 0.68rem; gap: 4px; }
+      .cal-filter-chip .chip-dot { width: 6px; height: 6px; }
+      .cal-filter-divider { display: none; }
+      .filter-controls { flex-wrap: wrap; gap: 6px; }
+      .cal-filter-bar .filter-label { display: none; }
+      .list-body { max-height: 400px; }
+      .appt-body { padding: 7px 9px; }
+      .appt-row1 { gap: 6px; }
+      .appt-time { font-size: 0.68rem; }
+      .appt-name { font-size: 0.78rem; }
+      .appt-row2 { font-size: 0.68rem; }
+      .appt-chevron { width: 24px; }
+    }
+    @media (min-width: 768px) and (max-width: 1199px) {
+      .cal-filter-bar .filter-label { display: none; }
+      .cal-filter-chip { padding: 4px 10px 4px 7px; font-size: 0.72rem; }
+      .filter-controls { gap: 6px; }
+    }
+  </style>
+
+  <!-- Hero Header -->
+  <div class="cal-hero mb-4">
+    <div class="cal-hero-bg"></div>
+    <div class="cal-hero-inner">
+      <div class="cal-hero-left">
+        <div class="cal-hero-icon"><i class="bi bi-calendar4-week"></i></div>
+        <div>
+          <h1 class="cal-hero-title">Appointments Calendar</h1>
+          <p class="cal-hero-sub">View and manage all scheduled appointments across your team.</p>
+        </div>
+      </div>
+      <div class="cal-hero-right">
+        <span class="cal-hero-range" id="calendarRangeLabel" style="display:none;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="page-shell">
+    <section class="cal-card">
+      <!-- Filter Bar -->
+      <div class="cal-filter-bar" id="calFilterBar">
+        <div class="filter-left" id="calFilterChips">
+          <span class="filter-label">Filter</span>
+        </div>
+        <div class="filter-controls">
+          <div class="tech-filter-wrapper" id="techFilterWrapper">
+            <button class="tech-filter-trigger" id="techFilterTrigger">
+              <i class="bi bi-person-badge"></i>
+              <span id="techFilterLabel">All Technicians</span>
+              <span class="trigger-count" id="techFilterCount" style="display:none;">0</span>
+              <i class="bi bi-chevron-down trigger-arrow"></i>
+            </button>
+            <div class="tech-filter-dropdown" id="techFilterDropdown">
+              <div class="tech-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="techSearchInput" placeholder="Search technicians..." autocomplete="off">
+              </div>
+              <label class="tech-select-all" id="techSelectAll">
+                <span class="tech-checkbox" id="techSelectAllCheckbox"></span>
+                <span>Select All</span>
+              </label>
+              <div class="tech-options" id="techOptions"></div>
+            </div>
+          </div>
+          <div class="view-toggle" id="viewToggle">
+            <button data-view="dayGridMonth" class="active"><i class="bi bi-calendar-month"></i> Month</button>
+            <button data-view="timeGridWeek"><i class="bi bi-calendar-week"></i> Week</button>
+            <button data-view="timeGridDay"><i class="bi bi-calendar-day"></i> Day</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cal-body">
+        <div id="calendarSpinner" class="calendar-spinner" role="status" aria-label="Loading appointments"></div>
+        <div id="adminAppointmentsCalendar"></div>
+      </div>
+    </section>
+
+    <aside class="list-card">
+      <div class="list-head">
+        <div>
+          <h5 id="selectedDateLabel">Selected Date</h5>
+          <small id="selectedDateSub">Appointments for this day</small>
+        </div>
+        <span id="selectedDateCount" class="list-count">0</span>
+      </div>
+      <div id="selectedDateList" class="list-body"></div>
+    </aside>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal fade" id="calDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:560px;margin:auto;">
+      <div class="modal-content ent-modal">
+        <div class="modal-header ent-modal-header">
+          <div class="d-flex align-items-center gap-3">
+            <div class="ent-modal-icon bg-white bg-opacity-25"><i class="bi bi-calendar-check text-white"></i></div>
+            <div style="min-width:0;">
+              <h6 class="modal-title fw-bold mb-0" id="calDetailTitle" style="font-size:1rem;">Appointment Details</h6>
+              <small class="text-white text-opacity-75" style="font-size:0.78rem;">Complete booking information</small>
+            </div>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body ent-modal-body" id="calDetailBody">
+          <div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (!window.FullCalendar || !window.FullCalendar.Calendar) {
+        const host = document.getElementById("adminAppointmentsCalendar");
+        if (host) host.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Calendar library failed to load. Please refresh.</div>';
+        return;
+      }
+
+      const byId = (id) => document.getElementById(id);
+      const dom = {
+        calendarEl: byId("adminAppointmentsCalendar"),
+        calendarRangeLabel: byId("calendarRangeLabel"),
+        selectedDateLabel: byId("selectedDateLabel"),
+        selectedDateSub: byId("selectedDateSub"),
+        selectedDateCount: byId("selectedDateCount"),
+        selectedDateList: byId("selectedDateList"),
+        calendarSpinner: byId("calendarSpinner"),
+        filterBar: byId("calFilterBar"),
+        filterChips: byId("calFilterChips"),
+        techTrigger: byId("techFilterTrigger"),
+        techLabel: byId("techFilterLabel"),
+        techCount: byId("techFilterCount"),
+        techDropdown: byId("techFilterDropdown"),
+        techSearchInput: byId("techSearchInput"),
+        techOptions: byId("techOptions"),
+        techSelectAll: byId("techSelectAll"),
+        techSelectAllCheckbox: byId("techSelectAllCheckbox"),
+        viewToggle: byId("viewToggle"),
+      };
+
+      const TECH_COLORS = [
+        "#4F46E5", "#0EA5E9", "#10B981", "#F59E0B", "#EF4444",
+        "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#6366F1",
+        "#06B6D4", "#84CC16", "#D946EF", "#22C55E", "#E11D48",
+      ];
+
+      const state = {
+        appointments: [],
+        allAppointments: [],
+        allOrders: [],
+        selectedDateKey: toDateKey(new Date()),
+        activeFilters: new Set(),
+        showOrders: true,
+        schedules: {},
+        workingDaysMap: {},
+        currentViewType: "dayGridMonth",
+        technicians: [],
+        selectedTechIds: [],
+        technicianColorMap: {},
+      };
+
+      const STATUS_DEFS = [
+        { key: "pending",              label: "Pending",             color: "#f59e0b" },
+        { key: "payment_verified",     label: "Payment Verified",    color: "#2563eb" },
+        { key: "awaiting_assignment",  label: "Awaiting Assignment", color: "#8b5cf6" },
+        { key: "assigned",             label: "Assigned",            color: "#8b5cf6" },
+        { key: "pending_reassignment", label: "Reassign",            color: "#8b5cf6" },
+        { key: "confirmed",            label: "Confirmed",           color: "#0ea5e9" },
+        { key: "scheduled",            label: "Scheduled",           color: "#6366f1" },
+        { key: "on-the-way",           label: "On The Way",          color: "#3b82f6" },
+        { key: "arrived",              label: "Arrived",             color: "#14b8a6" },
+        { key: "in-progress",          label: "In Progress",         color: "#22c55e" },
+        { key: "completed",            label: "Completed",           color: "#16a34a" },
+        { key: "repair_approved",      label: "Repair Approved",     color: "#059669" },
+        { key: "rejected",             label: "Rejected",            color: "#dc2626" },
+        { key: "cancelled",            label: "Cancelled",           color: "#6b7280" },
+        { key: "expired",              label: "Expired",             color: "#d97706" },
+      ];
+
+      function getColor(status) {
+        const s = String(status || "pending").toLowerCase();
+        const found = STATUS_DEFS.find(d => d.key === s);
+        return found ? found.color : "#475569";
+      }
+
+      function getTechColor(techId) {
+        if (!techId) return "#94a3b8";
+        const sid = String(techId);
+        if (state.technicianColorMap[sid]) return state.technicianColorMap[sid];
+        const idx = state.technicians.findIndex(t => String(t._id) === sid);
+        if (idx >= 0) {
+          const c = TECH_COLORS[idx % TECH_COLORS.length];
+          state.technicianColorMap[sid] = c;
+          return c;
+        }
+        return TECH_COLORS[0];
+      }
+
+      function toDateKey(input) { const d = new Date(input); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+      function toPrettyDate(input) { return new Date(input).toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" }); }
+      function statusBadge(s) {
+        if (s === "pending") return "warning";
+        if (s === "payment_verified") return "primary";
+        if (s === "awaiting_assignment" || s === "assigned" || s === "pending_reassignment") return "info";
+        if (s === "confirmed") return "info";
+        if (s === "scheduled") return "primary";
+        if (s === "on-the-way") return "primary";
+        if (s === "arrived") return "info";
+        if (s === "in-progress") return "success";
+        if (s === "completed") return "success";
+        if (s === "rejected") return "danger";
+        if (s === "cancelled") return "secondary";
+        if (s === "expired") return "warning";
+        return "secondary";
+      }
+
+      function serviceName(a) { return (a.service && typeof a.service === "string" && a.service) || (a.service && a.service.name) || (a.serviceId && a.serviceId.name) || (a.serviceId && a.serviceId.title) || (a.serviceModel === 'RepairService' || a.serviceType === 'repair' ? 'Repair Service' : null) || a.serviceType || "Service"; }
+      function customerName(a) { return a.customerName || (a.customer && a.customer.name) || (a.customer && (a.customer.firstName||"")+" "+(a.customer.lastName||"")).trim() || a.customer || "Customer"; }
+      function technicianName(a) { return a.technicianName || (a.technician && a.technician.name) || (a.technicianId && a.technicianId.name) || "Unassigned"; }
+      function technicianId(a) { return (a.technicianId && (a.technicianId._id || a.technicianId)) || (a.technician && a.technician._id) || null; }
+
+      function timeLabel(a) {
+        const raw = a.startTime; const parsed = Number(raw);
+        if (Number.isFinite(parsed)) { const h = Math.floor(parsed / 60); const m = parsed % 60; const dt = new Date(); dt.setHours(h, m, 0, 0); return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+        if (raw && /^\d{1,2}:\d{2}/.test(String(raw))) { const dt = new Date("1970-01-01T"+String(raw).slice(0,5)+":00"); if (!Number.isNaN(dt.getTime())) return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+        return raw || "Time not set";
+      }
+
+      function eventStart(a) {
+        const base = new Date(a.bookingDate || a.date || a.start || new Date());
+        const startNum = Number(a.startTime);
+        if (Number.isFinite(startNum)) { const dt = new Date(base); dt.setHours(0,0,0,0); dt.setMinutes(startNum); return dt; }
+        if (a.startTime && /^\d{1,2}:\d{2}/.test(String(a.startTime))) { const [hh, mm] = String(a.startTime).slice(0, 5).split(":").map(x => Number(x)); if (Number.isFinite(hh) && Number.isFinite(mm)) { const dt = new Date(base); dt.setHours(hh, mm, 0, 0); return dt; } }
+        return base;
+      }
+
+      function updateRangeLabel(viewTitle) { if (dom.calendarRangeLabel) dom.calendarRangeLabel.textContent = viewTitle; }
+
+      /* ── Technician Filter ─────────────────────────────────────── */
+      function techStatusClass(status) {
+        if (!status || status === "Offline") return "offline";
+        if (status === "Available") return "available";
+        return "busy";
+      }
+
+      async function fetchTechnicians() {
+        try {
+          const res = await fetch("/api/admin/technicians", { credentials: "same-origin", cache: "no-store" });
+          if (!res.ok) return [];
+          const json = await res.json();
+          return json.technicians || [];
+        } catch (e) {
+          console.error("Failed to fetch technicians:", e);
+          return [];
+        }
+      }
+
+      function buildTechDropdown() {
+        if (!dom.techOptions) return;
+        const allSelected = state.selectedTechIds.length === 0 || state.selectedTechIds.length === state.technicians.length;
+        if (dom.techSelectAllCheckbox) dom.techSelectAllCheckbox.innerHTML = allSelected ? '<i class="bi bi-check"></i>' : '';
+        if (dom.techSelectAll) dom.techSelectAll.classList.toggle("selected", allSelected);
+
+        dom.techOptions.innerHTML = state.technicians.map(t => {
+          const tid = String(t._id);
+          const sel = state.selectedTechIds.length === 0 || state.selectedTechIds.includes(tid);
+          const color = getTechColor(tid);
+          return `<div class="tech-option ${sel ? 'selected' : ''}" data-tech-id="${tid}">
+            <span class="tech-checkbox">${sel ? '<i class="bi bi-check"></i>' : ''}</span>
+            <span class="tech-color-dot" style="background:${color};color:${color};"></span>
+            <span class="tech-name">${t.name || t.userEmail || "Unknown"}</span>
+            <span class="tech-status-dot ${techStatusClass(t.availabilityStatus)}"></span>
+          </div>`;
+        }).join("");
+
+        dom.techOptions.querySelectorAll(".tech-option").forEach(el => {
+          el.addEventListener("click", () => {
+            const tid = el.dataset.techId;
+            const idx = state.selectedTechIds.indexOf(tid);
+            if (idx >= 0) state.selectedTechIds.splice(idx, 1);
+            else state.selectedTechIds.push(tid);
+            if (state.selectedTechIds.length === state.technicians.length) state.selectedTechIds = [];
+            updateTechFilterUI();
+            applyFilters();
+            buildTechDropdown();
+          });
+        });
+      }
+
+      function updateTechFilterUI() {
+        const count = state.selectedTechIds.length;
+        if (count === 0 || count === state.technicians.length) {
+          if (dom.techLabel) dom.techLabel.textContent = "All Technicians";
+          if (dom.techCount) dom.techCount.style.display = "none";
+        } else {
+          const names = state.technicians.filter(t => state.selectedTechIds.includes(String(t._id))).map(t => t.name);
+          const label = names.slice(0, 2).join(", ") + (count > 2 ? ` +${count-2}` : "");
+          if (dom.techLabel) dom.techLabel.textContent = label;
+          if (dom.techCount) { dom.techCount.textContent = String(count); dom.techCount.style.display = "inline-flex"; }
+        }
+      }
+
+      function toggleTechDropdown(e) {
+        if (!e) return;
+        e.stopPropagation();
+        if (!dom.techDropdown || !dom.techTrigger) return;
+        const isOpen = dom.techDropdown.classList.toggle("open");
+        dom.techTrigger.classList.toggle("active", isOpen);
+        if (isOpen && dom.techSearchInput) setTimeout(() => dom.techSearchInput.focus(), 50);
+      }
+
+      /* ── Working Hours ──────────────────────────────────────────── */
+      function minutesToTimeStr(minutes) {
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return h.toString().padStart(2,"0")+":"+m.toString().padStart(2,"0")+":00";
+      }
+
+      async function fetchTechnicianSchedules() {
+        try {
+          const res = await fetch("/api/admin/technician-schedules", { credentials: "same-origin", cache: "no-store" });
+          if (!res.ok) return {};
+          const json = await res.json();
+          const schedules = json.schedules || json || [];
+          const map = {};
+          (Array.isArray(schedules) ? schedules : []).forEach(s => {
+            const techId = s.technicianId?._id || s.technicianId;
+            if (techId) map[String(techId)] = s;
+          });
+          return map;
+        } catch (e) {
+          console.error("Failed to fetch technician schedules:", e);
+          return {};
+        }
+      }
+
+      function computeWorkingDaysMap(schedules) {
+        const dayMap = {};
+        Object.values(schedules).forEach(schedule => {
+          (schedule.workingDays || []).forEach(wd => {
+            if (!dayMap[wd.dayOfWeek]) dayMap[wd.dayOfWeek] = [];
+            dayMap[wd.dayOfWeek].push({
+              startMinutes: wd.startMinutes || 480,
+              endMinutes: wd.endMinutes || 1020,
+            });
+          });
+        });
+        return dayMap;
+      }
+
+      function getWorkingHoursForDate(dateStr) {
+        const d = new Date(dateStr + "T12:00:00");
+        const dayOfWeek = d.getDay();
+        const entries = state.workingDaysMap[dayOfWeek] || [];
+        if (entries.length === 0) return null;
+        let earliest = 9999;
+        let latest = 0;
+        entries.forEach(e => {
+          if (e.startMinutes < earliest) earliest = e.startMinutes;
+          if (e.endMinutes > latest) latest = e.endMinutes;
+        });
+        return {
+          startMinutes: earliest,
+          endMinutes: latest,
+          startStr: minutesToTimeStr(earliest),
+          endStr: minutesToTimeStr(latest),
+          techCount: entries.length,
+        };
+      }
+
+      function updateTimeGridHours(viewType, focusDate) {
+        if (viewType !== "timeGridWeek" && viewType !== "timeGridDay") return;
+        let minStart = 9999;
+        let maxEnd = 0;
+        if (viewType === "timeGridDay") {
+          const key = toDateKey(focusDate);
+          const hours = getWorkingHoursForDate(key);
+          if (hours) { minStart = hours.startMinutes; maxEnd = hours.endMinutes; }
+        } else {
+          const startOfWeek = new Date(focusDate);
+          startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(d.getDate() + i);
+            const key = toDateKey(d);
+            const hours = getWorkingHoursForDate(key);
+            if (hours) {
+              if (hours.startMinutes < minStart) minStart = hours.startMinutes;
+              if (hours.endMinutes > maxEnd) maxEnd = hours.endMinutes;
+            }
+          }
+        }
+        if (minStart < 9999) minStart = Math.max(0, minStart - 30);
+        else minStart = 420;
+        if (maxEnd > 0) maxEnd = Math.min(1440, maxEnd + 30);
+        else maxEnd = 1110;
+        calendar.setOption("slotMinTime", minutesToTimeStr(minStart));
+        calendar.setOption("slotMaxTime", minutesToTimeStr(maxEnd));
+      }
+
+      /* ── Filter Bar ─────────────────────────────────────────────── */
+      function buildFilterBar() {
+        if (!dom.filterChips) return;
+        const counts = {};
+        state.allAppointments.forEach(a => { const s = String(a.status || "pending").toLowerCase(); counts[s] = (counts[s] || 0) + 1; });
+        const orderCount = state.allOrders.length;
+
+        let html = '<span class="filter-label">Filter</span>';
+        STATUS_DEFS.forEach(def => {
+          const count = counts[def.key] || 0;
+          html += `<button class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`;
+        });
+
+        html += `<div class="cal-filter-divider"></div>`;
+        html += `<button class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders"><i class="bi bi-truck"></i> Deliveries<span class="chip-count">${orderCount}</span></button>`;
+
+        if (state.activeFilters.size > 0) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Clear</button>`;
+
+        if (state.currentViewType === "timeGridWeek" || state.currentViewType === "timeGridDay") {
+          const focusDate = calendar.getDate ? calendar.getDate() : new Date();
+          const key = toDateKey(focusDate);
+          const hours = getWorkingHoursForDate(key);
+          if (hours) {
+            const startTime = minutesToTimeStr(hours.startMinutes).slice(0,5);
+            const endTime = minutesToTimeStr(hours.endMinutes).slice(0,5);
+            html += `<div class="cal-hours-badge"><i class="bi bi-clock-history"></i>Hours: ${startTime} \u2013 ${endTime} (${hours.techCount} tech${hours.techCount !== 1 ? 's' : ''})</div>`;
+          } else {
+            html += `<div class="cal-hours-badge off-hours"><i class="bi bi-pause-circle"></i>Non-working day</div>`;
+          }
+        }
+
+        dom.filterChips.innerHTML = html;
+
+        dom.filterChips.querySelectorAll('.cal-filter-chip').forEach(chip => {
+          chip.addEventListener('click', () => { const s = chip.dataset.status; if (state.activeFilters.has(s)) state.activeFilters.delete(s); else state.activeFilters.add(s); applyFilters(); buildFilterBar(); });
+        });
+        const toggleOrdersBtn = dom.filterChips.querySelector('#calToggleOrders');
+        if (toggleOrdersBtn) toggleOrdersBtn.addEventListener('click', () => { state.showOrders = !state.showOrders; applyFilters(); buildFilterBar(); });
+        const clearBtn = dom.filterChips.querySelector('#calClearFilters');
+        if (clearBtn) clearBtn.addEventListener('click', () => { state.activeFilters.clear(); applyFilters(); buildFilterBar(); });
+      }
+
+      function applyFilters() {
+        let filtered = state.allAppointments;
+
+        if (state.activeFilters.size > 0) {
+          filtered = filtered.filter(a => {
+            const s = String(a.status || "pending").toLowerCase();
+            if (state.activeFilters.has("awaiting_assignment") && (s === "awaiting_assignment" || s === "assigned" || s === "pending_reassignment")) return true;
+            return state.activeFilters.has(s);
+          });
+        }
+
+        if (state.selectedTechIds.length > 0 && state.selectedTechIds.length < state.technicians.length) {
+          filtered = filtered.filter(a => {
+            const tid = technicianId(a);
+            return tid && state.selectedTechIds.includes(String(tid));
+          });
+        }
+
+        state.appointments = filtered;
+        calendar.removeAllEvents();
+
+        // Add appointment events
+        if (filtered.length > 0) {
+          calendar.addEventSource(filtered.map(a => {
+            const id = String(a._id || a.id || "");
+            const s = String(a.status || "pending").toLowerCase();
+            const tid = technicianId(a);
+            const techColor = tid ? getTechColor(tid) : null;
+            return {
+              id: "appt-" + id,
+              title: customerName(a) + " \u2022 " + serviceName(a),
+              start: eventStart(a),
+              color: techColor || getColor(s),
+              classNames: [s, tid ? "tech-"+String(tid) : ""].filter(Boolean),
+              extendedProps: { raw: a, type: "appointment" },
+            };
+          }));
+        }
+
+        // Add order/delivery events
+        if (state.showOrders && state.allOrders.length > 0) {
+          calendar.addEventSource(state.allOrders.map(o => {
+            const id = String(o._id || "");
+            const s = "order-" + (o.status || "pending_payment");
+            const prefDate = o.delivery && o.delivery.preferredDate;
+            if (!prefDate) return null;
+            const start = new Date(prefDate);
+            const cust = (o.customer && o.customer.name) || "Customer";
+            const items = (o.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "")).join(", ");
+            const techName = (o.technician && o.technician.name) || (o.technicianId && o.technicianId.name) || null;
+            return {
+              id: "order-" + id,
+              title: cust + " \u2022 " + items.substring(0, 30),
+              start,
+              allDay: true,
+              display: "block",
+              classNames: [s, "order-event"],
+              extendedProps: { raw: o, type: "order" },
+            };
+          }).filter(Boolean));
+        }
+
+        renderDateList();
+      }
+
+      /* ── Sidebar List ───────────────────────────────────────────── */
+      function renderDateList() {
+        const dayItems = state.appointments.filter(a => toDateKey(a.bookingDate || a.date || a.start || new Date()) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
+        const orderItems = state.showOrders ? state.allOrders.filter(o => {
+          const d = o.delivery && o.delivery.preferredDate;
+          return d && toDateKey(d) === state.selectedDateKey;
+        }) : [];
+        const totalItems = dayItems.length + orderItems.length;
+
+        dom.selectedDateLabel.textContent = toPrettyDate(state.selectedDateKey);
+        dom.selectedDateSub.textContent = totalItems > 0 ? "Appointments & deliveries for this date" : "No items for this date";
+        dom.selectedDateCount.textContent = String(totalItems);
+
+        if (!totalItems) { dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i>No appointments or deliveries for this date.</div>'; return; }
+
+        let html = '';
+        // Appointment items
+        dayItems.forEach(a => {
+          const id = a._id || a.id || "";
+          const s = String(a.status || "pending").toLowerCase();
+          const tid = technicianId(a);
+          const tname = technicianName(a);
+          const tcolor = tid ? getTechColor(tid) : "#94a3b8";
+          html += `<article class="appt-item" data-id="${id}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${id}','appt')"><div class="appt-row1"><span class="appt-time">${timeLabel(a)}</span><span class="appt-name">${customerName(a)}</span><span class="appt-status-dot" style="background:${getColor(s)}" title="${s}"></span></div><div class="appt-row2"><span>${serviceName(a)}</span><span class="appt-sep">·</span><span><span class="tdot" style="background:${tcolor}"></span>${tname}</span><span class="appt-sep">·</span><span>${a.bookingReference || a.workOrderNumber || "\u2014"}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${id}','appt')" title="View details"><i class="bi bi-chevron-right"></i></button></article>`;
+        });
+        // Order items
+        orderItems.forEach(o => {
+          const id = o._id || "";
+          const oRef = o.orderReference || '#' + id.toString().slice(-8).toUpperCase();
+          const cust = (o.customer && o.customer.name) || "Customer";
+          const items = (o.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "") + (it.capacityUnit || "HP")).join(", ");
+          const fulfillLabel = ({ delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" })[o.fulfillmentType] || o.fulfillmentType;
+          const tech = (o.technician && o.technician.name) || "Unassigned";
+          html += `<article class="appt-item order-item" data-id="${id}" data-type="order"><div class="appt-marker" style="background:#f97316"></div><div class="appt-body" onclick="openCalDetail('${id}','order')"><div class="appt-row1"><span class="appt-type-badge"><i class="bi bi-truck"></i>Order</span><span class="appt-name">${cust}</span><span class="appt-status-dot" style="background:#f97316" title="${o.status}"></span></div><div class="appt-row2"><span>${fulfillLabel}</span><span class="appt-sep">·</span><span>${items.substring(0, 30)}</span><span class="appt-sep">·</span><span>${oRef}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${id}','order')" title="View details"><i class="bi bi-chevron-right"></i></button></article>`;
+        });
+
+        dom.selectedDateList.innerHTML = html;
+      }
+
+      /* ── Detail Modal ───────────────────────────────────────────── */
+      window.openCalDetail = async function(id, type) {
+        try {
+          const isOrder = type === 'order';
+          if (isOrder) {
+            const res = await fetch("/api/orders/" + id);
+            if (!res.ok) throw new Error("Failed to fetch order");
+            const data = await res.json();
+            const o = data.order;
+            const oRef = o.orderReference || '#' + o._id.toString().slice(-8).toUpperCase();
+            const date = o.delivery && o.delivery.preferredDate ? new Date(o.delivery.preferredDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" }) : "—";
+            const stLabel = (o.status || "pending_payment").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+            const stColor = o.status === "completed" ? "success" : o.status === "cancelled" ? "danger" : o.status === "out_for_delivery" || o.status === "arrived" ? "info" : o.status === "installing" ? "primary" : "warning";
+            document.getElementById("calDetailTitle").textContent = "Order " + oRef;
+            const items = (o.items || []).map(it => '<div class="pm-row"><span class="pm-lbl">' + (it.modelLine || "Aircon") + ' ' + (it.capacity || "") + (it.capacityUnit || "HP") + ' × ' + (it.quantity || 1) + '</span><span class="pm-val">₱' + Number(it.totalPrice || 0).toLocaleString() + '</span></div>').join('');
+            const fulfillLabel = ({ delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" })[o.fulfillmentType] || o.fulfillmentType;
+            const techHtml = o.technician && o.technician.name ? '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-person-badge text-info"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Technician</span><span class="ent-detail-value">' + o.technician.name + '</span><span class="ent-detail-sub">' + (o.technician.phone || "—") + '</span></div></div>' : '';
+            const timeline = (o.statusHistory || []).slice(-5).map(h => '<div class="ent-timeline-item"><span class="ent-timeline-dot current"></span><span class="ent-timeline-text"><strong>' + (h.status || "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) + '</strong> — ' + new Date(h.timestamp || new Date()).toLocaleString() + (h.note ? '<br><small>' + h.note + '</small>' : '') + '</span></div>').join('') || '<div class="ent-timeline-item"><span class="ent-timeline-dot"></span><span class="ent-timeline-text">No history</span></div>';
+            document.getElementById("calDetailBody").innerHTML =
+              '<div class="ent-status-bar"><span class="badge bg-' + stColor + ' status-badge"><i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i>' + stLabel + '</span><span class="ref-no"><i class="bi bi-receipt me-1"></i>' + oRef + '</span></div>' +
+              '<div class="ent-detail-grid">' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Customer</span><span class="ent-detail-value">' + (o.customer?.name || "N/A") + '</span><span class="ent-detail-sub">' + (o.customer?.phone || "") + '</span><span class="ent-detail-sub">' + (o.customer?.email || "") + '</span></div></div>' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-box-seam text-success"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Fulfillment</span><span class="ent-detail-value">' + fulfillLabel + '</span><span class="ent-detail-sub">' + date + '</span></div></div>' +
+                (techHtml) +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Payment</span><span class="ent-detail-value fw-bold">₱' + (o.total || 0).toLocaleString() + '</span><span class="ent-detail-sub">' + (o.paymentMethod || "cod").toUpperCase() + ' · ' + (o.paymentStatus || "pending") + '</span></div></div>' +
+                '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Delivery Address</span><span class="ent-detail-value">' + ((o.delivery && o.delivery.address) || "Customer Pickup") + '</span></div></div>' +
+              '</div>' +
+              '<div style="margin-top:14px;" class="ent-items-box"><h6><i class="bi bi-box me-1"></i>Items</h6>' + items + '</div>' +
+              '<div class="ent-timeline"><h6><i class="bi bi-clock-history me-1"></i>Status Timeline</h6>' + timeline + '</div>';
+            new bootstrap.Modal(document.getElementById("calDetailModal")).show();
+          } else {
+            const res = await fetch("/api/admin/appointments/" + id);
+            if (!res.ok) throw new Error("Failed to fetch");
+            const data = await res.json();
+            const b = data.booking;
+            const date = new Date(b.bookingDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+            const stLabel = (b.status || "pending").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+            const stColor = b.status === "completed" ? "success" : b.status === "confirmed" ? "primary" : b.status === "cancelled" || b.status === "rejected" ? "danger" : b.status === "in-progress" ? "success" : "warning";
+            document.getElementById("calDetailTitle").textContent = "Appointment " + (b.bookingReference || b.workOrderNumber || "#" + b._id.toString().slice(-8).toUpperCase());
+            const techIdStr = technicianId(b);
+            const techCol = techIdStr ? getTechColor(techIdStr) : "#94a3b8";
+            const timeline = (b.statusHistory || []).slice(-5).map(h => `<div class="ent-timeline-item"><span class="ent-timeline-dot current"></span><span class="ent-timeline-text"><strong>${(h.status || "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</strong> — ${new Date(h.timestamp || h.date || new Date()).toLocaleString()}</span></div>`).join("") || '<div class="ent-timeline-item"><span class="ent-timeline-dot"></span><span class="ent-timeline-text">No history available</span></div>';
+            document.getElementById("calDetailBody").innerHTML =
+              '<div class="ent-status-bar"><span class="badge bg-' + stColor + ' status-badge"><i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i>' + stLabel + '</span><span class="ref-no"><i class="bi bi-receipt me-1"></i>' + (b.bookingReference || b.workOrderNumber || "#" + b._id.toString().slice(-8).toUpperCase()) + '</span></div>' +
+              '<div class="ent-detail-grid">' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Customer</span><span class="ent-detail-value">' + (b.customer?.name || "N/A") + '</span><span class="ent-detail-sub">' + (b.customer?.phone || "") + '</span><span class="ent-detail-sub">' + (b.customer?.email || "") + '</span></div></div>' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-tools text-success"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Service</span><span class="ent-detail-value">' + (b.service?.name || (b.services?.map(s => s.name).join(", ")) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')) + '</span><span class="ent-detail-sub">' + date + '</span><span class="ent-detail-sub">' + (b.startTime || "") + " - " + (b.endTime || "") + '</span></div></div>' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-person-badge text-info"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Technician</span><span class="ent-detail-value" style="color:' + techCol + ';">' + (b.technician?.name || "Unassigned") + '</span><span class="ent-detail-sub">' + (b.technician?.phone || "\u2014") + '</span></div></div>' +
+                '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Payment</span><span class="ent-detail-value fw-bold">\u20B1' + ((b.totalPrice || b.estimatedFee || 0)).toLocaleString() + '</span><span class="ent-detail-sub">' + (b.paymentMethod || "cod").toUpperCase() + " \u00B7 " + (b.paymentStatus || "pending") + '</span></div></div>' +
+                '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Location</span><span class="ent-detail-value">' + (b.location?.address || b.customer?.address || "\u2014") + '</span></div></div>' +
+              '</div>' +
+              '<div class="ent-timeline"><h6><i class="bi bi-clock-history me-1"></i>Status Timeline</h6>' + timeline + '</div>';
+            new bootstrap.Modal(document.getElementById("calDetailModal")).show();
+          }
+        } catch (e) {
+          console.error(e);
+          window.location.href = "/admin/appointments?sel=" + encodeURIComponent(id);
+        }
+      };
+
+      /* ── Fetch Data ─────────────────────────────────────────────── */
+      async function fetchAppointmentsForRange(start, end) {
+        const params = new URLSearchParams({ limit: "1000", start, end });
+        const res = await fetch("/api/appointments?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        if (!res.ok) throw new Error("appointments fetch failed: " + res.status);
+        const json = await res.json();
+        return json.items || json.appointments || [];
+      }
+
+      /* ── Calendar Init ──────────────────────────────────────────── */
+      const initView = window.innerWidth < 600 ? "listWeek" : "dayGridMonth";
+      const calendar = new FullCalendar.Calendar(dom.calendarEl, {
+        initialView: initView,
+        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek" },
+        buttonText: { today: "Today", month: "Month", week: "Week", day: "Day", list: "List" },
+        height: "auto",
+        slotMinTime: "06:00:00",
+        slotMaxTime: "20:00:00",
+        slotDuration: "01:00:00",
+        slotLabelInterval: "01:00",
+        slotLabelFormat: { hour: "numeric", minute: "2-digit", hour12: true, meridiem: "short" },
+        eventMinHeight: 70,
+        allDaySlot: false,
+        dayMaxEvents: 4,
+        moreLinkContent: args => "+" + args.num + " more",
+        eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
+
+        dateClick(info) { state.selectedDateKey = toDateKey(info.date); renderDateList(); },
+        eventClick(info) {
+          state.selectedDateKey = toDateKey(info.event.start || new Date());
+          renderDateList();
+          const id = info.event.id;
+          const type = info.event.extendedProps.type || 'appt';
+          if (id) {
+            const cleanId = id.replace(/^(appt-|order-)/, '');
+            openCalDetail(cleanId, type);
+          }
+        },
+        eventContent(arg) {
+          const raw = arg.event.extendedProps.raw;
+          if (!raw) return { html: '<span class="event-time">' + (arg.timeText || "") + '</span>' };
+          const type = arg.event.extendedProps.type;
+          if (type === 'order') {
+            const cust = (raw.customer && raw.customer.name) || "Customer";
+            const items = (raw.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "")).join(", ");
+            const fulfillLabel = ({ delivery_only: "Deliver", delivery_installation: "Install", customer_pickup: "Pickup" })[raw.fulfillmentType] || "Deliver";
+            return { html: '<div class="event-content-wrapper"><div class="event-customer"><i class="bi bi-truck me-1" style="font-size:0.65rem;"></i>' + cust + '</div><div class="event-service">' + fulfillLabel + ': ' + items.substring(0, 25) + '</div></div>' };
+          }
+          const tname = technicianName(raw);
+          const sname = serviceName(raw);
+          const serviceText = tname !== "Unassigned" ? (sname + ' <span style="opacity:0.8;">· ' + tname + '</span>') : sname;
+          return { html: '<div class="event-content-wrapper"><div class="event-time">' + timeLabel(raw) + '</div><div class="event-customer">' + customerName(raw) + '</div><div class="event-service">' + serviceText + '</div></div>' };
+        },
+
+        viewDidMount(info) {
+          state.currentViewType = info.view.type;
+          updateTimeGridHours(info.view.type, info.view.currentStart);
+          buildFilterBar();
+        },
+
+        async datesSet(arg) {
+          if (window._debounceDatesSet) clearTimeout(window._debounceDatesSet);
+          window._debounceDatesSet = setTimeout(async () => {
+            updateRangeLabel(arg.view.title);
+            state.currentViewType = arg.view.type;
+
+            const isTimegrid = arg.view.type === "timeGridWeek" || arg.view.type === "timeGridDay";
+            calendar.setOption("height", isTimegrid ? "calc(100vh - 220px)" : "auto");
+
+            if (isTimegrid) updateTimeGridHours(arg.view.type, arg.view.currentStart);
+
+            const start = toDateKey(arg.start);
+            const endDate = new Date(arg.end.getTime() - 1);
+            const end = toDateKey(endDate);
+            if (dom.calendarSpinner) dom.calendarSpinner.style.display = "block";
+            try {
+              const [appts, orderRes, schedules] = await Promise.all([
+                fetchAppointmentsForRange(start, end),
+                fetch("/api/orders/all?limit=500&from=" + start + "&to=" + end).then(r => r.ok ? r.json() : { orders: [] }).catch(() => ({ orders: [] })),
+                Object.keys(state.schedules).length === 0 ? fetchTechnicianSchedules() : Promise.resolve(state.schedules),
+              ]);
+              state.schedules = schedules;
+              state.workingDaysMap = computeWorkingDaysMap(schedules);
+              state.allAppointments = appts;
+              state.allOrders = (orderRes.orders || []).filter(o => o.status !== "cancelled" && o.status !== "completed" && o.delivery && o.delivery.preferredDate);
+              applyFilters();
+              buildFilterBar();
+            } catch (err) {
+              console.error(err);
+              dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load appointments.</div>';
+              dom.selectedDateCount.textContent = "0";
+            } finally {
+              if (dom.calendarSpinner) dom.calendarSpinner.style.display = "none";
+            }
+          }, 150);
+        },
+      });
+
+      calendar.render();
+
+      function updateNavButtons() {
+        const p = dom.calendarEl.querySelector(".fc-prev-button"); const n = dom.calendarEl.querySelector(".fc-next-button");
+        if (p) { p.setAttribute("tabindex", "0"); p.setAttribute("aria-label", "Previous"); }
+        if (n) { n.setAttribute("tabindex", "0"); n.setAttribute("aria-label", "Next"); }
+      }
+      calendar.on("viewDidMount", updateNavButtons); updateNavButtons();
+
+      window.addEventListener("resize", () => { const nv = window.innerWidth < 600 ? "listWeek" : "dayGridMonth"; if (calendar.view && calendar.view.type !== nv) calendar.changeView(nv); setTimeout(() => calendar.updateSize(), 100); });
+      const ro = new ResizeObserver(() => calendar.updateSize()); ro.observe(dom.calendarEl);
+      const ps = document.querySelector(".page-shell"); if (ps) ro.observe(ps);
+      const md = document.querySelector(".admin-dashboard"); if (md) ro.observe(md);
+      { const orig = renderDateList; renderDateList = function() { orig(); const l = dom.selectedDateList; if (l) { l.classList.add("slide-in"); setTimeout(() => l.classList.remove("slide-in"), 400); } }; }
+
+      /* ── Init Technicians ───────────────────────────────────────── */
+      (async function initTechFilter() {
+        state.technicians = await fetchTechnicians();
+        buildTechDropdown();
+        updateTechFilterUI();
+        applyFilters();
+
+        if (dom.techTrigger) dom.techTrigger.addEventListener("click", toggleTechDropdown);
+        document.addEventListener("click", (e) => {
+          if (dom.techFilterWrapper && !dom.techFilterWrapper.contains(e.target)) {
+            if (dom.techDropdown) dom.techDropdown.classList.remove("open");
+            if (dom.techTrigger) dom.techTrigger.classList.remove("active");
+          }
+        });
+        if (dom.techSelectAll) dom.techSelectAll.addEventListener("click", () => {
+          if (state.selectedTechIds.length === 0 || state.selectedTechIds.length < state.technicians.length) {
+            state.selectedTechIds = [];
+          } else {
+            state.selectedTechIds = state.technicians.map(t => String(t._id));
+          }
+          updateTechFilterUI();
+          applyFilters();
+          buildTechDropdown();
+        });
+        if (dom.techSearchInput) dom.techSearchInput.addEventListener("input", () => {
+          const q = dom.techSearchInput.value.toLowerCase();
+          const options = dom.techOptions;
+          if (options) options.querySelectorAll(".tech-option").forEach(el => {
+            const name = el.querySelector(".tech-name")?.textContent?.toLowerCase() || "";
+            el.style.display = name.includes(q) ? "flex" : "none";
+          });
+        });
+
+        if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(btn => {
+          btn.addEventListener("click", () => {
+            dom.viewToggle.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            calendar.changeView(btn.dataset.view);
+          });
+        });
+      })();
+    });
+  </script>
+</div>

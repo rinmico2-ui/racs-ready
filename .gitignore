@@ -1,0 +1,57 @@
+# Node
+node_modules/
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+.DS_Store
+.env.example
+
+# IDE / AI agent workspaces
+.cursor/
+.vscode/
+.devin/
+.mimocode/
+.sisyphus/
+
+# Logs
+logs
+*.log
+pids
+tmp_*.err
+tmp_*.js
+temp/
+server_err.txt
+server_log.txt
+
+# Optional
+coverage/
+dist/
+
+# Uploads (user-generated content)
+server/public/uploads/
+
+# Debug / temp files
+debug*.txt
+debug*.html
+debug*.js
+*-debug.js
+*-debug.html
+check_syntax.js
+replaceColors.js
+test-*.js
+test-*.html
+test_*.html
+dfd_visual.html
+erd_visual.html
+diff.txt
+e2e.cjs
+architecture_visual.html
+temp_check.js
+temp_check_service.js
+tmp_server.err
+tmp_srv.err
+server/debug_db.js
+server/debug_db2.js
+server/test_fc.html
+server/patch_ejs.js

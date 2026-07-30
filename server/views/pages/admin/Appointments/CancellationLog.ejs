@@ -1,0 +1,282 @@
+<style>
+  .stat-card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+  .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+  .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+  .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+  .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+  .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+  .kpi-trend i { font-size:0.55rem; }
+  .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
+  .stat-sparkline { height:40px; margin-top:0.5rem; }
+  .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+</style>
+
+<div class="main-content">
+  <div class="container-fluid py-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-clock-history"></i></div>
+          <div>
+            <h1>Cancellation Log</h1>
+            <p>Track all technician cancellations and declines — monitor reassignment patterns</p>
+          </div>
+        </div>
+        <div class="au-hero-actions" style="display:none;">
+          <select class="form-select form-select-sm" id="filterType" style="width:180px;" onchange="loadLog()">
+            <option value="">All Cancellations</option>
+            <option value="escalated">Escalated Only (3+)</option>
+          </select>
+          <input type="text" class="form-control form-control-sm" placeholder="Search..." id="searchInput" style="width:200px;">
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadLog()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="stat-card h-100" data-spark-color="#ef4444">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Total Reassigned</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statTotal">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">All</span>
+              </div>
+              <small class="text-muted">All reassignments</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626);">
+              <i class="bi bi-arrow-repeat text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="stat-card h-100" data-spark-color="#f59e0b">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Escalated (3+)</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statEscalated">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">High</span>
+              </div>
+              <small class="text-muted">Need attention</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+              <i class="bi bi-exclamation-triangle text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3" style="font-size:0.78rem;">Booking</th>
+                <th style="font-size:0.78rem;">Customer</th>
+                <th style="font-size:0.78rem;">Service</th>
+                <th style="font-size:0.78rem;">Date</th>
+                <th style="font-size:0.78rem;">Reassigns</th>
+                <th style="font-size:0.78rem;">Last Technician</th>
+                <th style="font-size:0.78rem;">Last Action</th>
+                <th style="font-size:0.78rem;">Last Reason</th>
+                <th class="text-center" style="font-size:0.78rem;">Status</th>
+                <th class="text-end pe-3" style="font-size:0.78rem;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="logBody">
+              <tr><td colspan="10" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex justify-content-center mt-3" id="pagination"></div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:480px;margin:auto;">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;padding:20px 24px;border:none;">
+        <h6 class="modal-title fw-bold" id="detailTitle">Cancellation History</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="detailBody" style="padding:24px;">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  let currentPage = 1;
+
+  function formatDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function loadLog() {
+    const filter = document.getElementById('filterType').value;
+    const search = document.getElementById('searchInput').value;
+    try {
+      const params = new URLSearchParams({ page: currentPage, limit: 20 });
+      if (filter === 'escalated') params.set('escalated', 'true');
+      if (search) params.set('search', search);
+      const res = await fetch(`/api/admin/appointments/cancellation-log?${params}`);
+      const data = await res.json();
+      renderTable(data.bookings);
+      renderPagination(data.pagination);
+
+      // Stats
+      const allRes = await fetch('/api/admin/appointments/cancellation-log?limit=1');
+      const allData = await allRes.json();
+      const escRes = await fetch('/api/admin/appointments/cancellation-log?escalated=true&limit=1');
+      const escData = await escRes.json();
+      document.getElementById('statTotal').textContent = allData.pagination?.total || 0;
+      document.getElementById('statEscalated').textContent = escData.pagination?.total || 0;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderTable(bookings) {
+    const tbody = document.getElementById('logBody');
+    if (!bookings || bookings.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted"><i class="bi bi-check-circle" style="font-size:2rem;"></i><div class="mt-2">No cancellations recorded</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = bookings.map(b => {
+      const history = b.cancellationHistory || [];
+      const last = history.length > 0 ? history[history.length - 1] : null;
+      const count = b.reassignmentCount || 0;
+      const isEscalated = b.escalated || count >= 3;
+      return `<tr>
+        <td class="ps-3"><code class="small">${b.bookingReference || b.workOrderNumber || b._id.toString().slice(-8).toUpperCase()}</code></td>
+        <td><span class="fw-semibold small">${b.customer?.name || 'N/A'}</span><br><small class="text-muted">${b.customer?.phone || ''}</small></td>
+        <td class="small">${b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</td>
+        <td class="small">${formatDate(b.bookingDate)}</td>
+        <td><span class="fw-bold ${isEscalated ? 'text-danger' : 'text-warning'}">${count}</span></td>
+        <td class="small">${last ? last.technicianName : '—'}</td>
+        <td>${last ? `<span class="badge ${last.action === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}">${last.action}</span>` : '—'}</td>
+        <td class="small text-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${last ? (last.reason || '') : ''}">${last ? (last.reason || '—') : '—'}</td>
+        <td class="text-center">
+          ${isEscalated ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Escalated</span>' : `<span class="badge bg-secondary">${b.status?.replace(/_/g, ' ') || 'N/A'}</span>`}
+        </td>
+        <td class="text-end pe-3">
+          <button class="btn btn-sm btn-outline-info" onclick="viewHistory('${b._id}')"><i class="bi bi-eye"></i></button>
+          <a href="/admin/appointments/queue" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-right"></i></a>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(pag) {
+    if (!pag || pag.pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+    let pg = '<ul class="pagination pagination-sm">';
+    for (let i = 1; i <= pag.pages; i++) {
+      pg += `<li class="page-item ${i === pag.page ? 'active' : ''}"><button class="page-link" onclick="goPage(${i})">${i}</button></li>`;
+    }
+    pg += '</ul>';
+    document.getElementById('pagination').innerHTML = pg;
+  }
+
+  window.goPage = function(p) { currentPage = p; loadLog(); };
+
+  async function viewHistory(id) {
+    try {
+      const res = await fetch(`/api/admin/appointments/cancellation-log?limit=100`);
+      const data = await res.json();
+      const b = data.bookings.find(x => x._id === id);
+      if (!b) return;
+      document.getElementById('detailTitle').textContent = `Cancellation History — ${b.bookingReference || b.workOrderNumber || b._id.toString().slice(-8).toUpperCase()}`;
+      const history = b.cancellationHistory || [];
+      document.getElementById('detailBody').innerHTML = `
+        <div class="mb-3">
+          <div class="fw-bold">${b.customer?.name || 'N/A'}</div>
+          <small class="text-muted">${b.service?.name || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')} — ${formatDate(b.bookingDate)}</small>
+          <div class="mt-1"><span class="badge bg-secondary">Reassigned ${b.reassignmentCount || 0} time(s)</span> ${b.escalated ? '<span class="badge bg-danger ms-1">Escalated</span>' : ''}</div>
+        </div>
+        ${history.length === 0 ? '<p class="text-muted">No cancellation history.</p>' :
+          history.map((h, i) => `
+            <div class="d-flex gap-3 mb-3">
+              <div class="d-flex flex-column align-items-center">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;background:${h.action === 'declined' ? '#fee2e2' : '#fef3c7'};color:${h.action === 'declined' ? '#991b1b' : '#92400e'};">
+                  <i class="bi ${h.action === 'declined' ? 'bi-x-circle' : 'bi-x-octagon'}"></i>
+                </div>
+                ${i < history.length - 1 ? '<div style="width:2px;height:20px;background:#e2e8f0;margin:4px 0;"></div>' : ''}
+              </div>
+              <div class="flex-fill">
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">${h.technicianName}</span>
+                  <small class="text-muted">${new Date(h.timestamp).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small>
+                </div>
+                <span class="badge ${h.action === 'declined' ? 'bg-danger' : 'bg-warning text-dark'} mb-1">${h.action}</span>
+                <div class="small text-muted">${h.reason || 'No reason provided'}</div>
+              </div>
+            </div>
+          `).join('')
+        }
+      `;
+      new bootstrap.Modal(document.getElementById('detailModal')).show();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadLog);
+  document.getElementById('searchInput').addEventListener('input', () => { currentPage = 1; loadLog(); });
+
+  // Stat card sparklines
+  (function(){
+    function spark(ctx, data, color){
+      if(!ctx || !window.Chart) return null;
+      var h = ctx.canvas.height || ctx.canvas.offsetHeight || 40;
+      var g = ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map(function(_,i){ return i+1; }),
+          datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 600 },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } }
+        }
+      });
+    }
+    function randomData(n){
+      var arr = [8 + Math.random()*12];
+      for(var i=1; i<n; i++){ arr.push(Math.max(3, Math.min(30, arr[i-1] + (Math.random()-0.5)*12))); }
+      return arr;
+    }
+    document.querySelectorAll('.stat-sparkline canvas').forEach(function(c){
+      var card = c.closest('.stat-card');
+      var color = card ? (card.dataset.sparkColor || '#2563eb') : '#2563eb';
+      spark(c.getContext('2d'), randomData(10), color);
+    });
+  })();
+</script>

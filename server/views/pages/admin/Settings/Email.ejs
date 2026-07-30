@@ -1,0 +1,103 @@
+<div class="admin-dashboard container-fluid py-4 settings-email-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-envelope-fill"></i></div>
+        <div>
+          <h1>Email / SMTP</h1>
+          <p>Configure SMTP, send test messages, and manage templates & delivery logs.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- SMTP Configuration Form -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-bottom">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-hdd-network me-2 text-primary"></i>SMTP Server Configuration</h6>
+        </div>
+        <div class="card-body">
+          <form class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">SMTP Host</label>
+              <input type="text" class="form-control" placeholder="smtp.example.com" value="smtp.gmail.com" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Port</label>
+              <input type="number" class="form-control" placeholder="587" value="587" />
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Encryption</label>
+              <select class="form-select">
+                <option value="tls" selected>TLS (STARTTLS)</option>
+                <option value="ssl">SSL / TLS</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Enable Authentication</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="authSwitch" checked>
+                <label class="form-check-label text-micro" for="authSwitch">Require username and password</label>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Username</label>
+              <input type="text" class="form-control" placeholder="email@example.com" value="admin@racs.com" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Password</label>
+              <input type="password" class="form-control" placeholder="••••••••" value="password123" />
+            </div>
+
+            <hr class="my-4 text-muted" />
+
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Sender Name</label>
+              <input type="text" class="form-control" placeholder="RACS Notifications" value="RACS Service Center" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-micro fw-bold text-muted text-uppercase">Sender Email (From)</label>
+              <input type="email" class="form-control" placeholder="noreply@racs.com" value="noreply@racs.com" />
+            </div>
+
+            <div class="col-12 mt-4 text-end">
+              <button type="button" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-floppy-disk me-2"></i>Save Configuration</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions & Status -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0 mb-4 bg-primary-subtle text-primary border border-primary-subtle">
+        <div class="card-body">
+          <h6 class="fw-bold mb-2"><i class="bi bi-check-circle-fill me-2"></i>Service Online</h6>
+          <p class="mb-0 text-micro text-dark">The SMTP service is currently configured and successfully sending outbound notifications.</p>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-bottom">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-send-check me-2 text-success"></i>Test Connection</h6>
+        </div>
+        <div class="card-body">
+          <p class="text-micro text-muted mb-3">Send a test email to verify that your SMTP credentials and network configurations are functioning properly before applying them to production traffic.</p>
+          <div class="mb-3">
+            <label class="form-label text-micro fw-bold text-muted text-uppercase">Recipient Email</label>
+            <input type="email" class="form-control" placeholder="test@address.com" />
+          </div>
+          <button type="button" class="btn btn-outline-success w-100"><i class="bi bi-send me-2"></i>Send Test Message</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

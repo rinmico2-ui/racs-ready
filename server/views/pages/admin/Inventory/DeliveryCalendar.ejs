@@ -1,0 +1,125 @@
+<%# Delivery calendar for inventory items with expected arrival dates %>
+<link rel="stylesheet" href="/vendor/fullcalendar/main.min.css" />
+
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .inventory-hero-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .inventory-pill-btn,
+    .inventory-primary-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+      min-height: 44px;
+      font-size: 0.9rem;
+    }
+    .inventory-pill-btn {
+      background: linear-gradient(120deg, #eef5ff, #ffffff);
+      border-color: rgba(59, 130, 246, 0.15);
+      color: #1f3161;
+    }
+    .inventory-pill-btn:hover {
+      transform: translateY(-2px);
+      background: linear-gradient(120deg, #e1ecff, #f7faff);
+      box-shadow: 0 12px 22px rgba(59, 130, 246, 0.18);
+      color: #1d4ed8;
+    }
+    .inventory-pill-btn .icon-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      background: rgba(255,255,255,0.85);
+      color: inherit;
+      box-shadow: inset 0 0 0 1px rgba(15,23,42,0.05);
+    }
+    .inventory-pill-btn .label-block {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.05;
+      text-align: left;
+    }
+    .inventory-pill-btn small {
+      text-transform: uppercase;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      color: rgba(31,49,97,0.6);
+    }
+    .inventory-pill-btn strong {
+      font-size: 0.85rem;
+      font-weight: 600 !important;
+      color: inherit;
+    }
+  </style>
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-calendar-event"></i></div>
+        <div>
+          <h1>Delivery Calendar</h1>
+          <p>See upcoming stock deliveries for inventory items</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <a href="/admin/inventory" class="btn btn-light btn-sm fw-semibold">
+          <i class="bi bi-arrow-left me-1"></i>Return → Back to Inventory
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-2">
+      <div id="deliveryCalendar" style="max-width:100%;height:600px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/fullcalendar/main.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const calEl = document.getElementById('deliveryCalendar');
+    if (!calEl || !window.FullCalendar) return;
+    function render(events) {
+      if (calEl.fullCalendarInstance) calEl.fullCalendarInstance.destroy();
+      const calendar = new FullCalendar.Calendar(calEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+        events,
+        height: 600,
+      });
+      calendar.render();
+      calEl.fullCalendarInstance = calendar;
+    }
+
+    // fetch inventory and show deliveries
+    fetch('/api/admin/inventory')
+      .then(r => r.ok ? r.json() : Promise.reject('fetch failed'))
+      .then(j => {
+        const items = j.inventory || [];
+        const events = items
+          .filter(i => i.expectedDelivery)
+          .map(i => ({ title: i.itemName, start: i.expectedDelivery, allDay: true }));
+        render(events);
+      })
+      .catch(err => {
+        console.error('delivery calendar load error', err);
+        calEl.innerHTML = '<p class="text-danger text-center py-4">Unable to load deliveries.</p>';
+      });
+  });
+</script>

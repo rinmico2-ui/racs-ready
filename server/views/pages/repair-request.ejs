@@ -1,0 +1,3444 @@
+<section class="ent-hero">
+  <!-- Floating orbs -->
+  <div class="ent-hero-orb ent-hero-orb-1"></div>
+  <div class="ent-hero-orb ent-hero-orb-2"></div>
+  <div class="ent-hero-orb ent-hero-orb-3"></div>
+  <div class="container">
+
+    <div class="text-center mb-4" data-aos="fade-up" data-aos-duration="1000">
+      <div class="ent-hero-badge">
+        <i class="bi bi-wrench-adjustable"></i>
+        Repair Work Order
+        <span class="badge-dot"></span>
+      </div>
+      <h2 class="ent-hero-title">
+        Request a <span class="ent-gradient-text">Repair</span>
+      </h2>
+      <p class="ent-hero-subtitle">
+        Describe your issue and we'll send a technician to diagnose and fix it. Full work order tracking from inspection to completion.
+      </p>
+      <div class="ent-trust-badges">
+        <span class="ent-trust-item"><i class="bi bi-search"></i> Free Diagnosis</span>
+        <span class="ent-trust-divider"></span>
+        <span class="ent-trust-item"><i class="bi bi-patch-check"></i> Genuine Parts</span>
+        <span class="ent-trust-divider"></span>
+        <span class="ent-trust-item"><i class="bi bi-shield-check"></i> 30-Day Warranty</span>
+      </div>
+      <div class="ent-hero-stats">
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">3,000+</div>
+          <div class="ent-hero-stat-label">Repairs Done</div>
+        </div>
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">30-Day</div>
+          <div class="ent-hero-stat-label">Warranty</div>
+        </div>
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">24hr</div>
+          <div class="ent-hero-stat-label">Response</div>
+        </div>
+      </div>
+    </div>
+
+</section>
+
+<section class="ent-page-body">
+  <div class="container">
+
+    <div class="ent-booking-container" id="bookingContainer">
+
+      <% if (!user) { %>
+        <div class="ent-alert ent-alert-warning" role="alert">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          Please <a href="/login" class="alert-link">log in</a> to request a repair.
+        </div>
+      <% } %>
+
+      <script>
+        window.adminGcashNumber = "<%= adminGcashNumber %>";
+        window._farePerKm = Number("<%= typeof farePerKm !== 'undefined' ? farePerKm : 40 %>");
+        window._companyBaseLocation = null;
+      </script>
+
+      <script id="user-booking-data" type="application/json"><%- user ? JSON.stringify({isLoggedIn:true,_id:user._id,name:((user.firstName||"")+" "+(user.lastName||"")).trim()||user.name||user.fullName||"",email:user.email||"",phone:user.phone||user.mobile||"",address:user.address||""}) : '{"isLoggedIn":false}' %></script>
+      <script>try{const d=JSON.parse(document.getElementById('user-booking-data').textContent);window.LOGGED_IN=d.isLoggedIn;window.currentUser=d.isLoggedIn?d:null}catch(e){window.LOGGED_IN=false;window.currentUser=null}</script>
+
+
+
+      <script>
+        function updateEntStepper(step){
+          var n=document.querySelectorAll('.ent-n'),f=document.getElementById('stepperFill'),l=document.getElementById('stepperCurrentStep');
+          if(!n.length||!f)return;
+          var i=step-1,t=n.length;
+          n.forEach(function(e,j){
+            e.classList.remove('active','completed','inactive');
+            if(j<i)e.classList.add('completed');
+            else if(j===i)e.classList.add('active');
+            else e.classList.add('inactive');
+          });
+          f.style.height=(i/(t-1)*100)+'%';
+          if(l)l.textContent=step;
+        }
+        function navigateToStep(step){
+          var maxStep=1;
+          if(typeof RepairState!=='undefined'&&RepairState.currentStep){
+            maxStep=RepairState.currentStep;
+          }else{
+            var all=document.querySelectorAll('.booking-step');
+            all.forEach(function(e){var n=parseInt(e.getAttribute('data-step'));if(n>maxStep)maxStep=n;});
+          }
+          if(step>maxStep)return;
+          updateEntStepper(step);
+          if(typeof showStep==='function')showStep(step);
+        }
+        document.addEventListener('DOMContentLoaded',function(){updateEntStepper(1);});
+      </script>
+
+      <!-- Booking Progress (same design as core services) -->
+      <div class="ent-stepper" id="entStepper">
+        <div class="ent-h">
+          <span>Booking Progress</span>
+          <span>Step <span id="stepperCurrentStep">1</span> of 7</span>
+        </div>
+        <div class="ent-tr">
+          <div class="ent-fill" id="stepperFill" style="height:0%;"></div>
+          <div class="ent-n active" data-step="1" onclick="navigateToStep(1)"><div class="ent-ni"><i class="bi bi-person-check"></i></div><span>Login</span></div>
+          <div class="ent-n" data-step="2" onclick="navigateToStep(2)"><div class="ent-ni"><i class="bi bi-tools"></i></div><span>Unit Info</span></div>
+          <div class="ent-n" data-step="3" onclick="navigateToStep(3)"><div class="ent-ni"><i class="bi bi-geo-alt"></i></div><span>Location</span></div>
+          <div class="ent-n" data-step="4" onclick="navigateToStep(4)"><div class="ent-ni"><i class="bi bi-calendar3"></i></div><span>Schedule</span></div>
+          <div class="ent-n" data-step="5" onclick="navigateToStep(5)"><div class="ent-ni"><i class="bi bi-receipt"></i></div><span>Review</span></div>
+          <div class="ent-n" data-step="6" onclick="navigateToStep(6)"><div class="ent-ni"><i class="bi bi-credit-card"></i></div><span>Payment</span></div>
+          <div class="ent-n" data-step="7" onclick="navigateToStep(7)"><div class="ent-ni"><i class="bi bi-check-circle"></i></div><span>Done</span></div>
+        </div>
+      </div>
+
+          <!-- Step 1: Login Check -->
+          <div class="ent-step-card booking-step" data-step="1">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-login"><i class="bi bi-person-check"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 1</h5>
+                <p>Please log in to continue</p>
+              </div>
+            </div>
+
+            <% if (user) { %>
+              <div class="ent-alert ent-alert-success">
+                <i class="bi bi-check-circle-fill"></i>
+                <div>
+                  <strong>Welcome back!</strong><br>
+                  You are logged in as <strong><%= user.name || user.email %></strong>. Click "Continue" to proceed.
+                </div>
+              </div>
+              <button type="button" class="ent-btn-primary mt-3" onclick="showStep(2)">
+                <i class="bi bi-arrow-right"></i>Continue to Repair Request
+              </button>
+            <% } else { %>
+              <div class="ent-alert ent-alert-info">
+                <i class="bi bi-info-circle-fill"></i>
+                <div>
+                  <strong>Login Required</strong><br>
+                  Please log in to submit a repair request. This allows us to track your work order and notify you of status updates.
+                </div>
+              </div>
+              <div class="mt-3 d-flex gap-2">
+                <a href="/login" class="ent-btn-primary">
+                  <i class="bi bi-box-arrow-in-right"></i>Log In
+                </a>
+                <a href="/register" class="ent-btn-outline">
+                  <i class="bi bi-person-plus"></i>Register
+                </a>
+              </div>
+            <% } %>
+          </div>
+          <!-- Step 2: Unit Information -->
+<div class='ent-step-card d-none booking-step' id='unitInfoStep' data-step='2'>
+  <div class='ent-step-header'>
+    <div class='ent-step-icon step-services'><i class='bi bi-wrench-adjustable-circle'></i></div>
+    <div class='ent-step-info'>
+      <h5>Step 2</h5>
+      <p>Unit details &amp; diagnostics</p>
+    </div>
+  </div>
+
+  <div class='step2-shell'>
+    <section class='step2-section'>
+      <div class='step2-section-heading'>
+        <span class='step2-section-number'></span>
+        <div>
+          <h6>Service Category</h6>
+          <p>Select the type of equipment that needs repair.</p>
+        </div>
+      </div>
+      <div class='row g-3' id='unitCategoryGrid'>
+        <div class='col-md-4'>
+          <div class='unit-category-card' data-category='aircon' onclick='selectUnitCategory(this.dataset.category)'>
+            <div class='unit-category-icon blue'><i class='bi bi-snow'></i></div>
+            <div class='unit-category-label'>Air Conditioning</div>
+            <div class='unit-category-count'>5 unit types</div>
+            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+          </div>
+        </div>
+        <div class='col-md-4'>
+          <div class='unit-category-card' data-category='appliance' onclick='selectUnitCategory(this.dataset.category)'>
+            <div class='unit-category-icon amber'><i class='bi bi-house-gear'></i></div>
+            <div class='unit-category-label'>Home Appliances</div>
+            <div class='unit-category-count'>9 unit types</div>
+            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+          </div>
+        </div>
+        <div class='col-md-4'>
+          <div class='unit-category-card' data-category='other' onclick='selectUnitCategory(this.dataset.category)'>
+            <div class='unit-category-icon violet'><i class='bi bi-plus-circle'></i></div>
+            <div class='unit-category-label'>Other</div>
+            <div class='unit-category-count'>Custom description</div>
+            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+          </div>
+        </div>
+      </div>
+      <input type='hidden' id='unitType' value='' />
+    </section>
+
+    <section class='step2-section d-none' id='subUnitSection'>
+      <div class='step2-section-heading'>
+        <span class='step2-section-number'></span>
+        <div>
+          <h6>Specific Unit Type</h6>
+          <p>Choose the exact model or configuration.</p>
+        </div>
+      </div>
+      <div class='sub-unit-chips' id='subUnitChips'></div>
+    </section>
+
+    <section class='step2-section'>
+      <div class='step2-section-heading'>
+        <span class='step2-section-number'></span>
+        <div>
+          <h6>Unit Specifications</h6>
+          <p>Basic identifiers to help the technician prepare.</p>
+        </div>
+      </div>
+      <div class='row g-3'>
+        <div class='col-md-6'>
+          <label class='form-label' for='unitBrand'><i class='bi bi-award me-2 text-primary'></i>Brand <span class='text-danger'>*</span></label>
+          <input type='text' class='form-control' id='unitBrand' placeholder='e.g. Carrier, Samsung, LG' required />
+        </div>
+        <div class='col-md-6'>
+          <label class='form-label' for='unitModel'><i class='bi bi-upc me-2 text-primary'></i>Model Number <span class='text-muted fw-normal'>(optional)</span></label>
+          <input type='text' class='form-control' id='unitModel' placeholder='e.g. 42KDPV48' />
+        </div>
+        <div class='col-md-6'>
+          <label class='form-label' for='unitQuantity'><i class='bi bi-stack me-2 text-primary'></i>Number of Units <span class='text-muted fw-normal'>(optional)</span></label>
+          <div class='input-group quantity-stepper'>
+            <button class='btn btn-outline-secondary' type='button' id='repairQtyMinus'>−</button>
+            <input type='number' class='form-control text-center' id='unitQuantity' value='1' min='1' max='999' />
+            <button class='btn btn-outline-secondary' type='button' id='repairQtyPlus'>+</button>
+          </div>
+          <div class='step2-hint'><i class='bi bi-info-circle me-1'></i>Multiple units may be scheduled as a multi-day project.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class='step2-section'>
+      <div class='step2-section-heading'>
+        <span class='step2-section-number'></span>
+        <div>
+          <h6>Problem Description</h6>
+          <p>Tap the symptoms, then add details.</p>
+        </div>
+      </div>
+      <div class='symptom-chips mb-3' id='symptomChips'>
+        <button type='button' class='symptom-chip' data-symptom='Not Cooling' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-thermometer-half me-1'></i>Not Cooling</button>
+        <button type='button' class='symptom-chip' data-symptom='Strange Noise' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-volume-up me-1'></i>Strange Noise</button>
+        <button type='button' class='symptom-chip' data-symptom='Leaking Water' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-droplet me-1'></i>Leaking Water</button>
+        <button type='button' class='symptom-chip' data-symptom='Not Turning On' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-power me-1'></i>Not Turning On</button>
+        <button type='button' class='symptom-chip' data-symptom='Bad Smell' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-cloud me-1'></i>Bad Smell</button>
+        <button type='button' class='symptom-chip' data-symptom='Error Code' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-bug me-1'></i>Error Code</button>
+        <button type='button' class='symptom-chip' data-symptom='Overheating' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-fire me-1'></i>Overheating</button>
+        <button type='button' class='symptom-chip' data-symptom='Electrical Issue' onclick='toggleSymptom(this, this.dataset.symptom)'><i class='bi bi-lightning me-1'></i>Electrical Issue</button>
+      </div>
+      <label class='form-label' for='problemDescription'><i class='bi bi-chat-square-text me-2 text-primary'></i>Detailed Issue</label>
+      <textarea class='form-control' id='problemDescription' rows='4' required placeholder='Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water...'></textarea>
+      <div class='d-flex justify-content-between align-items-center mt-2'>
+        <div class='step2-hint'><i class='bi bi-info-circle me-1'></i>The more details you provide, the better our technician can prepare.</div>
+        <div class='step2-hint' id='charCount'>0 / 500</div>
+      </div>
+    </section>
+
+    <section class='step2-section'>
+      <div class='step2-section-heading'>
+        <span class='step2-section-number'></span>
+        <div>
+          <h6>Photo Evidence</h6>
+          <p>Optional images help us assess the issue before arrival.</p>
+        </div>
+      </div>
+      <div class='photo-upload-zone' id='photoUploadZone' onclick='document.getElementById("unitPhotos").click()'>
+        <input type='file' class='d-none' id='unitPhotos' multiple accept='image/*' />
+        <div class='photo-upload-icon'><i class='bi bi-cloud-arrow-up'></i></div>
+        <div class='photo-upload-text'>Drag photos here or <span>browse</span></div>
+        <div class='photo-upload-hint'>Max 5 images · JPG, PNG · 5MB each</div>
+      </div>
+      <div id='photoPreview' class='mt-3 d-flex flex-wrap gap-2'></div>
+    </section>
+  </div>
+
+  <div class='step2-actions'>
+    <button type='button' class='ent-btn-primary' onclick='validateAndContinue(2)'>
+      <i class='bi bi-arrow-right-circle me-2'></i>Continue to Location
+    </button>
+  </div>
+</div>
+<!-- Step 3: Location -->
+          <div class="ent-step-card d-none booking-step" id="locationStep" data-step="3">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-location"><i class="bi bi-geo-alt"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 3</h5>
+                <p>Set your service location</p>
+              </div>
+            </div>
+
+            <script>
+              window._companyBaseLocation = { configured: false, lat: 14.676049, lng: 121.043731, address: 'Company location not set' };
+              window._companyBaseLocationPromise = fetch('/api/public/company/location', { credentials: 'same-origin' })
+                .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
+                .then(data => { window._companyBaseLocation = data || window._companyBaseLocation; return window._companyBaseLocation; })
+                .catch(() => window._companyBaseLocation);
+            </script>
+
+            <div class="row g-3 align-items-start">
+              <div class="col-lg-5">
+                <label for="locationInput" class="form-label fw-semibold" style="color:#374151;">Address or Landmark</label>
+                <div class="position-relative">
+                  <div class="input-group input-group-lg"
+                    style="border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);border:1.5px solid #e5e7eb;">
+                    <span class="input-group-text bg-white border-end-0" style="border:none;"><i class="bi bi-geo-alt text-primary"></i></span>
+                    <input type="text" class="form-control border-start-0" style="border:none;background:#fafafa;"
+                      placeholder="Pin your site or type address" id="locationInput" autocomplete="off" />
+                  </div>
+                  <div id="locationSuggest" class="list-group position-absolute w-100 d-none"
+                    style="z-index:1000;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.12);border:1px solid #e5e7eb;">
+                  </div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap mt-2">
+                  <button type="button" class="btn btn-sm btn-outline-success" id="locateCustomerBtn"
+                    style="border-radius:8px;font-weight:600;">
+                    <i class="bi bi-crosshair me-1"></i> Use My Location
+                  </button>
+                </div>
+                <p class="location-hint small text-muted mt-2" id="locationStatus"><i class="bi bi-lock me-1" style="font-size:0.7rem;"></i>We will never store your location without consent.</p>
+              </div>
+              <div class="col-lg-7">
+                <div class="map-wrapper rounded-4 shadow-sm">
+                  <div id="technicianMap" class="technician-map"
+                    data-technician-lat="<%= (technicianLocation && technicianLocation.lat) || 14.676049 %>"
+                    data-technician-lng="<%= (technicianLocation && technicianLocation.lng) || 121.043731 %>">
+                  </div>
+                  <div class="map-locate-btns">
+                    <button type="button" class="btn btn-sm shadow-sm" id="locateCompanyBtn" title="Go to Company Location"
+                      style="background:#2b7de9;color:#fff;border:2px solid #fff;border-radius:10px;padding:5px 12px;font-size:.8rem;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+                      <span style="font-size:1rem;">&#9650;</span> Company
+                    </button>
+                    <button type="button" class="btn btn-sm shadow-sm" id="focusCustomerBtn" title="Go to Your Location"
+                      style="background:#4ecda4;color:#fff;border:2px solid #fff;border-radius:10px;padding:5px 12px;font-size:.8rem;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+                      <span style="font-size:1rem;">&#128205;</span> You
+                    </button>
+                  </div>
+                  <div class="map-overlay">
+                    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                    <span class="d-flex align-items-center gap-2">
+                      <svg class="map-pin map-pin-tech" width="20" height="28" viewBox="0 0 24 24" role="img" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                        <circle cx="12" cy="9" r="2.5" fill="#fff" />
+                      </svg>
+                      <span>Blue pin is our company. Green pin is you.</span>
+                    </span>
+                    <div id="mapDistanceInfo" class="mt-2 small text-dark"></div>
+                  </div>
+                </div>
+                <div class="map-info-panel mt-3 p-3" id="mapInfoPanel" style="border-radius:14px;">
+                  <div class="d-flex align-items-start gap-2 mb-2">
+                    <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon">
+                      <i class="bi bi-signpost-split"></i>
+                    </div>
+                    <div style="flex:1;">
+                      <h6 class="mb-1 fw-bold" style="color:#1e293b;font-size:0.9rem;">Distance &amp; Travel Fare</h6>
+                      <p class="mb-0 small text-muted" id="mapInfoDistance">Detecting locations&hellip;</p>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);">
+                        <i class="bi bi-clock" style="color:#16a34a;font-size:0.8rem;"></i>
+                      </div>
+                      <span class="small fw-semibold" id="mapInfoDuration">&mdash;</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);">
+                        <i class="bi bi-cash-coin" style="color:#16a34a;font-size:0.8rem;"></i>
+                      </div>
+                      <span class="small fw-semibold" id="mapInfoFare">&mdash;</span>
+                    </div>
+                  </div>
+                  <p class="mb-0 text-muted" style="font-size:0.75rem;">
+                    <i class="bi bi-info-circle me-1"></i>Travel fare calculated at <strong>&#8369;<span id="fareRateDisplay"><%= typeof farePerKm !== 'undefined' ? farePerKm : 40 %></span> per kilometer</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 text-center">
+              <button type="button" class="ent-btn-primary px-5" onclick="validateAndContinue(3)">
+                <i class="bi bi-arrow-right-circle"></i>Choose Schedule
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 4: Preferred Schedule -->
+          <div class="ent-step-card d-none booking-step" id="scheduleStep" data-step="4">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-calendar"><i class="bi bi-calendar-event"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 4</h5>
+                <p>Choose your preferred inspection date &amp; time</p>
+              </div>
+            </div>
+
+            <div class="card border-0" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.04);border:1px solid #e2e8f0;">
+              <div class="card-body p-4">
+                <div class="alert alert-info mb-4" style="font-size:0.88rem;border-radius:12px;">
+                  <i class="bi bi-info-circle me-2"></i>
+                  Select your preferred date and time for the technician's visit. Our team will confirm the final schedule within 24 hours.
+                </div>
+
+                <div id="calendarGrid"></div>
+                <div id="timeSelection" class="d-none mt-3">
+                  <div id="timeSlots"></div>
+                </div>
+                <div id="projectPrefs" class="mt-3 d-none"></div>
+
+                <div id="scheduleError" class="text-danger small mt-3 d-none">
+                  <i class="bi bi-exclamation-circle me-1"></i>Please select a date and time slot.
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 text-center">
+              <button type="button" class="ent-btn-primary px-5" onclick="validateAndContinue(4)">
+                <i class="bi bi-arrow-right-circle"></i>Review & Submit
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 5: Review & Submit -->
+          <div class="ent-step-card d-none booking-step" id="reviewStep" data-step="5">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-review"><i class="bi bi-clipboard-check"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 5</h5>
+                <p>Review your repair request</p>
+              </div>
+            </div>
+
+            <div class="rv-card">
+              <div class="rv-card-body">
+
+                <div class="rv-section-title"><i class="bi bi-tools"></i>Unit Information</div>
+                <div class="rv-box">
+                  <div class="rv-row">
+                    <span class="rv-label">Unit Type:</span>
+                    <span class="rv-value" id="reviewUnitType">-</span>
+                  </div>
+                  <div class="rv-row">
+                    <span class="rv-label">Brand:</span>
+                    <span class="rv-value" id="reviewBrand">-</span>
+                  </div>
+                  <div class="rv-row">
+                    <span class="rv-label">Model:</span>
+                    <span class="rv-value" id="reviewModel">-</span>
+                  </div>
+                  <div class="rv-row">
+                    <span class="rv-label">Problem:</span>
+                    <span class="rv-value" id="reviewProblem">-</span>
+                  </div>
+                </div>
+
+                <div class="rv-section-title"><i class="bi bi-geo-alt"></i>Location</div>
+                <div class="rv-box">
+                  <div class="rv-value" id="reviewAddress" style="font-size:0.88rem;">-</div>
+                  <div class="text-muted small mt-1" id="reviewDistance"></div>
+                </div>
+
+                <div class="rv-section-title"><i class="bi bi-calendar-event"></i>Preferred Schedule</div>
+                <div class="rv-box">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="rv-icon-box rv-schedule-box"><i class="bi bi-clock" style="color:#d97706;"></i></div>
+                    <div>
+                      <div class="rv-value" id="reviewSchedule">-</div>
+                      <small class="text-muted">Final schedule confirmed by admin within 24 hours</small>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rv-section-title"><i class="bi bi-receipt"></i>Estimated Initial Fee</div>
+                <div class="rv-box rv-highlight">
+                  <div class="rv-row">
+                    <div>
+                      <div style="font-weight:600;font-size:0.88rem;color:#1e293b;">Diagnostic / Inspection Fee</div>
+                      <small class="text-muted">This is the initial fee. Final cost determined after diagnosis.</small>
+                    </div>
+                    <div style="font-size:1.4rem;font-weight:700;color:var(--brand-primary);" id="reviewDiagnosticFee">&#8369;0</div>
+                  </div>
+                </div>
+
+                <div class="rv-box">
+                  <div class="rv-row">
+                    <span class="rv-label">Travel Fare:</span>
+                    <span class="rv-value" id="reviewTravelFare">&#8369;0</span>
+                  </div>
+                </div>
+
+                <div class="rv-box rv-total">
+                  <div class="rv-row">
+                    <span style="font-size:1rem;font-weight:700;color:#0f172a;">Total Initial Fee:</span>
+                    <span style="font-size:1.6rem;font-weight:800;color:var(--brand-primary);" id="reviewTotalFee">&#8369;0</span>
+                  </div>
+                </div>
+
+                <!-- Downpayment Breakdown (Cash only) -->
+                <div id="reviewDownpaymentSection" class="d-none">
+                  <div class="rv-box rv-deposit">
+                    <div class="rv-row" style="margin-bottom:8px;">
+                      <span style="font-weight:700;"><i class="bi bi-cash-stack me-2"></i>Downpayment (Pay Now)</span>
+                      <span style="font-weight:700;font-size:1.1rem;" id="reviewDownpayment">&#8369;0</span>
+                    </div>
+                    <div class="rv-row" id="reviewBalanceRow">
+                      <span class="rv-label">Balance (Pay After Repair):</span>
+                      <span class="rv-value text-muted" id="reviewBalance">&#8369;0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0" style="font-size:0.88rem;border-radius:12px;">
+                  <i class="bi bi-info-circle me-2"></i>
+                  <strong>Note:</strong> After our technician inspects your unit, you'll receive a detailed quotation for approval before any repair work begins.
+                </div>
+
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="button" class="ent-btn-primary px-5" onclick="showStep(6)">
+                <i class="bi bi-arrow-right-circle me-1"></i> Continue to Payment
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 6: Payment -->
+          <div class="ent-step-card d-none booking-step" id="paymentStep" data-step="6">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-review"><i class="bi bi-credit-card"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 6</h5>
+                <p>Choose your payment method</p>
+              </div>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="rv-card">
+              <div class="rv-card-body">
+                <div class="rv-section-title"><i class="bi bi-receipt"></i>Order Summary</div>
+                <div class="rv-box">
+                  <div class="rv-row">
+                    <span class="rv-label">Services:</span>
+                    <span class="rv-value fw-bold" id="paymentServicesSummary">-</span>
+                  </div>
+                  <div class="rv-row">
+                    <span class="rv-label">Total Initial Fee:</span>
+                    <span class="rv-value fw-bold text-primary" id="paymentTotalFee">&#8369;0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rv-card mt-3">
+              <div class="rv-card-body">
+                <div class="rv-section-title"><i class="bi bi-credit-card"></i>Payment Method for Initial Fee</div>
+
+                <div class="ent-payment-tabs mb-3" role="tablist" aria-label="Payment methods">
+                  <button type="button" class="ent-payment-tab active" data-method="gcash" onclick="selectPaymentMethod('gcash')">
+                    <i class="bi bi-phone"></i>
+                    <span>GCash</span>
+                  </button>
+                  <button type="button" class="ent-payment-tab" data-method="cod" onclick="selectPaymentMethod('cod')">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Cash</span>
+                  </button>
+                </div>
+
+                <div id="gcashFields" class="payment-section">
+                  <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <div class="d-flex align-items-center justify-content-center rounded-2"
+                        style="width:32px;height:32px;background:#16a34a;flex-shrink:0;">
+                        <i class="bi bi-phone text-white" style="font-size:0.9rem;"></i>
+                      </div>
+                      <span class="fw-bold" style="color:#166534;">Pay with GCash</span>
+                    </div>
+                    <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;">
+                      <li>Scan our GCash QR code below.</li>
+                      <li>Send the required initial fee amount.</li>
+                      <li>Upload your receipt screenshot.</li>
+                    </ol>
+                  </div>
+                  <div class="text-center mb-3">
+                    <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
+                    <img id="gcashQrImage"
+                      src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-GCASH-REPAIR"
+                      alt="GCash QR Code" class="img-thumbnail" style="max-width:200px;border-radius:12px;" />
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Your GCash mobile number <span class="text-danger">*</span></label>
+                    <input id="gcashNumber" class="form-control" inputmode="tel" placeholder="+639XXXXXXXXX"
+                      style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Receipt Screenshot <span class="text-danger">*</span></label>
+                    <input id="gcashProof" type="file" class="form-control" accept="image/*"
+                      style="border-radius:12px;border:1.5px dashed rgba(59,130,246,0.3);background:rgba(59,130,246,0.02);padding:1rem;" />
+                    <img id="gcashProofPreview" alt="Receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:120px;border-radius:10px;" />
+                  </div>
+                </div>
+
+                <div id="cashFields" class="payment-section d-none">
+                  <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                      <div class="d-flex align-items-center justify-content-center rounded-2"
+                        style="width:32px;height:32px;background:#d97706;flex-shrink:0;">
+                        <i class="bi bi-cash-stack text-white" style="font-size:0.9rem;"></i>
+                      </div>
+                      <span class="fw-bold" style="color:#92400e;">Pay Cash on Completion</span>
+                    </div>
+                    <p class="mb-0 small text-muted ps-4">A <strong>downpayment</strong> is required to secure your slot. Pay the balance after repair is done.</p>
+                  </div>
+
+                  <!-- Why Downpayment -->
+                  <div class="rounded-3 p-3 mb-3" style="background:#eff6ff;border:1px solid #bfdbfe;">
+                    <div class="d-flex align-items-start gap-2">
+                      <i class="bi bi-info-circle text-primary mt-1" style="font-size:0.95rem;"></i>
+                      <div class="small" style="color:#1e40af;line-height:1.6;">
+                        <strong>Why is a downpayment required?</strong><br>
+                        The downpayment covers the <em>diagnostic/inspection fee</em> and <em>travel fare</em> for our technician to visit your location. This confirms your booking and reserves your slot. The remaining balance for parts and labor is paid only after the repair is completed and you're satisfied with the work.
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Downpayment Display (read-only) -->
+                  <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Downpayment Required</label>
+                    <div class="rounded-3 p-3" style="background:linear-gradient(135deg,rgba(59,130,246,0.06),rgba(6,182,212,0.04));border:1px solid rgba(59,130,246,0.15);">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <div class="fw-bold" style="color:#0f172a;font-size:0.95rem;">Downpayment (20% of Inspection)</div>
+                          <small class="text-muted">This amount is collected upfront to confirm your booking.</small>
+                        </div>
+                        <div class="fs-3 fw-bold text-primary" id="cashDownpaymentDisplay">&#8369;0</div>
+                      </div>
+                    </div>
+                    <input type="hidden" id="cashDownpayment" value="0" />
+                  </div>
+
+                  <!-- Balance Preview -->
+                  <div id="balancePreview" class="rounded-3 p-3 mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0;">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <div class="fw-semibold" style="color:#166534;font-size:0.9rem;">Balance After Repair</div>
+                        <small class="text-muted">Pay on-site when repair is completed</small>
+                      </div>
+                      <div class="fw-bold" style="color:#166534;font-size:1.1rem;" id="balanceAmountDisplay">&#8369;0</div>
+                    </div>
+                  </div>
+
+                  <!-- QR Code to Scan -->
+                  <div class="text-center mb-3">
+                    <label class="form-label text-muted d-block fw-semibold">Scan to Pay Downpayment</label>
+                    <img id="cashQrImage"
+                      src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-CASH-DOWNPAYMENT"
+                      alt="Cash Downpayment QR Code" class="img-thumbnail" style="max-width:200px;border-radius:12px;" />
+                    <small class="text-muted d-block mt-2" style="font-size:0.82rem;">Show this QR at the counter or scan via your banking app</small>
+                  </div>
+
+                  <!-- Proof of Payment -->
+                  <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Proof of Payment <span class="text-danger">*</span></label>
+                    <input id="cashProof" type="file" class="form-control" accept="image/*"
+                      style="border-radius:12px;border:1.5px dashed rgba(217,119,6,0.3);background:rgba(217,119,6,0.02);padding:1rem;" />
+                    <img id="cashProofPreview" alt="Proof preview" class="img-thumbnail mt-2 d-none" style="max-height:120px;border-radius:10px;" />
+                  </div>
+
+                  <!-- Mobile Number -->
+                  <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Your mobile number <span class="text-danger">*</span></label>
+                    <input id="cashNumber" class="form-control" inputmode="tel" placeholder="+639XXXXXXXXX"
+                      style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
+                  </div>
+                </div>
+
+                <input type="hidden" id="selectedPaymentMethod" value="gcash" />
+
+              </div>
+            </div>
+
+            <div class="mt-4 text-center">
+              <button type="button" class="ent-btn-primary w-100" id="submitRepairBtn" onclick="submitRepairRequest()">
+                <i class="bi bi-check-circle"></i>Submit Repair Request
+              </button>
+              <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
+                <i class="bi bi-shield-check text-success" style="font-size:0.85rem;"></i>
+                <p class="text-center text-muted small mb-0">Secured & encrypted. You'll receive a work order number after submission.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 7: Work Order Confirmation -->
+          <div class="ent-step-card d-none booking-step" id="confirmationStep" data-step="7">
+            <div class="ent-success-header" style="border-radius:var(--ent-radius-xl) var(--ent-radius-xl) 0 0;">
+
+              <div class="ent-success-icon"><i class="bi bi-check-circle-fill"></i></div>
+              <h4 class="fw-bold mb-1">Repair Request Submitted!</h4>
+              <p class="mb-2 opacity-75" style="font-size:0.9rem;">Your work order has been created</p>
+              <div class="ent-reference-badge"
+                id="confirmationWorkOrder">WO-2026-000001</div>
+
+            </div>
+
+              <div class="p-4">
+                <div class="mb-3">
+                  <span class="badge rounded-pill px-3 py-2"
+                    style="background:#fff8e1;color:#e65100;border:1px solid #ffd54f;font-size:0.82rem;font-weight:700;">
+                    <i class="bi bi-clock me-1"></i>REPAIR REQUESTED
+                  </span>
+                </div>
+
+                <h6 class="fw-bold text-muted text-start mb-3 text-uppercase small">What Happens Next</h6>
+                <div class="text-start rounded-3 p-3 mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                  <div class="d-flex align-items-start gap-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                      style="width:32px;height:32px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#2563eb;font-size:0.8rem;font-weight:700;">1</div>
+                    <div>
+                      <div class="fw-semibold" style="color:#1e293b;">Inspection Scheduled</div>
+                      <small class="text-muted">Admin will assign a technician to inspect your unit.</small>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-start gap-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                      style="width:32px;height:32px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed;font-size:0.8rem;font-weight:700;">2</div>
+                    <div>
+                      <div class="fw-semibold" style="color:#1e293b;">Diagnosis & Quotation</div>
+                      <small class="text-muted">Technician inspects and provides a detailed repair quotation.</small>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-start gap-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                      style="width:32px;height:32px;background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706;font-size:0.8rem;font-weight:700;">3</div>
+                    <div>
+                      <div class="fw-semibold" style="color:#1e293b;">Customer Approval</div>
+                      <small class="text-muted">You approve or decline the quotation before any work begins.</small>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-start gap-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                      style="width:32px;height:32px;background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#059669;font-size:0.8rem;font-weight:700;">4</div>
+                    <div>
+                      <div class="fw-semibold" style="color:#1e293b;">Parts & Repair</div>
+                      <small class="text-muted">Parts are reserved and repair is scheduled.</small>
+                    </div>
+                  </div>
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                      style="width:32px;height:32px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a;font-size:0.8rem;font-weight:700;">5</div>
+                    <div>
+                      <div class="fw-semibold" style="color:#1e293b;">Repair Completed</div>
+                      <small class="text-muted">Repair done with 30-day warranty coverage.</small>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="text-muted small mb-3">
+                  <i class="bi bi-envelope me-1"></i>You'll receive updates at your registered email address.
+                </p>
+              </div>
+
+              <div class="p-3 d-flex gap-2 justify-content-center" style="background:#f8f9fa;">
+                <a href="/book-history" class="btn btn-primary px-4"><i class="bi bi-list-ul me-2"></i>View My Bookings</a>
+                <button type="button" class="btn btn-outline-secondary px-4" onclick="window.location.reload();">
+                  <i class="bi bi-x-circle me-2"></i>Close
+                </button>
+              </div>
+            </div>
+          </div>
+
+      <!-- Enterprise Spinner Loading Modal -->
+      <div class="modal fade" id="repairLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content border-0" style="background:transparent;border-radius:20px;box-shadow:none;">
+            <div class="modal-body text-center py-0">
+              <div class="racs-lw">
+                <div class="racs-rs">
+                  <div class="racs-sl"><div class="racs-r r1"></div><div class="racs-r r2"></div><div class="racs-r r3"></div><div class="racs-r r4"></div></div>
+                  <div class="racs-vc">
+                    <svg class="racs-vs" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38bdf8"/><stop offset="50%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0f172a"/></linearGradient>
+                        <linearGradient id="vb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="80%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+                        <linearGradient id="hb" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(250,204,21,0.6)"/><stop offset="100%" stop-color="rgba(250,204,21,0)"/></linearGradient>
+                        <filter id="gl"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                      </defs>
+                      <path d="M 330 95 L 450 60 L 450 130 Z" fill="url(#hb)" class="racs-bm"/>
+                      <ellipse cx="180" cy="155" rx="140" ry="8" fill="rgba(0,0,0,0.3)" class="racs-sh"/>
+                      <path d="M 30 140 L 30 50 Q 30 30 50 30 L 220 30 Q 250 30 270 45 L 320 80 Q 340 95 340 110 L 340 140 Z" fill="url(#vb)" stroke="#94a3b8" stroke-width="1"/>
+                      <path d="M 320 110 L 345 110 Q 350 110 350 120 L 345 145 L 315 145 Z" fill="#334155"/><rect x="335" y="115" width="8" height="20" rx="2" fill="#0f172a"/>
+                      <path d="M 25 120 L 35 120 L 35 145 L 25 145 Z" fill="#334155"/>
+                      <path d="M 120 40 L 210 40 Q 230 40 245 50 L 285 85 L 285 95 L 120 95 Z" fill="url(#wg)"/><line x1="210" y1="40" x2="210" y2="95" stroke="#1e293b" stroke-width="6"/>
+                      <path d="M 130 45 L 150 45 L 140 90 L 125 90 Z" fill="rgba(255,255,255,0.2)"/><path d="M 230 48 L 245 48 L 265 70 L 250 70 Z" fill="rgba(255,255,255,0.2)"/>
+                      <path d="M 40 100 L 320 100" stroke="#cbd5e1" stroke-width="2"/><path d="M 40 130 L 300 130" stroke="#cbd5e1" stroke-width="1"/>
+                      <path d="M 30 70 Q 100 70 150 140 L 30 140 Z" fill="#1d4ed8" opacity="0.9"/><path d="M 60 70 Q 120 70 170 140 L 50 140 Z" fill="#3b82f6" opacity="0.6"/>
+                      <text x="60" y="115" font-family="'Arial Black',sans-serif" font-size="34" font-weight="900" fill="#fff" letter-spacing="1">RACS</text>
+                      <text x="60" y="130" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#fff" letter-spacing="1">AIRCONDITIONING</text>
+                      <rect x="330" y="90" width="12" height="15" rx="3" fill="#fef08a" filter="url(#gl)"/><rect x="28" y="80" width="4" height="25" rx="1" fill="#ef4444" filter="url(#gl)"/>
+                      <g class="racs-wh" transform="translate(90,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
+                      <g class="racs-wh" transform="translate(280,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
+                    </svg>
+                  </div>
+                  <div class="racs-rb"><div class="racs-rm"></div></div>
+                </div>
+                <div class="racs-lt"><h3 class="racs-t">Processing Request...</h3><p class="racs-st">Dispatching your RACS technician...</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        .racs-lw{background:rgba(15,23,42,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:40px 30px;max-width:500px;margin:0 auto;box-shadow:0 30px 60px -15px rgba(0,0,0,0.6);position:relative;overflow:hidden}
+        .racs-rs{position:relative;height:180px;width:100%;margin-bottom:20px}
+        .racs-vc{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:320px;animation:rv 0.4s cubic-bezier(0.4,0,0.2,1) infinite alternate}
+        @keyframes rv{from{transform:translateX(-50%) translateY(0)}to{transform:translateX(-50%) translateY(-2px)}}
+        .racs-vs{width:100%;height:auto;filter:drop-shadow(0 15px 15px rgba(0,0,0,0.4))}
+        .racs-wh{transform-origin:0 0;animation:ws 0.3s linear infinite}
+        @keyframes ws{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        .racs-bm{animation:bp2 1.5s infinite alternate}
+        @keyframes bp2{from{opacity:0.6}to{opacity:1}}
+        .racs-rb{position:absolute;bottom:0;left:-50%;width:200%;height:8px;background:#334155;border-radius:4px}
+        .racs-rm{width:100%;height:100%;background:repeating-linear-gradient(90deg,transparent,transparent 40px,#94a3b8 40px,#94a3b8 80px);animation:rm 0.4s linear infinite}
+        @keyframes rm{from{transform:translateX(0)}to{transform:translateX(-80px)}}
+        .racs-sl{position:absolute;top:0;left:0;width:100%;height:100%}
+        .racs-r{position:absolute;background:rgba(255,255,255,0.1);height:2px;border-radius:2px;animation:rsl linear infinite}
+        .r1{top:30%;width:60px;right:-60px;animation-duration:0.8s;animation-delay:0.1s}
+        .r2{top:50%;width:100px;right:-100px;animation-duration:0.6s;animation-delay:0.3s}
+        .r3{top:70%;width:40px;right:-40px;animation-duration:0.9s;animation-delay:0.2s}
+        .r4{top:40%;width:80px;right:-80px;animation-duration:0.7s;animation-delay:0.5s}
+        @keyframes rsl{0%{transform:translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(-500px);opacity:0}}
+        .racs-lt{text-align:center}
+        .racs-t{color:#f8fafc;font-size:1.3rem;font-weight:700;margin-bottom:0.4rem}
+        .racs-st{color:#94a3b8;font-size:0.9rem;margin:0}
+      </style>
+
+      <script>
+      (function() {
+        // Move modal to body to avoid z-index/backdrop issues
+        document.addEventListener("DOMContentLoaded", () => {
+          ["repairLoadingModal","repairReceiptModal"].forEach(function(id) {
+            const m = document.getElementById(id);
+            if (m && m.parentElement !== document.body) {
+              document.body.appendChild(m);
+            }
+          });
+        });
+      })();
+      </script>
+
+    </div>
+  </div>
+</section>
+
+<!-- Enterprise Repair Request Receipt Modal (matches core service invoice design) -->
+<div class="modal fade" id="repairReceiptModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+    <div class="modal-content ent-invoice-modal">
+      <!-- Header -->
+      <div class="ent-inv-header">
+        <div class="ent-inv-header-top">
+          <div class="ent-inv-brand">
+            <div class="ent-inv-logo"><i class="bi bi-tools"></i></div>
+            <div>
+              <div class="ent-inv-company">RACS Services</div>
+              <div class="ent-inv-tagline">Professional Home Services</div>
+            </div>
+          </div>
+          <button type="button" class="ent-inv-close" onclick="window.location.reload();" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="ent-inv-status-badge">
+          <span class="ent-inv-status-dot"></span>
+          REPAIR REQUESTED
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="ent-inv-body">
+        <!-- Work Order Reference -->
+        <div class="ent-inv-ref-section">
+          <div class="ent-inv-ref-label">Work Order Number</div>
+          <div class="ent-inv-ref-number" id="receiptWorkOrder">WO-2026-000001</div>
+        </div>
+
+        <!-- Service Details -->
+        <div class="ent-inv-section">
+          <div class="ent-inv-section-title"><i class="bi bi-receipt me-2"></i>Service Details</div>
+          <div class="ent-inv-row">
+            <span>Service Type</span>
+            <span class="ent-inv-bold" id="receiptServiceType">Repair Service</span>
+          </div>
+          <div class="ent-inv-row">
+            <span>Unit Type</span>
+            <span class="ent-inv-bold" id="receiptUnitType">—</span>
+          </div>
+        </div>
+
+        <!-- Fee Breakdown -->
+        <div class="ent-inv-section">
+          <div class="ent-inv-section-title"><i class="bi bi-cash-stack me-2"></i>Fee Breakdown</div>
+          <div class="ent-inv-row">
+            <span>Diagnostic / Inspection Fee</span>
+            <span class="ent-inv-bold" id="receiptDiagnosticFee">₱0</span>
+          </div>
+          <div class="ent-inv-row">
+            <span>Travel Fare</span>
+            <span class="ent-inv-bold" id="receiptTravelFare">₱0</span>
+          </div>
+          <div class="ent-inv-divider"></div>
+          <div class="ent-inv-row">
+            <span>Payment Method</span>
+            <span class="ent-inv-bold" id="receiptPayment">GCash</span>
+          </div>
+        </div>
+
+        <!-- Total -->
+        <div class="ent-inv-total-section">
+          <div class="ent-inv-total-row">
+            <span class="ent-inv-total-label">Total Initial Fee</span>
+            <span class="ent-inv-total-amount" id="receiptTotalFee">₱0</span>
+          </div>
+        </div>
+
+        <!-- Schedule Info -->
+        <div class="ent-inv-info-grid">
+          <div class="ent-inv-info-item">
+            <div class="ent-inv-info-icon"><i class="bi bi-calendar-event"></i></div>
+            <div>
+              <div class="ent-inv-info-label">Inspection Date</div>
+              <div class="ent-inv-info-value" id="receiptDate">—</div>
+            </div>
+          </div>
+          <div class="ent-inv-info-item">
+            <div class="ent-inv-info-icon"><i class="bi bi-clock"></i></div>
+            <div>
+              <div class="ent-inv-info-label">Preferred Time</div>
+              <div class="ent-inv-info-value" id="receiptTime">—</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="ent-inv-note"><i class="bi bi-info-circle me-1"></i>A confirmation email will be sent once your repair request is reviewed.</p>
+      </div>
+
+      <!-- Footer -->
+      <div class="ent-inv-footer">
+        <a href="/book-history" class="ent-inv-btn ent-inv-btn-primary"><i class="bi bi-list-ul me-2"></i>View My Bookings</a>
+        <button type="button" class="ent-inv-btn ent-inv-btn-secondary" onclick="window.location.reload();"><i class="bi bi-x-circle me-2"></i>Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     GLASS ENTERPRISE DESIGN SYSTEM
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  :root {
+    /* â”€â”€ Brand Colors â”€â”€ */
+    --brand-primary: #3b82f6;
+    --brand-primary-dark: #1d4ed8;
+    --brand-primary-light: #60a5fa;
+    --brand-primary-subtle: rgba(59, 130, 246, 0.08);
+    --brand-primary-muted: rgba(59, 130, 246, 0.04);
+    --brand-accent: #06b6d4;
+    --brand-accent-subtle: rgba(6, 182, 212, 0.08);
+
+    /* â”€â”€ Semantic Colors â”€â”€ */
+    --color-success: #10b981;
+    --color-success-light: rgba(16, 185, 129, 0.08);
+    --color-warning: #f59e0b;
+    --color-warning-light: rgba(245, 158, 11, 0.08);
+    --color-danger: #ef4444;
+    --color-danger-light: rgba(239, 68, 68, 0.08);
+    --color-info: #3b82f6;
+    --color-info-light: rgba(59, 130, 246, 0.08);
+
+    /* â”€â”€ Neutrals â”€â”€ */
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+
+    /* â”€â”€ Glass Properties â”€â”€ */
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-bg-strong: rgba(255, 255, 255, 0.9);
+    --glass-bg-subtle: rgba(255, 255, 255, 0.6);
+    --glass-border: rgba(226, 232, 240, 0.8);
+    --glass-border-subtle: rgba(226, 232, 240, 0.5);
+    --glass-blur: 24px;
+    --glass-blur-strong: 40px;
+
+    /* â”€â”€ Typography â”€â”€ */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-display: 'Plus Jakarta Sans', var(--font-sans);
+
+    /* â”€â”€ Spacing â”€â”€ */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+
+    /* â”€â”€ Radii â”€â”€ */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+
+    /* â”€â”€ Shadows â”€â”€ */
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.02);
+    --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.05);
+    --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.08);
+    --shadow-xl: 0 24px 60px rgba(15, 23, 42, 0.12);
+    --shadow-2xl: 0 32px 80px rgba(15, 23, 42, 0.15);
+    --shadow-glow: 0 0 24px rgba(59, 130, 246, 0.18);
+    --shadow-glow-accent: 0 0 24px rgba(6, 182, 212, 0.18);
+
+    /* â”€â”€ Transitions â”€â”€ */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --duration-fast: 150ms;
+    --duration-normal: 280ms;
+    --duration-slow: 450ms;
+
+    /* â”€â”€ Z-Index â”€â”€ */
+    --z-dropdown: 100;
+    --z-sticky: 200;
+    --z-overlay: 300;
+    --z-modal: 400;
+  }
+
+  /* ── Enterprise Invoice Modal (shared with core services) ── */
+  .ent-invoice-modal{
+    border-radius:20px;
+    overflow:hidden;
+    border:none;
+    box-shadow:0 30px 80px rgba(15,23,42,0.22);
+  }
+  .ent-inv-header{
+    background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+    padding:1.5rem 1.5rem 1.25rem;
+    color:#fff;
+  }
+  .ent-inv-header-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:1rem;
+  }
+  .ent-inv-brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .ent-inv-logo{
+    width:40px;
+    height:40px;
+    border-radius:10px;
+    background:linear-gradient(135deg,rgba(59,130,246,0.3),rgba(99,102,241,0.3));
+    border:1px solid rgba(255,255,255,0.15);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.1rem;
+    color:#60a5fa;
+  }
+  .ent-inv-company{
+    font-size:0.95rem;
+    font-weight:700;
+    letter-spacing:-0.2px;
+  }
+  .ent-inv-tagline{
+    font-size:0.72rem;
+    color:rgba(255,255,255,0.5);
+  }
+  .ent-inv-close{
+    background:rgba(255,255,255,0.1);
+    border:none;
+    color:rgba(255,255,255,0.7);
+    width:32px;
+    height:32px;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition:all 0.2s;
+  }
+  .ent-inv-close:hover{
+    background:rgba(255,255,255,0.2);
+    color:#fff;
+  }
+  .ent-inv-status-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 14px;
+    background:rgba(245,158,11,0.15);
+    border:1px solid rgba(245,158,11,0.3);
+    border-radius:999px;
+    font-size:0.72rem;
+    font-weight:700;
+    color:#fbbf24;
+    letter-spacing:0.5px;
+  }
+  .ent-inv-status-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#fbbf24;
+    animation:invPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes invPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  .ent-inv-body{
+    padding:1.5rem;
+  }
+  .ent-inv-ref-section{
+    text-align:center;
+    padding:0.85rem;
+    background:#f8fafc;
+    border:1px dashed #e2e8f0;
+    border-radius:12px;
+    margin-bottom:1.25rem;
+  }
+  .ent-inv-ref-label{
+    font-size:0.72rem;
+    font-weight:600;
+    color:#94a3b8;
+    text-transform:uppercase;
+    letter-spacing:0.8px;
+    margin-bottom:4px;
+  }
+  .ent-inv-ref-number{
+    font-size:1.1rem;
+    font-weight:800;
+    color:#2563eb;
+    letter-spacing:1.5px;
+  }
+  .ent-inv-section{
+    margin-bottom:1rem;
+  }
+  .ent-inv-section-title{
+    font-size:0.82rem;
+    font-weight:700;
+    color:#0f172a;
+    margin-bottom:0.6rem;
+    display:flex;
+    align-items:center;
+  }
+  .ent-inv-services-list{
+    max-height:120px;
+    overflow-y:auto;
+  }
+  .ent-inv-service-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0.4rem 0;
+    font-size:0.85rem;
+    border-bottom:1px solid #f1f5f9;
+  }
+  .ent-inv-service-row:last-child{
+    border-bottom:none;
+  }
+  .ent-inv-svc-name{
+    color:#334155;
+    font-weight:500;
+  }
+  .ent-inv-svc-qty{
+    color:#94a3b8;
+    font-size:0.78rem;
+    margin-left:6px;
+  }
+  .ent-inv-svc-price{
+    font-weight:600;
+    color:#0f172a;
+    flex-shrink:0;
+  }
+  .ent-inv-divider{
+    height:1px;
+    background:#e2e8f0;
+    margin:0.5rem 0;
+  }
+  .ent-inv-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0.3rem 0;
+    font-size:0.85rem;
+    color:#475569;
+  }
+  .ent-inv-bold{
+    font-weight:700;
+    color:#0f172a;
+  }
+  .ent-inv-sub{
+    font-size:0.78rem;
+    color:#94a3b8;
+  }
+  .ent-inv-muted{
+    color:#94a3b8;
+    font-size:0.78rem;
+  }
+  .ent-inv-total-section{
+    background:linear-gradient(135deg,#eff6ff,#dbeafe);
+    border:1px solid #bfdbfe;
+    border-radius:12px;
+    padding:0.85rem 1rem;
+    margin:1rem 0;
+  }
+  .ent-inv-total-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .ent-inv-total-label{
+    font-size:0.88rem;
+    font-weight:600;
+    color:#1e40af;
+  }
+  .ent-inv-total-amount{
+    font-size:1.35rem;
+    font-weight:800;
+    color:#2563eb;
+    letter-spacing:-0.5px;
+  }
+  .ent-inv-info-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0.75rem;
+    margin-bottom:1rem;
+  }
+  .ent-inv-info-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0.7rem;
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-radius:10px;
+  }
+  .ent-inv-info-icon{
+    width:34px;
+    height:34px;
+    border-radius:8px;
+    background:linear-gradient(135deg,rgba(37,99,235,0.1),rgba(37,99,235,0.05));
+    border:1px solid rgba(37,99,235,0.1);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#2563eb;
+    font-size:0.9rem;
+    flex-shrink:0;
+  }
+  .ent-inv-info-label{
+    font-size:0.7rem;
+    font-weight:600;
+    color:#94a3b8;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+  }
+  .ent-inv-info-value{
+    font-size:0.85rem;
+    font-weight:600;
+    color:#0f172a;
+  }
+  .ent-inv-note{
+    font-size:0.78rem;
+    color:#94a3b8;
+    text-align:center;
+    margin:0;
+  }
+  .ent-inv-footer{
+    padding:1rem 1.5rem 1.5rem;
+    display:flex;
+    gap:10px;
+    justify-content:center;
+  }
+  .ent-inv-btn{
+    display:inline-flex;
+    align-items:center;
+    padding:0.6rem 1.25rem;
+    border-radius:10px;
+    font-weight:700;
+    font-size:0.85rem;
+    cursor:pointer;
+    transition:all 0.25s ease;
+    text-decoration:none;
+    border:none;
+  }
+  .ent-inv-btn-primary{
+    background:linear-gradient(135deg,#2563eb,#1d4ed8);
+    color:#fff;
+    box-shadow:0 4px 14px rgba(37,99,235,0.25);
+  }
+  .ent-inv-btn-primary:hover{
+    transform:translateY(-1px);
+    box-shadow:0 6px 20px rgba(37,99,235,0.35);
+    color:#fff;
+  }
+  .ent-inv-btn-secondary{
+    background:#f1f5f9;
+    color:#475569;
+    border:1px solid #e2e8f0;
+  }
+  .ent-inv-btn-secondary:hover{
+    background:#e2e8f0;
+    color:#0f172a;
+  }
+  @media(max-width:575px){
+    .ent-inv-info-grid{grid-template-columns:1fr}
+    .ent-inv-footer{flex-direction:column}
+    .ent-inv-btn{width:100%;justify-content:center}
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     HERO â€” Light Enterprise Blue Gradient
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  body {
+    background: linear-gradient(180deg, #f3f7fd 0%, #edf3fc 30%, #f8fafc 100%);
+    min-height: 100vh;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  ENTERPRISE HERO                                                    */
+  /* ------------------------------------------------------------------ */
+  .ent-hero {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    padding: 5rem 0 6.5rem;
+    background: linear-gradient(160deg, #e0f2fe 0%, #f0fdf4 35%, #e0e7ff 70%, #ede9fe 100%);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.08);
+  }
+
+  .ent-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 900px 600px at 70% 10%, rgba(59, 130, 246, 0.1) 0%, transparent 55%),
+      radial-gradient(ellipse 500px 400px at 20% 90%, rgba(6, 182, 212, 0.08) 0%, transparent 55%),
+      radial-gradient(ellipse 300px 300px at 50% 50%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .ent-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  .ent-hero .container {
+    position: relative;
+    z-index: 2;
+  }
+
+  .ent-hero .ent-hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(50px);
+  }
+  .ent-hero-orb-1 {
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+    top: -100px; right: -50px;
+    animation: orbFloat1 10s ease-in-out infinite;
+  }
+  .ent-hero-orb-2 {
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%);
+    bottom: -60px; left: 15%;
+    animation: orbFloat2 12s ease-in-out infinite;
+  }
+  .ent-hero-orb-3 {
+    width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    top: 25%; left: -60px;
+    animation: orbFloat3 14s ease-in-out infinite;
+  }
+  .ent-hero-orb-4 {
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+    bottom: 15%; right: 10%;
+    animation: orbFloat4 11s ease-in-out infinite;
+  }
+
+  @keyframes orbFloat1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-20px,30px) scale(1.05); } 66% { transform: translate(15px,-20px) scale(0.95); } }
+  @keyframes orbFloat2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-25px) scale(1.08); } }
+  @keyframes orbFloat3 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(15px,20px) scale(1.03); } 66% { transform: translate(-10px,-15px) scale(0.97); } }
+  @keyframes orbFloat4 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,15px) scale(1.06); } }
+
+  .ent-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px 8px 18px;
+    border-radius: var(--radius-full);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05));
+    color: #1d4ed8;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    backdrop-filter: blur(12px);
+    margin-bottom: 1.25rem;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: badgePulse 1.6s ease-in-out infinite;
+    display: inline-block;
+  }
+
+  @keyframes badgePulse {
+    0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); opacity: 1; }
+    70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); opacity: 0.7; }
+    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); opacity: 1; }
+  }
+
+  .ent-hero-badge i {
+    font-size: 0.85rem;
+  }
+
+  .ent-hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 5vw, 3.4rem);
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -2px;
+    line-height: 1.1;
+    margin-bottom: 0.85rem;
+  }
+
+  .ent-gradient-text {
+    background: linear-gradient(135deg, #3b82f6, #06b6d4, #6366f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .ent-hero-subtitle {
+    font-size: 1.05rem;
+    color: #64748b;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.65;
+    font-weight: 400;
+  }
+
+  .ent-trust-badges {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .ent-trust-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #1e40af;
+    padding: 0.4rem 0.9rem;
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: var(--radius-full);
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .ent-trust-item i {
+    font-size: 0.85rem;
+    color: var(--brand-primary);
+  }
+
+  .ent-trust-divider {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gray-300);
+  }
+
+  @media (max-width: 576px) {
+    .ent-trust-badges { gap: 0.5rem; }
+    .ent-trust-item { font-size: 0.72rem; padding: 0.3rem 0.7rem; }
+    .ent-trust-divider { display: none; }
+  }
+
+  .ent-hero-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+  }
+  .ent-hero-stat {
+    text-align: center;
+  }
+  .ent-hero-stat-value {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .ent-hero-stat-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     STEPPER â€” Horizontal Pill (core services design)
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .ent-stepper{background:#fff;border-radius:var(--radius-lg);border:1px solid rgba(148,163,184,0.08);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(15,23,42,0.04);position:sticky;top:84px;z-index:40}
+  .ent-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem}
+  .ent-h span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
+  .ent-h span:last-child{font-size:0.72rem;color:#64748b;font-weight:600}
+  .ent-h span:last-child span{color:var(--brand-primary)}
+  .ent-tr{display:flex;justify-content:space-between;background:#f1f5f9;border-radius:9999px;padding:3px;gap:2px}
+  .ent-fill{display:none}
+  .ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--ease-spring);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap}
+  .ent-n.active{background:var(--brand-primary);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,0.2)}
+  .ent-n.completed{background:#f0fdf4;color:#16a34a}
+  .ent-n:hover{background:#e2e8f0;color:#475569}
+  .ent-n.active:hover{background:var(--brand-primary)}
+  .ent-ni{font-size:0.85rem;display:flex}
+
+  @media (max-width: 768px) {
+    .ent-n { font-size: 0.65rem; padding: 4px 8px; gap: 3px; }
+    .ent-ni { font-size: 0.75rem; }
+    .ent-tr { gap: 1px; }
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     BOOKING CONTAINER â€” Glass Card
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .ent-booking-container {
+    max-width: 980px;
+    margin: -3rem auto 0;
+    position: relative;
+    z-index: 2;
+    background: var(--glass-bg-strong);
+    backdrop-filter: blur(var(--glass-blur-strong)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(180%);
+    padding: 3rem;
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      0 12px 40px rgba(15, 23, 42, 0.05),
+      0 2px 10px rgba(15, 23, 42, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    animation: fadeSlideIn 600ms var(--ease-out) both;
+  }
+
+  .ent-booking-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 10%, rgba(37, 99, 235, 0.15) 50%, transparent 90%);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    pointer-events: none;
+  }
+
+
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     TABS â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .nav-tabs {
+    border-bottom: 1px solid var(--gray-200);
+    gap: 0.5rem;
+  }
+
+  .nav-tabs .nav-link {
+    border: 1px solid transparent;
+    transition: all var(--duration-normal) ease;
+    font-weight: 600;
+    color: var(--gray-500);
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    font-size: 0.9rem;
+    background: transparent;
+    position: relative;
+    margin-bottom: -1px;
+  }
+
+  .nav-tabs .nav-link.active {
+    color: var(--brand-primary);
+    background: #ffffff;
+    border-color: var(--gray-200);
+    border-bottom-color: #ffffff;
+    font-weight: 700;
+  }
+
+  .nav-tabs .nav-link:hover:not(.active) {
+    color: var(--gray-800);
+    background: var(--gray-50);
+  }
+
+  .nav-tabs .nav-link i {
+    transition: transform var(--duration-normal) var(--ease-out);
+  }
+
+  .nav-tabs .nav-link.active i {
+    transform: scale(1.05);
+  }
+
+
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     MAP & LOCATION â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .map-wrapper {
+    min-height: 320px;
+    background: var(--gray-100);
+    position: relative;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--duration-normal) ease;
+  }
+
+  .map-wrapper:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .technician-map {
+    width: 100%;
+    height: 320px;
+  }
+
+  .map-overlay {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    background: #ffffff;
+    padding: 0.6rem 1.1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--gray-200);
+    color: var(--gray-700) !important;
+  }
+
+  .map-info-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+    color: #7c3aed;
+    font-size: 0.85rem;
+  }
+
+  .map-info-panel {
+    border-radius: var(--radius-lg);
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    padding: 1.25rem;
+    transition: opacity var(--duration-normal) ease;
+    box-shadow: var(--shadow-sm);
+    color: var(--gray-700);
+  }
+
+  /* Route polyline on the map */
+  .leaflet-interactive.actual-route {
+    animation: routeDash 1s linear infinite;
+  }
+  @keyframes routeDash {
+    to { stroke-dashoffset: -20; }
+  }
+
+  .map-locate-btns {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .map-locate-btns .btn {
+    font-size: 0.75rem;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    background: #ffffff !important;
+    border: 1px solid var(--gray-200) !important;
+    color: var(--gray-700) !important;
+    box-shadow: var(--shadow-sm);
+  }
+
+  #locationSuggest {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    z-index: 2000 !important;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+
+  #locationSuggest .list-group-item {
+    cursor: pointer;
+    background: transparent;
+    border-color: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  #locationSuggest .list-group-item:hover {
+    background-color: var(--gray-50);
+  }
+
+  #locationSuggest .list-group-item.active {
+    background-color: var(--brand-primary-subtle);
+    color: var(--brand-primary);
+    font-weight: 600;
+  }
+
+  .location-hint {
+    min-height: 1.5rem;
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     PAYMENT â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .ent-payment-tabs {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .ent-payment-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.1rem 1.5rem;
+    border-radius: var(--radius-lg);
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    cursor: pointer;
+    color: var(--gray-500);
+    transition: all var(--duration-normal) var(--ease-spring);
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex: 1;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ent-payment-tab::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), transparent);
+    opacity: 0;
+    transition: opacity var(--duration-normal) ease;
+  }
+
+  .ent-payment-tab:hover::after { opacity: 1; }
+
+  .ent-payment-tab i { font-size: 1.3rem; transition: transform var(--duration-normal) var(--ease-spring); }
+
+  .ent-payment-tab.active i { transform: scale(1.1); }
+
+  .ent-payment-tab.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+    box-shadow: 0 0 0 2px var(--brand-primary-subtle), var(--shadow-sm);
+  }
+
+  .ent-payment-tab:hover:not(.active) {
+    border-color: var(--brand-primary-light);
+    background: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+
+
+  .fee-total::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.03), transparent);
+    pointer-events: none;
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     HP & QUANTITY â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .hp-option-card {
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-out);
+    border: 1px solid var(--gray-200) !important;
+    border-radius: var(--radius-md) !important;
+    background: #ffffff !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hp-option-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.03), transparent);
+    opacity: 0;
+    transition: opacity var(--duration-normal) ease;
+  }
+
+  .hp-option-card:hover::before {
+    opacity: 1;
+  }
+
+  .hp-option-card:hover {
+    border-color: var(--brand-primary-light) !important;
+    background-color: rgba(59, 130, 246, 0.04) !important;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .hp-option-card.border-primary {
+    border-color: var(--brand-primary) !important;
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark)) !important;
+    color: white !important;
+    box-shadow: 0 0 0 2px var(--brand-primary-subtle), var(--shadow-md) !important;
+  }
+
+  .hp-option-card.border-primary::before {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+    opacity: 1;
+  }
+
+  .quantity-selector .input-group {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--gray-300);
+    transition: border-color var(--duration-normal) ease;
+  }
+
+  .quantity-selector .input-group:focus-within {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px var(--brand-primary-subtle);
+  }
+
+  .quantity-selector .btn {
+    border: none !important;
+    background: var(--gray-100) !important;
+    color: var(--gray-700) !important;
+    transition: all var(--duration-fast) ease;
+  }
+
+  .quantity-selector .btn:hover {
+    background: var(--brand-primary-subtle) !important;
+    color: var(--brand-primary) !important;
+  }
+
+  .quantity-selector .btn:active {
+    background: rgba(59, 130, 246, 0.15) !important;
+    transform: scale(0.95);
+  }
+
+  .quantity-selector .form-control {
+    background: #ffffff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    color: var(--gray-900) !important;
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     BOOKING TRACKER SIDEBAR
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     REVIEW CARD PATTERNS
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .rv-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+  }
+  .rv-card-body { padding: 1.25rem; }
+  .rv-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rv-section-title i { font-size: 0.75rem; }
+  .rv-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .rv-box:last-child { margin-bottom: 0; }
+  .rv-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .rv-row:last-child { margin-bottom: 0; }
+  .rv-label {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+  }
+  .rv-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-800);
+  }
+  .rv-highlight {
+    background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(6,182,212,0.04));
+    border: 1px solid rgba(59,130,246,0.12);
+  }
+  .rv-total {
+    background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.04));
+    border: 1px solid rgba(59,130,246,0.15);
+  }
+  .rv-total .rv-value { color: var(--brand-primary); }
+  .rv-deposit {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    border: 1px solid #fde68a;
+  }
+  .rv-deposit .rv-label { color: #92400e; }
+  .rv-deposit .rv-value { color: #92400e; }
+  .rv-icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .rv-icon-box i { font-size: 0.85rem; }
+  .rv-schedule-box { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+  .rv-schedule-box i { color: #d97706; }
+  .rv-section-divider { height: 1px; background: #eef2f6; margin: 1.25rem 0; }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     MODALS â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .modal-content {
+    border: 1px solid rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.12) !important;
+    border-radius: var(--radius-xl) !important;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    position: relative;
+  }
+
+  .modal-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 10%, rgba(37, 99, 235, 0.15) 50%, transparent 90%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .modal-header {
+    border-bottom: 1px solid var(--glass-border-subtle) !important;
+    background: transparent !important;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .modal-footer {
+    border-top: 1px solid var(--glass-border-subtle) !important;
+    background: rgba(248, 250, 252, 0.5) !important;
+    padding: 1rem 1.5rem;
+  }
+
+  #bookingSuccessModal .modal-header {
+    background: linear-gradient(135deg, var(--color-success), #059669) !important;
+    color: #fff !important;
+    border-bottom: none !important;
+  }
+
+  #bookingResultModal .modal-header {
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark)) !important;
+    color: #fff !important;
+    border-bottom: none !important;
+  }
+
+  .receipt-container {
+    position: relative;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px dashed rgba(37, 99, 235, 0.2);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .receipt-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.2), transparent);
+  }
+
+  .receipt-container::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.2), transparent);
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     BUTTONS â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark));
+    border: none;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+    transition: all var(--duration-normal) var(--ease-spring);
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--duration-normal) ease;
+  }
+
+  .btn-primary:hover::before { opacity: 1; }
+
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--brand-primary-light), var(--brand-primary));
+    box-shadow: 0 8px 28px rgba(37, 99, 235, 0.4);
+    transform: translateY(-3px);
+  }
+
+  .btn-primary:active { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3); }
+
+  .btn-primary:disabled { background: var(--gray-400); box-shadow: none; transform: none; cursor: not-allowed; }
+  .btn-primary:disabled::before { display: none; }
+
+  .btn-outline-secondary {
+    transition: all var(--duration-normal) var(--ease-spring);
+    border: 1.5px solid var(--gray-300);
+  }
+  .btn-outline-secondary:hover {
+    border-color: var(--brand-primary);
+    background: rgba(37, 99, 235, 0.06);
+    color: var(--brand-primary);
+    transform: translateY(-2px);
+  }
+
+  .ent-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-spring);
+    border: 1.5px solid var(--gray-300);
+    background: #fff;
+    color: var(--gray-600);
+  }
+  .ent-btn-secondary:hover {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+    background: rgba(37, 99, 235, 0.04);
+    transform: translateY(-1px);
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     FORMS â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .form-control:focus,
+  .form-select:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    background-color: var(--glass-bg-strong);
+  }
+
+  .input-group-text {
+    background: var(--glass-bg) !important;
+    border-color: var(--glass-border-subtle);
+    color: var(--gray-500);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all var(--duration-normal) ease;
+  }
+
+  .input-group:focus-within .input-group-text {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+    background: rgba(37, 99, 235, 0.06) !important;
+  }
+
+  .form-control[type="file"] {
+    border: 1.5px dashed rgba(37, 99, 235, 0.2);
+    background: var(--glass-bg-subtle);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+  }
+
+  .form-control[type="file"]:hover {
+    border-color: rgba(37, 99, 235, 0.3);
+    background: rgba(37, 99, 235, 0.04);
+  }
+
+  .form-control[type="file"]:focus {
+    border-color: var(--brand-primary);
+    border-style: solid;
+    background: var(--glass-bg-strong);
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     ALERTS â€” Glass
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .alert-info {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(6, 182, 212, 0.04));
+    border: 1px solid rgba(37, 99, 235, 0.15);
+    color: #3730a3;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-info::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--brand-primary);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  }
+
+  .alert-success {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(52, 211, 153, 0.04));
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    color: #065f46;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-success::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--color-success);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  }
+
+  .alert-warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(251, 191, 36, 0.04));
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    color: #92400e;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-warning::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--color-warning);
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     ANIMATIONS â€” Glass Enterprise
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes stepReveal {
+    0% {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+
+  .ent-step-card {
+    animation: fadeUp 450ms var(--ease-out) both;
+  }
+  .ent-step-card.step-reveal {
+    animation: stepReveal 420ms var(--ease-out) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ent-step-card, .ent-booking-container {
+      animation: none !important;
+    }
+    .bt-step { transition: none !important; }
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     UTILITIES â€” Glass Enterprise
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--gray-50); }
+  ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--brand-primary-light), var(--brand-primary)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--brand-primary-dark); }
+
+  :focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 2px;
+  }
+
+  .badge {
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    transition: all var(--duration-fast) ease;
+  }
+
+  .badge.bg-primary {
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-light)) !important;
+  }
+
+  .badge.bg-success {
+    background: linear-gradient(135deg, var(--color-success), #34d399) !important;
+  }
+
+  .progress {
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    border-radius: var(--radius-full);
+  }
+
+  .btn-close {
+    transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+  }
+
+  .btn-close:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+
+  .card {
+    transition: box-shadow var(--duration-normal) ease;
+  }
+
+  .ent-step-card + .ent-step-card {
+    margin-top: 0.5rem;
+  }
+
+  .form-check-input {
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 2px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    transition: all var(--duration-fast) ease;
+    background: var(--glass-bg);
+  }
+
+  .form-check-input:checked {
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+  }
+
+  .btn-loading {
+    position: relative;
+    pointer-events: none;
+  }
+
+  .btn-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     LEGACY COMPAT â€” Map, Car Animation, Micro-interactions
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  .map-pin {
+    width: 20px;
+    height: 28px;
+    display: inline-block;
+    vertical-align: middle;
+    flex: 0 0 auto;
+    color: currentColor;
+  }
+
+  .map-pin path {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12));
+  }
+
+  .map-pin-tech {
+    color: var(--brand-primary);
+  }
+
+  .map-pin-you {
+    color: #06b6d4;
+  }
+
+  .map-overlay span {
+    color: #334155;
+  }
+
+  .map-overlay i {
+    color: #475569;
+  }
+
+  /* Leaflet controls text color */
+  .leaflet-control a,
+  .leaflet-control span,
+  .leaflet-control-attribution,
+  .leaflet-control-zoom a {
+    color: #475569 !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    color: #334155 !important;
+  }
+
+  .map-overlay #mapDistanceInfo {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: #334155;
+  }
+
+  .manual-guide ul {
+    padding-left: 1rem;
+  }
+
+  .manual-guide li {
+    list-style: disc;
+  }
+
+  .car-animation-container {
+    position: relative;
+    height: 100px;
+    overflow: hidden;
+  }
+
+  .car-svg {
+    animation: drive 2s ease-in-out infinite;
+  }
+
+  @keyframes drive {
+
+    0%,
+    100% {
+      transform: translateX(-10px);
+    }
+
+    50% {
+      transform: translateX(10px);
+    }
+  }
+
+  .wheel {
+    animation: rotate 1s linear infinite;
+    transform-origin: center;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .road-lines {
+    animation: moveRoad 1s linear infinite;
+  }
+
+  @keyframes moveRoad {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(-40px);
+    }
+  }
+
+  .car-body {
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+  }
+
+  .car-svg circle[fill="#ffd700"] {
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+
+    0%,
+    100% {
+      opacity: 0.8;
+    }
+
+    50% {
+      opacity: 1;
+    }
+  }
+
+
+
+  .payment-disclaimer {
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+    line-height: 1.5;
+    margin-top: 1rem;
+    margin-bottom: 0;
+  }
+
+  .category-btn:hover,
+  .mode-btn:hover {
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
+  }
+
+  .ent-payment-tab:active {
+    transform: translateY(0) scale(1);
+  }
+
+  .tracker-timeline-wrapper {
+    position: relative;
+  }
+
+  /* Enterprise modal z-index */
+  .modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1070 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+  }
+
+  .modal.show {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .modal-dialog {
+    position: relative !important;
+    width: auto !important;
+    margin: 0.5rem !important;
+    z-index: 1080 !important;
+    transform: none !important;
+  }
+
+  .modal-dialog-centered {
+    display: flex !important;
+    align-items: center !important;
+    min-height: calc(100% - 1rem) !important;
+  }
+
+  .modal-backdrop {
+    z-index: 1060 !important;
+    backdrop-filter: blur(8px);
+    background-color: rgba(15, 23, 42, 0.4) !important;
+  }
+
+  body.modal-open {
+    overflow: hidden !important;
+  }
+
+  .modal input,
+  .modal button,
+  .modal select,
+  .modal textarea,
+  .modal .hp-option-card,
+  .modal .btn {
+    pointer-events: auto !important;
+    position: relative !important;
+  }
+
+  .modal-footer {
+    position: relative !important;
+    z-index: 1095 !important;
+    background: var(--glass-bg-strong) !important;
+    border-top: 1px solid var(--glass-border-subtle) !important;
+    padding: 1rem !important;
+  }
+
+  .technician-map {
+    width: 100%;
+    height: 320px;
+  }
+
+  /* â”€â”€ Responsive â”€â”€ */
+  @media (max-width: 767px) {
+    .booking-hero {
+      padding: 2.5rem 0 3.5rem;
+    }
+
+    .ent-booking-container {
+      padding: 1.25rem;
+      margin-top: -1.5rem;
+      border-radius: var(--radius-lg);
+    }
+
+
+    .ent-payment-tabs {
+      flex-direction: column;
+    }
+
+    .map-wrapper {
+      min-height: 250px;
+    }
+
+    .technician-map {
+      height: 250px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .booking-hero::before {
+      animation: none;
+    }
+  }
+
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     QUANTITY MODAL â€” Light Theme Dynamic Content
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  #quantitySelectionModal .form-label { color: #475569 !important; }
+  #quantitySelectionModal .hp-option-card,
+  #quantitySelectionModal .hp-selection-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+    backdrop-filter: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  }
+  #quantitySelectionModal .hp-option-card:hover,
+  #quantitySelectionModal .hp-selection-card:hover {
+    border-color: #3b82f6 !important;
+    background: rgba(59,130,246,0.03) !important;
+  }
+  #quantitySelectionModal .hp-option-card.border-primary,
+  #quantitySelectionModal .hp-selection-card.border-primary,
+  #quantitySelectionModal .hp-selection-card.selected {
+    border-color: #2563eb !important;
+    background: rgba(59,130,246,0.06) !important;
+    color: #1e3a8a !important;
+  }
+  #quantitySelectionModal .hp-option-card .text-muted,
+  #quantitySelectionModal .hp-selection-card .text-muted { color: #64748b !important; }
+  #quantitySelectionModal .hp-option-card .fw-bold.text-primary,
+  #quantitySelectionModal .hp-selection-card .fw-bold.text-primary { color: #2563eb !important; }
+  #quantitySelectionModal .text-muted { color: #64748b !important; }
+  #quantitySelectionModal .btn-secondary {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+  }
+  #quantitySelectionModal .btn-secondary:hover {
+    background: #f1f5f9 !important;
+  }
+  #quantitySelectionModal .form-check-label { color: #334155 !important; }
+  #quantitySelectionModal .form-check-input {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+  #quantitySelectionModal .form-check-input:checked {
+    background-color: #2563eb !important;
+    border-color: #2563eb !important;
+  }
+  #quantitySelectionModal .aircon-type-card {
+    background: #ffffff !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #0f172a !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  }
+  #quantitySelectionModal .aircon-type-card:hover {
+    border-color: #3b82f6 !important;
+    background: rgba(59,130,246,0.03) !important;
+    transform: translateY(-2px);
+  }
+  #quantitySelectionModal .aircon-type-card.active,
+  #quantitySelectionModal .aircon-type-card.selected {
+    border-color: #2563eb !important;
+    background: rgba(59,130,246,0.06) !important;
+    color: #1e3a8a !important;
+  }
+  #quantitySelectionModal .aircon-type-card .fw-bold { color: #0f172a !important; }
+  #quantitySelectionModal .aircon-type-card .text-muted { color: #64748b !important; }
+  #quantitySelectionModal .aircon-type-card .text-primary { color: #2563eb !important; }
+  #quantityModalDecrease:hover, #quantityModalIncrease:hover {
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+  #confirmQuantitySelection:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,130,246,0.2) !important; }
+  [data-bs-dismiss="modal"]:hover { background: #f1f5f9 !important; color: #1e293b !important; }
+  #quantitySelectionModal .modal-header { border-bottom: 1px solid #e2e8f0 !important; }
+</style>
+
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REPAIR REQUEST — Step 2 Enterprise UI
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Unit Category Cards ── */
+  .unit-category-card {
+    background: #ffffff;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-spring);
+    position: relative;
+    overflow: hidden;
+  }
+  .unit-category-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.03), transparent);
+    opacity: 0;
+    transition: opacity var(--duration-normal) ease;
+  }
+  .unit-category-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--brand-primary-subtle);
+    border-color: var(--brand-primary-light);
+  }
+  .unit-category-card:hover::before { opacity: 1; }
+  .unit-category-card.active {
+    border-color: var(--brand-primary);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(6, 182, 212, 0.03));
+    box-shadow: 0 0 0 3px var(--brand-primary-subtle), 0 12px 32px rgba(59, 130, 246, 0.12);
+  }
+  .unit-category-card.active::before {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.06), transparent);
+    opacity: 1;
+  }
+  .unit-category-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-lg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 0.85rem;
+    transition: all var(--duration-normal) var(--ease-spring);
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+  .unit-category-card:hover .unit-category-icon {
+    transform: scale(1.1) rotate(-3deg);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+  }
+  .unit-category-card.active .unit-category-icon {
+    transform: scale(1.08);
+  }
+  .unit-category-label {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--gray-800);
+    margin-bottom: 0.2rem;
+  }
+  .unit-category-count {
+    font-size: 0.75rem;
+    color: var(--gray-400);
+    font-weight: 500;
+  }
+
+  /* ── Sub-unit Type Chips ── */
+  .sub-unit-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .sub-unit-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-full);
+    border: 1.5px solid var(--gray-200);
+    background: #ffffff;
+    color: var(--gray-600);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-spring);
+    white-space: nowrap;
+  }
+  .sub-unit-chip:hover {
+    border-color: var(--brand-primary-light);
+    color: var(--brand-primary);
+    background: rgba(59, 130, 246, 0.04);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+  }
+  .sub-unit-chip.active {
+    border-color: var(--brand-primary);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    color: var(--brand-primary-dark);
+    box-shadow: 0 0 0 2px var(--brand-primary-subtle);
+  }
+  .sub-unit-chip i { font-size: 0.9rem; }
+
+  /* ── Symptom Quick-tap Chips ── */
+  .symptom-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .symptom-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-full);
+    border: 1.5px solid var(--gray-200);
+    background: #ffffff;
+    color: var(--gray-500);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-spring);
+  }
+  .symptom-chip:hover {
+    border-color: var(--brand-primary-light);
+    color: var(--brand-primary);
+    background: rgba(59, 130, 246, 0.04);
+  }
+  .symptom-chip.active {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary-subtle);
+    color: var(--brand-primary-dark);
+  }
+  .symptom-chip i { font-size: 0.8rem; }
+
+  /* ── Photo Upload Drop Zone ── */
+  .photo-upload-zone {
+    border: 2px dashed rgba(59, 130, 246, 0.25);
+    border-radius: var(--radius-lg);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-spring);
+    background: rgba(59, 130, 246, 0.02);
+    position: relative;
+  }
+  .photo-upload-zone:hover {
+    border-color: var(--brand-primary);
+    background: rgba(59, 130, 246, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.08);
+  }
+  .photo-upload-zone.dragover {
+    border-color: var(--brand-primary);
+    background: rgba(59, 130, 246, 0.08);
+    box-shadow: 0 0 0 4px var(--brand-primary-subtle);
+  }
+  .photo-upload-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: var(--brand-primary);
+    margin-bottom: 0.75rem;
+    transition: all var(--duration-normal) var(--ease-spring);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+  }
+  .photo-upload-zone:hover .photo-upload-icon {
+    transform: scale(1.1) translateY(-2px);
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-light));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.25);
+  }
+  .photo-upload-text {
+    font-size: 0.9rem;
+    color: var(--gray-600);
+    margin-bottom: 0.25rem;
+  }
+  .photo-upload-hint {
+    font-size: 0.75rem;
+    color: var(--gray-400);
+  }
+
+  /* ── Photo Preview Grid ── */
+  .photo-preview-item {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--duration-fast) ease;
+  }
+  .photo-preview-item:hover {
+    border-color: var(--brand-primary-light);
+    box-shadow: var(--shadow-md);
+  }
+  .photo-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .photo-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    color: #fff;
+    border: none;
+    font-size: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  }
+  .photo-preview-item:hover .photo-preview-remove { opacity: 1; }
+
+  /* ── Step 2 Section Card ── */
+  .step2-card {
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .step2-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .step2-section-divider {
+    border: none;
+    border-top: 1px solid var(--gray-100);
+    margin: 1.5rem 0;
+  }
+
+  /* ── Step 2 Interactive Elements ── */
+  .unit-category-card {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .unit-category-card:hover {
+    border-color: var(--brand-primary);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-2px);
+  }
+  .unit-category-card.active {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary-subtle);
+    box-shadow: 0 0 0 2px var(--brand-primary);
+  }
+  .unit-category-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.75rem;
+    font-size: 1.25rem;
+  }
+  .unit-category-label {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.92rem;
+  }
+  .unit-category-count {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-top: 0.25rem;
+  }
+
+  .sub-unit-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .sub-unit-chip {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-full);
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+  }
+  .sub-unit-chip:hover {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+  .sub-unit-chip.active {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #ffffff;
+  }
+
+  .symptom-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .symptom-chip {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-full);
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+  }
+  .symptom-chip:hover {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+  .symptom-chip.active {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #ffffff;
+  }
+
+  .photo-upload-zone {
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    background: var(--gray-50);
+  }
+  .photo-upload-zone:hover {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary-muted);
+  }
+  .photo-upload-icon {
+    font-size: 2rem;
+    color: var(--brand-primary);
+    margin-bottom: 0.5rem;
+  }
+  .photo-upload-text {
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: 0.9rem;
+  }
+  .photo-upload-hint {
+    font-size: 0.78rem;
+    color: var(--gray-500);
+    margin-top: 0.25rem;
+  }
+
+  /* ── Step 2 Redesign Grid ── */
+  .step2-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .step2-grid > .mb-4,
+  .step2-grid > .mb-3 {
+    margin-bottom: 0 !important;
+    background: #ffffff;
+    border: 1px solid var(--gray-100);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-xs);
+  }
+  .step2-grid .form-label.fw-semibold {
+    font-size: 1rem;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .step2-grid .form-label.fw-semibold i {
+    font-size: 1.1rem;
+  }
+  .step2-grid .form-control,
+  .step2-grid .form-control-lg {
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+  }
+  .step2-grid .form-control:focus,
+  .step2-grid .form-control-lg:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 0.2rem var(--brand-primary-subtle);
+  }
+  .step2-grid .form-text {
+    color: var(--gray-500);
+    font-size: 0.82rem;
+  }
+</style>
+
+<style>
+  /* REPAIR REQUEST - Step 2 Enterprise Redesign */
+
+  #unitInfoStep .step2-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  #unitInfoStep .step2-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+    counter-increment: stepSection;
+  }
+  #unitInfoStep .step2-section-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  #unitInfoStep .step2-section-number {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-primary);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  #unitInfoStep .step2-section-number::before {
+    content: counter(stepSection);
+  }
+  #unitInfoStep .step2-section-heading h6 {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #1e293b;
+    margin-bottom: 0.15rem;
+  }
+  #unitInfoStep .step2-section-heading p {
+    color: #64748b;
+    font-size: 0.82rem;
+    margin: 0;
+  }
+  #unitInfoStep .step2-hint {
+    color: #64748b;
+    font-size: 0.82rem;
+    margin-top: 0.5rem;
+  }
+
+  #unitInfoStep .form-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  #unitInfoStep .form-label i {
+    color: var(--brand-primary);
+  }
+  #unitInfoStep .form-control {
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+    color: #0f172a;
+    transition: all 0.2s ease;
+  }
+  #unitInfoStep .form-control:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+  }
+  #unitInfoStep .form-control::placeholder {
+    color: #94a3b8;
+  }
+
+  #unitInfoStep .unit-category-card {
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #unitInfoStep .unit-category-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--brand-primary-light);
+    box-shadow: 0 18px 36px rgba(59, 130, 246, 0.12);
+  }
+  #unitInfoStep .unit-category-card.active {
+    border-color: var(--brand-primary);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(6, 182, 212, 0.04));
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 14px 30px rgba(59, 130, 246, 0.1);
+  }
+  #unitInfoStep .unit-category-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 0.85rem;
+    transition: transform 0.25s ease;
+  }
+  #unitInfoStep .unit-category-card:hover .unit-category-icon {
+    transform: scale(1.1) rotate(-3deg);
+  }
+  #unitInfoStep .unit-category-icon.blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+  #unitInfoStep .unit-category-icon.amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+  #unitInfoStep .unit-category-icon.violet { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #7c3aed; }
+  #unitInfoStep .unit-category-label { font-weight: 700; font-size: 0.95rem; color: #1e293b; margin-bottom: 0.2rem; }
+  #unitInfoStep .unit-category-count { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+  #unitInfoStep .unit-category-check {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--brand-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s ease;
+  }
+  #unitInfoStep .unit-category-card.active .unit-category-check { opacity: 1; transform: scale(1); }
+
+  #unitInfoStep .sub-unit-chips { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+  #unitInfoStep .sub-unit-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: 9999px;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  #unitInfoStep .sub-unit-chip:hover { border-color: var(--brand-primary-light); color: var(--brand-primary); background: rgba(59, 130, 246, 0.04); transform: translateY(-1px); }
+  #unitInfoStep .sub-unit-chip.active { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+  #unitInfoStep .sub-unit-chip i { font-size: 0.9rem; }
+
+  #unitInfoStep .symptom-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  #unitInfoStep .symptom-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 9999px;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  #unitInfoStep .symptom-chip:hover { border-color: #f59e0b; color: #b45309; background: #fffbeb; }
+  #unitInfoStep .symptom-chip.active { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+  #unitInfoStep .symptom-chip i { font-size: 0.85rem; }
+
+  #unitInfoStep .quantity-stepper .btn {
+    border: 1.5px solid #e2e8f0;
+    color: #475569;
+    font-weight: 600;
+    padding: 0.55rem 0.85rem;
+    background: #fff;
+  }
+  #unitInfoStep #repairQtyMinus { border-radius: 10px 0 0 10px; }
+  #unitInfoStep #repairQtyPlus { border-radius: 0 10px 10px 0; }
+  #unitInfoStep .quantity-stepper .btn:hover { background: #f1f5f9; }
+  #unitInfoStep #unitQuantity {
+    border-top: 1.5px solid #e2e8f0;
+    border-bottom: 1.5px solid #e2e8f0;
+    border-left: none;
+    border-right: none;
+    padding: 0.55rem 1rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  #unitInfoStep #unitQuantity:focus { border-color: var(--brand-primary); box-shadow: none; outline: none; }
+
+  #unitInfoStep .photo-upload-zone {
+    border: 2px dashed #c7d2fe;
+    border-radius: 14px;
+    padding: 2.25rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.03), rgba(59, 130, 246, 0.01));
+  }
+  #unitInfoStep .photo-upload-zone:hover { border-color: var(--brand-primary); background: rgba(59, 130, 246, 0.05); transform: translateY(-2px); }
+  #unitInfoStep .photo-upload-zone.dragover { border-color: var(--brand-primary); background: rgba(59, 130, 246, 0.08); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); }
+  #unitInfoStep .photo-upload-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.04));
+    color: var(--brand-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.25s ease;
+  }
+  #unitInfoStep .photo-upload-zone:hover .photo-upload-icon { background: var(--brand-primary); color: #fff; transform: scale(1.08); }
+  #unitInfoStep .photo-upload-text { font-size: 0.95rem; color: #334155; font-weight: 500; margin-bottom: 0.25rem; }
+  #unitInfoStep .photo-upload-text span { color: var(--brand-primary); font-weight: 700; }
+  #unitInfoStep .photo-upload-hint { font-size: 0.78rem; color: #94a3b8; }
+
+  #unitInfoStep .step2-actions { text-align: center; margin-top: 1rem; }
+  #unitInfoStep .ent-btn-primary {
+    border-radius: 10px;
+    padding: 0.85rem 2.5rem;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+    transition: all 0.2s ease;
+  }
+  #unitInfoStep .ent-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25); }
+
+  @media (max-width: 767px) {
+    #unitInfoStep .step2-section { padding: 1.25rem; }
+    #unitInfoStep .step2-section-heading { align-items: center; }
+    #unitInfoStep .unit-category-icon { width: 54px; height: 54px; font-size: 1.35rem; }
+  }
+
+</style>
+
+<link rel="stylesheet" href="/css/enterprise-calendar.css">
+<script src="/js/enterprise-calendar.js"></script>
+<script src="/js/repair-request.js"></script>

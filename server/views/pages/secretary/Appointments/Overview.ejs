@@ -1,0 +1,727 @@
+<div class="admin-dashboard container-fluid py-4 appointments-overview">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* Appointments overview — additional overrides */
+    .appointments-overview {
+      --appt-primary: #2563eb;
+      --appt-secondary: #0ea5e9;
+      --appt-muted: #64748b;
+      --appt-border: rgba(15, 23, 42, 0.08);
+    }
+    /* make KPI cards span edge-to-edge like service reports */
+    .appointments-overview.container-fluid {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+    /* (hero layout handled by shared dashboard-styles) */
+    .appointments-overview .filters {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
+      border: 1px solid rgba(37, 99, 235, 0.15);
+      border-radius: 18px;
+      padding: 12px 16px;
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+      justify-content: flex-start;
+    }
+    .appointments-overview .filters .form-control,
+    .appointments-overview .filters .form-select {
+      min-width: 150px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      font-size: 0.85rem;
+      color: var(--appt-muted);
+      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .appointments-overview .filters .form-control:focus,
+    .appointments-overview .filters .form-select:focus {
+      border-color: var(--appt-primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+    .appointments-overview .filters .btn {
+      border-radius: 999px;
+      padding: 6px 18px;
+      border: none;
+      height: auto;
+      background: linear-gradient(120deg, var(--appt-primary), var(--appt-secondary));
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .appointments-overview .filters .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 26px rgba(37, 99, 235, 0.28);
+    }
+
+    .appointments-overview .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    .appointments-overview .kpi-row .kpi-card {
+      height: 140px !important;
+      padding: 18px !important;
+      position: relative;
+      flex: 1 1 0 !important;
+      min-width: 200px !important;
+      max-width: none !important;
+    }
+    .appointments-overview .kpi-card { padding-bottom: 2rem; }
+    .appointments-overview .kpi-micro { 
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 65px !important; 
+      z-index: 1;
+      margin-top: 0 !important;
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+    }
+    .appointments-overview .kpi-micro canvas { 
+      height: 100% !important; 
+      width: 100% !important; 
+    }
+
+    /* remove extra gap above next content */
+    .appointments-overview .kpi-cards + .card,
+    .appointments-overview .kpi-cards + .row,
+    .appointments-overview .kpi-cards + .container {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+
+    /* Main layout */
+    .appointments-overview .main-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 18px;
+    }
+    .appointments-overview .main-grid > div,
+    .appointments-overview .main-grid > aside {
+      min-width: 0;
+    }
+    .appointments-overview .card {
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07), 0 2px 6px rgba(2,6,23,0.03);
+      border: 1px solid rgba(0,0,0,0.05);
+      transition: box-shadow 0.3s ease;
+    }
+    .appointments-overview .card:hover {
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.09), 0 4px 10px rgba(2,6,23,0.05);
+    }
+
+    /* Appointments table */
+    .appointments-table thead th {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border-bottom: 2px solid rgba(2, 6, 23, 0.06);
+      font-weight: 700;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #334155;
+    }
+    .appointments-table tbody tr {
+      transition: background 0.2s ease;
+    }
+    .appointments-table tbody tr:hover {
+      background: rgba(59, 130, 246, 0.04);
+    }
+    .appointments-table tbody tr td {
+      vertical-align: middle;
+    }
+    .appointments-table .status-badge {
+      min-width: 88px;
+      display: inline-flex;
+      justify-content: center;
+    }
+
+    /* Compact controls */
+    .appointments-overview .controls .form-control {
+      min-width: 150px;
+    }
+    .appointments-overview .search-input {
+      min-width: 220px;
+    }
+
+    /* Calendar / mini widgets */
+    .mini-calendar {
+      background: linear-gradient(180deg, #fbfdff, #f5f8ff);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    /* Responsive */
+    @media (max-width: 991px) {
+      .appointments-overview .main-grid {
+        grid-template-columns: 1fr;
+      }
+      .appointments-overview .kpi-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .appointments-overview .search-input {
+        min-width: 140px;
+      }
+    }
+  </style>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-calendar3-range-fill me-2"></i>Appointments Overview
+        </h1>
+        <p class="hero-sub">
+          A consolidated view of upcoming bookings, workload and service KPIs.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="mb-4 kpi-row">
+    <div class="kpi-card kpi-accent-primary kpi-primary" role="region" aria-label="Today's Bookings KPI">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Today's Bookings</div>
+          <div class="kpi-value" id="kpiTodayBookings">—</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-calendar-week"></i></div>
+      </div>
+      <div class="kpi-badge" id="kpiBadgeToday">—</div>
+      <div class="kpi-micro mt-2"><canvas id="kpiSparkToday"></canvas></div>
+    </div>
+    <div class="kpi-card kpi-accent-warning kpi-warning" role="region" aria-label="Pending Requests KPI">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Pending Requests</div>
+          <div class="kpi-value" id="kpiPendingRequests">—</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-hourglass-split"></i></div>
+      </div>
+      <div class="kpi-badge" id="kpiBadgePending">—</div>
+      <div class="kpi-micro mt-2"><canvas id="kpiSparkPending"></canvas></div>
+    </div>
+    <div class="kpi-card kpi-accent-success kpi-success" role="region" aria-label="Confirmed Today KPI">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Confirmed Today</div>
+          <div class="kpi-value" id="kpiConfirmedToday">—</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-check2-circle"></i></div>
+      </div>
+      <div class="kpi-badge" id="kpiBadgeConfirmed">—</div>
+      <div class="kpi-micro mt-2"><canvas id="kpiSparkConfirmed"></canvas></div>
+    </div>
+    <div class="kpi-card kpi-accent-danger kpi-danger" role="region" aria-label="Cancelled KPI">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Cancelled</div>
+          <div class="kpi-value" id="kpiCancelledToday">—</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-x-circle"></i></div>
+      </div>
+      <div class="kpi-badge" id="kpiBadgeCancelled">—</div>
+      <div class="kpi-micro mt-2"><canvas id="kpiSparkCancelled"></canvas></div>
+    </div>
+  </div>
+
+  <!-- filters moved out of hero -->
+  <!-- filters moved out of hero -->
+  <div class="admin-filter-bar">
+    <div class="filter-group">
+      <div class="filter-item" style="flex: 1; min-width: 240px;">
+        <i class="bi bi-search"></i>
+        <input
+          type="text"
+          id="filterSearchOverview"
+          class="form-control"
+          placeholder="Booking ref, customer, service..."
+          aria-label="Search appointments"
+        />
+      </div>
+      <div class="filter-item">
+        <i class="bi bi-calendar3"></i>
+        <input
+          type="date"
+          id="filterStart"
+          class="form-control"
+          aria-label="Start date"
+        />
+      </div>
+      <div class="filter-item">
+        <i class="bi bi-calendar3"></i>
+        <input
+          type="date"
+          id="filterEnd"
+          class="form-control"
+          aria-label="End date"
+        />
+      </div>
+      <div class="filter-item">
+        <i class="bi bi-funnel"></i>
+        <select
+          id="filterStatus"
+          class="form-select"
+          aria-label="Status filter"
+        >
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <i class="bi bi-person-badge"></i>
+        <select
+          id="filterTech"
+          class="form-select"
+          aria-label="Technician filter"
+        >
+          <option value="all">All technicians</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button id="btn-new-appointment" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> New Appointment
+      </button>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div>
+      <div class="card shadow-sm p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="fw-bold">Upcoming Appointments</div>
+          <div class="text-muted small">List — filtered by date / status</div>
+        </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover table-dense appointments-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Booking Ref</th>
+                <th scope="col">Date / Time</th>
+                <th scope="col">Customer</th>
+                <th scope="col" class="d-none">Service</th>
+                <th scope="col" class="d-none">Technician</th>
+                <th scope="col">Status</th>
+                <th scope="col" style="width: 120px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="appointmentsBody">
+              <tr>
+                <td colspan="9" class="text-center text-muted py-4">
+                  Loading appointments…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-3 d-flex justify-content-between align-items-center">
+          <div class="text-muted small" id="appointmentsCount">—</div>
+          <nav aria-label="Appointments pagination">
+            <ul
+              class="pagination pagination-sm mb-0"
+              id="appointmentsPager"
+            ></ul>
+          </nav>
+        </div>
+      </div>
+
+      <div class="card shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold">Daily Booking Trend</div>
+          <div class="text-muted small">Last 7 days</div>
+        </div>
+        <canvas id="apptsTrend" height="120"></canvas>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card shadow-sm p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold">Mini Calendar</div>
+          <div class="text-muted small">Quick view</div>
+        </div>
+        <div class="mini-calendar" id="miniCalendar">Loading calendar…</div>
+      </div>
+
+      <div class="card shadow-sm p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold">Top Technicians</div>
+          <div class="text-muted small">by bookings</div>
+        </div>
+        <div id="topTechList" class="small text-muted">Loading…</div>
+      </div>
+
+      <div class="card shadow-sm p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold">Quick Filters</div>
+          <div class="text-muted small">One-click</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-secondary" data-filter="today">
+            Today
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" data-filter="week">
+            This Week
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" data-filter="month">
+            This Month
+          </button>
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            data-filter="pending"
+          >
+            Pending
+          </button>
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            data-filter="confirmed"
+          >
+            Confirmed
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Small utility for graceful fallback data
+    const fmtDate = (d) => new Date(d).toLocaleDateString();
+
+    async function loadOverview() {
+      try {
+        // 1) KPIs
+        const sRes = await fetch("/api/secretary/analytics/summary");
+        const s = sRes.ok ? await sRes.json() : {};
+        const kpiValues = {
+          today: document.getElementById("kpiTodayBookings"),
+          pending: document.getElementById("kpiPendingRequests"),
+          confirmed: document.getElementById("kpiConfirmedToday"),
+          cancelled: document.getElementById("kpiCancelToday"),
+        };
+        if (kpiValues.today)
+          kpiValues.today.innerText = s.todaysAppointments ?? "—";
+        if (kpiValues.pending)
+          kpiValues.pending.innerText = s.pendingBookingRequests ?? "—";
+        if (kpiValues.confirmed)
+          kpiValues.confirmed.innerText = s.activeJobsInProgress ?? "—";
+        if (kpiValues.cancelled)
+          kpiValues.cancelled.innerText = s.lowStockCount ?? 0;
+
+        // populate badge elements (mirror dashboard behaviour)
+        var badgeData = s.kpiBadges || {
+          today: '+0%',
+          pending: '+0%',
+          confirmed: '+0%',
+          cancelled: '+0%'
+        };
+        function applyBadge(id, text) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.innerHTML = text;
+          el.classList.remove('positive','negative','neutral');
+          if (/^[+]/.test(text)) el.classList.add('positive');
+          else if (/^[-]/.test(text)) el.classList.add('negative');
+          else el.classList.add('neutral');
+        }
+        applyBadge('kpiBadgeToday', badgeData.today);
+        applyBadge('kpiBadgePending', badgeData.pending);
+        applyBadge('kpiBadgeConfirmed', badgeData.confirmed);
+        applyBadge('kpiBadgeCancelled', badgeData.cancelled);
+
+        // draw sparkline waves (demo values) - mirror service-report logic
+        function createSparkline(id, data, color) {
+          var c = document.getElementById(id);
+          if (!c || typeof Chart === 'undefined') return null;
+          var ctx = c.getContext('2d');
+          var height = c.height || c.offsetHeight || 50;
+          var grad = ctx.createLinearGradient(0, 0, 0, height);
+          grad.addColorStop(0, color);
+          grad.addColorStop(1, 'rgba(255,255,255,0)');
+          return new Chart(c, {
+            type: 'line',
+            data: {
+              labels: data.map((_,i)=>i+1),
+              datasets:[{data:data,borderColor:color,backgroundColor:grad,fill:true,tension:0.35}]
+            },
+            options: {responsive:true, maintainAspectRatio:false, animation:{duration:800}, plugins:{legend:{display:false},tooltip:{enabled:false}}, elements:{point:{radius:0}}, scales:{x:{display:false},y:{display:false}} }
+          });
+        }
+        try {
+          createSparkline('kpiSparkToday',[4,6,5,7,6,8,7],'#0d6efd'); // Blue
+          createSparkline('kpiSparkPending',[2,3,4,3,5,4,3],'#f59e0b'); // Warning/Amber
+          createSparkline('kpiSparkConfirmed',[3,5,4,6,5,7,6],'#10b981'); // Emerald
+          createSparkline('kpiSparkCancelled',[1,1,2,1,1,0,1],'#ef4444'); // Red
+        } catch(e){/*ignore*/}
+
+        // 2) Appointments list — try a dedicated endpoint then fallback to todaysItems
+        let appts = [];
+        try {
+          const params = new URLSearchParams();
+          params.set("upcoming", "1");
+          params.set("sort", "newest");
+          const searchVal = (document.getElementById("filterSearchOverview")?.value || "").trim();
+          if (searchVal) params.set("search", searchVal);
+          const startVal = document.getElementById("filterStart")?.value;
+          const endVal = document.getElementById("filterEnd")?.value;
+          const statusVal = document.getElementById("filterStatus")?.value;
+          const techVal = document.getElementById("filterTech")?.value;
+          if (startVal) params.set("start", startVal);
+          if (endVal) params.set("end", endVal);
+          if (statusVal && statusVal !== "all") params.set("status", statusVal);
+          if (techVal && techVal !== "all") params.set("technicianId", techVal);
+          const aRes = await fetch("/api/appointments?" + params.toString());
+          if (aRes.ok) {
+            const d = await aRes.json();
+            appts = d.items || d.appointments || [];
+          }
+        } catch (e) {}
+        if (!appts || !appts.length) appts = s.todaysAppointmentsItems || [];
+
+        const tbody = document.getElementById("appointmentsBody");
+        tbody.innerHTML = "";
+        if (appts && appts.length) {
+          appts.slice(0, 50).forEach((a) => {
+            const tr = document.createElement("tr");
+            const date = a.bookingDate || a.date || a.createdAt || new Date();
+            const bookingRef = a.bookingReference || a.reference || a._id || "—";
+            
+            let custName = a.customerName || (typeof a.customer === "object" && a.customer ? a.customer.name || a.customer.firstName || "Customer" : a.customer) || "Customer";
+            if (typeof custName === "object") custName = "Customer";
+            let custEmail = a.customerEmail || (typeof a.customer === "object" && a.customer ? a.customer.email : a.customerEmail) || "";
+            let svcName = a.serviceName || a.service || a.serviceType || (typeof a.serviceId === "object" && a.serviceId ? a.serviceId.name || a.serviceId.title : a.serviceId) || "Service";
+            if (typeof svcName === "object") svcName = "Service";
+            let techName = a.technicianName || (typeof a.technician === "object" && a.technician ? a.technician.name || a.technician.firstName : a.technician) || "TBD";
+            if (typeof techName === "object") techName = "TBD";
+
+            // Safety time formatter for integer 'startTime' (e.g., 480 -> "08:00 AM")
+            let displayTime = a.startTime || a.time || "";
+            if (typeof displayTime === 'number' || (typeof displayTime === 'string' && !isNaN(displayTime) && displayTime.trim() !== '')) {
+              const mins = parseInt(displayTime, 10);
+              const hrs = Math.floor(mins / 60);
+              const rm = mins % 60;
+              const ampm = hrs >= 12 ? 'PM' : 'AM';
+              const dispHrs = hrs % 12 || 12;
+              displayTime = `${dispHrs}:${rm.toString().padStart(2, '0')} ${ampm}`;
+            }
+
+            tr.innerHTML = `
+              <td class="td-truncate-md" title="${bookingRef}"><div class="fw-semibold text-truncate">${bookingRef}</div></td>
+              <td class="text-nowrap">${new Date(date).toLocaleDateString()}<div class="text-muted text-micro">${displayTime}</div></td>
+              <td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class="text-muted text-truncate text-micro">${custEmail}</div></td>
+              <td class="td-truncate-md d-none" title="${svcName}">${svcName}</td>
+              <td class="td-truncate-md d-none" title="${techName}">${techName}</td>
+              <td><span class="badge bg-${a.status === "confirmed" ? "success" : a.status === "pending" ? "warning" : "secondary"} status-badge">${a.status || "n/a"}</span></td>
+              <td>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-micro btn-outline-secondary" title="View"><i class="bi bi-eye"></i></button>
+                  <button class="btn btn-micro btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></button>
+                </div>
+              </td>`;
+            tbody.appendChild(tr);
+          });
+          document.getElementById("appointmentsCount").innerText =
+            `${appts.length} shown`;
+        } else {
+          tbody.innerHTML =
+            '<tr><td colspan="9" class="text-center text-muted py-4">No appointments found for the selected range.</td></tr>';
+          document.getElementById("appointmentsCount").innerText =
+            "0 appointments";
+        }
+
+        // 3) Build simple trend chart from API if available
+        let labels = [],
+          series = [];
+        try {
+          const tRes = await fetch("/api/secretary/analytics/appointments?days=7");
+          if (tRes.ok) {
+            const td = await tRes.json();
+            if (Array.isArray(td.series)) {
+              series = td.series.slice(-7);
+              labels =
+                td.labels && td.labels.length
+                  ? td.labels.slice(-7)
+                  : series.map((_, i) => i + 1);
+            }
+          }
+        } catch (e) {}
+        if (!series.length) {
+          // fallback: build fake last-7 days using todays count
+          const now = new Date();
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            labels.push(d.toLocaleDateString());
+            series.push(
+              Math.max(
+                0,
+                Math.round(
+                  (s.todaysAppointments || 0) / 4 + (Math.random() * 3 - 1),
+                ),
+              ),
+            );
+          }
+        }
+        renderTrendChart(labels, series);
+
+        // 4) mini calendar (static visual)
+        renderMiniCalendar();
+
+        // 5) top technicians (best-effort from secretary API)
+        try {
+          const tRes = await fetch("/api/secretary/staff", {
+            credentials: "same-origin",
+          });
+          if (tRes.ok) {
+            const staff = (await tRes.json()).staff || [];
+            const el = document.getElementById("topTechList");
+            el.innerHTML = "";
+            staff.slice(0, 6).forEach((s) => {
+              const item = document.createElement("div");
+              item.className =
+                "d-flex justify-content-between align-items-center mb-2";
+              item.innerHTML = `<div><strong>${s.firstName || ""} ${s.lastName || s.email || ""}</strong><div class='small text-muted'>${s.role || ""}</div></div><div class='text-muted small'>0 bookings</div>`;
+              el.appendChild(item);
+            });
+          } else {
+            console.warn("Failed to load top technicians", tRes.status);
+          }
+        } catch (e) {
+          document.getElementById("topTechList").innerText = "—";
+        }
+      } catch (err) {
+        console.error("Overview load failed", err);
+      }
+    }
+
+    function renderTrendChart(labels, series) {
+      try {
+        const ctx = document.getElementById("apptsTrend").getContext("2d");
+        if (window._apptsTrend) window._apptsTrend.destroy();
+        window._apptsTrend = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Bookings",
+                data: series,
+                backgroundColor: function(context) {
+                  const chart = context.chart;
+                  const {ctx, chartArea} = chart;
+                  if (!chartArea) return null;
+                  const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                  gradient.addColorStop(0, '#3b82f6');
+                  gradient.addColorStop(1, '#8b5cf6');
+                  return gradient;
+                },
+                borderRadius: 6,
+                borderSkipped: false
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false } },
+              y: { grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false } }
+            },
+            animation: {
+              duration: 1200,
+              easing: 'easeOutQuart'
+            }
+          },
+        });
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function renderMiniCalendar() {
+      const el = document.getElementById("miniCalendar");
+      const now = new Date();
+      const month = now.toLocaleString(undefined, { month: "long" });
+      const year = now.getFullYear();
+      let html = `<div class="small text-muted mb-2">${month} ${year}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:12px;color:#94a3b8"><div class='text-center'>Su</div><div class='text-center'>Mo</div><div class='text-center'>Tu</div><div class='text-center'>We</div><div class='text-center'>Th</div><div class='text-center'>Fr</div><div class='text-center'>Sa</div></div><div style="margin-top:8px;display:grid;grid-template-columns:repeat(7,1fr);gap:6px">`;
+      const daysInMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+      ).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        html += `<div style="background:#fff;border-radius:6px;padding:8px;text-align:center;box-shadow:inset 0 -1px 0 rgba(2,6,23,0.03);">${d}</div>`;
+      }
+      html += "</div>";
+      el.innerHTML = html;
+    }
+
+    // Wire controls
+    document
+      .getElementById("btn-refresh-overview")
+      ?.addEventListener("click", loadOverview);
+    document
+      .getElementById("btn-new-appointment")
+      .addEventListener(
+        "click",
+        () => (location.href = "/admin/appointments/reschedule"),
+      );
+    document
+      .getElementById("btn-export")
+      ?.addEventListener("click", () =>
+        window.notify.info("Export CSV — not implemented yet"),
+      );
+
+    ["filterSearchOverview", "filterStart", "filterEnd", "filterStatus", "filterTech"].forEach((id) => {
+      const node = document.getElementById(id);
+      if (!node) return;
+      node.addEventListener(node.tagName === "INPUT" ? "input" : "change", () => loadOverview());
+    });
+
+    // Quick filter buttons
+    document.querySelectorAll("[data-filter]").forEach((btn) =>
+      btn.addEventListener("click", function () {
+        const f = this.getAttribute("data-filter");
+        const start = document.getElementById("filterStart");
+        const end = document.getElementById("filterEnd");
+        const now = new Date();
+        if (f === "today") {
+          start.value = end.value = now.toISOString().slice(0, 10);
+        } else if (f === "week") {
+          const s = new Date();
+          s.setDate(s.getDate() - 6);
+          start.value = s.toISOString().slice(0, 10);
+          end.value = now.toISOString().slice(0, 10);
+        } else if (f === "month") {
+          const s = new Date();
+          s.setMonth(s.getMonth() - 1);
+          start.value = s.toISOString().slice(0, 10);
+          end.value = now.toISOString().slice(0, 10);
+        } else if (f === "pending") {
+          document.getElementById("filterStatus").value = "pending";
+        } else if (f === "confirmed") {
+          document.getElementById("filterStatus").value = "confirmed";
+        }
+        loadOverview();
+      }),
+    );
+
+    // initial load
+    loadOverview();
+  </script>
+</div>

@@ -1,0 +1,651 @@
+<div class="admin-dashboard container-fluid px-0 py-4 scheduling-settings">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .scheduling-settings {
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --line: rgba(15, 23, 42, 0.08);
+      --line-strong: rgba(15, 23, 42, 0.14);
+      --text-muted: #64748b;
+      --brand: #0d6efd;
+      --ok: #16a34a;
+    }
+    .scheduling-settings .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+      background: linear-gradient(180deg, #ffffff, #fbfdff);
+      color: inherit;
+    }
+    .scheduling-settings .card strong {
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+    .scheduling-settings .text-muted {
+      color: var(--text-muted) !important;
+    }
+    .scheduling-settings .form-select,
+    .scheduling-settings .form-control {
+      border-radius: 10px;
+      border-color: var(--line-strong);
+      background: #fff;
+    }
+    .scheduling-settings .form-select:focus,
+    .scheduling-settings .form-control:focus {
+      border-color: rgba(13, 110, 253, 0.45);
+      box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.16);
+    }
+    .scheduling-settings .table {
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-bottom: 0;
+    }
+    .scheduling-settings .table thead th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.35px;
+      color: #475569;
+      background: var(--surface-soft);
+      border-bottom: 1px solid var(--line-strong);
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+    .scheduling-settings .table tbody td {
+      vertical-align: middle;
+      border-bottom: 1px solid var(--line);
+    }
+    .scheduling-settings .table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    /* add selector bar styles identical to Technician Schedules */
+    .ts-selector-bar {
+      border-radius: 12px;
+      padding: 0.75rem 1.25rem;
+      margin-bottom: 1rem;
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.07);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    .ts-selector-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .ts-sel-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .ts-sel-select {
+      max-width: 280px;
+      min-width: 200px;
+    }
+    .day-name {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .toggle-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+      margin: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: 0.22s ease;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    }
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: white;
+      transition: 0.22s ease;
+      box-shadow: 0 2px 6px rgba(2, 6, 23, 0.25);
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--ok);
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(18px);
+    }
+    .toggle-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      min-width: 32px;
+    }
+    .toggle-label.on {
+      color: #166534;
+    }
+    .toggle-label.off {
+      color: #64748b;
+    }
+    .time-disabled {
+      background: #f1f5f9 !important;
+      color: #94a3b8;
+    }
+  </style>
+
+  <div class="ts-page">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-calendar2-week-fill"></i></div>
+          <div>
+            <h1>Scheduling Settings</h1>
+            <p>Manage technician weekly working days and exception dates. Weekly rules apply throughout the whole year.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+    <div class="col-md-7">
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-end mb-2 flex-wrap">
+          <div class="me-auto" style="min-width:220px;">
+            <h2 class="h5 mb-1 text-nowrap">Technician Working Hours</h2>
+            <p class="small text-muted mb-0">
+              Set weekly availability (applies year-round)
+            </p>
+          </div>
+          <div class="ts-selector-bar">
+            <div class="ts-selector-inner">
+              <label for="schedTechSelect" class="ts-sel-label">
+                <i class="bi bi-person-gear me-1"></i>Technician
+              </label>
+              <select
+                id="schedTechSelect"
+                class="form-select form-select-sm ts-sel-select"
+              ></select>
+              <div class="small text-muted mt-1">
+                Choose a technician to edit their schedule. Select
+                <strong>Apply to ALL technicians</strong> to overwrite every
+                technician's schedule.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="workingDaysEditor">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th style="width: 140px">Enabled</th>
+                <th style="width: 140px">Start</th>
+                <th style="width: 140px">End</th>
+              </tr>
+            </thead>
+            <tbody id="workingDaysBody"></tbody>
+          </table>
+          <div class="mt-3">
+            <strong class="small">Non-working days</strong>
+            <div class="small text-muted mb-2">
+              Add specific dates when this technician is not available
+              (vacation, leave).
+            </div>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th style="width: 160px">Date</th>
+                  <th>Reason</th>
+                  <th style="width: 80px"></th>
+                </tr>
+              </thead>
+              <tbody id="restDatesBody"></tbody>
+            </table>
+            <div class="d-flex gap-2 justify-content-start">
+              <button id="addRestDate" class="btn btn-sm btn-outline-secondary">
+                Add Non-working Day
+              </button>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 justify-content-end mt-2">
+            <button id="saveScheduleBtn" class="btn btn-sm btn-primary">
+              Save Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-5">
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <strong>Schedule Scope</strong>
+            <div class="small text-muted">
+              Working day rules are recurring and effective all year unless
+              overridden by exceptions.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mt-3">
+        <div><strong>Tips</strong></div>
+        <ul class="small text-muted mt-2">
+          <li>
+            Use the Working Hours editor to change technicians' weekly
+            availability.
+          </li>
+          <li>
+            Unchecked days are treated as non-working every week throughout the
+            whole year.
+          </li>
+          <li>
+            Use Non -working days o nly for specific exceptions like leave or
+            holidays.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+    </div> <!-- /.row g-3 -->
+
+
+  </div> <!-- /.ts-page -->
+
+  <script>
+    (function () {
+      const qs = (s) => document.querySelector(s);
+      const qsa = (s) => Array.from(document.querySelectorAll(s));
+      // Lazy notify — window.notify is loaded by admin.js which comes AFTER this
+      // inline script, so we must look it up at call-time, not at parse-time.
+      function toast(type, msg) {
+        if (window.notify && typeof window.notify[type] === "function") {
+          return window.notify[type](msg);
+        }
+        // inline Bootstrap toast fallback (Bootstrap is also loaded after this
+        // script, but it will always be ready by the time a user clicks)
+        const colorMap = {
+          success: "success",
+          error: "danger",
+          warn: "warning",
+        };
+        const cls = colorMap[type] || "info";
+        let c = document.getElementById("globalToastContainer");
+        if (!c) {
+          c = document.createElement("div");
+          c.id = "globalToastContainer";
+          c.setAttribute(
+            "style",
+            "position:fixed;top:1rem;right:1rem;z-index:10800;display:flex;flex-direction:column;gap:8px",
+          );
+          document.body.appendChild(c);
+        }
+        const el = document.createElement("div");
+        el.className = `toast align-items-center text-bg-${cls} border-0`;
+        el.setAttribute("role", "status");
+        el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+        c.appendChild(el);
+        if (window.bootstrap) {
+          const t = new bootstrap.Toast(el, { autohide: true, delay: 4000 });
+          el.addEventListener("hidden.bs.toast", () => {
+            t.dispose();
+            el.remove();
+          });
+          t.show();
+        } else {
+          el.classList.add("show");
+          setTimeout(() => el.remove(), 4000);
+        }
+      }
+      const weekdays = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+
+      async function loadTechnicians() {
+        const sel = qs("#schedTechSelect");
+        sel.innerHTML =
+          '<option value="">Select a technician</option><option value="ALL">Apply to ALL technicians</option>';
+        try {
+          const r = await fetch("/api/admin/technicians");
+          console.debug("loadTechnicians: status", r.status);
+          if (r.ok) {
+            const j = await r.json();
+            console.debug("loadTechnicians: payload", j);
+            const list = j.technicians || [];
+            if (!list.length) {
+              const o = document.createElement("option");
+              o.disabled = true;
+              o.textContent = "(no technicians)";
+              sel.appendChild(o);
+              return;
+            }
+            list.forEach((t) => {
+              const o = document.createElement("option");
+              o.value = t._id;
+              o.textContent = t.name || t.userEmail || t._id || "";
+              sel.appendChild(o);
+            });
+          } else {
+            console.warn("loadTechnicians failed", await r.text());
+            const o = document.createElement("option");
+            o.disabled = true;
+            o.textContent = "failed to load";
+            sel.appendChild(o);
+          }
+        } catch (e) {
+          console.warn("loadTechnicians error", e);
+          const o = document.createElement("option");
+          o.disabled = true;
+          o.textContent = "error loading";
+          sel.appendChild(o);
+        }
+      }
+
+      function renderWorkingRows(schedule) {
+        const tbody = qs("#workingDaysBody");
+        tbody.innerHTML = "";
+        for (let i = 0; i < 7; i++) {
+          const row = document.createElement("tr");
+          // separate "found" from the defaults so enabled reflects the actual saved state
+          const found =
+            schedule &&
+            (schedule.workingDays || []).find((w) => Number(w.dayOfWeek) === i);
+          const enabled = !!found;
+          const rule = found || { startMinutes: 480, endMinutes: 1020 };
+          row.innerHTML = `<td><span class="day-name">${weekdays[i]}</span></td><td><div class="toggle-wrap"><label class="toggle-switch" aria-label="Enable ${weekdays[i]}"><input type="checkbox" class="day-toggle" data-day="${i}" ${enabled ? "checked" : ""}><span class="toggle-slider"></span></label><span class="toggle-label ${enabled ? "on" : "off"}">${enabled ? "On" : "Off"}</span></div></td><td><input type="time" class="form-control form-control-sm start-time" data-day="${i}" value="${minutesToTime(rule.startMinutes)}"></td><td><input type="time" class="form-control form-control-sm end-time" data-day="${i}" value="${minutesToTime(rule.endMinutes)}"></td>`;
+          tbody.appendChild(row);
+        }
+        bindToggleState();
+        // also render non-working (rest) dates
+        try {
+          renderRestDates(schedule);
+        } catch (e) {
+          /* noop */
+        }
+      }
+
+      function bindToggleState() {
+        qsa("#workingDaysBody tr").forEach((r) => {
+          const toggle = r.querySelector(".day-toggle");
+          const startInput = r.querySelector(".start-time");
+          const endInput = r.querySelector(".end-time");
+          const label = r.querySelector(".toggle-label");
+          if (!toggle || !startInput || !endInput || !label) return;
+
+          const apply = () => {
+            const enabled = !!toggle.checked;
+            startInput.disabled = !enabled;
+            endInput.disabled = !enabled;
+            startInput.classList.toggle("time-disabled", !enabled);
+            endInput.classList.toggle("time-disabled", !enabled);
+            label.textContent = enabled ? "On" : "Off";
+            label.classList.toggle("on", enabled);
+            label.classList.toggle("off", !enabled);
+          };
+
+          apply();
+          toggle.addEventListener("change", apply);
+        });
+      }
+
+      function minutesToTime(m) {
+        const hh = String(Math.floor(m / 60)).padStart(2, "0");
+        const mm = String(m % 60).padStart(2, "0");
+        return `${hh}:${mm}`;
+      }
+      function timeToMinutes(t) {
+        const m = String(t).split(":");
+        return parseInt(m[0] || 0, 10) * 60 + parseInt(m[1] || 0, 10);
+      }
+
+      /* Full calendar styles */
+      const style = document.createElement("style");
+      style.innerHTML = `
+        .full-calendar { background: #fff; border:1px solid #e9eef6; border-radius:6px; padding:12px; box-shadow:0 6px 18px rgba(11,20,40,0.04); }
+        .full-calendar .fc-grid { display:flex; flex-wrap:wrap; gap:8px; }
+        .fc-day { flex: 1 0 calc(14.285% - 8px); min-height:120px; border-radius:6px; padding:10px; box-sizing:border-box; background:#fbfdff; border:1px solid #eef3fb; }
+        .fc-day .date { font-weight:700; margin-bottom:6px; }
+        .fc-day.working { background: linear-gradient(180deg,#f0fff4,#e6f9ea); border:1px solid #d9f0dd; }
+        .fc-day.rest { background: linear-gradient(180deg,#f7f8fa,#f5f6f8); border:1px solid #eef0f3; color:#61666c; }
+        .fc-day.holiday { background: linear-gradient(180deg,#fff6f6,#fff1f1); border:1px solid #f6dcdc; color:#8a1f1f; }
+        @media (max-width:767px){ .fc-day{ flex-basis: calc(50% - 8px); } }
+      `;
+      document.head.appendChild(style);
+
+      function renderRestDates(schedule) {
+        const body = qs("#restDatesBody");
+        if (!body) return;
+        body.innerHTML = "";
+        const list =
+          schedule && Array.isArray(schedule.restDates)
+            ? schedule.restDates
+            : [];
+        list.forEach((r) => {
+          const tr = document.createElement("tr");
+          // use string slice when available to avoid UTC timezone shift
+          const dateVal = r.date
+            ? typeof r.date === "string"
+              ? r.date.slice(0, 10)
+              : new Date(r.date).toISOString().slice(0, 10)
+            : "";
+          tr.innerHTML = `<td><input type="date" class="form-control form-control-sm rest-date" value="${dateVal}"></td><td><input class="form-control form-control-sm rest-reason" value="${r.reason || ""}"></td><td><button class="btn btn-sm btn-outline-danger remove-rest">Remove</button></td>`;
+          body.appendChild(tr);
+        });
+      }
+
+      qs("#addRestDate")?.addEventListener("click", function () {
+        const body = qs("#restDatesBody");
+        if (!body) return;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><input type="date" class="form-control form-control-sm rest-date" value=""></td><td><input class="form-control form-control-sm rest-reason" value=""></td><td><button class="btn btn-sm btn-outline-danger remove-rest">Remove</button></td>`;
+        body.appendChild(tr);
+      });
+
+      // delegate remove button clicks
+      qs("#workingDaysEditor")?.addEventListener("click", function (ev) {
+        const btn =
+          ev.target && ev.target.closest && ev.target.closest(".remove-rest");
+        if (!btn) return;
+        const tr = btn.closest("tr");
+        if (tr && tr.remove) tr.remove();
+      });
+
+      qs("#schedTechSelect").addEventListener("change", async function () {
+        const id = this.value;
+        if (!id || id === "ALL") {
+          // clearing schedule view when no specific tech selected or ALL
+          renderWorkingRows(null);
+          return;
+        }
+        try {
+          const r = await fetch(
+            "/api/admin/technician-schedules/" + encodeURIComponent(id),
+          );
+          if (r.ok) {
+            const j = await r.json();
+            renderWorkingRows(j.schedule || null);
+          } else {
+            renderWorkingRows(null);
+          }
+        } catch (e) {
+          renderWorkingRows(null);
+        }
+      });
+
+      qs("#saveScheduleBtn").addEventListener("click", async function () {
+        const tech = qs("#schedTechSelect").value;
+        if (!tech) return toast("warn", "Select a technician");
+
+        // use helper to derive both working rules, non-working weekdays, and rest dates
+        const { workingDays, nonWorkingWeekdays, restDates } =
+          collectWorkingAndRest();
+
+        // basic validation: at least one working day and proper times
+        if (!workingDays.length) {
+          return toast("warn", "Must enable at least one working day");
+        }
+        for (const wd of workingDays) {
+          if (wd.startMinutes >= wd.endMinutes) {
+            return toast(
+              "warn",
+              "Start time must be before end time for all working days",
+            );
+          }
+        }
+
+        // convert any plain date strings from collectWorkingAndRest into
+        // objects so the server always receives {date,reason?} entries
+        const restObjs = restDates.map((d) =>
+          typeof d === "string" ? { date: d } : d,
+        );
+
+        try {
+          const payload = {
+            technicianId: tech,
+            workingDays,
+            nonWorkingWeekdays,
+            restDates: restObjs,
+          };
+          const res = await fetch("/api/admin/technician-schedules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            toast("success", "Schedule saved");
+            // re-fetch schedule to update UI (rest dates, toggles)
+            qs("#schedTechSelect").dispatchEvent(new Event("change"));
+            try {
+              localStorage.setItem(
+                "techScheduleUpdated",
+                JSON.stringify({ technicianId: tech, ts: Date.now() }),
+              );
+            } catch (e) {}
+          } else {
+            const t = await res.text();
+            toast("error", "Failed: " + t);
+          }
+        } catch (e) {
+          toast("error", "Network error — schedule not saved");
+        }
+      });
+
+      // helper to collect current workingDays + restDates from UI
+      // weekday rules are returned as `workingDays`; disabled weekdays are
+      // recorded explicitly in `nonWorkingWeekdays`. restDates represent
+      // specific dates (vacation/holidays).
+      function collectWorkingAndRest() {
+        const rows = qsa("#workingDaysBody tr");
+        const workingDays = [];
+        const nonWorkingWeekdays = [];
+        const restDates = [];
+        rows.forEach((r) => {
+          const day = Number(
+            r.querySelector(".day-toggle").getAttribute("data-day"),
+          );
+          const enabled = r.querySelector(".day-toggle").checked;
+          if (enabled) {
+            const s = r.querySelector(".start-time").value;
+            const e = r.querySelector(".end-time").value;
+            workingDays.push({
+              dayOfWeek: day,
+              startMinutes: timeToMinutes(s),
+              endMinutes: timeToMinutes(e),
+            });
+          } else {
+            nonWorkingWeekdays.push(day);
+          }
+        });
+        // manual restDates (vacation/holidays) – capture both date and reason
+        qsa("#restDatesBody tr").forEach((r) => {
+          const dateVal = r.querySelector(".rest-date")?.value;
+          const reasonVal = r.querySelector(".rest-reason")?.value;
+          if (dateVal) {
+            const obj = { date: dateVal };
+            if (reasonVal && reasonVal.trim()) obj.reason = reasonVal.trim();
+            restDates.push(obj);
+          }
+        });
+        // dedupe
+        const uniq = Array.from(new Set(restDates));
+        return { workingDays, nonWorkingWeekdays, restDates: uniq };
+      }
+
+      // preview handler — renders a large calendar in #scheduleCalendarFull
+      qs("#previewScheduleBtn")?.addEventListener("click", function () {
+        const tech = qs("#schedTechSelect").value;
+        if (!tech || tech === "ALL") {
+          // no tech chosen – clear preview and warn
+          renderFullCalendar([], []);
+          toast("warn", "Select a technician before previewing");
+          return;
+        }
+        const c = collectWorkingAndRest();
+        renderFullCalendar(c.workingDays, c.restDates);
+      });
+
+      function renderFullCalendar(workingDays, restDates) {
+        const container = qs("#scheduleCalendarFull");
+        if (!container) return;
+        container.innerHTML = "";
+        const grid = document.createElement("div");
+        grid.className = "fc-grid";
+        // iterate full year starting Jan 1 of current year
+        const now = new Date();
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
+        for (
+          let d = new Date(yearStart);
+          d < yearEnd;
+          d.setDate(d.getDate() + 1)
+        ) {
+          const iso = d.toISOString().slice(0, 10);
+          const dow = d.getDay();
+          const isRest =
+            restDates.includes(iso) ||
+            !workingDays.find((w) => w.dayOfWeek === dow);
+          const dayDiv = document.createElement("div");
+          dayDiv.className = "fc-day " + (isRest ? "rest" : "working");
+          const hrs = workingDays.find((w) => w.dayOfWeek === dow);
+          const hoursText = hrs
+            ? `${minutesToTime(hrs.startMinutes)} — ${minutesToTime(hrs.endMinutes)}`
+            : "No hours";
+          dayDiv.innerHTML = `<div class="date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div><div class="dow small text-muted">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}</div><div class="hours mt-2" style="font-weight:600">${isRest ? "Rest / Exception" : hoursText}</div>`;
+          grid.appendChild(dayDiv);
+        }
+        container.appendChild(grid);
+        container.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // init
+      loadTechnicians();
+      renderWorkingRows(null);
+    })();
+  </script>
+</div>

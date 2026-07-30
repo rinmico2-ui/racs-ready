@@ -1,0 +1,118 @@
+/* Navbar icon alignment */
+.navbar-nav .nav-link i {
+  font-size: 1rem;
+  opacity: 0.85;
+}
+
+/* Underline effect for main nav links */
+.navbar-nav .nav-link {
+  position: relative;
+  color: rgba(0,0,0,0.85);
+}
+
+.navbar-nav .nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--accent, #2e5297);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.navbar-nav .nav-link:hover::after,
+.navbar-nav .nav-link.active::after {
+  transform: scaleX(1);
+}
+
+.navbar-nav .nav-link:hover {
+  color: #000000; /* keep navbar interactions black */
+}
+
+.navbar-nav .nav-link.active {
+  color: #000000;
+}
+
+/* Smooth hover */
+.navbar-nav .nav-link:hover i {
+  opacity: 1;
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
+}
+
+/* Brand subtle hover */
+.navbar-brand:hover {
+  opacity: 0.9;
+}
+
+
+/* Utility for dark gradient text used by some icons */
+.text-gradient-dark {
+  background: linear-gradient(135deg, #2f49a1, #2d0482);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (max-width: 991.98px) {
+  /* Make collapsed panel visually distinct and touch-friendly */
+  .navbar .collapse.navbar-collapse {
+    background: rgba(255, 255, 255, 0.98);
+    padding: 0.9rem 0.9rem 1.1rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    margin-top: 0.6rem;
+  }
+
+  /* Center the nav items inside the collapse */
+  .navbar-nav {
+    width: 100%;
+    justify-content: center !important;
+    text-align: center;
+    padding-left: 0;
+    margin-left: 0 !important;
+  }
+
+  /* Make each nav-item easier to tap and read */
+  .navbar-nav .nav-item {
+    width: 100%;
+    margin: 0.35rem 0;
+  }
+
+  .navbar-nav .nav-link {
+    display: inline-block;
+    width: auto;
+    font-size: 1.05rem;
+    padding: 0.65rem 1rem;
+    border-radius: 999px;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+    color: rgba(0,0,0,0.9);
+  }
+
+  .navbar-nav .nav-item + .nav-item {
+    border-top: 1px solid rgba(0,0,0,0.04);
+    padding-top: 0.4rem;
+  }
+
+
+
+  /* Make the primary CTA full-width and prominent */
+  .navbar .btn.btn-primary {
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(13,110,253,0.08);
+  }
+
+  /* Slightly larger toggler for easier touch */
+  .navbar-toggler {
+    width: 44px;
+    height: 44px;
+    padding: 6px;
+    border-radius: 8px;
+  }
+}

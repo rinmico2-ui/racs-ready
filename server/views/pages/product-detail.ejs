@@ -1,0 +1,1023 @@
+<%
+  var p = locals.product || {};
+  var related = locals.related || [];
+  var variants = p.variants || [];
+  var startingPrice = p.startingPrice || 0;
+  var isLoggedIn = !!(locals.user && user._id);
+  var cartData = locals.cartData || { items: [], totalAmount: 0 };
+%>
+<script>window.adminGcashNumber = "<%= locals.adminGcashNumber || '' %>";</script>
+<script>window.CART_DATA = <%- JSON.stringify(cartData) %>;</script>
+
+<style>
+  :root {
+    --pd-primary: #2563eb;
+    --pd-primary-dark: #1d4ed8;
+    --pd-primary-light: #3b82f6;
+    --pd-success: #059669;
+    --pd-warning: #d97706;
+    --pd-danger: #dc2626;
+
+    --pd-bg: #f0f7ff;
+    --pd-surface: rgba(255, 255, 255, 0.92);
+    --pd-surface-solid: #ffffff;
+    --pd-text: #1e293b;
+    --pd-text-secondary: #475569;
+    --pd-text-muted: #94a3b8;
+
+    --pd-border: rgba(37, 99, 235, 0.18);
+    --pd-border-light: rgba(37, 99, 235, 0.08);
+
+    --pd-radius: 14px;
+    --pd-radius-sm: 10px;
+    --pd-shadow-sm: 0 2px 10px rgba(37, 99, 235, 0.08);
+    --pd-shadow-md: 0 6px 20px rgba(37, 99, 235, 0.1);
+    --pd-shadow-lg: 0 14px 40px rgba(37, 99, 235, 0.15);
+    --pd-transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pd-page {
+    background: linear-gradient(180deg, #f0f7ff 0%, #e0e7ff 50%, #f0f7ff 100%);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--pd-text);
+    min-height: 100vh;
+    padding-bottom: 3rem;
+  }
+  .pd-page .container { max-width: 1180px; }
+
+  /* ── Breadcrumb ── */
+  .pd-breadcrumb {
+    font-size: 0.8rem;
+    color: var(--pd-text-muted);
+    padding: 1.1rem 0 0.25rem;
+  }
+  .pd-breadcrumb a {
+    color: var(--pd-text-secondary);
+    text-decoration: none;
+    transition: color var(--pd-transition);
+  }
+  .pd-breadcrumb a:hover { color: var(--pd-primary-light); }
+  .pd-breadcrumb i { font-size: 0.6rem; margin: 0 0.4rem; color: rgba(138,164,207,0.6); }
+  .pd-breadcrumb span { color: var(--pd-text); font-weight: 600; }
+
+  /* ── Product Headline ── */
+  .pd-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0 1.5rem;
+    flex-wrap: wrap;
+  }
+  .pd-head-left { min-width: 0; }
+  .pd-brand-tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--pd-primary-light);
+    margin-bottom: 0.35rem;
+  }
+  .pd-title {
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.15;
+    margin: 0;
+    color: #1e293b;
+  }
+  .pd-subtitle {
+    color: var(--pd-text-secondary);
+    font-size: 0.9rem;
+    margin-top: 0.4rem;
+  }
+  .pd-rating-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.9rem;
+    background: var(--pd-surface);
+    border: 1px solid var(--pd-border);
+    border-radius: 999px;
+    box-shadow: var(--pd-shadow-sm);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--pd-text-secondary);
+    white-space: nowrap;
+  }
+  .pd-rating-stars { color: #f59e0b; letter-spacing: 1px; }
+
+  /* ── Cards ── */
+  .pd-card {
+    background: var(--pd-surface);
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-radius);
+    box-shadow: var(--pd-shadow-md);
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .pd-card-header {
+    padding: 1rem 1.4rem;
+    border-bottom: 1px solid var(--pd-border-light);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--pd-text);
+  }
+  .pd-card-body { padding: 1.4rem; }
+
+  /* ── Gallery ── */
+  .pd-gallery-main {
+    position: relative;
+    background: rgba(240, 247, 255, 0.85);
+    border: 1px solid var(--pd-border-light);
+    border-radius: var(--pd-radius-sm);
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: zoom-in;
+  }
+  .pd-gallery-main img {
+    max-width: 88%;
+    max-height: 88%;
+    object-fit: contain;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .pd-gallery-main:hover img { transform: scale(1.45); }
+  .pd-badge-stock {
+    position: absolute;
+    top: 1rem; left: 1rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .pd-badge-stock.in { background: rgba(5,150,105,0.15); color: #059669; border: 1px solid rgba(5,150,105,0.3); }
+  .pd-badge-stock.low { background: rgba(217,119,6,0.15); color: #b45309; border: 1px solid rgba(217,119,6,0.3); }
+  .pd-badge-stock.out { background: rgba(220,38,38,0.12); color: #dc2626; border: 1px solid rgba(220,38,38,0.25); }
+  .pd-badge-tag {
+    position: absolute;
+    top: 1rem; right: 1rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    background: var(--pd-surface);
+    border: 1px solid var(--pd-border);
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--pd-primary-light);
+    box-shadow: var(--pd-shadow-sm);
+  }
+  .pd-thumbs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+  }
+  .pd-thumb {
+    border: 1.5px solid var(--pd-border);
+    border-radius: var(--pd-radius-sm);
+    background: rgba(240, 247, 255, 0.8);
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    cursor: pointer;
+    transition: all var(--pd-transition);
+  }
+  .pd-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .pd-thumb:hover { border-color: var(--pd-primary-light); }
+  .pd-thumb.active {
+    border-color: var(--pd-primary);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+  }
+
+  /* ── Tabs ── */
+  .pd-tabs-header {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.4rem;
+    border-bottom: 1px solid var(--pd-border);
+  }
+  .pd-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.7rem 0.6rem;
+    border: none;
+    border-radius: var(--pd-radius-sm);
+    background: transparent;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--pd-text-secondary);
+    cursor: pointer;
+    transition: all var(--pd-transition);
+    white-space: nowrap;
+  }
+  .pd-tab-btn:hover { background: rgba(240, 247, 255, 0.8); color: var(--pd-text); }
+  .pd-tab-btn.active {
+    background: var(--pd-surface);
+    color: var(--pd-primary-light);
+    box-shadow: var(--pd-shadow-sm);
+  }
+  .pd-tab-btn i { font-size: 0.9rem; }
+  .pd-tab-panel { display: none; }
+  .pd-tab-panel.active { display: block; animation: pdFade 0.3s ease; }
+  @keyframes pdFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .pd-prose { font-size: 0.9rem; color: var(--pd-text-secondary); line-height: 1.7; }
+
+  .pd-feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--pd-border-light);
+    font-size: 0.88rem;
+    color: var(--pd-text-secondary);
+  }
+  .pd-feature-item:last-child { border-bottom: none; }
+  .pd-feature-item i {
+    color: var(--pd-success);
+    background: rgba(34,197,94,0.15);
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .pd-spec-row {
+    display: flex;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--pd-border-light);
+    font-size: 0.85rem;
+  }
+  .pd-spec-row:last-child { border-bottom: none; }
+  .pd-spec-label {
+    width: 150px;
+    flex-shrink: 0;
+    color: var(--pd-text-muted);
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .pd-spec-value { font-weight: 600; color: var(--pd-text); }
+
+  .pd-rating-summary {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.4rem;
+    background: rgba(240, 247, 255, 0.8);
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-radius-sm);
+    margin-bottom: 1.2rem;
+  }
+  .pd-rating-score { text-align: center; }
+  .pd-rating-score .num { font-size: 2.6rem; font-weight: 800; line-height: 1; color: #1e293b; }
+  .pd-rating-score .out { font-size: 0.78rem; color: var(--pd-text-secondary); margin-top: 0.25rem; }
+  .pd-rating-bars { flex: 1; }
+  .pd-rating-bars i { color: #f59e0b; font-size: 1.3rem; }
+  .pd-rating-count { font-size: 0.82rem; color: var(--pd-text-muted); margin-top: 0.2rem; }
+  .pd-empty-review {
+    font-size: 0.85rem;
+    color: var(--pd-text-muted);
+    text-align: center;
+    background: rgba(240, 247, 255, 0.8);
+    border: 1px dashed var(--pd-border);
+    border-radius: var(--pd-radius-sm);
+    padding: 1.2rem;
+  }
+
+  /* ── Purchase panel ── */
+  .pd-sticky { position: sticky; top: 24px; }
+
+  .pd-stock-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.1rem;
+  }
+  .pd-inverter-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    background: rgba(59,130,246,0.18);
+    color: var(--pd-primary-light);
+    font-size: 0.68rem;
+    font-weight: 800;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .pd-field-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--pd-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+  .pd-var-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    margin-bottom: 1.3rem;
+  }
+  .pd-var-card {
+    cursor: pointer;
+    padding: 0.85rem 0.9rem;
+    border-radius: var(--pd-radius-sm);
+    border: 1.5px solid var(--pd-border);
+    transition: all var(--pd-transition);
+    background: rgba(240, 247, 255, 0.8);
+    position: relative;
+    text-align: left;
+  }
+  .pd-var-card:hover { border-color: var(--pd-primary-light); box-shadow: var(--pd-shadow-sm); }
+  .pd-var-card.selected {
+    border-color: var(--pd-primary);
+    background: rgba(37, 99, 235, 0.18);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+  }
+  .pd-var-check {
+    position: absolute; top: 7px; right: 7px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--pd-primary);
+    color: #1e293b;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+  }
+  .pd-var-card.selected .pd-var-check { display: flex; }
+  .pd-var-cap { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; color: #1e293b; }
+  .pd-var-unit { font-size: 0.65rem; font-weight: 600; color: var(--pd-text-muted); text-transform: uppercase; }
+  .pd-var-btu { font-size: 0.72rem; color: var(--pd-text-secondary); margin-top: 2px; }
+  .pd-var-price { font-size: 0.95rem; font-weight: 700; margin-top: 0.3rem; color: var(--pd-primary-light); }
+  .pd-var-stock { font-size: 0.65rem; font-weight: 600; margin-top: 2px; }
+  .pd-var-stock.in { color: #86efac; }
+  .pd-var-stock.out { color: #fca5a5; }
+
+  .pd-price-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.2rem;
+    background: rgba(240, 247, 255, 0.85);
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-radius-sm);
+    margin-bottom: 1rem;
+  }
+  .pd-price-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--pd-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .pd-price-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    transition: color 0.3s, transform 0.3s;
+    color: #1e293b;
+  }
+  .pd-price-note { font-size: 0.7rem; color: var(--pd-text-muted); margin-top: 2px; }
+
+  .pd-qty-group {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-radius-sm);
+    overflow: hidden;
+    background: rgba(240, 247, 255, 0.8);
+  }
+  .pd-qty-btn {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(240, 247, 255, 0.8);
+    border: none;
+    color: var(--pd-text-secondary);
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .pd-qty-btn:first-child { border-right: 1px solid var(--pd-border); }
+  .pd-qty-btn:last-child { border-left: 1px solid var(--pd-border); }
+  .pd-qty-btn:hover:not(:disabled) { background: rgba(37,99,235,0.25); color: #1e293b; }
+  .pd-qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pd-qty-display {
+    width: 42px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 38px;
+    color: var(--pd-text);
+  }
+
+  .pd-installment {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    background: rgba(3,105,161,0.18);
+    border: 1px solid rgba(56,189,248,0.3);
+    border-radius: var(--pd-radius-sm);
+    font-size: 0.76rem;
+    color: #1d4ed8;
+    margin-bottom: 1rem;
+  }
+  .pd-installment i { color: #38bdf8; }
+
+  .pd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.85rem 1.2rem;
+    border-radius: var(--pd-radius-sm);
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    cursor: pointer;
+    transition: all var(--pd-transition);
+  }
+  .pd-btn-primary {
+    background: linear-gradient(135deg, var(--pd-primary), var(--pd-primary-dark));
+    color: #ffffff;
+    box-shadow: 0 6px 18px rgba(37,99,235,0.35);
+  }
+  .pd-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--pd-primary-light), var(--pd-primary));
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(37,99,235,0.45);
+  }
+  .pd-btn-success {
+    background: linear-gradient(135deg, #22c55e, #15803d);
+    color: #ffffff;
+    box-shadow: 0 6px 18px rgba(34,197,94,0.3);
+  }
+  .pd-btn-success:hover:not(:disabled) {
+    background: linear-gradient(135deg, #34d399, #16a34a);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(34,197,94,0.4);
+  }
+  .pd-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .pd-actions { display: grid; gap: 0.6rem; margin-bottom: 1.2rem; }
+
+  .pd-trust-row {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--pd-border-light);
+  }
+  .pd-trust-item { text-align: center; }
+  .pd-trust-icon {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 0.35rem;
+    border-radius: 50%;
+    background: rgba(37,99,235,0.12);
+    color: var(--pd-primary);
+    font-size: 1rem;
+  }
+  .pd-trust-label {
+    font-size: 0.62rem;
+    color: var(--pd-text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .pd-payment-icons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-top: 1rem;
+  }
+  .pd-payment-icons .pay-icon {
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: 1px solid var(--pd-border);
+  }
+  .pay-gcash { background: #0057e0; color: #ffffff; border-color: #0057e0 !important; }
+  .pay-cod { background: rgba(34,197,94,0.18); color: #86efac; border-color: rgba(34,197,94,0.4) !important; }
+  .pay-card { background: rgba(109,40,217,0.2); color: #c4b5fd; border-color: rgba(109,40,217,0.4) !important; }
+
+  /* ── Related products ── */
+  .pd-related { margin-top: 3.5rem; }
+  .pd-related-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-bottom: 1.3rem;
+    color: #1e293b;
+  }
+  .pd-related-title i { color: var(--pd-primary-light); margin-right: 0.5rem; }
+  .pd-related-card {
+    background: var(--pd-surface);
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-radius);
+    overflow: hidden;
+    transition: all var(--pd-transition);
+    height: 100%;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .pd-related-card:hover {
+    border-color: var(--pd-primary-light);
+    box-shadow: var(--pd-shadow-lg);
+    transform: translateY(-3px);
+  }
+  .pd-related-img {
+    height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(240, 247, 255, 0.8);
+    border-bottom: 1px solid var(--pd-border-light);
+  }
+  .pd-related-img img { max-height: 130px; object-fit: contain; transition: transform var(--pd-transition); }
+  .pd-related-card:hover .pd-related-img img { transform: scale(1.05); }
+  .pd-related-body { padding: 0.9rem 1rem 1.1rem; }
+  .pd-related-brand {
+    font-size: 0.62rem;
+    color: var(--pd-text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pd-related-name { font-size: 0.85rem; font-weight: 700; margin: 2px 0; color: #1e293b; }
+  .pd-related-type { font-size: 0.72rem; color: var(--pd-text-secondary); }
+  .pd-related-price { font-size: 0.95rem; font-weight: 700; color: var(--pd-primary-light); margin-top: 0.4rem; }
+
+  /* ── Mobile sticky bar ── */
+  .pd-mobile-bar {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 1030;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--pd-border);
+    padding: 0.7rem 1rem;
+    box-shadow: 0 -4px 20px rgba(37, 99, 235, 0.08);
+  }
+  .pd-mobile-bar .pd-bar-price { font-size: 1.2rem; font-weight: 800; }
+  .pd-mobile-bar .pd-bar-label {
+    font-size: 0.6rem; font-weight: 600;
+    color: var(--pd-text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .pd-mobile-bar .pd-bar-actions { display: flex; gap: 0.5rem; }
+  .pd-mobile-bar .pd-bar-actions button {
+    flex: 1; padding: 0.65rem 1rem;
+    font-size: 0.8rem; font-weight: 700;
+    border: none; border-radius: var(--pd-radius-sm);
+    cursor: pointer; color: #1e293b;
+  }
+  .pd-bar-cart { background: var(--pd-primary); }
+  .pd-bar-buy { background: var(--pd-success); }
+
+  @media (max-width: 992px) {
+    .pd-sticky { position: static; }
+  }
+  @media (max-width: 768px) {
+    .pd-title { font-size: 1.5rem; }
+    .pd-var-grid { grid-template-columns: 1fr; }
+    .pd-spec-row { flex-direction: column; gap: 2px; }
+    .pd-spec-label { width: auto; }
+    .pd-rating-summary { flex-direction: column; gap: 1rem; text-align: center; }
+    .pd-tabs-header { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .pd-tab-btn { font-size: 0.72rem; padding: 0.7rem 0.6rem; flex: 0 0 auto; }
+    .pd-mobile-bar { display: flex; align-items: center; justify-content: space-between; }
+    .pd-page { padding-bottom: 5rem; }
+  }
+</style>
+
+<div class="pd-page">
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="pd-breadcrumb">
+      <a href="/">Home</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="/products">Products</a>
+      <i class="bi bi-chevron-right"></i>
+      <span><%= p.modelLine %></span>
+    </nav>
+
+    <!-- Headline -->
+    <div class="pd-head">
+      <div class="pd-head-left">
+        <span class="pd-brand-tag"><%= p.brand %></span>
+        <h1 class="pd-title"><%= p.modelLine %></h1>
+        <div class="pd-subtitle">
+          <%= p.category %><% if (p.type) { %> &middot; <%= p.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) %><% } %>
+        </div>
+      </div>
+      <div class="pd-rating-pill" title="Customer rating">
+        <span class="pd-rating-stars"><%= '★'.repeat(Math.round(p.rating || 0)) %><%= '☆'.repeat(5 - Math.round(p.rating || 0)) %></span>
+        <span><%= (p.rating || 0).toFixed(1) %> &middot; <%= p.ratingCount %> reviews</span>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Left Column -->
+      <div class="col-lg-7">
+        <!-- Gallery -->
+        <div class="pd-card mb-4">
+          <div class="pd-card-body">
+            <div class="pd-gallery-main">
+              <% if (p.totalStock > 5) { %>
+              <span class="pd-badge-stock in"><i class="bi bi-check-circle-fill"></i> In Stock</span>
+              <% } else if (p.totalStock > 0) { %>
+              <span class="pd-badge-stock low"><i class="bi bi-exclamation-circle-fill"></i> Low Stock</span>
+              <% } else { %>
+              <span class="pd-badge-stock out"><i class="bi bi-x-circle-fill"></i> Out of Stock</span>
+              <% } %>
+              <% if (p.inverter) { %><span class="pd-badge-tag"><i class="bi bi-lightning-fill"></i>Inverter</span><% } %>
+              <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>" id="pdMainImage">
+            </div>
+            <div class="pd-thumbs" id="pdThumbs">
+              <div class="pd-thumb active" onclick="pdSetImage(this, '<%= p.imageUrl %>')">
+                <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="pd-card mb-4">
+          <div class="pd-tabs-header">
+            <button class="pd-tab-btn active" data-tab="desc" onclick="switchPdTab('desc')">
+              <i class="bi bi-info-circle"></i> Description
+            </button>
+            <button class="pd-tab-btn" data-tab="features" onclick="switchPdTab('features')">
+              <i class="bi bi-check2-circle"></i> Features
+            </button>
+            <button class="pd-tab-btn" data-tab="specs" onclick="switchPdTab('specs')">
+              <i class="bi bi-gear"></i> Specs
+            </button>
+            <button class="pd-tab-btn" data-tab="rating" onclick="switchPdTab('rating')">
+              <i class="bi bi-star"></i> Rating
+            </button>
+          </div>
+          <div class="pd-card-body">
+            <!-- Description -->
+            <div class="pd-tab-panel active" id="pdTabDesc">
+              <% if (p.description) { %>
+              <div class="pd-prose"><%= p.description %></div>
+              <% } else { %>
+              <div class="pd-empty-review">No description available for this product yet.</div>
+              <% } %>
+            </div>
+            <!-- Features -->
+            <div class="pd-tab-panel" id="pdTabFeatures">
+              <% if (p.features && p.features.length) { %>
+                <% p.features.forEach(function(f) { %>
+                <div class="pd-feature-item"><i class="bi bi-check-lg"></i><span><%= f %></span></div>
+                <% }); %>
+              <% } else { %>
+                <div class="pd-empty-review">No features listed.</div>
+              <% } %>
+            </div>
+            <!-- Specs -->
+            <div class="pd-tab-panel" id="pdTabSpecs">
+              <div class="pd-spec-row">
+                <span class="pd-spec-label">Type</span>
+                <span class="pd-spec-value"><%= p.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) %></span>
+              </div>
+              <div class="pd-spec-row">
+                <span class="pd-spec-label">Technology</span>
+                <span class="pd-spec-value"><%= p.inverter ? 'Inverter' : 'Non-Inverter' %></span>
+              </div>
+              <% if (p.voltage) { %>
+              <div class="pd-spec-row">
+                <span class="pd-spec-label">Voltage</span>
+                <span class="pd-spec-value"><%= p.voltage %></span>
+              </div>
+              <% } %>
+              <% if (p.warranty) { %>
+              <div class="pd-spec-row">
+                <span class="pd-spec-label">Warranty</span>
+                <span class="pd-spec-value"><%= p.warranty %></span>
+              </div>
+              <% } %>
+              <% if (p.installationRequirements) { %>
+              <div class="pd-spec-row">
+                <span class="pd-spec-label">Installation</span>
+                <span class="pd-spec-value"><%= p.installationRequirements %></span>
+              </div>
+              <% } %>
+            </div>
+            <!-- Rating -->
+            <div class="pd-tab-panel" id="pdTabRating">
+              <div class="pd-rating-summary">
+                <div class="pd-rating-score">
+                  <div class="num"><%= p.rating ? p.rating.toFixed(1) : '0.0' %></div>
+                  <div class="out">out of 5</div>
+                </div>
+                <div class="pd-rating-bars">
+                  <div><% for(let i=1; i<=5; i++) { %><i class="bi <%= i <= Math.round(p.rating || 0) ? 'bi-star-fill' : 'bi-star' %>"></i><% } %></div>
+                  <div class="pd-rating-count"><%= p.ratingCount || 0 %> customer rating<%= (p.ratingCount || 0) !== 1 ? 's' : '' %></div>
+                </div>
+              </div>
+              <p class="pd-empty-review"><i class="bi bi-chat-square-text me-2"></i>No individual text reviews are available for this product yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column - Purchase -->
+      <div class="col-lg-5">
+        <div class="pd-sticky">
+          <div class="pd-card">
+            <div class="pd-card-header">Select Configuration</div>
+            <div class="pd-card-body">
+              <div class="pd-stock-line">
+                <div>
+                  <% if (p.totalStock > 5) { %>
+                  <span class="pd-badge-stock in" style="position:static;"><i class="bi bi-check-circle-fill"></i> In Stock</span>
+                  <% } else if (p.totalStock > 0) { %>
+                  <span class="pd-badge-stock low" style="position:static;"><i class="bi bi-exclamation-circle-fill"></i> Low Stock (<%= p.totalStock %>)</span>
+                  <% } else { %>
+                  <span class="pd-badge-stock out" style="position:static;"><i class="bi bi-x-circle-fill"></i> Out of Stock</span>
+                  <% } %>
+                </div>
+                <% if (p.inverter) { %><span class="pd-inverter-badge"><i class="bi bi-lightning-fill"></i>Inverter</span><% } %>
+              </div>
+
+              <label class="pd-field-label">Select Horsepower</label>
+              <div class="pd-var-grid" id="pdVariantContainer">
+                <% variants.forEach(function(v, idx) { %>
+                <div class="pd-var-card <%= idx === 0 ? 'selected' : '' %>" data-idx="<%= idx %>" data-price="<%= v.sellingPrice %>" data-qty="<%= v.quantity %>" data-name="<%= v.capacity %> <%= v.capacityUnit %>" onclick="selectPdVariant(<%= idx %>)">
+                  <div class="pd-var-check"><i class="bi bi-check"></i></div>
+                  <div><span class="pd-var-cap"><%= v.capacity %></span><span class="pd-var-unit"> <%= v.capacityUnit %></span></div>
+                  <div class="pd-var-btu"><%= v.btu ? v.btu.toLocaleString() + ' BTU' : '' %></div>
+                  <div class="pd-var-price">₱<%= v.sellingPrice.toLocaleString() %></div>
+                  <div class="pd-var-stock <%= v.quantity > 0 ? 'in' : 'out' %>"><%= v.quantity > 0 ? v.quantity + ' in stock' : 'Out of stock' %></div>
+                </div>
+                <% }); %>
+              </div>
+
+              <div class="pd-price-box">
+                <div>
+                  <div class="pd-price-label">Total Price</div>
+                  <div class="pd-price-value" id="pdTotalPrice">₱<%= startingPrice.toLocaleString() %></div>
+                  <div class="pd-price-note">VAT inclusive</div>
+                </div>
+                <div class="text-end">
+                  <div class="pd-price-label mb-1">Quantity</div>
+                  <div class="pd-qty-group">
+                    <button class="pd-qty-btn" id="pdQtyMinus" onclick="updatePdQty(-1)">&minus;</button>
+                    <span class="pd-qty-display" id="pdQtyDisplay">1</span>
+                    <button class="pd-qty-btn" id="pdQtyPlus" onclick="updatePdQty(1)">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pd-installment">
+                <i class="bi bi-credit-card"></i>
+                <span>Or <strong>3 payments of ₱<span id="pdInstallmentAmt">0</span></strong> with GCredit / Card Installment</span>
+              </div>
+
+              <div class="pd-actions">
+                <button class="pd-btn pd-btn-primary" id="pdAddToCartBtn" onclick="pdAddToCart()" <%= !p.inStock ? 'disabled' : '' %>>
+                  <i class="bi bi-cart-plus"></i>
+                  <%= p.inStock ? 'Add to Cart' : 'Out of Stock' %>
+                </button>
+                <button class="pd-btn pd-btn-success" onclick="pdBuyNow()" <%= !p.inStock ? 'disabled' : '' %>>
+                  <i class="bi bi-bag"></i>
+                  Buy Now
+                </button>
+              </div>
+
+              <div class="pd-trust-row">
+                <div class="pd-trust-item">
+                  <div class="pd-trust-icon"><i class="bi bi-truck"></i></div>
+                  <div class="pd-trust-label">Free Delivery</div>
+                </div>
+                <div class="pd-trust-item">
+                  <div class="pd-trust-icon"><i class="bi bi-shield-check"></i></div>
+                  <div class="pd-trust-label">Warranty</div>
+                </div>
+                <div class="pd-trust-item">
+                  <div class="pd-trust-icon"><i class="bi bi-headset"></i></div>
+                  <div class="pd-trust-label">24/7 Support</div>
+                </div>
+              </div>
+
+              <div class="pd-payment-icons">
+                <span class="pay-icon pay-gcash">GCash</span>
+                <span class="pay-icon pay-cod">Cash on Delivery</span>
+                <span class="pay-icon pay-card">Credit/Debit</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Related Products -->
+    <% if (related.length) { %>
+    <div class="pd-related">
+      <h4 class="pd-related-title"><i class="bi bi-grid"></i>Related Products</h4>
+      <div class="row g-3">
+        <% related.forEach(function(r) { %>
+        <div class="col-6 col-md-3">
+          <a href="/products/<%= r._id %>" style="text-decoration:none; color:inherit;">
+            <div class="pd-related-card">
+              <div class="pd-related-img">
+                <img src="<%= r.imageUrl %>" alt="<%= r.modelLine %>" loading="lazy">
+              </div>
+              <div class="pd-related-body">
+                <div class="pd-related-brand"><%= r.brand %></div>
+                <div class="pd-related-name"><%= r.modelLine %></div>
+                <div class="pd-related-type"><%= r.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) %></div>
+                <div class="pd-related-price">₱<%= r.startingPrice.toLocaleString() %></div>
+              </div>
+            </div>
+          </a>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- Mobile Sticky Bottom Bar -->
+<div class="pd-mobile-bar" id="pdMobileBar">
+  <div>
+    <div class="pd-bar-label">Total Price</div>
+    <div class="pd-bar-price" id="pdMobilePrice">₱<%= startingPrice.toLocaleString() %></div>
+  </div>
+  <div class="pd-bar-actions">
+    <button class="pd-bar-cart" onclick="pdAddToCart()"><i class="bi bi-cart-plus"></i> Cart</button>
+    <button class="pd-bar-buy" onclick="pdBuyNow()"><i class="bi bi-bag"></i> Buy Now</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<%- include('../partials/cart-wizard', { cart: cartData }) %>
+
+<script>
+  (function() {
+    var productId = "<%= p._id %>";
+    var variants = <%- JSON.stringify(variants) %>;
+    var isLoggedIn = <%= !!locals.user %>;
+    var selectedIdx = 0;
+    var selectedQty = 1;
+    var selectedVariant = variants[0] || null;
+
+    window.pdSetImage = function(el, src) {
+      var img = document.getElementById('pdMainImage');
+      if (img) img.src = src;
+      document.querySelectorAll('.pd-thumb').forEach(function(t) { t.classList.remove('active'); });
+      if (el) el.classList.add('active');
+    };
+
+    window.selectPdVariant = function(idx) {
+      selectedIdx = idx;
+      selectedVariant = variants[idx];
+      selectedQty = 1;
+      document.querySelectorAll('.pd-var-card').forEach(function(el, i) {
+        el.classList.toggle('selected', i === idx);
+      });
+      document.getElementById('pdQtyDisplay').textContent = '1';
+      updateQtyButtons();
+      animatePriceUpdate();
+    };
+
+    function updateQtyButtons() {
+      var max = selectedVariant ? (selectedVariant.quantity || 1) : 1;
+      document.getElementById('pdQtyMinus').disabled = selectedQty <= 1;
+      document.getElementById('pdQtyPlus').disabled = selectedQty >= max;
+    }
+
+    window.updatePdQty = function(change) {
+      if (!selectedVariant) return;
+      var max = selectedVariant.quantity || 1;
+      var newQ = selectedQty + change;
+      if (newQ < 1) newQ = 1;
+      if (newQ > max) newQ = max;
+      selectedQty = newQ;
+      document.getElementById('pdQtyDisplay').textContent = String(newQ);
+      updateQtyButtons();
+      animatePriceUpdate();
+    };
+
+    function animatePriceUpdate() {
+      if (!selectedVariant) return;
+      var total = selectedVariant.sellingPrice * selectedQty;
+      var formatted = '₱' + total.toLocaleString();
+      var el = document.getElementById('pdTotalPrice');
+      var mobEl = document.getElementById('pdMobilePrice');
+      el.textContent = formatted;
+      if (mobEl) mobEl.textContent = formatted;
+      var installmentEl = document.getElementById('pdInstallmentAmt');
+      if (installmentEl) installmentEl.textContent = Math.round(total / 3).toLocaleString();
+      el.style.color = '#93c5fd';
+      el.style.transform = 'scale(1.05)';
+      setTimeout(function() { el.style.color = ''; el.style.transform = 'scale(1)'; }, 200);
+    }
+
+    window.pdAddToCart = async function() {
+      if (!isLoggedIn) { window.location.href = '/login'; return; }
+      if (!selectedVariant) { Swal.fire({ title:'Attention', text:'Please select a configuration.', icon:'warning', confirmButtonText:'OK' }); return; }
+      try {
+        var res = await fetch('/api/aircon-cart/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inventoryId: selectedVariant._id, quantity: selectedQty })
+        });
+        if (!res.ok) throw new Error('Failed');
+        Swal.fire({
+          title: 'Added to Cart!',
+          text: selectedQty + ' x ' + selectedVariant.capacity + ' ' + selectedVariant.capacityUnit + ' added to your cart.',
+          icon: 'success',
+          confirmButtonText: 'OK'
+        });
+      } catch(e) {
+        Swal.fire({ title:'Error', text:'Failed to add to cart. Please try again.', icon:'error', confirmButtonText:'OK' });
+      }
+    };
+
+    window.pdBuyNow = async function() {
+      if (!isLoggedIn) { window.location.href = '/login'; return; }
+      if (!selectedVariant) {
+        Swal.fire({ title:'Attention', text:'Please select a configuration.', icon:'warning', confirmButtonText:'OK' });
+        return;
+      }
+      try {
+        var res = await fetch('/api/aircon-cart/buy-now', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inventoryId: selectedVariant._id, quantity: selectedQty })
+        });
+        if (!res.ok) throw new Error('Failed');
+        var cartRes = await fetch('/api/aircon-cart');
+        var cartData = await cartRes.json();
+        if (typeof openCheckoutWizard === 'function') openCheckoutWizard(cartData.cart);
+      } catch(e) {
+        Swal.fire({ title:'Error', text:'Failed to process order. Please try again.', icon:'error', confirmButtonText:'OK' });
+      }
+    };
+
+    window.switchPdTab = function(tab) {
+      document.querySelectorAll('.pd-tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tab === tab);
+      });
+      document.querySelectorAll('.pd-tab-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === 'pdTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+      });
+    };
+
+    // ── Init ──
+    if (selectedVariant) {
+      var total = selectedVariant.sellingPrice * selectedQty;
+      var instEl = document.getElementById('pdInstallmentAmt');
+      if (instEl) instEl.textContent = Math.round(total / 3).toLocaleString();
+      updateQtyButtons();
+    }
+
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('checkout') === 'now') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        if (typeof openCheckoutWizard === 'function') openCheckoutWizard();
+      }
+    })();
+  })();
+</script>

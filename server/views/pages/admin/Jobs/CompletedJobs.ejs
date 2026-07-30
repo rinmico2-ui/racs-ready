@@ -1,0 +1,193 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-check-circle-fill"></i></div>
+        <div>
+          <h1>Completed Jobs</h1>
+          <p>History of all successfully finished service requests</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Search by job ID, customer..."
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Date Range</label
+          >
+          <input type="date" class="form-control" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Technician</label
+          >
+          <select class="form-select">
+            <option value="all">All Technicians</option>
+            <option value="tech1">Mike Ross</option>
+            <option value="tech2">Harvey Specter</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light w-100 border">
+            <i class="bi bi-funnel me-2"></i>Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completed Jobs Table -->
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Historical Records</h6>
+      <span class="badge bg-success-subtle text-success rounded-pill px-3"
+        >Total: 450</span
+      >
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Job ID</th>
+            <th>Service</th>
+            <th>Customer</th>
+            <th>Technician</th>
+            <th>Completed On</th>
+            <th>Rating</th>
+            <th class="text-end pe-4">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (Array.isArray(jobs) && jobs.length) { %>
+            <% jobs.forEach(function(job) { %>
+              <tr>
+                <td class="ps-4"><span class="fw-bold text-secondary"><%= job._id %></span></td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="icon-square bg-success-subtle text-success rounded me-2 d-flex align-items-center justify-content-center" style="width:32px;height:32px">
+                      <i class="bi bi-check-lg"></i>
+                    </div>
+                    <div>
+                      <div class="fw-bold"><%= job.serviceName || (job.service && job.service.name) || 'Service' %></div>
+                      <div class="text-muted text-micro"><%= job.serviceDescription || '' %></div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="avatar-sm rounded-circle bg-info-subtle text-info me-2 d-flex align-items-center justify-content-center fw-bold" style="width:32px;height:32px">
+                      <%= (job.customer && job.customer.name ? job.customer.name.split(' ').map(n=>n[0]).join('') : '') %>
+                    </div>
+                    <div>
+                      <div class="fw-semibold"><%= job.customer && job.customer.name ? job.customer.name : 'Customer' %></div>
+                      <div class="text-muted text-micro"><%= job.customer && job.customer.address ? job.customer.address : '' %></div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <% if (job.technician && job.technician._id) { %>
+                      <img src="/images/technicianWork/tech-<%= job.technician._id %>.jpg" onerror="this.src='https://ui-avatars.com/api/?name='+encodeURIComponent('<%= job.technician.name %>')+'&background=777&color=fff'" class="rounded-circle me-2" width="32" height="32" alt="Tech" />
+                    <% } %>
+                    <span><%= job.technician && job.technician.name ? job.technician.name : job.technicianName || 'TBD' %></span>
+                  </div>
+                </td>
+                <td>
+                  <div class="text-dark"><%= job.bookingDate ? new Date(job.bookingDate).toLocaleDateString('en-PH') : '-' %></div>
+                  <div class="text-muted text-micro"><%= job.endTime ? job.endTime : '' %></div>
+                </td>
+                <td>
+                  <% if (job.customerRating) { %>
+                    <div class="text-warning">
+                      <% for (let i=1;i<=5;i++) { %>
+                        <% if (i <= Math.floor(job.customerRating)) { %>
+                          <i class="bi bi-star-fill"></i>
+                        <% } else if (i - job.customerRating < 1) { %>
+                          <i class="bi bi-star-half"></i>
+                        <% } else { %>
+                          <i class="bi bi-star"></i>
+                        <% } %>
+                      <% } %>
+                    </div>
+                    <% if (job.customerRatingComment) { %>
+                      <div class="text-muted text-micro"><%= job.customerRatingComment %></div>
+                    <% } %>
+                  <% } else { %>
+                    <span class="text-muted text-micro">�</span>
+                    <br/>
+                    <button class="btn btn-micro btn-outline-success rate-job" data-id="<%= job._id %>">Rate</button>
+                  <% } %>
+                </td>
+                <td class="text-end pe-4">
+                  <button class="btn btn-micro btn-light border">
+                    <i class="bi bi-eye text-primary"></i>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr><td colspan="7" class="text-center py-4 text-muted">No completed jobs found.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm justify-content-end mb-0">
+          <li class="page-item disabled">
+            <a class="page-link" href="#">Previous</a>
+          </li>
+          <li class="page-item active"><a class="page-link" href="#">1</a></li>
+          <li class="page-item"><a class="page-link" href="#">2</a></li>
+          <li class="page-item"><a class="page-link" href="#">3</a></li>
+          <li class="page-item"><a class="page-link" href="#">Next</a></li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+  
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  document.body.addEventListener('click', function(e){
+    if(e.target.matches('.rate-job')){
+      const id = e.target.dataset.id;
+      const score = prompt('Enter rating (1-5)');
+      if(!score) return;
+      const comment = prompt('Any comment?');
+      fetch(`/api/appointments/${encodeURIComponent(id)}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: Number(score), comment }),
+      })
+        .then(r => r.ok ? r.json() : r.json().then(j=>Promise.reject(j)))
+        .then(() => location.reload())
+        .catch((err) => { console.error(err); alert('Failed to submit rating'); });
+    }
+  });
+});
+</script>

@@ -1,0 +1,2857 @@
+<!-- Section 1 : Premium Hero -->
+<link rel="stylesheet" href="/css/landing-custom.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sapphire-900: #0a1628;
+    --sapphire-800: #0c1e3a;
+    --sapphire-700: #0f2b5e;
+    --sapphire-600: #1a4fd8;
+    --sapphire-500: #2563eb;
+    --sapphire-400: #3b82f6;
+    --sapphire-300: #60a5fa;
+    --sapphire-200: #93c5fd;
+    --sapphire-100: #dbeafe;
+    --sapphire-50:  #eff6ff;
+  }
+  * { font-family: 'Inter', sans-serif; }
+
+  /* === GLOBAL ANIMATIONS === */
+  @keyframes orbDrift {
+    0%   { transform: translate(0,0) scale(1); }
+    100% { transform: translate(40px,50px) scale(1.12); }
+  }
+  @keyframes floatCard {
+    0%   { transform: translateY(0) translateZ(60px); }
+    50%  { transform: translateY(-20px) translateZ(60px); }
+    100% { transform: translateY(0) translateZ(60px); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.4), 0 8px 32px rgba(37,99,235,0.3); }
+    50%      { box-shadow: 0 0 40px rgba(59,130,246,0.6), 0 12px 48px rgba(37,99,235,0.5); }
+  }
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes gradientShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* === HERO === */
+  .hero-premium {
+    position: relative;
+    padding: 130px 0 120px;
+    background: linear-gradient(145deg, #0a1628 0%, #0f2b5e 40%, #1a4fd8 100%);
+    overflow: hidden;
+  }
+  .hero-premium::before {
+    content: '';
+    position: absolute;
+    width: 800px; height: 800px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%);
+    top: -300px; right: -200px;
+    animation: orbDrift 14s ease-in-out infinite alternate;
+    z-index: 0; pointer-events: none;
+  }
+  .hero-premium::after {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(96,165,250,0.15) 0%, transparent 70%);
+    bottom: -200px; left: -150px;
+    animation: orbDrift 18s ease-in-out infinite alternate-reverse;
+    z-index: 0; pointer-events: none;
+  }
+  /* Particle dots */
+  .hero-particles {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image:
+      radial-gradient(2px 2px at 15% 25%, rgba(147,197,253,0.5) 50%, transparent 50%),
+      radial-gradient(2px 2px at 85% 15%, rgba(96,165,250,0.4) 50%, transparent 50%),
+      radial-gradient(2px 2px at 45% 80%, rgba(147,197,253,0.3) 50%, transparent 50%),
+      radial-gradient(3px 3px at 75% 65%, rgba(59,130,246,0.35) 50%, transparent 50%),
+      radial-gradient(2px 2px at 25% 55%, rgba(96,165,250,0.4) 50%, transparent 50%),
+      radial-gradient(2px 2px at 60% 35%, rgba(147,197,253,0.3) 50%, transparent 50%);
+    animation: orbDrift 20s ease-in-out infinite alternate;
+    z-index: 0; pointer-events: none;
+  }
+  .hero-content { position: relative; z-index: 1; }
+
+  /* Badge */
+  .premium-badge {
+    display: inline-flex; align-items: center;
+    padding: 8px 22px;
+    background: rgba(255,255,255,0.1);
+    color: #93c5fd;
+    border-radius: 50px;
+    font-weight: 700; font-size: 0.82rem;
+    letter-spacing: 1px; text-transform: uppercase;
+    border: 1px solid rgba(147,197,253,0.25);
+    backdrop-filter: blur(10px);
+    animation: fadeSlideUp 0.8s ease both;
+  }
+
+  /* Title */
+  .premium-title {
+    font-size: 4.2rem; font-weight: 900;
+    line-height: 1.1; color: #ffffff;
+    letter-spacing: -2px;
+    animation: fadeSlideUp 1s ease 0.2s both;
+  }
+  .premium-title .gradient-text {
+    background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 50%, #3b82f6 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+  }
+  .premium-subtitle {
+    font-size: 1.1rem;
+    color: rgba(219,234,254,0.8);
+    line-height: 1.85;
+    max-width: 88%; font-weight: 400;
+    animation: fadeSlideUp 1s ease 0.4s both;
+  }
+
+  /* Hero visual */
+  .hero-visual {
+    position: relative; z-index: 1;
+    display: flex; justify-content: center; align-items: center;
+    perspective: 1400px;
+  }
+  .hero-image-wrapper {
+    position: relative;
+    border-radius: 2.25rem;
+    overflow: visible;
+    box-shadow:
+      0 0 0 4px rgba(59,130,246,0.3),
+      0 0 0 10px rgba(37,99,235,0.15),
+      0 40px 80px -20px rgba(0,0,0,0.6),
+      0 0 60px rgba(59,130,246,0.2);
+    transform: rotateY(-10deg) rotateX(5deg) translateZ(0);
+    transition: all 0.7s cubic-bezier(0.165, 0.84, 0.44, 1);
+    transform-style: preserve-3d;
+    animation: scaleIn 1.2s ease 0.3s both;
+  }
+  .hero-image-wrapper:hover {
+    transform: rotateY(0deg) rotateX(0deg) translateZ(40px);
+    box-shadow:
+      0 0 0 4px rgba(59,130,246,0.5),
+      0 0 0 12px rgba(37,99,235,0.25),
+      0 60px 120px -30px rgba(0,0,0,0.7),
+      0 0 80px rgba(59,130,246,0.3);
+  }
+  .hero-image-wrapper img {
+    width: 100%; height: auto; display: block;
+    border-radius: 2rem;
+    transition: transform 0.7s ease;
+  }
+  .hero-image-wrapper:hover img { transform: scale(1.04); }
+
+  /* Floating cards */
+  .floating-card {
+    position: absolute;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 1.5rem;
+    padding: 1.1rem 1.4rem;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.18);
+    animation: floatCard 6s ease-in-out infinite;
+    z-index: 5; display: flex; align-items: center; gap: 0.9rem;
+    transform: translateZ(60px);
+  }
+  .fc-top  { top: -15px; right: -35px; animation-delay: 0s; }
+  .fc-bottom { bottom: -15px; left: -35px; animation-delay: 3s; }
+  .fc-icon-blue {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 6px 20px rgba(59,130,246,0.5);
+  }
+  .fc-icon-emerald {
+    background: linear-gradient(135deg, #34d399, #10b981);
+    box-shadow: 0 6px 20px rgba(16,185,129,0.5);
+  }
+
+  /* Buttons */
+  .btn-premium {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white !important;
+    border-radius: 50px;
+    padding: 16px 38px; font-weight: 700; font-size: 1rem;
+    border: none;
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 8px 32px rgba(59,130,246,0.5);
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    position: relative;
+    overflow: hidden;
+    opacity: 1;
+    visibility: visible;
+  }
+  .btn-premium::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.5s ease;
+  }
+  .btn-premium:hover {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 20px 50px rgba(59,130,246,0.6);
+    color: white !important;
+  }
+  .btn-premium:hover::before {
+    left: 100%;
+  }
+  .btn-premium:active {
+    transform: translateY(-2px) scale(0.98);
+    box-shadow: 0 10px 30px rgba(59,130,246,0.4);
+  }
+  .btn-premium i {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .btn-premium:hover i {
+    transform: translateX(8px) scale(1.2);
+  }
+  .btn-premium-outline {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(10px);
+    color: #93c5fd !important;
+    border-radius: 50px;
+    padding: 15px 34px; font-weight: 700; font-size: 1rem;
+    border: 1.5px solid rgba(147,197,253,0.35);
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    position: relative;
+    overflow: hidden;
+    opacity: 1;
+    visibility: visible;
+  }
+  .btn-premium-outline::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s ease;
+  }
+  .btn-premium-outline:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(147,197,253,0.8);
+    color: #dbeafe !important;
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 20px 50px rgba(59,130,246,0.25);
+  }
+  .btn-premium-outline:hover::before {
+    left: 100%;
+  }
+  .btn-premium-outline:active {
+    transform: translateY(-2px) scale(0.98);
+  }
+
+  /* Section-wide 3D perspective */
+  .perspective-container { perspective: 1400px; }
+
+  @media (max-width: 991.98px) {
+    .premium-title { font-size: 2.8rem; letter-spacing: -1px; }
+    .hero-premium { padding: 90px 0 70px; }
+    .hero-image-wrapper { transform: none; margin-top: 4rem; }
+    .hero-image-wrapper:hover { transform: translateZ(10px); }
+    .floating-card { transform: scale(0.82); }
+    .fc-top { top: -20px; right: -10px; }
+    .fc-bottom { bottom: -20px; left: -10px; }
+  }
+
+  /* Mobile responsive fixes */
+  @media (max-width: 768px) {
+    .hero-premium {
+      padding: 60px 0 50px !important;
+    }
+    .premium-badge {
+      padding: 6px 16px !important;
+      font-size: 0.7rem !important;
+      letter-spacing: 0.8px !important;
+    }
+    .premium-title {
+      font-size: 2rem !important;
+      letter-spacing: -1px !important;
+      line-height: 1.2 !important;
+    }
+    .premium-subtitle {
+      font-size: 0.95rem !important;
+      line-height: 1.6 !important;
+      max-width: 100% !important;
+    }
+    .btn-premium {
+      padding: 12px 28px !important;
+      font-size: 0.9rem !important;
+    }
+    .btn-premium-outline {
+      padding: 12px 28px !important;
+      font-size: 0.9rem !important;
+    }
+    .hero-image-wrapper {
+      border-radius: 1.5rem !important;
+    }
+    .hero-image-wrapper img {
+      border-radius: 1.25rem !important;
+    }
+    .floating-card {
+      padding: 0.8rem 1rem !important;
+      border-radius: 1rem !important;
+      font-size: 0.85rem !important;
+    }
+    .fc-top {
+      top: -10px !important;
+      right: -20px !important;
+    }
+    .fc-bottom {
+      bottom: -10px !important;
+      left: -20px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .hero-premium {
+      padding: 40px 0 35px !important;
+    }
+    .premium-badge {
+      padding: 5px 12px !important;
+      font-size: 0.65rem !important;
+    }
+    .premium-title {
+      font-size: 1.6rem !important;
+      letter-spacing: -0.5px !important;
+    }
+    .premium-subtitle {
+      font-size: 0.85rem !important;
+    }
+    .btn-premium {
+      padding: 10px 24px !important;
+      font-size: 0.85rem !important;
+      width: 100% !important;
+      justify-content: center !important;
+    }
+    .btn-premium-outline {
+      padding: 10px 24px !important;
+      font-size: 0.85rem !important;
+      width: 100% !important;
+      justify-content: center !important;
+    }
+    .hero-image-wrapper {
+      border-radius: 1.25rem !important;
+    }
+    .floating-card {
+      padding: 0.6rem 0.8rem !important;
+      font-size: 0.75rem !important;
+    }
+    .fc-top, .fc-bottom {
+      display: none;
+    }
+  }
+</style>
+
+<!-- Section 1 : Premium Hero -->
+<section class="hero-premium">
+  <div class="hero-particles"></div>
+  <div class="container hero-content">
+    <div class="row align-items-center">
+      <!-- Text Column -->
+      <div class="col-lg-6" data-aos="fade-up" data-aos-duration="1000">
+        <div class="pe-lg-5">
+          <h1 class="premium-title mb-4">
+            Smart Appointment<br>
+            Scheduling<br>
+            for <span class="gradient-text">Aircon & Home<br>Services</span>
+          </h1>
+          <p class="premium-subtitle mb-5">
+            CALIDRO RACS delivers reliable air conditioning,<br>
+            CCTV installation, and appliance repair services<br>
+            powered by intelligent scheduling and inventory-<br>
+            backed operations.
+          </p>
+          <div class="d-flex flex-wrap gap-3">
+            <a href="/services" class="btn-premium d-flex align-items-center text-decoration-none">
+              Core Service <i class="bi bi-arrow-right ms-2 fs-5"></i>
+            </a>
+            <a href="/products" class="btn-premium-outline d-flex align-items-center text-decoration-none">
+              View Products
+            </a>
+          </div>
+        </div>
+      </div>
+      <!-- Image Column -->
+      <div class="col-lg-6 mt-5 mt-lg-0 hero-visual" data-aos="fade-left" data-aos-duration="1200" data-aos-delay="200">
+        <div class="hero-image-wrapper">
+          <img src="/images/technicianWork/tech1.jpg" alt="Professional Technician" class="img-fluid">
+          
+          <!-- Floating Cards -->
+          <div class="floating-card fc-top">
+            <div class="fc-icon-emerald text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px;">
+              <i class="bi bi-shield-check fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold lh-1 mb-1" style="color:#fff;font-size:0.9rem;">Certified</div>
+              <div class="small lh-1" style="color:rgba(219,234,254,0.7);">Professionals</div>
+            </div>
+          </div>
+          
+          <div class="floating-card fc-bottom">
+            <div class="fc-icon-blue text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px;">
+              <i class="bi bi-star-fill fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold lh-1 mb-1" style="color:#fff;font-size:0.9rem;"><%= displayRating %>/5 Rating</div>
+              <div class="small lh-1" style="color:rgba(219,234,254,0.7);"><%= displayCount %> Reviews</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .section-divider {
+    height: 48px;
+    background: radial-gradient(circle, rgba(59,130,246,0.15), transparent);
+  }
+</style>
+
+<!-- Section Separator -->
+<div class="section-divider"></div>
+
+<!-- Section 1.5: How It Works — Enterprise Process Flow -->
+<section class="py-5 position-relative" style="background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%); overflow: hidden;">
+  <!-- Subtle grid pattern -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(37,99,235,0.04) 1px, transparent 1px); background-size: 32px 32px; z-index: 0; pointer-events: none;"></div>
+  <!-- Glow orbs -->
+  <div class="position-absolute rounded-circle" style="width: 500px; height: 500px; background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 70%); top: -200px; right: -150px; z-index: 0; pointer-events: none;"></div>
+
+  <div class="container position-relative py-4" style="z-index: 1;">
+    <!-- Section Header -->
+    <div class="text-center mb-5" data-aos="fade-up" data-aos-duration="1000">
+      <div class="d-inline-flex align-items-center gap-2 px-4 py-2 rounded-pill fw-bold mb-3 border shadow-sm" style="font-size: 0.82rem; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(59,130,246,0.04)); color: #2563eb; border-color: rgba(37,99,235,0.15) !important;">
+        <i class="bi bi-diagram-3 fs-5"></i>
+        <span>SIMPLE PROCESS</span>
+      </div>
+      <h2 class="display-5 fw-bold mb-3" style="letter-spacing: -1.5px; color: #0a1628;">
+        How It <span style="background: linear-gradient(135deg, #2563eb, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Works</span>
+      </h2>
+      <p class="fs-5 mx-auto" style="max-width: 600px; color: #64748b;">
+        Getting professional service is easy. Book in minutes, and we handle the rest.
+      </p>
+    </div>
+
+    <!-- 4-Step Process -->
+    <div class="row g-4 align-items-stretch justify-content-center">
+      <!-- Step 1 -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="0">
+        <div class="process-card h-100 text-center position-relative">
+          <div class="process-number">1</div>
+          <div class="process-icon-wrap mx-auto mb-3">
+            <div class="process-icon">
+              <i class="bi bi-calendar-check"></i>
+            </div>
+            <div class="process-icon-ring"></div>
+          </div>
+          <h5 class="fw-bold mb-2" style="color: #0a1628; letter-spacing: -0.3px;">Book Online</h5>
+          <p style="color: #64748b; font-size: 0.92rem; line-height: 1.65;">Choose your service, pick a date and time, and submit your booking request in under 2 minutes.</p>
+          <div class="process-line d-none d-lg-block"></div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
+        <div class="process-card h-100 text-center position-relative">
+          <div class="process-number">2</div>
+          <div class="process-icon-wrap mx-auto mb-3">
+            <div class="process-icon">
+              <i class="bi bi-shield-check"></i>
+            </div>
+            <div class="process-icon-ring"></div>
+          </div>
+          <h5 class="fw-bold mb-2" style="color: #0a1628; letter-spacing: -0.3px;">Payment Verification</h5>
+          <p style="color: #64748b; font-size: 0.92rem; line-height: 1.65;">Our team verifies your payment and confirms the booking. You'll receive instant notification.</p>
+          <div class="process-line d-none d-lg-block"></div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="200">
+        <div class="process-card h-100 text-center position-relative">
+          <div class="process-number">3</div>
+          <div class="process-icon-wrap mx-auto mb-3">
+            <div class="process-icon">
+              <i class="bi bi-person-gear"></i>
+            </div>
+            <div class="process-icon-ring"></div>
+          </div>
+          <h5 class="fw-bold mb-2" style="color: #0a1628; letter-spacing: -0.3px;">Technician Assigned</h5>
+          <p style="color: #64748b; font-size: 0.92rem; line-height: 1.65;">A certified technician is assigned and you can track their arrival in real-time on the day of service.</p>
+          <div class="process-line d-none d-lg-block"></div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="300">
+        <div class="process-card h-100 text-center position-relative">
+          <div class="process-number">4</div>
+          <div class="process-icon-wrap mx-auto mb-3">
+            <div class="process-icon process-icon-success">
+              <i class="bi bi-check2-circle"></i>
+            </div>
+            <div class="process-icon-ring ring-success"></div>
+          </div>
+          <h5 class="fw-bold mb-2" style="color: #0a1628; letter-spacing: -0.3px;">Service Complete</h5>
+          <p style="color: #64748b; font-size: 0.92rem; line-height: 1.65;">Your service is completed, payment is settled, and you can rate your experience with us.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .process-card {
+      background: #ffffff;
+      border: 1px solid rgba(37,99,235,0.08);
+      border-radius: 1.5rem;
+      padding: 2.5rem 1.5rem 2rem;
+      transition: all 0.45s cubic-bezier(0.165, 0.84, 0.44, 1);
+      box-shadow: 0 4px 20px rgba(15,36,96,0.06);
+      position: relative;
+    }
+    .process-card:hover {
+      transform: translateY(-12px) translateZ(10px);
+      box-shadow: 0 24px 48px rgba(37,99,235,0.12);
+      border-color: rgba(37,99,235,0.2);
+    }
+    .process-number {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: rgba(37,99,235,0.06);
+      line-height: 1;
+      pointer-events: none;
+      transition: all 0.4s ease;
+    }
+    .process-card:hover .process-number {
+      color: rgba(37,99,235,0.12);
+      transform: translateY(-4px);
+    }
+    .process-icon-wrap {
+      position: relative;
+      width: 72px;
+      height: 72px;
+    }
+    .process-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 1.25rem;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      border: 1.5px solid rgba(37,99,235,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      color: #2563eb;
+      position: relative;
+      z-index: 1;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .process-icon-success {
+      background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+      border-color: rgba(16,185,129,0.2) !important;
+      color: #16a34a !important;
+    }
+    .process-card:hover .process-icon {
+      transform: scale(1.1) rotate(-5deg);
+      box-shadow: 0 12px 32px rgba(37,99,235,0.2);
+    }
+    .process-card:hover .process-icon-success {
+      box-shadow: 0 12px 32px rgba(16,185,129,0.2) !important;
+    }
+    .process-icon-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 1.5rem;
+      border: 2px solid rgba(37,99,235,0.08);
+      transition: all 0.4s ease;
+    }
+    .ring-success {
+      border-color: rgba(16,185,129,0.1) !important;
+    }
+    .process-card:hover .process-icon-ring {
+      border-color: rgba(37,99,235,0.2);
+      inset: -10px;
+    }
+    .process-line {
+      position: absolute;
+      top: 50%;
+      right: -28px;
+      width: 56px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.05));
+      z-index: 2;
+    }
+    .process-line::after {
+      content: '';
+      position: absolute;
+      right: -2px;
+      top: -4px;
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid rgba(37,99,235,0.3);
+      border-top: 2px solid rgba(37,99,235,0.3);
+      transform: rotate(45deg);
+    }
+    @media (max-width: 991.98px) {
+      .process-card { padding: 2rem 1.25rem 1.5rem; }
+      .process-number { font-size: 2.5rem; }
+      .process-icon-wrap { width: 60px; height: 60px; }
+      .process-icon { width: 60px; height: 60px; font-size: 1.3rem; }
+    }
+  </style>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Section 2 Technician details (Premium Design) -->
+<section class="py-5" style="background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%); position: relative; overflow: hidden;">
+  <!-- Abstract decorative shapes -->
+  <div class="position-absolute rounded-circle" style="width: 600px; height: 600px; background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 70%); top: -200px; right: -200px; z-index: 0; pointer-events: none;"></div>
+  <div class="position-absolute rounded-circle" style="width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.04) 0%, transparent 70%); bottom: -100px; left: -100px; z-index: 0; pointer-events: none;"></div>
+  
+  <div class="container py-4 position-relative" style="z-index: 1;">
+    <div class="row align-items-center g-5">
+      
+      <!-- Text Column -->
+      <div class="col-12 col-lg-5 order-2 order-lg-1" data-aos="fade-right" data-aos-duration="1000">
+        <div class="pe-lg-4">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill fw-bold mb-4 border shadow-sm" style="font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(59,130,246,0.04)); color: #2563eb; border-color: rgba(37,99,235,0.2) !important;">
+            <i class="bi bi-shield-check fs-5"></i>
+            <span>PROFESSIONAL EXCELLENCE</span>
+          </div>
+          
+          <h2 class="fw-bold display-5 mb-4" style="letter-spacing: -1.5px; line-height: 1.1; color: #0a1628;">
+            Expert Technicians <br>
+            <span style="background: linear-gradient(135deg, #2563eb, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">You Can Trust</span>
+          </h2>
+          
+          <p style="color: #475569;" class="fs-5 mb-5 lh-base">
+            CALIDRO RACS technicians are trained professionals dedicated to delivering exceptional service with expertise and reliability.
+          </p>
+
+          <div class="d-flex flex-column gap-4 perspective-container">
+            <!-- Feature 1 -->
+            <div class="d-flex gap-4 p-4 rounded-4 shadow-sm feature-card-3d bg-white">
+              <div class="flex-shrink-0 rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 56px; height: 56px; background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 8px 20px rgba(37,99,235,0.3);">
+                <i class="bi bi-patch-check-fill fs-3"></i>
+              </div>
+              <div>
+                <h5 class="fw-bold mb-1" style="color: #0a1628;">Verified Professionals</h5>
+                <p style="color: #64748b;" class="mb-0">Fully trained and certified experts handling your equipment</p>
+              </div>
+            </div>
+
+            <!-- Feature 2 -->
+            <div class="d-flex gap-4 p-4 rounded-4 shadow-sm feature-card-3d bg-white">
+              <div class="flex-shrink-0 rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 56px; height: 56px; background: linear-gradient(135deg, #1d4ed8, #2563eb); box-shadow: 0 8px 20px rgba(29,78,216,0.3);">
+                <i class="bi bi-clock-history fs-3"></i>
+              </div>
+              <div>
+                <h5 class="fw-bold mb-1" style="color: #0a1628;">Real-Time Tracking</h5>
+                <p style="color: #64748b;" class="mb-0">Stay informed with live updates on your service request</p>
+              </div>
+            </div>
+
+            <!-- Feature 3 -->
+            <div class="d-flex gap-4 p-4 rounded-4 shadow-sm feature-card-3d bg-white">
+              <div class="flex-shrink-0 rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 56px; height: 56px; background: linear-gradient(135deg, #3b82f6, #60a5fa); box-shadow: 0 8px 20px rgba(59,130,246,0.3);">
+                <i class="bi bi-tag-fill fs-3"></i>
+              </div>
+              <div>
+                <h5 class="fw-bold mb-1" style="color: #0a1628;">Transparent Pricing</h5>
+                <p style="color: #64748b;" class="mb-0">Clear, upfront costs with no hidden charges or surprises</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bento Grid Image Column -->
+      <div class="col-12 col-lg-7 order-1 order-lg-2 perspective-container" data-aos="fade-left" data-aos-duration="1200" data-aos-delay="200">
+        <div class="row g-3">
+          <!-- Large Main Image -->
+          <div class="col-12 col-md-8">
+            <div class="position-relative rounded-4 overflow-hidden h-100 bento-3d bg-white" style="min-height: 400px;">
+              <img src="/images/technicianWork/tech2.jpg" alt="Aircon Service" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover bento-img">
+              <div class="position-absolute bottom-0 start-0 w-100 p-4" style="background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); z-index: 2; transform: translateZ(20px);">
+                <span class="badge bg-primary px-3 py-2 fs-6 rounded-pill mb-2 shadow-sm">Aircon Services</span>
+                <h4 class="text-white mb-0 fw-semibold">Precision Cooling Solutions</h4>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Smaller Side Images -->
+          <div class="col-12 col-md-4 d-flex flex-column gap-3">
+            <div class="position-relative rounded-4 overflow-hidden h-50 bento-3d bg-white" style="min-height: 190px;">
+              <img src="/images/technicianWork/tech1.jpg" alt="Technician Working" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover bento-img">
+            </div>
+            <div class="position-relative rounded-4 overflow-hidden h-50 bento-3d bg-white" style="min-height: 190px;">
+              <img src="/images/technicianWork/tech3.jpg" alt="Repair Service" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover bento-img">
+              <div class="position-absolute inset-0 d-flex align-items-center justify-content-center w-100 h-100" style="background: rgba(13,110,253,0.3); z-index: 2; transform: translateZ(20px);">
+                <a href="/services" class="btn btn-light rounded-circle shadow-lg d-flex align-items-center justify-content-center hover-scale" style="width: 60px; height: 60px;">
+                  <i class="bi bi-arrow-right text-primary fs-3"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+    .feature-card-3d {
+      border: 1px solid rgba(37,99,235,0.1);
+      transition: all 0.45s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+      cursor: pointer;
+      background: #ffffff;
+    }
+    .feature-card-3d:hover {
+      transform: translateY(-10px) rotateX(3deg) translateZ(16px);
+      box-shadow: 0 24px 48px rgba(37,99,235,0.16) !important;
+      border-color: rgba(37,99,235,0.35);
+    }
+    .bento-3d {
+      border: 6px solid rgba(255,255,255,0.95);
+      box-shadow:
+        0 15px 35px rgba(37,99,235,0.12),
+        0 2px 8px rgba(37,99,235,0.06);
+      transition: all 0.55s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+    }
+    .bento-3d:hover {
+      transform: translateY(-12px) rotateY(-3deg) rotateX(2deg) translateZ(24px);
+      box-shadow:
+        0 40px 80px rgba(15,36,96,0.22),
+        0 8px 24px rgba(37,99,235,0.18);
+      border-color: #ffffff;
+    }
+    .bento-img { transition: transform 0.65s ease; }
+    .bento-3d:hover .bento-img { transform: scale(1.09); }
+    .hover-scale { transition: transform 0.3s ease; }
+    .hover-scale:hover { transform: scale(1.18) translateZ(30px); }
+  </style>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- ===== Comprehensive Care Section (Enterprise Design) ===== -->
+<section class="cc-section py-5 position-relative overflow-hidden">
+  <!-- Background -->
+  <div class="cc-bg"></div>
+  <div class="cc-grid-overlay"></div>
+
+  <div class="container position-relative" style="z-index: 2; padding-top: 4rem; padding-bottom: 4rem;">
+    <!-- Header -->
+    <div class="text-center mb-5" data-aos="fade-up" data-aos-duration="800">
+      <div class="cc-label mx-auto mb-3">
+        <span class="cc-label-line"></span>
+        <span class="cc-label-text">Comprehensive Care</span>
+        <span class="cc-label-line"></span>
+      </div>
+      <h2 class="cc-heading mb-3">Everything Your <span class="cc-heading-accent">Home Needs</span></h2>
+      <p class="cc-subheading mx-auto">From professional air conditioning solutions to expert appliance repairs, we keep your home running comfortably and efficiently.</p>
+    </div>
+
+    <!-- Picture Carousels -->
+    <div class="cc-carousels" data-aos="fade-up" data-aos-duration="900" data-aos-delay="100">
+      <% const ccServices = [
+        { name: 'Aircon Installation', icon: 'bi-tools' },
+        { name: 'Aircon Cleaning', icon: 'bi-droplet' },
+        { name: 'Freon Recharging', icon: 'bi-moisture' },
+        { name: 'Aircon Relocation', icon: 'bi-truck' },
+        { name: 'Dismantling & Reinstall', icon: 'bi-arrow-left-right' },
+        { name: 'System Reprocess', icon: 'bi-gear' },
+        { name: 'Pump Down', icon: 'bi-arrow-down-circle' }
+      ]; %>
+      <% const ccRepairs = [
+        { name: 'Refrigerator', icon: 'bi-snow2', img: '/images/bgphotos/ref.jpg' },
+        { name: 'Washing Machine', icon: 'bi-droplet', img: '/images/bgphotos/washing machine.jpg' },
+        { name: 'Microwave Oven', icon: 'bi-lightning-charge', img: '/images/bgphotos/microwave.jpg' },
+        { name: 'Freezer', icon: 'bi-box', img: '/images/bgphotos/freezer.jpg' },
+        { name: 'Dryer', icon: 'bi-wind', img: '/images/bgphotos/dryer.jpg' },
+        { name: 'Rice Cooker', icon: 'bi-cup-hot', img: '/images/bgphotos/ricecooker.jpg' },
+        { name: 'Electric Fan', icon: 'bi-fan', img: '/images/bgphotos/efan.jpg' },
+        { name: 'Water Dispenser', icon: 'bi-water', img: '/images/bgphotos/waterdispenser.jpg' },
+        { name: 'Electric Kettle', icon: 'bi-thermometer', img: '/images/bgphotos/ekettle.jpg' }
+      ]; %>
+
+      <!-- Core Services -->
+      <div class="cc-carousel-row">
+        <div class="cc-carousel-head">
+          <i class="bi bi-snow2"></i>
+          <span>Core Services</span>
+        </div>
+        <div class="cc-carousel">
+          <div class="cc-carousel-track" data-cc-track>
+            <% ccServices.forEach((item) => { %>
+              <a href="/services" class="cc-pic-card cc-pic-service" data-name="<%= item.name %>">
+                <div class="cc-pic-media">
+                  <img src="/images/care/<%= item.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') %>.jpg" alt="<%= item.name %>" onerror="this.style.display='none'">
+                  <div class="cc-pic-overlay"><div class="cc-pic-icon"><i class="bi <%= item.icon %>"></i></div></div>
+                  <span class="cc-pic-chip cc-pic-chip--svc">Service</span>
+                </div>
+                <div class="cc-pic-body">
+                  <span class="cc-pic-name"><%= item.name %></span>
+                  <span class="cc-pic-arrow"><i class="bi bi-arrow-up-right"></i></span>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+          <div class="cc-carousel-fade cc-carousel-fade--left"></div>
+          <div class="cc-carousel-fade cc-carousel-fade--right"></div>
+        </div>
+      </div>
+
+      <!-- Repair Services -->
+      <div class="cc-carousel-row">
+        <div class="cc-carousel-head">
+          <i class="bi bi-wrench-adjustable"></i>
+          <span>We Also Repair</span>
+        </div>
+        <div class="cc-carousel">
+          <div class="cc-carousel-track" data-cc-track>
+            <% ccRepairs.forEach((item) => { %>
+              <a href="/repair-request" class="cc-pic-card cc-pic-repair" data-name="<%= item.name %>">
+                <div class="cc-pic-media">
+                  <img src="<%= item.img %>" alt="<%= item.name %>" loading="lazy" onerror="this.style.display='none'">
+                  <span class="cc-pic-chip">Repair</span>
+                </div>
+                <div class="cc-pic-body">
+                  <span class="cc-pic-name"><%= item.name %></span>
+                  <span class="cc-pic-arrow"><i class="bi bi-arrow-up-right"></i></span>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+          <div class="cc-carousel-fade cc-carousel-fade--left"></div>
+          <div class="cc-carousel-fade cc-carousel-fade--right"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <a href="/services" class="cc-cta-btn">Browse All Services <i class="bi bi-arrow-right"></i></a>
+    </div>
+
+    <!-- CTA Banner -->
+    <div class="cc-cta" data-aos="fade-up" data-aos-duration="800" data-aos-delay="300">
+      <div class="cc-cta-shine"></div>
+      <div class="row align-items-center position-relative" style="z-index: 1;">
+        <div class="col-12 col-md-7 mb-4 mb-md-0">
+          <h3 class="cc-cta-title">Need an Emergency Service?</h3>
+          <p class="cc-cta-desc">Our technical team is ready to respond 24/7 to your urgent needs.</p>
+        </div>
+        <div class="col-12 col-md-5 text-md-end">
+          <a href="/services" class="cc-cta-btn">
+            Book Now <i class="bi bi-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* ── Background ── */
+  .cc-bg {
+    position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(165deg, #020617 0%, #0f172a 40%, #1e3a5f 100%);
+  }
+  .cc-grid-overlay {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* ── Header ── */
+  .cc-label {
+    display: inline-flex; align-items: center; gap: 14px;
+  }
+  .cc-label-line {
+    width: 40px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent);
+  }
+  .cc-label-text {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #60a5fa;
+  }
+  .cc-heading {
+    font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800;
+    letter-spacing: -1.5px; color: #f1f5f9; line-height: 1.15; margin: 0;
+  }
+  .cc-heading-accent {
+    background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .cc-subheading {
+    max-width: 600px; font-size: 1.05rem; line-height: 1.7;
+    color: rgba(203,213,225,0.7); margin: 0;
+  }
+
+  /* ── Card ── */
+  .cc-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 1.5rem; overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .cc-card:hover {
+    border-color: rgba(96,165,250,0.15);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.3), 0 0 0 1px rgba(96,165,250,0.06);
+    transform: translateY(-4px);
+  }
+  .cc-card-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 1.5rem 1.75rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .cc-card-icon {
+    width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.08));
+    border: 1px solid rgba(59,130,246,0.15);
+    color: #60a5fa; font-size: 1.25rem;
+  }
+  .cc-card-icon--alt {
+    background: linear-gradient(135deg, rgba(14,165,233,0.2), rgba(6,182,212,0.08));
+    border-color: rgba(14,165,233,0.15);
+    color: #38bdf8;
+  }
+  .cc-card-title {
+    font-size: 1.2rem; font-weight: 700; color: #f1f5f9;
+    letter-spacing: -0.3px; margin: 0;
+  }
+  .cc-card-sub {
+    font-size: 0.82rem; color: rgba(148,163,184,0.7); margin: 2px 0 0;
+  }
+  .cc-card-body { padding: 1rem 1.75rem 1.75rem; }
+
+  /* ── Picture Carousel ── */
+  .cc-carousels { display: flex; flex-direction: column; gap: 2.5rem; }
+  .cc-carousel-row { position: relative; }
+  .cc-carousel-head {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin-bottom: 1rem; padding-left: 4px;
+    font-size: 1.05rem; font-weight: 700; color: #f1f5f9;
+    letter-spacing: -0.3px;
+  }
+  .cc-carousel-head i {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.08));
+    border: 1px solid rgba(59,130,246,0.15);
+    color: #60a5fa; font-size: 1.1rem;
+  }
+  .cc-carousel-row:nth-child(2) .cc-carousel-head i {
+    background: linear-gradient(135deg, rgba(14,165,233,0.2), rgba(6,182,212,0.08));
+    border-color: rgba(14,165,233,0.15);
+    color: #38bdf8;
+  }
+  .cc-carousel {
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  }
+  .cc-carousel-track {
+    display: flex;
+    gap: 1.1rem;
+    width: max-content;
+    will-change: transform;
+  }
+  .cc-pic-card {
+    flex: 0 0 auto;
+    width: 270px;
+    text-decoration: none;
+    border-radius: 1.25rem;
+    overflow: hidden;
+    background: rgba(15, 43, 94, 0.45);
+    border: 1px solid rgba(96,165,250,0.18);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 10px 30px rgba(3, 10, 25, 0.4);
+    transition: all 0.4s cubic-bezier(0.165,0.84,0.44,1);
+    position: relative;
+  }
+  .cc-pic-card:hover {
+    transform: translateY(-10px);
+    border-color: rgba(96,165,250,0.45);
+    box-shadow: 0 22px 50px rgba(3, 10, 25, 0.55);
+  }
+  .cc-pic-media {
+    position: relative;
+    height: 170px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(59,130,246,0.35), transparent 60%),
+      linear-gradient(135deg, #0f2b5e 0%, #1a4fd8 55%, #0a1628 100%);
+  }
+  .cc-pic-card.cc-pic-repair .cc-pic-media {
+    background:
+      radial-gradient(circle at 30% 25%, rgba(14,165,233,0.35), transparent 60%),
+      linear-gradient(135deg, #0e7490 0%, #0891b2 55%, #0a1628 100%);
+  }
+  .cc-pic-media img {
+    width: 100%; height: 100%; object-fit: cover;
+    transition: transform 0.6s ease;
+  }
+  .cc-pic-card:hover .cc-pic-media img { transform: scale(1.1); }
+  .cc-pic-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(to top, rgba(2,6,23,0.55), rgba(2,6,23,0.15));
+  }
+  .cc-pic-icon {
+    width: 60px; height: 60px; border-radius: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18);
+    backdrop-filter: blur(8px);
+    color: #fff; font-size: 1.6rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    transition: all 0.4s ease;
+  }
+  .cc-pic-card:hover .cc-pic-icon {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    transform: scale(1.08);
+  }
+  .cc-pic-chip {
+    position: absolute; top: 12px; left: 12px;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 50px;
+    background: rgba(8,145,178,0.85); color: #fff;
+    backdrop-filter: blur(6px);
+  }
+  .cc-pic-chip--svc {
+    background: rgba(37,99,235,0.85);
+  }
+  .cc-pic-body {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.5rem; padding: 0.9rem 1.1rem 1.1rem;
+  }
+  .cc-pic-name {
+    font-size: 0.92rem; font-weight: 700; color: #f1f5f9;
+    letter-spacing: -0.2px; line-height: 1.25;
+  }
+  .cc-pic-arrow {
+    color: rgba(148,163,184,0.4); font-size: 0.95rem; flex-shrink: 0;
+    transition: all 0.3s ease; transform: translate(-3px, 3px);
+  }
+  .cc-pic-card:hover .cc-pic-arrow { color: #60a5fa; transform: translate(0,0); }
+
+  /* Carousel edge fades */
+  .cc-carousel-fade {
+    position: absolute; top: 0; bottom: 0; width: 60px; z-index: 3;
+    pointer-events: none;
+  }
+  .cc-carousel-fade--left { left: 0; background: linear-gradient(90deg, #0a1628, transparent); }
+  .cc-carousel-fade--right { right: 0; background: linear-gradient(270deg, #0a1628, transparent); }
+
+  /* Carousel controls */
+  .cc-carousel-ctrl {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(15, 43, 94, 0.5);
+    border: 1px solid rgba(96,165,250,0.25);
+    color: #93c5fd; font-size: 1.1rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.3s ease; margin: 0 0.35rem;
+    backdrop-filter: blur(10px);
+  }
+  .cc-carousel-ctrl:hover {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff; border-color: transparent;
+    box-shadow: 0 8px 24px rgba(37,99,235,0.4);
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 767.98px) {
+    .cc-pic-card { width: 220px; }
+    .cc-pic-media { height: 140px; }
+  }
+
+  /* ── CTA Banner ── */
+  .cc-cta {
+    margin-top: 3rem; padding: 2.5rem 2.5rem;
+    background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06));
+    border: 1px solid rgba(59,130,246,0.12);
+    border-radius: 1.25rem; position: relative; overflow: hidden;
+    transition: all 0.4s ease;
+  }
+  .cc-cta:hover {
+    border-color: rgba(59,130,246,0.2);
+    box-shadow: 0 20px 48px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+  }
+  .cc-cta-shine {
+    position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.04), transparent);
+    animation: ccShine 8s ease-in-out infinite; pointer-events: none;
+  }
+  @keyframes ccShine {
+    0% { left: -100%; }
+    40%, 100% { left: 150%; }
+  }
+  .cc-cta-title {
+    font-size: 1.5rem; font-weight: 700; color: #f1f5f9;
+    letter-spacing: -0.5px; margin: 0 0 6px;
+  }
+  .cc-cta-desc {
+    font-size: 0.95rem; color: rgba(148,163,184,0.8); margin: 0;
+  }
+  .cc-cta-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px; border-radius: 999px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff; font-weight: 700; font-size: 0.9rem;
+    letter-spacing: 0.03em; text-decoration: none;
+    box-shadow: 0 8px 24px rgba(37,99,235,0.3);
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    border: none;
+  }
+  .cc-cta-btn:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 12px 32px rgba(37,99,235,0.4);
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    color: #fff;
+  }
+  .cc-cta-btn i { transition: transform 0.3s ease; }
+  .cc-cta-btn:hover i { transform: translateX(4px); }
+
+  @media (max-width: 767.98px) {
+    .cc-repair-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .cc-repair-tile { min-height: 85px; padding: 12px 6px; }
+    .cc-repair-icon { width: 36px; height: 36px; font-size: 1rem; }
+    .cc-cta { padding: 1.75rem; }
+    .cc-cta-title { font-size: 1.25rem; }
+    .cc-card-body { padding: 1rem 1.25rem 1.5rem; }
+  }
+</style>
+
+  <style>
+    /* Services premium cards */
+    .svc-card-premium {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08) !important;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(59,130,246,0.08);
+      transition: all 0.55s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+    }
+    .svc-card-premium:hover {
+      transform: translateY(-10px) rotateX(1.5deg) translateZ(12px);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.4), 0 0 40px rgba(59,130,246,0.12);
+      border-color: rgba(59,130,246,0.2) !important;
+    }
+    /* Service items */
+    .svc-item:hover {
+      background: rgba(59,130,246,0.1) !important;
+      border-color: rgba(59,130,246,0.25) !important;
+      transform: translateX(6px);
+    }
+    .svc-item:hover .svc-num {
+      background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+      border-color: transparent !important;
+    }
+    .svc-item:hover .svc-num i { color: #fff !important; }
+    .svc-item:hover .svc-label { color: #fff !important; }
+    .svc-item:hover .svc-arrow { color: #60a5fa !important; transform: translateX(4px); }
+    /* Repair tiles */
+    .repair-tile:hover {
+      background: rgba(59,130,246,0.12) !important;
+      border-color: rgba(59,130,246,0.3) !important;
+      transform: translateY(-8px) scale(1.04);
+    }
+    .repair-tile:hover .repair-tile-icon {
+      background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+      border-color: transparent !important;
+      transform: scale(1.1);
+      box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+    }
+    .repair-tile:hover .repair-tile-icon i { color: #fff !important; }
+    /* CTA Banner */
+    .cta-banner-premium {
+      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 1.75rem;
+      backdrop-filter: blur(20px);
+      transition: all 0.5s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-banner-premium:hover {
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-4px);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+    }
+    .cta-shine {
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
+      animation: shineSweep 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes shineSweep {
+      0%   { left: -100%; }
+      50%  { left: 100%; }
+      100% { left: 100%; }
+    }
+    .cta-book-btn:hover {
+      transform: translateY(-4px) scale(1.04) !important;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.3) !important;
+      background: #f0f7ff !important;
+    }
+    @media (max-width: 767.98px) {
+      .repair-tile { min-height: 95px !important; }
+      .repair-tile .repair-tile-icon { width: 38px !important; height: 38px !important; }
+    }
+
+    /* Detail Modal — Enterprise Service Modal */
+    .svc-detail-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+    .svc-detail-modal.show {
+      display: flex;
+      opacity: 1;
+    }
+    .svc-detail-modal-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(8px);
+      z-index: 0;
+    }
+    .svc-detail-modal-content {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(160deg, #0c1a33 0%, #0f2448 50%, #1a3568 100%);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 1.5rem;
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(59,130,246,0.1);
+      transform: translateY(30px) scale(0.95);
+      transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    }
+    .svc-detail-modal.show .svc-detail-modal-content {
+      transform: translateY(0) scale(1);
+    }
+    .svc-detail-header {
+      position: relative;
+      flex-shrink: 0;
+      padding: 2rem 2rem 1.5rem;
+      background: linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(37,99,235,0.05) 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .svc-detail-header::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 150px; height: 150px;
+      background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .svc-detail-icon-ring {
+      width: 64px; height: 64px;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.1));
+      border: 1px solid rgba(59,130,246,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: #60a5fa;
+      margin-bottom: 1rem;
+    }
+    .svc-detail-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }
+    .svc-detail-subtitle {
+      font-size: 0.88rem;
+      color: rgba(147,197,253,0.7);
+      margin: 0.25rem 0 0;
+    }
+    .svc-detail-body {
+      padding: 1.75rem 2rem 2rem;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .svc-detail-body p {
+      color: rgba(219,234,254,0.85);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 1.25rem;
+    }
+    .svc-detail-body p:last-of-type { margin-bottom: 0; }
+    .svc-features-list {
+      list-style: none;
+      padding: 0;
+      margin: 1.25rem 0;
+    }
+    .svc-features-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.65rem 0;
+      color: rgba(219,234,254,0.9);
+      font-size: 0.9rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .svc-features-list li:last-child { border-bottom: none; }
+    .svc-features-list li i {
+      color: #22c55e;
+      font-size: 1rem;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .svc-detail-price {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 0.75rem;
+      color: #93c5fd;
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+    .svc-detail-footer {
+      flex-shrink: 0;
+      padding: 1.25rem 2rem;
+      background: rgba(0,0,0,0.2);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .svc-detail-footer .btn-close-modal {
+      flex: 1;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(219,234,254,0.8);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .svc-detail-footer .btn-close-modal:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .svc-detail-footer .btn-book-now {
+      flex: 2;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.35s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+    .svc-detail-footer .btn-book-now:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+    }
+    .svc-detail-close-x {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.3);
+      color: rgba(219,234,254,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 2;
+      font-size: 1rem;
+    }
+    .svc-detail-close-x:hover {
+      background: rgba(239,68,68,0.3);
+      border-color: rgba(239,68,68,0.4);
+      color: #fca5a5;
+    }
+    .svc-item, .repair-tile { cursor: pointer; }
+    /* Modal scrollbar */
+    .svc-detail-body::-webkit-scrollbar { width: 6px; }
+    .svc-detail-body::-webkit-scrollbar-track { background: transparent; }
+    .svc-detail-body::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 3px; }
+    .svc-detail-body::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.5); }
+  </style>
+
+  <script>
+    (function() {
+      var tracks = document.querySelectorAll('[data-cc-track]');
+      tracks.forEach(function(track) {
+        // Duplicate children once for a seamless loop
+        var kids = Array.prototype.slice.call(track.children);
+        kids.forEach(function(el) { track.appendChild(el.cloneNode(true)); });
+
+        var pos = 0, paused = false;
+        function step() {
+          if (!paused) {
+            pos -= 0.6;
+            var half = track.scrollWidth / 2;
+            if (-pos >= half) pos += half;
+            track.style.transform = 'translateX(' + pos + 'px)';
+          }
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+
+        var carousel = track.closest('.cc-carousel');
+        carousel.addEventListener('mouseenter', function() { paused = true; });
+        carousel.addEventListener('mouseleave', function() { paused = false; });
+      });
+    })();
+  </script>
+
+  <!-- Service Detail Modal Container -->
+  <div id="svcDetailModal" class="svc-detail-modal">
+    <div class="svc-detail-modal-overlay" onclick="closeSvcDetailModal()"></div>
+    <div class="svc-detail-modal-content">
+      <button class="svc-detail-close-x" onclick="closeSvcDetailModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+      <div class="svc-detail-header">
+        <div class="svc-detail-icon-ring" id="svcDetailIcon"></div>
+        <h3 class="svc-detail-title" id="svcDetailTitle"></h3>
+        <p class="svc-detail-subtitle" id="svcDetailSubtitle"></p>
+      </div>
+      <div class="svc-detail-body" id="svcDetailBody"></div>
+      <div class="svc-detail-footer">
+        <button class="btn-close-modal" onclick="closeSvcDetailModal()">Close</button>
+        <a href="/services" class="btn-book-now">
+          Book This Service <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      /* Service detail data */
+      var svcData = {
+        'Aircon Installation': {
+          icon: 'bi-tools',
+          subtitle: 'Professional Split-Type & Window-Type Installation',
+          desc: 'Our certified technicians handle the complete installation process for all air conditioning brands and models. From site assessment to final testing, we ensure optimal performance and energy efficiency.',
+          features: [
+            'Free site assessment and consultation',
+            'Wall mounting, bracket installation, or window fitting',
+            'Refrigerant line connection and vacuuming',
+            'Electrical wiring and dedicated circuit setup',
+            'Full system testing and calibration',
+            'Post-installation cleanup and walkthrough',
+            '30-day workmanship warranty'
+          ],
+          price: 'Starting from ₱2,500'
+        },
+        'Aircon Cleaning': {
+          icon: 'bi-droplet',
+          subtitle: 'Deep Chemical & General Cleaning Service',
+          desc: 'Restore your air conditioner to peak performance with our thorough cleaning service. We remove dirt, mold, and buildup that reduce cooling efficiency and air quality.',
+          features: [
+            'Complete unit dismantling',
+            'Chemical wash of evaporator and condenser coils',
+            'Drain pan and line clearing',
+            'Fan blower deep cleaning',
+            'Filter washing and sanitizing',
+            'Reassembly and full function test',
+            'Improves airflow and energy efficiency by up to 30%'
+          ],
+          price: 'Starting from ₱800'
+        },
+        'Freon Recharging': {
+          icon: 'bi-moisture',
+          subtitle: 'Refrigerant Top-Up & Leak Detection',
+          desc: 'Low refrigerant is the most common cause of weak cooling. We diagnose the issue, check for leaks, and recharge your system with the correct refrigerant type.',
+          features: [
+            'Pressure testing and diagnostics',
+            'Leak detection and sealing',
+            'Vacuum processing before recharge',
+            'Precise refrigerant loading (R-22, R-32, R-410A)',
+            'Performance verification after recharge',
+            'Recommended annually for optimal efficiency'
+          ],
+          price: 'Starting from ₱1,200'
+        },
+        'Aircon Relocation': {
+          icon: 'bi-truck',
+          subtitle: 'Safe Moving & Reinstallation Service',
+          desc: 'Moving to a new home or office? We safely uninstall your air conditioning unit and reinstall it at your new location, ensuring proper calibration and performance.',
+          features: [
+            'Careful unit removal and packaging',
+            'Transport-ready preparation',
+            'New site assessment',
+            'Complete reinstallation and testing',
+            'Refrigerant recovery and recharge if needed',
+            'Same-day service available for metro area'
+          ],
+          price: 'Starting from ₱2,000'
+        },
+        'Dismantling & Reinstall': {
+          icon: 'bi-arrow-left-right',
+          subtitle: 'Unit Removal & Reinstallation',
+          desc: 'Need your AC temporarily removed for renovation, painting, or maintenance? We handle the complete dismantling and reinstallation process safely.',
+          features: [
+            'Safe unit dismantling',
+            'Refrigerant recovery',
+            'Careful handling to prevent damage',
+            'Reinstallation at same or new location',
+            'Full system check after reinstall',
+            'Ideal for renovation projects'
+          ],
+          price: 'Starting from ₱1,800'
+        },
+        'System Reprocess': {
+          icon: 'bi-gear',
+          subtitle: 'Full System Restoration & Maintenance',
+          desc: 'For units with persistent issues or long-term neglect, our system reprocess service performs a comprehensive restoration to bring your AC back to life.',
+          features: [
+            'Complete system diagnostics',
+            'Full chemical cleaning of all components',
+            'Electrical inspection and tightening',
+            'Refrigerant system check and recharge',
+            'Thermostat calibration',
+            'Performance benchmarking and reporting',
+            'Extends unit lifespan significantly'
+          ],
+          price: 'Starting from ₱2,800'
+        },
+        'Pump Down': {
+          icon: 'bi-arrow-down-circle',
+          subtitle: 'Refrigerant Recovery Service',
+          desc: 'We safely recover refrigerant from your system before relocation, maintenance, or disposal. This process preserves your refrigerant and protects the environment.',
+          features: [
+            'Safe refrigerant recovery into storage cylinders',
+            'System isolation and valve closure',
+            'Compressor-based recovery method',
+            'Proper handling per environmental standards',
+            'Documentation of recovered refrigerant volume',
+            'Required before any major AC service'
+          ],
+          price: 'Starting from ₱1,500'
+        },
+        'Refrigerator': {
+          icon: 'bi-snow2',
+          subtitle: 'All Brands — No Cooling, Leaks & More',
+          desc: 'From warm fridges to strange noises, our technicians diagnose and repair all refrigerator issues. We service all major brands including Samsung, LG, Panasonic, and Whirlpool.',
+          features: [
+            'Compressor and motor repair',
+            'Refrigerant leak detection and recharge',
+            'Thermostat and sensor calibration',
+            'Door seal and gasket replacement',
+            'Defrost system repair',
+            'Ice maker and water dispenser fix',
+            'Same-day diagnosis available'
+          ],
+          price: 'Diagnosis: ₱350'
+        },
+        'Washing Machine': {
+          icon: 'bi-droplet',
+          subtitle: 'Top Load, Front Load & Spinner Only',
+          desc: 'Whether it won\'t spin, drain, or fill, our experts get your washing machine back to work. We handle all types and brands with genuine and compatible parts.',
+          features: [
+            'Drain pump and filter cleaning',
+            'Belt and motor repair',
+            'Water inlet valve replacement',
+            'Control board and timer repair',
+            'Drum bearing and suspension fix',
+            'Leak detection and sealing',
+            'Full test wash after repair'
+          ],
+          price: 'Diagnosis: ₱350'
+        },
+        'Microwave Oven': {
+          icon: 'bi-lightning-charge',
+          subtitle: 'Heating, Turntable & Electrical Issues',
+          desc: 'Microwave not heating? Turntable stuck? Our technicians handle all microwave repairs including magnetron replacement, control panel fixes, and electrical issues.',
+          features: [
+            'Magnetron testing and replacement',
+            'High voltage capacitor and diode repair',
+            'Turntable motor replacement',
+            'Door switch and interlock repair',
+            'Control panel and keypad fix',
+            'Internal fuse and transformer check',
+            'Safety inspection after repair'
+          ],
+          price: 'Diagnosis: ₱300'
+        },
+        'Freezer': {
+          icon: 'bi-box',
+          subtitle: 'Cooling Problems & Compressor Service',
+          desc: 'A freezer that isn\'t cooling properly can cost you spoiled food. We diagnose and fix cooling issues, compressor problems, and frost buildup fast.',
+          features: [
+            'Compressor and condenser repair',
+            'Thermostat and temperature sensor fix',
+            'Defrost heater and timer replacement',
+            'Door gasket and seal replacement',
+            'Refrigerant leak detection and recharge',
+            'Frost buildup prevention',
+            'Energy efficiency restoration'
+          ],
+          price: 'Diagnosis: ₱350'
+        },
+        'Dryer': {
+          icon: 'bi-wind',
+          subtitle: 'Heating, Tumbling & Exhaust Issues',
+          desc: 'Clothes coming out damp? Dryer not heating? We repair all dryer types including gas and electric models, restoring full drying performance.',
+          features: [
+            'Heating element replacement',
+            'Thermal fuse and thermostat repair',
+            'Belt and roller maintenance',
+            'Motor and blower wheel fix',
+            'Exhaust vent cleaning and repair',
+            'Control board diagnostics',
+            'Lint trap and sensor cleaning'
+          ],
+          price: 'Diagnosis: ₱350'
+        },
+        'Rice Cooker': {
+          icon: 'bi-cup-hot',
+          subtitle: 'Not Heating, Switching Off & Display Issues',
+          desc: 'From basic rice cookers to advanced fuzzy logic models, we fix heating problems, switch failures, and display errors. Quick turnaround for essential kitchen appliances.',
+          features: [
+            'Heating plate and element replacement',
+            'Thermostat and thermal fuse repair',
+            'Power switch and cord replacement',
+            'Control board and display fix',
+            'Inner pot sensor calibration',
+            'Cooking cycle troubleshooting',
+            'Safety cutoff testing'
+          ],
+          price: 'Diagnosis: ₱250'
+        },
+        'Electric Fan': {
+          icon: 'bi-fan',
+          subtitle: 'Motor, Blade & Oscillation Repair',
+          desc: 'A noisy or non-spinning fan is no match for our repair team. We fix motor issues, blade damage, oscillation problems, and speed control failures.',
+          features: [
+            'Motor winding repair or replacement',
+            'Blade balancing and replacement',
+            'Oscillation gear and linkage fix',
+            'Speed switch and capacitor replacement',
+            'Bearing lubrication and cleaning',
+            'Cord and plug repair',
+            'Full balance and safety test'
+          ],
+          price: 'Diagnosis: ₱200'
+        },
+        'Water Dispenser': {
+          icon: 'bi-water',
+          subtitle: 'Cooling, Heating & Leaking Problems',
+          desc: 'Keep your water dispenser running cold and clean. We handle compressor issues, heating element failures, and leak repairs for all dispenser types.',
+          features: [
+            'Cooling compressor and thermostat repair',
+            'Heating element replacement',
+            'Leak detection and sealing',
+            'Drip tray and drain line cleaning',
+            'Power indicator and switch fix',
+            'Water line sanitization',
+            'Energy efficiency check'
+          ],
+          price: 'Diagnosis: ₱350'
+        },
+        'Electric Kettle': {
+          icon: 'bi-thermometer',
+          subtitle: 'Not Boiling, Auto-Off & Cord Issues',
+          desc: 'Electric kettles are essential for daily use. We fix boiling failures, auto-shutoff issues, and cord damage with fast, affordable repairs.',
+          features: [
+            'Heating element testing and replacement',
+            'Thermostat and thermal fuse repair',
+            'Auto-shutoff mechanism calibration',
+            'Power cord and base connector fix',
+            'Switch and indicator light repair',
+            'Water level sensor fix',
+            'Descaling and deep cleaning'
+          ],
+          price: 'Diagnosis: ₱200'
+        }
+      };
+
+      /* Click handler for service items */
+      document.querySelectorAll('.svc-item').forEach(function(item, idx) {
+        item.addEventListener('click', function() {
+          var svcName = [
+            'Aircon Installation', 'Aircon Cleaning', 'Freon Recharging',
+            'Aircon Relocation', 'Dismantling & Reinstall', 'System Reprocess', 'Pump Down'
+          ][idx];
+          openSvcDetailModal(svcName);
+        });
+      });
+
+      /* Click handler for repair tiles */
+      document.querySelectorAll('.repair-tile').forEach(function(item, idx) {
+        item.addEventListener('click', function() {
+          var repairName = [
+            'Refrigerator', 'Washing Machine', 'Microwave Oven', 'Freezer', 'Dryer',
+            'Rice Cooker', 'Electric Fan', 'Water Dispenser', 'Electric Kettle'
+          ][idx];
+          openSvcDetailModal(repairName);
+        });
+      });
+
+      /* Open modal */
+      window.openSvcDetailModal = function(name) {
+        var data = svcData[name];
+        if (!data) return;
+        var modal = document.getElementById('svcDetailModal');
+        document.getElementById('svcDetailIcon').innerHTML = '<i class="bi ' + data.icon + '"></i>';
+        document.getElementById('svcDetailTitle').textContent = name;
+        document.getElementById('svcDetailSubtitle').textContent = data.subtitle;
+
+        var bodyHtml = '<p>' + data.desc + '</p>';
+        bodyHtml += '<ul class="svc-features-list">';
+        data.features.forEach(function(f) {
+          bodyHtml += '<li><i class="bi bi-check-circle-fill"></i><span>' + f + '</span></li>';
+        });
+        bodyHtml += '</ul>';
+        bodyHtml += '<div class="svc-detail-price"><i class="bi bi-tag-fill"></i> ' + data.price + '</div>';
+        document.getElementById('svcDetailBody').innerHTML = bodyHtml;
+
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+      };
+
+      /* Close modal */
+      window.closeSvcDetailModal = function() {
+        var modal = document.getElementById('svcDetailModal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+      };
+
+      /* ESC key closes modal */
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') window.closeSvcDetailModal();
+      });
+    })();
+  </script>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- ===== Featured Products + Shop by Category (Premium E-commerce) ===== -->
+<section class="fp-section py-5 position-relative overflow-hidden">
+  <!-- Background -->
+  <div class="fp-bg"></div>
+  <div class="fp-grid-overlay"></div>
+  <!-- Glow orbs -->
+  <div class="position-absolute rounded-circle" style="width: 520px; height: 520px; background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, transparent 70%); top: -200px; right: -150px; z-index: 0; pointer-events: none;"></div>
+  <div class="position-absolute rounded-circle" style="width: 420px; height: 420px; background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); bottom: -150px; left: -120px; z-index: 0; pointer-events: none;"></div>
+
+  <div class="container position-relative" style="z-index: 2;">
+    <!-- Header -->
+    <div class="text-center mb-5" data-aos="fade-up" data-aos-duration="800">
+      <div class="fp-label mx-auto mb-3">
+        <span class="fp-label-line"></span>
+        <span class="fp-label-text">Premium Catalog</span>
+        <span class="fp-label-line"></span>
+      </div>
+      <h2 class="fp-heading mb-3">Featured <span class="fp-heading-accent">Aircon Units</span></h2>
+      <p class="fp-subheading mx-auto">Shop energy-efficient split and window-type air conditioners from trusted brands — delivered and installed by our certified technicians.</p>
+    </div>
+
+    <!-- Product grid -->
+    <div class="row g-4">
+      <% if (typeof featuredProducts !== 'undefined' && featuredProducts.length) { %>
+        <% featuredProducts.forEach(function(p, i) { %>
+          <div class="col-12 col-sm-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="<%= (i % 4) * 100 %>">
+            <div class="fp-card h-100">
+              <div class="fp-card-media">
+                <img src="<%= p.imageUrl %>" alt="<%= p.brand %> <%= p.modelLine %>" loading="lazy"
+                     onerror="this.src='/images/products/default.png';">
+                <% if (p.inverter) { %><span class="fp-tag fp-tag-inverter">Inverter</span><% } %>
+                <span class="fp-tag fp-tag-stock <%= p.inStock ? 'in' : 'out' %>"><%= p.inStock ? 'In Stock' : 'Sold Out' %></span>
+                <div class="fp-quick-add">
+                  <a href="/products/<%= p._id %>" class="fp-quick-btn">View Details <i class="bi bi-arrow-right"></i></a>
+                </div>
+              </div>
+              <div class="fp-card-body">
+                <div class="fp-brand"><%= p.brand %></div>
+                <h5 class="fp-name"><%= p.modelLine %></h5>
+                <div class="fp-meta">
+                  <span class="fp-type"><%= p.type.replace('_',' ') %></span>
+                  <% if (p.firstCapacity) { %><span class="fp-dot">•</span><span><%= p.firstCapacity %> HP</span><% } %>
+                </div>
+                <div class="fp-foot">
+                  <div class="fp-price">
+                    <% if (p.startingPrice) { %><span class="fp-from">from</span> ₱<%= Number(p.startingPrice).toLocaleString() %><% } else { %><span class="fp-from">Price on request</span><% } %>
+                  </div>
+                  <a href="/products/<%= p._id %>" class="fp-buy">Shop <i class="bi bi-bag"></i></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="col-12 text-center py-5">
+          <p style="color: #64748b;">Our product catalog is being updated. <a href="/products" style="color: #2563eb;">Browse all products →</a></p>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="text-center mt-5">
+      <a href="/products" class="fp-viewall">View Full Catalog <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+
+  <style>
+    .fp-bg { position: absolute; inset: 0; z-index: 0; background: linear-gradient(165deg, #f8fafc 0%, #f0f7ff 45%, #e0edff 100%); }
+    .fp-grid-overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-image: linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px);
+      background-size: 60px 60px; }
+    .fp-label { display: inline-flex; align-items: center; gap: 14px; }
+    .fp-label-line { width: 40px; height: 1px; background: linear-gradient(90deg, transparent, rgba(37,99,235,0.4), transparent); }
+    .fp-label-text { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #2563eb; }
+    .fp-heading { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; letter-spacing: -1.5px; color: #0f172a; line-height: 1.15; margin: 0; }
+    .fp-heading-accent { background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .fp-subheading { max-width: 620px; font-size: 1.02rem; line-height: 1.7; color: #64748b; margin: 0; }
+
+    .fp-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      overflow: hidden;
+      transition: all 0.45s cubic-bezier(0.165,0.84,0.44,1);
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+      display: flex; flex-direction: column;
+    }
+    .fp-card:hover { transform: translateY(-10px); border-color: #bfdbfe; box-shadow: 0 28px 60px rgba(37,99,235,0.1); }
+    .fp-card-media { position: relative; aspect-ratio: 4/3; background: #f8fafc; overflow: hidden; }
+    .fp-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s ease; }
+    .fp-card:hover .fp-card-media img { transform: scale(1.08); }
+    .fp-tag { position: absolute; top: 12px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; padding: 4px 10px; border-radius: 50px; text-transform: uppercase; }
+    .fp-tag-inverter { left: 12px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+    .fp-tag-stock { right: 12px; }
+    .fp-tag-stock.in { background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
+    .fp-tag-stock.out { background: rgba(239,68,68,0.1); color: #dc2626; border: 1px solid rgba(239,68,68,0.2); }
+    .fp-quick-add { position: absolute; inset: auto 0 0 0; padding: 0.9rem; background: linear-gradient(to top, rgba(255,255,255,0.95), transparent); transform: translateY(20px); opacity: 0; transition: all 0.4s ease; }
+    .fp-card:hover .fp-quick-add { transform: translateY(0); opacity: 1; }
+    .fp-quick-btn { display: block; text-align: center; padding: 0.6rem; border-radius: 0.75rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; font-size: 0.85rem; text-decoration: none; }
+    .fp-quick-btn:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; }
+
+    .fp-card-body { padding: 1.1rem 1.2rem 1.3rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+    .fp-brand { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; }
+    .fp-name { font-size: 1rem; font-weight: 700; color: #0f172a; letter-spacing: -0.3px; margin: 0; line-height: 1.3; }
+    .fp-meta { font-size: 0.78rem; color: #64748b; display: flex; align-items: center; gap: 0.4rem; }
+    .fp-dot { color: #cbd5e1; }
+    .fp-foot { margin-top: auto; padding-top: 0.8rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+    .fp-price { color: #0f172a; font-weight: 800; font-size: 1.05rem; letter-spacing: -0.3px; }
+    .fp-from { display: block; font-size: 0.65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+    .fp-buy { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 0.9rem; border-radius: 50px; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; font-weight: 700; font-size: 0.8rem; text-decoration: none; transition: all 0.3s ease; }
+    .fp-buy:hover { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-color: transparent; transform: translateY(-2px); }
+
+    .fp-viewall { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.9rem 2rem; border-radius: 50px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; text-decoration: none; box-shadow: 0 10px 30px rgba(37,99,235,0.3); transition: all 0.35s ease; }
+    .fp-viewall:hover { transform: translateY(-4px) scale(1.03); background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; box-shadow: 0 16px 40px rgba(37,99,235,0.4); }
+
+    @media (max-width: 767.98px) { .fp-heading { font-size: 1.9rem; } }
+
+    /* Mobile responsive fixes for Premium Catalog */
+    @media (max-width: 768px) {
+      /* Show 2 products per row on mobile */
+      .fp-section .row > div {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+      }
+
+      .fp-section {
+        padding: 2rem 0 !important;
+      }
+      .fp-label {
+        gap: 8px;
+      }
+      .fp-label-line {
+        width: 25px;
+      }
+      .fp-label-text {
+        font-size: 0.62rem;
+      }
+      .fp-heading {
+        font-size: 1.5rem !important;
+      }
+      .fp-subheading {
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+      .fp-card {
+        border-radius: 0.6rem;
+      }
+      .fp-card-media {
+        aspect-ratio: 1 / 1;
+        height: 140px !important;
+      }
+      .fp-card-body {
+        padding: 0.7rem 0.8rem 0.8rem;
+        gap: 0.2rem;
+      }
+      .fp-brand {
+        font-size: 0.6rem;
+      }
+      .fp-name {
+        font-size: 0.8rem;
+        line-height: 1.2;
+      }
+      .fp-meta {
+        font-size: 0.68rem;
+      }
+      .fp-price {
+        font-size: 0.85rem;
+      }
+      .fp-from {
+        font-size: 0.55rem;
+      }
+      .fp-buy {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7rem;
+      }
+      .fp-tag {
+        font-size: 0.55rem;
+        padding: 2px 6px;
+        top: 6px;
+      }
+      .fp-tag-inverter {
+        left: 6px;
+      }
+      .fp-tag-stock {
+        right: 6px;
+      }
+      .fp-quick-add {
+        padding: 0.5rem;
+      }
+      .fp-quick-btn {
+        padding: 0.4rem;
+        font-size: 0.7rem;
+      }
+      .fp-viewall {
+        padding: 0.6rem 1.25rem;
+        font-size: 0.8rem;
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .fp-section {
+        padding: 1.5rem 0 !important;
+      }
+      .fp-heading {
+        font-size: 1.3rem !important;
+      }
+      .fp-subheading {
+        font-size: 0.8rem;
+      }
+      .fp-card-media {
+        height: 120px !important;
+      }
+      .fp-card-body {
+        padding: 0.6rem 0.7rem 0.7rem;
+      }
+      .fp-name {
+        font-size: 0.75rem;
+      }
+      .fp-price {
+        font-size: 0.8rem;
+      }
+      .fp-buy {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.65rem;
+      }
+      .fp-quick-btn {
+        padding: 0.35rem;
+        font-size: 0.65rem;
+      }
+    }
+  </style>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Stats / Trust Bar — Enterprise Social Proof -->
+<section class="py-5 position-relative" style="background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 40%, #eff6ff 100%); overflow: hidden; border-top: 1px solid rgba(37,99,235,0.08); border-bottom: 1px solid rgba(37,99,235,0.08);">
+  <!-- Glow orbs -->
+  <div class="position-absolute rounded-circle" style="width: 500px; height: 500px; background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%); top: -150px; left: -150px; z-index: 0; pointer-events: none;"></div>
+  <div class="position-absolute rounded-circle" style="width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%); bottom: -100px; right: -100px; z-index: 0; pointer-events: none;"></div>
+  <!-- Grid pattern -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(37,99,235,0.03) 1px, transparent 1px); background-size: 24px 24px; z-index: 0; pointer-events: none;"></div>
+
+  <div class="container position-relative py-3" style="z-index: 1;">
+    <div class="row g-4 align-items-center justify-content-center">
+      <!-- Stat 1 -->
+      <div class="col-6 col-md-3 text-center" data-aos="fade-up" data-aos-duration="800" data-aos-delay="0">
+        <div class="stat-item-premium">
+          <div class="stat-icon-premium mx-auto mb-3">
+            <i class="bi bi-people-fill"></i>
+          </div>
+          <div class="stat-number-premium" id="statCustomers">500+</div>
+          <div class="stat-label-premium">Customers Served</div>
+        </div>
+      </div>
+      <!-- Stat 2 -->
+      <div class="col-6 col-md-3 text-center" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
+        <div class="stat-item-premium">
+          <div class="stat-icon-premium mx-auto mb-3">
+            <i class="bi bi-calendar-event-fill"></i>
+          </div>
+          <div class="stat-number-premium">7+</div>
+          <div class="stat-label-premium">Years of Experience</div>
+        </div>
+      </div>
+      <!-- Stat 3 -->
+      <div class="col-6 col-md-3 text-center" data-aos="fade-up" data-aos-duration="800" data-aos-delay="200">
+        <div class="stat-item-premium">
+          <div class="stat-icon-premium mx-auto mb-3">
+            <i class="bi bi-tools"></i>
+          </div>
+          <div class="stat-number-premium">1,200+</div>
+          <div class="stat-label-premium">Services Completed</div>
+        </div>
+      </div>
+      <!-- Stat 4 -->
+      <div class="col-6 col-md-3 text-center" data-aos="fade-up" data-aos-duration="800" data-aos-delay="300">
+        <div class="stat-item-premium">
+          <div class="stat-icon-premium mx-auto mb-3">
+            <i class="bi bi-star-fill"></i>
+          </div>
+          <div class="stat-number-premium"><%= displayRating %></div>
+          <div class="stat-label-premium">Customer Rating</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trust badges row -->
+    <div class="d-flex flex-wrap justify-content-center gap-3 mt-5 pt-4" style="border-top: 1px solid rgba(255,255,255,0.08);">
+      <div class="trust-badge-item">
+        <i class="bi bi-shield-lock-fill"></i>
+        <span>Licensed & Insured</span>
+      </div>
+      <div class="trust-badge-item">
+        <i class="bi bi-patch-check-fill"></i>
+        <span>Certified Technicians</span>
+      </div>
+      <div class="trust-badge-item">
+        <i class="bi bi-clock-fill"></i>
+        <span>24/7 Emergency Support</span>
+      </div>
+      <div class="trust-badge-item">
+        <i class="bi bi-arrow-repeat"></i>
+        <span>Service Guarantee</span>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .stat-item-premium {
+      padding: 1.5rem 1rem;
+      border-radius: 1rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+      transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    }
+    .stat-item-premium:hover {
+      transform: translateY(-8px);
+      background: #fff;
+      border-color: #bfdbfe;
+      box-shadow: 0 20px 40px rgba(37,99,235,0.1);
+    }
+    .stat-icon-premium {
+      width: 52px;
+      height: 52px;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      border: 1px solid #bfdbfe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      color: #2563eb;
+      transition: all 0.4s ease;
+    }
+    .stat-item-premium:hover .stat-icon-premium {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border-color: transparent;
+      color: #fff;
+      transform: scale(1.1) rotate(-5deg);
+      box-shadow: 0 8px 24px rgba(37,99,235,0.3);
+    }
+    .stat-number-premium {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -1px;
+      line-height: 1.2;
+      margin-bottom: 0.3rem;
+    }
+    .stat-label-premium {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .trust-badge-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 50px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .trust-badge-item:hover {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #2563eb;
+      transform: translateY(-2px);
+    }
+    .trust-badge-item i {
+      color: #3b82f6;
+      font-size: 0.95rem;
+    }
+    @media (max-width: 767.98px) {
+      .stat-number-premium { font-size: 1.7rem; }
+      .stat-label-premium { font-size: 0.72rem; }
+    }
+  </style>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- ===== Value Props / Why Shop With Us ===== -->
+<section class="vps-section py-5 position-relative overflow-hidden" style="background: linear-gradient(160deg, #f8fafc 0%, #eef2f7 100%);">
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(37,99,235,0.05) 1px, transparent 1px); background-size: 32px 32px; z-index: 0; pointer-events: none;"></div>
+  <div class="container position-relative" style="z-index: 1;">
+    <div class="row g-4 align-items-stretch justify-content-center">
+      <!-- Free delivery & install -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="0">
+        <div class="vps-card h-100">
+          <div class="vps-icon" style="background: linear-gradient(135deg, #2563eb, #3b82f6);">
+            <i class="bi bi-truck"></i>
+          </div>
+          <h5 class="vps-title">Free Delivery & Install</h5>
+          <p class="vps-text">Metro-wide delivery with professional installation by certified technicians on every unit.</p>
+        </div>
+      </div>
+      <!-- Warranty -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
+        <div class="vps-card h-100">
+          <div class="vps-icon" style="background: linear-gradient(135deg, #059669, #10b981);">
+            <i class="bi bi-patch-check-fill"></i>
+          </div>
+          <h5 class="vps-title">Up to 5-Year Warranty</h5>
+          <p class="vps-text">Full manufacturer compressor and parts coverage — plus our 30-day workmanship guarantee.</p>
+        </div>
+      </div>
+      <!-- Flexible payment -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="200">
+        <div class="vps-card h-100">
+          <div class="vps-icon" style="background: linear-gradient(135deg, #d97706, #f59e0b);">
+            <i class="bi bi-credit-card-2-front"></i>
+          </div>
+          <h5 class="vps-title">Flexible Payments</h5>
+          <p class="vps-text">Pay via GCash or cash on delivery. Downpayment options available on larger project jobs.</p>
+        </div>
+      </div>
+      <!-- After-sales support -->
+      <div class="col-12 col-md-6 col-lg-3" data-aos="fade-up" data-aos-duration="800" data-aos-delay="300">
+        <div class="vps-card h-100">
+          <div class="vps-icon" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6);">
+            <i class="bi bi-headset"></i>
+          </div>
+          <h5 class="vps-title">Lifetime Support</h5>
+          <p class="vps-text">Dedicated after-sales service, maintenance plans, and 24/7 emergency response when you need us.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .vps-card {
+      background: #fff;
+      border: 1px solid rgba(37,99,235,0.08);
+      border-radius: 1.5rem;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      transition: all 0.45s cubic-bezier(0.165,0.84,0.44,1);
+      box-shadow: 0 6px 24px rgba(15,36,96,0.06);
+      position: relative;
+      overflow: hidden;
+    }
+    .vps-card::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+      background: linear-gradient(120deg, transparent, rgba(37,99,235,0.05), transparent);
+      transition: left 0.7s ease; pointer-events: none;
+    }
+    .vps-card:hover { transform: translateY(-10px); box-shadow: 0 24px 48px rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.2); }
+    .vps-card:hover::after { left: 150%; }
+    .vps-icon {
+      width: 60px; height: 60px; border-radius: 1rem; margin: 0 auto 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; color: #fff; box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+      transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .vps-card:hover .vps-icon { transform: scale(1.12) rotate(-5deg); }
+    .vps-title { font-size: 1.05rem; font-weight: 800; color: #0a1628; letter-spacing: -0.3px; margin-bottom: 0.5rem; }
+    .vps-text { font-size: 0.86rem; color: #64748b; line-height: 1.6; margin: 0; }
+    @media (max-width: 767.98px) { .vps-card { padding: 1.5rem 1.25rem; } }
+  </style>
+</section>
+
+<!-- Testimonials Slider -->
+<section class="testimonials-premium py-5 position-relative" style="background: radial-gradient(circle at top, #0f1d3a, #050912); color:#fff; overflow:hidden;">
+  <div class="position-absolute rounded-circle" style="width:520px;height:520px;background:radial-gradient(circle,rgba(59,130,246,0.18) 0%,transparent 70%);top:-180px;left:-120px;pointer-events:none;opacity:0.5;"></div>
+  <div class="container position-relative" style="z-index:1;">
+    <div class="d-flex flex-wrap justify-content-between align-items-end mb-4">
+      <div>
+        <span class="contact-chip" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:#dbeafe;">Trusted Testimonials</span>
+        <h2 class="display-6 fw-bold mt-3" style="letter-spacing:-1px;"><%= displayRating %> ★ Excellence in Service</h2>
+        <p class="text-white-50 mb-0">Hear from satisfied clients who rely on CALIDRO RACS for exceptional air conditioning and appliance solutions.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="testimonial-nav" id="testimonialPrev" aria-label="Previous testimonial"><i class="bi bi-arrow-left"></i></button>
+        <button class="testimonial-nav" id="testimonialNext" aria-label="Next testimonial"><i class="bi bi-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <% const fallbackTestimonials = [
+      { quote: 'CALIDRO restored our office climate control in under 24 hours. Their technicians demonstrated remarkable professionalism and transparent pricing.', name: 'Mara Santos', role: 'Operations Manager', score: 5 },
+      { quote: 'The booking experience was seamless, and the technician provided clear explanations throughout the service process. Exceptional attention to detail.', name: 'Kenji Ramirez', role: 'Homeowner', score: 5 },
+      { quote: 'We have entrusted CALIDRO with our quarterly maintenance for three years. Always punctual, meticulous, and committed to excellence.', name: 'Patrice Lim', role: 'Cafe Owner', score: 5 }
+    ]; const displayTestimonials = testimonials.length > 0 ? testimonials : fallbackTestimonials; %>
+
+    <div class="testimonial-track" id="testimonialTrack">
+      <% displayTestimonials.forEach((item, index) => { %>
+        <div class="testimonial-card" data-index="<%= index %>">
+          <div class="testimonial-stars">
+            <% for (let i = 0; i < (item.score || 5); i++) { %>
+              <i class="bi bi-star-fill"></i>
+            <% } %>
+          </div>
+          <p class="testimonial-quote">“<%= item.quote %>”</p>
+          <div class="d-flex align-items-center gap-2">
+            <div class="testimonial-avatar"> <i class="bi bi-person"></i> </div>
+            <div>
+              <p class="mb-0 fw-bold"><%= item.name %></p>
+              <p class="mb-0 text-white-50 small"><%= item.role %></p>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <style>
+    .testimonial-track {
+      display: flex;
+      gap: 1.5rem;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 1rem;
+    }
+    .testimonial-track::-webkit-scrollbar { display: none; }
+    .testimonial-card {
+      flex: 0 0 320px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+      scroll-snap-align: start;
+      position: relative;
+    }
+    .testimonial-stars {
+      color: #fbbf24;
+      letter-spacing: 0.15rem;
+      margin-bottom: 1rem;
+    }
+    .testimonial-quote {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.9);
+      min-height: 120px;
+    }
+    .testimonial-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .testimonial-nav {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.4);
+      background: transparent;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    .testimonial-nav:hover {
+      background: rgba(255,255,255,0.15);
+      transform: translateY(-2px);
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const track = document.getElementById('testimonialTrack');
+      const prev = document.getElementById('testimonialPrev');
+      const next = document.getElementById('testimonialNext');
+      if (!track) return;
+      const scrollAmount = 360;
+      prev && prev.addEventListener('click', () => track.scrollBy({ left: -scrollAmount, behavior: 'smooth' }));
+      next && next.addEventListener('click', () => track.scrollBy({ left: scrollAmount, behavior: 'smooth' }));
+    });
+  </script>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Section 5 Staff — Premium Dark Design -->
+<section class="team-premium-section py-5 position-relative" style="overflow: hidden; padding-bottom: 100px !important;">
+  <!-- Deep gradient background -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%); z-index: 0;"></div>
+  <!-- Grid pattern overlay -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(37,99,235,0.06) 1px, transparent 1px); background-size: 40px 40px; opacity: 0.5; z-index: 0; pointer-events: none;"></div>
+  <!-- Glow orbs -->
+  <div class="position-absolute rounded-circle" style="width: 600px; height: 600px; background: radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%); top: -200px; right: -200px; z-index: 0; pointer-events: none; animation: orbDrift 14s ease-in-out infinite alternate;"></div>
+  <div class="position-absolute rounded-circle" style="width: 450px; height: 450px; background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); bottom: -150px; left: -100px; z-index: 0; pointer-events: none; animation: orbDrift 18s ease-in-out infinite alternate-reverse;"></div>
+
+  <div class="container position-relative py-5 perspective-container" style="z-index: 1;">
+    <div class="text-center mb-5 pb-3" data-aos="fade-up" data-aos-duration="1000">
+      <span class="team-badge-premium">Our Experts</span>
+      <h2 class="team-heading-premium">Meet the <span class="team-heading-gradient">Team</span></h2>
+      <p class="team-subheading">Dedicated professionals ensuring quality service and exceptional results for every client</p>
+    </div>
+
+    <% const staff = [
+      { name: 'Edmon Calidro', role: 'Proprietor / Technician / Owner', img: '/images/staff/staff.webp', icon: 'bi-tools', color: 'blue' },
+      { name: 'Loida Calidro', role: 'Owner', img: '/images/staff/staff.webp', icon: 'bi-person-badge', color: 'purple' },
+      { name: 'Kyla de Guzman', role: 'Secretary', img: '/images/staff/staff.webp', icon: 'bi-headset', color: 'emerald' },
+      { name: 'Myles Capinpin', role: 'Secretary / Marketing', img: '/images/staff/staff.webp', icon: 'bi-megaphone', color: 'amber' },
+      { name: 'Darius Santos', role: 'Helper', img: '/images/staff/staff.webp', icon: 'bi-wrench', color: 'orange' },
+      { name: 'Darrel Santos', role: 'Helper', img: '/images/staff/staff.webp', icon: 'bi-wrench', color: 'orange' },
+      { name: 'Raymark Lopez', role: 'Multi-skilled Worker', img: '/images/staff/staff.webp', icon: 'bi-stars', color: 'pink' }
+    ]; %>
+
+    <!-- Top row: 4 members -->
+    <div class="row justify-content-center g-4 mb-4">
+      <% staff.slice(0, 4).forEach((member, index) => { %>
+        <div class="col-6 col-md-4 col-lg-3 d-flex align-items-stretch" data-aos="fade-up" data-aos-duration="800" data-aos-delay="<%= index * 100 %>">
+          <div class="team-card-premium w-100">
+            <div class="team-card-glass"></div>
+            <div class="team-card-content">
+              <div class="team-avatar-wrapper mx-auto">
+                <div class="team-avatar-glow <%= member.color %>"></div>
+                <div class="team-avatar-ring-premium <%= member.color %>">
+                  <div class="team-avatar-photo" style="background-image: url('<%= member.img || "/images/staff/staff.webp" %>');"></div>
+                </div>
+                <div class="team-role-icon <%= member.color %>">
+                  <i class="bi <%= member.icon %>"></i>
+                </div>
+              </div>
+              <h5 class="team-member-name"><%= member.name %></h5>
+              <span class="team-role-chip <%= member.color %>"><%= member.role %></span>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+    <!-- Bottom row: 3 members centered -->
+    <div class="row justify-content-center g-4">
+      <% staff.slice(4).forEach((member, index) => { %>
+        <div class="col-6 col-md-4 col-lg-3 d-flex align-items-stretch" data-aos="fade-up" data-aos-duration="800" data-aos-delay="<%= (index + 4) * 100 %>">
+          <div class="team-card-premium w-100">
+            <div class="team-card-glass"></div>
+            <div class="team-card-content">
+              <div class="team-avatar-wrapper mx-auto">
+                <div class="team-avatar-glow <%= member.color %>"></div>
+                <div class="team-avatar-ring-premium <%= member.color %>">
+                  <div class="team-avatar-photo" style="background-image: url('<%= member.img || "/images/staff/staff.webp" %>');"></div>
+                </div>
+                <div class="team-role-icon <%= member.color %>">
+                  <i class="bi <%= member.icon %>"></i>
+                </div>
+              </div>
+              <h5 class="team-member-name"><%= member.name %></h5>
+              <span class="team-role-chip <%= member.color %>"><%= member.role %></span>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <style>
+    .team-badge-premium {
+      display: inline-flex;
+      padding: 8px 22px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 700;
+      background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.05));
+      color: #2563eb;
+      border: 1.5px solid rgba(37,99,235,0.15);
+      box-shadow: 0 8px 24px rgba(37,99,235,0.12);
+      margin-bottom: 1.5rem;
+    }
+    .team-heading-premium {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      color: #0a1628;
+      margin-bottom: 1rem;
+    }
+    .team-heading-gradient {
+      background: linear-gradient(135deg, #2563eb, #3b82f6, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .team-subheading {
+      font-size: 1.15rem;
+      max-width: 550px;
+      margin: 0 auto;
+      color: #64748b;
+      line-height: 1.7;
+    }
+    .team-card-premium {
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.8);
+      border-radius: 2rem;
+      overflow: hidden;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-style: preserve-3d;
+      box-shadow: 
+        0 8px 32px rgba(15,36,96,0.08),
+        0 0 0 1px rgba(255,255,255,0.6) inset;
+      position: relative;
+      backdrop-filter: blur(20px);
+    }
+    .team-card-glass {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .team-card-content {
+      padding: 2.2rem 1.5rem 1.8rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .team-card-premium:hover {
+      transform: translateY(-16px) rotateX(4deg) translateZ(30px);
+      box-shadow: 
+        0 32px 64px rgba(15,36,96,0.15),
+        0 0 40px rgba(59,130,246,0.15),
+        0 0 0 1px rgba(255,255,255,0.8) inset;
+      border-color: rgba(37,99,235,0.2);
+    }
+    .team-avatar-wrapper {
+      position: relative;
+      width: 110px;
+      height: 110px;
+      margin-bottom: 1.2rem;
+    }
+    .team-avatar-glow {
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      opacity: 0;
+      filter: blur(20px);
+      transition: all 0.5s ease;
+    }
+    .team-avatar-glow.blue { background: radial-gradient(circle, rgba(37,99,235,0.4), transparent 70%); }
+    .team-avatar-glow.purple { background: radial-gradient(circle, rgba(139,92,246,0.4), transparent 70%); }
+    .team-avatar-glow.emerald { background: radial-gradient(circle, rgba(16,185,129,0.4), transparent 70%); }
+    .team-avatar-glow.amber { background: radial-gradient(circle, rgba(245,158,11,0.4), transparent 70%); }
+    .team-avatar-glow.orange { background: radial-gradient(circle, rgba(249,115,22,0.4), transparent 70%); }
+    .team-avatar-glow.pink { background: radial-gradient(circle, rgba(236,72,153,0.4), transparent 70%); }
+    .team-card-premium:hover .team-avatar-glow { opacity: 1; }
+    .team-avatar-ring-premium {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      padding: 4px;
+      box-shadow: 0 8px 24px rgba(37,99,235,0.2);
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .team-avatar-ring-premium.blue { background: linear-gradient(135deg, #2563eb, #3b82f6, #60a5fa); }
+    .team-avatar-ring-premium.purple { background: linear-gradient(135deg, #7c3aed, #8b5cf6, #a78bfa); }
+    .team-avatar-ring-premium.emerald { background: linear-gradient(135deg, #059669, #10b981, #34d399); }
+    .team-avatar-ring-premium.amber { background: linear-gradient(135deg, #d97706, #f59e0b, #fbbf24); }
+    .team-avatar-ring-premium.orange { background: linear-gradient(135deg, #ea580c, #f97316, #fb923c); }
+    .team-avatar-ring-premium.pink { background: linear-gradient(135deg, #db2777, #ec4899, #f472b6); }
+    .team-card-premium:hover .team-avatar-ring-premium {
+      transform: scale(1.08);
+      box-shadow: 0 16px 40px rgba(37,99,235,0.3);
+    }
+    .team-avatar-photo {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background-size: cover;
+      background-position: center;
+      background-color: #eff6ff;
+      border: 4px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1) inset;
+    }
+    .team-role-icon {
+      position: absolute;
+      bottom: -5px;
+      right: -5px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1rem;
+      border: 3px solid #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .team-role-icon.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .team-role-icon.purple { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+    .team-role-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
+    .team-role-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .team-role-icon.orange { background: linear-gradient(135deg, #ea580c, #f97316); }
+    .team-role-icon.pink { background: linear-gradient(135deg, #db2777, #ec4899); }
+    .team-card-premium:hover .team-role-icon {
+      transform: scale(1.15) rotate(10deg);
+    }
+    .team-member-name {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #0a1628;
+      letter-spacing: -0.3px;
+      margin-bottom: 0.5rem;
+    }
+    .team-role-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      border: 1.5px solid transparent;
+    }
+    .team-role-chip.blue {
+      background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(59,130,246,0.06));
+      color: #2563eb;
+      border-color: rgba(37,99,235,0.15);
+    }
+    .team-role-chip.purple {
+      background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(139,92,246,0.06));
+      color: #7c3aed;
+      border-color: rgba(139,92,246,0.15);
+    }
+    .team-role-chip.emerald {
+      background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.06));
+      color: #059669;
+      border-color: rgba(16,185,129,0.15);
+    }
+    .team-role-chip.amber {
+      background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.06));
+      color: #d97706;
+      border-color: rgba(245,158,11,0.15);
+    }
+    .team-role-chip.orange {
+      background: linear-gradient(135deg, rgba(249,115,22,0.12), rgba(249,115,22,0.06));
+      color: #ea580c;
+      border-color: rgba(249,115,22,0.15);
+    }
+    .team-role-chip.pink {
+      background: linear-gradient(135deg, rgba(236,72,153,0.12), rgba(236,72,153,0.06));
+      color: #db2777;
+      border-color: rgba(236,72,153,0.15);
+    }
+    .team-card-premium:hover .team-role-chip {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .team-card-premium:hover .team-role-chip.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border-color: transparent; }
+    .team-card-premium:hover .team-role-chip.purple { background: linear-gradient(135deg, #7c3aed, #8b5cf6); color: #fff; border-color: transparent; }
+    .team-card-premium:hover .team-role-chip.emerald { background: linear-gradient(135deg, #059669, #10b981); color: #fff; border-color: transparent; }
+    .team-card-premium:hover .team-role-chip.amber { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; border-color: transparent; }
+    .team-card-premium:hover .team-role-chip.orange { background: linear-gradient(135deg, #ea580c, #f97316); color: #fff; border-color: transparent; }
+    .team-card-premium:hover .team-role-chip.pink { background: linear-gradient(135deg, #db2777, #ec4899); color: #fff; border-color: transparent; }
+    @media (max-width: 767.98px) {
+      .team-heading-premium { font-size: 2rem; }
+      .team-avatar-wrapper { width: 90px; height: 90px; }
+      .team-role-icon { width: 32px; height: 32px; font-size: 0.85rem; }
+      .team-card-content { padding: 1.5rem 1rem 1.2rem; }
+      .team-member-name { font-size: 0.95rem; }
+      .team-role-chip { font-size: 0.68rem; padding: 0.35rem 0.8rem; }
+    }
+  </style>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- Section 6: Find Us — Premium Dark Design -->
+<section class="findus-premium py-5 position-relative" style="overflow: hidden; padding-bottom: 100px !important;">
+  <!-- Dark gradient background -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(160deg, #0a1628 0%, #0f2b5e 45%, #1a4fd8 100%); z-index: 0;"></div>
+  <!-- Animated glow orbs -->
+  <div class="position-absolute rounded-circle" style="width: 600px; height: 600px; background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%); top: -200px; left: -200px; z-index: 0; pointer-events: none; animation: orbDrift 15s ease-in-out infinite alternate;"></div>
+  <div class="position-absolute rounded-circle" style="width: 450px; height: 450px; background: radial-gradient(circle, rgba(96,165,250,0.08) 0%, transparent 70%); bottom: -100px; right: -100px; z-index: 0; pointer-events: none; animation: orbDrift 19s ease-in-out infinite alternate-reverse;"></div>
+  <!-- Grid pattern -->
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 30px 30px; z-index: 0; pointer-events: none;"></div>
+
+  <div class="container position-relative z-1 perspective-container py-4" style="z-index: 2;">
+    <div class="text-center mb-5 pb-3" data-aos="fade-up" data-aos-duration="1000">
+      <span class="badge px-4 py-2 rounded-pill fw-bold mb-3 shadow-sm border" style="letter-spacing: 1px; text-transform: uppercase; font-size: 0.82rem; background: rgba(255,255,255,0.08); color: #93c5fd; border-color: rgba(147,197,253,0.25) !important; backdrop-filter: blur(10px);">Get in Touch</span>
+      <h2 class="display-5 fw-bold mb-3" style="letter-spacing: -1.5px; color: #ffffff;">Find <span style="background: linear-gradient(135deg, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Us</span></h2>
+      <p class="fs-5 mx-auto" style="max-width: 600px; color: rgba(219,234,254,0.7);">
+        Visit our location in San Leonardo, Nueva Ecija
+      </p>
+    </div>
+    <div class="row g-4 align-items-stretch justify-content-center">
+      <!-- Contact Info Card -->
+      <div class="col-12 col-lg-5 d-flex" data-aos="fade-right" data-aos-duration="1000">
+        <div class="findus-contact-card w-100 h-100 d-flex flex-column justify-content-between">
+          <!-- Header -->
+          <div class="w-100">
+            <div class="d-flex align-items-center gap-3 mb-4 pb-3" style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+              <div class="d-flex align-items-center justify-content-center flex-shrink-0" style="width: 52px; height: 52px; border-radius: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 8px 20px rgba(59,130,246,0.4);">
+                <i class="bi bi-geo-alt-fill fs-4 text-white"></i>
+              </div>
+              <h3 class="fw-bold mb-0 text-white" style="letter-spacing: -0.5px; font-size: 1.3rem;">Our Location</h3>
+            </div>
+            
+            <p class="mb-4" style="color: rgba(219,234,254,0.6); font-size: 0.95rem; line-height: 1.7;">
+              Located in the heart of San Leonardo, Nueva Ecija, CALIDRO RACS serves the local community with reliable air conditioning and home appliance services.
+            </p>
+            
+            <div class="d-flex flex-column gap-3 w-100">
+              <!-- Address -->
+              <div class="findus-info-item d-flex align-items-center gap-3 p-3 rounded-3">
+                <div class="findus-icon-box d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; border-radius: 0.75rem; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.2); transition: all 0.3s ease;">
+                  <i class="bi bi-geo-alt-fill" style="color: #60a5fa; font-size: 1.1rem;"></i>
+                </div>
+                <div>
+                  <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Address</h6>
+                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;">CALIDRO Refrigeration and Airconditioning</span>
+                </div>
+              </div>
+              <!-- Phone -->
+              <div class="findus-info-item d-flex align-items-center gap-3 p-3 rounded-3">
+                <div class="findus-icon-box d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; border-radius: 0.75rem; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.2); transition: all 0.3s ease;">
+                  <i class="bi bi-telephone-fill" style="color: #60a5fa; font-size: 1.1rem;"></i>
+                </div>
+                <div>
+                  <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Phone</h6>
+                  <a href="tel:+639656056495" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;">09656056495</a>
+                </div>
+              </div>
+              <!-- Email -->
+              <div class="findus-info-item d-flex align-items-center gap-3 p-3 rounded-3">
+                <div class="findus-icon-box d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; border-radius: 0.75rem; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.2); transition: all 0.3s ease;">
+                  <i class="bi bi-envelope-fill" style="color: #60a5fa; font-size: 1.1rem;"></i>
+                </div>
+                <div>
+                  <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Email</h6>
+                  <a href="mailto:info@calidro.com" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;">info@calidro.com</a>
+                </div>
+              </div>
+              <!-- Hours -->
+              <div class="findus-info-item d-flex align-items-center gap-3 p-3 rounded-3">
+                <div class="findus-icon-box d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; border-radius: 0.75rem; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.2); transition: all 0.3s ease;">
+                  <i class="bi bi-clock-fill" style="color: #60a5fa; font-size: 1.1rem;"></i>
+                </div>
+                <div>
+                  <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Working Hours</h6>
+                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;">Mon–Sat · 8:00 AM – 6:00 PM</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4 w-100 pt-3" style="border-top: 1px solid rgba(255,255,255,0.06);">
+            <a href="#" class="btn w-100 rounded-pill py-3 fw-bold d-flex align-items-center justify-content-center gap-2 border-0 text-white findus-fb-btn" style="background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 8px 24px rgba(59,130,246,0.35); transition: all 0.35s ease; font-size: 0.95rem;">
+              <i class="bi bi-facebook fs-5"></i> Visit our Facebook Page
+            </a>
+          </div>
+        </div>
+      </div>
+      <!-- Map Card -->
+      <div class="col-12 col-lg-7 d-flex" data-aos="fade-left" data-aos-duration="1000" data-aos-delay="200">
+        <div class="findus-map-card w-100 h-100 d-flex align-items-center justify-content-center">
+          <div class="w-100 h-100 overflow-hidden" style="border-radius: 1.25rem; min-height: 450px;">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d12345.67890!2d120.123456!3d15.123456!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTXCsDA3JzI0LjAiTiAxMjDCsDA3JzI0LjAiRQ!5e0!3m2!1sen!2sph!4v1234567890123!5m2!1sen!2sph"
+              width="100%"
+              height="100%"
+              style="border:0; min-height: 450px; display: block; filter: brightness(0.85) contrast(1.1) saturate(1.2);"
+              allowfullscreen=""
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .findus-contact-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.75rem;
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.2);
+    }
+    .findus-contact-card:hover {
+      transform: translateY(-8px) rotateX(1.5deg) translateZ(10px);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.3);
+      border-color: rgba(59,130,246,0.2);
+    }
+    .findus-info-item {
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 0.9rem !important;
+    }
+    .findus-info-item:hover {
+      background: rgba(59,130,246,0.08);
+      border-color: rgba(59,130,246,0.15);
+      transform: translateX(6px);
+    }
+    .findus-info-item:hover .findus-icon-box {
+      background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+      border-color: transparent !important;
+      box-shadow: 0 6px 18px rgba(59,130,246,0.4);
+    }
+    .findus-info-item:hover .findus-icon-box i { color: #fff !important; }
+    .findus-info-item:hover a { color: #93c5fd !important; }
+    .findus-fb-btn:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 16px 40px rgba(59,130,246,0.5) !important;
+      background: linear-gradient(135deg, #60a5fa, #3b82f6) !important;
+    }
+    .findus-map-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1.75rem;
+      padding: 0.75rem;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(59,130,246,0.08);
+      transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+      overflow: hidden;
+    }
+    .findus-map-card:hover {
+      transform: translateY(-8px) rotateX(1deg) translateZ(10px);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.3), 0 0 0 1px rgba(59,130,246,0.15);
+      border-color: rgba(59,130,246,0.2);
+    }
+    @media (max-width: 991.98px) {
+      .findus-map-card, .findus-map-card iframe { min-height: 350px !important; }
+      .findus-contact-card { padding: 1.5rem; }
+    }
+  </style>
+</section>
+
+<!-- AI Chatbot moved to partials/chatbot.ejs (included in main layout) -->
+

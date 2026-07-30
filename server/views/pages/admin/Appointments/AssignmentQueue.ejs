@@ -1,0 +1,1757 @@
+<div class="admin-dashboard container-fluid px-0 py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═══ Enterprise Modal ═══ */
+    .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+    .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; }
+    .ent-modal-header-danger { background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); }
+    .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+    .ent-modal-body { padding: 24px; }
+    .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+    .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .ent-detail-card-wide { grid-column: span 2; }
+    .ent-detail-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ent-detail-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+    .ent-detail-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+    .ent-detail-sub { font-size: 0.8rem; color: #64748b; }
+    @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+
+    .aq-page-inner { max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; }
+    @media (max-width: 767px) { .aq-page-inner { padding: 0 1rem; } }
+
+
+
+    .aq-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .aq-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; display: flex; align-items: center; gap: 12px; }
+    .aq-stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .aq-stat-icon.blue { background: #eff6ff; color: #3b82f6; }
+    .aq-stat-icon.amber { background: #fffbeb; color: #f59e0b; }
+    .aq-stat-icon.red { background: #fef2f2; color: #ef4444; }
+    .aq-stat-icon.green { background: #f0fdf4; color: #22c55e; }
+    .aq-stat-value { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
+    .aq-stat-label { font-size: 0.75rem; color: #64748b; }
+
+    .aq-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+    .aq-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fafbfc; }
+    .aq-panel-title { font-size: 0.95rem; font-weight: 700; color: #1e293b; margin: 0; }
+    .aq-panel-body { padding: 16px 20px; }
+
+    .aq-booking-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 14px; transition: all 0.2s; }
+    .aq-booking-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+    .aq-booking-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    .aq-booking-id { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+    .aq-booking-customer { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 2px 0; }
+    .aq-booking-service { font-size: 0.85rem; color: #64748b; }
+
+    .aq-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+    .aq-detail-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #475569; }
+    .aq-detail-item i { color: #94a3b8; width: 14px; }
+
+    .aq-tech-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .aq-tech-option { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 2px solid #e2e8f0; cursor: pointer; transition: all 0.15s; background: #f8fafc; }
+    .aq-tech-option:hover { border-color: #3b82f6; background: #eff6ff; }
+    .aq-tech-option.selected { border-color: #3b82f6; background: #eff6ff; }
+    .aq-tech-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
+    .aq-tech-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+    .aq-tech-status { font-size: 0.72rem; color: #64748b; }
+    .aq-tech-status .online { color: #22c55e; }
+
+    .aq-action-bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #f1f5f9; }
+
+    .aq-priority-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; font-weight: 700; }
+    .aq-priority-normal { background: #eff6ff; color: #3b82f6; }
+    .aq-priority-high { background: #fffbeb; color: #f59e0b; }
+    .aq-priority-urgent { background: #fef2f2; color: #ef4444; }
+
+    .aq-empty { text-align: center; padding: 48px 20px; color: #94a3b8; }
+    .aq-empty i { font-size: 3rem; display: block; margin-bottom: 12px; }
+    .aq-empty p { margin: 0; font-size: 0.9rem; }
+
+    .aq-reassign-alert { background: linear-gradient(135deg, #fef2f2, #fff1f2); border: 1px solid #fecaca; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.82rem; color: #991b1b; display: flex; align-items: center; gap: 6px; }
+    .aq-reassign-alert i { color: #ef4444; font-size: 1rem; }
+    .aq-reassign-reason { padding: 6px 10px; background: #f8fafc; border-radius: 6px; font-size: 0.78rem; line-height: 1.4; }
+    .aq-escalation-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; animation: pulse-escalation 2s ease-in-out infinite; }
+    @keyframes pulse-escalation { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.3); } 50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } }
+    .aq-cancel-history { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.78rem; }
+    .aq-cancel-history-title { font-weight: 700; color: #92400e; margin-bottom: 4px; }
+    .aq-cancel-history-item { color: #78350f; padding: 2px 0; display: flex; gap: 6px; align-items: flex-start; }
+    .aq-cancel-history-item .action-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; font-weight: 700; flex-shrink: 0; }
+    .aq-cancel-history-item .action-declined { background: #fee2e2; color: #991b1b; }
+    .aq-cancel-history-item .action-cancelled { background: #fef3c7; color: #92400e; }
+
+    .aq-booking-card.premium-enhanced { border-radius: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+    .aq-booking-card.premium-enhanced::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); opacity: 0; transition: opacity 0.3s; }
+    .aq-booking-card.premium-enhanced:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
+    .aq-booking-card.premium-enhanced:hover::before { opacity: 1; }
+
+    /* ─── Upgraded Tech Cards ─── */
+    .aq-tech-list-upgraded { display: flex; flex-direction: column; gap: 10px; }
+    .aq-tech-card { background: #fff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: all 0.2s; }
+    .aq-tech-card:hover { border-color: #3b82f6; background: #f8faff; }
+    .aq-tech-card.selected { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+    .aq-tech-card-top { display: flex; align-items: center; gap: 10px; }
+    .aq-tech-card-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; background: #e0e7ff; color: #4f46e5; position: relative; flex-shrink: 0; }
+    .aq-tech-card-avatar::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--status-color, #94a3b8); border: 2px solid #fff; }
+    .aq-tech-card-info { flex: 1; min-width: 0; }
+    .aq-tech-card-name { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+    .aq-tech-card-status { font-size: 0.72rem; color: #64748b; }
+    .aq-tech-card-rating { font-size: 0.8rem; color: #f59e0b; font-weight: 600; white-space: nowrap; }
+    .aq-tech-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .aq-tech-badge { font-size: 0.7rem; background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; white-space: nowrap; }
+    .aq-tech-badge i { font-size: 0.65rem; }
+    .aq-tech-card-footer { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+    .assign-now-btn { font-size: 0.75rem; padding: 2px 10px; }
+  </style>
+
+  <div class="aq-page-inner pb-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-clipboard-check"></i></div>
+          <div>
+            <h1>Assignment Queue</h1>
+            <p>Assign verified bookings to available technicians. Bookings appear here after payment verification.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="aq-stats" id="statsGrid">
+      <div class="aq-stat-card">
+        <div class="aq-stat-icon amber"><i class="bi bi-hourglass-split"></i></div>
+        <div><div class="aq-stat-value" id="statAwaiting">-</div><div class="aq-stat-label">Awaiting Assignment</div></div>
+      </div>
+      <div class="aq-stat-card">
+        <div class="aq-stat-icon red"><i class="bi bi-arrow-repeat"></i></div>
+        <div><div class="aq-stat-value" id="statReassign">-</div><div class="aq-stat-label">Need Reassignment</div></div>
+      </div>
+      <div class="aq-stat-card">
+        <div class="aq-stat-icon green"><i class="bi bi-clipboard-check"></i></div>
+        <div><div class="aq-stat-value" id="statTotal">-</div><div class="aq-stat-label">Total in Queue</div></div>
+      </div>
+      <div class="aq-stat-card">
+        <div class="aq-stat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+        <div><div class="aq-stat-value" id="statEscalated">-</div><div class="aq-stat-label">Escalated</div></div>
+      </div>
+      <div class="aq-stat-card">
+        <div class="aq-stat-icon amber"><i class="bi bi-wrench"></i></div>
+        <div><div class="aq-stat-value" id="statRepairRequests">-</div><div class="aq-stat-label">Repair Requests</div></div>
+      </div>
+    </div>
+
+    <!-- Tabs: Assignment Queue | Repair Requests -->
+    <ul class="nav nav-tabs mb-3" id="aqTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="queue-tab" data-bs-toggle="tab" data-bs-target="#queue-panel" type="button" role="tab">
+          <i class="bi bi-clipboard-check me-1"></i>Assignment Queue
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- ═══ Assignment Queue Tab ═══ -->
+      <div class="tab-pane fade show active" id="queue-panel" role="tabpanel">
+        <!-- Search -->
+        <div class="d-flex gap-2 mb-3">
+          <input type="text" class="form-control form-control-sm" placeholder="Search customer, service..." id="searchInput" style="max-width:300px;">
+          <select class="form-select form-select-sm" id="filterStatus" style="width:200px;">
+            <option value="awaiting_assignment">Awaiting Assignment</option>
+            <option value="pending_reassignment">Need Reassignment</option>
+            <option value="all_active">All Queue</option>
+          </select>
+        </div>
+        <div id="queueContainer">
+          <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div>
+        </div>
+        <div class="d-flex justify-content-center mt-3" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Booking Detail Modal -->
+<div class="modal fade" id="bookingDetailModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:480px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-clipboard-data"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Booking Details</h6>
+            <small style="opacity:0.85;font-size:0.8rem;" id="detailModalSubtitle">Loading...</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" id="detailModalBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2">Loading booking details...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .pm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pm-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;transition:all .2s}
+  .pm-card:hover{border-color:#cbd5e1;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+  .pm-card-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;background:#fafbfc}
+  .pm-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+  .pm-card-title{font-size:.82rem;font-weight:700;color:#1e293b;margin:0}
+  .pm-card-body{padding:14px 18px}
+  .pm-row{display:flex;flex-direction:column;gap:1px;padding:7px 0}
+  .pm-row+.pm-row{border-top:1px solid #f1f5f9}
+  .pm-lbl{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8}
+  .pm-val{font-size:.88rem;font-weight:600;color:#1e293b;line-height:1.3}
+  .pm-sub{font-size:.76rem;color:#64748b}
+  .pm-status-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:20px}
+  .pm-section-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .pm-section-title{font-size:.85rem;font-weight:700;color:#1e293b}
+  .pm-photo-grid{display:flex;flex-wrap:wrap;gap:10px}
+  .pm-photo-item{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px;text-align:center}
+  .pm-photo-item img{max-width:200px;max-height:180px;border-radius:8px;object-fit:contain;display:block;cursor:pointer}
+  .pm-history-item{display:flex;align-items:flex-start;gap:8px;padding:8px 0}
+  .pm-history-item+.pm-history-item{border-top:1px solid #f1f5f9}
+  .pm-alert{border-radius:10px;padding:10px 14px;font-size:.82rem;display:flex;align-items:flex-start;gap:8px;margin-bottom:12px}
+  .pm-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 0 0;margin-top:16px;border-top:1px solid #f1f5f9}
+  @media(max-width:767px){.pm-grid{grid-template-columns:1fr}}
+</style>
+
+<!-- Assign Technician Modal (Upgraded) -->
+<div class="modal fade" id="assignModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1100px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-person-check"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Assign Technician</h6>
+            <small class="text-muted">Select an available technician for this job</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" style="max-height:75vh;overflow-y:auto;">
+        <div class="ent-detail-card ent-detail-card-wide mb-3">
+          <div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-calendar-check text-success"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Booking</span>
+            <span class="ent-detail-value fw-bold" id="assignCustomerName">—</span>
+            <span class="ent-detail-sub" id="assignServiceInfo">—</span>
+          </div>
+        </div>
+        <hr class="my-3">
+        <!-- Map + Tech Panel -->
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div id="assignMapContainer" style="height:340px;border-radius:12px;overflow:hidden;border:1px solid #dee2e6;background:#f8f9fa;"></div>
+            <div class="d-flex align-items-center justify-content-between mt-2">
+              <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>Technician locations relative to booking</small>
+              <small class="text-muted" id="assignMapTechCount">0 technicians</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <!-- AI Recommended -->
+            <div id="aiRecommendSection" class="d-flex align-items-center gap-2 mb-2 p-2 bg-warning bg-opacity-10 rounded" style="display:none;">
+              <span class="badge bg-warning text-dark"><i class="bi bi-robot me-1"></i>AI Recommended</span>
+              <span class="small fw-semibold" id="aiRecommendName">—</span>
+              <span class="small text-muted" id="aiRecommendReason">—</span>
+              <button class="btn btn-sm btn-outline-warning ms-auto" onclick="assignAIPick()">Assign</button>
+            </div>
+            <h6 class="fw-bold mb-2"><i class="bi bi-people me-2"></i>Available Technicians <span class="badge bg-primary rounded-pill" id="techCountBadge">0</span></h6>
+            <div id="techListContainer" style="max-height:270px;overflow-y:auto;"><div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div></div>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Priority</label>
+            <select class="form-select form-select-sm bg-light" id="assignPriority" style="border-radius:8px;border:1px solid #e2e8f0;">
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Booking Date</label>
+            <input type="text" class="form-control form-control-sm bg-light" id="assignBookingDate" readonly style="border-radius:8px;border:1px solid #e2e8f0;pointer-events:none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Preferred Time</label>
+            <input type="text" class="form-control form-control-sm bg-light" id="assignBookingTime" readonly style="border-radius:8px;border:1px solid #e2e8f0;pointer-events:none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">Notes <small class="text-muted">(optional)</small></label>
+            <input type="text" class="form-control form-control-sm" id="assignNotes" placeholder="Special instructions..." style="border-radius:8px;border:2px solid #e2e8f0;">
+          </div>
+        </div>
+
+        <!-- AI Repair Recommendations (for repair services) -->
+        <div class="mt-4" id="aiRepairRecommendationsSection" style="display:none;">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-robot text-primary"></i>
+            <h6 class="fw-bold mb-0">AI Repair Recommendations</h6>
+            <span class="badge bg-primary" id="aiRecommendSource">AI</span>
+          </div>
+          <div id="aiRecommendSummary" class="text-muted small mb-2"></div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="card h-100 border-0 bg-light" style="border-radius:10px;">
+                <div class="card-body p-3">
+                  <h6 class="fw-bold small mb-2"><i class="bi bi-clipboard-check me-1"></i>Inspection Needed</h6>
+                  <ul class="small text-muted mb-0 ps-3" id="aiInspectionList"></ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card h-100 border-0 bg-light" style="border-radius:10px;">
+                <div class="card-body p-3">
+                  <h6 class="fw-bold small mb-2"><i class="bi bi-tools me-1"></i>Tools Needed</h6>
+                  <ul class="small text-muted mb-0 ps-3" id="aiToolsList"></ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card h-100 border-0 bg-light" style="border-radius:10px;">
+                <div class="card-body p-3">
+                  <h6 class="fw-bold small mb-2"><i class="bi bi-box-seam me-1"></i>Parts Needed</h6>
+                  <ul class="small text-muted mb-0 ps-3" id="aiPartsList"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Equipment & Materials -->
+        <div class="mt-4">
+          <h6 class="fw-bold mb-2"><i class="bi bi-tools me-2"></i>Equipment & Materials</h6>
+          <div id="assignEquipmentRecommended" class="d-flex flex-wrap gap-2 mb-2"></div>
+          <div id="assignEquipmentRecommendedEmpty" class="text-muted small mb-2 d-none">No AI tool recommendations for this service.</div>
+          <div class="row g-2 align-items-end mb-2">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Tool / Material</label>
+              <input type="text" class="form-control form-control-sm" id="assignEquipmentToolInput" list="assignEquipmentDatalist" placeholder="Type tool name..." oninput="updateSelectedToolId()">
+              <input type="hidden" id="assignEquipmentTool">
+              <datalist id="assignEquipmentDatalist"></datalist>
+            </div>
+            <div class="col-3">
+              <label class="form-label small fw-semibold">Qty</label>
+              <input type="number" class="form-control form-control-sm" id="assignEquipmentQty" value="1" min="1">
+            </div>
+            <div class="col-3">
+              <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="addEquipmentRow()"><i class="bi bi-plus me-1"></i>Add</button>
+            </div>
+          </div>
+          <div class="mb-2">
+            <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="btnToggleNewTool" onclick="toggleNewToolForm()">
+              <i class="bi bi-plus-circle me-1"></i>Add New Tool / Equipment
+            </button>
+          </div>
+          <div id="newToolForm" class="d-none border rounded p-2 mb-2 bg-light">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Tool Name</label>
+                <input type="text" class="form-control form-control-sm" id="assignNewToolName" placeholder="e.g. Refrigerant gauge">
+              </div>
+              <div class="col-4">
+                <label class="form-label small fw-semibold">Qty</label>
+                <input type="number" class="form-control form-control-sm" id="assignNewToolQty" value="1" min="0">
+              </div>
+              <div class="col-4">
+                <label class="form-label small fw-semibold">Unit</label>
+                <input type="text" class="form-control form-control-sm" id="assignNewToolUnit" value="pcs" placeholder="pcs">
+              </div>
+              <div class="col-4">
+                <label class="form-label small fw-semibold">Category</label>
+                <select class="form-select form-select-sm" id="assignNewToolCategory" style="border-radius:8px;border:1px solid #e2e8f0;">
+                  <option value="Capacitor">Capacitor</option>
+                  <option value="Compressor">Compressor</option>
+                  <option value="Fan Motor">Fan Motor</option>
+                  <option value="Refrigerant">Refrigerant</option>
+                  <option value="Copper Pipe">Copper Pipe</option>
+                  <option value="Electrical">Electrical</option>
+                  <option value="Filter">Filter</option>
+                  <option value="Coil">Coil</option>
+                  <option value="Board">Board / PCB</option>
+                  <option value="Bearing">Bearing</option>
+                  <option value="Sealant">Sealant / Adhesive</option>
+                  <option value="Wire">Wire / Cable</option>
+                  <option value="Valve">Valve</option>
+                  <option value="General" selected>General</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-success mt-2 w-100" id="btnSaveNewTool" onclick="saveNewTool()">Save Tool to Inventory</button>
+          </div>
+          <div id="assignEquipmentList" class="d-flex flex-column gap-2"></div>
+          <div id="assignEquipmentEmpty" class="text-muted small py-2">No equipment selected. Add items from inventory.</div>
+        </div>
+      </div>
+      <div class="modal-footer ent-modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnConfirmAssign" onclick="confirmAssign()" disabled style="border-radius:8px;">
+          <i class="bi bi-check-lg me-1"></i>Assign Selected Technician
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Repair Modal -->
+<div class="modal fade" id="rejectRepairModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header ent-modal-header-danger">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-x-circle"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Reject Repair Request</h6>
+            <small style="opacity:0.85;font-size:0.8rem;">This action will notify the customer</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body">
+        <input type="hidden" id="rejectRepairBookingId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
+          <select class="form-select" id="rejectRepairReason">
+            <option value="">Select reason...</option>
+            <option value="incomplete_info">Incomplete Information</option>
+            <option value="unavailable_service">Service Unavailable</option>
+            <option value="duplicate_request">Duplicate Request</option>
+            <option value="invalid_issue">Invalid Issue Description</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Note <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" rows="3" id="rejectRepairNote" placeholder="Additional context..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm fw-semibold" id="btnConfirmRejectRepair" onclick="confirmRejectRepair()">
+          <i class="bi bi-x-circle me-1"></i> Reject Request
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let currentBookingId = null;
+  let selectedTechId = null;
+  let currentPage = 1;
+  let currentFilter = 'awaiting_assignment';
+  let selectedEquipment = [];
+  let equipmentCache = [];
+
+  const priorityClasses = { normal: 'aq-priority-normal', high: 'aq-priority-high', urgent: 'aq-priority-urgent' };
+
+  function formatDate(d) {
+    return d ? new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  }
+  function formatTime(t) {
+    if (!t) return '—';
+    const mins = parseInt(t);
+    if (isNaN(mins)) return t;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+  }
+
+  async function loadStats() {
+    try {
+      const [awaitingRes, reassignRes, escalatedRes, repairRes] = await Promise.all([
+        fetch('/api/admin/appointments/list?status=awaiting_assignment&limit=1'),
+        fetch('/api/admin/appointments/list?status=pending_reassignment&limit=1'),
+        fetch('/api/admin/appointments/cancellation-log?escalated=true&limit=1'),
+        fetch('/api/admin/repair-queue/stats'),
+      ]);
+      const awaitingData = awaitingRes.ok ? await awaitingRes.json() : { pagination: { total: 0 } };
+      const reassignData = reassignRes.ok ? await reassignRes.json() : { pagination: { total: 0 } };
+      const escalatedData = escalatedRes.ok ? await escalatedRes.json() : { pagination: { total: 0 } };
+      const repairData = repairRes.ok ? await repairRes.json() : {};
+      const awaiting = awaitingData.pagination?.total || 0;
+      const reassign = reassignData.pagination?.total || 0;
+      const escalated = escalatedData.pagination?.total || 0;
+      const repairRequests = (repairData.repair_requested || 0) + (repairData.pending_inspection || 0);
+      document.getElementById('statAwaiting').textContent = awaiting;
+      document.getElementById('statReassign').textContent = reassign;
+      document.getElementById('statTotal').textContent = awaiting + reassign;
+      document.getElementById('statEscalated').textContent = escalated;
+      document.getElementById('statRepairRequests').textContent = repairRequests;
+      document.getElementById('repairTabBadge') && (document.getElementById('repairTabBadge').textContent = repairRequests);
+    } catch(e) {}
+  }
+
+  async function loadQueue(page) {
+    try {
+      let url;
+      const filter = document.getElementById('filterStatus').value;
+      const search = document.getElementById('searchInput').value;
+
+      if (filter === 'all_active') {
+        url = `/api/admin/appointments/list?page=${page || 1}&limit=20&status=awaiting_assignment,pending_reassignment`;
+      } else if (filter === 'awaiting_assignment') {
+        url = `/api/admin/appointments/list?status=awaiting_assignment&page=${page || 1}&limit=20`;
+      } else if (filter === 'pending_reassignment') {
+        url = `/api/admin/appointments/list?status=pending_reassignment&page=${page || 1}&limit=20`;
+      } else {
+        url = `/api/admin/appointments/list?status=${filter}&page=${page || 1}&limit=20`;
+      }
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const container = document.getElementById('queueContainer');
+
+      if (!data.bookings || data.bookings.length === 0) {
+        container.innerHTML = '<div class="aq-empty"><i class="bi bi-inbox"></i><p>No bookings in queue</p></div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = data.bookings.map(b => {
+        const canAssign = ['awaiting_assignment', 'pending_reassignment'].includes(b.status);
+        const statusColors = {
+          awaiting_assignment: 'bg-warning text-dark',
+          assigned: 'bg-info text-dark',
+          pending_reassignment: 'bg-danger',
+          payment_verified: 'bg-success',
+          confirmed: 'bg-primary',
+        };
+        const reassignCount = b.reassignmentCount || 0;
+        const isEscalated = b.escalated || reassignCount >= 3;
+        const history = b.cancellationHistory || [];
+        const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+        return `
+      <div class="aq-booking-card">
+        <div class="aq-booking-header">
+          <div>
+            <div class="aq-booking-id">#${b._id.toString().slice(-8).toUpperCase()}</div>
+            <div class="aq-booking-customer">${b.customer?.name || 'Customer'}</div>
+            <div class="aq-booking-service">${b.service?.name || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'Service')} ${b.isMultiService ? '(Multi-Service)' : ''}</div>
+          </div>
+          <div class="text-end d-flex flex-column align-items-end gap-1">
+            ${isEscalated ? `<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated (${reassignCount}x)</span>` : ''}
+            <span class="badge ${statusColors[b.status] || 'bg-secondary'}">${b.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+          </div>
+        </div>
+        <div class="aq-detail-grid">
+          <div class="aq-detail-item"><i class="bi bi-calendar"></i> ${formatDate(b.bookingDate)}</div>
+          <div class="aq-detail-item"><i class="bi bi-clock"></i> ${formatTime(b.startTime)}</div>
+          <div class="aq-detail-item"><i class="bi bi-geo-alt"></i> ${(b.location?.address || 'No address').substring(0, 30)}</div>
+          <div class="aq-detail-item"><i class="bi bi-cash"></i> ₱${Number(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</div>
+          <div class="aq-detail-item"><i class="bi bi-credit-card"></i> ${(b.paymentMethod || 'cod').toUpperCase()}</div>
+          <div class="aq-detail-item"><i class="bi bi-person"></i> ${b.technician?.name || 'Unassigned'}</div>
+          ${reassignCount > 0 ? `<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned ${reassignCount} time${reassignCount > 1 ? 's' : ''}</div>` : ''}
+        </div>
+            ${b.status === 'pending_reassignment' ? `
+              <div class="aq-reassign-alert">
+                <i class="bi bi-arrow-repeat me-1"></i>
+                <strong>Needs Reassignment</strong> — Previous technician ${lastEntry ? lastEntry.action : 'declined'} this job.
+              </div>
+            ` : ''}
+            ${history.length > 0 ? `
+              <div class="aq-cancel-history">
+                <div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>
+                ${history.slice(-3).reverse().map(h => `
+                  <div class="aq-cancel-history-item">
+                    <span class="action-badge action-${h.action}">${h.action}</span>
+                    <span><strong>${h.technicianName}</strong> — ${h.reason || 'No reason'} <small class="text-muted">${new Date(h.timestamp).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small></span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+            ${b.rejectionReason ? `<div class="alert alert-warning py-1 px-2 mb-2 small"><strong>Rejection:</strong> ${b.rejectionReason.replace(/_/g, ' ')}</div>` : ''}
+            ${canAssign ? `
+              <div class="aq-action-bar">
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewBooking('${b._id}')"><i class="bi bi-eye me-1"></i>View</button>
+                <button class="btn btn-sm btn-primary" onclick="openAssignModal('${b._id}', '${(b.customer?.name || '').replace(/'/g, "\\'")}', '${(b.service?.name || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : '') || '').replace(/'/g, "\\'")}', '${formatDate(b.bookingDate)}', '${formatTime(b.startTime)}')">
+                  <i class="bi bi-person-plus me-1"></i>Assign Technician
+                </button>
+              </div>
+            ` : ''}
+          </div>`;
+      }).join('');
+
+      // Pagination
+      const pag = data.pagination || {};
+      if (pag.pages > 1) {
+        let pg = '<ul class="pagination pagination-sm">';
+        for (let i = 1; i <= pag.pages; i++) {
+          pg += `<li class="page-item ${i === pag.page ? 'active' : ''}"><button class="page-link" onclick="goPage(${i})">${i}</button></li>`;
+        }
+        pg += '</ul>';
+        document.getElementById('pagination').innerHTML = pg;
+      } else {
+        document.getElementById('pagination').innerHTML = '';
+      }
+    } catch(e) {
+      document.getElementById('queueContainer').innerHTML = '<div class="alert alert-danger">Failed to load queue</div>';
+    }
+  }
+
+  window.goPage = function(p) { currentPage = p; loadQueue(p); };
+
+  document.getElementById('filterStatus').addEventListener('change', () => { currentPage = 1; loadQueue(1); loadStats(); });
+  let searchTimeout;
+  document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => { currentPage = 1; loadQueue(1); }, 300);
+  });
+
+  // ─── Assign Map ────────────────────────────────────────────────────────
+  let assignMap = null;
+  let assignMarkers = [];
+  let assignCircle = null;
+
+  function initAssignMap(bookingLat, bookingLng, techs) {
+    const mapEl = document.getElementById('assignMapContainer');
+    if (assignMap) { assignMap.remove(); assignMap = null; }
+    assignMarkers = [];
+
+    // Load Leaflet if not present
+    function loadLeaflet(cb) {
+      if (typeof L !== 'undefined') { cb(); return; }
+      if (!document.getElementById('leaflet-css-assign')) {
+        const css = document.createElement('link');
+        css.id = 'leaflet-css-assign'; css.rel = 'stylesheet';
+        css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(css);
+      }
+      const existing = document.getElementById('leaflet-js-assign');
+      if (!existing) {
+        const s = document.createElement('script');
+        s.id = 'leaflet-js-assign';
+        s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+        s.onload = cb;
+        document.body.appendChild(s);
+      } else if (typeof L !== 'undefined') {
+        cb();
+      } else {
+        // Script exists but not loaded yet; wait for load event
+        existing.addEventListener('load', cb, { once: true });
+      }
+    }
+
+    loadLeaflet(() => {
+      assignMap = L.map(mapEl, { zoomControl: true, attributionControl: false })
+        .setView([bookingLat, bookingLng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'
+      }).addTo(assignMap);
+
+      // Booking marker
+      const custIcon = L.divIcon({
+        html: '<div style="position:relative;"><div style="background:#2563eb;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 12px rgba(37,99,235,0.5);"><i class="bi bi-geo-alt-fill"></i></div><div style="position:absolute;top:-24px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.2);">Customer</div></div>',
+        className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+      });
+      L.marker([bookingLat, bookingLng], { icon: custIcon }).addTo(assignMap)
+        .bindPopup('<b>Booking Location</b><br>Customer scheduled location');
+
+      // Technician markers
+      const bounds = L.latLngBounds([bookingLat, bookingLng]);
+      // Find nearest tech for highlight
+      const techsWithDist = (techs || []).filter(t => t.location?.coordinates?.length >= 2 && t.distanceKm != null);
+      const nearestTech = techsWithDist.length > 0 ? techsWithDist.reduce((a, b) => a.distanceKm <= b.distanceKm ? a : b) : null;
+      (techs || []).forEach(t => {
+        if (!t.location || !t.location.coordinates || t.location.coordinates.length < 2) return;
+        const [lng, lat] = t.location.coordinates;
+        const isNearest = nearestTech && t._id === nearestTech._id;
+        const color = t.availabilityStatus === 'Available' ? '#22c55e' : '#f59e0b';
+        const size = isNearest ? 32 : 28;
+        const border = isNearest ? '3px solid #fbbf24' : '2px solid #fff';
+        const techIcon = L.divIcon({
+          html: `<div style="position:relative;"><div style="background:${color};color:#fff;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${isNearest ? 13 : 12}px;font-weight:700;border:${border};box-shadow:0 2px 8px rgba(0,0,0,0.35);">${(t.name||'T')[0]}</div>${isNearest ? '<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;white-space:nowrap;">Nearest</div>' : ''}</div>`,
+          className: '', iconSize: [size, size], iconAnchor: [size/2, size/2]
+        });
+        const marker = L.marker([lat, lng], { icon: techIcon }).addTo(assignMap)
+          .bindPopup(`<b>${t.name}</b>${isNearest ? ' <span style="color:#f59e0b;">★ Nearest</span>' : ''}<br>${t.availabilityStatus || 'Offline'}${t.distanceKm != null ? '<br>' + t.distanceKm + ' km away' : ''}${t.etaMin != null ? '<br>ETA ~' + t.etaMin + ' min' : ''}`);
+        assignMarkers.push(marker);
+        bounds.extend([lat, lng]);
+      });
+
+      if (techs && techs.length > 0) {
+        assignMap.fitBounds(bounds.pad(0.2));
+      }
+      setTimeout(() => assignMap?.invalidateSize(), 150);
+    });
+  }
+
+  window.renderAIRepairRecommendations = function(recommendations) {
+    const section = document.getElementById('aiRepairRecommendationsSection');
+    if (!section) return;
+    if (!recommendations) { section.style.display = 'none'; return; }
+    const { inspectionChecklist = [], suggestedTools = [], possibleParts = [], summary = '', _source = 'AI' } = recommendations;
+    section.style.display = '';
+    document.getElementById('aiRecommendSource').textContent = _source === 'fallback' ? 'AI (KB)' : 'AI';
+    document.getElementById('aiRecommendSummary').textContent = summary || 'AI-generated recommendations based on reported symptoms.';
+    document.getElementById('aiInspectionList').innerHTML = inspectionChecklist.length
+      ? inspectionChecklist.map(item => `<li>${typeof item === 'string' ? item : (item.action || item)}</li>`).join('')
+      : '<li class="list-unstyled">No specific inspection recommendations.</li>';
+    document.getElementById('aiToolsList').innerHTML = suggestedTools.length
+      ? suggestedTools.map(t => `<li>${typeof t === 'string' ? t : (t.name || t.tool || t)}</li>`).join('')
+      : '<li class="list-unstyled">No specific tool recommendations.</li>';
+    document.getElementById('aiPartsList').innerHTML = possibleParts.length
+      ? possibleParts.map(p => `<li>${typeof p === 'string' ? p : (p.name || p.part || p)}</li>`).join('')
+      : '<li class="list-unstyled">No specific part recommendations.</li>';
+  };
+
+  window.openAssignModal = async function(bookingId, customerName, serviceName, bookingDate, bookingTime) {
+    currentBookingId = bookingId;
+    selectedTechId = null;
+    selectedEquipment = [];
+    document.getElementById('assignCustomerName').textContent = customerName;
+    document.getElementById('assignServiceInfo').textContent = serviceName;
+    document.getElementById('assignBookingDate').value = bookingDate || '—';
+    document.getElementById('assignBookingTime').value = bookingTime || '—';
+    document.getElementById('assignNotes').value = '';
+    document.getElementById('assignPriority').value = 'normal';
+    document.getElementById('btnConfirmAssign').disabled = true;
+    document.getElementById('techListContainer').innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
+    document.getElementById('aiRepairRecommendationsSection').style.display = 'none';
+
+    const toolInput = document.getElementById('assignEquipmentToolInput');
+    const toolHidden = document.getElementById('assignEquipmentTool');
+    const toolList = document.getElementById('assignEquipmentDatalist');
+    const toolQty = document.getElementById('assignEquipmentQty');
+    if (toolInput) { toolInput.value = ''; toolInput.placeholder = 'Loading tools...'; toolInput.disabled = true; }
+    if (toolHidden) toolHidden.value = '';
+    if (toolList) toolList.innerHTML = '';
+    if (toolQty) toolQty.value = 1;
+    renderEquipmentList();
+
+    try {
+      const res = await fetch('/api/admin/appointments/tools/available?serviceName=' + encodeURIComponent(serviceName));
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      equipmentCache = d.tools || [];
+      const dl = document.getElementById('assignEquipmentDatalist');
+      const input = document.getElementById('assignEquipmentToolInput');
+      if (dl && input) {
+        if (!equipmentCache.length) {
+          input.disabled = false;
+          input.placeholder = 'No tools available';
+        } else {
+          dl.innerHTML = equipmentCache.map(t => '<option value="' + t.itemName + ' (avail ' + t.availableQuantity + ')">').join('');
+          input.disabled = false;
+          input.placeholder = 'Type tool name...';
+        }
+      }
+      renderRecommendedTools(d.recommended || []);
+    } catch (e) {
+      const dl = document.getElementById('assignEquipmentDatalist');
+      const input = document.getElementById('assignEquipmentToolInput');
+      if (dl) dl.innerHTML = '';
+      if (input) { input.disabled = false; input.placeholder = 'Tools unavailable'; }
+      renderRecommendedTools([]);
+    }
+
+    // Fetch AI parts/tools/inspection recommendations for repair services
+    try {
+      const aiRes = await fetch(`/api/admin/appointments/${bookingId}/ai-recommendations`);
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        renderAIRepairRecommendations(aiData.aiRecommendations);
+      }
+    } catch (e) {
+      console.warn('[AI Recommendations] Could not load:', e.message);
+    }
+
+    document.getElementById('aiRecommendSection').style.display = 'none';
+    document.getElementById('assignMapContainer').innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-geo-alt fs-1 d-block mb-2"></i>Loading map...</div>';
+
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+
+    try {
+      const res = await fetch(`/api/admin/appointments/${bookingId}/eligible-technicians`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const container = document.getElementById('techListContainer');
+
+      const availableTechs = data.available || [];
+      const unavailableTechs = data.offlinePresent || [];
+      const allTechs = [...availableTechs, ...unavailableTechs];
+
+      document.getElementById('techCountBadge').textContent = availableTechs.length;
+
+      // ── Draw map ──────────────────────────────────────────────────
+      const bookingLat = data.bookingLat || null;
+      const bookingLng = data.bookingLng || null;
+      if (bookingLat && bookingLng) {
+        allTechs.forEach(t => { t.location = t.location || { coordinates: null }; });
+        initAssignMap(bookingLat, bookingLng, allTechs);
+      } else {
+        document.getElementById('assignMapContainer').innerHTML =
+          '<div class="text-center py-5 text-muted"><i class="bi bi-geo-alt fs-1 d-block mb-2"></i>Location data unavailable</div>';
+      }
+
+      if (availableTechs.length === 0 && unavailableTechs.length === 0) {
+        container.innerHTML = '<div class="alert alert-warning small mb-0">No eligible technicians found. Ensure technicians are checked in and available.</div>';
+        return;
+      }
+
+      // ── AI Recommendation (proximity-first) ────────────────────────
+      if (availableTechs.length > 0) {
+        // Find nearest available technician with valid distance
+        const withDist = availableTechs.filter(t => t.distanceKm != null && t.availabilityStatus === 'Available');
+        const nearest = withDist.length > 0
+          ? withDist.reduce((a, b) => a.distanceKm <= b.distanceKm ? a : b)
+          : availableTechs[0];
+
+        const reasonParts = [];
+        if (nearest.distanceKm != null) reasonParts.push(nearest.distanceKm + ' km away');
+        if (nearest.etaMin != null) reasonParts.push('ETA ~' + nearest.etaMin + ' min');
+        if (nearest.availabilityStatus === 'Available') reasonParts.push('Available');
+        if (nearest.rating >= 4.5) reasonParts.push('Top rated (' + nearest.rating.toFixed(1) + ')');
+        if (nearest.currentWorkload === 0) reasonParts.push('No current jobs');
+
+        document.getElementById('aiRecommendSection').style.display = 'flex';
+        document.getElementById('aiRecommendName').textContent = nearest.name;
+        document.getElementById('aiRecommendReason').textContent = reasonParts.join(' · ');
+        document.getElementById('aiRecommendSection').dataset.techId = nearest._id;
+      }
+
+      // ── Render enhanced tech cards ────────────────────────────────
+      function cardHtml(t) {
+        const sd = t.availabilityStatus === 'Available' ? '#22c55e' : '#f59e0b';
+        const sel = selectedTechId === t._id ? ' selected' : '';
+        const dist = t.distanceKm != null ? '<span class="aq-tech-badge"><i class="bi bi-geo me-1"></i>' + t.distanceKm + ' km</span>' : '';
+        const eta = t.etaMin != null ? '<span class="aq-tech-badge"><i class="bi bi-clock me-1"></i>' + t.etaMin + ' min</span>' : '';
+        const chk = selectedTechId === t._id ? 'checked' : '';
+        return '<div class="aq-tech-card' + sel + '" onclick="selectTechUpgraded(\'' + t._id + '\', this)" data-tech-id="' + t._id + '">' +
+          '<div class="aq-tech-card-top">' +
+            '<div class="aq-tech-card-avatar" style="--status-color:' + sd + ';">' + (t.name || '?')[0].toUpperCase() + '</div>' +
+            '<div class="aq-tech-card-info">' +
+              '<div class="aq-tech-card-name">' + t.name + '</div>' +
+              '<div class="aq-tech-card-status"><span style="color:' + sd + ';font-size:10px;">&#9679;</span> ' + (t.availabilityStatus || 'Offline') + '</div>' +
+            '</div>' +
+            '<div class="aq-tech-card-rating">' + (t.rating ? '★ ' + t.rating.toFixed(1) : '') + '</div>' +
+          '</div>' +
+          '<div class="aq-tech-card-meta">' +
+            dist + eta +
+            '<span class="aq-tech-badge"><i class="bi bi-briefcase me-1"></i>' + (t.currentWorkload || 0) + ' jobs</span>' +
+            '<span class="aq-tech-badge"><i class="bi bi-envelope me-1"></i>' + (t.email || '—') + '</span>' +
+          '</div>' +
+          '<div class="aq-tech-card-footer">' +
+            '<input type="radio" name="techSelect" class="form-check-input" ' + chk + '>' +
+            '<span class="small text-muted">Select</span>' +
+            '<button class="btn btn-sm btn-primary ms-auto assign-now-btn" onclick="event.stopPropagation();selectTechUpgraded(\'' + t._id + '\', this.closest(\'.aq-tech-card\'));confirmAssign();">' +
+              '<i class="bi bi-check-lg me-1"></i>Assign' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      }
+      let html = '';
+      if (availableTechs.length > 0) {
+        html += '<div class="aq-tech-list-upgraded">' + availableTechs.map(cardHtml).join('') + '</div>';
+      } else {
+        html += '<div class="alert alert-info small">No available technicians at this time.</div>';
+      }
+      if (unavailableTechs.length > 0) {
+        html += '<div class="mt-2"><small class="text-muted fw-semibold">Unavailable Technicians</small></div>';
+        html += '<div class="aq-tech-list">' + unavailableTechs.map(t => `
+          <div class="aq-tech-option disabled" style="opacity:0.5;pointer-events:none;" title="${t.reason || 'Unavailable'}">
+            <div class="aq-tech-avatar" style="background:#6c757d;">${(t.name || '?')[0].toUpperCase()}</div>
+            <div>
+              <div class="aq-tech-name">${t.name}</div>
+              <div class="aq-tech-status text-danger">
+                <i class="bi bi-x-circle me-1"></i>${t.reason || 'Unavailable'}
+              </div>
+            </div>
+          </div>
+        `).join('') + '</div>';
+      }
+      container.innerHTML = html;
+
+      document.getElementById('assignMapTechCount').textContent = allTechs.filter(t => t.location?.coordinates?.length >= 2).length + ' technicians on map';
+    } catch(e) {
+      document.getElementById('techListContainer').innerHTML = '<div class="alert alert-danger small">Failed to load technicians</div>';
+    }
+  };
+
+  window.selectTechUpgraded = function(techId, el) {
+    selectedTechId = techId;
+    document.querySelectorAll('.aq-tech-card').forEach(o => o.classList.remove('selected'));
+    if (el) el.classList.add('selected');
+    document.querySelectorAll('.aq-tech-card input[type="radio"]').forEach(r => r.checked = false);
+    if (el) {
+      const radio = el.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    }
+    document.getElementById('btnConfirmAssign').disabled = false;
+  };
+
+  window.assignAIPick = function() {
+    const section = document.getElementById('aiRecommendSection');
+    const techId = section.dataset.techId;
+    const card = document.querySelector(`.aq-tech-card[data-tech-id="${techId}"]`);
+    if (card) {
+      card.click();
+    } else {
+      selectedTechId = techId;
+      document.getElementById('btnConfirmAssign').disabled = false;
+    }
+  };
+
+  // Legacy selectTech kept for unavailable list clicks (no-op)
+  window.selectTech = function(techId, el) {
+    selectedTechId = techId;
+    document.querySelectorAll('.aq-tech-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('btnConfirmAssign').disabled = false;
+  };
+
+  // Invalidate map when modal is fully shown
+  document.getElementById('assignModal').addEventListener('shown.bs.modal', function () {
+    setTimeout(() => { if (assignMap) assignMap.invalidateSize(); }, 200);
+  });
+  // Clean up map when modal is hidden
+  document.getElementById('assignModal').addEventListener('hidden.bs.modal', function () {
+    if (assignMap) { assignMap.remove(); assignMap = null; }
+    assignMarkers = [];
+  });
+
+  window.updateSelectedToolId = function() {
+    const input = document.getElementById('assignEquipmentToolInput');
+    const hidden = document.getElementById('assignEquipmentTool');
+    if (!input || !hidden) return;
+    const v = input.value.trim().toLowerCase();
+    hidden.value = '';
+    for (const t of equipmentCache) {
+      if ((t.itemName + ' (avail ' + t.availableQuantity + ')').toLowerCase() === v || t.itemName.toLowerCase() === v) { hidden.value = t._id; break; }
+    }
+  };
+
+  window.addEquipmentRow = function() {
+    const hidden = document.getElementById('assignEquipmentTool');
+    const input = document.getElementById('assignEquipmentToolInput');
+    const qty = document.getElementById('assignEquipmentQty');
+    let toolId = hidden ? hidden.value : '';
+    if (!toolId && input && input.value.trim()) {
+      const typed = input.value.trim().toLowerCase();
+      const t = equipmentCache.find(x => x.itemName.toLowerCase() === typed);
+      if (t) toolId = t._id;
+    }
+    if (!qty || !toolId) { showNotification({ type: 'warning', title: 'Select Equipment', message: 'Please select a tool from suggestions and quantity.', duration: 3000 }); return; }
+    const tool = equipmentCache.find(t => t._id === toolId);
+    if (!tool) { showNotification({ type: 'warning', title: 'Invalid Tool', message: 'Choose a tool from the list or use Add New Tool.', duration: 3000 }); return; }
+    const requested = parseInt(qty.value) || 1;
+    const available = tool.availableQuantity != null ? tool.availableQuantity : Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
+    const already = selectedEquipment.filter(e => e.equipmentId === toolId).reduce((a, b) => a + b.quantity, 0);
+    if (requested + already > available) { showNotification({ type: 'error', title: 'Not Enough Stock', message: 'Available: ' + available, duration: 3000 }); return; }
+    selectedEquipment.push({ equipmentId: toolId, equipmentName: tool.itemName, quantity: requested });
+    if (input) input.value = '';
+    if (hidden) hidden.value = '';
+    qty.value = 1;
+    renderEquipmentList();
+  };
+
+  window.removeEquipmentRow = function(index) {
+    selectedEquipment.splice(index, 1);
+    renderEquipmentList();
+  };
+
+  window.renderEquipmentList = function() {
+    const list = document.getElementById('assignEquipmentList');
+    const empty = document.getElementById('assignEquipmentEmpty');
+    if (!list || !empty) return;
+    if (!selectedEquipment.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    list.innerHTML = selectedEquipment.map((e, i) => {
+      return '<div class="d-flex justify-content-between align-items-center p-2 border rounded"><div><strong>' + e.equipmentName + '</strong><div class="small text-muted">Qty: ' + e.quantity + '</div></div><button class="btn btn-sm btn-outline-danger" onclick="removeEquipmentRow(' + i + ')"><i class="bi bi-trash"></i></button></div>';
+    }).join('');
+  };
+
+  window.renderRecommendedTools = function(recommended) {
+    const container = document.getElementById('assignEquipmentRecommended');
+    const empty = document.getElementById('assignEquipmentRecommendedEmpty');
+    if (!container || !empty) return;
+    if (!recommended || !recommended.length) { container.innerHTML = ''; empty.classList.remove('d-none'); return; }
+    empty.classList.add('d-none');
+    container.innerHTML = recommended.map(t => {
+      return '<button type="button" class="btn btn-sm btn-outline-info me-1 mb-1" onclick="addRecommendedEquipment(\'' + t._id + '\')"><i class="bi bi-magic me-1"></i>' + t.itemName + ' (avail ' + t.availableQuantity + ')</button>';
+    }).join('');
+  };
+
+  window.addRecommendedEquipment = function(toolId) {
+    const tool = equipmentCache.find(t => t._id === toolId);
+    if (!tool) return;
+    const available = tool.availableQuantity != null ? tool.availableQuantity : Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
+    const already = selectedEquipment.filter(e => e.equipmentId === toolId).reduce((a, b) => a + b.quantity, 0);
+    if (1 + already > available) { showNotification({ type: 'error', title: 'Not Enough Stock', message: 'Available: ' + available, duration: 3000 }); return; }
+    selectedEquipment.push({ equipmentId: toolId, equipmentName: tool.itemName, quantity: 1 });
+    renderEquipmentList();
+  };
+
+  window.toggleNewToolForm = function() {
+    const form = document.getElementById('newToolForm');
+    if (form) form.classList.toggle('d-none');
+  };
+
+  window.saveNewTool = async function() {
+    const nameEl = document.getElementById('assignNewToolName');
+    const qtyEl = document.getElementById('assignNewToolQty');
+    const unitEl = document.getElementById('assignNewToolUnit');
+    const catEl = document.getElementById('assignNewToolCategory');
+    const name = (nameEl && nameEl.value || '').trim();
+    const qty = parseInt(qtyEl && qtyEl.value) || 0;
+    if (!name) { showNotification({ type: 'warning', title: 'Tool Name Required', message: 'Enter a tool name.', duration: 3000 }); return; }
+    const btn = document.getElementById('btnSaveNewTool');
+    btn.disabled = true; btn.innerHTML = 'Saving...';
+    try {
+      const res = await fetch('/api/admin/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          itemName: name,
+          quantity: qty,
+          unit: (unitEl && unitEl.value) || 'pcs',
+          category: (catEl && catEl.value) || 'General'
+        })
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed to save tool');
+      showNotification({ type: 'success', title: 'Tool Created', message: d.tool.itemName + ' added to inventory.', duration: 3000 });
+      const tool = d.tool;
+      tool.availableQuantity = Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
+      equipmentCache.push(tool);
+      const input = document.getElementById('assignEquipmentToolInput');
+      const hidden = document.getElementById('assignEquipmentTool');
+      const dl = document.getElementById('assignEquipmentDatalist');
+      const display = tool.itemName + ' (avail ' + tool.availableQuantity + ')';
+      if (dl) {
+        const opt = document.createElement('option');
+        opt.value = display;
+        dl.appendChild(opt);
+      }
+      if (input) { input.value = display; input.disabled = false; }
+      if (hidden) hidden.value = tool._id;
+      nameEl.value = ''; qtyEl.value = 1; if (unitEl) unitEl.value = 'pcs'; if (catEl) catEl.value = 'General';
+      toggleNewToolForm();
+    } catch (e) {
+      showNotification({ type: 'error', title: 'Failed to Save Tool', message: e.message || 'Could not add tool.', duration: 5000 });
+    } finally {
+      btn.disabled = false; btn.innerHTML = 'Save Tool to Inventory';
+    }
+  };
+
+  window.confirmAssign = async function() {
+    if (!currentBookingId || !selectedTechId) return;
+    const btn = document.getElementById('btnConfirmAssign');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
+
+    try {
+      const res = await fetch(`/api/admin/appointments/${currentBookingId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          technicianId: selectedTechId,
+          priority: document.getElementById('assignPriority').value,
+          notes: document.getElementById('assignNotes').value,
+          equipment: selectedEquipment,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign technician');
+
+      bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+
+      // Disable assign button on the card for this booking
+      const card = document.querySelector(`[data-booking-id="${currentBookingId}"]`);
+      if (card) {
+        const assignBtn = card.querySelector('.btn-assign');
+        if (assignBtn) {
+          assignBtn.disabled = true;
+          assignBtn.classList.remove('btn-primary');
+          assignBtn.classList.add('btn-secondary');
+          assignBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Assigned';
+        }
+      }
+
+      showNotification({
+        type: 'success',
+        title: 'Technician Assigned',
+        message: `Booking has been assigned successfully. The technician will be notified.`,
+        duration: 4000
+      });
+
+      loadQueue(currentPage);
+      loadStats();
+    } catch(e) {
+      showNotification({
+        type: 'error',
+        title: 'Assignment Failed',
+        message: e.message || 'An error occurred while assigning the technician.',
+        duration: 5000
+      });
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  };
+
+  window.viewBooking = async function(id) {
+    const body = document.getElementById('detailModalBody');
+    const subtitle = document.getElementById('detailModalSubtitle');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading booking details...</p></div>';
+    subtitle.textContent = 'Loading...';
+    new bootstrap.Modal(document.getElementById('bookingDetailModal')).show();
+
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch booking details');
+      const data = await res.json();
+      const b = data.booking;
+      if (!b) { body.innerHTML = '<div class="alert alert-danger">Booking not found</div>'; return; }
+
+      const refText = b.bookingReference || b.workOrderNumber || `#${b._id.toString().slice(-8).toUpperCase()}`;
+      subtitle.textContent = refText;
+
+      // Resolve PSGC address codes to human-readable names
+      let customerAddressStr = '';
+      const rawAddr = b.customer?.address;
+      const extractParts = (addr) => {
+        if (!addr) return ['','','',''];
+        if (typeof addr === 'string' && /\{.*\}/.test(addr)) {
+          try {
+            const json = addr.replace(/'/g, '"').replace(/(\w+):/g, '"$1":');
+            const obj = JSON.parse(json);
+            return [obj.barangay||'', obj.city||'', obj.province||'', obj.postalCode||''];
+          } catch(e) {}
+        }
+        if (typeof addr === 'object' && !Array.isArray(addr)) {
+          return [(addr.barangay||'').trim(), (addr.city||'').trim(), (addr.province||'').trim(), (addr.postalCode||'').trim()];
+        }
+        if (typeof addr === 'string') {
+          const p = addr.split(',').map(s => s.trim()).filter(Boolean);
+          if (p.length >= 3 && (/\d{9,10}/.test(p[2])) && (/\d{9,10}/.test(p[1]))) {
+            return [p[2], p[1], p[0], p[3]];
+          }
+          return ['', '', p[0] || '', ''];
+        }
+        return ['','','',''];
+      };
+      let [barangay, city, province, zip] = extractParts(rawAddr);
+      const hasPsgc = [barangay, city, province].some(v => /^\d{9,10}$/.test(v));
+      if (hasPsgc) {
+        try {
+          const [provRes, cityRes] = await Promise.all([
+            fetch('/api/psgc/provinces').then(r => r.json()),
+            fetch('/api/psgc/cities').then(r => r.json()),
+          ]);
+          const provMap = {}; (provRes.data || provRes).forEach(p => { provMap[p.code] = p.name; });
+          const cityMap = {}; (cityRes.data || cityRes).forEach(c => { cityMap[c.code] = c.name; });
+
+          const normalize = v => String(v).replace(/\s/g, '');
+          const resolve = (code) => {
+            if (!code) return '';
+            const norm = normalize(code);
+            
+            return provMap[norm] || cityMap[norm] || '';
+          };
+
+          const resolvedProvince = resolve(province);
+          const resolvedCity = resolve(city);
+          const resolvedBarangay = resolve(barangay);
+
+          province = resolvedProvince || province;
+          city = resolvedCity || city;
+          barangay = resolvedBarangay || barangay;
+        } catch(e) {}
+      }
+      const addressParts = [barangay, city, province].filter(Boolean);
+      customerAddressStr = addressParts.join(', ') + (zip ? ' ' + zip : '');
+
+      const isRepair = b.serviceModel === 'RepairService' || b.serviceType === 'repair';
+      const isMulti = b.isMultiService || (b.services && b.services.length > 0);
+
+      const dateLabel = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+      const timeLabel = b.selectedTimeLabel || b.startTime || b.preferredTime || '—';
+      const endLabel = b.endTime || '—';
+
+      const statusColors = {
+        awaiting_assignment: 'bg-warning text-dark', pending_reassignment: 'bg-danger',
+        assigned: 'bg-info text-dark', payment_verified: 'bg-success', confirmed: 'bg-primary',
+        scheduled: 'bg-primary', 'on-the-way': 'bg-info', arrived: 'bg-dark',
+        'in-progress': 'bg-primary', completed: 'bg-success', cancelled: 'bg-secondary',
+        rejected: 'bg-danger', pending: 'bg-warning text-dark',
+      };
+      const statusLabel = (b.status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      // Collect photos from all sources
+      const allPhotos = [];
+      if (b.paymentProof) allPhotos.push({ src: b.paymentProof, label: 'Payment Proof' });
+      if (data.payment && data.payment.proofUrl && !allPhotos.some(p => p.src === data.payment.proofUrl))
+        allPhotos.push({ src: data.payment.proofUrl, label: 'Receipt' });
+      if (b.imageUrl && !allPhotos.some(p => p.src === b.imageUrl))
+        allPhotos.push({ src: b.imageUrl, label: 'Image' });
+      if (b.unitInfo && Array.isArray(b.unitInfo.photos))
+        b.unitInfo.photos.forEach(p => { if (p && !allPhotos.some(x => x.src === p)) allPhotos.push({ src: p, label: 'Unit Photo' }); });
+
+      // Pricing breakdown
+      const totalPrice = b.totalPrice || b.estimatedFee || 0;
+      const servicePrice = b.servicePrice || 0;
+      const travelFare = b.travelFare || 0;
+      const downpayment = b.downpaymentAmount || 0;
+      const amountPaid = b.amountPaid || 0;
+      const balanceAmount = b.balanceAmount || Math.max(0, totalPrice - amountPaid);
+
+      body.innerHTML = `
+        <div class="pm-status-bar">
+          <span class="badge ${statusColors[b.status] || 'bg-secondary'}" style="font-size:.85rem;padding:6px 14px;">${statusLabel}</span>
+          ${b.priority ? `<span class="badge ${b.priority === 'critical' || b.priority === 'high' ? 'bg-danger' : b.priority === 'medium' ? 'bg-warning text-dark' : 'bg-info'}">${b.priority.toUpperCase()}</span>` : ''}
+          ${b.paymentStatus ? `<span class="badge ${b.paymentStatus === 'paid' ? 'bg-success' : b.paymentStatus === 'partial' ? 'bg-info' : 'bg-warning text-dark'}">Payment: ${b.paymentStatus}</span>` : ''}
+          ${b.bookingReference ? `<span class="badge bg-light text-dark border">${b.bookingReference}</span>` : ''}
+          ${b.workOrderNumber ? `<span class="badge bg-light text-dark border">${b.workOrderNumber}</span>` : ''}
+          ${b.escalated || b.reassignmentCount >= 3 ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Escalated</span>' : ''}
+          ${b.reassignmentCount > 0 ? `<span class="badge bg-light text-dark border">Reassignments: ${b.reassignmentCount}</span>` : ''}
+          ${b.isMultiService ? '<span class="badge" style="background:#7c3aed;">Multi-Service</span>' : ''}
+        </div>
+
+        <div class="pm-grid">
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person"></i></div><h3 class="pm-card-title">Customer Profile</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Full Name</span><span class="pm-val">${b.customer?.name || 'N/A'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${b.customer?.email || '—'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${b.customer?.phone || '—'}</span></div>
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-gear"></i></div><h3 class="pm-card-title">Service Information</h3></div>
+            <div class="pm-card-body">
+              ${isMulti && b.services && b.services.length > 0
+                ? b.services.map(s => `
+                <div class="pm-row">
+                  <span class="pm-lbl">${s.name || 'Service'} ${s.type ? '(' + s.type + ')' : ''} ${s.hp ? s.hp + 'HP' : ''} × ${s.quantity || 1}</span>
+                  <span class="pm-val">₱${Number(s.totalPrice || s.unitPrice || 0).toLocaleString()}</span>
+                </div>`).join('')
+                : `
+              <div class="pm-row"><span class="pm-lbl">Service Name</span><span class="pm-val">${b.service?.name || (isRepair ? 'Repair Service' : 'Service')}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Service Type</span><span class="pm-val">${({ repair: 'Repair', core: 'Core Service' })[b.serviceType] || (b.serviceModel === 'RepairService' ? 'Repair' : b.serviceType || b.serviceModel || 'N/A')}</span></div>
+              ${b.serviceDurationMinutes ? `<div class="pm-row"><span class="pm-lbl">Duration</span><span class="pm-val"><i class="bi bi-clock me-1"></i>${b.serviceDurationMinutes} minutes</span></div>` : ''}
+              ${b.serviceDescription ? `<div class="pm-row"><span class="pm-lbl">Description</span><span class="pm-val" style="font-weight:400;font-size:.82rem;">${b.serviceDescription.substring(0, 120)}${b.serviceDescription.length > 120 ? '...' : ''}</span></div>` : ''}
+              `}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-calendar-event"></i></div><h3 class="pm-card-title">Schedule & Timeline</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Booking Date</span><span class="pm-val">${dateLabel}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${timeLabel}${endLabel !== ' —' ? ' — ' + endLabel : ''}</span></div>
+              ${b.preferredDate && b.preferredDate !== b.bookingDate ? `<div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${new Date(b.preferredDate).toLocaleDateString('en-PH')} ${b.preferredTime || ''}</span></div>` : ''}
+              ${b.selectedTimeLabel && b.selectedTimeLabel !== timeLabel ? `<div class="pm-row"><span class="pm-lbl">Selected Slot</span><span class="pm-val">${b.selectedTimeLabel}</span></div>` : ''}
+              ${b.rescheduleReason ? `<div class="pm-row"><span class="pm-lbl">Last Reschedule</span><span class="pm-val" style="color:#dc2626;">${b.rescheduleReason}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#f3e8ff;color:#9333ea;"><i class="bi bi-cash-stack"></i></div><h3 class="pm-card-title">Pricing & Costs</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row" style="padding-bottom:10px;border-bottom:2px solid #e2e8f0;"><span class="pm-lbl">Total Amount</span><span class="pm-val" style="font-size:1.15rem;color:#16a34a;">₱${totalPrice.toLocaleString()}</span></div>
+              ${servicePrice > 0 ? `<div class="pm-row"><span class="pm-lbl">Service Price</span><span class="pm-val">₱${servicePrice.toLocaleString()}</span></div>` : ''}
+              ${travelFare > 0 ? `<div class="pm-row"><span class="pm-lbl">Travel Fare</span><span class="pm-val">₱${travelFare.toLocaleString()}</span></div>` : ''}
+              ${b.distanceKm != null ? `<div class="pm-row"><span class="pm-lbl">Distance</span><span class="pm-val">${Number(b.distanceKm).toFixed(2)} km${b.travelDurationMinutes ? ' (' + b.travelDurationMinutes + ' min)' : ''}</span></div>` : ''}
+              ${b.initialCost ? `<div class="pm-row"><span class="pm-lbl">Initial Cost</span><span class="pm-val">₱${b.initialCost.toLocaleString()}</span></div>` : ''}
+              ${b.finalCost ? `<div class="pm-row"><span class="pm-lbl">Final Cost</span><span class="pm-val">₱${b.finalCost.toLocaleString()}</span></div>` : ''}
+              ${b.estimatedFee ? `<div class="pm-row"><span class="pm-lbl">Estimated Fee</span><span class="pm-val">₱${b.estimatedFee.toLocaleString()}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-credit-card"></i></div><h3 class="pm-card-title">Payment Information</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Payment Method</span><span class="pm-val">${(b.paymentMethod || 'cod').toUpperCase()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Payment Status</span><span class="pm-val">${b.paymentStatus === 'paid' ? '<i class="bi bi-check-circle text-success me-1"></i>Paid' : b.paymentStatus === 'partial' ? '<i class="bi bi-clock text-warning me-1"></i>Partial' : '<i class="bi bi-wallet text-info me-1"></i>Pending'}</span></div>
+              ${b.paymentMethod === 'cod' ? `
+              ${downpayment > 0 ? `<div class="pm-row"><span class="pm-lbl">Downpayment</span><span class="pm-val">₱${downpayment.toLocaleString()}</span></div>` : ''}
+              <div class="pm-row"><span class="pm-lbl">Amount Paid</span><span class="pm-val" style="color:#16a34a;">₱${amountPaid.toLocaleString()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Balance Due</span><span class="pm-val" style="color:${balanceAmount > 0 ? '#dc2626' : '#16a34a'};">₱${balanceAmount.toLocaleString()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">On-site Collection</span><span class="pm-val">${b.balanceCollected ? '<i class="bi bi-check-circle text-success me-1"></i>Collected' : '<i class="bi bi-clock text-warning me-1"></i>Pending'}</span></div>
+              ` : `
+              <div class="pm-row"><span class="pm-lbl">Amount Paid</span><span class="pm-val" style="color:#16a34a;">₱${amountPaid.toLocaleString()}</span></div>
+              `}
+              ${b.gcashNumber ? `<div class="pm-row"><span class="pm-lbl">GCash Number</span><span class="pm-val">${b.gcashNumber}</span></div>` : ''}
+              ${b.paymentReference ? `<div class="pm-row"><span class="pm-lbl">Payment Reference</span><span class="pm-val" style="font-family:monospace;">${b.paymentReference}</span></div>` : ''}
+              ${b.paymentNotes ? `<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;font-size:.82rem;">${b.paymentNotes}</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#e2e8f0;color:#475569;"><i class="bi bi-geo-alt"></i></div><h3 class="pm-card-title">Service Location</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Service Address</span><span class="pm-val" style="font-weight:400;">${b.location?.address || 'No address provided'}</span></div>
+              ${b.location?.lat && b.location?.lng ? `<div class="pm-row"><span class="pm-lbl">Coordinates</span><span class="pm-val" style="font-family:monospace;font-size:.8rem;">${b.location.lat}, ${b.location.lng}</span></div>` : ''}
+              ${b.location?.coordinates?.coordinates ? `<div class="pm-row"><span class="pm-lbl">Raw Coordinates</span><span class="pm-val" style="font-family:monospace;font-size:.8rem;">[${b.location.coordinates.coordinates.join(', ')}]</span></div>` : ''}
+            </div>
+          </div>
+
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person-badge"></i></div><h3 class="pm-card-title">Technician Assignment</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Technician</span><span class="pm-val">${b.technician?.name || (b.technicianName || 'Unassigned')}</span></div>
+              ${b.technician?.email ? `<div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${b.technician.email}</span></div>` : ''}
+              ${b.technician?.phone ? `<div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${b.technician.phone}</span></div>` : ''}
+              ${b.assignedAt ? `<div class="pm-row"><span class="pm-lbl">Assigned At</span><span class="pm-val">${new Date(b.assignedAt).toLocaleString('en-PH')}</span></div>` : ''}
+              ${b.assignedBy ? `<div class="pm-row"><span class="pm-lbl">Assigned By</span><span class="pm-val">${b.assignedBy}</span></div>` : ''}
+              ${data.assignment ? `<div class="pm-row"><span class="pm-lbl">Assignment Status</span><span class="pm-val">${data.assignment.status || 'N/A'}</span></div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        ${isRepair ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-wrench" style="color:#dc2626;"></i><span class="pm-section-title">Repair Details</span></div>
+          <div class="pm-grid">
+            ${b.issueDescription ? `
+            <div class="pm-card" style="border-left:3px solid #dc2626;">
+              <div class="pm-card-head" style="background:#fef2f2;"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-exclamation-triangle"></i></div><h3 class="pm-card-title">Issue Description</h3></div>
+              <div class="pm-card-body"><span class="pm-val" style="font-weight:400;">${b.issueDescription}</span></div>
+            </div>` : ''}
+            ${b.unitInfo ? `
+            <div class="pm-card" style="border-left:3px solid #d97706;">
+              <div class="pm-card-head" style="background:#fffbeb;"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-box"></i></div><h3 class="pm-card-title">Unit Information</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Unit</span><span class="pm-val">${[b.unitInfo.unitType, b.unitInfo.brand, b.unitInfo.model].filter(Boolean).join(' — ') || 'N/A'}</span></div>
+                ${b.unitInfo.problemDescription ? `<div class="pm-row"><span class="pm-lbl">Problem</span><span class="pm-val" style="font-weight:400;">${b.unitInfo.problemDescription}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.inspection?.findings ? `
+            <div class="pm-card" style="border-left:3px solid #16a34a;">
+              <div class="pm-card-head" style="background:#f0fdf4;"><div class="pm-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-clipboard-check"></i></div><h3 class="pm-card-title">Inspection</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Findings</span><span class="pm-val" style="font-weight:400;">${b.inspection.findings}</span></div>
+                ${b.inspection.scheduledDate ? `<div class="pm-row"><span class="pm-lbl">Scheduled</span><span class="pm-val">${new Date(b.inspection.scheduledDate).toLocaleDateString('en-PH')} ${b.inspection.scheduledTime || ''}</span></div>` : ''}
+                ${b.inspection.completedAt ? `<div class="pm-row"><span class="pm-lbl">Completed</span><span class="pm-val">${new Date(b.inspection.completedAt).toLocaleString('en-PH')}</span></div>` : ''}
+                ${b.inspection.severity ? `<div class="pm-row"><span class="pm-lbl">Severity</span><span class="pm-val">${b.inspection.severity}</span></div>` : ''}
+                ${b.inspection.recommendedAction ? `<div class="pm-row"><span class="pm-lbl">Recommended</span><span class="pm-val" style="font-weight:400;">${b.inspection.recommendedAction}</span></div>` : ''}
+                ${b.inspection.estimatedRepairCost ? `<div class="pm-row"><span class="pm-lbl">Est. Repair Cost</span><span class="pm-val">₱${b.inspection.estimatedRepairCost.toLocaleString()}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.quotation ? `
+            <div class="pm-card" style="border-left:3px solid #ca8a04;">
+              <div class="pm-card-head" style="background:#fefce8;"><div class="pm-icon" style="background:#fef9c3;color:#ca8a04;"><i class="bi bi-receipt"></i></div><h3 class="pm-card-title">Quotation</h3></div>
+              <div class="pm-card-body">
+                ${(b.quotation.parts || []).map(p => `<div class="pm-row"><span class="pm-lbl">• ${p.name} ×${p.quantity || 1}</span><span class="pm-val">₱${((p.cost||0)*(p.quantity||1)).toLocaleString()}</span></div>`).join('')}
+                <div class="pm-row"><span class="pm-lbl">Labor</span><span class="pm-val">₱${(b.quotation.laborCost||0).toLocaleString()}</span></div>
+                <div class="pm-row" style="border-top:2px solid #e2e8f0;padding-top:8px;"><span class="pm-lbl">Total</span><span class="pm-val" style="font-size:1.05rem;">₱${(b.quotation.totalCost||0).toLocaleString()}</span></div>
+                ${b.quotation.notes ? `<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;">${b.quotation.notes}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+            ${b.approval?.status && b.approval.status !== 'pending' ? `
+            <div class="pm-card" style="border-left:3px solid ${b.approval.status === 'approved' ? '#16a34a' : '#dc2626'};">
+              <div class="pm-card-head" style="background:${b.approval.status === 'approved' ? '#f0fdf4' : '#fef2f2'};"><div class="pm-icon" style="background:${b.approval.status === 'approved' ? '#dcfce7' : '#fee2e2'};color:${b.approval.status === 'approved' ? '#16a34a' : '#dc2626'};"><i class="bi ${b.approval.status === 'approved' ? 'bi-check-circle' : 'bi-x-circle'}"></i></div><h3 class="pm-card-title">Customer Approval</h3></div>
+              <div class="pm-card-body">
+                <div class="pm-row"><span class="pm-lbl">Status</span><span class="pm-val">${b.approval.status === 'approved' ? 'Approved' : 'Declined'}</span></div>
+                ${b.approval.decidedAt ? `<div class="pm-row"><span class="pm-lbl">Decided</span><span class="pm-val">${new Date(b.approval.decidedAt).toLocaleString('en-PH')}</span></div>` : ''}
+                ${b.approval.reason ? `<div class="pm-row"><span class="pm-lbl">Reason</span><span class="pm-val" style="font-weight:400;">${b.approval.reason}</span></div>` : ''}
+              </div>
+            </div>` : ''}
+          </div>
+        </div>` : ''}
+
+        ${allPhotos.length > 0 ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-images" style="color:#0891b2;"></i><span class="pm-section-title">Photos & Proof (${allPhotos.length})</span></div>
+          <div class="pm-photo-grid">
+            ${allPhotos.map((p, i) => `
+            <div class="pm-photo-item">
+              <img src="${p.src}" alt="${p.label}" onclick="window.open('${p.src.replace(/'/g, "\\'")}', '_blank')" onerror="this.closest('.pm-photo-item').innerHTML='<div style=\\'padding:20px;text-align:center;color:#94a3b8;font-size:.8rem;\\'>Image unavailable</div>'">
+              <div style="margin-top:4px;text-align:center;font-size:.68rem;color:#94a3b8;">${p.label} ${i+1}</div>
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${(b.statusHistory && b.statusHistory.length > 0) ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-clock-history" style="color:#64748b;"></i><span class="pm-section-title">Status History</span></div>
+          <div style="max-height:200px;overflow-y:auto;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:8px 12px;">
+            ${b.statusHistory.slice().reverse().map(h => {
+              const ts = h.timestamp || h.date || h.createdAt;
+              const statusVal = h.toStatus || h.status || h.fromStatus || '—';
+              const label = statusVal.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `<div class="pm-history-item">
+                <div style="flex:1;min-width:0;"><span class="badge bg-secondary" style="font-size:.65rem;">${label}</span>${h.reason || h.message || h.notes ? `<span style="color:#64748b;font-size:.8rem;margin-left:6px;">— ${(h.reason || h.message || h.notes).substring(0, 80)}</span>` : ''}</div>
+                <div style="flex-shrink:0;text-align:right;">${h.changedByName ? `<span style="color:#94a3b8;font-size:.7rem;margin-right:6px;">by ${h.changedByName}</span>` : ''}<span style="color:#94a3b8;font-size:.7rem;">${ts ? new Date(ts).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span></div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+
+        ${b.cancellationHistory && b.cancellationHistory.length > 0 ? `
+        <div style="margin-top:20px;">
+          <div class="pm-section-hdr"><i class="bi bi-arrow-repeat" style="color:#dc2626;"></i><span class="pm-section-title">Technician Cancellation History</span></div>
+          <div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
+            ${b.cancellationHistory.slice().reverse().map(h => `
+            <div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;">
+              <span class="badge ${h.action === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:.65rem;flex-shrink:0;">${h.action}</span>
+              <span style="font-size:.8rem;"><strong>${h.technicianName || 'Technician'}</strong> — ${h.reason || 'No reason'}</span>
+              <span style="color:#94a3b8;font-size:.7rem;margin-left:auto;flex-shrink:0;">${h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : ''}</span>
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${b.rescheduleRequest && b.rescheduleRequest.requested ? `
+        <div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-top:16px;">
+          <i class="bi bi-calendar-event"></i>
+          <div><strong>Reschedule Request:</strong> ${b.rescheduleRequest.requestedDate || ''} ${b.rescheduleRequest.requestedTime || ''}${b.rescheduleRequest.reason ? ' — ' + b.rescheduleRequest.reason : ''} <small style="color:#94a3b8;">(${b.rescheduleRequest.status || 'pending'})</small></div>
+        </div>` : ''}
+
+        ${b.notes ? `<div class="pm-alert" style="background:#f8fafc;border:1px solid #e2e8f0;color:#475569;margin-top:16px;"><i class="bi bi-journal-text"></i><div><strong>Notes:</strong> ${b.notes}</div></div>` : ''}
+        ${b.rejectionReason ? `<div class="pm-alert" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;margin-top:16px;"><i class="bi bi-x-circle"></i><div><strong>Rejected:</strong> ${b.rejectionReason.replace(/_/g, ' ')}${b.rejectionNote ? ' — ' + b.rejectionNote : ''}${b.rejectedAt ? ' <small style="color:#94a3b8;">at ' + new Date(b.rejectedAt).toLocaleString('en-PH') + '</small>' : ''}</div></div>` : ''}
+        ${b.cancellationReason ? `<div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-top:16px;"><i class="bi bi-exclamation-triangle"></i><div><strong>Cancellation Reason:</strong> ${b.cancellationReason}</div></div>` : ''}
+        ${b.noShowRescheduleToken ? `<div class="pm-alert" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;margin-top:16px;"><i class="bi bi-clock"></i><div><strong>No-Show Reschedule:</strong> Status: ${b.noShowRescheduleStatus || 'pending'} ${b.noShowAt ? 'at ' + new Date(b.noShowAt).toLocaleString('en-PH') : ''}</div></div>` : ''}
+
+        ${b.slaTracking ? `
+        <div style="margin-top:16px;padding:10px 14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:.82rem;">
+          <i class="bi bi-speedometer2 me-1" style="color:#475569;"></i><strong style="color:#475569;">SLA:</strong>
+          ${b.slaTracking.responseTarget ? `Response by: ${new Date(b.slaTracking.responseTarget).toLocaleString('en-PH')}${b.slaTracking.responseBreached ? ' <span style="color:#dc2626;">⚠ Breached</span>' : ''} | ` : ''}
+          ${b.slaTracking.resolutionTarget ? `Resolution by: ${new Date(b.slaTracking.resolutionTarget).toLocaleString('en-PH')}${b.slaTracking.resolutionBreached ? ' <span style="color:#dc2626;">⚠ Breached</span>' : ''}` : ''}
+          ${b.slaTracking.escalationLevel > 0 ? ` | Escalation: Level ${b.slaTracking.escalationLevel}` : ''}
+        </div>` : ''}
+
+        <div class="pm-footer">
+          ${['awaiting_assignment', 'pending_reassignment'].includes(b.status) ? `
+            <button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById('bookingDetailModal')).hide();setTimeout(()=>openAssignModal('${b._id}','${(b.customer?.name||'').replace(/'/g,"\\'")}','${(b.service?.name||(isRepair?'Repair Service':'')||'').replace(/'/g,"\\'")}','${formatDate(b.bookingDate)}','${formatTime(b.startTime)}'),300);">
+              <i class="bi bi-person-plus me-1"></i>Assign Technician
+            </button>
+          ` : ''}
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      `;
+    } catch(e) {
+      body.innerHTML = '<div class="alert alert-danger">Failed to load booking details: ' + e.message + '</div>';
+    }
+  };
+
+  function showToast(msg, type) {
+    const toast = document.getElementById('globalToast');
+    if (toast) { toast.querySelector('.toast-body').innerHTML = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); }
+  }
+
+  // Enterprise notification system
+  function showNotification(opts) {
+    var type = opts.type || 'info';
+    var title = opts.title || '';
+    var message = opts.message || '';
+    var duration = opts.duration || 3000;
+    var colors = {
+      success: { bg: '#f0fdf4', border: '#22c55e', icon: 'bi-check-circle-fill', iconColor: '#16a34a' },
+      error: { bg: '#fef2f2', border: '#ef4444', icon: 'bi-x-circle-fill', iconColor: '#dc2626' },
+      warning: { bg: '#fffbeb', border: '#f59e0b', icon: 'bi-exclamation-triangle-fill', iconColor: '#d97706' },
+      info: { bg: '#eff6ff', border: '#3b82f6', icon: 'bi-info-circle-fill', iconColor: '#2563eb' }
+    };
+    var c = colors[type] || colors.info;
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;min-width:340px;max-width:420px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-left:4px solid ' + c.border + ';border-radius:12px;padding:16px 20px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:12px;animation:slideInRight 0.3s ease;';
+    var html = '';
+    html += '<i class="bi ' + c.icon + '" style="font-size:1.3rem;color:' + c.iconColor + ';margin-top:2px;"></i>';
+    html += '<div style="flex:1;">';
+    html += '<div style="font-weight:700;font-size:0.9rem;color:#1e293b;margin-bottom:2px;">' + title + '</div>';
+    html += '<div style="font-size:0.82rem;color:#64748b;">' + message + '</div>';
+    html += '</div>';
+    html += '<button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;">&times;</button>';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+
+    if (!document.getElementById('notif-styles')) {
+      const style = document.createElement('style');
+      style.id = 'notif-styles';
+      style.textContent = '@keyframes slideInRight{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}';
+      document.head.appendChild(style);
+    }
+
+    setTimeout(() => {
+      el.style.transition = 'all 0.3s ease';
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(100%)';
+      setTimeout(() => el.remove(), 300);
+    }, duration);
+  }
+
+  loadStats();
+  loadQueue(1);
+
+  // ═══ Repair Request Functions ═══
+  let rqCurrentPage = 1;
+  let rqCurrentFilter = 'repair_requested';
+  let allRepairs = [];
+
+  const RQ_STATUS_LABELS = {
+    repair_requested: 'New Request',
+    pending_inspection: 'Pending Inspection',
+    inspection_scheduled: 'Inspection Scheduled',
+    inspection_in_progress: 'Inspection In Progress',
+    inspection_completed: 'Diagnosis Completed',
+    awaiting_approval: 'Awaiting Approval',
+    repair_approved: 'Repair Approved',
+    repair_declined: 'Repair Declined',
+    waiting_parts: 'Waiting Parts',
+    parts_reserved: 'Parts Reserved',
+    ready_for_repair: 'Ready for Repair',
+    repair_scheduled: 'Repair Scheduled',
+    repair_in_progress: 'Repair In Progress',
+    repair_completed: 'Repair Completed',
+    closed: 'Closed',
+  };
+
+  const RQ_STATUS_BADGES = {
+    repair_requested: 'bg-warning text-dark',
+    pending_inspection: 'bg-warning text-dark',
+    inspection_scheduled: 'bg-info text-dark',
+    inspection_in_progress: 'bg-primary',
+    inspection_completed: 'bg-success',
+    awaiting_approval: 'bg-danger',
+    repair_approved: 'bg-success',
+    repair_declined: 'bg-danger',
+    waiting_parts: 'bg-warning text-dark',
+    ready_for_repair: 'bg-success',
+    repair_scheduled: 'bg-primary',
+    repair_in_progress: 'bg-primary',
+    repair_completed: 'bg-success',
+    closed: 'bg-secondary',
+  };
+
+  async function loadRepairRequests() {
+    const container = document.getElementById('repairQueueContainer');
+    if (!container) return;
+    try {
+      container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading repair requests...</p></div>';
+
+      const res = await fetch('/api/admin/repair-queue?limit=200');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      allRepairs = data.items || [];
+      renderRepairRequests();
+    } catch(e) {
+      container.innerHTML = '<div class="alert alert-danger">Failed to load repair requests</div>';
+    }
+  }
+
+  function renderRepairRequests() {
+    const container = document.getElementById('repairQueueContainer');
+    if (!container) return;
+    const filterEl = document.getElementById('rqFilterStatus');
+    const searchEl = document.getElementById('rqSearchInput');
+    const filter = filterEl ? filterEl.value : 'all';
+    const search = searchEl ? (searchEl.value || '').toLowerCase() : '';
+
+    let filtered = allRepairs;
+    if (filter !== 'all') {
+      if (filter === 'pending') {
+        filtered = filtered.filter(b => ['repair_requested', 'pending_inspection'].includes(b.status));
+      } else {
+        filtered = filtered.filter(b => b.status === filter);
+      }
+    }
+    if (search) {
+      filtered = filtered.filter(b => {
+        const name = (b.customer?.name || '').toLowerCase();
+        const ref = (b.bookingReference || '').toLowerCase();
+        const issue = (b.issueDescription || b.unitInfo?.problemDescription || '').toLowerCase();
+        return name.includes(search) || ref.includes(search) || issue.includes(search);
+      });
+    }
+
+    if (!filtered.length) {
+      container.innerHTML = '<div class="aq-empty"><i class="bi bi-inbox"></i><p>No repair requests found</p></div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map(b => {
+      const isRepairReq = b.status === 'repair_requested';
+      const badge = RQ_STATUS_BADGES[b.status] || 'bg-secondary';
+      const label = RQ_STATUS_LABELS[b.status] || b.status;
+      const date = b.preferredDate || b.bookingDate;
+      const dateStr = date ? formatDate(date) : '—';
+      const issue = (b.issueDescription || b.unitInfo?.problemDescription || 'No description').substring(0, 60);
+      const unit = [b.unitInfo?.brand, b.unitInfo?.model].filter(Boolean).join(' ') || '';
+
+      return `
+      <div class="aq-booking-card">
+        <div class="aq-booking-header">
+          <div>
+            <div class="aq-booking-id">#${b._id.toString().slice(-8).toUpperCase()}</div>
+            <div class="aq-booking-customer">${b.customer?.name || 'Customer'}</div>
+            <div class="aq-booking-service">${unit ? unit + ' — ' : ''}${issue}${issue.length >= 60 ? '...' : ''}</div>
+          </div>
+          <div class="text-end d-flex flex-column align-items-end gap-1">
+            <span class="badge ${badge}">${label}</span>
+          </div>
+        </div>
+        <div class="aq-detail-grid">
+          <div class="aq-detail-item"><i class="bi bi-calendar"></i> ${dateStr}</div>
+          <div class="aq-detail-item"><i class="bi bi-geo-alt"></i> ${(b.location?.address || 'No address').substring(0, 30)}</div>
+          <div class="aq-detail-item"><i class="bi bi-telephone"></i> ${b.customer?.phone || '—'}</div>
+          ${b.priority ? `<div class="aq-detail-item"><i class="bi bi-flag"></i> ${b.priority.toUpperCase()}</div>` : ''}
+        </div>
+        ${isRepairReq ? `
+        <div class="aq-action-bar">
+          <button class="btn btn-sm btn-outline-secondary" onclick="viewRepairDetail('${b._id}')"><i class="bi bi-eye me-1"></i>View</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="openRejectRepair('${b._id}')"><i class="bi bi-x-lg me-1"></i>Reject</button>
+          <button class="btn btn-sm btn-success" onclick="approveRepairRequest('${b._id}')"><i class="bi bi-check-lg me-1"></i>Approve & Queue</button>
+        </div>
+        ` : `
+        <div class="aq-action-bar">
+          <button class="btn btn-sm btn-outline-secondary" onclick="viewRepairDetail('${b._id}')"><i class="bi bi-eye me-1"></i>View</button>
+        </div>
+        `}
+      </div>`;
+    }).join('');
+  }
+
+  async function approveRepairRequest(id) {
+    if (!confirm('Approve this repair request? It will be moved to the Assignment Queue for technician assignment.')) return;
+    try {
+      const res = await fetch(`/api/admin/repair-queue/${id}/confirm`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to approve');
+      }
+      showNotification({ type: 'success', title: 'Repair Approved', message: 'Repair request has been approved and moved to the assignment queue.', duration: 4000 });
+      loadRepairRequests();
+      loadStats();
+      loadQueue(currentPage);
+    } catch(e) {
+      showNotification({ type: 'error', title: 'Approval Failed', message: e.message || 'Failed to approve repair request.', duration: 5000 });
+    }
+  }
+
+  window.openRejectRepair = function(id) {
+    document.getElementById('rejectRepairBookingId').value = id;
+    document.getElementById('rejectRepairReason').value = '';
+    document.getElementById('rejectRepairNote').value = '';
+    new bootstrap.Modal(document.getElementById('rejectRepairModal')).show();
+  };
+
+  window.confirmRejectRepair = async function() {
+    const id = document.getElementById('rejectRepairBookingId').value;
+    const reason = document.getElementById('rejectRepairReason').value;
+    const note = document.getElementById('rejectRepairNote').value;
+    if (!reason) {
+      showNotification({ type: 'warning', title: 'Required', message: 'Please select a rejection reason.', duration: 3000 });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/repair-queue/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: note || reason }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to reject');
+      }
+      bootstrap.Modal.getInstance(document.getElementById('rejectRepairModal')).hide();
+      showNotification({ type: 'success', title: 'Repair Rejected', message: 'The repair request has been rejected.', duration: 4000 });
+      loadRepairRequests();
+      loadStats();
+    } catch(e) {
+      showNotification({ type: 'error', title: 'Rejection Failed', message: e.message || 'Failed to reject repair request.', duration: 5000 });
+    }
+  };
+
+  window.viewRepairDetail = async function(id) {
+    const body = document.getElementById('detailModalBody');
+    const subtitle = document.getElementById('detailModalSubtitle');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading details...</p></div>';
+    subtitle.textContent = 'Loading...';
+    new bootstrap.Modal(document.getElementById('bookingDetailModal')).show();
+
+    try {
+      const res = await fetch(`/api/admin/repair-queue/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const b = await res.json();
+      const refText = b.bookingReference || b.workOrderNumber || `#${b._id.toString().slice(-8).toUpperCase()}`;
+      subtitle.textContent = refText;
+
+      const statusLabel = RQ_STATUS_LABELS[b.status] || b.status;
+      const statusBadge = RQ_STATUS_BADGES[b.status] || 'bg-secondary';
+      const issue = b.issueDescription || b.unitInfo?.problemDescription || 'No description';
+      const unit = [b.unitInfo?.unitType, b.unitInfo?.brand, b.unitInfo?.model].filter(Boolean).join(' ') || '—';
+      const addr = (typeof b.location?.address === 'string' ? b.location.address : '') || '—';
+
+      body.innerHTML = `
+        <div class="pm-status-bar">
+          <span class="badge ${statusBadge}" style="font-size:.85rem;padding:6px 14px;">${statusLabel}</span>
+          ${b.priority ? `<span class="badge ${b.priority === 'high' || b.priority === 'critical' ? 'bg-danger' : 'bg-info'}">${b.priority.toUpperCase()}</span>` : ''}
+          ${b.bookingReference ? `<span class="badge bg-light text-dark border">${b.bookingReference}</span>` : ''}
+        </div>
+        <div class="pm-grid">
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person"></i></div><h3 class="pm-card-title">Customer</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Name</span><span class="pm-val">${b.customer?.name || 'N/A'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${b.customer?.phone || '—'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${b.customer?.email || '—'}</span></div>
+            </div>
+          </div>
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-wrench"></i></div><h3 class="pm-card-title">Unit & Issue</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Unit</span><span class="pm-val">${unit}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Issue</span><span class="pm-val" style="font-weight:400;">${issue}</span></div>
+            </div>
+          </div>
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-calendar-event"></i></div><h3 class="pm-card-title">Schedule</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${b.preferredDate ? formatDate(b.preferredDate) : '—'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Preferred Time</span><span class="pm-val">${b.preferredTime || b.selectedTimeLabel || '—'}</span></div>
+            </div>
+          </div>
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#e2e8f0;color:#475569;"><i class="bi bi-geo-alt"></i></div><h3 class="pm-card-title">Location</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Address</span><span class="pm-val" style="font-weight:400;">${addr}</span></div>
+              ${b.distanceKm != null ? `<div class="pm-row"><span class="pm-lbl">Distance</span><span class="pm-val">${Number(b.distanceKm).toFixed(2)} km</span></div>` : ''}
+            </div>
+          </div>
+        </div>
+        ${b.unitInfo?.photos && b.unitInfo.photos.length > 0 ? `
+        <div style="margin-top:16px;">
+          <div class="pm-section-hdr"><i class="bi bi-images" style="color:#0891b2;"></i><span class="pm-section-title">Unit Photos</span></div>
+          <div class="pm-photo-grid">
+            ${b.unitInfo.photos.map((src, i) => `<div class="pm-photo-item"><img src="${src}" alt="Photo ${i+1}" onclick="window.open('${src}','_blank')" onerror="this.closest('.pm-photo-item').innerHTML='<div style=\\'padding:16px;text-align:center;color:#94a3b8;font-size:.8rem;\\'>Unavailable</div>'"><div style="margin-top:4px;text-align:center;font-size:.68rem;color:#94a3b8;">Photo ${i+1}</div></div>`).join('')}
+          </div>
+        </div>` : ''}
+        <div class="pm-footer">
+          ${b.status === 'repair_requested' ? `
+            <button class="btn btn-outline-danger btn-sm" onclick="bootstrap.Modal.getInstance(document.getElementById('bookingDetailModal')).hide();setTimeout(()=>openRejectRepair('${b._id}'),300);"><i class="bi bi-x-lg me-1"></i>Reject</button>
+            <button class="btn btn-success btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById('bookingDetailModal')).hide();setTimeout(()=>approveRepairRequest('${b._id}'),300);"><i class="bi bi-check-lg me-1"></i>Approve & Queue</button>
+          ` : ''}
+          <button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      `;
+    } catch(e) {
+      body.innerHTML = '<div class="alert alert-danger">Failed to load details</div>';
+    }
+  };
+
+  // Repair request tab event listeners
+  document.getElementById('repair-tab')?.addEventListener('shown.bs.tab', () => {
+    loadRepairRequests();
+  });
+  document.getElementById('rqFilterStatus')?.addEventListener('change', () => renderRepairRequests());
+  let rqSearchTimeout;
+  document.getElementById('rqSearchInput')?.addEventListener('input', () => {
+    clearTimeout(rqSearchTimeout);
+    rqSearchTimeout = setTimeout(() => renderRepairRequests(), 300);
+  });
+})();
+</script>

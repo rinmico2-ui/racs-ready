@@ -1,0 +1,76 @@
+<div id="authSidebar" class="auth-sidebar d-none" aria-hidden="true">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <div
+        class="sidebar-avatar bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center overflow-hidden"
+        role="img"
+        aria-label="User avatar"
+        title="<%= user && user.email ? user.email : 'Account' %>"
+      >
+        <% if (user && user.profileImage) { %>
+          <img src="<%= user.profileImage %>" alt="Profile" class="w-100 h-100 object-fit-cover">
+        <% } else { %>
+          <i class="bi bi-person-circle"></i>
+        <% } %>
+      </div>
+      <h5 class="m-0">Account</h5>
+    </div>
+    <button
+      id="closeSidebar"
+      class="btn btn-sm btn-light"
+      aria-label="Close sidebar"
+    >
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+  <div class="sidebar-head-divider mb-3" aria-hidden="true"></div>
+
+  <nav class="nav flex-column mb-3">
+    <div
+      class="sidebar-heading text-uppercase text-secondary small fw-bold mb-2 px-3 mt-2"
+      style="font-size: 0.75rem; letter-spacing: 0.5px"
+    >
+      Account
+    </div>
+    <a
+      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
+      href="/profile"
+      ><i class="bi bi-person-badge me-3 text-primary"></i> My Profile</a
+    >
+
+    <a
+      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
+      href="/book-history"
+      ><i class="bi bi-calendar2-check me-3 text-primary"></i> Book History</a
+    >
+    <a
+      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
+      href="/tracking"
+      ><i class="bi bi-geo-alt me-3 text-primary"></i> My Schedule</a
+    >
+    <a
+      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
+      href="/my-orders"
+      ><i class="bi bi-receipt me-3 text-primary"></i> My Orders</a
+    >
+    <a
+      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
+      href="/purchase-history"
+      ><i class="bi bi-bag-check me-3 text-primary"></i> Purchase History</a
+    >
+  </nav>
+
+  <hr class="sidebar-divider my-3" />
+
+  <div class="mt-auto px-2">
+    <form id="logoutForm" action="/api/auth/logout" method="post">
+      <button
+        type="button"
+        id="logoutBtn"
+        class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2"
+      >
+        <i class="bi bi-box-arrow-right"></i> Sign Out
+      </button>
+    </form>
+  </div>
+</div>

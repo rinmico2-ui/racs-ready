@@ -1,0 +1,464 @@
+<div class="admin-dashboard container-fluid">
+  <%- include('../../../partials/dashboard-styles') %>
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-tools"></i></div>
+        <div>
+          <h1>Technicians</h1>
+          <p>Roster, quick actions, and schedule links — designed for fast admin workflows.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Technician Locations Map -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body p-2">
+      <div style="position:relative;">
+        <div id="techListMap" class="mb-3" style="width:100%;height:300px;position:relative;">
+          <div id="techMapOverlay" class="w-100 h-100 d-flex justify-content-center align-items-center text-muted" style="position:absolute;top:0;left:0;">
+            Loading map...
+          </div>
+        </div>
+        <div style="position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:8px;">
+          <button id="btnFitAllTechs" class="btn btn-sm shadow"
+            title="Fit all technicians"
+            style="background:#2b7de9;color:#fff;border:2px solid #fff;border-radius:10px;padding:6px 14px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .2s;">
+            <span style="font-size:1.1rem;">▲</span> All Technicians
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Filters -->
+  <div class="admin-filter-bar">
+    <div class="filter-group">
+      <div class="filter-item" style="flex: 1; min-width: 300px;">
+        <i class="bi bi-search"></i>
+        <input
+          id="techSearch"
+          type="search"
+          class="form-control"
+          placeholder="Search by name, email, phone, skill..."
+          aria-label="Search technicians"
+        />
+        <button
+          id="clearSearch"
+          class="btn btn-link text-muted p-0 me-2"
+          style="text-decoration: none;"
+          title="Clear"
+        >
+          <i class="bi bi-x-circle-fill"></i>
+        </button>
+      </div>
+      <div class="d-flex gap-2" role="group">
+        <button
+          id="filterAll"
+          class="btn btn-outline rounded-pill px-3 active"
+        >
+          All
+        </button>
+        <button id="filterActive" class="btn btn-outline rounded-pill px-3">
+          Active
+        </button>
+        <button id="filterInactive" class="btn btn-outline rounded-pill px-3">
+          Inactive
+        </button>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <a href="/admin/technicians/new" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Add Technician
+      </a>
+    </div>
+  </div>
+
+  <!-- Technician Table -->
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="fw-bold" style="color: #1d4ed8;">
+          Technician Directory
+        </div>
+          <div>
+            <button
+              id="bulkDeactivate"
+              class="btn btn-sm btn-outline-danger me-2"
+              disabled
+            >
+              Deactivate Selected
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive shadow-none">
+          <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light small text-muted">
+              <tr>
+                <th style="width: 36px">
+                  <input id="selectAll" type="checkbox" />
+                </th>
+                <th><i class="bi bi-person"></i> Name</th>
+                <th class="d-none d-md-table-cell">
+                  <i class="bi bi-envelope"></i> Contact
+                </th>
+                <th class="d-none d-lg-table-cell">
+                  <i class="bi bi-geo-alt"></i> Location
+                </th>
+                <th style="width: 220px"><i class="bi bi-tags"></i> Skills</th>
+                <th style="width: 100px"><i class="bi bi-star"></i> Rating</th>
+                <th style="width: 120px">
+                  <i class="bi bi-slash-circle"></i> Status
+                </th>
+                <th style="width: 160px"><i class="bi bi-gear"></i></th>
+              </tr>
+            </thead>
+            <tbody id="techTableBody">
+              <tr>
+                <td colspan="9" class="text-center small text-muted py-4">
+                  Loading technicians…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="small text-muted" id="resultInfo">&nbsp;</div>
+          <div>
+            <button
+              id="prevPage"
+              class="btn btn-sm btn-outline-secondary me-1"
+              disabled
+            >
+              ‹ Prev
+            </button>
+            <span class="small text-muted" id="pageInfo">1 / 1</span>
+            <button
+              id="nextPage"
+              class="btn btn-sm btn-outline-secondary ms-1"
+              disabled
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <style>
+    .tech-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+    .skill-badge {
+      display: inline-block;
+      margin-right: 6px;
+      margin-bottom: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 12px;
+    }
+    .status-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .status-active {
+      background: linear-gradient(90deg, #d1fae5, #bbf7d0);
+      color: #065f46;
+    }
+    .status-inactive {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .fc-month-cell {
+      transition: background 0.12s ease;
+    }
+  </style>
+
+  <script>
+    (function () {
+      const el = (id) => document.getElementById(id);
+      const body = el("techTableBody");
+      // map state must be defined before any functions use it
+      const techMapState = { map: null, markers: [] };
+      // we no longer need a custom icon; Leaflet's default marker provides a familiar map pin
+      // kept techIcon variable for backwards compatibility if desired
+      const techIcon = null; // default marker will be used
+      let techMapReady = false;
+      let techDataReady = false;
+
+      let technicians = [];
+      let filtered = [];
+      let page = 1,
+        pageSize = 12;
+
+      function renderRow(t) {
+        const tr = document.createElement("tr");
+        tr.dataset.id = t._id;
+        
+        // Handle skills correctly if they are objects
+        const skillsArr = (t.skills || []).slice(0, 5).map(s => {
+          let skillName = typeof s === 'object' ? (s.name || s.title || s.skill || JSON.stringify(s)) : s;
+          return `<span class="skill-badge">${escapeHtml(skillName)}</span>`;
+        }).join("");
+
+        // Handle location correctly if it's an object
+        const locationStr = typeof t.location === 'object' ? (t.location.address || t.location.formattedAddress || '—') : (t.location || '—');
+
+        const ratingStars = t.rating ? Array.from({length:5}).map((_,i)=> i < Math.round(t.rating) ? '<i class="bi bi-star-fill"></i>' : '<i class="bi bi-star"></i>').join('') : '<span class="text-muted">—</span>';
+
+        tr.innerHTML = `
+        <td><input class="rowSelect" type="checkbox" data-id="${t._id}" /></td>
+        <td><div class="fw-semibold">${escapeHtml(t.name || ((t.firstName || "") + " " + (t.lastName || "")).trim() || "—")}</div><div class="small text-muted">${escapeHtml(t.email || "")}</div></td>
+        <td class="d-none d-md-table-cell small text-muted">${escapeHtml(t.phone || "—")}</td>
+        <td class="d-none d-lg-table-cell small text-muted">${escapeHtml(locationStr)}</td>
+        <td>${skillsArr || '<span class="text-muted">—</span>'}</td>
+        <td class="small text-warning">${ratingStars}</td>
+        <td><span class="status-pill ${t.active ? "status-active" : "status-inactive"}">${t.active ? "Active" : "Inactive"}</span></td>
+        <td class="text-end">
+          <div class="d-flex justify-content-end gap-1">
+            <a href="/admin/technicians/${t._id}/schedules" class="btn btn-sm btn-light text-secondary border-0 shadow-sm" title="Schedules"><i class="bi bi-calendar-event-fill"></i></a>
+            <a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-primary border-0 shadow-sm" title="Edit"><i class="bi bi-pencil-fill"></i></a>
+          </div>
+        </td>
+      `;
+        return tr;
+      }
+
+      function escapeHtml(s) {
+        return (s || "")
+          .toString()
+          .replace(
+            /[&<>\\\"]/g,
+            (c) =>
+              ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+          );
+      }
+
+      function render() {
+        const start = (page - 1) * pageSize;
+        const end = start + pageSize;
+        const pageItems = filtered.slice(start, end);
+        body.innerHTML = "";
+        if (pageItems.length === 0) {
+          body.innerHTML =
+            '<tr><td colspan="8" class="text-center small text-muted py-4">No technicians found.</td></tr>';
+        }
+        pageItems.forEach((t) => body.appendChild(renderRow(t)));
+        el("pageInfo").innerText =
+          `${page} / ${Math.max(1, Math.ceil(filtered.length / pageSize))}`;
+        el("resultInfo").innerText =
+          `${filtered.length} technician${filtered.length !== 1 ? "s" : ""}`;
+        el("prevPage").disabled = page <= 1;
+        el("nextPage").disabled = page * pageSize >= filtered.length;
+        updateBulkButtons();
+      }
+
+      function updateBulkButtons() {
+        const any = !!document.querySelector(".rowSelect:checked");
+        el("bulkDeactivate").disabled = !any;
+      }
+
+      async function load() {
+        try {
+          const r = await fetch("/api/admin/technicians", { cache: "no-store" });
+          if (!r.ok) throw new Error("failed");
+          const j = await r.json();
+          technicians = (j.technicians || []).map((t) => ({
+            _id: t._id,
+            name:
+              t.name || ((t.firstName || "") + " " + (t.lastName || "")).trim(),
+            email: t.email,
+            phone: t.phone,
+            location: t.location,
+            skills: t.skills || [],
+            active: !!t.active,
+            avatar: t.avatarUrl || t.avatar || "",
+          }));
+        } catch (e) {
+          console.error(e);
+          technicians = [];
+        }
+        techDataReady = true;
+        applyFilters();
+      }
+
+      function applyFilters() {
+        const q = (el("techSearch").value || "").toLowerCase().trim();
+        const activeFilter = el("filterActive").classList.contains("active");
+        const inactiveFilter =
+          el("filterInactive").classList.contains("active");
+        filtered = technicians.filter((t) => {
+          if (activeFilter && !t.active) return false;
+          if (inactiveFilter && t.active) return false;
+          if (!q) return true;
+          const hay = [
+            t.name,
+            t.email,
+            t.phone,
+            t.location,
+            (t.skills || []).join(" "),
+          ]
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(q);
+        });
+        page = 1;
+        render();
+        updateMapMarkers();
+      }
+
+      // events
+      el("techSearch").addEventListener("input", debounce(applyFilters, 250));
+      el("clearSearch").addEventListener("click", () => {
+        el("techSearch").value = "";
+        applyFilters();
+        el("techSearch").focus();
+      });
+      ["filterAll", "filterActive", "filterInactive"].forEach((id) =>
+        el(id).addEventListener("click", function () {
+          document
+            .querySelectorAll("#filterAll,#filterActive,#filterInactive")
+            .forEach((n) => n.classList.remove("active"));
+          this.classList.add("active");
+          applyFilters();
+        }),
+      );
+      el("prevPage").addEventListener("click", () => {
+        if (page > 1) {
+          page--;
+          render();
+        }
+      });
+      el("nextPage").addEventListener("click", () => {
+        if (page * pageSize < filtered.length) {
+          page++;
+          render();
+        }
+      });
+      el("selectAll").addEventListener("change", function () {
+        document
+          .querySelectorAll(".rowSelect")
+          .forEach((cb) => (cb.checked = this.checked));
+        updateBulkButtons();
+      });
+      document.addEventListener("change", function (e) {
+        if (
+          e.target &&
+          e.target.classList &&
+          e.target.classList.contains("rowSelect")
+        )
+          updateBulkButtons();
+      });
+      el("bulkDeactivate").addEventListener("click", async () => {
+        const ids = Array.from(
+          document.querySelectorAll(".rowSelect:checked"),
+        ).map((i) => i.dataset.id);
+        if (!ids.length) return;
+        if (!confirm("Deactivate " + ids.length + " technicians?")) return;
+        try {
+          const r = await fetch("/api/admin/technicians/bulk-deactivate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+          });
+          if (r.ok) {
+            await load();
+            alert("Deactivated");
+          } else {
+            alert("Failed");
+          }
+        } catch (e) {
+          alert("Failed");
+        }
+      });
+
+      function debounce(fn, ms) {
+        let t;
+        return function () {
+          clearTimeout(t);
+          t = setTimeout(() => fn.apply(this, arguments), ms);
+        };
+      }
+
+      // initial load and periodic refresh for live tracking
+      load().then(updateMapMarkers);
+      initLeafletMap();
+      // refresh every 30 seconds; clear cache to avoid stale geo data
+      setInterval(() => {
+        load().then(updateMapMarkers);
+      }, 30000); // every 30 seconds
+
+
+      function initLeafletMap() {
+        const el = document.getElementById("techListMap");
+        if (!el || !window.L) return;
+        techMapState.map = L.map(el).setView([14.676049, 121.043731], 12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(techMapState.map);
+        techMapReady = true;
+        const ol = document.getElementById('techMapOverlay');
+        if (ol) ol.style.display = 'none';
+        updateMapMarkers();
+      }
+
+      function updateMapMarkers() {
+        if (!techMapReady || !techMapState.map || !techDataReady) return;
+        // clear existing markers
+        techMapState.markers.forEach((m) => techMapState.map.removeLayer(m));
+        techMapState.markers = [];
+        const bounds = [];
+        // use `filtered` array so the map respects any search/filter state
+        (filtered.length ? filtered : technicians).forEach((t) => {
+          const loc = t.location;
+          if (loc && Array.isArray(loc.coordinates) && loc.coordinates.length === 2) {
+            const [lng, lat] = loc.coordinates;
+            // 3D GPS cursor arrow icon for technician
+            const techPinIcon = L.divIcon({
+              className: "",
+              html: '<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));animation:techPulse 2s ease-in-out infinite;">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 40 40">' +
+                '<defs><linearGradient id="al1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cacff"/><stop offset="100%" stop-color="#1a6ddb"/></linearGradient>' +
+                '<linearGradient id="al2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a6ddb"/><stop offset="100%" stop-color="#0f4a9e"/></linearGradient></defs>' +
+                '<ellipse cx="20" cy="36" rx="8" ry="2.5" fill="rgba(0,0,0,.18)"/>' +
+                '<path d="M20 2 L34 32 L20 26 Z" fill="url(#al2)"/>' +
+                '<path d="M20 2 L6 32 L20 26 Z" fill="url(#al1)"/>' +
+                '<path d="M20 2 L6 32 L20 26 L34 32 Z" stroke="#fff" stroke-width="1.2" fill="none" stroke-linejoin="round"/>' +
+                '<path d="M12 14 L20 4 L21 14 Z" fill="rgba(255,255,255,.3)"/>' +
+                '</svg></div>' +
+                '<style>@keyframes techPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}</style>',
+              iconSize: [32, 32],
+              iconAnchor: [16, 16],
+              popupAnchor: [0, -16],
+            });
+            const marker = L.marker([lat, lng], { icon: techPinIcon }).addTo(techMapState.map);
+            marker.bindPopup(`<strong>${escapeHtml(t.name)}</strong><br><span style="color:#2b7de9;font-size:.8rem;">Technician (live)</span>`);
+            techMapState.markers.push(marker);
+            bounds.push([lat, lng]);
+          }
+        });
+        if (bounds.length) techMapState.map.fitBounds(bounds, { padding: [40, 40] });
+
+        // "All Technicians" button: re-fit bounds
+        const fitBtn = document.getElementById('btnFitAllTechs');
+        if (fitBtn) {
+          fitBtn.onclick = function () {
+            if (bounds.length && techMapState.map) techMapState.map.fitBounds(bounds, { padding: [40, 40] });
+          };
+        }
+      }
+    })();
+  </script>
+
+</div>
+
+    

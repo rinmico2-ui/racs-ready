@@ -1,0 +1,3404 @@
+<style>
+  /* Premium filter tabs for appointments */
+  #apptsTabs {
+    border: none;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  #apptsTabs .nav-link {
+    border: 1px solid rgba(37, 99, 235, 0.12);
+    color: #1d4ed8 !important;
+    font-weight: 600;
+    letter-spacing: 0.15px;
+    padding: 0.7rem 1.3rem;
+    border-radius: 999px;
+    background: linear-gradient(145deg, #f0f4ff, #e3e9ff);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+    position: relative;
+    overflow: hidden;
+    transition: transform .18s ease, box-shadow .2s ease, color .2s ease, border-color .2s ease;
+  }
+  #apptsTabs .nav-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.25);
+    opacity: 0;
+    transition: opacity .25s ease;
+  }
+  #apptsTabs .nav-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
+  }
+  #apptsTabs .nav-link:hover::after {
+    opacity: 1;
+  }
+  #apptsTabs .nav-link.active {
+    color: #fff !important;
+    border-color: transparent;
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.35);
+  }
+  #apptsTabs .nav-link[data-status="scheduled"].active {
+    background: linear-gradient(135deg, #3b6ff6, #2347d6);
+  }
+  #apptsTabs .nav-link[data-status="on-the-way"].active {
+    background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  }
+  #apptsTabs .nav-link[data-status="completed"].active {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+  }
+  #apptsTabs .nav-link[data-tab="tab-requests"].active {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+  }
+  #apptsTabs .nav-link[data-tab="tab-reschedule"].active {
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+  }
+  #apptsTabs .nav-link[data-tab="tab-cancel"].active {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+  }
+  #apptsTabs .nav-link[data-tab="tab-waiting-accept"].active {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+  }
+  /* Payment button loader styles */
+  .btn-payment-loading {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+  }
+  .btn-payment-loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: payment-spin 0.8s linear infinite;
+  }
+  @keyframes payment-spin {
+    to { transform: rotate(360deg); }
+  }
+  .btn-payment-loading .bi {
+    opacity: 0;
+  }
+
+  /* Enterprise KPI Card Styles */
+  .dash-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
+  .kpi-sparkline-container {
+    height: 40px;
+    margin-top: 0.5rem;
+  }
+  .kpi-sparkline-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .bg-success-subtle {
+    background-color: rgba(16, 185, 129, 0.15);
+  }
+  .bg-info-subtle {
+    background-color: rgba(8, 145, 178, 0.15);
+  }
+  .bg-warning-subtle {
+    background-color: rgba(245, 158, 11, 0.15);
+  }
+  .bg-danger-subtle {
+    background-color: rgba(220, 38, 38, 0.15);
+  }
+  .bg-primary-subtle {
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  .fs-7 {
+    font-size: 0.75rem;
+  }
+  /* Badge trend styles */
+  .badge.positive {
+    color: #10b981 !important;
+    background-color: rgba(16, 185, 129, 0.15) !important;
+  }
+  .badge.negative {
+    color: #dc2626 !important;
+    background-color: rgba(220, 38, 38, 0.15) !important;
+  }
+  .badge.neutral {
+    color: #64748b !important;
+    background-color: rgba(100, 116, 139, 0.15) !important;
+  }
+</style>
+<div class="admin-dashboard container-fluid py-4 appointments-combined">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    /* Unified Appointments UI */
+    .appointments-combined {
+      --appt-primary: #2563eb;
+      --appt-secondary: #0ea5e9;
+      --appt-muted: #64748b;
+      --appt-surface: #ffffff;
+      --appt-border: rgba(15, 23, 42, 0.08);
+    }
+    /* constrain top-level admin container to an enterprise width */
+    .admin-dashboard.appointments-combined {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+    .appointments-combined .tabs {
+      margin-bottom: 20px;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 14px;
+      padding: 8px;
+      box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+    }
+    .appointments-combined .tabs .nav-link {
+      border: 0;
+      color: var(--dash-dark);
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 8px 12px;
+      transition: background 0.2s;
+    }
+    .appointments-combined .tabs .nav-link.active {
+      background: var(--dash-primary);
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(67, 97, 238, 0.28);
+    }
+
+    /* always-show colored backgrounds for each tab; full saturation and white text */
+    .appointments-combined .tabs .nav-link[data-tab="tab-list"] {
+      background: #4361ee;
+      color: #fff !important;
+      border: 1px solid #4361ee;
+    }
+    /* align KPI cards in a responsive grid exactly like the service
+       analytics page; cards shrink/grow and sit in a single row when
+       space permits. */
+    .appointments-combined .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    .appointments-combined .kpi-row .kpi-card {
+      height: 140px !important;
+      padding: 18px !important;
+      position: relative;
+      flex: 1 1 0 !important;
+      min-width: 200px !important;
+      max-width: none !important;
+    }
+    .appointments-combined .kpi-card { padding-bottom: 2rem; }
+    .appointments-combined .kpi-micro { 
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 65px !important; 
+      z-index: 1;
+      margin-top: 0 !important;
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+    }
+    .appointments-combined .kpi-micro canvas { 
+      height: 100% !important; 
+      width: 100% !important; 
+    }
+    .appointments-combined .tabs .nav-link[data-tab="tab-requests"] {
+      background: #ff9f1c;
+      color: #fff !important;
+      border: 1px solid #ff9f1c;
+    }
+    .appointments-combined .tabs .nav-link[data-tab="tab-reschedule"] {
+      background: #2ec4b6;
+      color: #fff !important;
+      border: 1px solid #2ec4b6;
+    }
+    .appointments-combined .tabs .nav-link[data-tab="tab-cancel"] {
+      background: #e63946; /* red for cancellations */
+      color: #fff !important;
+      border: 1px solid #e63946;
+    }
+    .appointments-combined .tabs .nav-link[data-tab="tab-waiting-accept"] {
+      background: #f59e0b;
+      color: #fff !important;
+      border: 1px solid #f59e0b;
+    }
+
+    /* new status buttons: scheduled, on-the-way and completed */
+    .appointments-combined .tabs .nav-link[data-status="scheduled"] {
+      background: #4361ee; /* primary blue */
+      color: #fff !important;
+      border: 1px solid #4361ee;
+    }
+    .appointments-combined .tabs .nav-link[data-status="on-the-way"] {
+      background: #0dcaf0; /* info/light blue */
+      color: #fff !important;
+      border: 1px solid #0dcaf0;
+    }
+    .appointments-combined .tabs .nav-link[data-status="completed"] {
+      background: #2ec4b6; /* teal */
+      color: #fff !important;
+      border: 1px solid #2ec4b6;
+    }
+
+    /* maintain tint on hover */
+    .appointments-combined .tabs .nav-link:hover {
+      filter: brightness(0.9);
+    }
+
+    .appts-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+    }
+    .appointments-combined .appts-grid > section {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .panel-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07), 0 2px 6px rgba(2,6,23,0.03);
+      border: 1px solid rgba(0,0,0,0.05);
+      transition: box-shadow 0.3s ease;
+    }
+    .panel-card:hover {
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.09), 0 4px 10px rgba(2,6,23,0.05);
+    }
+
+
+
+    /* compact table / controls */
+    .appts-controls,
+    .requests-controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
+      border: 1px solid rgba(37, 99, 235, 0.15);
+      border-radius: 18px;
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+    }
+    .appts-controls .form-control,
+    .appts-controls .form-select,
+    .requests-controls .form-control,
+    .requests-controls .form-select {
+      min-width: 150px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      font-size: 0.85rem;
+      color: var(--appt-muted);
+      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .appts-controls .form-control:focus,
+    .appts-controls .form-select:focus,
+    .requests-controls .form-control:focus,
+    .requests-controls .form-select:focus {
+      border-color: var(--appt-primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+    .appts-controls .btn,
+    .requests-controls .btn,
+    .requests-controls button {
+      border-radius: 999px;
+      padding: 6px 18px;
+      border: none;
+      background: linear-gradient(120deg, var(--appt-primary), var(--appt-secondary));
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .appts-controls .btn:hover,
+    .requests-controls .btn:hover,
+    .requests-controls button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 26px rgba(37, 99, 235, 0.28);
+    }
+
+    .req-status {
+      text-transform: capitalize;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .request-customer-btn {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #0d6efd;
+      font-weight: 700;
+      text-decoration: none;
+      text-align: left;
+    }
+    .request-customer-btn:hover {
+      text-decoration: underline;
+    }
+    .requests-controls {
+      padding: 12px 16px;
+    }
+    .requests-filter-card .form-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--appt-muted);
+      letter-spacing: 0.2em;
+      margin-bottom: 4px;
+    }
+    .appointments-combined .table thead th {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      color: #334155;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      border-bottom-width: 2px;
+      font-weight: 700;
+    }
+    .appointments-combined .table tbody tr {
+      transition: background 0.2s ease;
+    }
+    .appointments-combined .table tbody tr:hover {
+      background: rgba(59, 130, 246, 0.04);
+    }
+    .request-detail-grid {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 8px 12px;
+      font-size: 0.9rem;
+    }
+    .request-detail-grid .label {
+      color: #64748b;
+      font-weight: 600;
+    }
+    .request-detail-grid .value {
+      color: #0f172a;
+      word-break: break-word;
+    }
+
+    /* reschedule form */
+    .reschedule-form .form-group {
+      margin-bottom: 10px;
+    }
+
+    /* small helpers */
+    .muted-small {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+
+    </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-calendar3-fill"></i></div>
+        <div>
+          <h1>Appointments</h1>
+          <p>Manage appointment operations, validate booking requests, and handle reschedules in a single workspace.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards below header -->
+  <div class="mb-4">
+    <div class="row g-3">
+      <!-- Scheduled KPI -->
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Scheduled</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="kpi-today-combined">—</span>
+              </div>
+              <div class="badge bg-info-subtle text-info fs-7" id="badge-today-combined">
+                —
+              </div>
+              <small class="text-muted">Upcoming appointments</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+              <i class="bi bi-calendar3-fill text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="kpiSparkScheduled" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- On the way KPI -->
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">On the way</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="kpi-on-the-way-combined">—</span>
+              </div>
+              <div class="badge bg-primary-subtle text-primary fs-7" id="badge-on-the-way-combined">
+                —
+              </div>
+              <small class="text-muted">Technicians en route</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+              <i class="bi bi-truck text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="kpiSparkEnRoute" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Requests KPI -->
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Requests</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="kpi-pending-combined">—</span>
+              </div>
+              <div class="badge bg-warning-subtle text-warning fs-7" id="badge-pending-combined">
+                —
+              </div>
+              <small class="text-muted">Awaiting confirmation</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+              <i class="bi bi-hourglass-split text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="kpiSparkPending" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Completed KPI -->
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Completed</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="kpi-completed-combined">—</span>
+              </div>
+              <div class="badge bg-success-subtle text-success fs-7" id="badge-completed-combined">
+                —
+              </div>
+              <small class="text-muted">Finished today</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+              <i class="bi bi-check-circle-fill text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="kpiSparkCompleted" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cancelled KPI -->
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="400">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Cancelled</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="kpi-cancelled-combined">—</span>
+              </div>
+              <div class="badge bg-danger-subtle text-danger fs-7" id="badge-cancelled-combined">
+                —
+              </div>
+              <small class="text-muted">Today's cancellations</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+              <i class="bi bi-exclamation-triangle-fill text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="kpiSparkCancelled" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs tabs" id="apptsTabs" role="tablist">
+    <li class="nav-item">
+      <button class="nav-link active" data-status="scheduled">Scheduled</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-status="on-the-way">On the way</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-status="completed">Completed</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-tab="tab-requests">Booking Requests</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-tab="tab-waiting-accept">Waiting for Acceptance <span class="nav-badge badge bg-warning text-dark" id="waitingAcceptTabBadge" style="display:none;">0</span></button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-tab="tab-reschedule">Reschedule</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-tab="tab-cancel">Cancelled</button>
+    </li>
+  </ul>
+
+  <div class="appts-grid">
+    <!-- Tabbed content panels -->
+    <section>
+      <!-- TAB: LIST -->
+      <div id="tab-list" class="tab-pane">
+        <div class="panel-card">
+          <!-- Premium Filters -->
+          <div class="admin-filter-bar">
+            <div class="filter-group">
+              <div class="filter-item" style="flex: 1; min-width: 280px;">
+                <i class="bi bi-search"></i>
+                <input
+                  id="filterSearchCombined"
+                  class="form-control"
+                  placeholder="Booking ref, customer, service, id..."
+                />
+              </div>
+              <div class="filter-item">
+                <i class="bi bi-calendar3"></i>
+                <input
+                  id="filterStartCombined"
+                  type="date"
+                  class="form-control"
+                  aria-label="Start date"
+                />
+              </div>
+              <div class="filter-item">
+                <i class="bi bi-calendar3"></i>
+                <input
+                  id="filterEndCombined"
+                  type="date"
+                  class="form-control"
+                  aria-label="End date"
+                />
+              </div>
+              <div class="filter-item">
+                <i class="bi bi-person-badge"></i>
+                <select
+                  id="filterTechCombined"
+                  class="form-select"
+                >
+                  <option value="all">All technicians</option>
+                </select>
+              </div>
+              <div class="filter-item">
+                <i class="bi bi-gear"></i>
+                <select
+                  id="filterServiceType"
+                  class="form-select"
+                >
+                  <option value="all">All Services</option>
+                  <option value="core">Core Services</option>
+                  <option value="repair">Repair Services</option>
+                </select>
+              </div>
+            </div>
+            <div class="filter-actions">
+              <button
+                id="btn-filter-combined"
+                type="button"
+                class="btn btn-primary"
+              >
+                Apply Filter
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover table-dense align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Appointment</th>
+                  <th>Customer</th>
+                  <th>Service</th>
+                  <th class="d-none">Technician</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th style="width: 160px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="appointmentsBodyCombined">
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">
+                    Loading…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-3 d-flex justify-content-between align-items-center">
+            <div id="appointmentsCountCombined" class="text-muted small">—</div>
+            <nav>
+              <ul
+                class="pagination pagination-sm mb-0"
+                id="appointmentsPagerCombined"
+              ></ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: BOOKING REQUESTS -->
+      <div id="tab-requests" class="tab-pane d-none">
+        <div class="admin-filter-bar">
+          <div class="filter-group">
+            <div class="filter-item" style="flex: 1; min-width: 320px;">
+              <i class="bi bi-search"></i>
+              <input
+                id="requestSearchCombined"
+                class="form-control"
+                placeholder="Search by customer, email, service, id..."
+              />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button
+              id="requestRefreshCombined"
+              class="btn btn-outline"
+            >
+              <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <div class="fw-bold">Booking Request Validation Queue</div>
+              <div class="muted-small">
+                Review requests, validate details, then confirm (this will also
+                mark payment paid) or cancel.
+              </div>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle text-start">
+              <thead>
+                <tr>
+                  <th>Request ID</th>
+                  <th>Customer</th>
+                  <th class="d-none">Service</th>
+                  <th>Est. fee</th>
+                  <th class="d-none">ETA</th>
+                  <th>Date / Time</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th style="width: 220px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="requestsTableBodyCombined">
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    Loading request queue…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="requestsCountCombined" class="text-muted small mt-2">—</div>
+        </div>
+      </div>
+
+      <!-- TAB: RESCHEDULE -->
+      <div id="tab-reschedule" class="tab-pane d-none">
+        <div class="panel-card">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="fw-bold">Reschedule Requests</div>
+            <div class="d-flex gap-2">
+              <select id="rescheduleStatusFilter" class="form-select form-select-sm" style="width: auto;">
+                <option value="all">All Status</option>
+                <option value="pending" selected>Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button id="refreshRescheduleRequests" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover table-sm" id="rescheduleRequestsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Customer</th>
+                  <th>Service</th>
+                  <th>Current Date/Time</th>
+                  <th>Requested Date/Time</th>
+                  <th>Reason</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rescheduleRequestsTableBody">
+                <tr>
+                  <td colspan="8" class="text-center text-muted">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    Loading reschedule requests...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="rescheduleRequestsPagination" class="d-flex justify-content-between align-items-center mt-3">
+            <div class="small text-muted" id="rescheduleRequestsCount">0 requests</div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="rescheduleRequestsPaginationNav">
+              </ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CANCEL -->
+      <div id="tab-cancel" class="tab-pane d-none">
+        <div class="panel-card">
+          <div class="fw-bold mb-2">Cancelled Appointments</div>
+          <p class="text-muted small mb-3">
+            Review appointments that have been cancelled. Use the table below to
+            inspect details or reinstate bookings when appropriate.
+          </p>
+          <div class="table-responsive">
+            <table class="table table-hover table-dense align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Appointment</th>
+                  <th>Customer</th>
+                  <th class="d-none">Service</th>
+                  <th class="d-none">Technician</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th style="width: 160px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="cancelledAppointmentsBody">
+                <tr>
+                  <td colspan="10" class="text-center text-muted py-4">
+                    Loading cancelled appointments…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: WAITING FOR ACCEPTANCE -->
+      <div id="tab-waiting-accept" class="tab-pane d-none">
+        <div class="panel-card">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="fw-bold"><i class="bi bi-hourglass-split me-2"></i>Waiting for Technician Acceptance</div>
+            <small class="text-muted" id="waitingAcceptCount">0 bookings</small>
+          </div>
+          <p class="text-muted small mb-3">
+            Bookings that have been assigned to a technician but are awaiting their confirmation.
+          </p>
+          <div id="waitingAcceptContainer">
+            <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
+          </div>
+          <div class="d-flex justify-content-center mt-3" id="waitingAcceptPagination"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- shared modal for appointment details -->
+  <style>
+    #apptsSharedModal .modal-dialog {
+      max-width: 480px;
+    }
+    #apptsSharedModal .modal-content {
+      border: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0.85rem 2rem rgba(15, 23, 42, 0.2);
+    }
+    #apptsSharedModal .modal-header {
+      border: 0;
+      color: #fff;
+      background: linear-gradient(135deg, #0d6efd, #0a58ca);
+      padding: 26px 26px 18px;
+      position: relative;
+      display: block;
+      text-align: center;
+    }
+    #apptsSharedModal .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-bottom: 0;
+    }
+    #apptsSharedModal .modal-body {
+      font-size: 0.9rem;
+      padding: 1rem 1.2rem 1.2rem;
+    }
+    #apptsSharedModal .modal-footer {
+      border: 0;
+      padding: 0 1.25rem 1.25rem;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .appts-modal-header-icon {
+      font-size: 2rem;
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+    .appts-ref-badge {
+      display: inline-block;
+      margin-top: 0.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      color: #fff;
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .appts-status-line {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: #fff;
+      opacity: 0.95;
+    }
+    .appts-detail-panel {
+      background: #f8f9fa;
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+    }
+    .appts-detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.38rem 0;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .appts-detail-row:last-child {
+      border-bottom: 0;
+    }
+    .appts-detail-row .label {
+      color: #6c757d;
+      white-space: nowrap;
+    }
+    .appts-detail-row .value {
+      color: #212529;
+      font-weight: 600;
+      text-align: right;
+      word-break: break-word;
+    }
+    .appts-section-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+    #apptsSharedModal .btn-close {
+      position: absolute;
+      top: 0.65rem;
+      right: 0.65rem;
+    }
+    @media (max-width: 767px) {
+      .appts-detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.15rem;
+      }
+      .appts-detail-row .value {
+        text-align: left;
+      }
+    }
+  </style>
+  <!-- will be relocated to <body> on DOMContentLoaded to avoid stacking issues -->
+  <div
+    class="modal fade"
+    id="apptsSharedModal"
+    tabindex="-1"
+    aria-hidden="true"
+  >
+    <div
+      class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
+      style="max-width:480px;margin:auto;"
+    >
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="appts-modal-header-icon">&#128295;</div>
+          <h5 class="modal-title" id="apptsModalHeaderTitle">
+            Appointment Details
+          </h5>
+          <div class="appts-ref-badge" id="apptsDetailsReference">&mdash;</div>
+          <div class="appts-status-line">
+            Booking status: <span id="apptsDetailsBookingStatus">&mdash;</span>
+          </div>
+          <button
+            type="button"
+            class="btn-close btn-close-white"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="modal-body" id="apptsSharedModalBody">Loading…</div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-outline-secondary px-4"
+            data-bs-dismiss="modal"
+          >
+            Close</button
+          ><button
+            id="apptsModalComplete"
+            type="button"
+            class="btn btn-outline-success px-4"
+            style="display: none"
+          >
+            Mark Completed
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script id="apptsInitialBookingsJson" type="application/json">
+    <%- JSON.stringify(initialBookings || []) %>
+  </script>
+
+  <!-- Chart.js for KPI sparklines -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    (function () {
+      const qs = (s) => document.querySelector(s);
+      const qsa = (s) => Array.from(document.querySelectorAll(s));
+
+      // normalize proof image string into a usable src/href
+      function normalizeProofSrc(raw) {
+        if (!raw) return null;
+        let imgSrc = String(raw);
+        // common case: raw base64 payload without data: prefix
+        if (/^[A-Za-z0-9+/]+={0,2}$/.test(imgSrc)) {
+          imgSrc = "data:image/jpeg;base64," + imgSrc; // fallback to jpeg
+        }
+        // if still not a data URL or absolute/http(s) path, decide what to do
+        if (!/^data:|^https?:\/\//i.test(imgSrc)) {
+          if (imgSrc.startsWith("/")) {
+            // treat as server-relative URL; leave it alone
+          } else {
+            imgSrc = "/api/appointments/proof/" + encodeURIComponent(imgSrc);
+          }
+        }
+        return imgSrc;
+      }
+
+      // track which status the main listing is showing (defaults to scheduled)
+      let currentListStatus = "scheduled";
+
+      // Tab switching handles both dedicated status buttons (data-status)
+      // and traditional content tabs (data-tab).
+      qsa("#apptsTabs button").forEach((btn) =>
+        btn.addEventListener("click", function () {
+          qsa("#apptsTabs .nav-link").forEach((n) =>
+            n.classList.remove("active"),
+          );
+          this.classList.add("active");
+          const statusKey = this.getAttribute("data-status");
+          const tabKey = this.getAttribute("data-tab");
+          const pageTitle = document.querySelector(
+            ".dashboard-hero .page-title",
+          );
+
+          // hide all panels first
+          qsa(".tab-pane").forEach((t) => t.classList.add("d-none"));
+
+          if (statusKey) {
+            // always show appointments list
+            document.getElementById("tab-list").classList.remove("d-none");
+            if (pageTitle) {
+              if (statusKey === "completed") {
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Completed Appointments';
+              } else if (statusKey === "scheduled") {
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Scheduled Appointments';
+              } else {
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Appointments';
+              }
+            }
+            loadCombinedOverview(statusKey);
+          } else if (tabKey) {
+            document.getElementById(tabKey).classList.remove("d-none");
+            if (pageTitle) {
+              if (tabKey === "tab-requests")
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Booking Requests';
+              else if (tabKey === "tab-reschedule")
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Reschedule Requests';
+              else if (tabKey === "tab-cancel")
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Cancelled Appointments';
+              else if (tabKey === "tab-waiting-accept")
+                pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Waiting for Acceptance';
+              else pageTitle.innerHTML = '<i class="bi bi-calendar3-fill me-2"></i>Appointments';
+            }
+            if (tabKey === "tab-list") {
+              loadCombinedOverview(currentListStatus);
+            } else if (tabKey === "tab-requests") {
+              loadBookingRequests();
+            } else if (tabKey === "tab-cancel") {
+              loadCancelPage();
+            } else if (tabKey === "tab-reschedule") {
+              // Load reschedule requests
+              loadRescheduleRequests();
+            } else if (tabKey === "tab-waiting-accept") {
+              loadWaitingAcceptTab();
+            }
+          }
+        }),
+      );
+
+      // relocate modal element to body
+      document.addEventListener("DOMContentLoaded", () => {
+        const m = document.getElementById("apptsSharedModal");
+        if (m && m.parentElement !== document.body) {
+          document.body.appendChild(m);
+        }
+      });
+
+      // Shared data stores
+      // Combined appointments list will initially track whichever status is
+      // currently selected by the nav buttons (defaults to "scheduled").
+      // the server API does not natively support a completed-only endpoint.
+
+      // Global state variables
+      let combinedAppointments = [];
+      let combinedStaff = [];
+      let bookingRequests = [];
+
+      // if the server sent us some bookings, use them as initial state
+      combinedAppointments =
+        JSON.parse(
+          document.getElementById("apptsInitialBookingsJson")?.textContent ||
+            "[]",
+        ) || [];
+      // move shared modal into <body> to avoid stacking context/z-index issues
+      document.addEventListener("DOMContentLoaded", () => {
+        const modal = document.getElementById("apptsSharedModal");
+        if (modal && modal.parentElement !== document.body) {
+          document.body.appendChild(modal);
+        }
+        // inject high-z styles for modal/backdrop
+        const css = document.createElement("style");
+        css.textContent =
+          "#apptsSharedModal { z-index: 2000 !important; } .modal-backdrop { z-index: 1500 !important; backdrop-filter: none !important; } #apptsImageModal { z-index: 9999 !important; } #apptsImageModal ~ .modal-backdrop { z-index: 9990 !important; }";
+        document.head.appendChild(css);
+
+        // Image viewer overlay for viewing images on top of the details modal (custom overlay, not Bootstrap modal)
+        if (!document.getElementById('apptsImageOverlay')) {
+          const overlay = document.createElement('div');
+          overlay.id = 'apptsImageOverlay';
+          overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:none;align-items:center;justify-content:center;cursor:pointer;';
+          overlay.innerHTML = `
+            <button type="button" style="position:absolute;top:20px;right:20px;background:#1e293b;border:none;border-radius:50%;width:48px;height:48px;color:#fff;font-size:24px;cursor:pointer;z-index:100000;">&times;</button>
+            <img id="apptsImageOverlayImg" src="" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);pointer-events:none;" />
+          `;
+          document.body.appendChild(overlay);
+          
+          // Close on click
+          overlay.addEventListener('click', function(e) {
+            if (e.target === overlay || e.target.tagName === 'BUTTON') {
+              overlay.style.display = 'none';
+            }
+          });
+        }
+
+        // helper: open image in custom overlay on top of all modals
+        window.openApptsImage = function(src) {
+          const img = document.getElementById('apptsImageOverlayImg');
+          const overlay = document.getElementById('apptsImageOverlay');
+          if (img && overlay) {
+            img.src = src;
+            overlay.style.display = 'flex';
+          }
+        };
+      });
+
+      // draw what we already have so the page isn't blank while the API loads
+      if (combinedAppointments && combinedAppointments.length) {
+        renderAppointmentsTable(combinedAppointments);
+        // also seed the reschedule selector and map
+        const sel = document.getElementById("rescheduleSelect");
+        if (sel) {
+          sel.innerHTML = "";
+          combinedAppointments.slice(0, 200).forEach((a) => {
+            const key = a._id || a.id || a.bookingId || a.start || JSON.stringify(a);
+            const opt = document.createElement("option");
+            opt.value = key;
+            opt.textContent = `${a.bookingDate || a.date || ""} — ${
+              a.customerName ||
+              (a.customer && a.customer.name) ||
+              a.customer ||
+              a.title ||
+              "Booking"
+            }`;
+            sel.appendChild(opt);
+            reschedAppointmentsMap.set(key, a);
+          });
+        }
+      }
+
+      // helper: display a loading spinner row inside a table body element
+      function showLoadingRow(tbody) {
+        if (!tbody) return;
+        tbody.innerHTML =
+          '<tr><td colspan="10" class="text-center py-4">'<
+            +'<div class="spinner-border spinner-border-sm" role="status" ' 
+            + 'style="vertical-align:middle;margin-right:6px;"><span class="visually-hidden">Loading...</span></div>'
+            + 'Loading…</td></tr>';
+      }
+
+      // Load initial overview (list KPIs + table + trend)
+      // load overview: metrics + appointment list filtered by provided status.
+      async function loadCombinedOverview(statusOverride) {
+        if (statusOverride) {
+          currentListStatus = statusOverride;
+        }
+        // show spinner while we fetch
+        showLoadingRow(document.getElementById("appointmentsBodyCombined"));
+        try {
+          const sRes = await fetch("/api/admin/analytics/summary");
+          const s = sRes.ok ? await sRes.json() : {};
+          // KPI metrics should reflect real status buckets.
+          let metricAppointments = [];
+          try {
+            const mRes = await fetch("/api/appointments?upcoming=1");
+            if (mRes.ok) {
+              const mj = await mRes.json();
+              metricAppointments = mj.items || mj.appointments || [];
+            }
+          } catch (_) {}
+
+          const pendingCount = metricAppointments.filter(
+            (a) => statusLabel(a.status) === "pending",
+          ).length;
+          const scheduledCount = metricAppointments.filter(
+            (a) => statusLabel(a.status) === "scheduled",
+          ).length;
+          const onTheWayCount = metricAppointments.filter(
+            (a) => statusLabel(a.status) === "on-the-way",
+          ).length;
+          const completedCount = metricAppointments.filter(
+            (a) => statusLabel(a.status) === "completed",
+          ).length;
+          const cancelledCount = metricAppointments.filter(
+            (a) => statusLabel(a.status) === "cancelled",
+          ).length;
+
+          const hasMetricList =
+            Array.isArray(metricAppointments) && metricAppointments.length > 0;
+
+          document.getElementById("kpi-today-combined").innerText =
+            hasMetricList ? scheduledCount : (s.activeJobsInProgress ?? "—");
+          document.getElementById("kpi-on-the-way-combined").innerText =
+            hasMetricList ? onTheWayCount : (s.onTheWayCount ?? "—");
+          document.getElementById("kpi-pending-combined").innerText =
+            hasMetricList ? pendingCount : (s.pendingBookingRequests ?? "—");
+          document.getElementById("kpi-completed-combined").innerText =
+            hasMetricList ? completedCount : (s.activeJobsInProgress ?? "—");
+          document.getElementById("kpi-cancelled-combined").innerText =
+            hasMetricList ? cancelledCount : "0";
+
+          // badges - mimic dashboard behaviour using summary payload or defaults
+          var badgeData = s.kpiBadges || {
+            appointments: '+0%',
+            pending: '+0%',
+            activeJobs: '+0%',
+            completedJobs: '+0%',
+            lowStock: '+0%'
+          };
+          function applyBadge(id, text) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.innerHTML = text;
+            // Remove any existing trend classes
+            el.classList.remove('positive','negative','neutral');
+            // Add trend class based on text
+            if (/^[+]/.test(text)) {
+              el.classList.add('positive');
+            } else if (/^[-]/.test(text)) {
+              el.classList.add('negative');
+            } else {
+              el.classList.add('neutral');
+            }
+          }
+          applyBadge('badge-today-combined', badgeData.appointments);
+          applyBadge('badge-on-the-way-combined', badgeData.activeJobs);
+          applyBadge('badge-pending-combined', badgeData.pending);
+          applyBadge('badge-completed-combined', badgeData.completedJobs);
+          applyBadge('badge-cancelled-combined', badgeData.lowStock);
+
+          // load appointments from server using status filter
+          let appts = [];
+          let fetchSucceeded = false;
+          try {
+            const params = new URLSearchParams();
+            params.set("upcoming", "1");
+            params.set("sort", "newest");
+            const searchVal = document
+              .getElementById("filterSearchCombined")
+              ?.value.trim();
+            if (searchVal) params.set("search", searchVal);
+            const startVal = document.getElementById(
+              "filterStartCombined",
+            )?.value;
+            if (startVal) params.set("start", startVal);
+            const endVal = document.getElementById("filterEndCombined")?.value;
+            if (endVal) params.set("end", endVal);
+            if (currentListStatus && currentListStatus !== "all") {
+              params.set("status", currentListStatus);
+            }
+            const techVal =
+              document.getElementById("filterTechCombined")?.value;
+            if (techVal && techVal !== "all")
+              params.set("technicianId", techVal);
+            const serviceTypeVal = document.getElementById("filterServiceType")?.value;
+            if (serviceTypeVal && serviceTypeVal !== "all")
+              params.set("serviceType", serviceTypeVal);
+            const url = "/api/appointments?" + params.toString();
+            console.debug("appointments fetch URL", url, "statusOverride", currentListStatus);
+            const r = await fetch(url);
+            if (r.ok) {
+              const j = await r.json();
+              appts = j.items || j.appointments || [];
+              fetchSucceeded = true;
+            }
+          } catch (e) {
+            console.warn("appointment fetch failed, will fallback to previous data", e);
+          }
+          // only fall back if the network call itself failed; an empty array from
+          // a successful query should render as "no appointments" rather than
+          // reusing the previous status list.
+          if (!fetchSucceeded && !appts.length) {
+            appts = combinedAppointments || [];
+          }
+          combinedAppointments = appts;
+          renderAppointmentsTable(appts);
+
+          // staff list
+          try {
+            const selectedTech =
+              document.getElementById("filterTechCombined")?.value || "all";
+            const r = await fetch("/api/admin/staff", {
+              credentials: "same-origin",
+            });
+            if (r.ok) {
+              const j = await r.json();
+              combinedStaff = j.staff || [];
+              const techSelect = document.getElementById("filterTechCombined");
+              techSelect.innerHTML =
+                '<option value="all">All technicians</option>';
+              combinedStaff.forEach((s) => {
+                const o = document.createElement("option");
+                o.value = s._id;
+                o.textContent =
+                  (s.firstName || "") + " " + (s.lastName || s.email || "");
+                techSelect.appendChild(o);
+              });
+              if (
+                selectedTech &&
+                selectedTech !== "all" &&
+                Array.from(techSelect.options).some(
+                  (o) => o.value === selectedTech,
+                )
+              ) {
+                techSelect.value = selectedTech;
+              }
+            } else {
+              console.warn("Failed to load staff", r.status);
+            }
+          } catch (e) {
+            console.warn("load staff error", e);
+          }
+
+          loadBookingRequests();
+        } catch (err) {
+          console.error("loadCombinedOverview failed", err);
+        }
+      }
+      function renderAppointmentsTable(list) {
+        const tbody = document.getElementById("appointmentsBodyCombined");
+        tbody.innerHTML = "";
+        // ensure the incoming array respects the currently selected status;
+        // this guards against server queries that accidentally return extra
+        // items (see support ticket). change message accordingly.
+        if (currentListStatus && currentListStatus !== "all") {
+          list = (list || []).filter(
+            (a) => statusLabel(a.status) === currentListStatus,
+          );
+        }
+        const statusLabelText =
+          currentListStatus === "scheduled"
+            ? "scheduled"
+            : currentListStatus === "on-the-way"
+            ? "on the way"
+            : currentListStatus === "completed"
+            ? "completed"
+            : currentListStatus === "cancelled"
+            ? "cancelled"
+            : "appointments";
+
+        if (!list || !list.length) {
+          tbody.innerHTML =
+            `<tr><td colspan="10" class="text-center text-muted py-4">No ${statusLabelText} found.</td></tr>`;
+          document.getElementById("appointmentsCountCombined").innerText =
+            `0 ${statusLabelText}`;
+          return;
+        }
+        list.slice(0, 200).forEach((a) => {
+          const tr = document.createElement("tr");
+          const bookingDate = a.bookingDate || a.date || a.start || new Date();
+          // compute time range similar to details panel
+          const startTimeStr = a.startTime || a.time || "";
+          const startMinNum = Number(a.startTime || a.time);
+          const endMinRaw = Number(a.endTime);
+          const fallbackDur = (Number(a.serviceDurationMinutes) || 0) + Math.max(0, Number(a.travelTime) || 0);
+          const endMinNum =
+            Number.isFinite(endMinRaw) && endMinRaw > startMinNum
+              ? endMinRaw
+              : Number.isFinite(startMinNum) && fallbackDur > 0
+              ? startMinNum + fallbackDur
+              : NaN;
+          const timeRange =
+            Number.isFinite(startMinNum) && Number.isFinite(endMinNum)
+              ? `${formatTime(startMinNum)} – ${formatTime(endMinNum)}`
+              : formatTime(startMinNum) || startTimeStr;
+          const badge = `<span class='badge bg-${statusBadgeClass(a.status)}'>${statusLabel(a.status)}</span>`;
+          const paymentBadge = `<span class='badge bg-${a.paymentStatus === "paid" ? "success" : a.paymentStatus === "failed" ? "danger" : "warning"} text-uppercase'>${a.paymentStatus || "pending"}</span>`;
+          const badgeStatus = statusLabel(a.status);
+          const onTheWayBtn = badgeStatus === "scheduled"
+            ? `<button class='btn btn-sm btn-outline-info on-the-way-appt' data-id='${a._id || a.id || ""}' title='Mark on the way'><i class='bi bi-truck'></i></button>`
+            : "";
+          const arrivedBtn = badgeStatus === "on-the-way"
+            ? `<button class='btn btn-sm btn-outline-primary arrived-appt' data-id='${a._id || a.id || ""}' title='Mark arrived'><i class='bi bi-geo-alt-fill'></i></button>`
+            : "";
+          const completeBtn = ["scheduled", "in-progress", "on-the-way"].includes(badgeStatus)
+            ? `<button class='btn btn-sm btn-outline-success complete-appt' data-id='${a._id || a.id || ""}' title='Complete'><i class='bi bi-check2-circle'></i></button>`
+            : "";
+          const bookingRef =
+            a.bookingReference || a.reference || a._id || a.id || "—";
+          const bookedAt = a.createdAt
+            ? new Date(a.createdAt).toLocaleString()
+            : "—";
+
+          let custName = a.customerName || (typeof a.customer === "object" && a.customer ? a.customer.name || a.customer.firstName || "Customer" : a.customer) || "Customer";
+          if (typeof custName === "object") custName = "Customer";
+          let custEmail = a.customerEmail || (typeof a.customer === "object" && a.customer ? a.customer.email : a.customerEmail) || "";
+          let svcName = a.serviceName || a.service || (typeof a.serviceId === "object" && a.serviceId ? a.serviceId.name || a.serviceId.title : a.serviceId) || "Service";
+          if (typeof svcName === "object") svcName = "Service";
+          const svcType = a.serviceType || (a.serviceModel === 'RepairService' ? 'repair' : 'core');
+          const svcTypeBadge = svcType === 'repair'
+            ? '<span class="badge bg-warning text-dark" style="font-size:0.65rem;">REPAIR</span>'
+            : '<span class="badge bg-info" style="font-size:0.65rem;">CORE</span>';
+          let techName = a.technicianName || (typeof a.technician === "object" && a.technician ? a.technician.name || a.technician.firstName : a.technician) || "TBD";
+          if (typeof techName === "object") techName = "TBD";
+
+          // Optional formatter fallback removed; use computed timeRange
+
+          tr.innerHTML = `<td class="td-truncate-md" title="${bookingRef}"><div class='fw-semibold text-truncate'>${bookingRef}</div></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td><div class="text-truncate">${svcName}</div>${svcTypeBadge}</td><td class="td-truncate-md d-none" title="${techName}">${techName}</td><td>${paymentBadge}</td><td>${badge}</td><td><div class='d-flex gap-2'><button class='btn btn-micro btn-outline-secondary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye'></i></button><button class='btn btn-micro btn-outline-secondary edit-appt' data-id='${a._id || a.id || ""}' title='Edit'><i class='bi bi-pencil'></i></button>${onTheWayBtn.replace('btn-sm','btn-micro')}${completeBtn.replace('btn-sm', 'btn-micro')}</div></td>`;
+          tbody.appendChild(tr);
+        });
+        document.getElementById("appointmentsCountCombined").innerText =
+          `${list.length} shown`; // wire buttons
+        qsa(".view-appt").forEach((b) =>
+          b.addEventListener("click", onViewAppt),
+        );
+        qsa(".edit-appt").forEach((b) =>
+          b.addEventListener("click", onEditAppt),
+        );
+        qsa(".on-the-way-appt").forEach((b) =>
+          b.addEventListener("click", async function (e) {
+            const id = this.getAttribute("data-id");
+            if (!id) return;
+            if (!confirm("Mark this appointment as on the way?")) return;
+            
+            // Add loading state to button
+            const originalContent = this.innerHTML;
+            this.classList.add("btn-payment-loading");
+            this.disabled = true;
+            
+            try {
+              const resp = await fetch(
+                `/appointments/${encodeURIComponent(id)}/on-the-way`,
+                { method: "POST", credentials: "same-origin" },
+              );
+              if (resp.ok) {
+                window.notify?.success("Appointment marked on the way");
+                await loadCombinedOverview();
+              } else {
+                const text = await resp.text();
+                window.notify?.error("Failed to update: " + text);
+              }
+            } catch (err) {
+              window.notify?.error("Failed to update appointment");
+            } finally {
+              // Restore button state
+              this.classList.remove("btn-payment-loading");
+              this.disabled = false;
+              this.innerHTML = originalContent;
+            }
+          }),
+        );
+        qsa(".arrived-appt").forEach((b) =>
+          b.addEventListener("click", async function (e) {
+            const id = this.getAttribute("data-id");
+            if (!id) return;
+            if (!confirm("Mark this appointment as arrived?")) return;
+            
+            // Add loading state to button
+            const originalContent = this.innerHTML;
+            this.classList.add("btn-payment-loading");
+            this.disabled = true;
+            
+            try {
+              const resp = await fetch(`/appointments/${encodeURIComponent(id)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "arrived" }),
+                credentials: "same-origin",
+              });
+              if (resp.ok) {
+                window.notify?.success("Appointment marked arrived");
+                await loadCombinedOverview();
+              } else {
+                const text = await resp.text();
+                window.notify?.error("Failed: " + text);
+              }
+            } catch (err) {
+              window.notify?.error("Failed to update appointment");
+            } finally {
+              // Restore button state
+              this.classList.remove("btn-payment-loading");
+              this.disabled = false;
+              this.innerHTML = originalContent;
+            }
+          }),
+        );
+        qsa(".complete-appt").forEach((b) =>
+          b.addEventListener("click", async function (e) {
+            const id = this.getAttribute("data-id");
+            if (!id) return;
+            if (!confirm("Mark this appointment completed?")) return;
+            
+            // Add loading state to button
+            const originalContent = this.innerHTML;
+            this.classList.add("btn-payment-loading");
+            this.disabled = true;
+            
+            try {
+              const resp = await fetch(
+                `/appointments/${encodeURIComponent(id)}/complete`,
+                { method: "POST", credentials: "same-origin" },
+              );
+              if (resp.ok) {
+                window.notify?.success("Appointment marked completed");
+                await loadCombinedOverview();
+              } else {
+                const text = await resp.text();
+                window.notify?.error("Failed to complete: " + text);
+              }
+            } catch (err) {
+              window.notify?.error("Failed to complete appointment");
+            } finally {
+              // Restore button state
+              this.classList.remove("btn-payment-loading");
+              this.disabled = false;
+              this.innerHTML = originalContent;
+            }
+          }),
+        );
+      }
+
+      async function onViewAppt(e) {
+        // ensure Leaflet assets are available (only once)
+        if (!window.L) {
+          const css = document.createElement("link");
+          css.rel = "stylesheet";
+          css.href = "https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css";
+          document.head.appendChild(css);
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js";
+          document.head.appendChild(s);
+          await new Promise((r) => {
+            s.onload = r;
+          });
+        }
+        const modalTitle = document.getElementById("apptsModalHeaderTitle");
+        if (modalTitle) modalTitle.textContent = "Appointment Details";
+        const editBtn = document.getElementById("apptsModalEdit");
+        if (editBtn) editBtn.style.display = "inline-block";
+        const id = e.currentTarget.getAttribute("data-id");
+        let appt =
+          combinedAppointments.find((x) => (x._id || x.id || "") == id) || {};
+        // attempt to load fresh user profile if we have customerId
+        if (appt.customerId) {
+          try {
+            const r = await fetch(
+              `/api/users/${encodeURIComponent(appt.customerId)}`,
+              { credentials: "same-origin" },
+            );
+            if (r.ok) {
+              const info = await r.json();
+              appt.customer = info; // merge into appointment for display
+              const cname =
+                info.name ||
+                info.fullName ||
+                ((info.firstName || "") + " " + (info.lastName || "")).trim();
+              if (cname) appt.customerName = cname;
+            }
+          } catch (err) {
+            console.warn("failed to fetch user profile", err);
+          }
+        }
+        // fill technician name from snapshot if available
+        if (!appt.technicianName) {
+          if (appt.technician && appt.technician.name) {
+            appt.technicianName = appt.technician.name;
+          } else if (appt.technician && appt.technician._id) {
+            // we'll try fetch below using this id
+          }
+        }
+        // attempt to populate technician name by looking up the user record
+        const techLookupId =
+          appt.technicianId || (appt.technician && appt.technician._id);
+        if (techLookupId && !appt.technicianName) {
+          try {
+            const r = await fetch(
+              `/api/users/${encodeURIComponent(techLookupId)}`,
+              { credentials: "same-origin" },
+            );
+            if (r.ok) {
+              const info = await r.json();
+              const tname =
+                info.name ||
+                info.fullName ||
+                ((info.firstName || "") + " " + (info.lastName || "")).trim();
+              if (tname) appt.technicianName = tname;
+            }
+          } catch (err) {
+            console.warn("failed to fetch technician user", err);
+          }
+        }
+        // if we have an assigned technician but no name snapshot, fetch list and fill
+        if (appt.technicianId && !appt.technicianName) {
+          try {
+            const r = await fetch("/api/admin/technicians", {
+              credentials: "same-origin",
+            });
+            if (r.ok) {
+              const j = await r.json();
+              const techs = j.technicians || [];
+              const found = techs.find(
+                (t) => String(t._id) === String(appt.technicianId),
+              );
+              if (found && found.name) {
+                appt.technicianName = found.name;
+              }
+            }
+          } catch (err) {
+            console.warn("failed to fetch technician list", err);
+          }
+        }
+        // helper for distance
+        function haversine(lat1, lon1, lat2, lon2) {
+          function toRad(v) {
+            return (v * Math.PI) / 180;
+          }
+          const R = 6371; // km
+          const dLat = toRad(lat2 - lat1);
+          const dLon = toRad(lon2 - lon1);
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) *
+              Math.cos(toRad(lat2)) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return R * c;
+        }
+        if (window.hideBackdrop) hideBackdrop();
+        const serviceName =
+          (appt.service && typeof appt.service === "object"
+            ? appt.service.name ||
+              appt.service.title ||
+              appt.service.serviceName
+            : appt.service) ||
+          (appt.serviceId && typeof appt.serviceId === "object"
+            ? appt.serviceId.name || appt.serviceId.title
+            : "") ||
+          (appt.serviceType === 'repair' || appt.serviceModel === 'RepairService'
+            ? 'Repair Service'
+            : appt.serviceType || appt.title || "Booking");
+        const serviceDescription =
+          (appt.serviceId &&
+            typeof appt.serviceId === "object" &&
+            appt.serviceId.description) ||
+          (appt.service &&
+            typeof appt.service === "object" &&
+            appt.service.description) ||
+          appt.issueDescription ||
+          "";
+        const bookingDateText =
+          formatDate(appt.bookingDate || appt.date || "") || "—";
+        const startTimeText =
+          formatTime(appt.startTime || appt.time || "") || "—";
+        const startMinNum = Number(appt.startTime ?? appt.time);
+        const endMinNumRaw = Number(appt.endTime);
+        const fallbackDuration =
+          (Number(appt.serviceDurationMinutes) || 0) +
+          Math.max(0, Number(appt.travelTime) || 0);
+        const endMinNum =
+          Number.isFinite(endMinNumRaw) && endMinNumRaw > startMinNum
+            ? endMinNumRaw
+            : Number.isFinite(startMinNum) && fallbackDuration > 0
+              ? startMinNum + fallbackDuration
+              : NaN;
+        const timeRangeText =
+          Number.isFinite(startMinNum) && Number.isFinite(endMinNum)
+            ? `${formatTime(startMinNum)} – ${formatTime(endMinNum)}`
+            : startTimeText;
+        const serviceFeeVal = Number(
+          appt.servicePrice ??
+            appt.service?.basePrice ??
+            appt.serviceId?.basePrice,
+        );
+        const distanceFareVal = Number(appt.travelFare);
+        const estimatedFeeVal = computeTotalEstimatedFee(appt);
+        const serviceFeeText = Number.isFinite(serviceFeeVal)
+          ? "₱" +
+            serviceFeeVal.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+        const distanceFareText = Number.isFinite(distanceFareVal)
+          ? "₱" +
+            distanceFareVal.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+        const estimatedFeeText = Number.isFinite(estimatedFeeVal)
+          ? "₱" +
+            Number(estimatedFeeVal).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+
+        let locationAddressText = (() => {
+          const source =
+            appt?.location?.address ?? appt?.location ?? appt?.address;
+          if (!source) return "—";
+          if (typeof source === "string") return source.trim() || "—";
+          if (typeof source === "object") {
+            const parts = Object.values(source)
+              .filter(
+                (v) => v !== null && v !== undefined && String(v).trim() !== "",
+              )
+              .map((v) => String(v).trim());
+            return parts.length ? parts.join(", ") : "—";
+          }
+          return "—";
+        })();
+        const _clng = Number(appt?.location?.coordinates?.coordinates?.[0]);
+        const _clat = Number(appt?.location?.coordinates?.coordinates?.[1]);
+        // if address text is just "lat,lng", fetch display_name so users see real address
+        if (
+          typeof locationAddressText === "string" &&
+          /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
+            locationAddressText,
+          ) &&
+          Number.isFinite(_clat) &&
+          Number.isFinite(_clng)
+        ) {
+          try {
+            const rg = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${_clat}&lon=${_clng}`,
+            );
+            if (rg.ok) {
+              const data = await rg.json();
+              if (data && data.display_name) {
+                locationAddressText = data.display_name;
+              }
+            }
+          } catch (e) {
+            // keep fallback text if reverse geocode fails
+          }
+        }
+        const customerNameText =
+          appt.customerName ||
+          (appt.customer &&
+            (appt.customer.name ||
+              `${appt.customer.firstName || ""} ${appt.customer.lastName || ""}`.trim())) ||
+          "—";
+        const customerEmailText =
+          (appt.customer && appt.customer.email) || appt.customerEmail || "—";
+        const customerPhoneText = (appt.customer && appt.customer.phone) || "—";
+        const paymentStatusText = appt.paymentStatus
+          ? String(appt.paymentStatus).toUpperCase()
+          : "PENDING";
+        const paymentMethodText = appt.paymentMethod || "—";
+        const paymentReferenceText = appt.paymentReference || appt.bookingReference || appt.workOrderNumber || "—";
+        const gcashNumberText = appt.gcashNumber || "—";
+        const technicianText = appt.technicianName || appt.technician || "—";
+        const downpaymentText = Number.isFinite(Number(appt.downpaymentAmount))
+          ? "₱" +
+            Number(appt.downpaymentAmount).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+        const travelTimeText = Number.isFinite(Number(appt.travelTime))
+          ? `${Number(appt.travelTime)} min`
+          : "—";
+
+        let proofHtml = "—";
+        if (appt.paymentProof) {
+          const imgSrc = normalizeProofSrc(appt.paymentProof);
+          if (imgSrc) {
+            proofHtml = `<img src="${imgSrc}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;" loading="lazy" onclick="window.openApptsImage('${imgSrc.replace(/'/g, "\\'")}')"/>`;
+          }
+        }
+
+        const _tlng = Number(
+          appt?.technicianLocation?.coordinates?.coordinates?.[0],
+        );
+        const _tlat = Number(
+          appt?.technicianLocation?.coordinates?.coordinates?.[1],
+        );
+        const distanceText =
+          Number.isFinite(_tlat) &&
+          Number.isFinite(_tlng) &&
+          Number.isFinite(_clat) &&
+          Number.isFinite(_clng)
+            ? `${haversine(_clat, _clng, _tlat, _tlng).toFixed(1)} km`
+            : "—";
+
+        const issueDescriptionText = appt.issueDescription || "—";
+        const bookingRefText = appt.bookingReference || appt.workOrderNumber || `#${String(appt._id).slice(-6).toUpperCase()}`;
+
+        // Repair-specific fields
+        const isRepair = appt.serviceType === 'repair' || appt.serviceModel === 'RepairService';
+        const unitType = appt.unitInfo?.unitType || "";
+        const unitBrand = appt.unitInfo?.brand || "";
+        const unitModel = appt.unitInfo?.model || "";
+        const unitLabel = unitModel ? `${unitType} (${unitBrand} ${unitModel})` : unitBrand ? `${unitType} (${unitBrand})` : unitType;
+        const problemDesc = appt.unitInfo?.problemDescription || "";
+        const unitPhotos = appt.unitInfo?.photos || [];
+        const prefDate = appt.preferredDate ? new Date(appt.preferredDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : "";
+        const prefTime = appt.preferredTime || "";
+        const workOrder = appt.workOrderNumber || "";
+
+        const detailsReferenceEl = document.getElementById(
+          "apptsDetailsReference",
+        );
+        if (detailsReferenceEl) detailsReferenceEl.textContent = bookingRefText;
+        const detailsStatusEl = document.getElementById(
+          "apptsDetailsBookingStatus",
+        );
+        if (detailsStatusEl)
+          detailsStatusEl.textContent = statusLabel(appt.status);
+
+        const html = `
+          <div class="text-center mb-3">
+            <span class="badge rounded-pill px-3 py-2 ${appt.status === "completed" ? "bg-success-subtle text-success border border-success-subtle" : appt.status === "cancelled" ? "bg-danger-subtle text-danger border border-danger-subtle" : appt.status === "confirmed" ? "bg-primary-subtle text-primary border border-primary-subtle" : "bg-warning-subtle text-warning border border-warning-subtle"}">
+              ${statusLabel(appt.status)}
+            </span>
+          </div>
+
+          <div class="appts-detail-panel mb-3">
+            <div class="appts-detail-row"><span class="label">Customer</span><span class="value">${customerNameText}</span></div>
+            <div class="appts-detail-row"><span class="label">Service</span><span class="value">${serviceName}</span></div>
+            <div class="appts-detail-row"><span class="label">Appointment</span><span class="value">${bookingDateText}${timeRangeText ? ` &ndash; ${timeRangeText}` : ""}</span></div>
+            <div class="appts-detail-row"><span class="label">Location</span><span class="value">${locationAddressText}</span></div>
+            <div class="appts-detail-row"><span class="label">Technician</span><span class="value">${technicianText}</span></div>
+            <div class="appts-detail-row"><span class="label">Customer Email</span><span class="value">${customerEmailText}</span></div>
+            <div class="appts-detail-row"><span class="label">Customer Phone</span><span class="value">${customerPhoneText}</span></div>
+            <div class="appts-detail-row"><span class="label">Payment Status</span><span class="value">${paymentStatusText}</span></div>
+            <div class="appts-detail-row"><span class="label">Payment Method</span><span class="value">${paymentMethodText}</span></div>
+            <div class="appts-detail-row"><span class="label">GCash Number</span><span class="value">${gcashNumberText}</span></div>
+            <div class="appts-detail-row"><span class="label">Reference #</span><span class="value">${paymentReferenceText}</span></div>
+            <div class="appts-detail-row"><span class="label">Travel Fare</span><span class="value">${distanceFareText}</span></div>
+            <div class="appts-detail-row"><span class="label">Travel Time</span><span class="value">${travelTimeText}</span></div>
+            <div class="appts-detail-row"><span class="label">Downpayment</span><span class="value">${downpaymentText}</span></div>
+            <div class="appts-detail-row"><span class="label">Estimated Fee</span><span class="value text-success">${estimatedFeeText}</span></div>
+          </div>
+
+          <div class="mb-3">
+            <h6 class="appts-section-title">Issue Description</h6>
+            <p class="text-muted small mb-0">${issueDescriptionText}</p>
+          </div>
+
+          ${isRepair ? `
+          <div class="appts-detail-panel mb-3" style="background:#f0f9ff;border:1px solid #bae6fd;">
+            <div class="appts-detail-row"><span class="label">Work Order</span><span class="value fw-bold">${workOrder || '—'}</span></div>
+            <div class="appts-detail-row"><span class="label">Unit Type</span><span class="value">${unitLabel || '—'}</span></div>
+            ${problemDesc ? `<div class="appts-detail-row"><span class="label">Problem</span><span class="value">${problemDesc}</span></div>` : ''}
+            ${prefDate ? `<div class="appts-detail-row"><span class="label">Preferred Date</span><span class="value">${prefDate}</span></div>` : ''}
+            ${prefTime ? `<div class="appts-detail-row"><span class="label">Preferred Time</span><span class="value">${prefTime}</span></div>` : ''}
+          </div>
+          ${unitPhotos.length ? `
+          <div class="mb-3">
+            <h6 class="appts-section-title">Unit Photos</h6>
+            <div class="d-flex gap-2 flex-wrap">${unitPhotos.map(p => `<img src="${p}" style="max-height:80px;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer;" loading="lazy" onclick="window.openApptsImage('${p.replace(/'/g, "\\'")}')" />`).join('')}</div>
+          </div>` : ''}
+          ` : ''}
+
+          <div class="mb-3">
+            <h6 class="appts-section-title">Payment Proof</h6>
+            <div>${proofHtml}</div>
+          </div>
+
+          <div class="mb-2">
+            <h6 class="appts-section-title">Map</h6>
+            <div id="apptMap" style="height:220px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;"></div>
+          </div>
+        `;
+        document.getElementById("apptsSharedModalBody").innerHTML = html;
+        const modalEl = document.getElementById("apptsSharedModal");
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+        // attempt to create map after modal is visible (timeout ensures dimensions are computed)
+        setTimeout(() => {
+          try {
+            const mapEl = document.getElementById("apptMap");
+            if (!mapEl || !window.L) return;
+            
+            // remove previous leaflet instance if any
+            if (mapEl._leaflet_id && mapEl._leaflet_id !== null) {
+              try {
+                const oldMap = L.DomUtil.get(mapEl)._leaflet_id;
+              } catch (e) {}
+              mapEl.innerHTML = "";
+            }
+            
+            // Enhanced coordinate parsing similar to services.js
+            const parseCoords = (coords) => {
+              if (!coords) return null;
+              
+              // Handle different coordinate formats
+              if (Array.isArray(coords) && coords.length >= 2) {
+                const [lng, lat] = coords.map(Number);
+                if (!isFinite(lng) || !isFinite(lat)) return null;
+                return { lat, lng };
+              }
+              
+              if (typeof coords === 'object' && coords.coordinates) {
+                return parseCoords(coords.coordinates);
+              }
+              
+              if (typeof coords === 'object' && coords.lng && coords.lat) {
+                const lng = Number(coords.lng);
+                const lat = Number(coords.lat);
+                if (!isFinite(lng) || !isFinite(lat)) return null;
+                return { lat, lng };
+              }
+              
+              return null;
+            };
+            
+            // Enhanced location fetching for customer (similar to services.js)
+            let custCoords = null;
+            let custLocationInfo = null;
+            
+            // Try multiple customer location sources
+            if (appt.location) {
+              if (appt.location.coordinates && appt.location.coordinates.coordinates) {
+                custCoords = parseCoords(appt.location.coordinates.coordinates);
+                custLocationInfo = appt.location.address || appt.location.display_name || locationAddressText || null;
+              } else if (appt.location.lat && appt.location.lng) {
+                custCoords = { lat: Number(appt.location.lat), lng: Number(appt.location.lng) };
+                custLocationInfo = appt.location.address || appt.location.display_name || locationAddressText || null;
+              } else if (appt.coordinates) {
+                custCoords = parseCoords(appt.coordinates);
+                custLocationInfo = appt.address || appt.display_name || locationAddressText || null;
+              }
+            }
+            
+            // Enhanced location fetching for technician
+            let techCoords = null;
+            let techLocationInfo = null;
+            
+            // Debug: Log technician location data structure
+            console.log('Technician location data:', {
+              technicianLocation: appt.technicianLocation,
+              _tlat: _tlat,
+              _tlng: _tlng,
+              technician: appt.technician,
+              technicianId: appt.technicianId
+            });
+            
+            // Try multiple technician location sources with better error handling
+            if (appt.technicianLocation) {
+              console.log('Processing technicianLocation:', appt.technicianLocation);
+              
+              if (appt.technicianLocation.coordinates && appt.technicianLocation.coordinates.coordinates) {
+                techCoords = parseCoords(appt.technicianLocation.coordinates.coordinates);
+                techLocationInfo = appt.technicianLocation.address || appt.technicianLocation.display_name || null;
+                console.log('Technician coords from coordinates.coordinates:', techCoords);
+              } else if (appt.technicianLocation.lat && appt.technicianLocation.lng) {
+                techCoords = { lat: Number(appt.technicianLocation.lat), lng: Number(appt.technicianLocation.lng) };
+                techLocationInfo = appt.technicianLocation.address || appt.technicianLocation.display_name || null;
+                console.log('Technician coords from lat/lng:', techCoords);
+              } else if (appt.technicianLocation.location && appt.technicianLocation.location.coordinates) {
+                techCoords = parseCoords(appt.technicianLocation.location.coordinates);
+                techLocationInfo = appt.technicianLocation.location.address || null;
+                console.log('Technician coords from location.coordinates:', techCoords);
+              }
+            }
+            
+            // Try technician object with location data
+            if (!techCoords && appt.technician && typeof appt.technician === 'object') {
+              console.log('Processing technician object:', appt.technician);
+              
+              if (appt.technician.location && appt.technician.location.coordinates) {
+                techCoords = parseCoords(appt.technician.location.coordinates);
+                techLocationInfo = appt.technician.location.address || appt.technician.address || null;
+                console.log('Technician coords from technician.location.coordinates:', techCoords);
+              } else if (appt.technician.lat && appt.technician.lng) {
+                techCoords = { lat: Number(appt.technician.lat), lng: Number(appt.technician.lng) };
+                techLocationInfo = appt.technician.address || null;
+                console.log('Technician coords from technician.lat/lng:', techCoords);
+              } else if (appt.technician.coordinates) {
+                techCoords = parseCoords(appt.technician.coordinates);
+                techLocationInfo = appt.technician.address || null;
+                console.log('Technician coords from technician.coordinates:', techCoords);
+              }
+            }
+            
+            // Fallback to technician coordinates if available in different format
+            if (!techCoords && appt.technicianCoords) {
+              techCoords = parseCoords(appt.technicianCoords);
+              console.log('Technician coords from technicianCoords:', techCoords);
+            }
+            
+            // Use the _tlat and _tlng variables that were already calculated (most reliable)
+            if (!techCoords && Number.isFinite(_tlat) && Number.isFinite(_tlng)) {
+              techCoords = { lat: _tlat, lng: _tlng };
+              techLocationInfo = 'Technician location';
+              console.log('Technician coords from _tlat/_tlng:', techCoords);
+            }
+            
+            // Additional fallback: try to extract from any nested location objects
+            if (!techCoords) {
+              const possibleTechFields = [
+                'technicianLocation',
+                'technician',
+                'techLocation',
+                'serviceProviderLocation'
+              ];
+              
+              for (const field of possibleTechFields) {
+                if (appt[field] && typeof appt[field] === 'object') {
+                  const obj = appt[field];
+                  if (obj.lat && obj.lng) {
+                    techCoords = { lat: Number(obj.lat), lng: Number(obj.lng) };
+                    techLocationInfo = obj.address || field;
+                    console.log(`Technician coords from ${field}.lat/lng:`, techCoords);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            console.log('Final technician coords:', techCoords);
+            
+            // Use the _clat and _clng variables that were already calculated
+            if (!custCoords && Number.isFinite(_clat) && Number.isFinite(_clng)) {
+              custCoords = { lat: _clat, lng: _clng };
+              custLocationInfo = locationAddressText;
+            }
+            
+            const hasCust = !!custCoords;
+            const hasTech = !!techCoords;
+            
+            if (hasCust || hasTech) {
+              let center = [14.676049, 121.043731]; // Default Philippines center
+              
+              if (hasCust && hasTech) {
+                center = [
+                  (custCoords.lat + techCoords.lat) / 2,
+                  (custCoords.lng + techCoords.lng) / 2,
+                ];
+              } else if (hasCust) {
+                center = [custCoords.lat, custCoords.lng];
+              } else if (hasTech) {
+                center = [techCoords.lat, techCoords.lng];
+              }
+              
+              // Initialize map similar to services.js
+              const map = L.map(mapEl).setView(center, hasCust && hasTech ? 10 : 12);
+              
+              L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+              }).addTo(map);
+              
+              // Create technician icon (similar to services.js)
+              const techIcon = L.divIcon({
+                className: "",
+                html: '<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));">' +
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">' +
+                  '<defs><linearGradient id="sg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cacff"/><stop offset="100%" stop-color="#1a6ddb"/></linearGradient>' +
+                  '<linearGradient id="sg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a6ddb"/><stop offset="100%" stop-color="#0f4a9e"/></linearGradient></defs>' +
+                  '<ellipse cx="20" cy="36" rx="8" ry="2.5" fill="rgba(0,0,0,.18)"/>' +
+                  '<path d="M20 2 L34 32 L20 26 Z" fill="url(#sg2)"/>' +
+                  '<path d="M20 2 L6 32 L20 26 Z" fill="url(#sg1)"/>' +
+                  '<path d="M20 2 L6 32 L20 26 L34 32 Z" stroke="#fff" stroke-width="1.2" fill="none" stroke-linejoin="round"/>' +
+                  '<path d="M12 14 L20 4 L21 14 Z" fill="rgba(255,255,255,.3)"/>' +
+                  '</svg></div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20],
+              });
+              
+              // Create customer icon (similar to services.js)
+              const greenIcon = L.divIcon({
+                className: "",
+                html: '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42">' +
+                  '<path d="M15 42 C15 42 0 24.5 0 15 A15 15 0 1 1 30 15 C30 24.5 15 42 15 42Z" fill="#4ecda4"/>' +
+                  '<circle cx="15" cy="15" r="5.5" fill="#fff"/>' +
+                  '</svg>',
+                iconSize: [30, 42],
+                iconAnchor: [15, 42],
+                popupAnchor: [0, -42],
+              });
+              
+              // Add customer marker with enhanced popup
+              if (hasCust) {
+                const customerMarker = L.marker([custCoords.lat, custCoords.lng], {
+                  icon: greenIcon,
+                })
+                  .addTo(map)
+                  .bindPopup(`
+                    <div style="text-align: center; min-width: 200px;">
+                      <strong>📍 Customer Location</strong><br>
+                      <div style="font-size: 0.9rem; margin: 4px 0;">${customerNameText}</div>
+                      ${custLocationInfo ? `<div style="font-size: 0.8rem; color: #666;">${custLocationInfo}</div>` : ''}
+                      <div style="font-size: 0.75rem; color: #999; margin-top: 4px;">
+                        Lat: ${custCoords.lat.toFixed(6)}, Lng: ${custCoords.lng.toFixed(6)}
+                      </div>
+                    </div>
+                  `);
+              }
+              
+              // Add technician marker with enhanced popup
+              if (hasTech) {
+                const technicianMarker = L.marker([techCoords.lat, techCoords.lng], {
+                  icon: techIcon,
+                })
+                  .addTo(map)
+                  .bindPopup(`
+                    <div style="text-align: center; min-width: 200px;">
+                      <strong>🔧 Technician Location</strong><br>
+                      <div style="font-size: 0.9rem; margin: 4px 0;">${technicianText}</div>
+                      ${techLocationInfo ? `<div style="font-size: 0.8rem; color: #666;">${techLocationInfo}</div>` : ''}
+                      <div style="font-size: 0.75rem; color: #999; margin-top: 4px;">
+                        Lat: ${techCoords.lat.toFixed(6)}, Lng: ${techCoords.lng.toFixed(6)}
+                      </div>
+                    </div>
+                  `);
+              }
+              
+              // Add route line if both locations are available (similar to services.js)
+              if (hasCust && hasTech) {
+                const routeLine = L.polyline(
+                  [
+                    [custCoords.lat, custCoords.lng],
+                    [techCoords.lat, techCoords.lng],
+                  ],
+                  { 
+                    color: "#007bff", 
+                    weight: 3,
+                    opacity: 0.7,
+                    dashArray: "10, 5"
+                  },
+                ).addTo(map);
+                
+                // Fit map to show both markers with padding (similar to services.js)
+                const bounds = L.latLngBounds([
+                  [custCoords.lat, custCoords.lng],
+                  [techCoords.lat, techCoords.lng],
+                ]);
+                map.fitBounds(bounds, { padding: [80, 80], animate: false });
+                
+                // Calculate and display distance (similar to services.js)
+                const distance = L.latLng(custCoords.lat, custCoords.lng)
+                  .distanceTo(L.latLng(techCoords.lat, techCoords.lng));
+                const distanceKm = (distance / 1000).toFixed(2);
+                
+                // Add distance info as a control
+                const distanceControl = L.control({position: 'topright'});
+                distanceControl.onAdd = function(map) {
+                  const div = L.DomUtil.create('div', 'info-box');
+                  div.style.backgroundColor = 'white';
+                  div.style.padding = '8px 12px';
+                  div.style.borderRadius = '6px';
+                  div.style.border = '2px solid #007bff';
+                  div.style.fontSize = '12px';
+                  div.style.fontWeight = 'bold';
+                  div.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                  div.innerHTML = `
+                    <div style="color: #007bff;">📏 Distance: ${distanceKm} km</div>
+                  `;
+                  return div;
+                };
+                distanceControl.addTo(map);
+              }
+              
+              // Invalidate size to ensure proper rendering (similar to services.js)
+              setTimeout(() => {
+                try {
+                  if (map) {
+                    map.invalidateSize();
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }, 100);
+              
+            } else {
+              // Show message when no location data is available
+              const map = L.map(mapEl).setView([14.676049, 121.043731], 6);
+              L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+              }).addTo(map);
+              
+              L.popup()
+                .setLatLng([14.676049, 121.043731])
+                .setContent('<div style="text-align: center;"><strong>📍 No Location Data</strong><br>Customer and technician location coordinates are not available for this booking</div>')
+                .openOn(map);
+            }
+          } catch (err) {
+            console.warn("failed to init appointment map", err);
+            // Show error message on map
+            const mapEl = document.getElementById("apptMap");
+            if (mapEl) {
+              mapEl.innerHTML = `
+                <div style="height: 220px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 10px; border: 1px solid #e2e8f0;">
+                  <div style="text-align: center; color: #6c757d;">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🗺️</div>
+                    <div style="font-weight: 600;">Map Unavailable</div>
+                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">Unable to load location data</div>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }, 150);
+      }
+      function onEditAppt(e) {
+        const id = e.currentTarget.getAttribute("data-id"); // navigate to reschedule tab and preselect
+        qsa("#apptsTabs [data-tab]").forEach((n) =>
+          n.classList.remove("active"),
+        );
+        document
+          .querySelector('#apptsTabs [data-tab="tab-reschedule"]')
+          .classList.add("active");
+        qsa(".tab-pane").forEach((t) => t.classList.add("d-none"));
+        document.getElementById("tab-reschedule").classList.remove("d-none");
+        const sel = document.getElementById("rescheduleSelect");
+        const item = combinedAppointments.find(
+          (x) => (x._id || x.id || "") == id,
+        );
+        if (item) {
+          const optVal =
+            item._id || item.id || item.start || JSON.stringify(item);
+          if (!Array.from(sel.options).some((o) => o.value === optVal)) {
+            const o = document.createElement("option");
+            o.value = optVal;
+            o.textContent = `${item.bookingDate || item.date || ""} — ${item.customerName || item.customer || "Booking"}`;
+            sel.appendChild(o);
+          }
+          sel.value = optVal;
+          sel.dispatchEvent(new Event('change'));
+        }
+      }
+
+      function statusLabel(status) {
+        const s = String(status || "pending").toLowerCase();
+        if (s === "scheduled") return "scheduled";
+        if (s === "on-the-way" || s === "on the way") return "on-the-way";
+        if (s === "in-progress" || s === "in progress") return "in-progress";
+        if (s === "confirmed" || s === "approved") return "confirmed";
+        if (s === "completed") return "completed";
+        if (s === "cancelled" || s === "rejected") return "cancelled";
+        if (s === "re-scheduled") return "re-scheduled";
+        return "pending";
+      }
+
+      function statusBadgeClass(status) {
+        const s = statusLabel(status);
+        if (s === "scheduled") return "primary";
+        if (s === "on-the-way") return "info";
+        if (s === "arrived") return "info";
+        if (s === "in-progress") return "warning";
+        if (s === "confirmed") return "success";
+        if (s === "completed") return "success"; // completed appointments are distinguished with blue badge
+        if (s === "cancelled") return "danger";
+        if (s === "re-scheduled") return "primary";
+        return "warning";
+      }
+
+      function formatValue(value) {
+        if (value === null || value === undefined || value === "") return "—";
+        // attempt to format dates first
+        if (typeof value === "string" || value instanceof Date) {
+          const d = new Date(value);
+          if (!Number.isNaN(d.getTime())) {
+            // include time when the string contains a time component
+            return formatDate(d, /T|:/i.test(String(value)));
+          }
+        }
+        if (typeof value === "object") {
+          if (Array.isArray(value)) {
+            return value.length ? value.join(", ") : "—";
+          }
+          if (value._id) return String(value._id);
+          // check for address-like object
+          const addrKeys = [
+            "street",
+            "barangay",
+            "city",
+            "province",
+            "postalCode",
+            "zip",
+            "country",
+            "address",
+          ];
+          const parts = [];
+          addrKeys.forEach((k) => {
+            if (value[k]) parts.push(String(value[k]));
+          });
+          if (parts.length) return parts.join(", ");
+          return JSON.stringify(value);
+        }
+        return String(value);
+      }
+
+      async function openBookingRequestDetails(rq) {
+        if (!rq || !rq.raw) return;
+        // ensure Leaflet assets (CSS/JS) loaded once
+        if (!window.L) {
+          const css = document.createElement("link");
+          css.rel = "stylesheet";
+          css.href = "https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css";
+          document.head.appendChild(css);
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js";
+          document.head.appendChild(s);
+          await new Promise((r) => {
+            s.onload = r;
+          });
+        }
+        const modalTitle = document.getElementById("apptsModalHeaderTitle");
+        if (modalTitle) modalTitle.textContent = "Booking Request Details";
+        const raw = rq.raw;
+        // attempt to populate missing user/technician names
+        if (raw.customerId && !raw.customerName) {
+          try {
+            const r = await fetch(
+              `/api/users/${encodeURIComponent(raw.customerId)}`,
+              { credentials: "same-origin" },
+            );
+            if (r.ok) {
+              const info = await r.json();
+              const cname =
+                info.name ||
+                info.fullName ||
+                ((info.firstName || "") + " " + (info.lastName || "")).trim();
+              if (cname) raw.customerName = cname;
+            }
+          } catch (e) {
+            console.warn("failed to fetch customer for request", e);
+          }
+        }
+        // fallback from snapshot
+        if (!raw.technicianName) {
+          if (raw.technician && raw.technician.name) {
+            raw.technicianName = raw.technician.name;
+          }
+        }
+        if (raw.technicianId && !raw.technicianName) {
+          try {
+            const r = await fetch(
+              `/api/users/${encodeURIComponent(raw.technicianId)}`,
+              { credentials: "same-origin" },
+            );
+            if (r.ok) {
+              const info = await r.json();
+              const tname =
+                info.name ||
+                info.fullName ||
+                ((info.firstName || "") + " " + (info.lastName || "")).trim();
+              if (tname) raw.technicianName = tname;
+            }
+          } catch (e) {
+            console.warn("failed to fetch technician user for request", e);
+          }
+        }
+        // if technicianId refers to a Technician doc, try admin list as a last resort
+        if (raw.technicianId && !raw.technicianName) {
+          try {
+            const r2 = await fetch("/api/admin/technicians", {
+              credentials: "same-origin",
+            });
+            if (r2.ok) {
+              const j = await r2.json();
+              const techs = j.technicians || [];
+              const found = techs.find(
+                (t) => String(t._id) === String(raw.technicianId),
+              );
+              if (found && found.name) raw.technicianName = found.name;
+            }
+          } catch (e) {
+            console.warn("failed to fetch technician list for request", e);
+          }
+        }
+        let locationAddress = "";
+        // prefer explicit address field when provided
+        if (raw?.location) {
+          if (typeof raw.location === "string") {
+            // could be coordinates string or literal address
+            locationAddress = raw.location;
+          } else if (raw.location.address) {
+            if (typeof raw.location.address === "object") {
+              locationAddress = Object.values(raw.location.address)
+                .filter((v) => v != null && v !== "")
+                .map(String)
+                .join(", ");
+            } else {
+              locationAddress = raw.location.address;
+            }
+          }
+        }
+        if (!locationAddress && raw.address) {
+          if (typeof raw.address === "object") {
+            locationAddress = Object.values(raw.address)
+              .filter((v) => v != null && v !== "")
+              .map(String)
+              .join(", ");
+          } else {
+            locationAddress = raw.address;
+          }
+        }
+        // if address looks like coordinates, leave blank; we'll handle later
+        if (/^\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*$/.test(locationAddress)) {
+          locationAddress = "";
+        }
+        // determine coordinates array (lon,lat) from whichever field present
+        let coordsArray = null;
+        if (
+          raw?.location?.coordinates?.coordinates &&
+          Array.isArray(raw.location.coordinates.coordinates)
+        ) {
+          coordsArray = raw.location.coordinates.coordinates.slice(0, 2);
+        } else if (typeof raw.coordinates === "string") {
+          const nums = raw.coordinates
+            .split(/[^0-9\.\-]+/)
+            .map(Number)
+            .filter((n) => !isNaN(n));
+          if (nums.length >= 2) coordsArray = nums.slice(0, 2);
+        } else if (typeof raw.location === "string") {
+          const nums = raw.location
+            .split(/[^0-9\.\-]+/)
+            .map(Number)
+            .filter((n) => !isNaN(n));
+          if (nums.length >= 2) {
+            // assume location string is lat,lon
+            coordsArray = [nums[1], nums[0]];
+          }
+        }
+        const hasCoords = coordsArray && coordsArray.length >= 2;
+        const coordinates = hasCoords ? coordsArray.join(", ") : "—";
+
+        const feeVal = computeTotalEstimatedFee(raw);
+        const serviceFeeVal = Number(
+          raw.servicePrice ??
+            raw.service?.basePrice ??
+            raw.serviceId?.basePrice,
+        );
+        const distanceFareVal = Number(raw.travelFare);
+        // travelTime may be stored as undefined when it was 0 at booking time
+        // fallback: compute from coordinates using same 40 km/h assumption
+        let travelMins = Number(raw.travelTime);
+        if (!Number.isFinite(travelMins) || travelMins <= 0) {
+          const custCoords = raw?.location?.coordinates?.coordinates;
+          const techCoords = raw?.technicianLocation?.coordinates?.coordinates;
+          if (
+            Array.isArray(custCoords) &&
+            custCoords.length >= 2 &&
+            Array.isArray(techCoords) &&
+            techCoords.length >= 2
+          ) {
+            const [clng, clat] = custCoords;
+            const [tlng, tlat] = techCoords;
+            if (
+              Number.isFinite(clat) &&
+              Number.isFinite(clng) &&
+              Number.isFinite(tlat) &&
+              Number.isFinite(tlng)
+            ) {
+              const toRad = (v) => (v * Math.PI) / 180;
+              const R = 6371;
+              const dLat = toRad(tlat - clat),
+                dLon = toRad(tlng - clng);
+              const a =
+                Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(clat)) *
+                  Math.cos(toRad(tlat)) *
+                  Math.sin(dLon / 2) ** 2;
+              const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              const eta = Math.round((km / 40) * 60);
+              if (eta > 0) travelMins = eta;
+            }
+          }
+        }
+        const serviceMins = Number(
+          raw.serviceDurationMinutes || raw.durationMinutes || raw.duration,
+        );
+        const startRaw = raw.startTime ?? raw.timeStart ?? raw.time;
+        const startMin = Number(startRaw);
+        const endMinRaw = Number(raw.endTime);
+        const serviceEndMin =
+          Number.isFinite(endMinRaw) &&
+          Number.isFinite(startMin) &&
+          endMinRaw > startMin
+            ? endMinRaw
+            : Number.isFinite(startMin) &&
+                Number.isFinite(serviceMins) &&
+                serviceMins > 0
+              ? startMin + serviceMins
+              : NaN;
+        const totalEndMin =
+          Number.isFinite(startMin) &&
+          Number.isFinite(serviceMins) &&
+          serviceMins > 0
+            ? startMin +
+              serviceMins +
+              (Number.isFinite(travelMins) ? Math.max(0, travelMins) : 0)
+            : NaN;
+        // technician name override (fallback to id or stored snapshot id)
+        const techName =
+          raw.technicianName ||
+          (raw.technician && raw.technician.name) ||
+          raw.technicianId ||
+          (raw.technician && raw.technician._id) ||
+          "";
+        const bookingRef = raw.bookingReference || raw.workOrderNumber || raw.reference || "—";
+        const detailsReferenceEl = document.getElementById(
+          "apptsDetailsReference",
+        );
+        if (detailsReferenceEl) detailsReferenceEl.textContent = bookingRef;
+        const detailsStatusEl = document.getElementById(
+          "apptsDetailsBookingStatus",
+        );
+        if (detailsStatusEl)
+          detailsStatusEl.textContent = statusLabel(raw.status);
+        const requestId = raw._id || raw.id || rq.id || "—";
+        const customerName =
+          raw.customerName || (raw.customer && raw.customer.name) || "—";
+        const customerEmail = (raw.customer && raw.customer.email) || "—";
+        const customerPhone = (raw.customer && raw.customer.phone) || "—";
+        const serviceName =
+          (raw.serviceId &&
+            typeof raw.serviceId === "object" &&
+            (raw.serviceId.name || raw.serviceId.title)) ||
+          (raw.serviceType === 'repair' || raw.serviceModel === 'RepairService'
+            ? 'Repair Service'
+            : raw.serviceType) ||
+          "—";
+        const serviceDesc =
+          (raw.serviceId &&
+            typeof raw.serviceId === "object" &&
+            raw.serviceId.description) ||
+          raw.issueDescription ||
+          "";
+        const feeText =
+          feeVal != null && feeVal !== ""
+            ? "₱" +
+              Number(feeVal).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+            : "—";
+        const serviceFeeText = Number.isFinite(serviceFeeVal)
+          ? "₱" +
+            Number(serviceFeeVal).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+        const distanceFareText = Number.isFinite(distanceFareVal)
+          ? "₱" +
+            Number(distanceFareVal).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "—";
+        const paymentMethod = raw.paymentMethod || "—";
+        const gcashNumber = raw.gcashNumber || "—";
+        const paymentReference = raw.paymentReference || raw.bookingReference || raw.workOrderNumber || "—";
+        const serviceWindow =
+          Number.isFinite(startMin) && Number.isFinite(serviceEndMin)
+            ? `${formatTime(startMin)} – ${formatTime(serviceEndMin)}`
+            : "—";
+        const occupiedBlock =
+          Number.isFinite(startMin) && Number.isFinite(totalEndMin)
+            ? `${formatTime(startMin)} – ${formatTime(totalEndMin)}`
+            : "—";
+        let proofHtml = "—";
+        if (raw.paymentProof) {
+          const imgSrc = normalizeProofSrc(raw.paymentProof);
+          if (imgSrc) {
+            proofHtml = `<img src="${imgSrc}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;" loading="lazy" onclick="window.openApptsImage('${imgSrc.replace(/'/g, "\\'")}')"/>`;
+          }
+        }
+
+        if (window.hideBackdrop) hideBackdrop();
+        document.getElementById("apptsSharedModalBody").innerHTML = `
+          <div class="text-center mb-3">
+            <span class="badge rounded-pill px-3 py-2 ${raw.status === "completed" ? "bg-success-subtle text-success border border-success-subtle" : raw.status === "cancelled" ? "bg-danger-subtle text-danger border border-danger-subtle" : raw.status === "confirmed" ? "bg-primary-subtle text-primary border border-primary-subtle" : "bg-warning-subtle text-warning border border-warning-subtle"}">
+              ${statusLabel(raw.status)}
+            </span>
+          </div>
+
+          <div class="appts-detail-panel mb-3">
+            <div class="appts-detail-row"><span class="label">Request ID</span><span class="value">${requestId}</span></div>
+            <div class="appts-detail-row"><span class="label">Customer</span><span class="value">${formatValue(customerName)}</span></div>
+            <div class="appts-detail-row"><span class="label">Email</span><span class="value">${formatValue(customerEmail)}</span></div>
+            <div class="appts-detail-row"><span class="label">Phone</span><span class="value">${formatValue(customerPhone)}</span></div>
+            <div class="appts-detail-row"><span class="label">Address</span><span class="value" id="reqDetailAddress">${formatValue(locationAddress || "—")}</span></div>
+            <div class="appts-detail-row"><span class="label">Coordinates</span><span class="value">${formatValue(coordinates)}</span></div>
+            <div class="appts-detail-row"><span class="label">Service</span><span class="value">${formatValue(serviceName)}</span></div>
+            <div class="appts-detail-row"><span class="label">Technician</span><span class="value">${formatValue(techName || "—")}</span></div>
+            <div class="appts-detail-row"><span class="label">Date</span><span class="value">${formatValue(formatDate(raw.bookingDate))}</span></div>
+            <div class="appts-detail-row"><span class="label">Start Time</span><span class="value">${formatValue(formatTime(raw.startTime))}</span></div>
+            <div class="appts-detail-row"><span class="label">Service Window</span><span class="value">${formatValue(serviceWindow)}</span></div>
+            <div class="appts-detail-row"><span class="label">Occupied Block</span><span class="value">${formatValue(occupiedBlock)}</span></div>
+            <div class="appts-detail-row"><span class="label">Service Duration</span><span class="value">${formatValue(formatDurationMinutes(serviceMins))}</span></div>
+            <div class="appts-detail-row"><span class="label">Travel Time</span><span class="value">${formatValue(formatDurationMinutes(travelMins))}</span></div>
+            <div class="appts-detail-row"><span class="label">Payment Method</span><span class="value">${formatValue(paymentMethod)}</span></div>
+            <div class="appts-detail-row"><span class="label">GCash #</span><span class="value">${formatValue(gcashNumber)}</span></div>
+            <div class="appts-detail-row"><span class="label">Reference #</span><span class="value">${formatValue(paymentReference)}</span></div>
+            <div class="appts-detail-row"><span class="label">Service Fee</span><span class="value">${serviceFeeText}</span></div>
+            <div class="appts-detail-row"><span class="label">Travel Fare</span><span class="value">${distanceFareText}</span></div>
+            <div class="appts-detail-row"><span class="label">Estimated Fee</span><span class="value text-success">${feeText}</span></div>
+          </div>
+
+          <div class="mb-3">
+            <h6 class="appts-section-title">Issue Description</h6>
+            <p class="text-muted small mb-0">${formatValue(serviceDesc || "—")}</p>
+          </div>
+
+          <div class="mb-3">
+            <h6 class="appts-section-title">Payment Proof</h6>
+            <div>${proofHtml}</div>
+          </div>
+
+          <div class="mb-2">
+            <h6 class="appts-section-title">Map</h6>
+            <div id="apptMap" style="height:240px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;"></div>
+          </div>
+        `;
+        const editBtn = document.getElementById("apptsModalEdit");
+        if (editBtn) editBtn.style.display = "none";
+        // configure complete button
+        const completeBtn = document.getElementById("apptsModalComplete");
+        if (completeBtn) {
+          completeBtn.style.display = "none";
+          completeBtn.onclick = null;
+        }
+        const modalEl = document.getElementById("apptsSharedModal");
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+        // attempt reverse geocoding if we have coords but no address
+        if (hasCoords && !locationAddress) {
+          (async () => {
+            try {
+              const [lng, lat] = coordsArray;
+              const resp = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+              );
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data.display_name) {
+                  // update address field in professional modal layout
+                  const addrNode = modalEl.querySelector("#reqDetailAddress");
+                  if (addrNode) addrNode.textContent = data.display_name;
+                }
+              }
+            } catch (e) {
+              console.warn("reverse geocode failed", e);
+            }
+          })();
+        }
+        // initialize map shortly after modal is visible
+        setTimeout(() => {
+          try {
+            const mapEl = document.getElementById("apptMap");
+            if (!mapEl || !window.L) return;
+            mapEl.innerHTML = "";
+            if (hasCoords) {
+              const [lng, lat] = coordsArray;
+              const map = L.map(mapEl).setView([lat, lng], 12);
+              L.tileLayer(
+                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+                  attribution:
+                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                },
+              ).addTo(map);
+              L.marker([lat, lng]).addTo(map).bindPopup("Request location");
+            }
+          } catch (err) {
+            console.warn("failed to init request map", err);
+          }
+        }, 50);
+      }
+
+      // format a value into a human-readable date (and optionally time)
+      function formatDate(value, includeTime = false) {
+        if (!value) return "";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        // use locale settings for a polished look
+        try {
+          if (includeTime) {
+            return d.toLocaleString(undefined, {
+              dateStyle: "long",
+              timeStyle: "short",
+            });
+          }
+          return d.toLocaleDateString(undefined, { dateStyle: "long" });
+        } catch (e) {
+          return d.toISOString().slice(0, includeTime ? 16 : 10);
+        }
+      }
+      // convert minute-of-day or time string into human-friendly time
+      function formatTime(value) {
+        if (value === null || value === undefined || value === "") return "";
+        let mins = parseInt(value, 10);
+        if (isNaN(mins)) {
+          // maybe already a string like "14:30"
+          const d = new Date("1970-01-01T" + value);
+          if (!isNaN(d.getTime()))
+            return d.toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          return String(value);
+        }
+        const h = Math.floor(mins / 60) % 24;
+        const m = mins % 60;
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function formatDurationMinutes(value) {
+        const mins = Number(value);
+        if (!Number.isFinite(mins) || mins <= 0) return "—";
+        if (mins < 60) return `${mins} min`;
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return m ? `${h}h ${m}m` : `${h}h`;
+      }
+
+      function computeTotalEstimatedFee(record) {
+        const serviceFee = Number(
+          record?.servicePrice ??
+            record?.service?.basePrice ??
+            record?.serviceId?.basePrice,
+        );
+        const distanceFare = Number(record?.travelFare);
+        const storedEstimated = Number(record?.estimatedFee);
+
+        if (Number.isFinite(serviceFee) && Number.isFinite(distanceFare)) {
+          return serviceFee + distanceFare;
+        }
+        if (Number.isFinite(storedEstimated)) {
+          return storedEstimated;
+        }
+        if (Number.isFinite(serviceFee)) {
+          return serviceFee;
+        }
+        return null;
+      }
+
+      function normalizeRequest(rq, index = 0) {
+        const id = rq._id || rq.id || rq.bookingId || `req-${index + 1}`;
+        const date =
+          rq.bookingDate || rq.date || rq.preferredDate || rq.createdAt;
+        const time = rq.startTime || rq.time || rq.preferredTime || "";
+        // derive service name from whatever is available
+        let serviceName = "";
+        if (rq.service) {
+          if (typeof rq.service === "string") {
+            serviceName = rq.service;
+          } else if (rq.service.name) {
+            serviceName = rq.service.name;
+          } else if (rq.service.title) {
+            serviceName = rq.service.title;
+          } else {
+            serviceName = JSON.stringify(rq.service);
+          }
+        }
+        if (!serviceName && rq.serviceType) serviceName = rq.serviceType;
+        if (!serviceName && rq.serviceId) {
+          if (typeof rq.serviceId === "string") serviceName = rq.serviceId;
+          else if (rq.serviceId.name) serviceName = rq.serviceId.name;
+          else if (rq.serviceId.title) serviceName = rq.serviceId.title;
+        }
+        if (!serviceName) serviceName = "General Service";
+        // prepare a human-friendly location string
+        let loc = "";
+        if (rq.location) {
+          if (typeof rq.location === "string") {
+            loc = rq.location;
+          } else if (rq.location.address) {
+            if (typeof rq.location.address === "object") {
+              loc = Object.values(rq.location.address)
+                .filter((v) => v != null && v !== "")
+                .join(", ");
+            } else {
+              loc = rq.location.address;
+            }
+          }
+        }
+        if ((!loc || loc === "") && rq.address) {
+          if (typeof rq.address === "object") {
+            loc = Object.values(rq.address)
+              .filter((v) => v != null && v !== "")
+              .join(", ");
+          } else {
+            loc = rq.address;
+          }
+        }
+        const feeVal = computeTotalEstimatedFee(rq);
+        const etaVal =
+          rq.travelTime != null && rq.travelTime !== ""
+            ? Number(rq.travelTime)
+            : null;
+        const techName =
+          rq.technicianName || (rq.technician && rq.technician.name) || "";
+        const techId =
+          rq.technicianId || (rq.technician && rq.technician._id) || "";
+        // customer name may be object
+        let custName = "";
+        if (rq.customerName) {
+          custName = rq.customerName;
+        } else if (rq.customer) {
+          if (typeof rq.customer === "string") {
+            custName = rq.customer;
+          } else if (rq.customer.name) {
+            custName = rq.customer.name;
+          } else if (rq.customer.firstName || rq.customer.lastName) {
+            custName =
+              `${rq.customer.firstName || ""} ${rq.customer.lastName || ""}`.trim();
+          } else {
+            custName = JSON.stringify(rq.customer);
+          }
+        } else if (rq.name) {
+          custName = rq.name;
+        } else {
+          custName = "Customer";
+        }
+        return {
+          id,
+          raw: rq,
+          customerName: custName,
+          customerEmail: rq.customerEmail || rq.email || "",
+          service: serviceName,
+          date,
+          time,
+          location: loc,
+          estimatedFee: feeVal,
+          travelTime: Number.isFinite(etaVal) ? etaVal : "",
+          serviceDurationMinutes:
+            rq.serviceDurationMinutes ||
+            rq.durationMinutes ||
+            rq.duration ||
+            "",
+          bookingReference: rq.bookingReference || rq.reference || "",
+          technicianName: techName,
+          technicianId: techId,
+          status: statusLabel(rq.status),
+          paymentMethod: rq.paymentMethod || "",
+          gcashNumber: rq.gcashNumber || "",
+          paymentReference: rq.paymentReference || "",
+          downpaymentAmount: rq.downpaymentAmount || "",
+          createdAt: rq.createdAt || rq.updatedAt || date,
+        };
+      }
+
+      function renderBookingRequests() {
+        const body = document.getElementById("requestsTableBodyCombined");
+        if (!body) return;
+
+        const search = (
+          document.getElementById("requestSearchCombined")?.value || ""
+        )
+          .trim()
+          .toLowerCase();
+        // always show only pending requests
+        const filtered = bookingRequests.filter((rq) => {
+          const hay =
+            `${rq.id} ${rq.customerName} ${rq.customerEmail} ${rq.service}`.toLowerCase();
+          const matchSearch = !search || hay.includes(search);
+          const matchStatus = rq.status === "pending";
+          return matchSearch && matchStatus;
+        });
+
+        body.innerHTML = "";
+        if (!filtered.length) {
+          body.innerHTML =
+            '<tr><td colspan="7" class="text-center text-muted py-4">No requests matched your current filters.</td></tr>';
+        } else {
+          filtered.forEach((rq) => {
+            const tr = document.createElement("tr");
+            const canValidate = rq.status === "pending";
+            tr.innerHTML = `
+              <td class="text-nowrap">${rq.bookingReference || rq.id}</td>
+              <td class="text-start td-truncate-md" title="${rq.customerName}\n${rq.customerEmail || ''}">
+                <button type="button" class="request-customer-btn view-req-details fw-semibold text-dark text-truncate" style="border:none;background:none;padding:0;" data-id="${rq.id}">${rq.customerName}</button>
+                <div class="text-muted text-truncate text-micro">${rq.customerEmail || "—"}</div>
+              </td>
+              <td class="text-start td-truncate-md d-none" title="${rq.service}">${rq.service}</td>
+              <td class="text-end">${rq.estimatedFee != null ? "₱" + Number(rq.estimatedFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</td>
+              <td class="text-end d-none">${rq.travelTime ? rq.travelTime + " min" : "—"}</td>
+              <td class="text-nowrap">${formatDate(rq.date) || "—"}<div class="text-muted text-micro">${formatTime(rq.time)}</div></td>
+              <td class="text-start">${rq.paymentMethod || ""}${rq.paymentReference ? ` (${rq.paymentReference})` : ""}</td>
+              <td class="text-center"><span class="badge req-status bg-${statusBadgeClass(rq.status)}">${rq.status}</span></td>
+              <td class="text-start">
+                <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-micro btn-outline-secondary view-req-details" data-id="${rq.id}">Details</button>
+                  <button class="btn btn-micro btn-outline-secondary view-payment" data-id="${rq.id}" title="View payment"><i class="bi bi-credit-card-2-front-fill"></i></button>
+                </div>
+              </td>
+            `;
+            body.appendChild(tr);
+          });
+        }
+
+        document.getElementById("requestsCountCombined").innerText =
+          `${filtered.length} request${filtered.length === 1 ? "" : "s"} shown`;
+
+        qsa(".view-req-details").forEach((b) =>
+          b.addEventListener("click", function () {
+            const id = this.getAttribute("data-id");
+            const rq = bookingRequests.find((x) => x.id === id);
+            openBookingRequestDetails(rq);
+          }),
+        );
+
+        // redirect to payments when payment button clicked
+        qsa(".view-payment").forEach((b) =>
+          b.addEventListener("click", function () {
+            const id = this.getAttribute("data-id");
+            if (id) {
+              // Add loading state to button
+              this.classList.add("btn-payment-loading");
+              const originalContent = this.innerHTML;
+              this.disabled = true;
+              
+              // Show loading for a short duration before redirect
+              setTimeout(() => {
+                window.location.href = `/admin/payments?bookingId=${encodeURIComponent(id)}`;
+              }, 500);
+            }
+          }),
+        );
+      }
+
+      // no inline approve/cancel handlers any more; all actions happen in payments view
+
+      // Booking requests validation queue
+      async function loadBookingRequests() {
+        const tbody = document.getElementById("requestsTableBodyCombined");
+        showLoadingRow(tbody);
+        try {
+          const r = await fetch("/api/appointments?requests=1&limit=200", {
+            credentials: "same-origin",
+          });
+          let reqs = [];
+          if (r.ok) {
+            const j = await r.json();
+            reqs = j.items || j.requests || [];
+          }
+          bookingRequests = (reqs || []).map((rq, idx) =>
+            normalizeRequest(rq, idx),
+          );
+          renderBookingRequests();
+        } catch (e) {
+          console.warn(e);
+          bookingRequests = [];
+          renderBookingRequests();
+        }
+      }
+
+      // load cancelled appointments list
+      async function loadCancelPage() {
+        const tbody = document.getElementById("cancelledAppointmentsBody");
+        showLoadingRow(tbody);
+        try {
+          const r = await fetch(
+            "/api/appointments?status=cancelled&upcoming=1",
+          );
+          let appts = [];
+          if (r.ok) {
+            const j = await r.json();
+            appts = j.items || j.appointments || [];
+          }
+          // guard: ensure only cancelled items are rendered even if API misbehaves
+          appts = (appts || []).filter((a) => statusLabel(a.status) === "cancelled");
+          const tbody = document.getElementById("cancelledAppointmentsBody");
+          if (tbody) {
+            tbody.innerHTML = "";
+            if (!appts.length) {
+              tbody.innerHTML =
+                '<tr><td colspan="10" class="text-center text-muted py-4">No cancelled appointments found.</td></tr>';
+            } else {
+              appts.slice(0, 200).forEach((a) => {
+                const tr = document.createElement("tr");
+                const bookingDate = a.bookingDate || a.date || a.start || new Date();
+                // compute a time range like elsewhere for consistency
+                const startTimeStr = a.startTime || a.time || "";
+                const startMinNum = Number(a.startTime || a.time);
+                const endMinRaw = Number(a.endTime);
+                const fallbackDur = (Number(a.serviceDurationMinutes) || 0) + Math.max(0, Number(a.travelTime) || 0);
+                const endMinNum =
+                  Number.isFinite(endMinRaw) && endMinRaw > startMinNum
+                    ? endMinRaw
+                    : Number.isFinite(startMinNum) && fallbackDur > 0
+                    ? startMinNum + fallbackDur
+                    : NaN;
+                const timeRange =
+                  Number.isFinite(startMinNum) && Number.isFinite(endMinNum)
+                    ? `${formatTime(startMinNum)} – ${formatTime(endMinNum)}`
+                    : formatTime(startMinNum) || startTimeStr;
+                const badge = `<span class='badge bg-${statusBadgeClass(a.status)}'>${statusLabel(a.status)}</span>`;
+                const paymentBadge = `<span class='badge bg-${a.paymentStatus === "paid" ? "success" : a.paymentStatus === "failed" ? "danger" : "warning"} text-uppercase'>${a.paymentStatus || "pending"}</span>`;
+                const bookingRef =
+                  a.bookingReference || a.reference || a._id || a.id || "—";
+                const bookedAt = a.createdAt
+                  ? new Date(a.createdAt).toLocaleString()
+                  : "—";
+
+                let custName = a.customerName || (typeof a.customer === "object" && a.customer ? a.customer.name || a.customer.firstName || "Customer" : a.customer) || "Customer";
+                if (typeof custName === "object") custName = "Customer";
+                let custEmail = a.customerEmail || (typeof a.customer === "object" && a.customer ? a.customer.email : a.customerEmail) || "";
+                let svcName = a.serviceName || a.service || a.serviceType || (typeof a.serviceId === "object" && a.serviceId ? a.serviceId.name || a.serviceId.title : a.serviceId) || "Service";
+                if (typeof svcName === "object") svcName = "Service";
+                let techName = a.technicianName || (typeof a.technician === "object" && a.technician ? a.technician.name || a.technician.firstName : a.technician) || "TBD";
+                if (typeof techName === "object") techName = "TBD";
+
+                tr.innerHTML = `<td class="td-truncate-md" title="${bookingRef}"><div class='fw-semibold text-truncate'>${bookingRef}</div></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td class="td-truncate-md d-none" title="${svcName}">${svcName}</td><td class="td-truncate-md d-none" title="${techName}">${techName}</td><td>${paymentBadge}</td><td>${badge}</td><td><div class='d-flex gap-2'><button class='btn btn-micro btn-outline-secondary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye'></i></button></div></td>`;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+        } catch (err) {
+          console.warn("loadCancelPage failed", err);
+        }
+      }
+
+      // Load reschedule requests
+      async function loadRescheduleRequests() {
+        const tbody = document.getElementById("rescheduleRequestsTableBody");
+        const statusFilter = document.getElementById("rescheduleStatusFilter");
+        const status = statusFilter ? statusFilter.value : "pending";
+        
+        showLoadingRow(tbody);
+        
+        try {
+          // Fetch appointments with reschedule requests
+          const r = await fetch(
+            `/api/appointments?rescheduleRequestStatus=${status}&limit=1000`
+          );
+          
+          let appts = [];
+          if (r.ok) {
+            const j = await r.json();
+            appts = j.items || j.appointments || [];
+          }
+          
+          // Filter to only include appointments with reschedule requests
+          appts = (appts || []).filter((a) => a.rescheduleRequest && a.rescheduleRequest.requested);
+          
+          const tbody = document.getElementById("rescheduleRequestsTableBody");
+          const countEl = document.getElementById("rescheduleRequestsCount");
+          
+          if (tbody) {
+            tbody.innerHTML = "";
+            
+            if (!appts.length) {
+              tbody.innerHTML =
+                '<tr><td colspan="8" class="text-center text-muted py-4">No reschedule requests found.</td></tr>';
+            } else {
+              appts.forEach((a) => {
+                const tr = document.createElement("tr");
+                const bookingRef = a.bookingReference || a.reference || a._id || a.id || "—";
+                const custName = a.customerName || (typeof a.customer === "object" && a.customer ? a.customer.name || a.customer.firstName : a.customer) || "Customer";
+                const svcName = a.serviceName || a.service || (typeof a.serviceId === "object" && a.serviceId ? a.serviceId.name : a.serviceId) || "Service";
+                const bookingDate = a.bookingDate || new Date();
+                const startTimeStr = a.startTime || "";
+                const requestedDate = a.rescheduleRequest.requestedDate || "";
+                const requestedTime = a.rescheduleRequest.requestedTime || "";
+                const reason = a.rescheduleRequest.reason || a.rescheduleRequest.requestedReason || "";
+                const reqStatus = a.rescheduleRequest.status || "pending";
+                
+                const statusBadge = `<span class='badge bg-${reqStatus === "pending" ? "warning" : reqStatus === "approved" ? "success" : "danger"}'>${reqStatus.charAt(0).toUpperCase() + reqStatus.slice(1)}</span>`;
+                
+                let actions = "";
+                if (reqStatus === "pending") {
+                  actions = `
+                    <button class="btn btn-sm btn-success me-1" onclick="approveReschedule('${a._id || a.id}')" title="Approve">
+                      <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="rejectReschedule('${a._id || a.id}')" title="Reject">
+                      <i class="bi bi-x-circle"></i>
+                    </button>
+                  `;
+                } else {
+                  actions = `<span class="text-muted small">No actions</span>`;
+                }
+                
+                tr.innerHTML = `
+                  <td class="fw-semibold">${bookingRef}</td>
+                  <td>${custName}</td>
+                  <td>${svcName}</td>
+                  <td>
+                    <div>${new Date(bookingDate).toLocaleDateString()}</div>
+                    <div class="text-muted small">${startTimeStr ? formatTime(startTimeStr) : ""}</div>
+                  </td>
+                  <td>
+                    <div>${requestedDate ? new Date(requestedDate).toLocaleDateString() : ""}</div>
+                    <div class="text-muted small">${requestedTime ? formatTime(requestedTime) : ""}</div>
+                  </td>
+                  <td class="text-truncate" style="max-width: 200px;" title="${reason}">${reason || "—"}</td>
+                  <td>${statusBadge}</td>
+                  <td>${actions}</td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+          
+          if (countEl) {
+            countEl.textContent = `${appts.length} request${appts.length !== 1 ? 's' : ''}`;
+          }
+        } catch (err) {
+          console.warn("loadRescheduleRequests failed", err);
+          const tbody = document.getElementById("rescheduleRequestsTableBody");
+          if (tbody) {
+            tbody.innerHTML =
+              '<tr><td colspan="8" class="text-center text-danger py-4">Failed to load reschedule requests.</td></tr>';
+          }
+        }
+      }
+      
+      // Approve reschedule request
+      async function approveReschedule(id) {
+        if (!confirm("Are you sure you want to approve this reschedule request?")) {
+          return;
+        }
+        
+        try {
+          const r = await fetch(`/api/appointments/${id}/reschedule-approve`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          });
+          
+          if (r.ok) {
+            alert("Reschedule request approved successfully!");
+            loadRescheduleRequests();
+          } else {
+            const j = await r.json();
+            alert(`Failed to approve: ${j.error || "Unknown error"}`);
+          }
+        } catch (err) {
+          console.error("approveReschedule error", err);
+          alert("Failed to approve reschedule request");
+        }
+      }
+      
+      // Reject reschedule request
+      async function rejectReschedule(id) {
+        const reason = prompt("Enter reason for rejection (optional):");
+        if (reason === null) return; // User cancelled
+        
+        try {
+          const r = await fetch(`/api/appointments/${id}/reschedule-reject`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ reason })
+          });
+          
+          if (r.ok) {
+            alert("Reschedule request rejected successfully!");
+            loadRescheduleRequests();
+          } else {
+            const j = await r.json();
+            alert(`Failed to reject: ${j.error || "Unknown error"}`);
+          }
+        } catch (err) {
+          console.error("rejectReschedule error", err);
+          alert("Failed to reject reschedule request");
+        }
+      }
+      
+      // Event listeners for reschedule tab
+      // Status filter change
+      const statusFilter = document.getElementById("rescheduleStatusFilter");
+      if (statusFilter) {
+        statusFilter.addEventListener("change", loadRescheduleRequests);
+      }
+
+      // Refresh button
+      const rescheduleRefreshBtn = document.getElementById("refreshRescheduleRequests");
+      if (rescheduleRefreshBtn) {
+        rescheduleRefreshBtn.addEventListener("click", loadRescheduleRequests);
+      }
+      
+      // Make functions globally available
+      window.approveReschedule = approveReschedule;
+      window.rejectReschedule = rejectReschedule;
+
+      // wire controls
+      // filter/apply button for combined appointments
+      const filterBtn = document.getElementById("btn-filter-combined");
+      if (filterBtn) {
+        filterBtn.addEventListener("click", () => {
+          loadCombinedOverview();
+        });
+      }
+      const refreshBtn = document.getElementById("btn-refresh-combined");
+      if (refreshBtn) {
+        refreshBtn.addEventListener("click", () => {
+          loadCombinedOverview();
+          loadBookingRequests();
+        });
+      }
+      const refreshAllBtn = document.getElementById("apptsRefreshAll");
+      if (refreshAllBtn) {
+        refreshAllBtn.addEventListener("click", () => {
+          loadCombinedOverview();
+          loadBookingRequests();
+        });
+      }
+      ["requestSearchCombined"].forEach((id) => {
+        const node = document.getElementById(id);
+        if (!node) return;
+        node.addEventListener("input", renderBookingRequests);
+      });      document
+        .getElementById("requestRefreshCombined")
+        ?.addEventListener("click", loadBookingRequests);
+
+      // set title to match default status
+      const pageTitle = document.querySelector(".dashboard-hero .page-title");
+      if (pageTitle)
+        pageTitle.innerHTML =
+          '<i class="bi bi-calendar3-fill me-2"></i>Scheduled Appointments';
+      // initial load of appointments list
+      loadCombinedOverview(currentListStatus);
+
+      // helper: create a compact sparkline chart (same as used in reports)
+      function createSparkline(id, data, color){
+        var c = document.getElementById(id);
+        if (!c || typeof Chart === 'undefined') return null;
+        return new Chart(c, {
+          type: 'line',
+          data: { labels: data.map((_,i)=>i+1), datasets: [{ data: data, borderColor: color, backgroundColor: color.replace('rgb','rgba').replace(')',',0.12)'), fill: true, tension: 0.35 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, animation:{duration:800},
+            plugins:{legend:{display:false}, tooltip:{enabled:false}},
+            elements:{point:{radius:0}},
+            scales:{x:{display:false}, y:{display:false}}
+          }
+        });
+      }
+
+      // draw initial dummy sparklines for header KPIs
+      createSparkline('kpiSparkScheduled', [4,6,5,7,6,8,7], '#2563eb');
+      createSparkline('kpiSparkEnRoute',    [3,5,4,6,5,7,6], '#3b82f6');
+      createSparkline('kpiSparkPending',    [2,3,4,3,5,4,3], '#f59e0b');
+      createSparkline('kpiSparkCompleted',  [1,3,2,4,3,5,4], '#10b981');
+      createSparkline('kpiSparkCancelled',  [1,1,2,1,1,0,1], '#dc3545');
+
+      // also wire change events so filters auto-refresh
+      [
+        "filterSearchCombined",
+        "filterStartCombined",
+        "filterEndCombined",
+        "filterTechCombined",
+        "filterServiceType",
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener(el.tagName === "INPUT" ? "input" : "change", () =>
+          loadCombinedOverview(),
+        );
+      });
+
+      // Load waiting for acceptance tab
+      async function loadWaitingAcceptTab() {
+        const container = document.getElementById("waitingAcceptContainer");
+        const pagination = document.getElementById("waitingAcceptPagination");
+        container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
+        if (pagination) pagination.innerHTML = '';
+
+        try {
+          const res = await fetch('/api/admin/appointments/waiting-acceptance/list?limit=50');
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          const bookings = data.bookings || [];
+
+          const total = data.pagination?.total || 0;
+          document.getElementById('waitingAcceptCount').textContent = total + ' bookings';
+          const badge = document.getElementById('waitingAcceptTabBadge');
+          if (badge) { badge.textContent = total; badge.style.display = total > 0 ? 'inline-block' : 'none'; }
+
+          if (!bookings.length) {
+            container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-1 d-block mb-2"></i><p>All assigned bookings have been accepted.</p></div>';
+            return;
+          }
+
+          container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">' + bookings.map(b => {
+            const tech = b.technician;
+            const assignedAt = b.assignedAt ? new Date(b.assignedAt).toLocaleString() : '—';
+            const bDate = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString() : '—';
+            return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">' +
+                '<div>' +
+                  '<div style="font-size:.72rem;color:#94a3b8;font-weight:600;">' + (b.bookingReference || b._id.slice(-8).toUpperCase()) + '</div>' +
+                  '<div style="font-size:.95rem;font-weight:700;color:#1e293b;">' + (b.customer?.name || 'Unknown') + '</div>' +
+                  '<div style="font-size:.82rem;color:#64748b;">' + (b.service?.name || '—') + '</div>' +
+                '</div>' +
+                '<span style="padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;background:#fffbeb;color:#92400e;white-space:nowrap;"><i class="bi bi-clock me-1"></i>Waiting</span>' +
+              '</div>' +
+              '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:#475569;">' +
+                '<span><i class="bi bi-calendar3 me-1" style="color:#94a3b8;"></i>' + bDate + '</span>' +
+                '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>' + (b.startTime || '—') + ' - ' + (b.endTime || '—') + '</span>' +
+                '<span><i class="bi bi-geo-alt me-1" style="color:#94a3b8;"></i>' + (b.address || '—') + '</span>' +
+              '</div>' +
+              (tech ? '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">' +
+                '<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">' + (tech.name || 'T')[0].toUpperCase() + '</div>' +
+                '<div style="font-size:.78rem;">' +
+                  '<div style="font-weight:600;color:#1e293b;">' + tech.name + '</div>' +
+                  '<div style="font-size:.7rem;color:#64748b;">' + (tech.phone || tech.email || '—') + '</div>' +
+                '</div>' +
+                '<div style="margin-left:auto;font-size:.7rem;color:#94a3b8;">Assigned: ' + assignedAt + '</div>' +
+              '</div>' : '') +
+            '</div>';
+          }).join('') + '</div>';
+        } catch(e) {
+          container.innerHTML = '<div class="alert alert-danger small">Failed to load bookings</div>';
+        }
+      }
+
+      // if URL contains ?sel=<id> open Reschedule tab and preselect the appointment
+      // if URL contains ?tab=<tabname> open that tab
+      (function preselectFromQuery() {
+        try {
+          const params = new URLSearchParams(location.search);
+
+          // Handle ?tab= parameter for direct tab navigation
+          const tabParam = params.get("tab");
+          if (tabParam) {
+            const tabBtn = document.querySelector(`#apptsTabs [data-tab="${tabParam}"]`);
+            if (tabBtn) {
+              setTimeout(() => tabBtn.click(), 200);
+            }
+          }
+
+          const sel = params.get("sel") || params.get("id");
+          if (!sel) return;
+          let tries = 0;
+          const trySelect = () => {
+            tries++;
+            if (
+              typeof combinedAppointments !== "undefined" &&
+              combinedAppointments.length
+            ) {
+              // reuse existing onEditAppt logic by simulating a click-event object
+              try {
+                onEditAppt({ currentTarget: { getAttribute: () => sel } });
+              } catch (e) {
+                /* ignore */
+              }
+              const tabBtn = document.querySelector(
+                '#apptsTabs [data-tab="tab-reschedule"]',
+              );
+              if (tabBtn) tabBtn.click();
+            } else if (tries < 20) {
+              setTimeout(trySelect, 150);
+            }
+          };
+          setTimeout(trySelect, 200);
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    })();
+  </script>
+</div>

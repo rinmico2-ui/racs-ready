@@ -1,0 +1,1893 @@
+<section class="ent-hero">
+  <div class="ent-hero-orb ent-hero-orb-1"></div>
+  <div class="ent-hero-orb ent-hero-orb-2"></div>
+  <div class="ent-hero-orb ent-hero-orb-3"></div>
+  <div class="container">
+    <div class="text-center mb-4" data-aos="fade-up" data-aos-duration="1000">
+      <div class="ent-hero-badge">
+        <i class="bi bi-calendar-check"></i>
+        Schedule Service
+        <span class="badge-dot"></span>
+      </div>
+      <h2 class="ent-hero-title">
+        Book a <span class="ent-gradient-text">Service</span>
+      </h2>
+      <p class="ent-hero-subtitle">
+        Professional air conditioning maintenance, installation &amp; servicing — scheduled at your convenience.
+      </p>
+      <div class="ent-trust-badges">
+        <span class="ent-trust-item"><i class="bi bi-shield-check"></i> Licensed &amp; Insured</span>
+        <span class="ent-trust-divider"></span>
+        <span class="ent-trust-item"><i class="bi bi-lightning-charge"></i> Same-Day Service</span>
+        <span class="ent-trust-divider"></span>
+        <span class="ent-trust-item"><i class="bi bi-star-fill"></i> 4.9 Rating</span>
+      </div>
+      <div class="ent-hero-stats">
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">5,000+</div>
+          <div class="ent-hero-stat-label">Bookings</div>
+        </div>
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">50+</div>
+          <div class="ent-hero-stat-label">Technicians</div>
+        </div>
+        <div class="ent-hero-stat">
+          <div class="ent-hero-stat-value">98%</div>
+          <div class="ent-hero-stat-label">Satisfaction</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ent-page-body">
+  <div class="container">
+    <div class="ent-booking-container" id="bookingContainer">
+
+      <% if (!user) { %>
+        <div class="ent-alert ent-alert-warning" role="alert">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          Please <a href="/login" class="alert-link">log in</a> to book an appointment.
+        </div>
+      <% } %>
+
+      <% if (typeof initialServices !=='undefined' ) { %>
+        <script id="initial-services-json" type="application/json"><%- JSON.stringify(initialServices, null, 2) %></script>
+        <script>window.initialCatalog = JSON.parse(document.getElementById('initial-services-json').textContent||'{"coreServices":[],"repairs":[]}');</script>
+      <% } else { %>
+        <script>console.warn('No initialServices data available');</script>
+      <% } %>
+
+      <script>
+        window.adminGcashNumber = "<%= adminGcashNumber %>";
+        window._farePerKm = Number("<%= typeof farePerKm !== 'undefined' ? farePerKm : 40 %>");
+        window._projectLaborRatePerDay = Number("<%= typeof projectLaborRatePerDay !== 'undefined' ? projectLaborRatePerDay : 0 %>");
+        window._companyBaseLocation = null;
+        window._airconInstallFee = Number("<%= typeof airconInstallFee !== 'undefined' ? airconInstallFee : 1500 %>");
+      </script>
+
+      <script>
+        function updateEntStepper(step){
+          var n=document.querySelectorAll('.ent-n'),f=document.getElementById('stepperFill'),l=document.getElementById('stepperCurrentStep');
+          if(!n.length)return;
+          var i=step-1,t=n.length;
+          n.forEach(function(e,j){
+            e.classList.remove('active','completed','inactive');
+            if(j<i)e.classList.add('completed');
+            else if(j===i)e.classList.add('active');
+            else e.classList.add('inactive');
+          });
+          f.style.height=(i/(t-1)*100)+'%';
+          if(l)l.textContent=step;
+        }
+        function navigateToStep(step){
+          var maxStep=1;
+          if(typeof BookingState!=='undefined'&&BookingState.maxReachedStep){
+            maxStep=BookingState.maxReachedStep;
+          }else{
+            var all=document.querySelectorAll('.booking-step');
+            all.forEach(function(e){var n=parseInt(e.getAttribute('data-step'));if(n>maxStep)maxStep=n;});
+          }
+          if(step>maxStep)return;
+          updateEntStepper(step);
+          if(typeof showStep==='function')showStep(step);
+        }
+        document.addEventListener('DOMContentLoaded',function(){updateEntStepper(1);});
+      </script>
+
+      <% if (user) { %>
+      <aside class="sv-tr d-none" id="bookingTrackerSidebar">
+        <div class="sv-tr-card">
+          <div class="sv-tr-h">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="sv-tr-b">Active Booking</span>
+              <span class="sv-tr-p"></span>
+            </div>
+            <h5 id="trackerBookingRef">#RACS-XXXXXX</h5>
+            <p class="text-muted small text-truncate" id="trackerServiceName" style="max-width:250px;">Service Name</p>
+          </div>
+          <ul class="sv-tr-steps">
+            <li data-status-step="pending"><div class="sv-tr-i"><i class="bi bi-file-earmark-plus"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Request Submitted</span><span class="sv-tr-d">Awaiting verification</span></div></li>
+            <li data-status-step="confirmed"><div class="sv-tr-i"><i class="bi bi-shield-check"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Booking Confirmed</span><span class="sv-tr-d">Payment verified</span></div></li>
+            <li data-status-step="scheduled"><div class="sv-tr-i"><i class="bi bi-calendar-event"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Tech Scheduled</span><span class="sv-tr-d">Assigned</span></div></li>
+            <li data-status-step="on-the-way"><div class="sv-tr-i"><i class="bi bi-truck"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">On The Way</span><span class="sv-tr-d">En route</span></div></li>
+            <li data-status-step="arrived"><div class="sv-tr-i"><i class="bi bi-geo-alt-fill"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Arrived</span><span class="sv-tr-d">On site</span></div></li>
+            <li data-status-step="in-progress"><div class="sv-tr-i"><i class="bi bi-tools"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">In Progress</span><span class="sv-tr-d">Service ongoing</span></div></li>
+            <li data-status-step="completed"><div class="sv-tr-i"><i class="bi bi-check-circle-fill"></i></div><div><span class="sv-tr-t">Completed</span><span class="sv-tr-d">Done</span></div></li>
+          </ul>
+          <div class="sv-tr-f"><button type="button" class="sv-btn-b" onclick="window.location.href='/tracking'"><i class="bi bi-map me-1"></i>Open Live Map Tracker</button></div>
+        </div>
+      </aside>
+      <% } %>
+
+      <div class="ent-stepper" id="entStepper">
+        <div class="ent-h">
+          <span>Booking Progress</span>
+          <span>Step <span id="stepperCurrentStep">1</span> of 6</span>
+        </div>
+        <div class="ent-tr">
+          <div class="ent-fill" id="stepperFill" style="height:0%;"></div>
+          <div class="ent-n active" data-step="1" onclick="navigateToStep(1)"><div class="ent-ni"><i class="bi bi-person-check"></i></div><span>Login</span></div>
+          <div class="ent-n" data-step="2" onclick="navigateToStep(2)"><div class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></div><span>Services</span></div>
+          <div class="ent-n" data-step="3" onclick="navigateToStep(3)"><div class="ent-ni"><i class="bi bi-geo-alt"></i></div><span>Location</span></div>
+          <div class="ent-n" data-step="4" onclick="navigateToStep(4)"><div class="ent-ni"><i class="bi bi-calendar3"></i></div><span>Schedule</span></div>
+          <div class="ent-n" data-step="5" onclick="navigateToStep(5)"><div class="ent-ni"><i class="bi bi-receipt"></i></div><span>Fee Review</span></div>
+          <div class="ent-n" data-step="6" onclick="navigateToStep(6)"><div class="ent-ni"><i class="bi bi-credit-card-2-front"></i></div><span>Payment</span></div>
+        </div>
+      </div>
+
+      <div class="booking-layout">
+        <div class="booking-body">
+
+          <!-- Step 1 -->
+          <div class="ent-step-card booking-step" data-step="1">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-login"><i class="bi bi-person-check"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 1</h5>
+                <p>Please log in to continue</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <% if (user) { %>
+                <div class="ent-alert ent-alert-success">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <div>
+                    <strong>Welcome back!</strong><br>
+                    You are logged in as <strong><%= user.name || user.email %></strong>. Click below to proceed.
+                  </div>
+                </div>
+                <button type="button" class="ent-btn-primary mt-3" onclick="continueToServices()">
+                  <i class="bi bi-arrow-right"></i> Continue to Services
+                </button>
+              <% } else { %>
+                <div class="ent-alert ent-alert-info">
+                  <i class="bi bi-info-circle-fill"></i>
+                  <div>
+                    <strong>Login Required</strong><br>
+                    Please log in to your account to book our services.
+                  </div>
+                </div>
+                <div class="mt-3 d-flex gap-2">
+                  <a href="/login" class="ent-btn-primary">
+                    <i class="bi bi-box-arrow-in-right"></i> Log In
+                  </a>
+                  <a href="/register" class="ent-btn-outline">
+                    <i class="bi bi-person-plus"></i> Register
+                  </a>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="ent-step-card d-none booking-step" id="serviceSelection" data-step="2">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-services"><i class="bi bi-grid-3x3-gap"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 2</h5>
+                <p>Choose the services you need</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <ul class="nav nav-tabs mb-3" id="serviceTabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><i class="bi bi-gear-fill me-2"></i>Core Services</button></li>
+              </ul>
+              <div class="tab-content" id="serviceTabContent">
+                <div class="tab-pane fade show active" id="core-services" role="tabpanel" aria-labelledby="core-tab">
+                  <div class="ent-svc-section">
+                    <div class="ent-svc-section-header">
+                      <div class="ent-svc-section-icon"><i class="bi bi-gear-wide-connected"></i></div>
+                      <div>
+                        <h6 class="ent-svc-section-title">Core Services</h6>
+                        <p class="ent-svc-section-sub">Professional maintenance, installation &amp; servicing</p>
+                      </div>
+                    </div>
+                    <div class="row g-3" id="coreServiceCards"></div>
+                    <div class="ent-svc-section-footer d-none" id="coreServiceEmpty">
+                      <i class="bi bi-info-circle me-1"></i>No core services available at the moment.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4" id="selectedServicesSummary">
+                <div class="rv-card">
+                  <div class="rv-card-body">
+                    <div class="rv-section-title"><i class="bi bi-cart-check"></i>Selected Services <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span></div>
+                    <div id="selectedServicesList"><p class="text-muted mb-0">No services selected yet</p></div>
+                    <div class="mt-3 pt-3 border-top d-none" id="totalPricingSection">
+                      <div class="rv-row">
+                        <span class="rv-label">Total Estimated Price:</span>
+                        <span class="rv-value" style="font-size:1.3rem;font-weight:800;color:var(--brand-primary);" id="totalEstimatedPrice">₱0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 text-center" id="continueButtonSection">
+                <button type="button" class="ent-btn-primary px-5" id="continueToNextStep" disabled onclick="if(!this.disabled){showStep(3);updateStepper(3);}else{alert('Please select at least one service first');}return false;"><i class="bi bi-arrow-right-circle"></i> Continue to Next Step</button>
+                <p class="text-muted small mt-2" id="continueHint">Please select at least one service to continue</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="ent-step-card d-none booking-step" id="locationStep" data-step="3">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-location"><i class="bi bi-geo-alt"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 3</h5>
+                <p>Set your service location</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <script>
+                window._companyBaseLocation={configured:false,lat:14.676049,lng:121.043731,address:'Company location not set'};
+                window._companyBaseLocationPromise=fetch('/api/public/company/location',{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(d=>{window._companyBaseLocation=d||window._companyBaseLocation;return window._companyBaseLocation;}).catch(()=>window._companyBaseLocation);
+              </script>
+              <script>
+                document.addEventListener('DOMContentLoaded',async()=>{
+                  try{const l=await(window._companyBaseLocationPromise||Promise.resolve(window._companyBaseLocation));window._companyBaseLocation=l||window._companyBaseLocation;if(window.BookingState&&window._companyBaseLocation){window.BookingState.companyBaseCoordinates={lat:window._companyBaseLocation.lat,lng:window._companyBaseLocation.lng};}}catch(e){console.error('Company location load failed:',e);}
+                });
+              </script>
+              <div class="row g-4 align-items-start">
+                <div class="col-lg-5">
+                  <label class="form-label fw-semibold" style="color:#374151;">Address or Landmark</label>
+                  <div class="position-relative">
+                    <div class="input-group input-group-lg"
+                      style="border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);border:1.5px solid #e5e7eb;">
+                      <span class="input-group-text bg-white border-end-0" style="border:none;"><i class="bi bi-geo-alt text-primary"></i></span>
+                      <input type="text" class="form-control border-start-0" style="border:none;background:#fafafa;"
+                        placeholder="Pin your site or type address" id="locationInput" autocomplete="off" />
+                    </div>
+                    <div id="locationSuggest" class="list-group position-absolute w-100 d-none"
+                      style="z-index:1000;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.12);border:1px solid #e5e7eb;">
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 flex-wrap mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-success" id="locateCustomerBtn"
+                      style="border-radius:8px;font-weight:600;">
+                      <i class="bi bi-crosshair me-1"></i> Use My Location
+                    </button>
+                  </div>
+                  <p class="location-hint small text-muted mt-2" id="locationStatus"><i class="bi bi-lock me-1" style="font-size:0.7rem;"></i>We will never store your location without consent.</p>
+                  <div class="map-info-panel mt-3 p-3" id="mapInfoPanel" style="border-radius:14px;">
+                    <div class="d-flex align-items-start gap-2 mb-2">
+                      <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon">
+                        <i class="bi bi-signpost-split"></i>
+                      </div>
+                      <div style="flex:1;">
+                        <h6 class="mb-1 fw-bold" style="color:#1e293b;font-size:0.9rem;">Distance &amp; Travel Fare</h6>
+                        <p class="mb-0 small text-muted" id="mapInfoDistance">Detecting locations&hellip;</p>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);">
+                          <i class="bi bi-clock" style="color:#16a34a;font-size:0.8rem;"></i>
+                        </div>
+                        <span class="small fw-semibold" id="mapInfoDuration">&mdash;</span>
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center justify-content-center rounded-2 map-info-icon" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);">
+                          <i class="bi bi-cash-coin" style="color:#16a34a;font-size:0.8rem;"></i>
+                        </div>
+                        <span class="small fw-semibold" id="mapInfoFare">&mdash;</span>
+                      </div>
+                    </div>
+                    <p class="mb-0 text-muted" style="font-size:0.75rem;">
+                      <i class="bi bi-info-circle me-1"></i>Travel fare calculated at <strong>&#8369;<span id="fareRateDisplay"><%= typeof farePerKm !=='undefined' ? farePerKm : 40 %></span> per kilometer</strong>.
+                    </p>
+                  </div>
+                </div>
+                <div class="col-lg-7">
+                  <div class="map-wrapper rounded-4 shadow-sm">
+                    <div id="technicianMap" class="technician-map"
+                      data-technician-lat="<%= (technicianLocation&&technicianLocation.lat)||14.676049 %>"
+                      data-technician-lng="<%= (technicianLocation&&technicianLocation.lng)||121.043731 %>">
+                    </div>
+                    <div class="map-locate-btns">
+                      <button type="button" class="btn btn-sm shadow-sm" id="locateCompanyBtn" title="Go to Company Location"
+                        style="background:#2b7de9;color:#fff;border:2px solid #fff;border-radius:10px;padding:5px 12px;font-size:.8rem;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+                        <span style="font-size:1rem;">&#9650;</span> Company
+                      </button>
+                      <button type="button" class="btn btn-sm shadow-sm" id="focusCustomerBtn" title="Go to Your Location"
+                        style="background:#4ecda4;color:#fff;border:2px solid #fff;border-radius:10px;padding:5px 12px;font-size:.8rem;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+                        <span style="font-size:1rem;">&#128205;</span> You
+                      </button>
+                    </div>
+                    <div class="map-overlay">
+                      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                      <span class="d-flex align-items-center gap-2">
+                        <svg class="map-pin map-pin-tech" width="20" height="28" viewBox="0 0 24 24" role="img" aria-hidden="true" focusable="false">
+                          <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                          <circle cx="12" cy="9" r="2.5" fill="#fff" />
+                        </svg>
+                        <span>Blue pin is our company. Green pin is you.</span>
+                      </span>
+                      <div id="mapDistanceInfo" class="mt-2 small text-dark"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <div class="mt-4 text-center">
+              <button type="button" class="ent-btn-primary px-5" onclick="showStep(4);updateStepper(4);">
+                <i class="bi bi-arrow-right-circle"></i> Choose Schedule
+              </button>
+            </div>
+            </div>
+          </div>
+          <div class="ent-step-card d-none booking-step" id="manualCalendar" data-step="4">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-calendar"><i class="bi bi-calendar3"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 4</h5>
+                <p>Pick a date and time</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <div id="calendarGrid"></div>
+              <div id="timeSelection" class="mt-3 d-none">
+                <div id="timeSlots"></div>
+                <div id="timeSelectionDate" class="d-none"></div>
+                <div id="timeNotice" class="small text-muted mt-2"></div>
+              </div>
+              <div id="projectPrefs" class="mt-3 d-none"></div>
+            </div>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="ent-step-card d-none booking-step" id="feeStep" data-step="5">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-review"><i class="bi bi-receipt"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 5</h5>
+                <p>Review your total fee</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <div class="rv-card">
+                <div class="rv-card-body">
+                  <div class="rv-section-title"><i class="bi bi-receipt"></i>Fee Breakdown</div>
+                  <div class="rv-box">
+                    <div class="rv-row">
+                      <span class="rv-label">Services Total:</span>
+                      <span class="rv-value fw-bold" id="servicesTotalDisplay">₱0</span>
+                    </div>
+                    <div class="rv-row">
+                      <span class="rv-label">Travel Fare:</span>
+                      <span class="rv-value fw-bold" id="travelFareDisplay">₱0</span>
+                    </div>
+                  </div>
+                  <div id="repairQuotationNote" class="rv-box d-none" style="background:linear-gradient(135deg,rgba(59,130,246,0.06),rgba(6,182,212,0.04));border:1px solid rgba(59,130,246,0.12);">
+                    <div class="d-flex align-items-start gap-2">
+                      <i class="bi bi-info-circle text-primary mt-1"></i>
+                      <small class="text-muted">Final total for repair services will be determined during the technician's on-site assessment and quotation.</small>
+                    </div>
+                  </div>
+                  <div class="rv-box rv-total">
+                    <div class="rv-row">
+                      <span style="font-size:1rem;font-weight:700;color:#0f172a;">Total Amount:</span>
+                      <span style="font-size:1.6rem;font-weight:800;color:var(--brand-primary);" id="totalFeeDisplay">₱0</span>
+                    </div>
+                  </div>
+                  <div id="feeServiceDetails" class="mt-3 small text-muted"></div>
+                </div>
+              </div>
+              <div style="padding:1.25rem 0 0.5rem;text-align:center;">
+                <button type="button" id="feeStepNextBtn" class="ent-btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:0.75rem 2.5rem;border-radius:12px;font-weight:700;font-size:0.95rem;cursor:pointer;border:none;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.3);" onclick="showStep(6);updateStepper(6);">
+                  <i class="bi bi-arrow-right-circle" style="font-size:1.1rem;"></i> Next
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 6 -->
+          <div class="ent-step-card d-none booking-step" id="paymentStep" data-step="6">
+            <div class="ent-step-header">
+              <div class="ent-step-icon step-review"><i class="bi bi-credit-card-2-front"></i></div>
+              <div class="ent-step-info">
+                <h5>Step 6</h5>
+                <p>Choose your payment method</p>
+              </div>
+            </div>
+            <div class="ent-step-body">
+              <!-- Compact total badge -->
+              <div class="rv-card mb-3">
+                <div class="rv-card-body">
+                  <div class="rv-section-title"><i class="bi bi-receipt"></i>Total Amount Due</div>
+                  <div class="rv-box rv-total">
+                    <div class="rv-row">
+                      <span style="font-size:1rem;font-weight:700;color:#0f172a;">Total Amount</span>
+                      <span style="font-size:1.6rem;font-weight:800;color:var(--brand-primary);" id="paymentSummaryTotal">₱0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Payment method selector -->
+              <div class="rv-card mb-3">
+                <div class="rv-card-body">
+                  <div class="rv-section-title"><i class="bi bi-credit-card"></i>Payment Method</div>
+                  <div class="ent-payment-tabs mb-3" role="tablist" aria-label="Payment methods">
+                    <button type="button" class="ent-payment-tab active" data-method="gcash" onclick="selectPaymentMethod('gcash')">
+                      <i class="bi bi-phone"></i>
+                      <span>GCash</span>
+                    </button>
+                    <button type="button" class="ent-payment-tab" data-method="cash" onclick="selectPaymentMethod('cash')">
+                      <i class="bi bi-cash-stack"></i>
+                      <span>Cash</span>
+                    </button>
+                  </div>
+                  <input class="d-none" type="radio" name="paymentMethod" id="payGcash" value="gcash">
+                  <input class="d-none" type="radio" name="paymentMethod" id="payCash" value="cash">
+
+                  <div id="gcashFields" class="payment-section">
+                    <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;">
+                      <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="d-flex align-items-center justify-content-center rounded-2"
+                          style="width:32px;height:32px;background:#16a34a;flex-shrink:0;">
+                          <i class="bi bi-phone text-white" style="font-size:0.9rem;"></i>
+                        </div>
+                        <span class="fw-bold" style="color:#166534;">Manual GCash Transfer</span>
+                      </div>
+                      <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;">
+                        <li>Scan the QR code below and send the exact amount.</li>
+                        <li>Take a screenshot of the confirmation receipt.</li>
+                        <li>Enter your number and upload the receipt to confirm.</li>
+                      </ol>
+                    </div>
+                    <div class="text-center mb-3">
+                      <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
+                      <img id="gcashQrImage"
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-GCASH-PAYMENT"
+                        alt="GCash QR code for payment" class="img-thumbnail" style="max-width:200px;border-radius:12px;" />
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">GCash number</label>
+                      <div class="d-flex align-items-center gap-2">
+                        <strong id="gcashAccountNumber" style="font-size:1.05rem;color:#166534;letter-spacing:0.5px;">—</strong>
+                        <button type="button" class="btn btn-sm btn-outline-success" id="copyGcashNumber" title="Copy number" style="border-radius:8px;"><i class="bi bi-clipboard"></i></button>
+                      </div>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">Your GCash mobile number <span class="text-danger">*</span></label>
+                      <input id="gcashNumber" class="form-control" inputmode="tel" placeholder="+639XXXXXXXXX" autocomplete="tel"
+                        style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">Receipt Screenshot <span class="text-danger">*</span></label>
+                      <input id="gcashProof" type="file" class="form-control" accept="image/*"
+                        style="border-radius:12px;border:1.5px dashed rgba(59,130,246,0.3);background:rgba(59,130,246,0.02);padding:1rem;" />
+                      <img id="gcashProofPreview" alt="Preview" class="img-thumbnail mt-2 d-none" style="max-height:120px;border-radius:10px;" />
+                    </div>
+                  </div>
+
+                  <div id="cashFields" class="payment-section d-none">
+                    <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;">
+                      <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="d-flex align-items-center justify-content-center rounded-2"
+                          style="width:32px;height:32px;background:#d97706;flex-shrink:0;">
+                          <i class="bi bi-cash-stack text-white" style="font-size:0.9rem;"></i>
+                        </div>
+                        <span class="fw-bold" style="color:#92400e;">Pay Cash on Completion</span>
+                      </div>
+                      <p class="mb-0 small text-muted ps-4">Pay the full amount to the technician after the work is done. A <strong>required downpayment</strong> secures your slot.</p>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">Your mobile number <span class="text-danger">*</span></label>
+                      <input id="cashNumber" class="form-control" inputmode="tel" placeholder="+639XXXXXXXXX" autocomplete="tel"
+                        style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">Downpayment receipt <span class="text-muted fw-normal">(optional)</span></label>
+                      <input id="cashProof" type="file" class="form-control" accept="image/*"
+                        style="border-radius:12px;border:1.5px dashed rgba(217,119,6,0.3);background:rgba(217,119,6,0.02);padding:1rem;" />
+                      <div class="form-text" style="color:var(--gray-500);font-size:0.82rem;">Attach proof if you paid your downpayment in advance.</div>
+                      <img id="cashProofPreview" alt="Preview" class="img-thumbnail mt-2 d-none" style="max-height:120px;border-radius:10px;" />
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label text-muted small fw-semibold">Downpayment amount</label>
+                      <div class="input-group" style="border-radius:12px;">
+                        <span class="input-group-text fw-semibold bg-white">&#8369;</span>
+                        <input id="downpaymentAmt" type="number" class="form-control bg-white" value="400" readonly />
+                      </div>
+                    </div>
+                    <div id="cashBreakdown" class="rounded-3 p-3 mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;display:none;">
+                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Estimated total</span><span class="fw-semibold" id="cashTotalDisplay">—</span></div>
+                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Downpayment now</span><span class="fw-bold text-warning" id="cashDownDisplay">—</span></div>
+                      <hr class="my-1">
+                      <div class="d-flex justify-content-between small"><span class="text-muted">Balance on completion</span><span class="fw-bold text-success" id="cashBalanceDisplay">—</span></div>
+                    </div>
+                    <div class="alert alert-warning mb-3" style="font-size:0.85rem;border-radius:12px;">
+                      <div class="d-flex align-items-start gap-2"><i class="bi bi-receipt mt-1"></i><small><strong>Receipt guaranteed.</strong> Technician will issue upon final payment.</small></div>
+                    </div>
+                    <div class="mb-1"><textarea id="cashNotes" class="form-control" rows="2" placeholder="Special instructions (optional)" style="border-radius:12px;border:1.5px solid #e5e7eb;"></textarea></div>
+                  </div>
+
+                  <div id="paymentError" class="text-danger small mt-2" style="display:none"></div>
+                </div>
+              </div>
+
+              <div class="mt-4 text-center">
+                <button type="button" class="ent-btn-primary w-100" id="confirmBookingBtn">
+                  <i class="bi bi-check-circle me-2"></i>Confirm Booking
+                </button>
+                <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
+                  <i class="bi bi-shield-check text-success" style="font-size:0.85rem;"></i>
+                  <p class="text-center text-muted small mb-0">Secured &amp; encrypted. By confirming, you agree to our terms.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Booking Result Modal (Enterprise Invoice) -->
+      <div class="modal fade" id="bookingResultModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+          <div class="modal-content ent-invoice-modal">
+            <!-- Header -->
+            <div class="ent-inv-header">
+              <div class="ent-inv-header-top">
+                <div class="ent-inv-brand">
+                  <div class="ent-inv-logo"><i class="bi bi-tools"></i></div>
+                  <div>
+                    <div class="ent-inv-company">RACS Services</div>
+                    <div class="ent-inv-tagline">Professional Home Services</div>
+                  </div>
+                </div>
+                <button type="button" class="ent-inv-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+              </div>
+              <div class="ent-inv-status-badge">
+                <span class="ent-inv-status-dot"></span>
+                PENDING CONFIRMATION
+              </div>
+            </div>
+
+            <!-- Body -->
+            <div class="ent-inv-body">
+              <!-- Reference -->
+              <div class="ent-inv-ref-section">
+                <div class="ent-inv-ref-label">Booking Reference</div>
+                <div class="ent-inv-ref-number" id="bookingResultReference">—</div>
+              </div>
+
+              <!-- Service Details -->
+              <div class="ent-inv-section">
+                <div class="ent-inv-section-title"><i class="bi bi-receipt me-2"></i>Service Fee Breakdown</div>
+                <div id="bookingResultServices" class="ent-inv-services-list">
+                  <div class="ent-inv-service-row">
+                    <span class="ent-inv-svc-name">Loading...</span>
+                    <span class="ent-inv-svc-price">—</span>
+                  </div>
+                </div>
+                <div class="ent-inv-divider"></div>
+                <div class="ent-inv-row">
+                  <span>Services Subtotal</span>
+                  <span class="ent-inv-bold" id="bookingResultServicesTotal">₱0</span>
+                </div>
+              </div>
+
+              <!-- Travel Fee -->
+              <div class="ent-inv-section">
+                <div class="ent-inv-section-title"><i class="bi bi-signpost-split me-2"></i>Travel Fee</div>
+                <div class="ent-inv-row">
+                  <span>Distance-based fare</span>
+                  <span class="ent-inv-bold" id="bookingResultTravelFare">₱0</span>
+                </div>
+                <div class="ent-inv-row ent-inv-sub" id="bookingResultDistanceInfo" style="display:none;">
+                  <span id="bookingResultDistanceLabel">—</span>
+                  <span class="ent-inv-muted">—</span>
+                </div>
+              </div>
+
+              <!-- Total -->
+              <div class="ent-inv-total-section">
+                <div class="ent-inv-total-row">
+                  <span class="ent-inv-total-label">Total Estimated Amount</span>
+                  <span class="ent-inv-total-amount" id="bookingResultTotalFee">₱0</span>
+                </div>
+              </div>
+
+              <!-- Schedule Info -->
+              <div class="ent-inv-info-grid">
+                <div class="ent-inv-info-item">
+                  <div class="ent-inv-info-icon"><i class="bi bi-calendar-event"></i></div>
+                  <div>
+                    <div class="ent-inv-info-label">Date</div>
+                    <div class="ent-inv-info-value" id="bookingResultDate">—</div>
+                  </div>
+                </div>
+                <div class="ent-inv-info-item">
+                  <div class="ent-inv-info-icon"><i class="bi bi-clock"></i></div>
+                  <div>
+                    <div class="ent-inv-info-label">Time</div>
+                    <div class="ent-inv-info-value" id="bookingResultTime">—</div>
+                  </div>
+                </div>
+              </div>
+
+              <p class="ent-inv-note"><i class="bi bi-info-circle me-1"></i>A confirmation email will be sent once your booking is approved.</p>
+            </div>
+
+            <!-- Footer -->
+            <div class="ent-inv-footer">
+              <a href="/book-history" class="ent-inv-btn ent-inv-btn-primary"><i class="bi bi-list-ul me-2"></i>View My Bookings</a>
+              <button type="button" class="ent-inv-btn ent-inv-btn-secondary" onclick="window.location.reload();"><i class="bi bi-x-circle me-2"></i>Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Booking Success Modal -->
+      <div class="modal fade" id="bookingSuccessModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content" style="border-radius:20px;overflow:hidden;">
+            <div class="modal-header border-0 text-white text-center" style="background:linear-gradient(135deg,#16a34a,#15803d);padding:32px 20px 26px;">
+              <div class="w-100">
+                <div class="mb-2"><i class="bi bi-check-circle-fill fs-1"></i></div>
+                <h5 class="fw-bold mb-0">Booking Confirmed!</h5>
+                <p class="mb-0 mt-1 opacity-75" style="font-size:0.88rem;">Your service has been successfully booked</p>
+              </div>
+              <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" onclick="window.location.reload();"></button>
+            </div>
+            <div class="modal-body px-4 py-4 bg-white">
+              <div class="rv-card">
+                <div class="rv-card-body">
+                  <div class="text-center mb-3">
+                    <span class="rv-section-title" style="justify-content:center;">BOOKING RECEIPT</span>
+                  </div>
+                  <div class="receipt-details">
+                    <div class="d-flex align-items-start gap-2 mb-3"><i class="bi bi-hash text-primary mt-1 fs-5"></i><div><small class="text-muted d-block">Reference</small><div class="fw-bold text-primary fs-6" id="receiptBookingRef">#RACS-000000</div></div></div>
+                    <div class="d-flex align-items-start gap-2 mb-3"><i class="bi bi-tools text-primary mt-1 fs-5"></i><div><small class="text-muted d-block">Service(s)</small><div class="fw-semibold" id="receiptServiceName">Service Name</div></div></div>
+                    <div id="receiptServiceBreakdown" class="mb-3" style="display:none;"></div>
+                    <div class="row mb-3">
+                      <div class="col-6"><div class="d-flex align-items-start gap-2"><i class="bi bi-calendar-event text-primary mt-1"></i><div><small class="text-muted d-block">Date</small><div class="fw-semibold" id="receiptDate">—</div></div></div></div>
+                      <div class="col-6"><div class="d-flex align-items-start gap-2"><i class="bi bi-clock text-primary mt-1"></i><div><small class="text-muted d-block">Time</small><div class="fw-semibold" id="receiptTime">—</div></div></div></div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2 mb-3"><i class="bi bi-geo-alt text-primary mt-1 fs-5"></i><div><small class="text-muted d-block">Location</small><div class="fw-semibold" id="receiptLocation">—</div></div></div>
+                    <div class="row mb-3">
+                      <div class="col-6"><div class="d-flex align-items-start gap-2"><i class="bi bi-credit-card text-primary mt-1"></i><div><small class="text-muted d-block">Payment</small><div class="fw-semibold" id="receiptPaymentMethod">GCash</div></div></div></div>
+                      <div class="col-6"><div class="d-flex align-items-start gap-2"><i class="bi bi-circle-fill text-warning mt-1" style="font-size:0.6rem;margin-top:6px!important;"></i><div><small class="text-muted d-block">Status</small><span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending</span></div></div></div>
+                    </div>
+                    <hr style="border-style:dashed;border-color:#ccc;">
+                    <div id="receiptPaymentBreakdown" style="display:none;">
+                      <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;"><span class="text-muted">Total Service Fee</span><span class="fw-semibold" id="receiptTotalFee">₱0</span></div>
+                      <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;"><span class="text-muted">Downpayment</span><span class="fw-bold text-primary" id="receiptDownpayment">-₱0</span></div>
+                      <hr style="border-color:#c8e6c9;margin:8px 0;">
+                      <div class="d-flex justify-content-between p-2 rounded" style="background:#e8f5e9;"><span class="fw-semibold">Balance on Completion</span><span class="fs-4 fw-bold text-success" id="receiptBalance">₱0</span></div>
+                    </div>
+                    <div id="receiptFullPayment" style="display:none;">
+                      <div class="d-flex justify-content-between p-2 rounded" style="background:#e8f5e9;"><span class="fw-semibold">Total Amount</span><span class="fs-4 fw-bold text-success" id="receiptTotal">₱0</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="alert alert-success text-center mb-0 py-2" style="border-radius:12px;font-size:0.85rem;"><i class="bi bi-check-circle-fill me-1"></i><strong>Thank you!</strong> We'll send confirmation shortly.</div>
+            </div>
+            <div class="modal-footer border-0 p-3" style="background:#f8f9fa;">
+              <button type="button" class="ent-btn-outline" onclick="window.location.reload();"><i class="bi bi-x-circle me-2"></i>Close</button>
+              <button type="button" class="ent-btn-primary" onclick="window.location.href='/book-history';"><i class="bi bi-list-ul me-2"></i>View Booking</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configure Service Modal (Enterprise Redesign) -->
+      <div class="modal fade" id="quantitySelectionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:720px!important;">
+          <div class="modal-content border-0" style="border-radius:22px;overflow:hidden;box-shadow:0 30px 90px rgba(15,23,42,0.22);background:#fff;border:1px solid #eef2f7;">
+            <!-- Header -->
+            <div class="cfg-header">
+              <div class="d-flex align-items-center gap-3">
+                <div class="cfg-ico" id="cfgModalIcon"><i class="bi bi-box-seam-fill"></i></div>
+                <div>
+                  <h5 class="fw-bold mb-0" style="color:#0f172a;font-size:1.15rem;letter-spacing:-0.01em;">Configure Service</h5>
+                  <p class="mb-0" style="font-size:0.78rem;color:#475569;">Select aircon type &amp; HP rating</p>
+                </div>
+              </div>
+              <button type="button" class="cfg-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+
+            <!-- Wizard Stepper -->
+            <div class="cfg-wizard" id="cfgWizard">
+              <div class="cfg-step is-active" id="cfgStep1">
+                <div class="cfg-dot"><i class="bi bi-1-circle-fill"></i></div>
+                <div class="cfg-step-tx"><div class="cfg-step-t">Step 1</div><div class="cfg-step-s">Aircon Type</div></div>
+              </div>
+              <div class="cfg-line"></div>
+              <div class="cfg-step" id="cfgStep2">
+                <div class="cfg-dot"><i class="bi bi-2-circle"></i></div>
+                <div class="cfg-step-tx"><div class="cfg-step-t">Step 2</div><div class="cfg-step-s">HP Rating</div></div>
+              </div>
+            </div>
+
+            <div class="modal-body" style="padding:1.25rem 1.75rem 0.75rem;max-height:calc(100vh - 220px);overflow-y:auto;">
+              <div id="modalErrorBanner" class="alert alert-danger d-none align-items-center mb-3" role="alert" style="font-size:0.9rem;">
+                <i class="bi bi-exclamation-circle-fill me-2"></i><span id="modalErrorBannerText"></span>
+              </div>
+              <div id="pricingNoteSection" class="cfg-note d-none mb-3"></div>
+
+              <div class="mb-3">
+                <span class="fw-bold d-block" id="quantityModalServiceName" style="color:#0f172a;font-size:1.05rem;"></span>
+                <div id="quantityModalDescription" class="text-muted small mt-1" style="line-height:1.5;display:none;"></div>
+              </div>
+
+              <div class="mb-3" id="brandSection" style="display:none;">
+                <label class="cfg-fl" for="brandInput"><i class="bi bi-upc-scan me-1 text-primary"></i>Brand Name <span class="text-danger">*</span></label>
+                <select class="cfg-f" id="brandInput" required>
+                  <option value="">Select brand…</option>
+                </select>
+                <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Or type your brand (e.g. Carrier, Daikin)…" required>
+              </div>
+
+              <div id="issueDescriptionSection" class="mb-3 d-none">
+                <label class="cfg-fl"><i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>Describe the Issue</label>
+                <textarea id="repairIssueDescription" class="cfg-f" rows="3" placeholder="Please describe the problem (e.g. not cooling, water leaking)..."></textarea>
+              </div>
+
+              <div class="mb-3 cfg-qty-row">
+                <div>
+                  <label class="cfg-fl">Quantity</label>
+                  <span class="cfg-fl-sub">How many <span id="quantityModalUnit">units</span>?</span>
+                </div>
+                <div class="cfg-stepper">
+                  <button type="button" id="quantityModalDecrease" aria-label="Decrease"><i class="bi bi-dash"></i></button>
+                  <input type="number" id="quantityModalInput" min="1" max="999" value="1" readonly>
+                  <button type="button" id="quantityModalIncrease" aria-label="Increase"><i class="bi bi-plus"></i></button>
+                </div>
+              </div>
+
+              <div class="mb-2" id="hpSelectionSection" style="display:none;">
+                <div id="hpOptionsContainer"></div>
+              </div>
+
+            </div>
+
+            <div class="modal-footer border-0 gap-2 cfg-footer">
+              <button type="button" class="cfg-btn-ghost" data-bs-dismiss="modal">Cancel</button>
+              <div class="cfg-price cfg-price-inline">
+                <div>
+                  <span class="cfg-price-l" id="priceLabel">Estimated Price</span>
+                  <span class="cfg-price-sub" id="cfgPriceSub">Includes service &amp; travel</span>
+                </div>
+                <span class="cfg-price-v" id="quantityModalEstimatedPrice">₱0</span>
+              </div>
+              <button type="button" class="cfg-btn-primary" id="confirmQuantitySelection"><i class="bi bi-check-lg me-2"></i>Add to Booking</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading Modal -->
+      <div class="modal fade" id="carLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content border-0" style="background:transparent;border-radius:20px;box-shadow:none;">
+            <div class="modal-body text-center py-0">
+              <div class="racs-lw">
+                <div class="racs-rs">
+                  <div class="racs-sl"><div class="racs-r r1"></div><div class="racs-r r2"></div><div class="racs-r r3"></div><div class="racs-r r4"></div></div>
+                  <div class="racs-vc">
+                    <svg class="racs-vs" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38bdf8"/><stop offset="50%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0f172a"/></linearGradient>
+                        <linearGradient id="vb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="80%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+                        <linearGradient id="hb" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(250,204,21,0.6)"/><stop offset="100%" stop-color="rgba(250,204,21,0)"/></linearGradient>
+                        <filter id="gl"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                      </defs>
+                      <path d="M 330 95 L 450 60 L 450 130 Z" fill="url(#hb)" class="racs-bm"/>
+                      <ellipse cx="180" cy="155" rx="140" ry="8" fill="rgba(0,0,0,0.3)" class="racs-vs"/>
+                      <path d="M 30 140 L 30 50 Q 30 30 50 30 L 220 30 Q 250 30 270 45 L 320 80 Q 340 95 340 110 L 340 140 Z" fill="url(#vb)" stroke="#94a3b8" stroke-width="1"/>
+                      <path d="M 320 110 L 345 110 Q 350 110 350 120 L 345 145 L 315 145 Z" fill="#334155"/><rect x="335" y="115" width="8" height="20" rx="2" fill="#0f172a"/>
+                      <path d="M 25 120 L 35 120 L 35 145 L 25 145 Z" fill="#334155"/>
+                      <path d="M 120 40 L 210 40 Q 230 40 245 50 L 285 85 L 285 95 L 120 95 Z" fill="url(#wg)"/><line x1="210" y1="40" x2="210" y2="95" stroke="#1e293b" stroke-width="6"/>
+                      <path d="M 130 45 L 150 45 L 140 90 L 125 90 Z" fill="rgba(255,255,255,0.2)"/><path d="M 230 48 L 245 48 L 265 70 L 250 70 Z" fill="rgba(255,255,255,0.2)"/>
+                      <path d="M 40 100 L 320 100" stroke="#cbd5e1" stroke-width="2"/><path d="M 40 130 L 300 130" stroke="#cbd5e1" stroke-width="1"/>
+                      <path d="M 30 70 Q 100 70 150 140 L 30 140 Z" fill="#1d4ed8" opacity="0.9"/><path d="M 60 70 Q 120 70 170 140 L 50 140 Z" fill="#3b82f6" opacity="0.6"/>
+                      <text x="60" y="115" font-family="'Arial Black',sans-serif" font-size="34" font-weight="900" fill="#fff" letter-spacing="1">RACS</text>
+                      <text x="60" y="130" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#fff" letter-spacing="1">AIRCONDITIONING</text>
+                      <rect x="330" y="90" width="12" height="15" rx="3" fill="#fef08a" filter="url(#gl)"/><rect x="28" y="80" width="4" height="25" rx="1" fill="#ef4444" filter="url(#gl)"/>
+                      <g class="racs-wh" transform="translate(90,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
+                      <g class="racs-wh" transform="translate(280,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
+                    </svg>
+                  </div>
+                  <div class="racs-rb"><div class="racs-rm"></div></div>
+                </div>
+                <div class="racs-lt"><h3 class="racs-t">Processing Request...</h3><p class="racs-st">Confirming RACS service details...</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<style>
+:root{--sv-b:#2563eb;--sv-bd:#1d4ed8;--sv-bl:#60a5fa;--sv-bs:rgba(37,99,235,0.08);--sv-g:#10b981;--sv-r:#ef4444;--sv-c:#f59e0b;--sv-f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;--sv-r1:12px;--sv-r2:16px;--sv-sh:0 2px 16px rgba(15,23,42,0.04);--sv-sh2:0 8px 32px rgba(15,23,42,0.06);--sv-e:cubic-bezier(0.16,1,0.3,1)}
+body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
+
+.sv-hero{position:relative;overflow:hidden;padding:5rem 0 6rem;background:linear-gradient(160deg, #e0f2fe 0%, #f0fdf4 35%, #e0e7ff 70%, #ede9fe 100%);border-bottom:1px solid rgba(37,99,235,0.06)}
+.sv-hero-bg{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 900px 600px at 70% 10%, rgba(59, 130, 246, 0.1) 0%, transparent 55%),radial-gradient(ellipse 600px 450px at 20% 90%,rgba(6,182,212,0.05) 0%,transparent 55%)}
+.sv-orb{position:absolute;border-radius:50%;pointer-events:none;filter:blur(60px)}
+.sv-orb-1{width:400px;height:400px;background:radial-gradient(circle,rgba(37,99,235,0.08) 0%,transparent 70%);top:-120px;right:-60px;animation:sf1 12s ease-in-out infinite}
+.sv-orb-2{width:280px;height:280px;background:radial-gradient(circle,rgba(6,182,212,0.07) 0%,transparent 70%);bottom:-80px;left:20%;animation:sf2 14s ease-in-out infinite}
+@keyframes sf1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-30px,35px) scale(1.06)}}
+@keyframes sf2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(25px,-30px) scale(1.08)}}
+.sv-hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 18px 7px 16px;border-radius:9999px;font-size:0.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:linear-gradient(135deg,rgba(37,99,235,0.1),rgba(37,99,235,0.04));color:#1d4ed8;border:1px solid rgba(37,99,235,0.12);margin-bottom:1.25rem;box-shadow:0 2px 8px rgba(15,23,42,0.03)}
+.sv-hero-title{font-size:clamp(2.6rem,5.5vw,3.8rem);font-weight:800;color:#0f172a;letter-spacing:-1.5px;line-height:1.1;margin-bottom:0.75rem}
+.sv-grad{background:linear-gradient(135deg,var(--sv-b),#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sv-hero-sub{font-size:clamp(1rem,1.5vw,1.15rem);color:#475569;max-width:520px;margin:0 auto 1.5rem;line-height:1.6}
+.sv-trust{display:flex;align-items:center;justify-content:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.75rem}
+.sv-trust span{display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:600;color:#334155}
+.sv-trust svg{color:var(--sv-b);flex-shrink:0}
+.sv-dot{width:4px;height:4px;border-radius:50%;background:#cbd5e1}
+.sv-stats{display:inline-flex;justify-content:center;gap:2.5rem;padding:1.25rem 2rem;background:rgba(255,255,255,0.7);backdrop-filter:blur(16px);border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.1);margin:0 auto;box-shadow:0 4px 24px rgba(15,23,42,0.04)}
+.sv-stat-v{font-size:1.4rem;font-weight:800;color:#0f172a;letter-spacing:-0.5px}
+.sv-stat-l{font-size:0.75rem;color:#64748b;font-weight:500;margin-top:2px}
+.sv-body{padding:3rem 0 5rem}
+.sv-wrap{position:relative;max-width:980px;margin:0 auto;background:rgba(255,255,255,0.95);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);padding:2rem 2.5rem;border-radius:24px;border:1px solid rgba(255,255,255,0.8);box-shadow:0 12px 40px rgba(15,23,42,0.05),0 2px 10px rgba(15,23,42,0.02),inset 0 1px 0 rgba(255,255,255,0.9)}
+@media(max-width:767px){.sv-wrap{padding:1.25rem;border-radius:16px}}
+
+.sv-alert{display:flex;align-items:flex-start;gap:10px;padding:1rem 1.25rem;border-radius:var(--sv-r1);font-size:0.9rem;line-height:1.5}
+.sv-alert-w{background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e}
+.sv-alert-s{background:#f0fdf4;border-left:4px solid #16a34a;color:#166534}
+.sv-alert-i{background:#eff6ff;border-left:4px solid var(--sv-b);color:#1e3a8a}
+.sv-alert-c{background:#fffbeb;border-left:4px solid #ca8a04}
+.sv-alert-link{color:var(--sv-b);font-weight:600;text-decoration:underline}
+
+.sv-tr{position:fixed;right:20px;top:100px;z-index:100;max-width:280px;width:100%}
+.sv-tr-card{background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.12);padding:1.15rem;box-shadow:0 20px 60px rgba(15,23,42,0.1)}
+.sv-tr-h{margin-bottom:0.75rem}
+.sv-tr-b{background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:3px 10px;border-radius:9999px;font-size:0.65rem;font-weight:700;letter-spacing:0.3px}
+.sv-tr-p{width:7px;height:7px;border-radius:50%;background:#10b981;animation:pp 1.6s ease-in-out infinite;display:inline-block}
+@keyframes pp{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.6)}70%{box-shadow:0 0 0 6px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+.sv-tr h5{font-size:0.85rem;font-weight:700;color:#0f172a}
+.sv-tr-steps{list-style:none;padding:0;margin:0}
+.sv-tr-steps>li{display:flex;align-items:flex-start;gap:8px;position:relative;padding-bottom:0.85rem}
+.sv-tr-i{width:24px;height:24px;border-radius:50%;background:#f1f5f9;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#94a3b8;font-size:0.6rem;position:relative;z-index:1}
+.sv-tr-l{position:absolute;left:11px;top:24px;bottom:0;width:1.5px;background:#e2e8f0}
+.sv-tr-t{display:block;font-size:0.75rem;font-weight:600;color:#64748b}
+.sv-tr-d{display:block;font-size:0.65rem;color:#94a3b8}
+.sv-tr-f{margin-top:0.5rem}
+.sv-btn-b{width:100%;padding:0.45rem;border-radius:8px;border:1px solid var(--sv-b);background:transparent;color:var(--sv-b);font-weight:600;font-size:0.75rem;cursor:pointer}
+.sv-btn-b:hover{background:var(--sv-bs)}
+
+.ent-stepper{background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(15,23,42,0.04);position:sticky;top:84px;z-index:40}
+.ent-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem}
+.ent-h span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
+.ent-h span:last-child{font-size:0.72rem;color:#64748b;font-weight:600}
+.ent-h span:last-child span{color:var(--sv-b)}
+.ent-tr{display:flex;justify-content:space-between;background:#f1f5f9;border-radius:9999px;padding:3px;gap:2px}
+.ent-fill{display:none}
+.ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap}
+.ent-n.active{background:var(--sv-b);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,0.2)}
+.ent-n.completed{background:#f0fdf4;color:#16a34a}
+.ent-n:hover{background:#e2e8f0;color:#475569}
+.ent-n.active:hover{background:var(--sv-b)}
+.ent-ni{font-size:0.85rem;display:flex}
+
+.sv-card{width:100%;background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);box-shadow:0 2px 16px rgba(15,23,42,0.04);margin-bottom:1.5rem;overflow:visible}
+.sv-card-h{display:flex;align-items:center;gap:12px;padding:1.15rem 1.5rem;background:linear-gradient(135deg,#fafbff,#f8fafc);border-bottom:1px solid #eef2f6}
+.sv-card-h h5{font-size:1rem;font-weight:700;color:#0f172a;margin:0;letter-spacing:-0.3px}
+.sv-card-h p{font-size:0.82rem;color:#64748b;margin:2px 0 0}
+.sv-card-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.05rem}
+.sv-ico-login{background:linear-gradient(135deg,rgba(37,99,235,0.12),rgba(37,99,235,0.04));color:var(--sv-b);border:1px solid rgba(37,99,235,0.08)}
+.sv-ico-srv{background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(139,92,246,0.04));color:#7c3aed;border:1px solid rgba(139,92,246,0.08)}
+.sv-ico-loc{background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(16,185,129,0.04));color:#059669;border:1px solid rgba(16,185,129,0.08)}
+.sv-ico-cal{background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.04));color:#d97706;border:1px solid rgba(245,158,11,0.08)}
+.sv-ico-fee{background:linear-gradient(135deg,rgba(236,72,153,0.12),rgba(236,72,153,0.04));color:#db2777;border:1px solid rgba(236,72,153,0.08)}
+.sv-ico-pay{background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(99,102,241,0.04));color:#6366f1;border:1px solid rgba(99,102,241,0.08)}
+.sv-card-b{padding:1.5rem}
+
+.sv-btn{display:inline-flex;align-items:center;gap:8px;padding:0.6rem 1.35rem;border-radius:10px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.25s var(--sv-e);text-decoration:none;border:none}
+.sv-btn-p{background:linear-gradient(135deg,var(--sv-b),var(--sv-bd));color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.2)}
+.sv-btn-p:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,0.3)}
+.sv-btn-p:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.sv-btn-o{border:1.5px solid #cbd5e1;background:transparent;color:#475569}
+.sv-btn-o:hover{border-color:var(--sv-b);color:var(--sv-b);background:var(--sv-bs)}
+.sv-btn-lg{padding:0.85rem;font-size:0.95rem;width:100%;justify-content:center}
+.sv-btn-sm{padding:0.35rem 0.9rem;font-size:0.78rem;border-radius:8px}
+.sv-btn-g{border-color:#10b981;color:#059669}
+.sv-btn-g:hover{border-color:#047857;color:#047857;background:#f0fdf4}
+
+.sv-tabs{border-bottom:1px solid #e2e8f0}
+.sv-tabs .nav-link{border:none;color:#64748b;font-weight:500;font-size:0.85rem;padding:0.55rem 1.1rem;border-radius:8px 8px 0 0}
+.sv-tabs .nav-link:hover{color:var(--sv-b);background:var(--sv-bs)}
+.sv-tabs .nav-link.active{color:var(--sv-b);background:transparent;border-bottom:2px solid var(--sv-b)}
+
+.sv-sel{border-left:3px solid var(--sv-b);background:#fff;border-radius:var(--sv-r1);border:1px solid #e2e8f0;overflow:hidden}
+.sv-sel-h{padding:0.85rem 1rem;border-bottom:1px solid #f1f5f9}
+.sv-sel-h h6{font-size:0.88rem;font-weight:700;color:#0f172a;margin:0}
+.sv-bg{display:inline-flex;padding:2px 10px;border-radius:9999px;font-size:0.72rem;font-weight:700;background:var(--sv-b);color:#fff}
+.sv-t{color:var(--sv-b)}
+
+.sv-lb{font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.4rem;display:block}
+.sv-ig{display:flex;align-items:center;border-radius:12px;overflow:hidden;border:1.5px solid #e5e7eb;background:#fff;transition:border-color 0.2s ease}
+.sv-ig:focus-within{border-color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.sv-ig-i{display:flex;align-items:center;padding:0.55rem 0.75rem;color:var(--sv-b);background:#fff}
+.sv-in{flex:1;border:none;background:#fafafa;padding:0.55rem 0.75rem;font-size:0.88rem;outline:none}
+.sv-in:focus{background:#fff}
+.sv-sg{position:absolute;width:100%;z-index:1000;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.12);border:1px solid #e5e7eb;background:#fff}
+.sv-mw{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(15,23,42,0.06)}
+.technician-map{height:340px;width:100%;border-radius:16px}
+.sv-mb{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:1000}
+.sv-mbtn{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;border:2px solid #fff;font-size:0.75rem;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.12)}
+.sv-mbtn-b{background:#2563eb;color:#fff}
+.sv-mbtn-gr{background:#10b981;color:#fff}
+.sv-md{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.8)}
+.sv-mo{position:absolute;bottom:10px;left:10px;right:10px;background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);border-radius:12px;padding:8px 12px;font-size:0.75rem;color:#64748b;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 2px 12px rgba(0,0,0,0.08);z-index:1000;pointer-events:none}
+.sv-fare{background:#fff;border-radius:14px;padding:1rem;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.03)}
+.sv-fi{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sv-fi-d{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed;font-size:0.85rem}
+.sv-fi-c{background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a;font-size:0.85rem}
+.sv-ft{color:#1e293b;font-size:0.88rem;font-weight:700;margin:0}
+
+.sv-fee-c{background:linear-gradient(135deg,#fafbff,#f8fafc);border-radius:var(--sv-r1);border:1px solid #e2e8f0}
+.sv-fee{padding:1.25rem;border-top:3px solid var(--sv-b)}
+.sv-fee-r{display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0}
+.sv-fee-div{height:1px;background:#e2e8f0;margin:0.75rem 0}
+.sv-fee-t{display:flex;justify-content:space-between;align-items:center;padding-top:0.3rem}
+.sv-fee-note{background:rgba(37,99,235,0.06);border:1px solid rgba(37,99,235,0.14);border-radius:10px;padding:0.6rem 0.85rem;color:#1e40af;font-size:0.82rem;margin-top:0.65rem;}
+
+/* ── Order summary (payment step) ── */
+.sv-pay-summary{max-width:600px;margin:0 auto 1.5rem;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;box-shadow:0 4px 18px rgba(15,23,42,0.035)}
+.sv-pay-summary-t{font-size:0.85rem;font-weight:700;color:#0f172a}
+.sv-pay-summary-badge{background:var(--sv-b);color:#fff;font-size:0.7rem;font-weight:700}
+.sv-pay-lines{max-height:160px;overflow:auto;margin:0.5rem 0 0.75rem;padding-right:2px}
+.sv-pay-line{display:flex;justify-content:space-between;gap:1rem;font-size:0.82rem;padding:0.3rem 0;border-bottom:1px dashed #eef2f6;color:#475569}
+.sv-pay-line:last-child{border-bottom:none}
+.sv-pay-line span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sv-pay-line span:last-child{font-weight:600;color:#0f172a;flex-shrink:0}
+.sv-pay-total{display:flex;justify-content:space-between;align-items:center;padding-top:0.6rem;border-top:2px solid #e2e8f0}
+.sv-pay-total>span:first-child{font-size:0.82rem;font-weight:600;color:#64748b}
+.sv-pay-total-v{font-size:1.3rem;font-weight:800;color:var(--sv-b);letter-spacing:-0.5px}
+
+/* ── Payment method selector ── */
+.sv-pay-method-label{margin-top:0.25rem}
+.sv-pt{display:flex;gap:10px;max-width:600px;margin:0 auto 1.5rem}
+.sv-ptb{flex:1;position:relative;display:flex;align-items:center;gap:10px;min-height:68px;padding:0.75rem 1rem;border-radius:12px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-weight:600;font-size:0.85rem;text-align:left;cursor:pointer;transition:all 0.25s var(--sv-e)}
+.sv-ptb-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#f1f5f9;color:#64748b;flex-shrink:0;transition:all 0.25s var(--sv-e)}
+.sv-ptb-tx{display:flex;flex-direction:column;gap:2px}
+.sv-ptb-tx strong{font-size:0.9rem;line-height:1.1;color:#334155}
+.sv-ptb-tx small{font-size:0.72rem;font-weight:500;color:#94a3b8;line-height:1.1}
+.sv-ptb-check{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--sv-b);color:#fff;display:none;align-items:center;justify-content:center;font-size:0.65rem}
+.sv-ptb:hover{border-color:#94a3b8}
+.sv-ptb:hover .sv-ptb-ic{background:#e2e8f0;color:#475569}
+.sv-ptb[aria-pressed="true"]{border-color:var(--sv-b);background:rgba(37,99,235,0.04);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
+.sv-ptb[aria-pressed="true"] .sv-ptb-ic{background:var(--sv-b);color:#fff}
+.sv-ptb[aria-pressed="true"] .sv-ptb-tx strong{color:var(--sv-b)}
+.sv-ptb[aria-pressed="true"] .sv-ptb-tx small{color:#3b82f6}
+.sv-ptb[aria-pressed="true"] .sv-ptb-check{display:flex}
+
+.sv-pf{max-width:600px;margin:0 auto;padding:1.25rem;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 4px 18px rgba(15,23,42,0.035)}
+
+/* ── GCash account display ── */
+.sv-gcash-acct{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:0.7rem 0.9rem}
+.sv-gcash-acct>span{display:block;margin-bottom:2px}
+.sv-gcash-num{font-size:1.05rem;color:#166534;letter-spacing:0.5px;line-height:1.4}
+.sv-copy-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid #bbf7d0;background:#fff;color:#16a34a;cursor:pointer;transition:all 0.2s}
+.sv-copy-btn:hover{background:#dcfce7}
+.sv-copy-btn.copied{background:#16a34a;color:#fff;border-color:#16a34a}
+.sv-ob{border-radius:14px;border:1px solid #e2e8f0;padding:1rem 1.25rem}
+.sv-ob-g{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:#bbf7d0}
+.sv-ob-a{background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fde68a}
+.sv-oi{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sv-oi-gr{background:#16a34a}
+.sv-oi-am{background:#d97706}
+.sv-fl{display:block;font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:0.35rem}
+.sv-f{width:100%;padding:0.55rem 0.8rem;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-size:0.88rem;outline:none;transition:border-color 0.2s,box-shadow 0.2s}
+.sv-f:focus{border-color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
+.sv-f[type="file"]{padding:0.45rem;background:#f8fafc;cursor:pointer}
+.sv-f[type="file"]::file-selector-button{margin:-0.45rem 0.7rem -0.45rem -0.45rem;padding:0.58rem 0.75rem;border:0;border-right:1px solid #e2e8f0;background:#fff;color:#475569;font-weight:600;cursor:pointer}
+.sv-qr-wrap{display:flex;flex-direction:column;align-items:center;gap:0.5rem;padding:1rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;color:#64748b;font-size:0.78rem;font-weight:600}
+.sv-qr-wrap img{display:block;width:180px;max-width:100%;height:auto;padding:6px;border-radius:12px;border:1px solid #e2e8f0;background:#fff}
+.sv-sb{border-radius:10px;padding:0.85rem 1rem;background:#f8fdff;border:1px solid #bee3f8;margin-bottom:1rem}
+.sv-pb{display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;border-radius:10px;background:rgba(37,99,235,0.04);border:1px solid rgba(37,99,235,0.1);margin-bottom:0.5rem}
+.sv-sl{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem}
+.sv-sl span:first-child{color:#64748b;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.sv-sll{flex:1;height:1px;background:linear-gradient(90deg,rgba(37,99,235,0.12),transparent)}
+.sv-cb{border-radius:12px;padding:1rem;background:#fffbeb;border:1px solid #fde68a}
+
+/* ── Enterprise Payment Tabs ── */
+.ent-payment-tabs{display:flex;gap:10px;max-width:600px;margin:0 auto 1.5rem}
+.ent-payment-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:0.75rem 1rem;border-radius:12px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-weight:600;font-size:0.85rem;cursor:pointer;transition:all 0.25s var(--sv-e)}
+.ent-payment-tab:hover{border-color:#94a3b8}
+.ent-payment-tab.active{border-color:var(--sv-b);background:rgba(37,99,235,0.04);color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
+.ent-payment-tab i{font-size:1.1rem}
+.payment-section{max-width:600px;margin:0 auto}
+
+/* ── Enterprise Buttons ── */
+.ent-btn-primary{display:inline-flex;align-items:center;gap:8px;padding:0.65rem 1.5rem;border-radius:12px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.25s var(--sv-e);text-decoration:none;border:none;background:linear-gradient(135deg,var(--sv-b),var(--sv-bd));color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.2)}
+.ent-btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,0.3);color:#fff}
+.ent-btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.ent-btn-outline{display:inline-flex;align-items:center;gap:8px;padding:0.65rem 1.5rem;border-radius:12px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.25s var(--sv-e);text-decoration:none;border:1.5px solid #cbd5e1;background:transparent;color:#475569}
+.ent-btn-outline:hover{border-color:var(--sv-b);color:var(--sv-b);background:rgba(37,99,235,0.04)}
+.sv-m{border-radius:20px;overflow:hidden;border:none;box-shadow:0 25px 60px rgba(0,0,0,0.2)}
+.sv-mh{padding:28px 28px 20px;border:none;position:relative}
+.sv-mh-b{background:linear-gradient(135deg,#0d6efd,#1d4ed8);color:#fff}
+.sv-mr{display:inline-block;margin-top:0.5rem;padding:4px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:8px;font-size:0.95rem;font-weight:700;letter-spacing:2px}
+.sv-mico{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(37,99,235,0.05));border:1px solid rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sv-bw{display:inline-block;padding:5px 14px;border-radius:9999px;background:#fff8e1;color:#e65100;border:1px solid #ffd54f;font-size:0.75rem;font-weight:700}
+.sv-rb{background:#f8f9fa;border-radius:12px;padding:1rem;font-size:0.85rem;margin-bottom:1rem}
+.sv-rc{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1.5px dashed #d1d5db;border-radius:14px;padding:1.25rem;margin-bottom:1rem}
+.sv-rct{color:#6b7280;letter-spacing:1.5px;font-size:0.72rem}
+
+.racs-lw{background:rgba(15,23,42,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:40px 30px;max-width:500px;margin:0 auto;box-shadow:0 30px 60px -15px rgba(0,0,0,0.6);position:relative;overflow:hidden}
+.racs-rs{position:relative;height:180px;width:100%;margin-bottom:20px}
+.racs-vc{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:320px;animation:rv 0.4s cubic-bezier(0.4,0,0.2,1) infinite alternate}
+@keyframes rv{from{transform:translateX(-50%) translateY(0)}to{transform:translateX(-50%) translateY(-2px)}}
+.racs-vs{width:100%;height:auto;filter:drop-shadow(0 15px 15px rgba(0,0,0,0.4))}
+.racs-wh{transform-origin:0 0;animation:ws 0.3s linear infinite}
+@keyframes ws{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.racs-bm{animation:bp2 1.5s infinite alternate}
+@keyframes bp2{from{opacity:0.6}to{opacity:1}}
+.racs-rb{position:absolute;bottom:0;left:-50%;width:200%;height:8px;background:#334155;border-radius:4px}
+.racs-rm{width:100%;height:100%;background:repeating-linear-gradient(90deg,transparent,transparent 40px,#94a3b8 40px,#94a3b8 80px);animation:rm 0.4s linear infinite}
+@keyframes rm{from{transform:translateX(0)}to{transform:translateX(-80px)}}
+.racs-sl{position:absolute;top:0;left:0;width:100%;height:100%}
+.racs-r{position:absolute;background:rgba(255,255,255,0.1);height:2px;border-radius:2px;animation:rsl linear infinite}
+.r1{top:30%;width:60px;right:-60px;animation-duration:0.8s;animation-delay:0.1s}
+.r2{top:50%;width:100px;right:-100px;animation-duration:0.6s;animation-delay:0.3s}
+.r3{top:70%;width:40px;right:-40px;animation-duration:0.9s;animation-delay:0.2s}
+.r4{top:40%;width:80px;right:-80px;animation-duration:0.7s;animation-delay:0.5s}
+@keyframes rsl{0%{transform:translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(-500px);opacity:0}}
+.racs-lt{text-align:center}
+.racs-t{color:#f8fafc;font-size:1.3rem;font-weight:700;margin-bottom:0.4rem}
+.racs-st{color:#94a3b8;font-size:0.9rem;margin:0}
+
+/* Hide "Choose Schedule" button in completed step 3 to prevent overlap with step 4 */
+#locationStep.step-completed .ent-step-body .mt-4.text-center {
+  display: none !important;
+}
+/* Hide "Continue to Next Step" button in completed step 2 */
+#serviceSelection.step-completed .ent-step-body .mt-4.text-center {
+  display: none !important;
+}
+
+/* ═══ Calendar selected date override (ensures blue selected state) ═══ */
+.ent-cal-cell.available.selected,
+.ent-cal-cell.limited.selected,
+.ent-cal-cell.selected {
+  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
+  color: #fff !important;
+  border-color: #2563eb !important;
+  border-style: solid !important;
+}
+.ent-cal-cell.available.selected .ent-cal-date,
+.ent-cal-cell.limited.selected .ent-cal-date,
+.ent-cal-cell.selected .ent-cal-date { color: #fff !important; }
+.ent-cal-cell.available.selected .ent-cal-slots,
+.ent-cal-cell.limited.selected .ent-cal-slots,
+.ent-cal-cell.selected .ent-cal-slots { color: rgba(255,255,255,0.85) !important; }
+.ent-cal-cell.available.selected .ent-cal-reason,
+.ent-cal-cell.limited.selected .ent-cal-reason,
+.ent-cal-cell.selected .ent-cal-reason { color: rgba(255,255,255,0.85) !important; }
+.ent-cal-cell.available.selected:hover,
+.ent-cal-cell.limited.selected:hover,
+.ent-cal-cell.selected:hover {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+  box-shadow: 0 6px 24px rgba(37,99,235,0.45);
+  transform: translateY(-2px);
+}
+
+@media(max-width:767px){
+  .sv-hero{padding:3.5rem 0 4rem}
+  .sv-stats{gap:1.5rem;padding:1rem 1.5rem;flex-wrap:wrap}
+  .ent-tr{overflow-x:auto;padding:4px}
+  .ent-n{padding:5px 8px;font-size:0.65rem;white-space:nowrap}
+  .sv-tr{display:none}
+  .sv-pt{gap:8px}
+  .sv-ptb{min-height:62px;padding:0.65rem;gap:7px}
+  .sv-ptb small{display:none}
+
+  /* Service cards styling for centered layout */
+  .service-card .card-body {
+    padding: 0.8rem;
+  }
+  
+  .service-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  
+  .service-card-header h6 {
+    font-size: 0.85rem;
+    line-height: 1.2;
+  }
+  
+  .price-box {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+  }
+  
+  .service-card-chip {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+  }
+  
+  .add-service-btn {
+    font-size: 0.7rem;
+    padding: 6px 10px;
+  }
+}
+
+@media(max-width:480px){
+  /* Extra small mobile adjustments */
+  .service-card .card-body {
+    padding: 0.7rem;
+  }
+  
+  .service-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .service-card-header h6 {
+    font-size: 0.8rem;
+  }
+  
+  .price-box {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+  }
+  
+  .service-card-chip {
+    font-size: 0.55rem;
+    padding: 2px 5px;
+  }
+  
+  .add-service-btn {
+    font-size: 0.65rem;
+    padding: 5px 8px;
+  }
+}
+
+/* ── Enterprise Service Section Container ── */
+.ent-svc-section{
+  background:linear-gradient(135deg,#fafbff 0%,#f8fafc 100%);
+  border:1px solid rgba(148,163,184,0.12);
+  border-radius:16px;
+  padding:1.25rem;
+  margin-bottom:1rem;
+}
+.ent-svc-section-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-bottom:1rem;
+  margin-bottom:1rem;
+  border-bottom:1px solid rgba(148,163,184,0.1);
+}
+.ent-svc-section-icon{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(139,92,246,0.04));
+  border:1px solid rgba(139,92,246,0.1);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.1rem;
+  color:#7c3aed;
+  flex-shrink:0;
+}
+.ent-svc-section-title{
+  font-size:0.92rem;
+  font-weight:700;
+  color:#0f172a;
+  margin:0;
+  letter-spacing:-0.2px;
+}
+.ent-svc-section-sub{
+  font-size:0.78rem;
+  color:#64748b;
+  margin:2px 0 0;
+}
+.ent-svc-section-footer{
+  text-align:center;
+  padding:1rem;
+  color:#94a3b8;
+  font-size:0.85rem;
+  background:rgba(241,245,249,0.5);
+  border-radius:10px;
+  margin-top:0.75rem;
+}
+
+/* ── Enterprise Invoice Modal ── */
+.ent-invoice-modal{
+  border-radius:20px;
+  overflow:hidden;
+  border:none;
+  box-shadow:0 30px 80px rgba(15,23,42,0.22);
+}
+.ent-inv-header{
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+  padding:1.5rem 1.5rem 1.25rem;
+  color:#fff;
+}
+.ent-inv-header-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:1rem;
+}
+.ent-inv-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.ent-inv-logo{
+  width:40px;
+  height:40px;
+  border-radius:10px;
+  background:linear-gradient(135deg,rgba(59,130,246,0.3),rgba(99,102,241,0.3));
+  border:1px solid rgba(255,255,255,0.15);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.1rem;
+  color:#60a5fa;
+}
+.ent-inv-company{
+  font-size:0.95rem;
+  font-weight:700;
+  letter-spacing:-0.2px;
+}
+.ent-inv-tagline{
+  font-size:0.72rem;
+  color:rgba(255,255,255,0.5);
+}
+.ent-inv-close{
+  background:rgba(255,255,255,0.1);
+  border:none;
+  color:rgba(255,255,255,0.7);
+  width:32px;
+  height:32px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.ent-inv-close:hover{
+  background:rgba(255,255,255,0.2);
+  color:#fff;
+}
+.ent-inv-status-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 14px;
+  background:rgba(245,158,11,0.15);
+  border:1px solid rgba(245,158,11,0.3);
+  border-radius:999px;
+  font-size:0.72rem;
+  font-weight:700;
+  color:#fbbf24;
+  letter-spacing:0.5px;
+}
+.ent-inv-status-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#fbbf24;
+  animation:invPulse 1.5s ease-in-out infinite;
+}
+@keyframes invPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+.ent-inv-body{
+  padding:1.5rem;
+}
+.ent-inv-ref-section{
+  text-align:center;
+  padding:0.85rem;
+  background:#f8fafc;
+  border:1px dashed #e2e8f0;
+  border-radius:12px;
+  margin-bottom:1.25rem;
+}
+.ent-inv-ref-label{
+  font-size:0.72rem;
+  font-weight:600;
+  color:#94a3b8;
+  text-transform:uppercase;
+  letter-spacing:0.8px;
+  margin-bottom:4px;
+}
+.ent-inv-ref-number{
+  font-size:1.1rem;
+  font-weight:800;
+  color:#2563eb;
+  letter-spacing:1.5px;
+}
+.ent-inv-section{
+  margin-bottom:1rem;
+}
+.ent-inv-section-title{
+  font-size:0.82rem;
+  font-weight:700;
+  color:#0f172a;
+  margin-bottom:0.6rem;
+  display:flex;
+  align-items:center;
+}
+.ent-inv-services-list{
+  max-height:120px;
+  overflow-y:auto;
+}
+.ent-inv-service-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0.4rem 0;
+  font-size:0.85rem;
+  border-bottom:1px solid #f1f5f9;
+}
+.ent-inv-service-row:last-child{
+  border-bottom:none;
+}
+.ent-inv-svc-name{
+  color:#334155;
+  font-weight:500;
+}
+.ent-inv-svc-qty{
+  color:#94a3b8;
+  font-size:0.78rem;
+  margin-left:6px;
+}
+.ent-inv-svc-price{
+  font-weight:600;
+  color:#0f172a;
+  flex-shrink:0;
+}
+.ent-inv-divider{
+  height:1px;
+  background:#e2e8f0;
+  margin:0.5rem 0;
+}
+.ent-inv-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0.3rem 0;
+  font-size:0.85rem;
+  color:#475569;
+}
+.ent-inv-bold{
+  font-weight:700;
+  color:#0f172a;
+}
+.ent-inv-sub{
+  font-size:0.78rem;
+  color:#94a3b8;
+}
+.ent-inv-muted{
+  color:#94a3b8;
+  font-size:0.78rem;
+}
+.ent-inv-total-section{
+  background:linear-gradient(135deg,#f0fdf4,#dcfce7);
+  border:1px solid #bbf7d0;
+  border-radius:12px;
+  padding:0.85rem 1rem;
+  margin:1rem 0;
+}
+.ent-inv-total-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.ent-inv-total-label{
+  font-size:0.88rem;
+  font-weight:600;
+  color:#166534;
+}
+.ent-inv-total-amount{
+  font-size:1.35rem;
+  font-weight:800;
+  color:#16a34a;
+  letter-spacing:-0.5px;
+}
+.ent-inv-info-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.75rem;
+  margin-bottom:1rem;
+}
+.ent-inv-info-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0.7rem;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+}
+.ent-inv-info-icon{
+  width:34px;
+  height:34px;
+  border-radius:8px;
+  background:linear-gradient(135deg,rgba(37,99,235,0.1),rgba(37,99,235,0.05));
+  border:1px solid rgba(37,99,235,0.1);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#2563eb;
+  font-size:0.9rem;
+  flex-shrink:0;
+}
+.ent-inv-info-label{
+  font-size:0.7rem;
+  font-weight:600;
+  color:#94a3b8;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+.ent-inv-info-value{
+  font-size:0.85rem;
+  font-weight:600;
+  color:#0f172a;
+}
+.ent-inv-note{
+  font-size:0.78rem;
+  color:#94a3b8;
+  text-align:center;
+  margin:0;
+}
+.ent-inv-footer{
+  padding:1rem 1.5rem 1.5rem;
+  display:flex;
+  gap:10px;
+  justify-content:center;
+}
+.ent-inv-btn{
+  display:inline-flex;
+  align-items:center;
+  padding:0.6rem 1.25rem;
+  border-radius:10px;
+  font-weight:700;
+  font-size:0.85rem;
+  cursor:pointer;
+  transition:all 0.25s ease;
+  text-decoration:none;
+  border:none;
+}
+.ent-inv-btn-primary{
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  color:#fff;
+  box-shadow:0 4px 14px rgba(37,99,235,0.25);
+}
+.ent-inv-btn-primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 20px rgba(37,99,235,0.35);
+  color:#fff;
+}
+.ent-inv-btn-secondary{
+  background:#f1f5f9;
+  color:#475569;
+  border:1px solid #e2e8f0;
+}
+.ent-inv-btn-secondary:hover{
+  background:#e2e8f0;
+  color:#0f172a;
+}
+
+@media(max-width:575px){
+  .ent-inv-info-grid{grid-template-columns:1fr}
+  .ent-inv-footer{flex-direction:column}
+  .ent-inv-btn{width:100%;justify-content:center}
+}
+
+/* ── Invoice modal sub-components ── */
+.ent-inv-badge-project{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 12px;
+  background:linear-gradient(135deg,rgba(14,165,233,0.12),rgba(14,165,233,0.04));
+  border:1px solid rgba(14,165,233,0.2);
+  border-radius:999px;
+  font-size:0.72rem;
+  font-weight:700;
+  color:#0284c7;
+  letter-spacing:0.3px;
+  margin-bottom:6px;
+}
+.ent-inv-detail{
+  font-size:0.82rem;
+  font-weight:500;
+  color:#334155;
+  margin-top:3px;
+}
+  .sv-pf{padding:1rem}
+}
+.ent-hero-stats{display:flex;align-items:center;justify-content:center;gap:2rem;margin-top:2rem;flex-wrap:wrap}
+.ent-hero-stat{text-align:center;padding:0.8rem 1.5rem;background:rgba(255,255,255,0.6);backdrop-filter:blur(12px);border-radius:12px;border:1px solid rgba(37,99,235,0.08)}
+.ent-hero-stat-value{font-size:1.4rem;font-weight:800;color:#1e293b;letter-spacing:-0.5px}
+.ent-hero-stat-label{font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+.ent-hero{position:relative;overflow:hidden;padding:5rem 0 6rem;background:linear-gradient(160deg, #e0f2fe 0%, #f0fdf4 35%, #e0e7ff 70%, #ede9fe 100%);border-bottom:1px solid rgba(37,99,235,0.06)}
+.ent-hero-orb{position:absolute;border-radius:50%;pointer-events:none;filter:blur(60px)}
+.ent-hero-orb-1{width:400px;height:400px;background:radial-gradient(circle,rgba(37,99,235,0.08) 0%,transparent 70%);top:-120px;right:-60px}
+.ent-hero-orb-2{width:280px;height:280px;background:radial-gradient(circle,rgba(6,182,212,0.07) 0%,transparent 70%);bottom:-80px;left:20%}
+.ent-hero-orb-3{width:200px;height:200px;background:radial-gradient(circle,rgba(99,102,241,0.06) 0%,transparent 70%);top:50%;left:50%}
+.ent-hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 18px 7px 16px;border-radius:9999px;font-size:0.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:linear-gradient(135deg,rgba(37,99,235,0.1),rgba(37,99,235,0.04));color:#1d4ed8;border:1px solid rgba(37,99,235,0.12);margin-bottom:1.25rem;box-shadow:0 2px 8px rgba(15,23,42,0.03)}
+.ent-hero-title{font-size:clamp(2.6rem,5.5vw,3.8rem);font-weight:800;color:#0f172a;letter-spacing:-1.5px;line-height:1.05;margin:0 0 1rem}
+.ent-gradient-text{background:linear-gradient(135deg,#2563eb,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.ent-hero-subtitle{font-size:1.05rem;color:#475569;max-width:580px;margin:0 auto 2rem;line-height:1.7}
+.ent-trust-badges{display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.ent-trust-item{display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;color:#1e293b}
+.ent-trust-item i{color:#059669;font-size:0.85rem}
+.ent-trust-divider{width:3px;height:3px;border-radius:50%;background:#cbd5e1}
+
+</style>
+
+<link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+<script>window.leafletLoaded=true;</script>
+
+<script id="user-booking-data" type="application/json"><%- user ? JSON.stringify({isLoggedIn:true,_id:user._id,name:((user.firstName||"")+" "+(user.lastName||"")).trim()||user.name||user.fullName||"",email:user.email||"",phone:user.phone||user.mobile||"",address:user.address||""}) : '{"isLoggedIn":false}' %></script>
+<script>try{const d=JSON.parse(document.getElementById('user-booking-data').textContent);window.LOGGED_IN=d.isLoggedIn;window.currentUser=d.isLoggedIn?d:null}catch(e){window.LOGGED_IN=false;window.currentUser=null}</script>
+
+<% if (typeof initialServices !=='undefined') { %>
+  <script>window.initialCatalog=JSON.parse(document.getElementById('initial-services-json')?.textContent||'{"coreServices":[],"repairs":[]}');['coreServices','repairs'].forEach(function(c){window.initialCatalog[c]=(window.initialCatalog[c]||[]).map(function(s){return{icon:s.icon||s.iconClass||(c==='repairs'?'bi-tools':'bi-gear-fill'),name:s.name||'',duration:s.duration||s.durationMinutes||0,price:s.price||s.basePrice||(s.priceRange&&s.priceRange.min)||0,_id:s._id,slug:s.slug,...s}})});</script>
+<% } %>
+
+<% if (googleMapsApiKey) { %><script src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&libraries=places,geometry"></script><% } %>
+
+<script>
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js':'/js/services.js';if(!s)e.type='module';document.head.appendChild(e)})();
+</script>
+
+<script>
+function showBookingConfirmationModal(d){
+  /* ── Populate the enterprise invoice modal ── */
+  var refEl=document.getElementById('bookingResultReference');
+  var dateEl=document.getElementById('bookingResultDate');
+  var timeEl=document.getElementById('bookingResultTime');
+  var totalEl=document.getElementById('bookingResultTotalFee');
+  var svcTotalEl=document.getElementById('bookingResultServicesTotal');
+  var travelEl=document.getElementById('bookingResultTravelFare');
+  var svcListEl=document.getElementById('bookingResultServices');
+  var distInfoEl=document.getElementById('bookingResultDistanceInfo');
+  var distLabelEl=document.getElementById('bookingResultDistanceLabel');
+
+  if(refEl) refEl.textContent=d.bookingReference||d.workOrderNumber||'#RACS-000000';
+  if(dateEl) dateEl.textContent=d.dateLabel||d.date||'—';
+  if(timeEl){
+    if(d.isProject){
+      var ps=d.projectScheduling||{};
+      var prefs=ps.preferences||{};
+      var html='<span class="ent-inv-badge-project"><i class="bi bi-kanban me-1"></i>Large-Scale Project</span>';
+      if(ps.startDate||ps.preferredStartDate){
+        var sd=new Date(ps.startDate||ps.preferredStartDate);
+        if(!isNaN(sd)) html+='<div class="ent-inv-detail">Start: '+sd.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})+'</div>';
+      }
+      if(prefs.completionDeadline){
+        var dl=new Date(prefs.completionDeadline);
+        if(!isNaN(dl)) html+='<div class="ent-inv-detail">Target End: '+dl.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})+'</div>';
+      }
+      if(prefs.preferredWorkingHours){
+        html+='<div class="ent-inv-detail">Access: '+prefs.preferredWorkingHours.charAt(0).toUpperCase()+prefs.preferredWorkingHours.slice(1)+'</div>';
+      }
+      timeEl.innerHTML=html;
+    } else {
+      timeEl.textContent=d.timeLabel||d.time||'—';
+    }
+  }
+
+  /* Services breakdown */
+  var services=BookingState.selectedServices||[];
+  var servicesTotal=0;
+  if(svcListEl){
+    svcListEl.innerHTML='';
+    if(services.length===0){
+      svcListEl.innerHTML='<div class="ent-inv-service-row"><span class="ent-inv-svc-name text-muted">No services</span><span class="ent-inv-svc-price">—</span></div>';
+    } else {
+      services.forEach(function(svc){
+        var qty=svc.quantity||1;
+        var price=svc.unitPrice||svc.price||0;
+        var lineTotal=price*qty;
+        servicesTotal+=lineTotal;
+        var row=document.createElement('div');
+        row.className='ent-inv-service-row';
+        row.innerHTML='<span class="ent-inv-svc-name">'+escapeInvHtml(svc.name||'Service')+(qty>1?'<span class="ent-inv-svc-qty"> ×'+qty+'</span>':'')+'</span><span class="ent-inv-svc-price">₱'+lineTotal.toLocaleString()+'</span>';
+        svcListEl.appendChild(row);
+      });
+    }
+  }
+  if(svcTotalEl) svcTotalEl.textContent='₱'+servicesTotal.toLocaleString();
+
+  /* Travel fare */
+  var travelFare=BookingState.travelFare||BookingState.fare||0;
+  if(travelEl) travelEl.textContent='₱'+travelFare.toLocaleString();
+  if(distInfoEl&&distLabelEl&&travelFare>0){
+    var km=(travelFare/40).toFixed(1);
+    distLabelEl.textContent=km+' km × ₱40/km';
+    distInfoEl.style.display='flex';
+  }
+
+  /* Total */
+  var total=servicesTotal+travelFare;
+  if(totalEl) totalEl.textContent='₱'+total.toLocaleString();
+
+  /* Show modal */
+  var me=document.getElementById('bookingResultModal');
+  if(me){
+    document.querySelectorAll('.modal-backdrop').forEach(function(b){b.remove()});
+    document.body.classList.remove('modal-open');
+    me.style.zIndex='9999';
+    var existing=bootstrap.Modal.getInstance(me);
+    if(existing){existing.dispose();}
+    var modal=new bootstrap.Modal(me,{backdrop:'static',keyboard:false});
+    me.addEventListener('hidden.bs.modal',function(){window.location.reload();},{once:true});
+    modal.show();
+  } else {
+    alert('Booking confirmed! Reference: '+(d.bookingReference||d.workOrderNumber||''));
+  }
+}
+function escapeInvHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function continueToServices(){
+  if(typeof showStep==='function'&&typeof updateStepper==='function'){showStep(2);updateStepper(2);return false}
+  var cs=document.querySelector('.booking-step[data-step="1"]'),ss=document.getElementById('serviceSelection');
+  if(cs)cs.classList.add('d-none');
+  if(ss){ss.classList.remove('d-none');ss.classList.add('step-reveal');void ss.offsetWidth;ss.classList.remove('step-reveal')}
+  return false
+}
+function viewBookingHistory(){window.location.href='/book-history'}
+function getCurrentBookingStepNumber(){for(var i=7;i>=1;i--){var e=document.querySelector('.booking-step[data-step="'+i+'"]');if(e&&!e.classList.contains('d-none')&&e.offsetParent!==null)return i}var s1=document.querySelector('.booking-step[data-step="1"]');if(s1&&s1.offsetParent!==null)return 1;return null}
+function refreshBookingTrackingUI(sn){
+  var cur=typeof sn==='number'?sn:getCurrentBookingStepNumber(),mo=document.getElementById('bookingTrackingModal');
+  if(!mo)return;
+  for(var s=1;s<=7;s++){var p=mo.querySelector('[data-track-pill="'+s+'"]');if(!p)continue;p.classList.remove('bg-success','text-white','bg-primary','text-white','bg-light','text-muted','border','border-success','border-primary');p.classList.add('badge');if(cur&&s<cur){p.textContent='Completed';p.classList.add('bg-success','text-white')}else if(cur&&s===cur){p.textContent='In progress';p.classList.add('bg-primary','text-white')}else{p.textContent='Pending';p.classList.add('bg-light','text-muted','border')}}
+  if(document.getElementById('trackingCurrentStatus'))document.getElementById('trackingCurrentStatus').textContent=cur?'Step '+cur+' in progress':'Waiting for you to start';
+  var pm=document.getElementById('bookingResultModal'),rs=document.getElementById('bookingResultReference'),re=document.getElementById('trackingReference');
+  if(pm&&pm.classList.contains('show')&&re){re.textContent=(rs&&rs.textContent&&rs.textContent.trim())?rs.textContent.trim():'—';var s7=mo.querySelector('[data-track-pill="7"]');if(s7){s7.textContent='Submitted';s7.classList.remove('bg-primary','bg-light','text-muted','border');s7.classList.add('bg-warning','text-dark')}}
+}
+function openBookingTrackingModal(){var e=document.getElementById('bookingTrackingModal');if(!e)return;refreshBookingTrackingUI();new bootstrap.Modal(e,{backdrop:true,keyboard:true}).show()}
+function goToBookingStepFromTracking(){var cur=getCurrentBookingStepNumber(),tar=Math.min(7,Math.max(1,(cur||1)));if(tar<7)tar++;if(typeof showStep==='function'&&typeof updateStepper==='function'){showStep(tar);updateStepper(tar)}else{for(var i=1;i<=7;i++){var el=document.querySelector('.booking-step[data-step="'+i+'"]');if(!el)continue;el.classList.toggle('d-none',i!==tar);if(i===tar){el.classList.add('step-reveal');void el.offsetWidth;el.classList.remove('step-reveal')}}}var me=document.getElementById('bookingTrackingModal');if(me){var bs=bootstrap.Modal.getInstance(me);if(bs)bs.hide()}}
+document.addEventListener("DOMContentLoaded",()=>{
+  ["bookingResultModal","bookingSuccessModal","carLoadingModal","quantitySelectionModal"].forEach(id=>{const m=document.getElementById(id);if(m&&m.parentElement!==document.body)document.body.appendChild(m)});
+  const s=document.createElement("style");
+  s.textContent=`#bookingResultModal,#bookingSuccessModal,#carLoadingModal,#quantitySelectionModal{z-index:9999!important;position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;display:none;align-items:center!important;justify-content:center!important}
+#bookingResultModal.show,#bookingSuccessModal.show,#carLoadingModal.show,#quantitySelectionModal.show{display:flex!important}
+#bookingResultModal .modal-dialog,#bookingSuccessModal .modal-dialog,#carLoadingModal .modal-dialog{margin:auto!important;max-width:560px!important;width:92%!important;position:relative!important;z-index:10001!important;transform:none!important;pointer-events:auto!important}
+#quantitySelectionModal .modal-dialog{margin:auto!important;max-width:720px!important;width:92%!important;position:relative!important;z-index:10001!important;transform:none!important;pointer-events:auto!important}
+#bookingResultModal .modal-content,#bookingSuccessModal .modal-content,#carLoadingModal .modal-content{pointer-events:auto!important;box-shadow:0 25px 80px rgba(0,0,0,0.25)!important;border:none!important;border-radius:16px!important;overflow:hidden!important}
+#quantitySelectionModal .modal-content{pointer-events:auto!important;background-color:#fff!important;color:#0f172a!important}
+#quantitySelectionModal h5,#quantitySelectionModal h6,#quantitySelectionModal label,#quantitySelectionModal .form-label,#quantitySelectionModal .fw-bold,#quantitySelectionModal .fw-semibold{color:#0f172a!important}
+#quantitySelectionModal p,#quantitySelectionModal .text-muted,#quantitySelectionModal .form-text,#quantitySelectionModal small{color:#475569!important}
+.modal-backdrop{z-index:9998!important;backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important;background-color:rgba(15,23,42,0.5)!important}
+
+/* ── Configure Service modal — Enterprise redesign ── */
+.cfg-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.25rem 1.5rem;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%);color:#fff;position:relative;}
+.cfg-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:14px;background:radial-gradient(120% 100% at 50% 0,rgba(37,99,235,0.25),transparent 70%);}
+.cfg-ico{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.25);font-size:1.25rem;flex-shrink:0;}
+.cfg-close{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,0.14);color:#fff;font-size:0.85rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
+.cfg-close:hover{background:rgba(255,255,255,0.28);transform:rotate(90deg);}
+
+.cfg-wizard{display:flex;align-items:center;gap:0.5rem;padding:1rem 1.75rem 0.25rem;}
+.cfg-step{display:flex;align-items:center;gap:0.6rem;}
+.cfg-dot{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#f1f5f9;color:#94a3b8;border:2px solid #e2e8f0;transition:all .3s cubic-bezier(0.16,1,0.3,1);}
+.cfg-step.is-active .cfg-dot{background:#eff6ff;color:#2563eb;border-color:#2563eb;box-shadow:0 0 0 5px rgba(37,99,235,0.12);}
+.cfg-step.is-done .cfg-dot{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-color:#059669;}
+.cfg-step-t{font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;}
+.cfg-step.is-active .cfg-step-t{color:#2563eb;}
+.cfg-step-s{font-size:0.86rem;font-weight:700;color:#0f172a;}
+.cfg-line{flex:1;height:3px;background:#e2e8f0;border-radius:99px;margin:0 0.4rem;transition:background .3s;}
+.cfg-step.is-done + .cfg-line{background:linear-gradient(90deg,#10b981,#059669);}
+
+.cfg-note{border-radius:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.14);padding:0.8rem 1rem;color:#1e3a8a;font-size:0.85rem;}
+.cfg-fl{display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.3rem;}
+.cfg-fl-sub{font-size:0.74rem;color:#94a3b8;font-weight:500;}
+.cfg-f{width:100%;border:1.5px solid #e2e8f0;border-radius:12px;padding:0.6rem 0.8rem;font-size:0.85rem;resize:vertical;font-family:inherit;color:#0f172a;background:#fff;}
+.cfg-f:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.1);}
+
+.cfg-qty-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.9rem 1rem;background:#f8fafc;border:1px solid #eef2f7;border-radius:14px;}
+.cfg-stepper{display:inline-flex;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;}
+.cfg-stepper button{width:40px;height:40px;border:none;background:#fff;color:#475569;font-size:1.05rem;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.cfg-stepper button:hover{background:#eff6ff;color:#2563eb;}
+.cfg-stepper input{width:56px;height:40px;border:none;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a;background:#fff;border-left:1px solid #eef2f7;border-right:1px solid #eef2f7;}
+
+.cfg-price{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.9rem 1.1rem;border-radius:14px;background:#fff;border:1px solid #dbeafe;box-shadow:0 -8px 20px rgba(255,255,255,0.9);z-index:5;}
+.cfg-price-inline{position:static;box-shadow:none;margin:0;}
+.cfg-price-l{font-weight:700;color:#1e3a8a;font-size:0.9rem;}
+.cfg-price-sub{display:block;font-size:0.7rem;color:#64748b;font-weight:500;}
+.cfg-price-v{font-weight:800;color:#2563eb;font-size:1.35rem;letter-spacing:-0.02em;}
+
+.cfg-footer{background:#f8fafc;border-top:1px solid #eef2f7!important;padding:1rem 1.5rem 1.25rem!important;display:flex!important;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:0.75rem 1rem}
+.cfg-footer .cfg-btn-ghost{margin:0}
+.cfg-btn-primary{margin-left:auto;flex:0 0 auto;white-space:nowrap}
+.cfg-btn-ghost{padding:0.65rem 1.3rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;color:#475569;font-weight:700;font-size:0.9rem;cursor:pointer;transition:all .2s;}
+.cfg-btn-ghost:hover{background:#f1f5f9;color:#1e293b;}
+.cfg-btn-primary{padding:0.65rem 1.5rem;border-radius:12px;border:none;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:700;font-size:0.9rem;box-shadow:0 6px 20px rgba(37,99,235,0.28);cursor:pointer;transition:all .2s;}
+.cfg-btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(37,99,235,0.34);}
+.cfg-btn-primary:disabled{opacity:0.55;cursor:not-allowed;transform:none;box-shadow:none;}
+
+/* Aircon type cards (injected by services-multi.js) */
+#quantitySelectionModal .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem!important;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+#quantitySelectionModal .aircon-type-card:hover{border-color:#3b82f6!important;background:rgba(59,130,246,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
+#quantitySelectionModal .aircon-type-card.selected{border-color:#2563eb!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 8px 24px rgba(37,99,235,0.18)!important}
+#quantitySelectionModal .aircon-type-card.selected::after{content:'\\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+#quantitySelectionModal .aircon-type-card h6{color:#0f172a!important;font-size:0.95rem}
+#quantitySelectionModal .aircon-type-card.selected h6{color:#1e3a8a!important}
+#quantitySelectionModal .aircon-type-card .text-muted{color:#64748b!important}
+#quantitySelectionModal .aircon-type-card .text-primary{color:#2563eb!important}
+#quantitySelectionModal .aircon-type-card .bi{color:#2563eb!important}
+
+/* HP selection cards (injected by services-multi.js) */
+#quantitySelectionModal .hp-selection-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem!important;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+#quantitySelectionModal .hp-selection-card:hover{border-color:#22c55e!important;background:rgba(16,185,129,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(16,185,129,0.16)!important}
+#quantitySelectionModal .hp-selection-card.selected{border-color:#059669!important;background:linear-gradient(135deg,#ecfdf5,#d1fae5)!important;box-shadow:0 8px 24px rgba(5,150,105,0.18)!important}
+#quantitySelectionModal .hp-selection-card.selected::after{content:'\\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+#quantitySelectionModal .hp-selection-card .fw-bold{color:#0f172a!important;font-size:0.95rem}
+#quantitySelectionModal .hp-selection-card.selected .fw-bold{color:#14532d!important}
+#quantitySelectionModal .hp-selection-card .text-primary{color:#2563eb!important}
+#quantitySelectionModal .hp-selection-card .text-muted{color:#64748b!important}
+#quantitySelectionModal .hp-option-card.border-primary,#quantitySelectionModal .hp-selection-card.border-primary{border-color:#2563eb!important;background:rgba(59,130,246,0.06)!important}
+#quantitySelectionModal .badge.bg-primary{background:linear-gradient(135deg,#3b82f6,#2563eb)!important;color:#fff!important}
+#quantitySelectionModal .badge.bg-success.bg-opacity-10{background-color:#dcfce7!important;color:#15803d!important}
+#quantitySelectionModal .badge.bg-info.bg-opacity-10{background-color:#e0f2fe!important;color:#0369a1!important}
+
+#quantitySelectionModal #hpSelectionForType{border-top:1px dashed #e2e8f0!important;margin-top:1rem}`;
+  document.head.appendChild(s);
+
+  // Drive the Configure Service wizard stepper from the injected cards.
+  (function(){
+    const modal = document.getElementById('quantitySelectionModal');
+    if (!modal) return;
+    const step1 = document.getElementById('cfgStep1');
+    const step2 = document.getElementById('cfgStep2');
+    function setStep(done1, active2, done2){
+      if (step1){ step1.classList.toggle('is-done', !!done1); step1.classList.toggle('is-active', !done1); }
+      if (step2){ step2.classList.toggle('is-active', !!active2); step2.classList.toggle('is-done', !!done2); }
+    }
+    // Reset when modal opens
+    modal.addEventListener('show.bs.modal', function(){ setStep(false, false, false); });
+    modal.addEventListener('shown.bs.modal', function(){ setStep(false, false, false); });
+    document.addEventListener('click', function(e){
+      const typeCard = e.target.closest && e.target.closest('.aircon-type-card');
+      const hpCard = e.target.closest && e.target.closest('.hp-selection-card');
+      if (typeCard && modal.contains(typeCard)) { setStep(true, true, false); }
+      else if (hpCard && modal.contains(hpCard)) { setStep(true, false, true); }
+    });
+  })();
+});
+(function(){
+  var bb=document.querySelector('.booking-body');if(!bb||!window.MutationObserver)return;
+  function tr(el){if(!el.classList.contains('booking-step'))return;el.classList.remove('step-reveal');void el.offsetWidth;el.classList.add('step-reveal');el.addEventListener('animationend',function cl(){el.classList.remove('step-reveal');el.removeEventListener('animationend',cl)})}
+  var obs=new MutationObserver(function(muts){muts.forEach(function(m){if(m.type!=='attributes'||m.attributeName!=='class')return;var el=m.target,was=m.oldValue&&m.oldValue.split(' ').includes('d-none'),now=!el.classList.contains('d-none');if(was&&now)tr(el)})});
+  bb.querySelectorAll('.booking-step').forEach(function(s){obs.observe(s,{attributes:true,attributeOldValue:true})});
+  ['serviceCards','suggestedCards'].forEach(function(id){var el=document.getElementById(id);if(el)new MutationObserver(function(muts){var a=[];muts.forEach(function(m){if(m.type!=='childList')return;m.addedNodes.forEach(function(n){if(n.nodeType===1)a.push(n)})});a.forEach(function(n,i){var d=Math.min(i,10)*55;n.style.animationDelay=d+'ms';n.style.animation='none';void n.offsetWidth;n.style.animation='fadeUp 320ms cubic-bezier(0.22,1,0.36,1) both';n.style.animationDelay=d+'ms'})}).observe(el,{childList:true})});
+  var sc=document.getElementById('timeSlots');if(sc){var batch=[],tm=null;new MutationObserver(function(muts){muts.forEach(function(m){if(m.type!=='childList')return;m.addedNodes.forEach(function(n){if(n.nodeType===1)batch.push(n)})});clearTimeout(tm);tm=setTimeout(function(){batch.forEach(function(n,i){var d=Math.min(i,10)*50;n.style.animationDelay=d+'ms';n.style.animation='none';void n.offsetWidth;n.style.animation='fadeUp 300ms cubic-bezier(0.22,1,0.36,1) both';n.style.animationDelay=d+'ms'});batch=[]},20)}).observe(sc,{childList:true})}
+})();
+
+/* ── Payment step: order summary, GCash account & copy ── */
+(function(){
+  function fmt(n){return '₱'+(Number(n)||0).toLocaleString();}
+
+  function getBookingState(){
+    try { return (window.BookingState || (window.parent && window.parent.BookingState)) || {}; } catch(e){ return {}; }
+  }
+
+  function getSelectedServices(){
+    var bs=getBookingState();
+    if(Array.isArray(bs.selectedServices)&&bs.selectedServices.length) return bs.selectedServices;
+    if(Array.isArray(bs.services)&&bs.services.length) return bs.services;
+    if(bs.service) return [bs.service];
+    if(window.BookingSystem && typeof window.BookingSystem.selectedServices==='function'){
+      var s=window.BookingSystem.selectedServices(); if(Array.isArray(s)&&s.length) return s;
+    }
+    return [];
+  }
+
+  function renderPaymentSummary(){
+    var totalEl=document.getElementById('paymentSummaryTotal');
+    if(!totalEl) return;
+    var svcs=getSelectedServices();
+    var total=0;
+    svcs.forEach(function(s){
+      var price=(s.price||s.unitPrice||s.totalPrice||0)*(s.quantity||1);
+      total+=price;
+    });
+    var bs=getBookingState();
+    if(bs.travelFare) total+=Number(bs.travelFare)||0;
+    totalEl.textContent=fmt(total);
+  }
+  function selectPaymentMethod(method){
+    var gcashFields=document.getElementById('gcashFields');
+    var cashFields=document.getElementById('cashFields');
+    var payGcash=document.getElementById('payGcash');
+    var payCash=document.getElementById('payCash');
+    if(method==='gcash'){
+      if(gcashFields) gcashFields.classList.remove('d-none');
+      if(cashFields) cashFields.classList.add('d-none');
+      if(payGcash) payGcash.checked=true;
+      if(payCash) payCash.checked=false;
+    } else {
+      if(gcashFields) gcashFields.classList.add('d-none');
+      if(cashFields) cashFields.classList.remove('d-none');
+      if(payGcash) payGcash.checked=false;
+      if(payCash) payCash.checked=true;
+    }
+    document.querySelectorAll('.ent-payment-tab').forEach(function(t){
+      t.classList.toggle('active',t.dataset.method===method);
+    });
+    renderPaymentSummary();
+  }
+  window.selectPaymentMethod = selectPaymentMethod;
+
+  function renderGcashAccount(){
+    var num=window.adminGcashNumber||'';
+    var disp=document.getElementById('gcashAccountNumber');
+    var qr=document.getElementById('gcashQrImage');
+    if(disp) disp.textContent=num?num:'—';
+    if(qr&&num){
+      qr.src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent('GCash|'+num);
+    }
+  }
+
+  function bindCopy(){
+    var btn=document.getElementById('copyGcashNumber');
+    if(!btn) return;
+    btn.addEventListener('click',function(){
+      var num=(window.adminGcashNumber||'').trim();
+      if(!num) return;
+      var done=function(){btn.classList.add('copied');btn.innerHTML='<i class="bi bi-check-lg"></i>';setTimeout(function(){btn.classList.remove('copied');btn.innerHTML='<i class="bi bi-clipboard"></i>';},1500);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(num).then(done).catch(function(){});}
+      else { var t=document.createElement('textarea');t.value=num;document.body.appendChild(t);t.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(t);}
+    });
+  }
+
+  // Auto-fill the customer's GCash / Cash mobile number from their profile
+  // so they don't have to type it again. Only fills empty fields.
+  function prefillCustomerContact(){
+    var phone=(window.currentUser&&window.currentUser.phone)||(window.LOGGED_IN&&window.currentUser&&window.currentUser.phone)||'';
+    if(!phone) return;
+    ['gcashNumber','cashNumber'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el&&!el.value){ el.value=phone; }
+    });
+  }
+
+  // Re-render whenever the payment step becomes visible or on state changes
+  var ps=document.getElementById('paymentStep');
+  if(ps&&window.MutationObserver){
+    new MutationObserver(function(){
+      if(!ps.classList.contains('d-none')){ renderPaymentSummary(); renderGcashAccount(); prefillCustomerContact(); }
+    }).observe(ps,{attributes:true,attributeFilter:['class']});
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    renderPaymentSummary(); renderGcashAccount(); bindCopy(); prefillCustomerContact();
+  });
+  // Refresh after the booking scripts initialize state
+  setTimeout(function(){ renderPaymentSummary(); renderGcashAccount(); prefillCustomerContact(); }, 600);
+  setTimeout(function(){ renderPaymentSummary(); renderGcashAccount(); prefillCustomerContact(); }, 1500);
+})();
+</script>

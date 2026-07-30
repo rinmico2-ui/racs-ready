@@ -1,0 +1,2918 @@
+<!-- Aircon Product Page — Premium E-Commerce Design -->
+<%
+  var airconGroups = (locals.grouped && Array.isArray(grouped)) ? grouped : [];
+%>
+<section class="products-aircons-premium position-relative" style="overflow: hidden;">
+  <div class="position-relative" style="background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%); padding: 3.5rem 0 3rem; border-bottom: 1px solid rgba(37,99,235,0.08);">
+    <style>
+      @media (max-width: 768px) {
+        .products-aircons-premium > div:first-child {
+          padding: 1.5rem 0 1.25rem !important;
+        }
+        .products-aircons-premium h1 {
+          font-size: 1.5rem !important;
+        }
+        .products-aircons-premium h1 br {
+          display: none;
+        }
+        .products-aircons-premium p {
+          font-size: 0.85rem !important;
+        }
+        .enterprise-filter-bar {
+          padding: 0.5rem 0 0.5rem !important;
+        }
+        .ent-filter-pill {
+          padding: 0.3rem 0.7rem !important;
+          font-size: 0.72rem !important;
+        }
+        #productSearchInput {
+          font-size: 0.85rem !important;
+          padding: 0.45rem 1rem 0.45rem 2rem !important;
+        }
+      }
+      @media (max-width: 480px) {
+        .products-aircons-premium > div:first-child {
+          padding: 1.25rem 0 1rem !important;
+        }
+        .products-aircons-premium h1 {
+          font-size: 1.25rem !important;
+        }
+        .products-aircons-premium p {
+          font-size: 0.8rem !important;
+        }
+        .ent-filter-pill {
+          padding: 0.25rem 0.6rem !important;
+          font-size: 0.68rem !important;
+        }
+        .ent-filter-pill i {
+          display: none !important;
+        }
+      }
+    </style>
+    <div class="position-absolute top-0 start-0 w-100 h-100"
+      style="background-image: radial-gradient(rgba(37,99,235,0.04) 1px, transparent 1px); background-size: 20px 20px; z-index: 0; pointer-events: none;"></div>
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="z-index: 0; pointer-events: none;">
+      <div style="position: absolute; top: -30%; right: -10%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); border-radius: 50%;"></div>
+      <div style="position: absolute; bottom: -20%; left: -5%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%); border-radius: 50%;"></div>
+    </div>
+    <div class="container position-relative" style="z-index: 2;">
+      <div class="row align-items-center">
+        <div class="col-lg-7">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 mb-3"
+            style="font-size: 0.68rem; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; border: 1px solid rgba(37,99,235,0.15); background: rgba(37,99,235,0.06); border-radius: 4px;">
+            <i class="bi bi-snowflake" style="font-size: 0.75rem;"></i>
+            RACS READY
+          </div>
+          <h1 class="fw-bold mb-2" style="color: #0f172a; font-size: 2.2rem; letter-spacing: -0.8px; line-height: 1.15;">
+            Commercial & Residential<br>
+            <span style="background: linear-gradient(135deg, #2563eb, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Air Conditioning</span> Systems
+          </h1>
+          <p class="mb-0" style="max-width: 500px; color: #64748b; font-size: 0.92rem; line-height: 1.6;">
+            Premium HVAC solutions with professional installation, certified warranty, and 24/7 support.
+          </p>
+        </div>
+        <div class="col-lg-5 d-none d-lg-block">
+          <div class="d-flex gap-2 justify-content-end">
+            <div class="text-center px-3 py-2" style="background: rgba(255,255,255,0.7); border: 1px solid rgba(37,99,235,0.1); border-radius: 8px; min-width: 100px; backdrop-filter: blur(8px);">
+              <div class="fw-bold" style="color: #0f172a; font-size: 1.25rem; letter-spacing: -0.5px;">12mo</div>
+              <div style="color: #64748b; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Warranty</div>
+            </div>
+            <div class="text-center px-3 py-2" style="background: rgba(255,255,255,0.7); border: 1px solid rgba(37,99,235,0.1); border-radius: 8px; min-width: 100px; backdrop-filter: blur(8px);">
+              <div class="fw-bold" style="color: #0f172a; font-size: 1.25rem; letter-spacing: -0.5px;">24/7</div>
+              <div style="color: #64748b; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Support</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Products Content Area ═══ -->
+  <div class="py-5"
+    style="background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); position: relative;">
+    <!-- Floating Cart Button -->
+    <div id="floatingCartBtn" class="position-fixed d-flex align-items-center gap-2" style="bottom: 24px; right: 24px; z-index: 9998;">
+      <span id="cartLabel" class="d-none d-md-inline-block px-3 py-2 fw-semibold small"
+        style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; letter-spacing: 0.2px; cursor: pointer; border-radius: 8px; font-size: 0.78rem; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.25);"
+        onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'">
+        <i class="bi bi-cart3 me-1"></i> Cart <span id="cartLabelCount">0</span>
+      </span>
+      <button class="btn d-flex align-items-center justify-content-center p-0"
+        style="width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 1rem; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transition: transform 0.2s;"
+        onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'"
+        onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <i class="bi bi-cart3"></i>
+        <span id="cartBadgeCount"
+          class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"
+          style="font-size: 0.6rem; display: none;">0</span>
+      </button>
+    </div>
+    <div class="container position-relative" style="z-index: 1;">
+      <!-- Search & Filter Bar -->
+      <div class="enterprise-filter-bar mb-3" style="padding: 0 0 0.75rem; border-bottom: 1px solid rgba(37,99,235,0.1);">
+        <div class="row align-items-center g-2">
+          <div class="col-md-4 col-lg-3">
+            <div class="position-relative">
+              <input type="text" id="productSearchInput" class="form-control"
+                placeholder="Search models, brands..."
+                style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; font-weight: 500; color: #0f172a; padding: 0.5rem 1rem 0.5rem 2.25rem; transition: all 0.2s;"
+                oninput="filterProductsBySearch()">
+              <i class="bi bi-search position-absolute" style="left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.82rem;"></i>
+              <button class="btn position-absolute border-0 p-0 d-flex align-items-center justify-content-center"
+                id="searchClearBtn"
+                style="right: 8px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #94a3b8; display: none;"
+                onclick="document.getElementById('productSearchInput').value='';filterProductsBySearch();this.style.display='none';">
+                <i class="bi bi-x-lg" style="font-size: 0.6rem;"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-md-8 col-lg-9">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="d-flex gap-1 flex-wrap" role="group" aria-label="Product type filters">
+                <button class="btn ent-filter-pill active" data-filter="all">All</button>
+                <button class="btn ent-filter-pill" data-filter="split"><i class="bi bi-columns-gap me-1 d-none d-sm-inline"></i>Split</button>
+                <button class="btn ent-filter-pill" data-filter="window_inverter"><i class="bi bi-window me-1 d-none d-sm-inline"></i>Window Inverter</button>
+                <button class="btn ent-filter-pill" data-filter="window_non_inverter"><i class="bi bi-window me-1 d-none d-sm-inline"></i>Window</button>
+                <button class="btn ent-filter-pill" data-filter="floor_mounted"><i class="bi bi-layers me-1 d-none d-sm-inline"></i>Floor Mounted</button>
+              </div>
+              <div class="small d-flex align-items-center gap-1" style="color: #64748b; font-weight: 500; white-space: nowrap;">
+                <span id="visibleProductCount" class="fw-bold" style="color: #2563eb; font-variant-numeric: tabular-nums;"><%= airconGroups.length %></span>
+                <span>products</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══ Enterprise Filter Pills ═══ */
+        .ent-filter-pill {
+          padding: 0.35rem 0.85rem;
+          border-radius: 6px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #64748b;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+
+        .ent-filter-pill:hover {
+          background: #eff6ff;
+          color: #2563eb;
+          border-color: #bfdbfe;
+        }
+
+        .ent-filter-pill.active {
+          background: linear-gradient(135deg, #2563eb, #3b82f6);
+          color: #fff;
+          border-color: #3b82f6;
+          box-shadow: 0 1px 4px rgba(37,99,235,0.35);
+        }
+
+        .ent-filter-pill:focus-visible {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+        }
+
+        /* ═══ Featured Aircon Card (light enterprise) ═══ */
+        .fp-card {
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 1rem;
+          overflow: hidden;
+          transition: all 0.45s cubic-bezier(0.165,0.84,0.44,1);
+          display: flex; flex-direction: column;
+          box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+        }
+        .fp-card:hover { transform: translateY(-8px); border-color: #bfdbfe; box-shadow: 0 20px 40px rgba(37,99,235,0.1); }
+        .fp-card-media { position: relative; aspect-ratio: 4/3; background: #f8fafc; overflow: hidden; }
+        .fp-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s ease; }
+        .fp-card:hover .fp-card-media img { transform: scale(1.08); }
+        .fp-tag { position: absolute; top: 12px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; padding: 4px 10px; border-radius: 50px; text-transform: uppercase; }
+        .fp-tag-inverter { left: 12px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+        .fp-tag-stock { right: 12px; }
+        .fp-tag-stock.in { background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
+        .fp-tag-stock.out { background: rgba(239,68,68,0.1); color: #dc2626; border: 1px solid rgba(239,68,68,0.2); }
+        .fp-sold-overlay {
+          position: absolute; inset: 0;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(255,255,255,0.6); backdrop-filter: blur(2px);
+          z-index: 1;
+        }
+        .fp-sold-overlay span {
+          font-weight: 700; font-size: 0.7rem; letter-spacing: 0.3px;
+          background: rgba(239,68,68,0.1); color: #dc2626;
+          padding: 4px 12px; border-radius: 4px;
+        }
+        .fp-quick-add { position: absolute; inset: auto 0 0 0; padding: 0.9rem; background: linear-gradient(to top, rgba(255,255,255,0.95), transparent); transform: translateY(20px); opacity: 0; transition: all 0.4s ease; z-index: 2; }
+        .fp-card:hover .fp-quick-add { transform: translateY(0); opacity: 1; }
+        .fp-quick-btn { display: block; text-align: center; padding: 0.6rem; border-radius: 0.75rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; font-size: 0.85rem; text-decoration: none; flex: 1; }
+        .fp-quick-btn:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; }
+        .fp-quick-cart {
+          width: 44px; flex-shrink: 0; border: none; border-radius: 0.75rem;
+          background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+          font-size: 0.95rem; cursor: pointer; transition: all 0.2s ease;
+        }
+        .fp-quick-cart:hover:not(:disabled) { background: linear-gradient(135deg, #60a5fa, #3b82f6); box-shadow: 0 4px 14px rgba(37,99,235,0.4); transform: translateY(-1px); }
+        .fp-quick-cart:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        .fp-card-body { padding: 1.1rem 1.2rem 1.3rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
+        .fp-brand { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; }
+        .fp-name { font-size: 1rem; font-weight: 700; color: #0f172a; letter-spacing: -0.3px; margin: 0; line-height: 1.3; }
+        .fp-meta { font-size: 0.78rem; color: #64748b; display: flex; align-items: center; gap: 0.4rem; }
+        .fp-dot { color: #cbd5e1; }
+        .fp-foot { margin-top: auto; padding-top: 0.8rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .fp-price { color: #0f172a; font-weight: 800; font-size: 1.05rem; letter-spacing: -0.3px; }
+        .fp-from { display: block; font-size: 0.65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+        .fp-buy { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 0.9rem; border-radius: 50px; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; font-weight: 700; font-size: 0.8rem; text-decoration: none; transition: all 0.3s ease; }
+        .fp-buy:hover { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-color: transparent; transform: translateY(-2px); }
+
+        /* ═══ Mobile Responsive Fixes for Product Cards ═══ */
+        @media (max-width: 768px) {
+          .fp-card {
+            border-radius: 0.75rem;
+          }
+          .fp-card-media {
+            aspect-ratio: 1 / 1;
+          }
+          .fp-card-body {
+            padding: 0.9rem 1rem 1rem;
+            gap: 0.25rem;
+          }
+          .fp-brand {
+            font-size: 0.65rem;
+          }
+          .fp-name {
+            font-size: 0.9rem;
+            line-height: 1.25;
+          }
+          .fp-meta {
+            font-size: 0.72rem;
+          }
+          .fp-price {
+            font-size: 0.95rem;
+          }
+          .fp-from {
+            font-size: 0.6rem;
+          }
+          .fp-buy {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.75rem;
+          }
+          .fp-tag {
+            font-size: 0.6rem;
+            padding: 3px 8px;
+            top: 8px;
+          }
+          .fp-tag-inverter {
+            left: 8px;
+          }
+          .fp-tag-stock {
+            right: 8px;
+          }
+          .fp-quick-add {
+            padding: 0.7rem;
+          }
+          .fp-quick-btn {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+          }
+          .fp-quick-cart {
+            width: 38px;
+            font-size: 0.85rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .fp-card-body {
+            padding: 0.75rem 0.85rem 0.85rem;
+          }
+          .fp-name {
+            font-size: 0.85rem;
+          }
+          .fp-price {
+            font-size: 0.9rem;
+          }
+          .fp-buy {
+            padding: 0.35rem 0.65rem;
+            font-size: 0.7rem;
+          }
+          .fp-quick-btn {
+            padding: 0.45rem;
+            font-size: 0.75rem;
+          }
+        }
+
+        /* Keep wizard post-purchase button styled */
+        .btn-add-cart {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 50px;
+          font-weight: 700;
+          text-decoration: none;
+          transition: all 0.25s ease;
+        }
+        .btn-add-cart:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; transform: translateY(-2px); }
+
+        /* ── Modal Wizard Styles ── */
+        .wizard-modal>.modal-dialog {
+          max-width: 960px;
+        }
+
+        .wizard-modal .modal-content {
+          border: none;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 25px 80px rgba(0,0,0,0.2);
+          background: #fff;
+        }
+
+        .wizard-modal .modal-header {
+          background: linear-gradient(135deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%);
+          border-bottom: 1px solid rgba(37,99,235,0.1);
+          padding: 1.25rem 1.75rem 1rem;
+          position: relative;
+          z-index: 2;
+        }
+
+        .wizard-modal .modal-header::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(rgba(37,99,235,0.04) 1px, transparent 1px);
+          background-size: 16px 16px;
+          pointer-events: none;
+        }
+
+        .wizard-modal .modal-header .modal-title {
+          color: #0f172a;
+          font-weight: 700;
+          font-size: 1.1rem;
+          letter-spacing: -0.3px;
+          position: relative;
+        }
+
+        .wizard-modal .modal-header .btn-close {
+          opacity: 0.5;
+          transition: all 0.2s;
+          width: 1.75rem;
+          height: 1.75rem;
+          padding: 0;
+          filter: brightness(0) invert(1);
+        }
+
+        .wizard-modal .modal-header .btn-close:hover {
+          opacity: 1;
+          transform: rotate(90deg);
+        }
+
+        .wizard-modal .modal-body {
+          padding: 0;
+          background: #fafbfc;
+        }
+
+        .wizard-modal .modal-footer {
+          border-top: 1px solid #e2e8f0;
+          padding: 1.25rem 1.75rem;
+          background: #fff;
+        }
+
+        /* Progress indicator */
+        .wizard-progress {
+          display: flex;
+          justify-content: center;
+          gap: 0;
+          padding: 1.5rem 1.75rem 1rem;
+          background: linear-gradient(135deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%);
+          border-bottom: 1px solid rgba(37,99,235,0.1);
+          position: relative;
+          z-index: 1;
+        }
+
+        .wizard-progress::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(rgba(37,99,235,0.04) 1px, transparent 1px);
+          background-size: 16px 16px;
+          pointer-events: none;
+        }
+
+        .wizard-step-indicator {
+          display: flex;
+          align-items: center;
+          position: relative;
+          z-index: 2;
+          flex-direction: column;
+        }
+
+        .wizard-step-dot {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #94a3b8;
+          background: #fff;
+          border: 1.5px solid #e2e8f0;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+        }
+
+        .wizard-step-dot.active {
+          color: #fff;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          border-color: transparent;
+          box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+          transform: scale(1.08);
+        }
+
+        .wizard-step-dot.completed {
+          color: #fff;
+          background: linear-gradient(135deg, #4ade80, #22c55e);
+          border-color: transparent;
+          box-shadow: 0 4px 12px rgba(34,197,94,0.35);
+        }
+
+        .wizard-step-line {
+          width: 40px;
+          height: 2px;
+          background: #e2e8f0;
+          margin: 0 0.4rem;
+          transition: all 0.3s ease;
+          position: relative;
+          z-index: 2;
+          margin-top: 17px;
+        }
+
+        .wizard-step-line.completed {
+          background: linear-gradient(90deg, #4ade80, #22c55e);
+        }
+
+        .wizard-step-line.active {
+          background: linear-gradient(90deg, #60a5fa, #3b82f6);
+        }
+
+        .wizard-step-label {
+          font-size: 0.58rem;
+          color: #94a3b8;
+          text-align: center;
+          margin-top: 0.5rem;
+          font-weight: 600;
+          transition: all 0.3s;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          white-space: nowrap;
+        }
+
+        .wizard-step-label.active {
+          color: #2563eb;
+        }
+
+        .wizard-step-label.completed {
+          color: #16a34a;
+        }
+
+        /* Wizard content panels */
+        .wizard-panel {
+          display: none;
+          padding: 1.75rem 2rem;
+          animation: fadeSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .wizard-panel.active {
+          display: block;
+        }
+
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .wizard-panel .step-header {
+          text-align: center;
+          margin-bottom: 1.5rem;
+        }
+
+        .wizard-panel .step-header h4 {
+          font-weight: 700;
+          color: #0f172a;
+          letter-spacing: -0.5px;
+          font-size: 1.2rem;
+          margin-bottom: 0.35rem;
+        }
+
+        .wizard-panel .step-header p {
+          color: #64748b;
+          font-weight: 500;
+          font-size: 0.85rem;
+          margin: 0;
+        }
+
+        .login-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(255,255,255,0.95);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          z-index: 999;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          animation: fadeSlideUp 0.2s ease;
+        }
+
+        @keyframes floatImage {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+          100% { transform: translateY(0px); }
+        }
+
+        .floating-img {
+          animation: floatImage 6s ease-in-out infinite;
+        }
+
+        /* HP variant selector — card grid */
+        #wizardHpOptions {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.75rem;
+        }
+
+        .hp-card {
+          cursor: pointer;
+          padding: 1.25rem;
+          border-radius: 12px;
+          border: 1.5px solid #e2e8f0;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          background: #fff;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .hp-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #3b82f6, #2563eb);
+          opacity: 0;
+          transition: opacity 0.35s;
+        }
+
+        .hp-card:hover {
+          border-color: #93c5fd;
+          transform: translateY(-3px);
+          box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+        }
+
+        .hp-card:hover::before {
+          opacity: 0.4;
+        }
+
+        .hp-card.selected {
+          border-color: #2563eb;
+          background: linear-gradient(135deg, #eff6ff, #faf5ff);
+          box-shadow: 0 8px 28px rgba(37,99,235,0.12);
+          transform: translateY(-3px);
+        }
+
+        .hp-card.selected::before {
+          opacity: 1;
+        }
+
+        .hp-card .hp-number {
+          font-size: 1.75rem;
+          font-weight: 800;
+          color: #0f172a;
+          letter-spacing: -1px;
+          line-height: 1.1;
+        }
+
+        .hp-card.selected .hp-number {
+          background: linear-gradient(135deg, #1e40af, #2563eb);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .hp-card .hp-unit {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-left: 2px;
+        }
+
+        .hp-card .hp-detail {
+          font-size: 0.78rem;
+          color: #64748b;
+          font-weight: 500;
+          margin-top: 0.4rem;
+        }
+
+        .hp-card .hp-price {
+          font-size: 1.05rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-top: 0.65rem;
+          letter-spacing: -0.3px;
+        }
+
+        .hp-card.selected .hp-price {
+          color: #2563eb;
+        }
+
+        .hp-card .hp-stock {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 0.68rem;
+          font-weight: 600;
+          margin-top: 0.5rem;
+          padding: 2px 8px;
+          border-radius: 6px;
+        }
+
+        .hp-card .hp-stock.in-stock {
+          background: #f0fdf4;
+          color: #15803d;
+        }
+
+        .hp-card .hp-stock.out-of-stock {
+          background: #fef2f2;
+          color: #dc2626;
+        }
+
+        .hp-card.selected .hp-number {
+          color: #0f172a;
+        }
+
+        .hp-card .hp-check {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.7rem;
+          opacity: 0;
+          transform: scale(0.5) rotate(-90deg);
+          transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+          box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+        }
+
+        .hp-card.selected .hp-check {
+          opacity: 1;
+          transform: scale(1) rotate(0deg);
+        }
+
+        .hp-card.opacity-50 {
+          opacity: 0.5;
+          pointer-events: none;
+        }
+
+        /* Fulfillment cards */
+        .fulfill-card {
+          cursor: pointer;
+          padding: 1.75rem 1.25rem;
+          border-radius: 12px;
+          border: 1.5px solid #e2e8f0;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          background: #fff;
+          text-align: center;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+          position: relative;
+          overflow: hidden;
+          min-height: 170px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .fulfill-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #3b82f6, #2563eb);
+          opacity: 0;
+          transition: opacity 0.35s;
+        }
+
+        .fulfill-card:hover {
+          border-color: #93c5fd;
+          transform: translateY(-3px);
+          box-shadow: 0 12px 32px rgba(0,0,0,0.07);
+        }
+
+        .fulfill-card.selected {
+          border-color: #2563eb;
+          background: linear-gradient(135deg, #f8fafc, #eff6ff);
+          box-shadow: 0 8px 28px rgba(37,99,235,0.1);
+        }
+
+        .fulfill-card.selected::before {
+          opacity: 1;
+        }
+
+        .fulfill-card .fulfill-icon {
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .fulfill-card.selected .fulfill-icon {
+          transform: scale(1.1);
+        }
+
+        .payment-method-card {
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+
+        .payment-method-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+        }
+
+        .payment-method-card.selected {
+          border-color: #2563eb !important;
+          background: #eff6ff !important;
+          box-shadow: 0 4px 16px rgba(37,99,235,0.1) !important;
+        }
+
+        .fulfill-card .fulfill-title {
+          font-weight: 700;
+          font-size: 0.92rem;
+          color: #0f172a;
+          position: relative;
+          z-index: 1;
+        }
+
+        .fulfill-card .fulfill-desc {
+          font-size: 0.78rem;
+          color: #64748b;
+          margin-top: 0.4rem;
+          line-height: 1.5;
+          position: relative;
+          z-index: 1;
+        }
+
+        .fulfill-card .fulfill-price {
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-top: 0.75rem;
+          position: relative;
+          z-index: 1;
+          background: #f1f5f9;
+          padding: 0.25rem 0.75rem;
+          border-radius: 4px;
+          display: inline-block;
+        }
+
+        /* Form Controls */
+        .wizard-panel .form-control,
+        .wizard-panel .form-select {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 0.65rem 1rem;
+          font-size: 0.88rem;
+          transition: all 0.2s ease;
+          color: #0f172a;
+          font-weight: 500;
+        }
+
+        .wizard-panel .form-control:focus,
+        .wizard-panel .form-select:focus {
+          background: #fff;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          outline: none;
+        }
+
+        .wizard-panel .form-control::placeholder {
+          color: #94a3b8;
+          font-weight: 400;
+        }
+
+        .wizard-panel .form-label {
+          color: #0f172a;
+          font-weight: 600;
+          font-size: 0.82rem;
+          margin-bottom: 0.4rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          letter-spacing: 0.1px;
+        }
+
+        .wizard-panel .form-section {
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 1.25rem;
+          margin-bottom: 1rem;
+        }
+
+        .wizard-panel .form-section-title {
+          font-weight: 700;
+          font-size: 0.92rem;
+          color: #0f172a;
+          margin-bottom: 1rem;
+          padding-bottom: 0.6rem;
+          border-bottom: 1px solid #f1f5f9;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .wizard-panel .form-section-title i {
+          color: #3b82f6;
+          font-size: 1rem;
+        }
+
+        /* Flatpickr Overrides */
+        .flatpickr-calendar {
+          border-radius: 8px !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important;
+          font-family: inherit !important;
+          padding: 0.4rem !important;
+        }
+
+        .flatpickr-day.selected {
+          background: #2563eb !important;
+          border-color: #2563eb !important;
+          font-weight: 600 !important;
+        }
+
+        .flatpickr-day:hover {
+          background: #f1f5f9 !important;
+          border-color: transparent !important;
+          color: #0f172a !important;
+        }
+
+        .flatpickr-current-month {
+          font-weight: 600 !important;
+          color: #0f172a !important;
+        }
+
+        /* Review summary */
+        .review-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.6rem 0;
+          border-bottom: 1px solid #f1f5f9;
+        }
+
+        .review-row:last-child {
+          border: none;
+        }
+
+        .review-label {
+          color: #64748b;
+          font-size: 0.82rem;
+          font-weight: 500;
+        }
+
+        .review-value {
+          font-weight: 600;
+          color: #0f172a;
+          font-size: 0.85rem;
+          text-align: right;
+        }
+
+        .review-product-card {
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+
+        .review-product-img {
+          width: 80px;
+          height: 80px;
+          object-fit: contain;
+          border-radius: 6px;
+          background: #f8fafc;
+          padding: 0.5rem;
+          border: 1px solid #f1f5f9;
+        }
+
+        .review-summary-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 1.25rem;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* Map container */
+        #wizardMap {
+          height: 280px;
+          border-radius: 12px;
+          border: 1.5px solid #e0e7ef;
+          z-index: 1;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 4px 24px rgba(15,23,42,0.07);
+          transition: border-color 0.2s;
+        }
+
+        #wizardMap:hover {
+          border-color: #6366f1;
+        }
+
+        /* ── Route Info Panel ───────────────────────────────── */
+        .route-info-panel {
+          display: none;
+          background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+          border: 1.5px solid #c7d2fe;
+          border-radius: 0.875rem;
+          padding: 0.85rem 1rem;
+          margin-top: 0.6rem;
+          animation: fadeInUp 0.35s cubic-bezier(.22,.68,0,.99);
+          position: relative;
+          overflow: hidden;
+        }
+        .route-info-panel::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0;
+          width: 4px; height: 100%;
+          background: linear-gradient(180deg, #6366f1, #0284c7);
+          border-radius: 4px 0 0 4px;
+        }
+        .route-info-panel.has-route { display: block; }
+        .route-stat-card {
+          background: #fff;
+          border-radius: 0.6rem;
+          padding: 0.5rem 0.75rem;
+          border: 1px solid #e0e7ef;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          flex: 1;
+          min-width: 0;
+          text-align: center;
+          box-shadow: 0 1px 4px rgba(99,102,241,0.07);
+          transition: box-shadow 0.2s;
+        }
+        .route-stat-card:hover { box-shadow: 0 3px 12px rgba(99,102,241,0.13); }
+        .route-stat-label {
+          font-size: 0.68rem;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: #6b7280;
+          margin-bottom: 2px;
+          white-space: nowrap;
+        }
+        .route-stat-value {
+          font-size: 1.05rem;
+          font-weight: 800;
+          color: #1e293b;
+          line-height: 1.2;
+        }
+        .route-stat-value.fare-value { color: #4f46e5; }
+        .route-stat-icon { font-size: 0.95rem; margin-bottom: 2px; }
+        .route-method-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 0.7rem;
+          font-weight: 600;
+          padding: 2px 8px;
+          border-radius: 99px;
+          background: #e0e7ff;
+          color: #4f46e5;
+          letter-spacing: 0.04em;
+        }
+        .route-method-badge.haversine { background: #fef3c7; color: #92400e; }
+        .route-calculation-detail {
+          font-size: 0.72rem;
+          color: #64748b;
+          text-align: center;
+          margin-top: 0.35rem;
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .map-locating-spinner {
+          position: absolute;
+          top: 8px; right: 8px;
+          background: rgba(255,255,255,0.9);
+          border-radius: 0.5rem;
+          padding: 4px 10px;
+          font-size: 0.73rem;
+          font-weight: 600;
+          color: #4f46e5;
+          display: none;
+          align-items: center;
+          gap: 5px;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .map-locating-spinner.show { display: flex; }
+
+        .leaflet-control-zoom {
+          border: none !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+          border-radius: 6px !important;
+          overflow: hidden;
+        }
+
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out {
+          background-color: #fff !important;
+          color: #0f172a !important;
+          height: 28px !important;
+          width: 28px !important;
+          line-height: 28px !important;
+          font-size: 0.85rem !important;
+        }
+
+        .leaflet-control-zoom-in:hover,
+        .leaflet-control-zoom-out:hover {
+          background-color: #f1f5f9 !important;
+          color: #0f172a !important;
+        }
+
+        /* Custom Map Marker */
+        .custom-map-pin {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transform: translate(-50%, -100%);
+        }
+
+        .custom-map-pin::before {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 12px;
+          height: 12px;
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 50%;
+          filter: blur(2px);
+          z-index: 0;
+        }
+
+        .custom-map-pin .pin-body {
+          position: relative;
+          z-index: 1;
+          width: 32px;
+          height: 32px;
+          background: #0f172a;
+          border-radius: 50% 50% 50% 0;
+          border: 3px solid #fff;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          transform: rotate(-45deg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .custom-map-pin .pin-body::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          background: #fff;
+          border-radius: 50%;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 768px) {
+          .wizard-modal .modal-content {
+            border-radius: 12px;
+          }
+
+          .wizard-panel {
+            padding: 1.5rem 1.25rem;
+          }
+
+          .wizard-step-line {
+            width: 24px;
+          }
+
+          .wizard-step-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.3px;
+          }
+
+          .wizard-step-dot {
+            width: 30px;
+            height: 30px;
+            font-size: 0.7rem;
+          }
+
+          .wizard-progress {
+            padding: 1rem 1rem 0.5rem;
+          }
+
+          .wizard-panel .form-section {
+            padding: 1rem;
+          }
+
+          .review-product-card {
+            flex-direction: column;
+            text-align: center;
+          }
+        }
+
+        /* ── Map Legend Control ── */
+        .map-legend-control {
+          background: #fff;
+          border-radius: 6px;
+          padding: 6px 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          border: 1px solid #e2e8f0;
+          min-width: 130px;
+        }
+        .map-legend-item {
+          display: flex; align-items: center; gap: 8px;
+          padding: 6px 10px; border-radius: 8px; cursor: pointer;
+          transition: all 0.15s ease; font-size: 0.75rem; font-weight: 600;
+          color: #334155; border: none; background: none; width: 100%;
+        }
+        .map-legend-item:hover:not(:disabled) { background: #f1f5f9; }
+        .map-legend-item:disabled { cursor: default; }
+        .map-legend-dot {
+          width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; position: relative;
+        }
+        .map-legend-dot::after {
+          content: ''; position: absolute; inset: -3px; border-radius: 50%;
+          border: 2px solid currentColor; opacity: 0.2;
+        }
+        .map-legend-dot.customer { background: #ef4444; color: #ef4444; }
+
+        /* ── Route Info Panel ── */
+        .route-info-panel {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0; border-radius: 10px;
+          padding: 1rem 1.25rem; margin-top: 0.75rem;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+          animation: fadeSlideUp 0.3s ease;
+        }
+        .route-info-grid {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+        }
+        .route-info-item {
+          text-align: center; padding: 0.5rem; border-radius: 8px;
+          background: #fff; border: 1px solid #e2e8f0; transition: all 0.2s ease;
+        }
+        .route-info-item:hover {
+          transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .route-info-icon { font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .route-info-value {
+          font-size: 1rem; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;
+        }
+        .route-info-label {
+          font-size: 0.65rem; color: #64748b; font-weight: 600;
+          text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .route-info-item.fare {
+          background: #f1f5f9; border-color: #e2e8f0;
+        }
+        .route-info-item.fare .route-info-value { color: #0f172a; }
+
+        @media (max-width: 480px) {
+          .route-info-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ═══ Enterprise Polish ═══ */
+        html { scroll-behavior: smooth; }
+
+        .product-card-wrap {
+          animation: fadeSlideUp 0.35s ease both;
+        }
+
+        .product-card-wrap:nth-child(1) { animation-delay: 0.03s; }
+        .product-card-wrap:nth-child(2) { animation-delay: 0.06s; }
+        .product-card-wrap:nth-child(3) { animation-delay: 0.09s; }
+        .product-card-wrap:nth-child(4) { animation-delay: 0.12s; }
+        .product-card-wrap:nth-child(5) { animation-delay: 0.15s; }
+        .product-card-wrap:nth-child(6) { animation-delay: 0.18s; }
+        .product-card-wrap:nth-child(7) { animation-delay: 0.21s; }
+        .product-card-wrap:nth-child(8) { animation-delay: 0.24s; }
+        .product-card-wrap:nth-child(n+9) { animation-delay: 0.27s; }
+
+        .wizard-modal .modal-content {
+          transition: transform 0.15s ease;
+        }
+
+        .wizard-backdrop {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+        }
+
+        .enterprise-trust-bar .trust-item {
+          transition: all 0.15s;
+        }
+
+        .empty-state {
+          animation: fadeSlideUp 0.3s ease;
+        }
+
+        @keyframes badgePop {
+          0% { transform: scale(0.5); }
+          60% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+
+        .badge-pop {
+          animation: badgePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes pulseLow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+
+        .stock-badge.low-stock {
+          animation: pulseLow 2s ease-in-out infinite;
+        }
+
+        /* Focus visible styles for accessibility */
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+        }
+
+        /* Smooth transitions for modal */
+        .wizard-modal .modal-dialog {
+          transition: transform 0.2s ease;
+        }
+
+        /* Enhanced scrollbar for wizard */
+        .wizard-modal .modal-body::-webkit-scrollbar {
+          width: 5px;
+        }
+
+        .wizard-modal .modal-body::-webkit-scrollbar-track {
+          background: #f1f5f9;
+        }
+
+        .wizard-modal .modal-body::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 3px;
+        }
+
+        .wizard-modal .modal-body::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      </style>
+
+      <%
+        /* Check if user is logged in */
+        var isLoggedIn = !!(locals.user && user._id);
+      %>
+        <div class="row g-4">
+          <% if (airconGroups.length===0) { %>
+            <div class="col-12 text-center py-5 empty-state">
+              <div class="d-inline-flex align-items-center justify-content-center mb-3"
+                style="width: 72px; height: 72px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 12px;">
+                <i class="bi bi-box-seam" style="font-size: 2rem; color: #3b82f6;"></i>
+              </div>
+              <h5 class="fw-bold mb-1" style="color: #0f172a; font-size: 1rem;">No Products Available</h5>
+              <p class="mb-3 mx-auto" style="max-width: 360px; color: #64748b; font-size: 0.85rem;">Check back soon — we're adding new models regularly.</p>
+              <button class="btn btn-sm px-3 py-1 fw-semibold" onclick="activeFilter='all';document.querySelectorAll('.ent-filter-pill').forEach(b=>b.classList.toggle('active',b.dataset.filter==='all'));applyFilters();" style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; border-radius: 6px; font-size: 0.82rem;">Reset Filters</button>
+            </div>
+          <% } %>
+
+              <% airconGroups.forEach((g, gIdx)=> { %>
+                <div class="col-6 col-md-4 col-lg-3 product-card-wrap" data-type="<%= g.type %>" data-name="<%= g.modelLine.toLowerCase() %>" data-brand="<%= (g.brand || '').toLowerCase() %>">
+                  <div class="fp-card h-100">
+                    <div class="fp-card-media">
+                      <img src="<%= g.imageUrl %>" alt="<%= g.brand %> <%= g.modelLine %>" loading="lazy"
+                           onerror="this.src='/images/products/default.png';">
+                      <% if (g.inverter) { %><span class="fp-tag fp-tag-inverter">Inverter</span><% } %>
+                      <span class="fp-tag fp-tag-stock <%= g.inStock ? 'in' : 'out' %>"><%= g.inStock ? 'In Stock' : 'Sold Out' %></span>
+                      <% if (!g.inStock) { %>
+                        <div class="fp-sold-overlay"><span>Sold Out</span></div>
+                      <% } %>
+                      <div class="fp-quick-add">
+                        <div class="d-flex gap-2">
+                          <a href="/products/<%= g._id %>" class="fp-quick-btn flex-fill">View Details <i class="bi bi-arrow-right"></i></a>
+                          <button class="fp-quick-cart" type="button" title="Add to Cart" <%= !g.inStock ? 'disabled' : '' %>
+                            data-group-idx="<%= gIdx %>" onclick="quickAddToCart(<%= gIdx %>)">
+                            <i class="bi bi-cart-plus"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="fp-card-body">
+                      <div class="fp-brand"><%= g.brand %></div>
+                      <h5 class="fp-name"><%= g.modelLine %></h5>
+                      <div class="fp-meta">
+                        <span class="fp-type"><%= g.type.replace(/_/g,' ').replace(/\b\w/g, c=> c.toUpperCase()) %></span>
+                        <% if (g.variants && g.variants.length) { %><span class="fp-dot">•</span><span><%= g.variants[0].capacity %> <%= g.variants[0].capacityUnit %><% if (g.variants.length > 1) { %> +<% } %></span><% } %>
+                      </div>
+                      <div class="fp-foot">
+                        <div class="fp-price">
+                          <% if (g.variants.length > 1) { %><span class="fp-from">from</span><% } %>
+                          <% if (g.startingPrice) { %>₱<%= Number(g.startingPrice).toLocaleString() %><% } else { %><span class="fp-from">Price on request</span><% } %>
+                        </div>
+                        <a href="/products/<%= g._id %>" class="fp-buy">Shop <i class="bi bi-bag"></i></a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% }) %>
+        </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- PURCHASE WIZARD MODAL                                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="modal fade wizard-modal" id="productOrderModal" tabindex="-1" aria-hidden="true" data-bs-focus="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content border-0">
+        <!-- Progress Steps -->
+        <div class="wizard-progress" id="wizardProgress">
+          <div class="wizard-step-indicator">
+            <div class="text-center">
+              <div class="wizard-step-dot active" data-step="1">1</div>
+              <div class="wizard-step-label active">Select HP</div>
+            </div>
+          </div>
+          <div class="wizard-step-line" id="line1"></div>
+          <div class="wizard-step-indicator">
+            <div class="text-center">
+              <div class="wizard-step-dot" data-step="2">2</div>
+              <div class="wizard-step-label">Fulfillment</div>
+            </div>
+          </div>
+          <div class="wizard-step-line" id="line2"></div>
+          <div class="wizard-step-indicator">
+            <div class="text-center">
+              <div class="wizard-step-dot" data-step="3">3</div>
+              <div class="wizard-step-label">Details</div>
+            </div>
+          </div>
+          <div class="wizard-step-line" id="line3"></div>
+          <div class="wizard-step-indicator">
+            <div class="text-center">
+              <div class="wizard-step-dot" data-step="4">4</div>
+              <div class="wizard-step-label">Payment</div>
+            </div>
+          </div>
+          <div class="wizard-step-line" id="line4"></div>
+          <div class="wizard-step-indicator">
+            <div class="text-center">
+              <div class="wizard-step-dot" data-step="5">5</div>
+              <div class="wizard-step-label">Review</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-header">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1.5px;">HVAC Solutions</span>
+              <span style="width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.3); display:inline-block;"></span>
+              <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1.5px;">Purchase</span>
+            </div>
+            <h5 class="modal-title" id="wizardModalTitle">Product Details</h5>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body position-relative">
+          <!-- Login overlay (shown when not logged in) -->
+          <div class="login-overlay" id="loginOverlay" style="display: none;">
+            <div class="text-center p-4">
+              <div class="d-inline-flex align-items-center justify-content-center mb-3"
+                style="width: 64px; height: 64px; background: #f1f5f9; border-radius: 8px;">
+                <i class="bi bi-person-lock" style="font-size: 1.5rem; color: #0f172a;"></i>
+              </div>
+              <h5 class="fw-bold mb-1" style="color: #0f172a; font-size: 1rem;">Login Required</h5>
+              <p class="mb-3" style="color: #64748b; max-width: 300px; margin: 0 auto; font-size: 0.85rem;">Please sign in to purchase air conditioners.</p>
+              <a href="/login" class="btn px-4 py-2 fw-semibold" style="background: #2563eb; color: #fff; border-radius: 6px; font-size: 0.85rem;">Sign In</a>
+            </div>
+          </div>
+
+          <!-- STEP 1 — Select HP Variant -->
+          <div class="wizard-panel active" id="wizardStep1">
+            <div class="row g-4 align-items-start">
+              <div class="col-md-5">
+                <div class="position-relative" style="background: linear-gradient(145deg, #f8fafc, #eff6ff, #fdf2f8); border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.5rem; overflow: hidden;">
+                  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: radial-gradient(rgba(37,99,235,0.04) 1px, transparent 1px); background-size: 20px 20px; pointer-events:none;"></div>
+                  <img id="wizardProductImg" src="" alt="" class="img-fluid floating-img"
+                    style="max-height: 240px; object-fit: contain; width: 100%; position: relative; z-index:1;"
+                    onerror="this.src='/images/products/default.png';">
+                </div>
+                <div class="mt-3 px-1" style="font-size: 0.78rem; color: #64748b; line-height: 1.6; font-weight: 500;" id="wizardProductDesc"></div>
+              </div>
+              <div class="col-md-7">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span style="font-size: 0.55rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px;">Product</span>
+                  <span style="width: 16px; height: 2px; background: #e2e8f0; display: inline-block;"></span>
+                  <span class="badge" id="wizardProductBadge" style="font-size:0.55rem; font-weight:700; background:#dbeafe; color:#1d4ed8; letter-spacing:0.5px; display:none;">Inverter</span>
+                </div>
+                <h4 class="fw-bold mb-1" id="wizardProductName" style="color: #0f172a; letter-spacing: -0.5px; font-size: 1.25rem; line-height:1.3;"></h4>
+                <div class="mb-3" id="wizardProductMeta" style="color: #64748b; font-weight: 500; font-size: 0.82rem;">
+                </div>
+                <div class="mb-3">
+                  <div style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Select Horsepower</div>
+                  <div id="wizardHpOptions"></div>
+                </div>
+
+                <!-- Unified Selection Summary -->
+                <div class="mt-3 p-3" id="wizardSelectedInfo"
+                  style="background: linear-gradient(135deg, #eff6ff, #faf5ff); border: 1.5px solid #bfdbfe; border-radius: 10px; display: none;">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                      <div style="width: 36px; height: 36px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.9rem; flex-shrink:0;">
+                        <i class="bi bi-check-lg"></i>
+                      </div>
+                      <div>
+                        <div style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px;">Selected Configuration</div>
+                        <div class="fw-bold" style="color: #0f172a; font-size: 0.95rem;" id="wizardSelectedHpLabel"></div>
+                        <div style="color: #64748b; font-size: 0.78rem;" id="wizardSelectedBtu"></div>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-4">
+                      <div class="text-end">
+                        <div style="font-size: 0.6rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Unit Price</div>
+                        <div class="fw-bold" style="color: #2563eb; font-size: 1.15rem; letter-spacing: -0.5px;" id="wizardSelectedPrice"></div>
+                      </div>
+                      <div id="wizardQuantityContainer" style="display: none;">
+                        <div class="mb-1" style="font-size: 0.6rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Qty <span style="font-weight: 400; color: #cbd5e1;">(max <span id="wizardMaxQuantity">0</span>)</span></div>
+                        <div class="d-flex align-items-center" style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                          <button class="btn btn-sm" type="button" onclick="updateQuantity(-1)" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #fff; border: none; border-right: 1px solid #e2e8f0; color: #64748b; font-weight: 700; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fff'">
+                            <i class="bi bi-dash" style="font-size: 0.85rem;"></i>
+                          </button>
+                          <span id="wizardQuantity" class="fw-bold text-center" style="width: 36px; font-size: 0.9rem; color: #0f172a; line-height: 32px; background:#fff;">1</span>
+                          <button class="btn btn-sm" type="button" onclick="updateQuantity(1)" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #fff; border: none; border-left: 1px solid #e2e8f0; color: #64748b; font-weight: 700; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fff'">
+                            <i class="bi bi-plus" style="font-size: 0.85rem;"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2 — Fulfillment Option -->
+          <div class="wizard-panel" id="wizardStep2">
+            <div class="step-header">
+              <h4>Fulfillment Method</h4>
+              <p>How would you like to receive your order?</p>
+            </div>
+            <div class="row g-3 px-md-3 justify-content-center">
+              <div class="col-md-5">
+                <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center"
+                  data-fulfill="delivery_installation" onclick="selectFulfillment('delivery_installation')">
+                  <div class="fulfill-icon"
+                    style="background: linear-gradient(135deg, #fefce8, #fef9c3); width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: #d97706; box-shadow: 0 2px 8px rgba(217,119,6,0.08);">
+                    <i class="bi bi-tools" style="font-size: 1.3rem;"></i>
+                  </div>
+                  <div class="fulfill-title">Delivery + Installation</div>
+                  <div class="fulfill-desc">Delivered and installed by our technicians.</div>
+                </div>
+              </div>
+              <div class="col-md-5">
+                <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center"
+                  data-fulfill="customer_pickup" onclick="selectFulfillment('customer_pickup')">
+                  <div class="fulfill-icon"
+                    style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: #16a34a; box-shadow: 0 2px 8px rgba(22,163,74,0.08);">
+                    <i class="bi bi-shop" style="font-size: 1.3rem;"></i>
+                  </div>
+                  <div class="fulfill-title">Customer Pickup</div>
+                  <div class="fulfill-desc">Pick up at our main branch.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3 — Delivery / Pickup Details -->
+          <div class="wizard-panel" id="wizardStep3">
+            <div class="px-md-3">
+              <!-- Delivery fields -->
+              <div id="deliveryFields" style="display: none;" class="p-4 bg-white mb-3"
+                style="border: 1px solid #e2e8f0; border-radius: 10px;">
+                <h5 class="fw-bold mb-3 pb-2 border-bottom" style="color: #0f172a; border-color: #f1f5f9; font-size: 0.92rem;"><i
+                    class="bi bi-geo-alt-fill me-2" style="color: #3b82f6;"></i> Delivery Details</h5>
+
+                <!-- Contact Number -->
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Contact Number</label>
+                  <input type="tel" class="form-control" id="wizardContact"
+                    placeholder="09XXX XXX XXX">
+                </div>
+
+                <!-- Delivery Address -->
+                <div class="mb-3 position-relative">
+                  <label class="form-label">Delivery Address</label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="wizardAddress"
+                      placeholder="Enter street address, building, city..." autocomplete="off" style="border-radius: 6px 0 0 6px;">
+                    <button class="btn" type="button" id="searchAddressBtn"
+                      style="border: 1px solid #e2e8f0; border-left: none; border-radius: 0 6px 6px 0; background: #f8fafc; color: #64748b;">
+                      <i class="bi bi-search" style="font-size: 0.85rem;"></i>
+                    </button>
+                  </div>
+                  <!-- Suggestions Dropdown -->
+                  <div id="addressSuggestions"
+                    class="list-group position-absolute w-100 mt-1 border-0 overflow-hidden"
+                    style="display: none; z-index: 1060; max-height: 220px; overflow-y: auto; border-radius: 6px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.08);"></div>
+                </div>
+
+                <!-- Map -->
+                <div class="mb-3">
+                  <label class="form-label d-flex justify-content-between" style="font-weight:700; font-size:0.82rem;">
+                    <span><i class="bi bi-map me-1" style="color:#6366f1;"></i> Delivery Route Map</span>
+                    <span>
+                      <button type="button" class="btn btn-sm btn-outline-primary border-0 me-2" onclick="locateMe()" style="font-size:0.75rem;padding:2px 8px;" title="Detect my location">
+                        <i class="bi bi-crosshair me-1"></i>Fetch Location
+                      </button>
+                      <span style="color: #94a3b8; font-size: 0.72rem; font-weight: 400;">Drag pin for exact spot</span>
+                    </span>
+                  </label>
+
+                  <!-- Map with spinner overlay -->
+                  <div class="position-relative">
+                    <div id="wizardMap"></div>
+                    <div class="map-locating-spinner" id="mapLocatingSpinner">
+                      <span class="spinner-border spinner-border-sm" role="status"></span> Calculating route...
+                    </div>
+                  </div>
+
+                  <!-- Route Details Panel -->
+                  <div class="route-info-panel" id="routeInfoPanel">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Route Details</span>
+                      <span class="route-method-badge" id="routeMethodBadge"><i class="bi bi-diagram-3 me-1"></i>Road Route</span>
+                    </div>
+                    <div class="d-flex gap-2 mb-1">
+                      <div class="route-stat-card">
+                        <span class="route-stat-icon text-primary"><i class="bi bi-rulers"></i></span>
+                        <span class="route-stat-label">Distance</span>
+                        <span class="route-stat-value" id="routeDistDisplay">— km</span>
+                      </div>
+                      <div class="route-stat-card">
+                        <span class="route-stat-icon text-warning"><i class="bi bi-clock"></i></span>
+                        <span class="route-stat-label">Est. Travel</span>
+                        <span class="route-stat-value" id="routeDurDisplay">— min</span>
+                      </div>
+                      <div class="route-stat-card">
+                        <span class="route-stat-icon" style="color:#4f46e5;"><i class="bi bi-tag"></i></span>
+                        <span class="route-stat-label">Rate</span>
+                        <span class="route-stat-value" id="routeRateDisplay" style="color:#4f46e5;">₱—/km</span>
+                      </div>
+                      <div class="route-stat-card" style="border-color:#a5b4fc;background:linear-gradient(135deg,#eef2ff,#f0f4ff);">
+                        <span class="route-stat-icon" style="color:#4f46e5;"><i class="bi bi-truck"></i></span>
+                        <span class="route-stat-label">Delivery Fee</span>
+                        <span class="route-stat-value fare-value" id="routeFareDisplay">₱—</span>
+                      </div>
+                    </div>
+                    <div class="route-calculation-detail" id="routeCalcFormula"></div>
+                  </div>
+
+                  <input type="hidden" id="wizardLat">
+                  <input type="hidden" id="wizardLng">
+                </div>
+
+                <!-- Calendar Container -->
+                <div id="checkoutCalendarContainer"></div>
+
+                <!-- Hidden inputs to store selection -->
+                <input type="hidden" id="wizardDate">
+                <input type="hidden" id="wizardTimeSlot">
+                <div class="small mt-1 text-danger fw-semibold" id="wizardDateError" style="display: none;"></div>
+
+                <!-- Notes -->
+                <div class="mb-2">
+                  <label class="form-label">Notes (optional)</label>
+                  <textarea class="form-control" id="wizardNotes" rows="2"
+                    placeholder="Landmarks, gate codes, delivery times..."></textarea>
+                </div>
+              </div>
+
+              <!-- Pickup fields -->
+              <div id="pickupFields" style="display: none;" class="p-4 bg-white mb-3"
+                style="border: 1px solid #e2e8f0; border-radius: 10px;">
+                <h5 class="fw-bold mb-3 pb-2 border-bottom" style="color: #0f172a; border-color: #f1f5f9; font-size: 0.92rem;"><i
+                    class="bi bi-shop me-2" style="color: #22c55e;"></i> Pickup Information</h5>
+
+                <div class="p-3 mb-3" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <div class="fw-bold" style="color: #0f172a; font-size: 0.88rem;"><i
+                      class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
+                  <p class="mt-1 mb-0" style="color: #64748b; font-size: 0.78rem;">Pickup instructions will be provided upon order confirmation.</p>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Preferred Pickup Date</label>
+                  <input type="text" class="form-control" id="wizardPickupDate" placeholder="Select a date...">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 4 — Payment Method -->
+          <div class="wizard-panel" id="wizardStep4">
+            <div class="step-header">
+              <h4>Payment Method</h4>
+              <p>Select how you want to pay for this order.</p>
+            </div>
+            <div class="row g-3 px-md-3" id="paymentOptionsContainer">
+              <!-- Options rendered by JS based on fulfillment type -->
+            </div>
+
+            <!-- GCash Fields Panel (Hidden initially) -->
+            <div id="wizardGcashFieldsPanel" class="mt-3 p-4" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h6 class="fw-bold mb-3" style="color: #0f172a; font-size: 0.88rem;"><i class="bi bi-phone me-2" style="color: #3b82f6;"></i>GCash Payment</h6>
+              <div class="row g-3">
+                <div class="col-md-5 text-center border-md-end mb-3 mb-md-0" style="border-color: #e2e8f0 !important;">
+                  <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Scan to Pay</div>
+                  <img id="wizardGcashQr" src="" alt="GCash QR" class="img-fluid" style="max-width: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
+                  <div class="fw-bold mt-2" style="color: #0f172a; font-size: 1.1rem;" id="wizardGcashAmount">--</div>
+                  <div style="font-size: 0.75rem; font-weight: 600; color: #3b82f6;" id="wizardGcashLabel"></div>
+                </div>
+                <div class="col-md-7 ps-md-4">
+                  <div class="mb-3">
+                    <label class="form-label">Upload Receipt Screenshot <span class="text-danger">*</span></label>
+                    <input class="form-control" type="file" id="wizardGcashProof" accept="image/jpeg,image/png,image/webp">
+                  </div>
+                  <!-- Image Preview -->
+                  <div id="wizardGcashProofPreviewArea" class="mt-2 text-center" style="display: none;">
+                    <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Receipt Preview</div>
+                    <img id="wizardGcashProofPreview" src="" alt="Receipt Preview" style="max-height: 100px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px;">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <input type="hidden" id="wizardPaymentMethod" value="">
+          </div>
+
+          <!-- STEP 5 — Review & Confirm -->
+          <div class="wizard-panel" id="wizardStep5">
+            <div class="step-header">
+              <h4>Review Order</h4>
+              <p>Please review your order details before confirming.</p>
+            </div>
+
+            <div class="px-md-2">
+              <!-- Product Card -->
+              <div class="review-product-card mb-3">
+                <img id="reviewImg" src="" class="review-product-img">
+                <div class="flex-grow-1">
+                  <h5 class="fw-bold mb-0" id="reviewName" style="color: #0f172a; font-size: 0.95rem;"></h5>
+                  <div style="color: #64748b; font-size: 0.78rem;" id="reviewVariant"></div>
+                </div>
+                <div class="text-end">
+                  <div style="font-size: 0.62rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Qty</div>
+                  <div class="fw-bold" style="color: #0f172a; font-size: 1.4rem; line-height: 1;" id="reviewQtyLarge"></div>
+                </div>
+              </div>
+
+              <div class="review-summary-card">
+                <div id="reviewDetails" class="mb-2"></div>
+                <div class="review-row">
+                  <span class="review-label">Product Subtotal</span>
+                  <span class="review-value" id="reviewSubtotal"></span>
+                </div>
+                <div class="review-row" id="reviewDeliveryRow">
+                  <span class="review-label">Delivery Fee</span>
+                  <span class="review-value" id="reviewDeliveryFee"></span>
+                </div>
+                <div class="review-row" id="reviewInstallRow" style="display: none;">
+                  <span class="review-label">Installation Fee</span>
+                  <span class="review-value" id="reviewInstallFee"></span>
+                </div>
+                <div class="review-row" id="reviewTransportRow" style="display: none;">
+                  <span class="review-label">Transport Fee <small style="color: #94a3b8;" id="reviewTransportMeta"></small></span>
+                  <span class="review-value" id="reviewTransportFee"></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2 pt-3 border-top" style="border-color: #e2e8f0 !important;">
+                  <span style="color: #64748b; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Grand Total</span>
+                  <span class="fw-bold" style="color: #0f172a; font-size: 1.4rem; letter-spacing: -0.8px;"
+                    id="reviewTotal"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer d-flex justify-content-between">
+          <button class="btn btn-sm" id="wizardBackBtn" onclick="wizardBack()"
+            style="border-radius: 8px; padding: 0.5rem 1.25rem; color: #64748b; font-weight: 600; display: none; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.82rem; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </button>
+          <div class="ms-auto d-flex gap-2">
+            <button class="btn btn-sm" data-bs-dismiss="modal"
+              style="border-radius: 8px; padding: 0.5rem 1.25rem; font-weight: 600; color: #64748b; background: #fff; border: 1.5px solid #e2e8f0; font-size: 0.82rem; transition: all 0.2s;"
+              onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">Cancel</button>
+            <button class="btn btn-sm px-4" id="wizardNextBtn"
+              onclick="wizardNext()" style="border-radius: 8px; padding: 0.55rem 1.75rem; font-weight: 600; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.25);"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'">
+              Next <i class="bi bi-arrow-right ms-1" style="font-size: 0.75rem;"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Scripts ═══ -->
+  <!-- Leaflet CSS & JS for map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Flatpickr for Premium Date Pickers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- SweetAlert2 for Premium Modals -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="/js/checkout-calendar.js"></script>
+
+  <script>
+    (function () {
+      // ── Premium Alert Helper ────────────────────────────────────────────
+      function showPremiumAlert(message, title = 'Attention', icon = 'warning') {
+        Swal.fire({
+          title: title,
+          text: message,
+          icon: icon,
+          confirmButtonText: 'OK',
+          buttonsStyling: false,
+          customClass: {
+            popup: 'swal2-popup',
+            title: 'swal2-title',
+            confirmButton: 'swal2-confirm',
+          }
+        });
+      }
+
+      // ── Data from server ────────────────────────────────────────────────
+      const GROUPS = <%- JSON.stringify(airconGroups) %>;
+      const IS_LOGGED_IN = <%= !!locals.user %>;
+      const USER_PHONE = '<%= (locals.user && locals.user.phone) ? locals.user.phone : "" %>';
+
+      // Fetch dynamic installation fee & fare per km
+      window.airconInstallFee = 1500;
+      window._farePerKm = 40;
+      fetch('/api/services/fare-per-km')
+        .then(r => r.json())
+        .then(data => {
+          if (data.airconInstallFee !== undefined) window.airconInstallFee = data.airconInstallFee;
+          if (data.farePerKm !== undefined) window._farePerKm = data.farePerKm;
+        })
+        .catch(() => console.warn('Failed to fetch pricing config'));
+
+      // Company base location for distance calculation
+      window._companyBaseLocation = { configured: false, lat: 14.676049, lng: 121.043731 };
+      window._companyBaseLocationPromise = fetch('/api/public/company/location')
+        .then(r => r.json())
+        .then(d => { window._companyBaseLocation = d || window._companyBaseLocation; return window._companyBaseLocation; })
+        .catch(() => window._companyBaseLocation);
+
+      // ── Wizard state ────────────────────────────────────────────────────
+      let currentStep = 1;
+      let selectedGroupIdx = null;
+      let selectedVariantIdx = null;
+      let selectedQuantity = 1;
+      let selectedFulfillment = null;
+      let leafletMap = null;
+      let leafletMarker = null;
+      let fpDatePickup = null;
+      let addressSearchTimeout = null;
+      let checkoutCalendar = null;
+      let _routeDistanceKm = 0;
+      let _routeDurationMin = 0;
+      let _transportFee = 0;
+
+      const stepTitles = {
+        1: 'Select Horsepower',
+        2: 'Fulfillment Method',
+        3: 'Delivery Details',
+        4: 'Payment Method',
+        5: 'Review Order'
+      };
+      const TOTAL_STEPS = 5;
+
+      // ── Filter logic ────────────────────────────────────────────────────
+      const filterBtns = document.querySelectorAll('.products-aircons-premium [data-filter]');
+      const cards = document.querySelectorAll('.product-card-wrap');
+      let activeFilter = 'all';
+      let searchQuery = '';
+
+      function applyFilters() {
+        let visibleCount = 0;
+        cards.forEach(c => {
+          const type = c.dataset.type;
+          const name = (c.dataset.name || '').toLowerCase();
+          const brand = (c.dataset.brand || '').toLowerCase();
+          const matchesFilter = activeFilter === 'all' || type === activeFilter;
+          const matchesSearch = !searchQuery || name.includes(searchQuery) || brand.includes(searchQuery);
+          const visible = matchesFilter && matchesSearch;
+          c.classList.toggle('d-none', !visible);
+          if (visible) visibleCount++;
+        });
+        const countEl = document.getElementById('visibleProductCount');
+        if (countEl) countEl.textContent = visibleCount;
+      }
+
+      filterBtns.forEach(btn => btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        applyFilters();
+      }));
+
+      window.filterProductsBySearch = function() {
+        const input = document.getElementById('productSearchInput');
+        searchQuery = (input.value || '').toLowerCase().trim();
+        const clearBtn = document.getElementById('searchClearBtn');
+        if (clearBtn) clearBtn.style.display = searchQuery ? 'flex' : 'none';
+        applyFilters();
+      };
+
+      document.getElementById('productSearchInput')?.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          this.value = '';
+          filterProductsBySearch();
+          this.blur();
+        }
+      });
+
+      // ── Open wizard ─────────────────────────────────────────────────────
+      window.openProductWizard = function (gIdx) {
+        selectedGroupIdx = gIdx;
+        selectedVariantIdx = null;
+        selectedQuantity = 1;
+        selectedFulfillment = null;
+        currentStep = 1;
+
+        const g = GROUPS[gIdx];
+        if (!g) return;
+
+        // Populate step 1
+        document.getElementById('wizardProductImg').src = g.imageUrl || '/images/products/default.png';
+        document.getElementById('wizardProductName').textContent = g.modelLine;
+        document.getElementById('wizardProductMeta').textContent = [
+          g.brand,
+          g.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        ].filter(Boolean).join(' · ');
+        document.getElementById('wizardProductDesc').textContent = g.description || '';
+        document.getElementById('wizardQuantityContainer').style.display = 'none';
+        document.getElementById('wizardQuantity').textContent = '1';
+        document.getElementById('wizardSelectedInfo').style.display = 'none';
+        var badge = document.getElementById('wizardProductBadge');
+        if (badge) {
+          badge.style.display = g.inverter ? 'inline-block' : 'none';
+          badge.textContent = g.inverter ? 'Inverter' : '';
+        }
+
+        // HP options
+        const hpContainer = document.getElementById('wizardHpOptions');
+        hpContainer.innerHTML = '';
+        g.variants.forEach((v, vIdx) => {
+          const isAvailable = v.quantity > 0;
+          const card = document.createElement('div');
+          card.className = 'hp-card' + (isAvailable ? '' : ' opacity-50');
+          card.dataset.vidx = vIdx;
+          const stockClass = isAvailable ? 'in-stock' : 'out-of-stock';
+          const stockText = isAvailable ? `${v.quantity} in stock` : 'Out of stock';
+          const stockIcon = isAvailable ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+          card.innerHTML = `
+            <div class="hp-check"><i class="bi bi-check-lg"></i></div>
+            <div class="d-flex align-items-baseline gap-1 mb-1">
+              <span class="hp-number">${v.capacity}</span>
+              <span class="hp-unit">${v.capacityUnit}</span>
+            </div>
+            <div class="hp-detail">${v.btu ? v.btu.toLocaleString() + ' BTU' : ''}</div>
+            <div class="hp-price">₱${v.sellingPrice.toLocaleString()}</div>
+            <div class="hp-stock ${stockClass}"><i class="bi ${stockIcon}" style="font-size:0.6rem;"></i>${stockText}</div>
+          `;
+          if (isAvailable) {
+            card.addEventListener('click', () => selectVariant(vIdx));
+          }
+          hpContainer.appendChild(card);
+        });
+
+        document.getElementById('wizardSelectedInfo').style.display = 'none';
+
+        // Ensure Step 1 also has an "Add to Cart" option if needed
+        const footerBtnContainer = document.querySelector('#productOrderModal .modal-footer .ms-auto');
+        if (footerBtnContainer && !document.getElementById('wizardAddToCartBtn')) {
+          const cartBtn = document.createElement('button');
+          cartBtn.id = 'wizardAddToCartBtn';
+          cartBtn.className = 'btn px-4 shadow-sm me-2';
+          cartBtn.innerHTML = '<i class="bi bi-cart-plus me-2"></i>Add to Cart';
+          cartBtn.style.borderRadius = '8px';
+          cartBtn.style.padding = '0.5rem 1.5rem';
+          cartBtn.style.fontWeight = '600';
+          cartBtn.style.fontSize = '0.82rem';
+          cartBtn.style.color = '#2563eb';
+          cartBtn.style.background = '#eff6ff';
+          cartBtn.style.border = '1px solid #bfdbfe';
+          cartBtn.style.transition = 'all 0.2s';
+          cartBtn.style.display = 'none';
+          cartBtn.onclick = addToCart;
+          cartBtn.onmouseover = function() { this.style.background = '#dbeafe'; this.style.borderColor = '#60a5fa'; };
+          cartBtn.onmouseout = function() { this.style.background = '#eff6ff'; this.style.borderColor = '#bfdbfe'; };
+          footerBtnContainer.insertBefore(cartBtn, document.getElementById('wizardNextBtn'));
+        }
+
+        // Show login overlay if not logged in
+        document.getElementById('loginOverlay').style.display = IS_LOGGED_IN ? 'none' : 'flex';
+
+        const footer = document.querySelector('#productOrderModal .modal-footer');
+        if (footer) {
+          footer.style.display = IS_LOGGED_IN ? 'flex' : 'none';
+
+          // Modal footer override sets display to none or flex, we might need to add/remove d-flex class if it uses bootstrap classes
+          if (IS_LOGGED_IN) {
+            footer.classList.add('d-flex');
+          } else {
+            footer.classList.remove('d-flex');
+          }
+        }
+
+        // Auto-populate contact number from user data
+        const contactInput = document.getElementById('wizardContact');
+        if (contactInput && USER_PHONE) {
+          contactInput.value = USER_PHONE;
+        }
+
+        // Reset status badges
+        updateWizardUI();
+
+        // Initialize Checkout Calendar
+        const estDuration = Math.max(60, (selectedQuantity || 1) * 60);
+        if (!checkoutCalendar) {
+          checkoutCalendar = new CheckoutCalendar('checkoutCalendarContainer', {
+            fulfillmentType: selectedFulfillment,
+            duration: estDuration,
+            onDateSelect: (dateStr) => {
+              document.getElementById('wizardDate').value = dateStr;
+              document.getElementById('wizardDateError').style.display = 'none';
+            },
+            onTimeSelect: (timeStr) => {
+              document.getElementById('wizardTimeSlot').value = timeStr;
+            }
+          });
+        } else {
+          checkoutCalendar.setDuration(estDuration);
+        }
+
+        // Set min date for date pickers via Flatpickr for pickup
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const fpConfig = {
+          minDate: tomorrow,
+          dateFormat: "Y-m-d",
+          altInput: true,
+          altFormat: "F j, Y",
+          disableMobile: "true"
+        };
+
+        if (!fpDatePickup) {
+          fpDatePickup = flatpickr("#wizardPickupDate", fpConfig);
+        } else {
+          fpDatePickup.clear();
+        }
+
+        // Update cart count icon if needed
+        updateCartBadge();
+
+        const modal = new bootstrap.Modal(document.getElementById('productOrderModal'));
+        modal.show();
+      };
+
+      // ── Quick Add to Cart ───────────────────────────────────────────────
+      window.quickAddToCart = function (gIdx) {
+        if (!IS_LOGGED_IN) {
+          window.location.href = '/login';
+          return;
+        }
+        // Open wizard directly
+        openProductWizard(gIdx);
+      };
+
+      // ── Select HP variant ───────────────────────────────────────────────
+      window.selectVariant = function (vIdx) {
+        selectedVariantIdx = vIdx;
+        const g = GROUPS[selectedGroupIdx];
+        const v = g.variants[vIdx];
+
+        // Highlight selected
+        document.querySelectorAll('#wizardHpOptions .hp-card').forEach((opt, i) => {
+          opt.classList.toggle('selected', i === vIdx);
+        });
+
+        // Show info
+        const info = document.getElementById('wizardSelectedInfo');
+        info.style.display = 'block';
+        document.getElementById('wizardSelectedHpLabel').textContent = `${v.capacity} ${v.capacityUnit}`;
+        document.getElementById('wizardSelectedPrice').textContent = `₱${v.sellingPrice.toLocaleString()}`;
+        document.getElementById('wizardSelectedBtu').textContent = v.btu ? `${v.btu.toLocaleString()} BTU` : '';
+
+        // Setup quantity
+        selectedQuantity = 1;
+        document.getElementById('wizardQuantity').textContent = '1';
+        document.getElementById('wizardMaxQuantity').textContent = v.quantity;
+        document.getElementById('wizardQuantityContainer').style.display = 'block';
+      };
+
+      window.updateQuantity = function(change) {
+        if (selectedVariantIdx === null) return;
+        const g = GROUPS[selectedGroupIdx];
+        const v = g.variants[selectedVariantIdx];
+        const max = v.quantity || 1;
+        let newQ = selectedQuantity + change;
+        if (newQ < 1) newQ = 1;
+        if (newQ > max) newQ = max;
+        selectedQuantity = newQ;
+        document.getElementById('wizardQuantity').textContent = String(newQ);
+        
+        // Update price display dynamically based on quantity
+        document.getElementById('wizardSelectedPrice').textContent = `₱${(v.sellingPrice * newQ).toLocaleString()}`;
+      };
+
+      // ── Select fulfillment ──────────────────────────────────────────────
+      window.selectFulfillment = function (type) {
+        selectedFulfillment = type;
+        document.querySelectorAll('.fulfill-card').forEach(c => {
+          c.classList.toggle('selected', c.dataset.fulfill === type);
+        });
+        if (checkoutCalendar) {
+          checkoutCalendar.setFulfillmentType(type);
+        }
+      };
+
+      // ── Wizard navigation ───────────────────────────────────────────────
+      window.wizardNext = function () {
+        if (!IS_LOGGED_IN) {
+          window.location.href = '/login';
+          return;
+        }
+
+        // Validate current step
+        if (currentStep === 1 && selectedVariantIdx === null) {
+          showPremiumAlert('Please select a horsepower option.');
+          return;
+        }
+        if (currentStep === 2 && !selectedFulfillment) {
+          showPremiumAlert('Please choose a fulfillment option.');
+          return;
+        }
+        if (currentStep === 3) {
+          if (selectedFulfillment !== 'customer_pickup') {
+            const addr = document.getElementById('wizardAddress').value.trim();
+            const contact = document.getElementById('wizardContact').value.trim();
+            const date = document.getElementById('wizardDate').value;
+            const timeSlot = document.getElementById('wizardTimeSlot').value;
+
+            if (!addr) { showPremiumAlert('Please enter your delivery address.'); return; }
+            if (!contact) { showPremiumAlert('Please enter your contact number.'); return; }
+            if (!date || !timeSlot) { showPremiumAlert('Please select a preferred date and time slot.', 'Schedule Required', 'warning'); return; }
+          } else {
+            const pickupDate = document.getElementById('wizardPickupDate').value;
+            if (!pickupDate) { showPremiumAlert('Please select a pickup date.'); return; }
+          }
+        }
+        if (currentStep === 4) {
+          const payMethod = document.getElementById('wizardPaymentMethod').value;
+          if (!payMethod) { showPremiumAlert('Please choose a payment method.'); return; }
+
+          if (payMethod === 'gcash_full' || payMethod === 'cod') {
+            const gcashProof = document.getElementById('wizardGcashProof').files[0];
+            if (!gcashProof) {
+              showPremiumAlert('Please upload a screenshot of your GCash receipt.', 'Missing Receipt', 'warning');
+              return;
+            }
+          }
+        }
+        if (currentStep === 5) {
+          submitOrder();
+          return;
+        }
+
+        currentStep++;
+
+        // Setup step 3 based on fulfillment
+        if (currentStep === 3) {
+          const isDelivery = selectedFulfillment !== 'customer_pickup';
+          document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
+          document.getElementById('pickupFields').style.display = isDelivery ? 'none' : 'block';
+
+          if (checkoutCalendar) {
+            checkoutCalendar.setFulfillmentType(selectedFulfillment);
+            checkoutCalendar.fetchData();
+          }
+
+          if (isDelivery) {
+            setTimeout(() => initMap(), 500);
+          }
+        }
+
+        // Render payment options on step 4
+        if (currentStep === 4) {
+          renderPaymentOptions();
+        }
+
+        // Populate review step
+        if (currentStep === 5) {
+          populateReview();
+        }
+
+        updateWizardUI();
+      };
+
+      window.wizardBack = function () {
+        if (currentStep <= 1) return;
+        currentStep--;
+        updateWizardUI();
+      };
+
+      // ── Update wizard UI ────────────────────────────────────────────────
+      function updateWizardUI() {
+        // Show/hide panels
+        for (let i = 1; i <= TOTAL_STEPS; i++) {
+          const panel = document.getElementById(`wizardStep${i}`);
+          if (panel) panel.classList.toggle('active', i === currentStep);
+        }
+
+        // Update title
+        document.getElementById('wizardModalTitle').innerHTML = stepTitles[currentStep] || '';
+
+        // Update progress dots
+        document.querySelectorAll('#productOrderModal .wizard-step-dot').forEach(dot => {
+          const step = parseInt(dot.dataset.step);
+          dot.classList.remove('active', 'completed');
+          if (step === currentStep) dot.classList.add('active');
+          else if (step < currentStep) { dot.classList.add('completed'); dot.innerHTML = '<i class="bi bi-check"></i>'; }
+          else dot.textContent = step;
+        });
+        document.querySelectorAll('#productOrderModal .wizard-step-label').forEach((lbl, i) => {
+          lbl.classList.remove('active', 'completed');
+          if (i + 1 === currentStep) lbl.classList.add('active');
+          else if (i + 1 < currentStep) lbl.classList.add('completed');
+        });
+        for (let i = 1; i <= TOTAL_STEPS - 1; i++) {
+          const line = document.getElementById(`line${i}`);
+          if (line) line.classList.toggle('completed', i < currentStep);
+        }
+
+        // Back button
+        document.getElementById('wizardBackBtn').style.display = currentStep > 1 ? 'inline-flex' : 'none';
+
+        // Next button text
+        const nextBtn = document.getElementById('wizardNextBtn');
+        const cartBtn = document.getElementById('wizardAddToCartBtn');
+
+        if (currentStep === 1) {
+          if (cartBtn) cartBtn.style.display = 'inline-flex';
+        } else {
+          if (cartBtn) cartBtn.style.display = 'none';
+        }
+
+        if (currentStep === TOTAL_STEPS) {
+          nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+          nextBtn.classList.add('btn-success');
+          nextBtn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+        } else if (currentStep === 1) {
+          nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
+          nextBtn.classList.remove('btn-success');
+          nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
+        } else {
+          nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
+          nextBtn.classList.remove('btn-success');
+          nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
+        }
+      }
+
+      // ── Payment Methods ──────────────────────────────────────────────────
+      window.selectPaymentMethods = function(method) {
+        document.getElementById('wizardPaymentMethod').value = method;
+        document.querySelectorAll('#productOrderModal .payment-method-card').forEach(c => {
+          c.classList.toggle('selected', c.dataset.method === method);
+        });
+
+        const gcashPanel = document.getElementById('wizardGcashFieldsPanel');
+        const showGcash = method === 'gcash_full' || method === 'cod';
+        if (showGcash) {
+          gcashPanel.style.display = 'block';
+          const g = GROUPS[selectedGroupIdx];
+          const v = g.variants[selectedVariantIdx];
+          
+          let subtotal = v.sellingPrice * selectedQuantity;
+          let installFee = 0;
+          if (selectedFulfillment === 'delivery_installation') {
+            installFee = window.airconInstallFee || 1500;
+          }
+          let total = subtotal + installFee;
+          
+          const isDownpayment = method === 'cod';
+          let amountToPay = isDownpayment ? Math.ceil(total * 0.1) : total;
+          
+          document.getElementById('wizardGcashAmount').textContent = `₱${amountToPay.toLocaleString()}`;
+          document.getElementById('wizardGcashLabel').textContent = isDownpayment ? '10% Downpayment (via GCash)' : 'Full Payment';
+          
+          const gcashNum = window.adminGcashNumber || '';
+          if (gcashNum) {
+            document.getElementById('wizardGcashQr').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=FAKE_GCASH_QR_CODE_FOR_TESTING`;
+          }
+        } else {
+          gcashPanel.style.display = 'none';
+        }
+      };
+
+      // GCash proof preview
+      document.getElementById('wizardGcashProof')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const previewArea = document.getElementById('wizardGcashProofPreviewArea');
+        const previewImg = document.getElementById('wizardGcashProofPreview');
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            previewArea.style.display = 'block';
+          }
+          reader.readAsDataURL(file);
+        } else {
+          previewArea.style.display = 'none';
+          previewImg.src = '';
+        }
+      });
+
+      function renderPaymentOptions() {
+        const container = document.getElementById('paymentOptionsContainer');
+        document.getElementById('wizardPaymentMethod').value = '';
+
+        const paymentCardStyle = `
+          border: 2px solid #e2e8f0;
+          border-radius: 1.5rem;
+          padding: 1.5rem;
+          cursor: pointer;
+          transition: all 0.3s;
+          background: white;
+          text-align: center;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        `;
+
+        let html = '';
+
+        if (selectedFulfillment === 'customer_pickup') {
+          html = `
+            <div class="col-md-6">
+              <div class="payment-method-card" data-method="cash_onsite" onclick="selectPaymentMethods('cash_onsite')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a;">
+                  <i class="bi bi-cash-stack fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Cash On-Site</div>
+                <div class="small text-muted">Pay full amount at our store during pickup.</div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mt-3 mt-md-0">
+              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+                  <i class="bi bi-phone fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">GCash Full Payment</div>
+                <div class="small text-muted">Pay full amount via GCash now.</div>
+              </div>
+            </div>
+            <div class="col-md-6 mt-3 mt-md-0">
+              <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
+                  <i class="bi bi-truck fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Cash on Delivery</div>
+                <div class="small text-muted">Pay 10% downpayment via GCash now, remainder in cash on delivery.</div>
+              </div>
+            </div>
+          `;
+        } else {
+          html = `
+
+
+            <div class="col-md-6 mt-3 mt-md-0">
+              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+                  <i class="bi bi-phone fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">GCash Full Payment</div>
+                <div class="small text-muted">Pay full amount via GCash now.</div>
+              </div>
+            </div>
+            <div class="col-md-6 mt-3 mt-md-0">
+              <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
+                  <i class="bi bi-truck fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Cash on Delivery</div>
+                <div class="small text-muted">Pay 10% downpayment via GCash now, remainder in cash on delivery.</div>
+              </div>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+      }
+
+      // ── Populate review ─────────────────────────────────────────────────
+      function populateReview() {
+        const g = GROUPS[selectedGroupIdx];
+        const v = g.variants[selectedVariantIdx];
+
+        document.getElementById('reviewImg').src = g.imageUrl || '/images/products/default.png';
+        document.getElementById('reviewName').textContent = g.modelLine;
+        document.getElementById('reviewVariant').textContent = `${v.capacity} ${v.capacityUnit} · ${g.brand || ''} · ${v.btu ? v.btu.toLocaleString() + ' BTU' : ''}`;
+        
+        const reviewQtyElement = document.getElementById('reviewQtyLarge');
+        if (reviewQtyElement) reviewQtyElement.textContent = selectedQuantity;
+
+        const subtotal = v.sellingPrice * selectedQuantity;
+        let installFee = 0;
+
+        const details = [];
+        const fulfillLabels = {
+          delivery_installation: '🔧 Delivery + Installation',
+          customer_pickup: '🏪 Customer Pickup'
+        };
+        details.push({ label: 'Fulfillment', value: fulfillLabels[selectedFulfillment] || '' });
+
+        if (selectedFulfillment !== 'customer_pickup') {
+          const addr = document.getElementById('wizardAddress').value.trim();
+          const contact = document.getElementById('wizardContact').value.trim();
+          const date = document.getElementById('wizardDate').value;
+          const timeSlot = document.getElementById('wizardTimeSlot').value;
+          details.push({ label: 'Address', value: addr });
+          details.push({ label: 'Contact', value: contact });
+          details.push({ label: selectedFulfillment === 'delivery_installation' ? 'Installation' : 'Delivery', value: `${date} ${timeSlot ? 'at ' + timeSlot : ''}` });
+
+          if (selectedFulfillment === 'delivery_installation') {
+            installFee = window.airconInstallFee !== undefined ? window.airconInstallFee : 1500;
+          }
+        } else {
+          const pickupDate = document.getElementById('wizardPickupDate');
+          details.push({ label: 'Pickup Date', value: pickupDate ? pickupDate.value : '' });
+          details.push({ label: 'Pickup Location', value: 'CALIDRO RACS Store' });
+        }
+
+        // Payment method
+        const payMethod = document.getElementById('wizardPaymentMethod').value;
+        const payLabels = { cash_onsite: '💵 Cash On-Site', cash: '💵 Cash on Delivery', downpayment: '💰 Downpayment (10%)', gcash_full: '📱 GCash (Full)', cod: '🚚 COD (10% Downpayment via GCash)' };
+        details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
+
+        const detailsHtml = details.map(d => `
+        <div class="review-row">
+          <span class="review-label">${d.label}</span>
+          <span class="review-value">${d.value}</span>
+        </div>
+      `).join('');
+        document.getElementById('reviewDetails').innerHTML = detailsHtml;
+
+        document.getElementById('reviewSubtotal').textContent = `₱${subtotal.toLocaleString()}`;
+        
+        const transportRow = document.getElementById('reviewTransportRow');
+        const deliveryRow = document.getElementById('reviewDeliveryRow');
+        if (deliveryRow) deliveryRow.style.display = 'none';
+
+        if (selectedFulfillment !== 'customer_pickup' && _transportFee > 0) {
+          document.getElementById('reviewTransportFee').textContent = '₱' + _transportFee.toLocaleString();
+          if (transportRow) transportRow.style.display = 'flex';
+        } else {
+          if (transportRow) transportRow.style.display = 'none';
+        }
+
+        if (installFee > 0) {
+          document.getElementById('reviewInstallRow').style.display = 'flex';
+          document.getElementById('reviewInstallFee').textContent = `₱${installFee.toLocaleString()}`;
+        } else {
+          document.getElementById('reviewInstallRow').style.display = 'none';
+        }
+
+        const total = subtotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+        document.getElementById('reviewTotal').textContent = `₱${total.toLocaleString()}`;
+      }
+
+      // ── Init Leaflet map ────────────────────────────────────────────────
+      function initMap() {
+        const mapEl = document.getElementById('wizardMap');
+        if (!mapEl) return;
+
+        if (leafletMap) {
+          leafletMap.remove();
+          leafletMap = null;
+          leafletMarker = null;
+        }
+
+        // Default: Manila
+        const defaultLat = 14.5995;
+        const defaultLng = 120.9842;
+
+        leafletMap = L.map('wizardMap', { zoomControl: false }).setView([defaultLat, defaultLng], 12);
+
+        // Add custom zoom control position
+        L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+
+        // Reverting to OpenStreetMap to prevent Gray Tiles issue due to broken Carto CDN
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(leafletMap);
+
+        const customPinIcon = L.divIcon({
+          className: 'custom-map-pin',
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          html: '<div class="pin-body"></div>'
+        });
+
+        leafletMarker = L.marker([defaultLat, defaultLng], { icon: customPinIcon, draggable: true }).addTo(leafletMap);
+
+        window._companyBaseLocationPromise.then(function(base) {
+          if (!base || !base.lat || !base.lng || !leafletMap) return;
+          const companyIcon = L.divIcon({ className: 'custom-map-pin tech-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></i></div>' });
+          if (window._companyMarker) { window._companyMarker.remove(); }
+          window._companyMarker = L.marker([base.lat, base.lng], { icon: companyIcon, zIndexOffset: -100 }).addTo(leafletMap).bindPopup("<b>Company Location</b><br/>" + (base.address || ""));
+        });
+
+        // Helper: update calendar with new customer position
+        window.updateCustomerLocation = function(lat, lng) {
+          document.getElementById('wizardLat').value = lat;
+          document.getElementById('wizardLng').value = lng;
+        };
+
+        leafletMarker.on('dragend', function () {
+          const pos = leafletMarker.getLatLng();
+          updateCustomerLocation(pos.lat, pos.lng);
+          calcTransportFare(pos.lat, pos.lng);
+          // Reverse geocode
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`)
+            .then(r => r.json())
+            .then(d => {
+              if (d.display_name) {
+                document.getElementById('wizardAddress').value = d.display_name;
+              }
+            }).catch(() => { });
+        });
+
+        leafletMap.on('click', function (e) {
+          leafletMarker.setLatLng(e.latlng);
+          updateCustomerLocation(e.latlng.lat, e.latlng.lng);
+          calcTransportFare(e.latlng.lat, e.latlng.lng);
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+            .then(r => r.json())
+            .then(d => {
+              if (d.display_name) {
+                document.getElementById('wizardAddress').value = d.display_name;
+              }
+            }).catch(() => { });
+        });
+
+        // Try to get user location
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            leafletMap.flyTo([lat, lng], 15, { animate: true, duration: 1.5 });
+            leafletMarker.setLatLng([lat, lng]);
+            updateCustomerLocation(lat, lng);
+            calcTransportFare(lat, lng);
+            setTimeout(() => leafletMap.invalidateSize(), 1600);
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+              .then(r => r.json())
+              .then(d => {
+                if (d.display_name) {
+                  document.getElementById('wizardAddress').value = d.display_name;
+                }
+              }).catch(() => { });
+          }, () => { }, { enableHighAccuracy: true });
+        }
+
+        // ── Company pin ────────────────────────────────────────────────
+        window._companyBaseLocationPromise.then(function(base) {
+          if (!base || !base.lat || !base.lng) return;
+          if (!leafletMap) return;
+          var companyIcon = L.divIcon({
+            html: '<div style="background:#2563eb;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);"><i class="bi bi-building"></i></div>',
+            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+          });
+          L.marker([base.lat, base.lng], { icon: companyIcon }).addTo(leafletMap)
+            .bindPopup('<b>' + (base.address || 'Company') + '</b>');
+        });
+
+        // ── Map Legend Control (upper-right) ──
+        const LegendControl = L.Control.extend({
+          options: { position: 'topright' },
+          onAdd: function () {
+            const div = L.DomUtil.create('div', 'map-legend-control');
+            div.innerHTML = `
+              <button class="map-legend-item" id="legendCustomerBtn" type="button">
+                <span class="map-legend-dot customer"></span>
+                <span>Customer</span>
+              </button>
+            `;
+            L.DomEvent.disableClickPropagation(div);
+            return div;
+          }
+        });
+        leafletMap.addControl(new LegendControl());
+
+        document.getElementById('legendCustomerBtn').onclick = () => {
+          if (leafletMarker) leafletMap.flyTo(leafletMarker.getLatLng(), 16, { animate: true, duration: 0.8 });
+        };
+        
+        // Re-invalidate size to ensure tiles properly load inside the modal container
+        setTimeout(() => leafletMap.invalidateSize(), 150);
+        setTimeout(() => leafletMap.invalidateSize(), 500);
+      }
+
+      window.locateMe = function () {
+        if (!leafletMap || !leafletMarker) return;
+        if (navigator.geolocation) {
+          const addrInput = document.getElementById('wizardAddress');
+          if (addrInput) addrInput.value = 'Detecting your location...';
+          navigator.geolocation.getCurrentPosition(function (pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            leafletMap.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
+            leafletMarker.setLatLng([lat, lng]);
+            updateCustomerLocation(lat, lng);
+            calcTransportFare(lat, lng);
+            if (addrInput) addrInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+              .then(r => r.json()).then(d => { if (d.display_name && addrInput) addrInput.value = d.display_name; }).catch(() => {});
+          }, function () {
+            showPremiumAlert('Unable to retrieve your location. Please check your GPS settings.', 'Location Error', 'warning');
+          }, { enableHighAccuracy: true });
+        } else {
+          showPremiumAlert('Geolocation is not supported by your browser.', 'Not Supported', 'warning');
+        }
+      };
+
+      // ── Transport fare calculation ──────────────────────────────────────
+      function updateRoutePanel(distKm, durMin, farePerKm, fee, isRoad) {
+        var panel     = document.getElementById('routeInfoPanel');
+        var distEl    = document.getElementById('routeDistDisplay');
+        var durEl     = document.getElementById('routeDurDisplay');
+        var rateEl    = document.getElementById('routeRateDisplay');
+        var fareEl    = document.getElementById('routeFareDisplay');
+        var formulaEl = document.getElementById('routeCalcFormula');
+        var badgeEl   = document.getElementById('routeMethodBadge');
+        var spinner   = document.getElementById('mapLocatingSpinner');
+        if (spinner) spinner.classList.remove('show');
+        if (!panel) return;
+        panel.classList.add('has-route');
+        if (distEl)    distEl.textContent    = distKm.toFixed(1) + ' km';
+        if (durEl)     durEl.textContent     = durMin + ' min';
+        if (rateEl)    rateEl.textContent    = '\u20b1' + Number(farePerKm).toFixed(2) + '/km';
+        if (fareEl)    fareEl.textContent    = '\u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+        if (formulaEl) formulaEl.textContent = distKm.toFixed(1) + ' km \u00d7 \u20b1' + Number(farePerKm).toFixed(2) + '/km = \u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' delivery fee';
+        if (badgeEl) {
+          if (isRoad) {
+            badgeEl.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>Road Route';
+            badgeEl.className = 'route-method-badge';
+          } else {
+            badgeEl.innerHTML = '<i class="bi bi-calculator me-1"></i>Estimated (straight-line)';
+            badgeEl.className = 'route-method-badge haversine';
+          }
+        }
+        var meta = document.getElementById('reviewTransportMeta');
+        if (meta) meta.textContent = distKm.toFixed(1) + ' km \u00d7 \u20b1' + farePerKm + '/km';
+      }
+
+      function calcTransportFare(custLat, custLng) {
+        var spinner = document.getElementById('mapLocatingSpinner');
+        if (spinner) spinner.classList.add('show');
+        window._companyBaseLocationPromise.then(function(base) {
+          if (!base || !base.lat || !base.lng) { if (spinner) spinner.classList.remove('show'); return; }
+          var farePerKm = window._farePerKm || 40;
+          var url = '/api/services/osrm-route?coords=' + encodeURIComponent(base.lng + ',' + base.lat + ';' + custLng + ',' + custLat);
+          fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(routeData) {
+              var isRoad = false;
+              if (routeData && routeData.routes && routeData.routes.length > 0) {
+                var distKm = routeData.routes[0].distance / 1000;
+                var durMin = Math.round(routeData.routes[0].duration / 60);
+                _routeDistanceKm = Math.round(distKm * 10) / 10;
+                _routeDurationMin = durMin;
+                isRoad = true;
+
+                if (leafletMap && routeData.routes[0].geometry) {
+                  if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
+                  window._routeLayer = L.geoJSON(routeData.routes[0].geometry, {
+                    style: { color: '#6366f1', weight: 5, opacity: 0.85 }
+                  }).addTo(leafletMap);
+                  leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
+                }
+              } else {
+                // Haversine fallback
+                var R = 6371;
+                var dLat = ((custLat - base.lat) * Math.PI) / 180;
+                var dLng = ((custLng - base.lng) * Math.PI) / 180;
+                var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                var haversineKm = R * c;
+                _routeDistanceKm = Math.round(haversineKm * 14) / 10; // road factor 1.4
+                _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
+              }
+              _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
+              var meta = document.getElementById('reviewTransportMeta');
+              if (meta) meta.textContent = _routeDistanceKm + ' km × ₱' + (window._farePerKm || 40) + '/km';
+            })
+            .catch(function() {
+              // Fallback haversine
+              var R = 6371;
+              var dLat = ((custLat - base.lat) * Math.PI) / 180;
+              var dLng = ((custLng - base.lng) * Math.PI) / 180;
+              var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+              var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              var hKm = R * c;
+              _routeDistanceKm = Math.round(hKm * 14) / 10;
+              _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
+              _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
+            });
+        });
+      }
+
+      // ── Submit order ────────────────────────────────────────────────────
+      async function submitOrder() {
+        const g = GROUPS[selectedGroupIdx];
+        const v = g.variants[selectedVariantIdx];
+        const nextBtn = document.getElementById('wizardNextBtn');
+
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+        try {
+          const payMethod = document.getElementById('wizardPaymentMethod').value || 'cash';
+          
+          const formData = new FormData();
+          formData.append('items', JSON.stringify([{ inventoryId: v._id, quantity: selectedQuantity }]));
+          formData.append('fulfillmentType', selectedFulfillment);
+          formData.append('paymentMethod', payMethod);
+          
+          if (selectedFulfillment !== 'customer_pickup') {
+            const deliveryData = {
+              address: document.getElementById('wizardAddress').value.trim(),
+              contactNumber: document.getElementById('wizardContact').value.trim(),
+              preferredDate: document.getElementById('wizardDate').value,
+              notes: document.getElementById('wizardNotes').value.trim(),
+              coordinates: {
+                lat: parseFloat(document.getElementById('wizardLat').value) || 0,
+                lng: parseFloat(document.getElementById('wizardLng').value) || 0,
+              }
+            };
+            formData.append('delivery', JSON.stringify(deliveryData));
+            formData.append('timeSlot', document.getElementById('wizardTimeSlot')?.value || '');
+          } else {
+            formData.append('pickupDate', document.getElementById('wizardPickupDate').value);
+          }
+          
+          formData.append('transportationFee', String(_transportFee));
+          formData.append('routeDistanceKm', String(_routeDistanceKm));
+          formData.append('routeDurationMin', String(_routeDurationMin));
+
+          if (payMethod === 'gcash_full' || payMethod === 'cod') {
+            const gcashProof = document.getElementById('wizardGcashProof').files[0];
+            if (gcashProof) formData.append('gcashProof', gcashProof);
+            formData.append('gcashNumber', document.getElementById('wizardContact')?.value || USER_PHONE);
+          }
+
+          const res = await fetch('/api/orders', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            if (data.nextAvailableDate) {
+              showPremiumAlert(`${data.error}\n\nNext available date: ${data.nextAvailableDate}`, 'Schedule Conflict', 'error');
+            } else {
+              showPremiumAlert(data.error || 'Failed to place order.', 'Order Error', 'error');
+            }
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+            return;
+          }
+
+          // Success — show confirmation
+          const modalBody = document.querySelector('#productOrderModal .modal-body');
+          modalBody.innerHTML = `
+          <div class="text-center p-5" style="animation: fadeSlideUp 0.4s ease;">
+            <div style="font-size: 4rem; color: #22c55e; margin-bottom: 1rem;">
+              <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <h4 class="fw-bold" style="color: #0a1628;">Order Placed!</h4>
+            <p style="color: #64748b;">Your order reference is:</p>
+            <div class="d-inline-block px-4 py-2 rounded-pill fw-bold" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #1d4ed8; font-size: 1.2rem; letter-spacing: 1px;">
+              ${data.order.orderReference || 'Processing...'}
+            </div>
+            <p class="mt-3 small" style="color: #94a3b8;">You can track your order in <a href="/my-orders" style="color: #2563eb; font-weight: 600;">My Orders</a>.</p>
+          </div>
+        `;
+          document.querySelector('#productOrderModal .modal-footer').innerHTML = `
+          <a href="/my-orders" class="btn btn-add-cart px-4 py-2">View My Orders</a>
+          <button class="btn btn-sm" data-bs-dismiss="modal" style="border-radius: 50px; padding: 0.5rem 1.5rem; color: #64748b; background: rgba(100,116,139,0.08); border: 1px solid rgba(100,116,139,0.15); font-weight: 600;">Close</button>
+        `;
+        } catch (err) {
+          showPremiumAlert('Network error. Please try again.', 'Connection Error', 'error');
+          nextBtn.disabled = false;
+          nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+        }
+      }
+
+      // ── Cart & Utilities ────────────────────────────────────────────────
+      async function addToCart() {
+        const g = GROUPS[selectedGroupIdx];
+        const v = g.variants[selectedVariantIdx];
+        if (!v) return;
+
+        if (!IS_LOGGED_IN) {
+          showPremiumAlert('Please log in to add items to your cart.', 'Login Required', 'info');
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/aircon-cart/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inventoryId: v._id, quantity: selectedQuantity })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            showPremiumAlert(`Added ${selectedQuantity} unit(s) to your cart successfully!`, 'Added to Cart', 'success');
+            updateCartBadge();
+            bootstrap.Modal.getInstance(document.getElementById('productOrderModal')).hide();
+          } else {
+            showPremiumAlert(data.error || 'Failed to add to cart', 'Error', 'error');
+          }
+        } catch (err) {
+          showPremiumAlert('Network error while adding to cart', 'Error', 'error');
+        }
+      }
+
+      async function updateCartBadge() {
+        if (!IS_LOGGED_IN) return;
+        try {
+          const res = await fetch('/api/aircon-cart');
+          const data = await res.json();
+          const count = data.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+          const badge = document.getElementById('cartBadgeCount');
+          if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'block';
+            badge.classList.remove('badge-pop');
+            void badge.offsetWidth;
+            badge.classList.add('badge-pop');
+          } else {
+            badge.style.display = 'none';
+          }
+          const labelCount = document.getElementById('cartLabelCount');
+          if (labelCount) labelCount.textContent = count;
+        } catch (e) { }
+      }
+
+      // ── Address Search Logic ───────────────────────────────────────────
+      const addrInput = document.getElementById('wizardAddress');
+      const suggestBox = document.getElementById('addressSuggestions');
+      const searchBtn = document.getElementById('searchAddressBtn');
+
+      if (addrInput) {
+        addrInput.addEventListener('input', function () {
+          clearTimeout(addressSearchTimeout);
+          const q = this.value.trim();
+          if (q.length < 3) {
+            suggestBox.style.display = 'none';
+            return;
+          }
+          addressSearchTimeout = setTimeout(() => searchAddress(q), 500);
+        });
+
+        addrInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            searchAddress(addrInput.value);
+          }
+        });
+      }
+
+      if (searchBtn) {
+        searchBtn.onclick = () => searchAddress(addrInput.value);
+      }
+
+      async function searchAddress(q) {
+        if (!q) return;
+        try {
+          const res = await fetch(`/api/services/geocode-suggest?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          if (data.suggestions && data.suggestions.length > 0) {
+            renderSuggestions(data.suggestions);
+          } else {
+            suggestBox.style.display = 'none';
+          }
+        } catch (e) {
+          console.error('Geocode search failed', e);
+        }
+      }
+
+      function renderSuggestions(list) {
+        suggestBox.innerHTML = '';
+        list.forEach(s => {
+          const item = document.createElement('button');
+          item.className = 'list-group-item list-group-item-action border-0 py-2 small';
+          item.innerHTML = `<i class="bi bi-geo-alt me-2 text-primary"></i>${s.display_name}`;
+          item.onclick = () => {
+            addrInput.value = s.display_name;
+            suggestBox.style.display = 'none';
+            const lat = parseFloat(s.lat);
+            const lon = parseFloat(s.lon);
+            document.getElementById('wizardLat').value = lat;
+            document.getElementById('wizardLng').value = lon;
+            if (leafletMap && leafletMarker) {
+              leafletMap.flyTo([lat, lon], 16);
+              leafletMarker.setLatLng([lat, lon]);
+            }
+            if (checkoutCalendar) { /* no setLocation – handled by calcTransportFare below */ }
+            calcTransportFare(lat, lon);
+          };
+          suggestBox.appendChild(item);
+        });
+        suggestBox.style.display = 'block';
+      }
+
+      // Hide suggestions on click outside
+      document.addEventListener('click', (e) => {
+        if (!suggestBox.contains(e.target) && e.target !== addrInput) {
+          suggestBox.style.display = 'none';
+        }
+      });
+
+      // Fix aria-hidden focus trap on wizard modal
+      const wizardModal = document.getElementById('productOrderModal');
+      if (wizardModal) {
+        wizardModal.addEventListener('show.bs.modal', () => wizardModal.removeAttribute('aria-hidden'));
+        wizardModal.addEventListener('hidden.bs.modal', () => wizardModal.setAttribute('aria-hidden', 'true'));
+      }
+
+      // Call badge update on load
+      updateCartBadge();
+    })();
+  </script>
+</section>

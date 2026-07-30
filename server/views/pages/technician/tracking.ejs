@@ -1,0 +1,616 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+
+<div class="technician-page">
+  <div class="container-fluid px-0 py-4">
+
+    <!-- Header -->
+    <div class="px-4 mb-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h4 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2"></i>Live Tracking</h4>
+          <small class="text-muted">Real-time technician and customer locations</small>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="badge bg-success" id="techOnlineCount">0 online</span>
+          <span class="badge bg-primary" id="customerCount" style="background:#6366f1 !important;">0 customers</span>
+          <button class="btn btn-sm btn-outline-primary" onclick="centerOnMe()"><i class="bi bi-crosshair me-1"></i>My Location</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullscreen()"><i class="bi bi-fullscreen"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map Legend -->
+    <div class="px-4 mb-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:0.75rem;">
+        <div class="d-flex align-items-center gap-1.5">
+          <div style="width:12px;height:12px;border-radius:50%;background:#ef4444;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+          <span class="text-muted">My Location</span>
+        </div>
+        <div class="d-flex align-items-center gap-1.5">
+          <div style="width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+          <span class="text-muted">Technician</span>
+        </div>
+        <div class="d-flex align-items-center gap-1.5">
+          <div style="width:12px;height:12px;border-radius:50%;background:#8b5cf6;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+          <span class="text-muted">Customer (Accepted)</span>
+        </div>
+        <div class="d-flex align-items-center gap-1.5">
+          <div style="width:12px;height:12px;border-radius:50%;background:#10b981;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+          <span class="text-muted">Customer (In Progress)</span>
+        </div>
+        <div class="d-flex align-items-center gap-1.5">
+          <div style="width:20px;height:0;border-top:3px dashed #6366f1;"></div>
+          <span class="text-muted">Route Path</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div id="trackingMap" style="height: calc(100vh - 280px); min-height: 500px; border-radius: 16px; margin: 0 16px; border: 1px solid #e2e8f0;"></div>
+
+    <!-- Combined List Panel -->
+    <div id="techListPanel" class="tech-list-panel">
+      <div class="tech-list-header">
+        <div class="d-flex align-items-center gap-2">
+          <h6 class="fw-bold mb-0">Live Panel</h6>
+          <div class="btn-group btn-group-sm" role="group" style="font-size:0.7rem;">
+            <button type="button" class="btn btn-outline-primary active" id="tabTechs" onclick="showTab('techs')">Technicians</button>
+            <button type="button" class="btn btn-outline-primary" id="tabCustomers" onclick="showTab('customers')">Customers</button>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-link" onclick="toggleTechList()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <!-- Search + Filter Bar (Customer tab only) -->
+      <div id="customerFilterBar" class="px-3 pt-3 pb-2" style="display:none;">
+        <div class="input-group input-group-sm mb-2" style="border-radius:8px;overflow:hidden;">
+          <span class="input-group-text" style="background:#f1f5f9;border:none;"><i class="bi bi-search"></i></span>
+          <input type="text" id="custSearchInput" class="form-control" placeholder="Search customer name..." style="font-size:0.78rem;border:none;background:#f1f5f9;">
+        </div>
+        <div class="d-flex flex-wrap gap-1" id="custFilterBtns">
+          <button class="btn btn-sm cust-filter-btn active" data-filter="all" onclick="filterCustomers('all')">All</button>
+          <button class="btn btn-sm cust-filter-btn" data-filter="confirmed" onclick="filterCustomers('confirmed')">
+            <span class="filter-dot" style="background:#8b5cf6;"></span>Accepted
+          </button>
+          <button class="btn btn-sm cust-filter-btn" data-filter="on-the-way" onclick="filterCustomers('on-the-way')">
+            <span class="filter-dot" style="background:#3b82f6;"></span>En Route
+          </button>
+          <button class="btn btn-sm cust-filter-btn" data-filter="in-progress" onclick="filterCustomers('in-progress')">
+            <span class="filter-dot" style="background:#10b981;"></span>In Progress
+          </button>
+          <button class="btn btn-sm cust-filter-btn" data-filter="arrived" onclick="filterCustomers('arrived')">
+            <span class="filter-dot" style="background:#f59e0b;"></span>Arrived
+          </button>
+        </div>
+      </div>
+      <div class="tech-list-body" id="techListBody"></div>
+      <div class="tech-list-body" id="customerListBody" style="display:none;"></div>
+    </div>
+
+    <!-- Toggle List Button -->
+    <button class="btn btn-primary rounded-circle shadow" onclick="toggleTechList()" id="toggleListBtn"
+      style="position:fixed;bottom:24px;left:24px;z-index:1000;width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+      <i class="bi bi-list-ul"></i>
+    </button>
+
+  </div>
+</div>
+
+<style>
+  .tech-list-panel {
+    position: fixed; bottom: 80px; left: 24px; width: min(380px, calc(100vw - 48px)); max-height: 520px;
+    background: #fff; border-radius: 14px; border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 32px rgba(15,23,42,0.12); z-index: 1000;
+    display: none; flex-direction: column; overflow: hidden;
+  }
+  .tech-list-panel.show { display: flex; }
+  .tech-list-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+  .tech-list-body { overflow-y: auto; padding: 8px; }
+  .tech-list-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tech-list-item:hover { background: #f1f5f9; }
+  .tech-list-item.active-job { background: #eff6ff; border: 1.5px solid #3b82f6; animation: activePulse 2s ease-in-out infinite; }
+  @keyframes activePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.15); } 50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); } }
+  .tech-list-item.active-job .cust-status-dot { width: 10px; height: 10px; animation: pulse 1.5s infinite; }
+  .tech-avatar { width: 36px; height: 36px; border-radius: 50%; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+  .tech-avatar.cust-avatar { background: #f5f3ff; color: #8b5cf6; }
+  .tech-list-info { flex: 1; min-width: 0; }
+  .tech-list-info h6 { font-size: 0.82rem; font-weight: 700; color: #1e293b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tech-list-info p { font-size: 0.72rem; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tech-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tech-status-dot.Available { background: #22c55e; }
+  .tech-status-dot.On\ The\ Way { background: #3b82f6; }
+  .tech-status-dot.In\ Progress { background: #f59e0b; }
+  .tech-status-dot.Assigned { background: #8b5cf6; }
+  .cust-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #8b5cf6; }
+  .cust-status-dot.confirmed { background: #8b5cf6; }
+  .cust-status-dot.on-the-way { background: #3b82f6; }
+  .cust-status-dot.in-progress { background: #10b981; }
+  .cust-status-dot.arrived { background: #f59e0b; }
+  .cust-status-dot.scheduled { background: #64748b; }
+  .cust-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .cust-meta .meta-tag { font-size: 0.65rem; font-weight: 600; padding: 1px 6px; border-radius: 8px; }
+  .cust-meta .meta-tag.urgent { background: #fef2f2; color: #dc2626; }
+  .cust-meta .meta-tag.schedule { background: #f0fdf4; color: #16a34a; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+  /* Filter buttons */
+  .cust-filter-btn {
+    font-size: 0.68rem; font-weight: 600; border-radius: 20px; padding: 2px 10px;
+    border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .cust-filter-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+  .cust-filter-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  .filter-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .cust-filter-btn.active .filter-dot { background: #fff !important; }
+
+  .cust-count-badge {
+    font-size: 0.62rem; font-weight: 700; min-width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9px; background: #e2e8f0; color: #475569; padding: 0 5px;
+  }
+  .cust-filter-btn.active .cust-count-badge { background: rgba(255,255,255,0.3); color: #fff; }
+  @keyframes lateSlideIn { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes lateSlideOut { to { opacity:0; transform:translateY(-20px); } }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function() {
+  let map, myMarker, techMarkers = {}, techAccCircles = {}, customerMarkers = {}, routeLayers = {};
+  let currentTab = 'techs';
+  let lastRouteFetch = 0;
+  let allCustomers = [];
+  let currentCustFilter = 'all';
+  let custSearchQuery = '';
+
+  // ── Socket.IO for real-time tracking ────────────────────────────────
+  const socket = io({ path: "/socket.io" });
+  const myTechId = '<%= (technician && technician._id) ? technician._id : "" %>';
+  socket.on("connect", () => {
+    if (myTechId) socket.emit("tech:join", myTechId);
+  });
+
+  const accCircleStyle = { color: '#4361ee', fillColor: '#4361ee', fillOpacity: .08, weight: 1.5 };
+  function updateAccCircle(techId, lat, lng, acc) {
+    if (!techMarkers[techId]) return;
+    const accOk = typeof acc === 'number' && acc > 0 && acc < 5000;
+    if (!accOk) {
+      if (techAccCircles[techId]) { map.removeLayer(techAccCircles[techId]); delete techAccCircles[techId]; }
+      return;
+    }
+    const pos = [lat, lng];
+    if (techAccCircles[techId]) {
+      techAccCircles[techId].setLatLng(pos).setRadius(acc);
+    } else {
+      techAccCircles[techId] = L.circle(pos, { ...accCircleStyle, radius: acc }).addTo(map);
+    }
+  }
+  socket.on("tech:location:update", (data) => {
+    if (data.techId && techMarkers[data.techId] && data.lat && data.lng) {
+      techMarkers[data.techId].setLatLng([data.lat, data.lng]);
+      updateAccCircle(data.techId, data.lat, data.lng, data.accuracy);
+    }
+  });
+
+  socket.on("booking:status-change", () => {
+    loadAcceptedCustomers().then(drawRoutes);
+  });
+
+  socket.on("booking:technician-late", (data) => {
+    if (data.techId && String(data.techId) === String(myTechId)) {
+      showLateAlert(data);
+    }
+  });
+
+  const techIcon = L.divIcon({
+    className: 'custom-tech-icon',
+    html: '<div style="background:#3b82f6;width:30px;height:30px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><i class="bi bi-person-fill" style="color:#fff;font-size:14px;"></i></div>',
+    iconSize: [30, 30], iconAnchor: [15, 15]
+  });
+
+  const customerIcon = L.divIcon({
+    className: 'custom-customer-icon',
+    html: '<div style="background:#8b5cf6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(139,92,246,0.4);display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+
+  const customerActiveIcon = L.divIcon({
+    className: 'custom-customer-active-icon',
+    html: '<div style="background:#10b981;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(16,185,129,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+
+  const customerEnRouteIcon = L.divIcon({
+    className: 'custom-customer-enroute-icon',
+    html: '<div style="background:#3b82f6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+
+  const customerArrivedIcon = L.divIcon({
+    className: 'custom-customer-arrived-icon',
+    html: '<div style="background:#f59e0b;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(245,158,11,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+
+  function getCustomerIcon(status) {
+    switch(status) {
+      case 'in-progress': return customerActiveIcon;
+      case 'on-the-way': return customerEnRouteIcon;
+      case 'arrived': return customerArrivedIcon;
+      default: return customerIcon;
+    }
+  }
+
+  function getStatusColor(status) {
+    switch(status) {
+      case 'in-progress': return '#10b981';
+      case 'on-the-way': return '#3b82f6';
+      case 'arrived': return '#f59e0b';
+      case 'confirmed': return '#8b5cf6';
+      case 'scheduled': return '#64748b';
+      default: return '#8b5cf6';
+    }
+  }
+
+  function getStatusLabel(status) {
+    switch(status) {
+      case 'in-progress': return 'In Progress';
+      case 'on-the-way': return 'En Route';
+      case 'arrived': return 'Arrived';
+      case 'confirmed': return 'Accepted';
+      case 'scheduled': return 'Scheduled';
+      default: return (status || 'Unknown').replace(/_/g, ' ');
+    }
+  }
+
+  async function drawRoutes() {
+    const now = Date.now();
+    if (now - lastRouteFetch < 8000) return;
+    lastRouteFetch = now;
+
+    const techCoordsMap = {};
+    Object.keys(techMarkers).forEach(id => {
+      const ll = techMarkers[id].getLatLng();
+      techCoordsMap[id] = ll;
+    });
+
+    const seenBookings = new Set();
+    for (const [key, cust] of Object.entries(customerMarkers)) {
+      const customerData = cust._customData;
+      if (!customerData || !customerData.technicianId) continue;
+      const techId = customerData.technicianId;
+      if (!techCoordsMap[techId]) continue;
+
+      const techLL = techCoordsMap[techId];
+      const custLL = cust.getLatLng();
+      const routeKey = key;
+      seenBookings.add(routeKey);
+
+      if (routeLayers[routeKey]) {
+        const prev = routeLayers[routeKey]._lastTech;
+        const prevC = routeLayers[routeKey]._lastCust;
+        if (prev && prevC &&
+            Math.abs(prev[0] - techLL.lat) < 0.0001 &&
+            Math.abs(prev[1] - techLL.lng) < 0.0001 &&
+            Math.abs(prevC[0] - custLL.lat) < 0.0001 &&
+            Math.abs(prevC[1] - custLL.lng) < 0.0001) continue;
+      }
+
+      try {
+        const coords = `${techLL.lng},${techLL.lat};${custLL.lng},${custLL.lat}`;
+        const resp = await fetch(`/api/services/osrm-route?coords=${encodeURIComponent(coords)}`);
+        if (!resp.ok) throw new Error('route fetch failed');
+        const data = await resp.json();
+        if (data.routes && data.routes.length && data.routes[0].geometry) {
+          if (routeLayers[routeKey]) map.removeLayer(routeLayers[routeKey]);
+
+          const geoLayer = L.geoJSON(data.routes[0].geometry, {
+            style: { color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '8, 6' }
+          }).addTo(map);
+          geoLayer._lastTech = [techLL.lat, techLL.lng];
+          geoLayer._lastCust = [custLL.lat, custLL.lng];
+          routeLayers[routeKey] = geoLayer;
+        }
+      } catch (e) {
+        console.warn('Route draw failed for', routeKey, e);
+      }
+    }
+
+    Object.keys(routeLayers).forEach(key => {
+      if (!seenBookings.has(key)) {
+        map.removeLayer(routeLayers[key]);
+        delete routeLayers[key];
+      }
+    });
+  }
+
+  function initMap() {
+    map = L.map('trackingMap', { zoomControl: false }).setView([14.5995, 120.9842], 12);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+    }).addTo(map);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.setView([lat, lng], 14);
+        myMarker = L.marker([lat, lng], { icon: L.divIcon({
+          className: 'my-location-icon',
+          html: '<div style="background:#ef4444;width:32px;height:32px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(239,68,68,0.5);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-crosshair" style="color:#fff;font-size:16px;"></i></div>',
+          iconSize: [32, 32], iconAnchor: [16, 16]
+        }) }).addTo(map).bindPopup('Your Location');
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    }
+  }
+
+  async function loadTechnicians() {
+    try {
+      const res = await fetch('/api/technician/tracking/live');
+      if (!res.ok) throw new Error();
+      const { technicians } = await res.json();
+
+      document.getElementById('techOnlineCount').textContent = technicians.length + ' online';
+
+      const seen = new Set();
+      technicians.forEach(t => {
+        if (!t.location || !t.location.coordinates) return;
+        const [lng, lat] = t.location.coordinates;
+        seen.add(t._id);
+
+        if (!techMarkers[t._id]) {
+          techMarkers[t._id] = L.marker([lat, lng], { icon: techIcon })
+            .addTo(map)
+            .bindPopup(`<div style="min-width:160px;"><strong>${t.name}</strong><br><small style="color:#64748b;">${t.availabilityStatus || 'Offline'}</small><br>${t.locationText ? '<small>' + t.locationText + '</small>' : ''}${t.rating ? '<br><small style="color:#f59e0b;">&#9733; ' + t.rating.toFixed(1) + '</small>' : ''}</div>`);
+        } else {
+          techMarkers[t._id].setLatLng([lat, lng]);
+        }
+      });
+
+      Object.keys(techMarkers).forEach(id => {
+        if (!seen.has(id)) {
+          map.removeLayer(techMarkers[id]); delete techMarkers[id];
+          if (techAccCircles[id]) { map.removeLayer(techAccCircles[id]); delete techAccCircles[id]; }
+        }
+      });
+
+      const listBody = document.getElementById('techListBody');
+      listBody.innerHTML = technicians.map(t => `
+        <div class="tech-list-item" onclick="focusItem('tech', '${t._id}', ${t.location?.coordinates?.[1] || 0}, ${t.location?.coordinates?.[0] || 0})">
+          <div class="tech-avatar">${(t.name || '?')[0].toUpperCase()}</div>
+          <div class="tech-list-info">
+            <h6>${t.name || 'Technician'}</h6>
+            <p>${t.availabilityStatus || 'Offline'} ${t.locationText ? ' | ' + t.locationText.substring(0, 30) : ''}</p>
+          </div>
+          <span class="tech-status-dot ${t.availabilityStatus || ''}"></span>
+        </div>
+      `).join('');
+    } catch(e) {
+      console.error('Tracking load error:', e);
+    }
+  }
+
+  async function loadAcceptedCustomers() {
+    try {
+      const res = await fetch('/api/technician/tracking/customers');
+      if (!res.ok) return;
+      const { customers } = await res.json();
+      allCustomers = customers;
+
+      updateFilterCounts();
+      renderCustomerList();
+      updateMapMarkers(customers);
+    } catch(e) {
+      console.error('Customer load error:', e);
+    }
+  }
+
+  function updateFilterCounts() {
+    const counts = { all: allCustomers.length, confirmed: 0, 'on-the-way': 0, 'in-progress': 0, arrived: 0, scheduled: 0 };
+    allCustomers.forEach(c => { if (counts[c.status] !== undefined) counts[c.status]++; });
+    document.querySelectorAll('.cust-filter-btn').forEach(btn => {
+      const f = btn.dataset.filter;
+      const count = counts[f] || 0;
+      let badge = btn.querySelector('.cust-count-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'cust-count-badge';
+        btn.appendChild(badge);
+      }
+      badge.textContent = count;
+    });
+    document.getElementById('customerCount').textContent = allCustomers.length + ' customers';
+  }
+
+  function getFilteredCustomers() {
+    let filtered = allCustomers;
+    if (currentCustFilter !== 'all') {
+      filtered = filtered.filter(c => c.status === currentCustFilter);
+    }
+    if (custSearchQuery) {
+      const q = custSearchQuery.toLowerCase();
+      filtered = filtered.filter(c => (c.customerName || '').toLowerCase().includes(q) || (c.serviceName || '').toLowerCase().includes(q) || (c.address || '').toLowerCase().includes(q));
+    }
+    return filtered;
+  }
+
+  function renderCustomerList() {
+    const filtered = getFilteredCustomers();
+    const custBody = document.getElementById('customerListBody');
+
+    if (filtered.length === 0) {
+      custBody.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:6px;"></i><small>No customers found</small></div>';
+      return;
+    }
+
+    // Sort: in-progress first, then on-the-way, then arrived, then confirmed, then scheduled
+    const statusOrder = { 'in-progress': 0, 'on-the-way': 1, 'arrived': 2, 'confirmed': 3, 'scheduled': 4 };
+    filtered.sort((a, b) => (statusOrder[a.status] || 5) - (statusOrder[b.status] || 5));
+
+    custBody.innerHTML = filtered.map(c => {
+      const key = c.bookingId || c._id;
+      const isActive = c.status === 'in-progress' || c.status === 'on-the-way';
+      const isCurrentJob = c.status === 'on-the-way' || c.status === 'in-progress';
+      const statusColor = getStatusColor(c.status);
+      const statusLabel = getStatusLabel(c.status);
+      const timeStr = c.startTime ? formatTimeShort(c.startTime) : '';
+      const dateStr = c.bookingDate ? formatDateShort(c.bookingDate) : '';
+
+      return `
+        <div class="tech-list-item ${isCurrentJob ? 'active-job' : ''}" onclick="focusItem('customer', '${key}', ${c.lat || 0}, ${c.lng || 0})">
+          <div class="tech-avatar cust-avatar" style="background:${statusColor}20;color:${statusColor};">
+            <i class="bi bi-${isCurrentJob ? 'geo-alt-fill' : 'house-door'}" style="font-size:14px;"></i>
+          </div>
+          <div class="tech-list-info">
+            <h6>${c.customerName}</h6>
+            <p>${c.serviceName || 'Service'} ${c.address ? ' | ' + c.address.substring(0, 30) : ''}</p>
+            <div class="cust-meta">
+              <span class="meta-tag schedule" style="background:${statusColor}15;color:${statusColor};">${statusLabel}</span>
+              ${timeStr ? `<span class="meta-tag" style="background:#f1f5f9;color:#475569;">${dateStr} ${timeStr}</span>` : ''}
+            </div>
+          </div>
+          <span class="cust-status-dot ${c.status || ''}"></span>
+        </div>`;
+    }).join('');
+  }
+
+  function updateMapMarkers(customers) {
+    const seen = new Set();
+    customers.forEach(c => {
+      if (!c.lat || !c.lng) return;
+      const key = c.bookingId || c._id;
+      seen.add(key);
+      const icon = getCustomerIcon(c.status);
+
+      if (!customerMarkers[key]) {
+        customerMarkers[key] = L.marker([c.lat, c.lng], { icon })
+          .addTo(map)
+          .bindPopup(`<div style="min-width:180px;">
+            <strong>${c.customerName}</strong><br>
+            <small style="color:#64748b;">${c.serviceName || 'Service'}</small><br>
+            <small>${c.address || ''}</small><br>
+            <span style="display:inline-block;margin-top:4px;font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:10px;background:${getStatusColor(c.status)}20;color:${getStatusColor(c.status)};">${getStatusLabel(c.status)}</span>
+            ${c.startTime ? '<br><small style="color:#94a3b8;margin-top:2px;display:inline-block;">Scheduled: ' + c.startTime + '</small>' : ''}
+          </div>`);
+        customerMarkers[key]._customData = { technicianId: c.technicianId, bookingId: c.bookingId, status: c.status };
+      } else {
+        customerMarkers[key].setLatLng([c.lat, c.lng]);
+        customerMarkers[key].setIcon(icon);
+        customerMarkers[key]._customData = { technicianId: c.technicianId, bookingId: c.bookingId, status: c.status };
+      }
+    });
+
+    Object.keys(customerMarkers).forEach(id => {
+      if (!seen.has(id)) {
+        map.removeLayer(customerMarkers[id]);
+        delete customerMarkers[id];
+        if (routeLayers[id]) { map.removeLayer(routeLayers[id]); delete routeLayers[id]; }
+      }
+    });
+  }
+
+  function formatTimeShort(timeStr) {
+    if (!timeStr) return '';
+    const num = Number(timeStr);
+    if (!isNaN(num) && num >= 0 && num < 1440) {
+      const h = Math.floor(num / 60);
+      const m = num % 60;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hh = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      return `${hh}:${String(m).padStart(2,'0')} ${ampm}`;
+    }
+    return String(timeStr);
+  }
+
+  function formatDateShort(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  }
+
+  // ── Filter + Search Handlers ──────────────────────────────────────
+  window.filterCustomers = function(filter) {
+    currentCustFilter = filter;
+    document.querySelectorAll('.cust-filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    renderCustomerList();
+    // Update map markers visibility
+    const filtered = getFilteredCustomers();
+    const filteredKeys = new Set(filtered.map(c => c.bookingId || c._id));
+    Object.keys(customerMarkers).forEach(key => {
+      if (filteredKeys.has(key)) {
+        if (!map.hasLayer(customerMarkers[key])) customerMarkers[key].addTo(map);
+      } else {
+        if (map.hasLayer(customerMarkers[key])) map.removeLayer(customerMarkers[key]);
+      }
+    });
+  };
+
+  document.getElementById('custSearchInput').addEventListener('input', function(e) {
+    custSearchQuery = e.target.value;
+    renderCustomerList();
+  });
+
+  window.focusItem = function(type, id, lat, lng) {
+    if (lat && lng) map.setView([lat, lng], 16);
+    if (type === 'tech' && techMarkers[id]) techMarkers[id].openPopup();
+    if (type === 'customer' && customerMarkers[id]) customerMarkers[id].openPopup();
+  };
+
+  window.showTab = function(tab) {
+    currentTab = tab;
+    document.getElementById('tabTechs').classList.toggle('active', tab === 'techs');
+    document.getElementById('tabCustomers').classList.toggle('active', tab === 'customers');
+    document.getElementById('techListBody').style.display = tab === 'techs' ? '' : 'none';
+    document.getElementById('customerListBody').style.display = tab === 'customers' ? '' : 'none';
+    document.getElementById('customerFilterBar').style.display = tab === 'customers' ? '' : 'none';
+  };
+
+  window.centerOnMe = function() {
+    if (myMarker) {
+      const ll = myMarker.getLatLng();
+      map.setView([ll.lat, ll.lng], 15);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    }
+  };
+
+  window.toggleTechList = function() {
+    document.getElementById('techListPanel').classList.toggle('show');
+  };
+
+  window.toggleFullscreen = function() {
+    const el = document.getElementById('trackingMap');
+    if (!document.fullscreenElement) el.requestFullscreen().catch(() => {});
+    else document.exitFullscreen();
+  };
+
+  function showLateAlert(data) {
+    let container = document.getElementById('techLateAlertContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'techLateAlertContainer';
+      container.style.cssText = 'position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:12px 20px;border-radius:14px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(245,158,11,0.35);display:flex;align-items:center;gap:10px;animation:lateSlideIn 0.4s ease;max-width:400px;cursor:pointer;';
+    el.innerHTML = `<i class="bi bi-exclamation-triangle-fill" style="font-size:1.1rem;"></i><div><div style="font-weight:700;">You're running late!</div><div style="font-size:0.78rem;font-weight:400;opacity:0.9;">${data.message || 'Please head to your next appointment.'}</div></div>`;
+    el.onclick = () => { el.style.animation = 'lateSlideOut 0.3s ease forwards'; setTimeout(() => el.remove(), 300); };
+    container.appendChild(el);
+    setTimeout(() => { if (el.parentNode) { el.style.animation = 'lateSlideOut 0.3s ease forwards'; setTimeout(() => el.remove(), 300); } }, 10000);
+  }
+
+  initMap();
+  loadTechnicians().then(() => loadAcceptedCustomers().then(drawRoutes));
+  setInterval(() => { loadTechnicians().then(() => loadAcceptedCustomers().then(drawRoutes)); }, 10000);
+})();
+</script>

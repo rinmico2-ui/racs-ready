@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aircon Cart - HVAC Solutions</title>
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <!-- AOS for Animations -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --bg-gradient: linear-gradient(135deg, #0a1628 0%, #0f2b5e 45%, #1a4fd8 100%);
+      --surface: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+    }
+
+    .checkout-now .cart-hero { display: none; }
+    .checkout-now #pdCartContent { display: none !important; }
+    .checkout-now .navbar { display: none; }
+    .checkout-now footer { display: none; }
+    .checkout-now .page-footer { display: none; }
+    .checkout-now .modal-backdrop { opacity: 1 !important; }
+    .checkout-now .modal-backdrop.show { opacity: 1 !important; }
+
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--text-main);
+    }
+
+    /* Hero Styling */
+    .cart-hero {
+      background: var(--bg-gradient);
+      padding: 4rem 0;
+      position: relative;
+      overflow: hidden;
+      color: white;
+    }
+    .cart-hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+
+    /* Cart Card */
+    .item-card {
+      background: var(--surface);
+      border-radius: 1.25rem;
+      border: 1px solid rgba(37,99,235,0.08);
+      box-shadow: 0 4px 20px rgba(15,36,96,0.04);
+      transition: all 0.3s ease;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .item-card:hover {
+      box-shadow: 0 8px 30px rgba(15,36,96,0.08);
+      transform: translateY(-2px);
+    }
+
+    .item-img-container {
+      background: #f1f5f9;
+      width: 120px;
+      height: 120px;
+      border-radius: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+    }
+    .item-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    /* Controls */
+    .qty-control {
+      display: flex;
+      align-items: center;
+      background: #f1f5f9;
+      border-radius: 50px;
+      padding: 0.25rem;
+    }
+    .qty-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: white;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: all 0.2s;
+    }
+    .qty-btn:hover {
+      background: var(--primary);
+      color: white;
+    }
+    .qty-input {
+      width: 40px;
+      border: none;
+      background: transparent;
+      text-align: center;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* Summary Card */
+    .summary-card {
+      background: white;
+      border-radius: 1.5rem;
+      border: 1px solid rgba(37,99,235,0.1);
+      box-shadow: 0 10px 40px rgba(15,36,96,0.05);
+      padding: 2rem;
+      position: sticky;
+      top: 2rem;
+    }
+
+    .btn-checkout {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: none;
+      color: white;
+      font-weight: 700;
+      padding: 1rem;
+      border-radius: 50px;
+      box-shadow: 0 10px 20px rgba(37,99,235,0.2);
+      transition: all 0.3s;
+    }
+    .btn-checkout:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px rgba(37,99,235,0.3);
+      filter: brightness(1.05);
+      color: white;
+    }
+
+    /* Empty State */
+    .empty-state {
+      padding: 5rem 0;
+      text-align: center;
+    }
+    .empty-icon {
+      font-size: 5rem;
+      color: #cbd5e1;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar Partial -->
+  <%- include('../partials/navbar') %>
+
+  <!-- Hero -->
+  <section class="cart-hero">
+    <div class="container py-4">
+      <div class="row align-items-center">
+        <div class="col-lg-6" data-aos="fade-right">
+          <h1 class="display-4 fw-bold mb-2">My Aircon Cart</h1>
+          <p class="fs-5 opacity-75">Review your selected premium cooling solutions.</p>
+        </div>
+        <div class="col-lg-2 ms-auto d-none d-lg-block" data-aos="fade-left">
+          <div class="text-center p-3 rounded-4" style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
+             <div class="fs-3 fw-bold"><%= cart.items.reduce((sum, item) => sum + item.quantity, 0) %></div>
+             <div class="small text-uppercase opacity-50">Items</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container py-5" id="pdCartContent">
+    <% if (!cart.items || cart.items.length === 0) { %>
+      <div class="empty-state" data-aos="zoom-in">
+        <i class="bi bi-cart-x empty-icon"></i>
+        <h2 class="fw-bold">Your cart is empty</h2>
+        <p class="text-muted mb-4">It seems you haven't added any air conditioners yet.</p>
+        <a href="/aircons" class="btn btn-primary btn-lg rounded-pill px-5">Browse Aircons</a>
+      </div>
+    <% } else { %>
+      <div class="row g-4">
+        <!-- Cart List -->
+        <div class="col-lg-8" data-aos="fade-up">
+          <% cart.items.forEach(item => { %>
+            <div class="item-card p-3 p-md-4" id="item-<%= item._id %>">
+              <div class="d-flex flex-column flex-md-row gap-4 align-items-center">
+                <div class="item-img-container">
+                  <img src="<%= item.inventoryId.imageUrl || '/images/products/default.png' %>" class="item-img" alt="Aircon">
+                </div>
+                <div class="flex-grow-1">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <h5 class="fw-bold mb-1"><%= item.inventoryId.modelLine %></h5>
+                      <div class="badge bg-light text-primary border rounded-pill mb-2 px-3">
+                        <%= item.inventoryId.brand %>
+                      </div>
+                      <p class="text-muted small mb-0">
+                        <i class="bi bi-fan me-1"></i><%= item.inventoryId.capacity %> <%= item.inventoryId.capacityUnit %> · 
+                        <%= item.inventoryId.inverter ? 'Inverter' : 'Non-Inverter' %>
+                      </p>
+                    </div>
+                    <button class="btn btn-link text-danger p-0" onclick="removeItem('<%= item._id %>')">
+                      <i class="bi bi-trash fs-5"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="text-md-end">
+                  <div class="fs-4 fw-bold text-primary mb-3">₱<%= item.inventoryId.sellingPrice.toLocaleString() %></div>
+                  <div class="qty-control ms-md-auto" style="width: fit-content;">
+                    <button class="qty-btn" onclick="updateQty('<%= item._id %>', '<%= item.inventoryId._id %>', -1)"><i class="bi bi-dash"></i></button>
+                    <input type="text" class="qty-input" value="<%= item.quantity %>" readonly id="qty-input-<%= item._id %>">
+                    <button class="qty-btn" onclick="updateQty('<%= item._id %>', '<%= item.inventoryId._id %>', 1)"><i class="bi bi-plus"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+
+        <!-- Summary -->
+        <div class="col-lg-4" data-aos="fade-left" data-aos-delay="200">
+          <div class="summary-card">
+            <h4 class="fw-bold mb-4">Summary</h4>
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">Subtotal</span>
+              <span class="fw-bold">₱<%= cart.totalAmount.toLocaleString() %></span>
+            </div>
+            <div class="d-flex justify-content-between mb-4">
+              <span class="text-muted">Shipping</span>
+              <span class="text-success fw-bold">Calculated at checkout</span>
+            </div>
+            <hr class="my-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <span class="fs-5 fw-bold">Total</span>
+              <span class="fs-3 fw-bold text-primary">₱<%= cart.totalAmount.toLocaleString() %></span>
+            </div>
+            <button class="btn btn-checkout w-100 py-3" onclick="openCheckoutWizard()">
+              Proceed to Checkout <i class="bi bi-arrow-right ms-2"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <!-- Cart Checkout Wizard -->
+  <script>
+    // admin GCash number for the checkout wizard QR
+    window.adminGcashNumber = "<%= typeof adminGcashNumber !== 'undefined' ? adminGcashNumber : '' %>";
+  </script>
+  <%- include('../partials/cart-wizard', { cart: cart }) %>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script>
+    AOS.init({ duration: 800, once: true });
+
+    // Auto-open checkout wizard + hide cart when redirected from Buy Now
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('checkout') === 'now') {
+        // Rewrite URL so user never sees "cart"
+        if (window.history.replaceState) {
+          window.history.replaceState({}, 'Checkout', '/checkout');
+        }
+        // Add class to body to hide everything except checkout
+        document.body.classList.add('checkout-now');
+        // Wait then open checkout modal
+        var waitTimer = setInterval(function() {
+          if (typeof openCheckoutWizard === 'function') {
+            clearInterval(waitTimer);
+            openCheckoutWizard();
+            // Lock modal so it can't be dismissed
+            setTimeout(function() {
+              var modalEl = document.getElementById('checkoutOrderModal');
+              if (modalEl) {
+                modalEl.setAttribute('data-bs-backdrop', 'static');
+                modalEl.setAttribute('data-bs-keyboard', 'false');
+              }
+            }, 300);
+          }
+        }, 100);
+      }
+    })();
+
+    async function updateQty(itemId, inventoryId, delta) {
+      const input = document.getElementById(`qty-input-${itemId}`);
+      let newQty = parseInt(input.value) + delta;
+      if (newQty < 1) return;
+
+      // Optimistic UI
+      input.value = newQty;
+
+      try {
+        const res = await fetch('/api/aircon-cart/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inventoryId: inventoryId, quantity: delta })
+        });
+        
+        if (res.ok) {
+          location.reload(); 
+        } else {
+          const data = await res.json();
+          Swal.fire('Error', data.error || 'Failed to update quantity', 'error');
+          input.value = newQty - delta; // revert
+        }
+      } catch (e) {
+        Swal.fire('Error', 'Failed to update quantity', 'error');
+        input.value = newQty - delta; // revert
+      }
+    }
+
+    async function removeItem(itemId) {
+      const result = await Swal.fire({
+        title: 'Remove item?',
+        text: "Are you sure you want to remove this item from your cart?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Yes, remove it'
+      });
+
+      if (result.isConfirmed) {
+        try {
+          const res = await fetch(`/api/aircon-cart/${itemId}`, { method: 'DELETE' });
+          if (res.ok) {
+            location.reload();
+          }
+        } catch (e) {
+          Swal.fire('Error', 'Failed to remove item', 'error');
+        }
+      }
+    }
+
+  </script>
+</body>
+</html>

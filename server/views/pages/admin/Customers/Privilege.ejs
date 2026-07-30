@@ -1,0 +1,298 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-star-fill"></i></div>
+        <div>
+          <h1>Customer Privileges</h1>
+          <p>Control membership levels, rewards, and special access policies</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Regular Members</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark">1,920</span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7" id="badgePrivRegular"></div>
+            <small class="text-muted">Standard tier</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-people-fill text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="kpiSparkPrivRegular" height="40"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">VIP Members</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark">204</span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7" id="badgePrivVIP"></div>
+            <small class="text-muted">Premium tier</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-star-fill text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="kpiSparkPrivVIP" height="40"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Corporate Accounts</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark">24</span>
+            </div>
+            <div class="badge bg-info-subtle text-info fs-7" id="badgePrivCorp"></div>
+            <small class="text-muted">Business tier</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+            <i class="bi bi-building text-white"></i>
+          </div>
+        </div>
+        <div class="kpi-sparkline-container"><canvas id="kpiSparkPrivCorp" height="40"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPIs script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    function applyBadge(id,text){
+      var el=document.getElementById(id);
+      if(!el)return;
+      el.innerHTML=text;
+      el.classList.remove('positive','negative','neutral');
+      if(/^[+]/.test(text))el.classList.add('positive');
+      else if(/^[-]/.test(text))el.classList.add('negative');
+      else el.classList.add('neutral');
+    }
+    function createSparkline(id,data,color){
+      var c=document.getElementById(id);if(!c||typeof Chart==='undefined')return null;
+      var ctx=c.getContext('2d');var h=c.height||c.offsetHeight||50;
+      var grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,color);grad.addColorStop(1,'rgba(255,255,255,0)');
+      return new Chart(c,{type:'line',data:{labels:data.map((_,i)=>i+1),datasets:[{data:data,borderColor:color,backgroundColor:grad,fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{enabled:false}},elements:{point:{radius:0}},scales:{x:{display:false},y:{display:false}}}});
+    }
+    try{
+      applyBadge('badgePrivRegular','+3.2%');
+      applyBadge('badgePrivVIP','+1.1%');
+      applyBadge('badgePrivCorp','-0.8%');
+      createSparkline('kpiSparkPrivRegular',[5,7,6,8,7,9,8],'#4361ee');
+      createSparkline('kpiSparkPrivVIP',[4,6,5,7,6,8,7],'#f59e0b');
+      createSparkline('kpiSparkPrivCorp',[3,5,4,6,5,7,6],'#2ec4b6');
+    }catch(e){/*ignore*/}
+  </script>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search Customer</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Name, email, or ID"
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Tier</label
+          >
+          <select class="form-select">
+            <option>All Tiers</option>
+            <option>Regular</option>
+            <option>VIP</option>
+            <option>Corporate</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Benefit Type</label
+          >
+          <select class="form-select">
+            <option>Any Benefit</option>
+            <option>Discount</option>
+            <option>Priority Booking</option>
+            <option>Extended Warranty</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light w-100 border">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom">
+      <h6 class="mb-0 fw-bold">Privilege Tiers</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Tier</th>
+            <th>Eligibility Rule</th>
+            <th>Benefits</th>
+            <th>Members</th>
+            <th>Service Discount</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ps-4">
+              <span class="badge bg-light text-dark border">Regular</span>
+            </td>
+            <td class="text-muted text-micro">Default upon account verification</td>
+            <td class="text-dark text-micro">
+              Standard booking queue, promo notifications
+            </td>
+            <td><span class="fw-bold">1,920</span></td>
+            <td><span class="fw-bold text-muted">0%</span></td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-light border">View</button>
+            </td>
+          </tr>
+          <tr>
+            <td class="ps-4">
+              <span
+                class="badge bg-warning-subtle text-warning border border-warning-subtle"
+                >VIP</span
+              >
+            </td>
+            <td class="text-muted text-micro">
+              Spent ₱20,000+ or 10+ completed bookings
+            </td>
+            <td class="text-dark text-micro">
+              Priority scheduling, dedicated support, promo-first access
+            </td>
+            <td><span class="fw-bold">204</span></td>
+            <td><span class="fw-bold text-warning">10%</span></td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-outline-warning">Edit</button>
+            </td>
+          </tr>
+          <tr>
+            <td class="ps-4">
+              <span
+                class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                >Corporate</span
+              >
+            </td>
+            <td class="text-muted text-micro">Approved business profile</td>
+            <td class="text-dark text-micro">
+              Bulk booking, monthly billing, account manager
+            </td>
+            <td><span class="fw-bold">24</span></td>
+            <td><span class="fw-bold text-primary">15%</span></td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-outline-primary">Edit</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Assigned Customer Privileges</h6>
+      <span class="text-muted small"
+        >Manual overrides and approved upgrades</span
+      >
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Customer</th>
+            <th>Current Tier</th>
+            <th>Assigned By</th>
+            <th>Valid Until</th>
+            <th>Notes</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">Maria Santos</div>
+              <div class="text-muted text-micro">maria.santos@gmail.com</div>
+            </td>
+            <td>
+              <span
+                class="badge bg-warning-subtle text-warning border border-warning-subtle"
+                >VIP</span
+              >
+            </td>
+            <td class="text-muted text-micro">Admin - Josh A.</td>
+            <td class="text-dark text-micro">Dec 31, 2026</td>
+            <td class="text-muted text-micro">
+              Top repeat customer (annual retention)
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-outline-secondary">Adjust</button>
+            </td>
+          </tr>
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">Summit Tower Office</div>
+              <div class="text-muted text-micro">operations@summittower.ph</div>
+            </td>
+            <td>
+              <span
+                class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                >Corporate</span
+              >
+            </td>
+            <td class="text-muted text-micro">Admin - Team Lead</td>
+            <td class="text-dark text-micro">Jun 30, 2026</td>
+            <td class="text-muted text-micro">Quarterly maintenance contract</td>
+            <td class="text-end pe-4">
+              <button class="btn btn-micro btn-outline-secondary">Adjust</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <ul class="pagination pagination-sm justify-content-end mb-0">
+        <li class="page-item disabled">
+          <a class="page-link" href="#">Previous</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">Next</a></li>
+      </ul>
+    </div>
+  </div>
+</div>

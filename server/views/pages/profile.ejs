@@ -1,0 +1,667 @@
+<%- include('../partials/dashboard-styles') %>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<div class="admin-dashboard container-fluid px-0 pt-4 pb-2 profile-page">
+<% if (!user) { %>
+  <div class="alert alert-warning m-4">Please log in to view your profile.</div>
+<% } else { %>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- ANIMATED HERO HEADER                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="prof-hero">
+    <div class="prof-hero-bg">
+      <div class="prof-hero-orb prof-hero-orb-1"></div>
+      <div class="prof-hero-orb prof-hero-orb-2"></div>
+      <div class="prof-hero-orb prof-hero-orb-3"></div>
+      <div class="prof-hero-grid"></div>
+    </div>
+    <div class="prof-hero-content">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="prof-hero-icon">
+            <i class="bi bi-person-fill"></i>
+          </div>
+          <div>
+            <h1 class="prof-hero-title">My Profile</h1>
+            <p class="prof-hero-sub">Manage your account and view your activity</p>
+          </div>
+        </div>
+        <div class="prof-hero-badges">
+          <div class="prof-badge prof-badge-member">
+            <i class="bi bi-patch-check-fill"></i>
+            Member
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- MAIN CONTENT GRID                                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="row g-4 mt-1">
+
+    <!-- LEFT SIDEBAR -->
+    <div class="col-lg-4">
+      <!-- Profile Card -->
+      <div class="prof-card prof-profile-sidebar">
+        <div class="prof-sidebar-header">
+          <div class="prof-avatar" id="profileAvatar">
+            <%= (user.firstName || 'A').charAt(0).toUpperCase() %>
+          </div>
+          <h3 class="prof-name" id="profileDisplayName"><%= ((user.firstName||'') + ' ' + (user.lastName||'')).trim() || 'Account' %></h3>
+          <p class="prof-email"><%= user.email || '' %></p>
+        </div>
+        <div class="prof-sidebar-stats">
+          <div class="prof-mini-stat">
+            <div class="prof-mini-stat-icon blue"><i class="bi bi-star-fill"></i></div>
+            <div class="prof-mini-stat-info">
+              <span class="prof-mini-stat-val"><%= typeof ratings !== 'undefined' ? ratings.length : 0 %></span>
+              <span class="prof-mini-stat-label">Ratings</span>
+            </div>
+          </div>
+          <div class="prof-mini-stat">
+            <div class="prof-mini-stat-icon emerald"><i class="bi bi-box-seam"></i></div>
+            <div class="prof-mini-stat-info">
+              <span class="prof-mini-stat-val"><%= typeof productItems !== 'undefined' ? productItems.length : 0 %></span>
+              <span class="prof-mini-stat-label">Products</span>
+            </div>
+          </div>
+          <div class="prof-mini-stat">
+            <div class="prof-mini-stat-icon amber"><i class="bi bi-wrench-adjustable"></i></div>
+            <div class="prof-mini-stat-info">
+              <span class="prof-mini-stat-val"><%= typeof bookings !== 'undefined' ? bookings.length : 0 %></span>
+              <span class="prof-mini-stat-label">Services</span>
+            </div>
+          </div>
+        </div>
+        <div class="prof-sidebar-meta">
+          <div class="prof-meta-row">
+            <i class="bi bi-calendar3"></i>
+            <span>Member since <%= user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—' %></span>
+          </div>
+          <div class="prof-meta-row">
+            <i class="bi bi-clock-history"></i>
+            <span>Last login <%= user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' %></span>
+          </div>
+        </div>
+        <div class="prof-sidebar-actions">
+          <button id="editProfileBtn" class="prof-btn prof-btn-primary">
+            <i class="bi bi-pencil-fill"></i> Edit Profile
+          </button>
+        </div>
+      </div>
+
+      <!-- Profile Completion -->
+      <div class="prof-card prof-completion-card mt-3">
+        <div class="prof-completion-header">
+          <h6 class="prof-completion-title"><i class="bi bi-shield-check"></i> Profile Completeness</h6>
+        </div>
+        <div class="prof-completion-body">
+          <%
+            var fields = [user.firstName, user.lastName, user.email, user.phone, user.address && user.address.barangay, user.address && user.address.province, user.address && user.address.city, user.address && user.address.postalCode];
+            var filled = fields.filter(f => f && String(f).trim()).length;
+            var pct = Math.round((filled / fields.length) * 100);
+          %>
+          <div class="prof-progress-wrap">
+            <div class="prof-progress-bar">
+              <div class="prof-progress-fill" style="width:<%= pct %>%"></div>
+            </div>
+            <span class="prof-progress-text"><%= pct %>%</span>
+          </div>
+          <p class="prof-completion-hint"><%= pct === 100 ? 'Your profile is complete!' : 'Complete your profile for a better experience.' %></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT CONTENT -->
+    <div class="col-lg-8">
+
+      <!-- ═══ VIEW MODE ═══ -->
+      <div id="profileView">
+        <!-- Tabs -->
+        <div class="prof-card prof-tabs-card">
+          <div class="prof-tabs-nav">
+            <button class="prof-tab active" data-tab="info" onclick="profSwitchTab('info')">
+              <i class="bi bi-person"></i> Personal Info
+            </button>
+            <button class="prof-tab" data-tab="address" onclick="profSwitchTab('address')">
+              <i class="bi bi-geo-alt"></i> Address
+            </button>
+            <button class="prof-tab" data-tab="activity" onclick="profSwitchTab('activity')">
+              <i class="bi bi-activity"></i> Activity
+            </button>
+          </div>
+
+          <!-- Tab: Personal Info -->
+          <div class="prof-tab-content active" id="profTabInfo">
+            <div class="prof-info-grid">
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-person"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">First Name</span>
+                  <span class="prof-info-value"><%= user.firstName || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-person"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Last Name</span>
+                  <span class="prof-info-value"><%= user.lastName || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-envelope"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Email</span>
+                  <span class="prof-info-value"><%= user.email || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-telephone"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Phone</span>
+                  <span class="prof-info-value"><%= user.phone || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-calendar3"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Booking Limit</span>
+                  <span class="prof-info-value"><%= user.bookingLimit || 0 %></span>
+                </div>
+              </div>
+              <div class="prof-info-item">
+                <div class="prof-info-icon"><i class="bi bi-shield-exclamation"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Violations</span>
+                  <span class="prof-info-value"><%= user.violations ? user.violations.length : 0 %></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Address -->
+          <div class="prof-tab-content" id="profTabAddress">
+            <div class="prof-info-grid">
+              <div class="prof-info-item full">
+                <div class="prof-info-icon"><i class="bi bi-geo-alt"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Barangay</span>
+                  <span class="prof-info-value"><%= (user.address && user.address.barangay) || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item full">
+                <div class="prof-info-icon"><i class="bi bi-map"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Province</span>
+                  <span class="prof-info-value"><%= (user.address && user.address.province) || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item full">
+                <div class="prof-info-icon"><i class="bi bi-building"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">City / Municipality</span>
+                  <span class="prof-info-value"><%= (user.address && user.address.city) || '—' %></span>
+                </div>
+              </div>
+              <div class="prof-info-item full">
+                <div class="prof-info-icon"><i class="bi bi-mailbox"></i></div>
+                <div class="prof-info-data">
+                  <span class="prof-info-label">Postal / Zip Code</span>
+                  <span class="prof-info-value"><%= (user.address && user.address.postalCode) || '—' %></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Activity -->
+          <div class="prof-tab-content" id="profTabActivity">
+            <!-- Stats Row -->
+            <div class="prof-activity-stats">
+              <div class="prof-act-stat blue">
+                <div class="prof-act-stat-icon"><i class="bi bi-star-fill"></i></div>
+                <span class="prof-act-stat-val"><%= typeof ratings !== 'undefined' ? ratings.length : 0 %></span>
+                <span class="prof-act-stat-label">My Ratings</span>
+              </div>
+              <div class="prof-act-stat emerald">
+                <div class="prof-act-stat-icon"><i class="bi bi-box-seam"></i></div>
+                <span class="prof-act-stat-val"><%= typeof productItems !== 'undefined' ? productItems.length : 0 %></span>
+                <span class="prof-act-stat-label">Products Bought</span>
+              </div>
+              <div class="prof-act-stat amber">
+                <div class="prof-act-stat-icon"><i class="bi bi-wrench-adjustable"></i></div>
+                <span class="prof-act-stat-val"><%= typeof bookings !== 'undefined' ? bookings.length : 0 %></span>
+                <span class="prof-act-stat-label">Services Done</span>
+              </div>
+            </div>
+
+            <!-- Ratings -->
+            <div class="prof-activity-section">
+              <h6 class="prof-section-title"><i class="bi bi-stars"></i> My Ratings</h6>
+              <% if (typeof ratings !== 'undefined' && ratings.length) { %>
+                <div class="prof-card-list">
+                  <% ratings.forEach(function(r){ %>
+                    <div class="prof-rating-card">
+                      <div class="prof-rating-left">
+                        <div class="prof-rating-stars">
+                          <% for (let i=1;i<=5;i++) { %>
+                            <i class="bi bi-star<%= i<=r.score?'-fill':'' %>"></i>
+                          <% } %>
+                        </div>
+                        <span class="prof-rating-target"><%= r.targetName || 'Item' %></span>
+                      </div>
+                      <div class="prof-rating-right">
+                        <span class="prof-type-badge"><%= r.targetType.charAt(0).toUpperCase()+r.targetType.slice(1) %></span>
+                        <span class="prof-rating-date"><%= new Date(r.createdAt).toLocaleDateString('en-PH', {month:'short',day:'numeric'}) %></span>
+                      </div>
+                      <% if (r.comment) { %>
+                        <div class="prof-rating-comment">"<%= r.comment %>"</div>
+                      <% } %>
+                    </div>
+                  <% }); %>
+                </div>
+              <% } else { %>
+                <div class="prof-empty">
+                  <i class="bi bi-stars"></i>
+                  <p>You haven't rated anything yet.</p>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Products -->
+            <div class="prof-activity-section">
+              <h6 class="prof-section-title"><i class="bi bi-box-seam"></i> Products I've Bought</h6>
+              <% if (typeof productItems !== 'undefined' && productItems.length) { %>
+                <div class="prof-card-list">
+                  <% productItems.forEach(function(pi){ %>
+                    <div class="prof-product-card">
+                      <div class="prof-product-info">
+                        <div class="prof-product-icon"><i class="bi bi-box"></i></div>
+                        <span class="prof-product-name"><%= pi.name %></span>
+                      </div>
+                      <div class="prof-product-action">
+                        <%
+                          var invRate = ratings && ratings.find(r=>r.targetType==='inventory' && String(r.targetId)===String(pi.productId));
+                        %>
+                        <% if (invRate) { %>
+                          <div class="prof-rating-stars">
+                            <% for (let i=1;i<=5;i++){ %>
+                              <i class="bi bi-star<%= i<=invRate.score?'-fill':'' %>"></i>
+                            <% } %>
+                          </div>
+                        <% } else { %>
+                          <% if (pi.productId) { %>
+                            <button class="prof-btn-rate rate-purchase" data-id="<%= pi.productId %>">
+                              <i class="bi bi-star"></i> Rate
+                            </button>
+                          <% } %>
+                        <% } %>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              <% } else { %>
+                <div class="prof-empty">
+                  <i class="bi bi-box-seam"></i>
+                  <p>No products purchased yet.</p>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Services -->
+            <div class="prof-activity-section">
+              <h6 class="prof-section-title"><i class="bi bi-wrench-adjustable"></i> My Completed Services</h6>
+              <% if (typeof bookings !== 'undefined' && bookings.length) { %>
+                <div class="prof-card-list">
+                  <% bookings.forEach(function(b){ %>
+                    <div class="prof-service-card">
+                      <div class="prof-service-date">
+                        <span class="prof-svc-day"><%= b.bookingDate ? new Date(b.bookingDate).getDate() : '—' %></span>
+                        <span class="prof-svc-month"><%= b.bookingDate ? new Date(b.bookingDate).toLocaleDateString('en-PH',{month:'short'}) : '' %></span>
+                      </div>
+                      <div class="prof-service-info">
+                        <span class="prof-svc-name"><%= b.serviceName || (b.service&&b.service.name) || 'Service' %></span>
+                        <span class="prof-svc-tech"><i class="bi bi-person me-1"></i><%= b.technicianName || (b.technician && b.technician.name) || '—' %></span>
+                      </div>
+                      <div class="prof-service-action">
+                        <% if (b.customerRating) { %>
+                          <div class="prof-rating-stars">
+                            <% for (let i=1;i<=5;i++){ %>
+                              <i class="bi bi-star<%= i<=b.customerRating?'-fill':'' %>"></i>
+                            <% } %>
+                          </div>
+                        <% } else { %>
+                          <button class="prof-btn-rate rate-booking" data-id="<%= b._id %>">
+                            <i class="bi bi-star"></i> Rate
+                          </button>
+                        <% } %>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              <% } else { %>
+                <div class="prof-empty">
+                  <i class="bi bi-wrench-adjustable"></i>
+                  <p>No completed services yet.</p>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ EDIT MODE ═══ -->
+      <div id="profileEditForm" class="d-none">
+        <div class="prof-card prof-edit-card">
+          <div class="prof-edit-header">
+            <h6 class="prof-edit-title"><i class="bi bi-pencil-square"></i> Edit Account Details</h6>
+          </div>
+          <div class="prof-edit-body">
+            <div id="profileAlert" class="alert d-none"></div>
+            <form class="row g-3">
+              <div class="col-md-6">
+                <label class="prof-field-label">First Name</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-person prof-input-icon"></i>
+                  <input id="profileFirstName" name="firstName" type="text" readonly class="prof-input" value="<%= user.firstName||'' %>" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Last Name</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-person prof-input-icon"></i>
+                  <input id="profileLastName" name="lastName" type="text" readonly class="prof-input" value="<%= user.lastName||'' %>" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Email</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-envelope prof-input-icon"></i>
+                  <input id="profileEmail" name="email" type="email" class="prof-input prof-input-editable" value="<%= user.email||'' %>" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Phone</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-telephone prof-input-icon"></i>
+                  <input id="profilePhone" name="phone" type="tel" class="prof-input prof-input-editable" value="<%= user.phone||'' %>" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Province</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-map prof-input-icon"></i>
+                  <select id="profile-addressProvince" name="address[province]" class="prof-input prof-input-editable prof-input-select">
+                    <option value=""><%= (user.address && user.address.province) || 'Select Province' %></option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">City / Municipality</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-building prof-input-icon"></i>
+                  <select id="profile-addressCity" name="address[city]" class="prof-input prof-input-editable prof-input-select">
+                    <option value=""><%= (user.address && user.address.city) || 'Select City' %></option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Barangay</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-geo-alt prof-input-icon"></i>
+                  <select id="profile-addressBarangay" name="address[barangay]" class="prof-input prof-input-editable prof-input-select">
+                    <option value=""><%= (user.address && user.address.barangay) || 'Select Barangay' %></option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="prof-field-label">Postal / Zip Code</label>
+                <div class="prof-input-wrap">
+                  <i class="bi bi-mailbox prof-input-icon"></i>
+                  <input id="profile-addressPostal" name="address[postalCode]" type="text" class="prof-input prof-input-editable" value="<%= (user.address && user.address.postalCode) || '' %>" />
+                </div>
+              </div>
+            </form>
+            <div class="prof-edit-actions">
+              <button id="cancelProfileBtn" class="prof-btn prof-btn-ghost">
+                <i class="bi bi-x-lg"></i> Cancel
+              </button>
+              <button id="saveProfileBtn" class="prof-btn prof-btn-primary">
+                <i class="bi bi-check-lg"></i> Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Hidden display elements for profile.js compatibility -->
+  <input type="hidden" id="displayFirstName" value="<%= user.firstName||'' %>">
+  <input type="hidden" id="displayLastName" value="<%= user.lastName||'' %>">
+  <input type="hidden" id="displayEmail" value="<%= user.email||'' %>">
+  <input type="hidden" id="displayPhone" value="<%= user.phone||'' %>">
+  <input type="hidden" id="displayBarangay" value="<%= (user.address && user.address.barangay) || '' %>">
+  <input type="hidden" id="displayProvince" value="<%= (user.address && user.address.province) || '' %>">
+  <input type="hidden" id="displayCity" value="<%= (user.address && user.address.city) || '' %>">
+  <input type="hidden" id="displayPostal" value="<%= (user.address && user.address.postalCode) || '' %>">
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- PREMIUM STYLES                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <style>
+    :root {
+      --prof-primary: #2563eb;
+      --prof-primary-light: #3b82f6;
+      --prof-primary-dark: #1d4ed8;
+      --prof-primary-50: rgba(37,99,235,0.05);
+      --prof-primary-100: rgba(37,99,235,0.1);
+      --prof-emerald: #059669;
+      --prof-amber: #d97706;
+      --prof-violet: #7c3aed;
+      --prof-surface: #ffffff;
+      --prof-surface-hover: #f8fafc;
+      --prof-border: rgba(226,232,240,0.8);
+      --prof-text: #0f172a;
+      --prof-text-secondary: #64748b;
+      --prof-text-muted: #94a3b8;
+      --prof-radius: 16px;
+      --prof-radius-sm: 10px;
+      --prof-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+      --prof-shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+      --prof-shadow-lg: 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+      --prof-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .profile-page { font-family: var(--prof-font); }
+
+    /* ── Hero Header ─────────────────────────────────────────────────────── */
+    .prof-hero {
+      position: relative; border-radius: 20px; padding: 36px 40px;
+      margin-bottom: 24px; overflow: hidden;
+      background: linear-gradient(135deg, #0a1628 0%, #1e3a8a 40%, #2563eb 100%);
+      box-shadow: 0 20px 50px rgba(15,36,96,0.3);
+    }
+    .prof-hero-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .prof-hero-orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.35; }
+    .prof-hero-orb-1 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.6), transparent 70%); top: -150px; right: -50px; animation: profOrbFloat 8s ease-in-out infinite; }
+    .prof-hero-orb-2 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(139,92,246,0.4), transparent 70%); bottom: -100px; left: -50px; animation: profOrbFloat 10s ease-in-out infinite reverse; }
+    .prof-hero-orb-3 { width: 200px; height: 200px; background: radial-gradient(circle, rgba(16,185,129,0.3), transparent 70%); top: 50%; left: 50%; animation: profOrbFloat 12s ease-in-out infinite; }
+    .prof-hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 40px 40px; }
+    @keyframes profOrbFloat { 0%, 100% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-15px) scale(1.05); } 66% { transform: translate(-10px,10px) scale(0.95); } }
+    .prof-hero-content { position: relative; z-index: 2; }
+    .prof-hero-icon { width: 60px; height: 60px; border-radius: 16px; background: rgba(255,255,255,0.12); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+    .prof-hero-icon i { font-size: 1.6rem; color: #fff; }
+    .prof-hero-title { font-size: 1.75rem; font-weight: 800; color: #fff; margin: 0; letter-spacing: -0.5px; }
+    .prof-hero-sub { color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 0.9rem; }
+    .prof-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.15); }
+    .prof-badge-member { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+
+    /* ── Cards ────────────────────────────────────────────────────────────── */
+    .prof-card { background: var(--prof-surface); border: 1px solid var(--prof-border); border-radius: var(--prof-radius); overflow: hidden; box-shadow: var(--prof-shadow); transition: box-shadow 0.25s ease; }
+    .prof-card:hover { box-shadow: var(--prof-shadow-md); }
+
+    /* ── Sidebar Profile Card ────────────────────────────────────────────── */
+    .prof-sidebar-header { text-align: center; padding: 32px 24px 20px; background: linear-gradient(180deg, rgba(37,99,235,0.04) 0%, transparent 100%); }
+    .prof-avatar { width: 80px; height: 80px; border-radius: 20px; background: linear-gradient(135deg, var(--prof-primary), var(--prof-primary-dark)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 2rem; font-weight: 800; margin: 0 auto 14px; box-shadow: 0 8px 24px rgba(37,99,235,0.3); font-family: var(--prof-font); }
+    .prof-name { font-size: 1.15rem; font-weight: 800; color: var(--prof-text); margin: 0; }
+    .prof-email { font-size: 0.82rem; color: var(--prof-text-secondary); margin: 4px 0 0; }
+    .prof-sidebar-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--prof-border); border-top: 1px solid var(--prof-border); }
+    .prof-mini-stat { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; background: var(--prof-surface); }
+    .prof-mini-stat-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; color: #fff; }
+    .prof-mini-stat-icon.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .prof-mini-stat-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
+    .prof-mini-stat-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .prof-mini-stat-val { font-size: 1.15rem; font-weight: 800; color: var(--prof-text); line-height: 1; }
+    .prof-mini-stat-label { font-size: 0.65rem; color: var(--prof-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .prof-sidebar-meta { padding: 16px 20px; border-top: 1px solid var(--prof-border); }
+    .prof-meta-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.8rem; color: var(--prof-text-secondary); }
+    .prof-meta-row i { color: var(--prof-text-muted); width: 16px; text-align: center; }
+    .prof-sidebar-actions { padding: 16px 20px 20px; }
+
+    /* ── Completion Card ─────────────────────────────────────────────────── */
+    .prof-completion-header { padding: 16px 20px; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); }
+    .prof-completion-title { font-size: 0.82rem; font-weight: 700; color: var(--prof-text); margin: 0; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .prof-completion-title i { color: var(--prof-emerald); }
+    .prof-completion-body { padding: 16px 20px; }
+    .prof-progress-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .prof-progress-bar { flex: 1; height: 8px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+    .prof-progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #22c55e, #16a34a); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+    .prof-progress-text { font-size: 0.85rem; font-weight: 800; color: var(--prof-emerald); min-width: 36px; }
+    .prof-completion-hint { font-size: 0.78rem; color: var(--prof-text-muted); margin: 0; }
+
+    /* ── Tabs ────────────────────────────────────────────────────────────── */
+    .prof-tabs-nav { display: flex; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); padding: 0 4px; overflow-x: auto; }
+    .prof-tab { display: flex; align-items: center; gap: 7px; padding: 14px 20px; font-size: 0.82rem; font-weight: 600; color: var(--prof-text-muted); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s ease; white-space: nowrap; font-family: var(--prof-font); }
+    .prof-tab:hover { color: var(--prof-text); }
+    .prof-tab.active { color: var(--prof-primary); border-bottom-color: var(--prof-primary); font-weight: 700; }
+    .prof-tab-content { display: none; padding: 24px; }
+    .prof-tab-content.active { display: block; }
+
+    /* ── Info Grid (View Mode) ───────────────────────────────────────────── */
+    .prof-info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .prof-info-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); border: 1px solid transparent; transition: all 0.2s ease; }
+    .prof-info-item:hover { border-color: var(--prof-primary-100); background: var(--prof-primary-50); }
+    .prof-info-item.full { grid-column: span 2; }
+    .prof-info-icon { width: 36px; height: 36px; min-width: 36px; border-radius: 10px; background: var(--prof-primary-100); color: var(--prof-primary); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+    .prof-info-data { flex: 1; min-width: 0; }
+    .prof-info-label { display: block; font-size: 0.68rem; font-weight: 700; color: var(--prof-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .prof-info-value { font-size: 0.9rem; font-weight: 600; color: var(--prof-text); word-break: break-word; }
+
+    /* ── Activity Tab ────────────────────────────────────────────────────── */
+    .prof-activity-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .prof-act-stat { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 12px; border-radius: var(--prof-radius); border: 1px solid var(--prof-border); background: var(--prof-surface); transition: all 0.2s ease; }
+    .prof-act-stat:hover { transform: translateY(-2px); box-shadow: var(--prof-shadow-md); }
+    .prof-act-stat-icon { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #fff; }
+    .prof-act-stat.blue .prof-act-stat-icon { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .prof-act-stat.emerald .prof-act-stat-icon { background: linear-gradient(135deg, #059669, #10b981); }
+    .prof-act-stat.amber .prof-act-stat-icon { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .prof-act-stat-val { font-size: 1.3rem; font-weight: 800; color: var(--prof-text); }
+    .prof-act-stat-label { font-size: 0.7rem; color: var(--prof-text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .prof-activity-section { margin-bottom: 24px; }
+    .prof-activity-section:last-child { margin-bottom: 0; }
+    .prof-section-title { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; color: var(--prof-text); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid rgba(37,99,235,0.08); }
+    .prof-section-title i { width: 28px; height: 28px; border-radius: 8px; background: var(--prof-primary-100); color: var(--prof-primary); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+
+    .prof-card-list { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Rating Cards */
+    .prof-rating-card { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); border: 1px solid transparent; transition: all 0.2s ease; flex-wrap: wrap; }
+    .prof-rating-card:hover { border-color: var(--prof-primary-100); background: var(--prof-primary-50); }
+    .prof-rating-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+    .prof-rating-stars { display: flex; gap: 2px; color: #fbbf24; font-size: 0.82rem; }
+    .prof-rating-target { font-size: 0.85rem; font-weight: 600; color: var(--prof-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prof-rating-right { display: flex; align-items: center; gap: 10px; }
+    .prof-type-badge { padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: var(--prof-primary-100); color: var(--prof-primary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .prof-rating-date { font-size: 0.75rem; color: var(--prof-text-muted); font-weight: 500; }
+    .prof-rating-comment { width: 100%; font-size: 0.78rem; color: var(--prof-text-secondary); font-style: italic; padding: 4px 0 0; }
+
+    /* Product Cards */
+    .prof-product-card { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); border: 1px solid transparent; transition: all 0.2s ease; }
+    .prof-product-card:hover { border-color: var(--prof-primary-100); background: var(--prof-primary-50); }
+    .prof-product-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+    .prof-product-icon { width: 32px; height: 32px; min-width: 32px; border-radius: 8px; background: var(--prof-primary-100); color: var(--prof-primary); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+    .prof-product-name { font-size: 0.85rem; font-weight: 600; color: var(--prof-text); }
+
+    /* Service Cards */
+    .prof-service-card { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); border: 1px solid transparent; transition: all 0.2s ease; }
+    .prof-service-card:hover { border-color: var(--prof-primary-100); background: var(--prof-primary-50); }
+    .prof-service-date { width: 48px; min-width: 48px; text-align: center; padding: 6px; border-radius: 8px; background: var(--prof-primary-100); }
+    .prof-svc-day { display: block; font-size: 1.1rem; font-weight: 800; color: var(--prof-primary); line-height: 1; }
+    .prof-svc-month { display: block; font-size: 0.6rem; font-weight: 700; color: var(--prof-primary); text-transform: uppercase; margin-top: 2px; }
+    .prof-service-info { flex: 1; min-width: 0; }
+    .prof-svc-name { display: block; font-size: 0.85rem; font-weight: 700; color: var(--prof-text); }
+    .prof-svc-tech { display: block; font-size: 0.75rem; color: var(--prof-text-secondary); margin-top: 2px; }
+
+    /* Rate Button */
+    .prof-btn-rate { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border: none; border-radius: 20px; color: #fff; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 2px 8px rgba(245,158,11,0.25); }
+    .prof-btn-rate:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 4px 14px rgba(245,158,11,0.35); }
+
+    /* Empty States */
+    .prof-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 16px; color: var(--prof-text-muted); text-align: center; background: rgba(248,250,252,0.5); border-radius: var(--prof-radius-sm); border: 2px dashed rgba(148,163,184,0.2); }
+    .prof-empty i { font-size: 1.8rem; opacity: 0.5; }
+    .prof-empty p { font-size: 0.85rem; margin: 0; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .prof-btn { display: inline-flex; align-items: center; gap: 7px; padding: 11px 22px; border-radius: var(--prof-radius-sm); font-size: 0.85rem; font-weight: 700; font-family: var(--prof-font); cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); border: none; width: 100%; justify-content: center; }
+    .prof-btn-primary { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.3); }
+    .prof-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,0.4); }
+    .prof-btn-ghost { background: var(--prof-surface-hover); border: 1.5px solid var(--prof-border); color: var(--prof-text-secondary); }
+    .prof-btn-ghost:hover { border-color: var(--prof-primary); color: var(--prof-primary); background: var(--prof-primary-50); }
+
+    /* ── Edit Form ────────────────────────────────────────────────────────── */
+    .prof-edit-header { padding: 20px 24px; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); }
+    .prof-edit-title { font-size: 0.9rem; font-weight: 700; color: var(--prof-text); margin: 0; display: flex; align-items: center; gap: 8px; }
+    .prof-edit-title i { width: 28px; height: 28px; border-radius: 8px; background: var(--prof-primary-100); color: var(--prof-primary); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+    .prof-edit-body { padding: 24px; }
+    .prof-field-label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--prof-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .prof-input-wrap { position: relative; }
+    .prof-input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--prof-text-muted); font-size: 0.9rem; transition: color 0.2s ease; z-index: 2; }
+    .prof-input { width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid var(--prof-border); border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); font-size: 0.88rem; color: var(--prof-text); font-family: var(--prof-font); transition: all 0.2s ease; }
+    .prof-input:focus { outline: none; border-color: var(--prof-primary); background: #fff; box-shadow: 0 0 0 4px var(--prof-primary-100); }
+    .prof-input:focus + .prof-input-icon, .prof-input-wrap:focus-within .prof-input-icon { color: var(--prof-primary); }
+    .prof-input-editable { background: #fff; border-color: rgba(37,99,235,0.2); }
+    .prof-input-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+    .prof-edit-actions { display: flex; gap: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--prof-border); }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 991.98px) {
+      .prof-info-grid { grid-template-columns: 1fr; }
+      .prof-info-item.full { grid-column: span 1; }
+      .prof-activity-stats { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 767.98px) {
+      .prof-hero { padding: 24px 20px; }
+      .prof-hero-title { font-size: 1.35rem; }
+      .prof-sidebar-stats { grid-template-columns: repeat(3, 1fr); }
+      .prof-activity-stats { grid-template-columns: 1fr; }
+      .prof-edit-actions { flex-direction: column; }
+      .prof-tab { padding: 12px 14px; font-size: 0.78rem; }
+    }
+
+    /* ── Animations ──────────────────────────────────────────────────────── */
+    .prof-fade-in { animation: profFadeIn 0.5s cubic-bezier(0.4,0,0.2,1) forwards; opacity: 0; }
+    @keyframes profFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .prof-fade-in:nth-child(1) { animation-delay: 0.05s; }
+    .prof-fade-in:nth-child(2) { animation-delay: 0.1s; }
+    .prof-fade-in:nth-child(3) { animation-delay: 0.15s; }
+  </style>
+<% } %>
+</div>
+
+<script src="/js/psgc-handler.js"></script>
+<script src="/js/profile.js"></script>
+<script>
+  // Tab switching (client-side)
+  window.profSwitchTab = function(tab) {
+    document.querySelectorAll('.prof-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.prof-tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('.prof-tab[data-tab="' + tab + '"]').classList.add('active');
+    document.getElementById('profTab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  };
+</script>

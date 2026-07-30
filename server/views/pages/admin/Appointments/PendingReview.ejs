@@ -1,0 +1,977 @@
+<div class="main-content">
+  <div class="container-fluid py-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-hourglass-split"></i></div>
+          <div>
+            <h1>Pending Review</h1>
+            <p>Review and manage pending bookings and repair requests</p>
+          </div>
+        </div>
+        <div class="au-hero-actions">
+          <button class="btn btn-sm btn-outline-secondary" onclick="window.location.reload()">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs: Bookings | Repair Requests -->
+    <ul class="nav nav-tabs mb-4" id="pendingTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="bookings-tab" data-bs-toggle="tab" data-bs-target="#bookings-panel" type="button" role="tab" aria-controls="bookings-panel" aria-selected="true">
+          <i class="bi bi-calendar-check me-1"></i>Core Services Request
+          <span class="badge bg-warning text-dark ms-1" id="bookingTabCount">0</span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="repairs-tab" data-bs-toggle="tab" data-bs-target="#repairs-panel" type="button" role="tab" aria-controls="repairs-panel" aria-selected="false">
+          <i class="bi bi-wrench-adjustable-circle me-1"></i>Repair Requests
+          <span class="badge bg-danger ms-1" id="repairTabCount">0</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- ═══ Core Services Request Tab ═══ -->
+      <div class="tab-pane fade show active" id="bookings-panel" role="tabpanel" aria-labelledby="bookings-tab">
+        <!-- Filter Bar -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Filters:</span>
+
+              <select class="form-select form-select-sm" id="filterPaymentStatus" style="width:auto;min-width:140px;">
+                <option value="">All Payment Status</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial (Downpayment)</option>
+                <option value="paid">Paid in Full</option>
+              </select>
+
+              <select class="form-select form-select-sm" id="filterPaymentMethod" style="width:auto;min-width:130px;">
+                <option value="">All Payment Methods</option>
+                <option value="cod">Cash on Delivery</option>
+                <option value="gcash">GCash</option>
+                <option value="maya">Maya</option>
+              </select>
+
+              <select class="form-select form-select-sm" id="filterDateRange" style="width:auto;min-width:140px;">
+                <option value="">All Dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+                <option value="last_month">Last Month</option>
+              </select>
+
+              <select class="form-select form-select-sm" id="filterSort" style="width:auto;min-width:150px;">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="amount_high">Amount: High to Low</option>
+                <option value="amount_low">Amount: Low to High</option>
+              </select>
+
+              <button class="btn btn-sm btn-outline-danger d-none" id="clearFiltersBtn" onclick="clearFilters()">
+                <i class="bi bi-x-circle me-1"></i>Clear
+              </button>
+
+              <span class="ms-auto text-muted small" id="filterResultCount"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Summary Cards -->
+        <div class="row g-3 mb-4" id="statsCards">
+          <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #f59e0b;">
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-muted small">Pending Review</div>
+                    <h4 class="fw-bold mb-0" id="pendingCount">-</h4>
+                  </div>
+                  <i class="bi bi-hourglass-split text-warning" style="font-size: 1.8rem;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #3b82f6;">
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-muted small">Awaiting Assignment</div>
+                    <h4 class="fw-bold mb-0" id="awaitingCount">-</h4>
+                  </div>
+                  <i class="bi bi-clipboard-check text-primary" style="font-size: 1.8rem;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #ef4444;">
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-muted small">Rejected Today</div>
+                    <h4 class="fw-bold mb-0" id="rejectedCount">-</h4>
+                  </div>
+                  <i class="bi bi-x-circle text-danger" style="font-size: 1.8rem;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #8b5cf6;">
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="text-muted small">In Queue</div>
+                    <h4 class="fw-bold mb-0" id="queueCount">-</h4>
+                  </div>
+                  <i class="bi bi-clipboard-check text-purple" style="font-size: 1.8rem; color: #8b5cf6;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Bookings Table -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">Pending Bookings</h6>
+            <span class="badge bg-warning text-dark" id="resultCount">0</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table rq-table mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Service</th>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Payment</th>
+                    <th class="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="bookingsTableBody">
+                  <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">
+                      <div class="spinner-border text-primary mb-2" role="status"></div>
+                      <div>Loading bookings...</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="paginationInfo">Showing 0 of 0</small>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Repair Requests Tab ═══ -->
+      <div class="tab-pane fade" id="repairs-panel" role="tabpanel" aria-labelledby="repairs-tab">
+        <!-- Repair Queue Stats -->
+        <div class="row g-3 mb-4" id="rqStatsContainer">
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#fffbeb;color:#d97706;"><i class="bi bi-hourglass-split"></i></div>
+              <div><div class="rq-stat-label">Pending</div><div class="rq-stat-value text-warning" id="rqStatPending">0</div></div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-search"></i></div>
+              <div><div class="rq-stat-label">Inspections</div><div class="rq-stat-value text-primary" id="rqStatInspections">0</div></div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-clock-history"></i></div>
+              <div><div class="rq-stat-label">Awaiting</div><div class="rq-stat-value text-danger" id="rqStatApproval">0</div></div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-tools"></i></div>
+              <div><div class="rq-stat-label">For Repair</div><div class="rq-stat-value text-success" id="rqStatRepair">0</div></div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#f0f9ff;color:#0ea5e9;"><i class="bi bi-gear"></i></div>
+              <div><div class="rq-stat-label">In Progress</div><div class="rq-stat-value text-info" id="rqStatInProgress">0</div></div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="rq-stat-card">
+              <div class="rq-stat-icon" style="background:#fffbeb;color:#f59e0b;"><i class="bi bi-box-seam"></i></div>
+              <div><div class="rq-stat-label">Parts</div><div class="rq-stat-value text-warning" id="rqStatParts">0</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Repair Queue Filters -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Filters:</span>
+              <div class="btn-group" id="rqStatusFilter">
+                <button class="btn btn-sm btn-outline-secondary active" data-status="all">All</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="repair_requested">New</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="pending_inspection,inspection_scheduled">Inspections</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="awaiting_approval">Approval</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="repair_approved,ready_for_repair">For Repair</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="waiting_parts">Parts</button>
+                <button class="btn btn-sm btn-outline-secondary" data-status="repair_in_progress">Active</button>
+              </div>
+              <input type="text" class="form-control form-control-sm" id="rqSearchInput" placeholder="Search..." style="width:200px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Repair Queue Table -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">Repair Requests</h6>
+            <span class="badge bg-danger" id="rqResultCount">0</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table rq-table mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Issue</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Inspection Date</th>
+                    <th>Technician</th>
+                    <th>Created</th>
+                    <th class="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="rqTableBody">
+                  <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">
+                      <div class="spinner-border text-primary mb-2" role="status"></div>
+                      <div>Loading repair requests...</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Schedule Repair Modal ── -->
+<div class="modal fade" id="rqScheduleModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1d4ed8 0%,#059669 100%);color:#fff;padding:18px 22px;border:none;">
+        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-calendar-plus me-2"></i>Schedule Repair</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:22px;">
+        <input type="hidden" id="rqScheduleBookingId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Repair Date <span class="text-danger">*</span></label>
+          <input type="date" class="form-control" id="rqScheduleDate" min="" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Time Slot</label>
+          <select class="form-select" id="rqScheduleTime">
+            <option value="08:00">8:00 AM</option>
+            <option value="09:00">9:00 AM</option>
+            <option value="10:00">10:00 AM</option>
+            <option value="11:00">11:00 AM</option>
+            <option value="13:00">1:00 PM</option>
+            <option value="14:00">2:00 PM</option>
+            <option value="15:00">3:00 PM</option>
+            <option value="16:00">4:00 PM</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Notes <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" id="rqScheduleNotes" rows="2" placeholder="Additional scheduling notes..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;background:#fafbfc;">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success btn-sm fw-semibold" onclick="submitRqSchedule()">
+          <i class="bi bi-check-lg me-1"></i> Confirm Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Repair Request Modal ── -->
+<div class="modal fade" id="rqConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="border:none;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%);color:#fff;padding:18px 22px;border:none;">
+        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-check-circle me-2"></i>Confirm Repair Request</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:22px;text-align:center;">
+        <input type="hidden" id="rqConfirmBookingId">
+        <i class="bi bi-clipboard-check text-primary" style="font-size:3rem;display:block;margin-bottom:12px;"></i>
+        <p class="mb-1" style="font-size:0.95rem;">Confirm this repair request?</p>
+        <p class="text-muted small">This will move the request to the Assignment Queue where a technician can be assigned for inspection.</p>
+      </div>
+      <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;background:#fafbfc;justify-content:center;">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success btn-sm fw-semibold" onclick="submitRqConfirm()">
+          <i class="bi bi-check-lg me-1"></i> Yes, Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reject Repair Request Modal ── -->
+<div class="modal fade" id="rqRejectModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);color:#fff;padding:18px 22px;border:none;">
+        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-x-circle me-2"></i>Reject Repair Request</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:22px;">
+        <input type="hidden" id="rqRejectBookingId">
+        <i class="bi bi-exclamation-triangle text-danger" style="font-size:2.5rem;display:block;margin-bottom:12px;text-align:center;"></i>
+        <p class="mb-3" style="font-size:0.95rem;">This repair request will be rejected and the customer will be notified.</p>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="rqRejectReason" rows="3" placeholder="Provide a reason for rejecting this repair request..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;background:#fafbfc;justify-content:center;">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="submitRqReject()">
+          <i class="bi bi-x-lg me-1"></i> Reject Request
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Decline Quotation Modal ── -->
+<div class="modal fade" id="rqDeclineQuoteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);color:#fff;padding:18px 22px;border:none;">
+        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-x-circle me-2"></i>Decline Quotation</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:22px;">
+        <input type="hidden" id="rqDeclineQuoteBookingId">
+        <i class="bi bi-exclamation-triangle text-danger" style="font-size:2.5rem;display:block;margin-bottom:12px;text-align:center;"></i>
+        <p class="mb-2" style="font-size:0.95rem;">Mark this quotation as <strong>declined by customer</strong>?</p>
+        <p class="text-muted small mb-3">The booking will be closed and only the inspection fee will be collected.</p>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Reason <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" id="rqDeclineQuoteReason" rows="2" placeholder="Reason for declining..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;background:#fafbfc;justify-content:center;">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="submitRqDeclineQuote()">
+          <i class="bi bi-x-lg me-1"></i> Confirm Decline
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Assign Technician Modal ── -->
+<div class="modal fade" id="rqAssignModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%);color:#fff;padding:18px 22px;border:none;">
+        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-person-plus me-2"></i>Assign Technician</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:22px;">
+        <input type="hidden" id="rqAssignBookingId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Technician <span class="text-danger">*</span></label>
+          <select class="form-select" id="rqAssignTech">
+            <option value="">Loading technicians...</option>
+          </select>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold">Inspection Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="rqAssignDate">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold">Preferred Time</label>
+            <select class="form-select" id="rqAssignTime">
+              <option value="">Any time</option>
+              <option value="08:00 AM">8:00 AM</option>
+              <option value="09:00 AM">9:00 AM</option>
+              <option value="10:00 AM">10:00 AM</option>
+              <option value="11:00 AM">11:00 AM</option>
+              <option value="12:00 PM">12:00 PM</option>
+              <option value="01:00 PM">1:00 PM</option>
+              <option value="02:00 PM">2:00 PM</option>
+              <option value="03:00 PM">3:00 PM</option>
+              <option value="04:00 PM">4:00 PM</option>
+              <option value="05:00 PM">5:00 PM</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Priority</label>
+          <select class="form-select" id="rqAssignPriority">
+            <option value="low">Low</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Notes <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" id="rqAssignNotes" rows="2" placeholder="Any additional notes for the technician..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;background:#fafbfc;justify-content:center;">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold" onclick="submitAssignTech()">
+          <i class="bi bi-check-lg me-1"></i> Confirm Assignment
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header ent-modal-header-danger">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon bg-danger-subtle"><i class="bi bi-exclamation-triangle-fill text-danger"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Reject Booking</h6>
+            <small class="text-white-50">This action will notify the customer</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body">
+        <input type="hidden" id="rejectBookingId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
+          <select class="form-select" id="rejectReason">
+            <option value="">Select reason...</option>
+            <option value="invalid_payment">Invalid Payment</option>
+            <option value="incomplete_info">Incomplete Information</option>
+            <option value="duplicate_booking">Duplicate Booking</option>
+            <option value="unavailable">Service Unavailable</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Note <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" rows="3" id="rejectNote" placeholder="Provide additional context for the rejection..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="confirmReject()">
+          <i class="bi bi-x-circle me-1"></i> Reject Booking
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:480px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon bg-info-subtle"><i class="bi bi-info-circle text-info"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0" id="detailTitle">Booking Details</h6>
+            <small class="text-muted">Complete booking information</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" id="detailBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Repair Queue Detail Modal -->
+<div class="modal fade" id="rqDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:480px;margin:auto;">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);color:#fff;padding:16px 20px;border:none;">
+        <h5 class="modal-title"><i class="bi bi-wrench me-2"></i><span id="rqDetailRef">—</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="rqDetailBody" style="padding:20px;max-height:70vh;overflow-y:auto;"></div>
+      <div class="modal-footer" id="rqDetailFooter" style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#fafbfc;"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ═══ Enterprise Modal ═══ */
+  .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+  .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; }
+  .ent-modal-header-danger { background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); }
+  .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .ent-modal-body { padding: 24px; }
+  .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+  .ent-detail-grid { display: flex; flex-direction: column; gap: 10px; }
+  .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .ent-detail-card-wide { }
+  .ent-detail-card-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
+  .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ent-detail-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+  .ent-detail-value { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
+  .ent-detail-sub { font-size: 0.78rem; color: #64748b; }
+  .rq-table { border-collapse: separate; border-spacing: 0; }
+  .rq-table thead th { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; padding: 10px 12px; border-bottom: 2px solid #e2e8f0; background: #f8fafc; }
+  .rq-table tbody td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; vertical-align: middle; }
+  .rq-table tbody tr:hover { background: #f8fafc; }
+  .rq-table tbody tr:last-child td { border-bottom: none; }
+
+  .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+  .status-pending { background: #fef3c7; color: #92400e; }
+  .status-verified { background: #dbeafe; color: #1e40af; }
+  .status-rejected { background: #fee2e2; color: #991b1b; }
+  .status-queued { background: #ede9fe; color: #5b21b6; }
+  .payment-badge { padding: 3px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+  .payment-pending { background: #fef3c7; color: #92400e; }
+  .payment-paid { background: #d1fae5; color: #065f46; }
+  .payment-partial { background: #dbeafe; color: #1e40af; }
+  .action-btn { padding: 4px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; }
+
+  /* ── Repair Queue Status Badges ────────────────── */
+  .rq-badge { padding: 3px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; }
+  .rq-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; }
+  .rq-stat-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+  .rq-stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+  .rq-stat-value { font-size: 1.3rem; font-weight: 800; color: #1e293b; }
+  .rq-stat-label { font-size: 0.72rem; color: #64748b; }
+  .rq-badge-repair_requested { background: #fef3c7; color: #92400e; }
+  .rq-badge-pending_inspection { background: #fef3c7; color: #92400e; }
+  .rq-badge-inspection_scheduled { background: #dbeafe; color: #1e40af; }
+  .rq-badge-inspection_in_progress { background: #e0e7ff; color: #3730a3; }
+  .rq-badge-inspection_completed { background: #d1fae5; color: #065f46; }
+  .rq-badge-awaiting_approval { background: #fce7f3; color: #9d174d; }
+  .rq-badge-repair_approved { background: #d1fae5; color: #065f46; }
+  .rq-badge-repair_declined { background: #fee2e2; color: #991b1b; }
+  .rq-badge-waiting_parts { background: #fef3c7; color: #92400e; }
+  .rq-badge-ready_for_repair { background: #d1fae5; color: #065f46; }
+  .rq-badge-repair_in_progress { background: #e0e7ff; color: #3730a3; }
+  .rq-badge-repair_completed { background: #d1fae5; color: #065f46; }
+  .rq-priority-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 999px; font-weight: 700; }
+</style>
+
+<script>
+  let currentPage = 1;
+  let totalPages = 1;
+  const LIMIT = 15;
+  let allBookings = []; // stores all fetched bookings for client-side filtering
+
+  async function loadPendingBookings(page = 1) {
+    const search = document.getElementById('searchInput')?.value || '';
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        fetch(`/api/admin/appointments/list?stage=pending_review&page=1&limit=500&search=${encodeURIComponent(search)}`),
+        fetch('/api/admin/appointments/flow-stats')
+      ]);
+
+      const listData = await listRes.json();
+      const statsData = await statsRes.json();
+
+      renderStats(statsData.stages);
+      allBookings = listData.bookings || [];
+      applyFilters(page);
+    } catch (e) {
+      console.error('Failed to load pending bookings:', e);
+    }
+  }
+
+  function applyFilters(page = 1) {
+    const paymentStatus = document.getElementById('filterPaymentStatus')?.value || '';
+    const paymentMethod = document.getElementById('filterPaymentMethod')?.value || '';
+    const dateRange = document.getElementById('filterDateRange')?.value || '';
+    const sort = document.getElementById('filterSort')?.value || 'newest';
+
+    // Check if any filters are active
+    const hasFilters = paymentStatus || paymentMethod || dateRange;
+    const clearBtn = document.getElementById('clearFiltersBtn');
+    if (clearBtn) clearBtn.classList.toggle('d-none', !hasFilters);
+
+    let filtered = [...allBookings];
+
+    // Payment Status filter
+    if (paymentStatus) {
+      filtered = filtered.filter(b => b.paymentStatus === paymentStatus);
+    }
+
+    // Payment Method filter
+    if (paymentMethod) {
+      filtered = filtered.filter(b => (b.paymentMethod || '').toLowerCase() === paymentMethod);
+    }
+
+    // Date Range filter
+    if (dateRange) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      filtered = filtered.filter(b => {
+        const bDate = new Date(b.preferredDate || b.bookingDate);
+        const bDay = new Date(bDate.getFullYear(), bDate.getMonth(), bDate.getDate());
+        switch (dateRange) {
+          case 'today': return bDay.getTime() === today.getTime();
+          case 'yesterday': {
+            const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+            return bDay.getTime() === yesterday.getTime();
+          }
+          case 'this_week': {
+            const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            return bDay >= weekStart;
+          }
+          case 'this_month': return bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear();
+          case 'last_month': {
+            const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            return bDate.getMonth() === lm.getMonth() && bDate.getFullYear() === lm.getFullYear();
+          }
+          default: return true;
+        }
+      });
+    }
+
+    // Sort
+    switch (sort) {
+      case 'oldest': filtered.sort((a, b) => new Date(a.preferredDate || a.bookingDate) - new Date(b.preferredDate || b.bookingDate)); break;
+      case 'amount_high': filtered.sort((a, b) => (b.totalPrice || b.estimatedFee || 0) - (a.totalPrice || a.estimatedFee || 0)); break;
+      case 'amount_low': filtered.sort((a, b) => (a.totalPrice || a.estimatedFee || 0) - (b.totalPrice || b.estimatedFee || 0)); break;
+      default: filtered.sort((a, b) => new Date(b.preferredDate || b.bookingDate) - new Date(a.preferredDate || a.bookingDate)); break;
+    }
+
+    // Update filter count display
+    const filterCountEl = document.getElementById('filterResultCount');
+    if (filterCountEl) {
+      filterCountEl.textContent = hasFilters ? `Showing ${filtered.length} of ${allBookings.length}` : '';
+    }
+
+    // Paginate
+    const totalItems = filtered.length;
+    totalPages = Math.max(1, Math.ceil(totalItems / LIMIT));
+    currentPage = Math.min(page, totalPages);
+    const start = (currentPage - 1) * LIMIT;
+    const paged = filtered.slice(start, start + LIMIT);
+
+    renderTable(paged);
+    renderPagination({ page: currentPage, limit: LIMIT, total: totalItems, pages: totalPages });
+  }
+
+  function renderStats(stages) {
+    document.getElementById('pendingCount').textContent = stages.PENDING_REVIEW?.count || 0;
+    document.getElementById('awaitingCount').textContent = stages.ASSIGNMENT_QUEUE?.count || 0;
+    document.getElementById('rejectedCount').textContent = stages.REJECTED?.count || 0;
+    document.getElementById('queueCount').textContent = stages.ASSIGNMENT_QUEUE?.count || 0;
+  }
+
+  function renderTable(bookings) {
+    const tbody = document.getElementById('bookingsTableBody');
+    document.getElementById('resultCount').textContent = bookings.length;
+
+    if (!bookings.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted">
+        <i class="bi bi-inbox" style="font-size: 2.5rem;"></i>
+        <div class="mt-2">No pending bookings</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = bookings.map(b => {
+      const date = new Date(b.preferredDate || b.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const isCOD = b.paymentMethod === 'cod';
+      const total = b.totalPrice || b.estimatedFee || 0;
+      const downpayment = b.downpaymentAmount || (isCOD ? 400 : 0);
+      const balance = b.balanceAmount > 0 ? b.balanceAmount : (isCOD ? Math.max(0, total - downpayment) : 0);
+      const paymentLabel = b.paymentStatus === 'paid' ? 'Paid in Full' : b.paymentStatus === 'partial' ? 'Downpayment Only' : 'Pending';
+      const paymentClass = b.paymentStatus === 'paid' ? 'payment-paid' : b.paymentStatus === 'partial' ? 'payment-partial' : 'payment-pending';
+      return `<tr>
+        <td><code class="small">${b.bookingReference || b.workOrderNumber || 'N/A'}</code></td>
+        <td>
+          <div class="fw-semibold small">${b.customer?.name || 'N/A'}</div>
+          <div class="text-muted" style="font-size:0.7rem;">${b.customer?.email || ''}</div>
+        </td>
+        <td><span class="small">${b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</span></td>
+        <td><span class="small">${date}</span></td>
+        <td>
+          <div class="fw-semibold">₱${total.toLocaleString()}</div>
+          ${isCOD ? `<div style="font-size:0.7rem;color:#64748b;">DP ₱${downpayment.toLocaleString()} + Bal ₱${balance.toLocaleString()}</div>` : ''}
+        </td>
+        <td>
+          <span class="payment-badge ${paymentClass}">${paymentLabel}</span>
+          ${isCOD && b.paymentStatus !== 'paid' ? `<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>` : ''}
+        </td>
+        <td class="text-center">
+          <div class="d-flex gap-1 justify-content-center">
+            <button class="btn btn-sm btn-outline-info action-btn" onclick="viewDetail('${b._id}')" title="View Details">
+              <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-success action-btn" onclick="verifyPayment('${b._id}')" title="Verify Payment">
+              <i class="bi bi-check-lg"></i> Verify
+            </button>
+            <button class="btn btn-sm btn-outline-danger action-btn" onclick="openReject('${b._id}')" title="Reject">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(p) {
+    document.getElementById('paginationInfo').textContent = `Showing ${((p.page - 1) * p.limit) + 1}-${Math.min(p.page * p.limit, p.total)} of ${p.total}`;
+    const pag = document.getElementById('pagination');
+    let html = '';
+    if (p.pages > 1) {
+      html += `<li class="page-item ${p.page === 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadPendingBookings(${p.page - 1});return false;">&laquo;</a></li>`;
+      for (let i = 1; i <= p.pages; i++) {
+        html += `<li class="page-item ${i === p.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadPendingBookings(${i});return false;">${i}</a></li>`;
+      }
+      html += `<li class="page-item ${p.page === p.pages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadPendingBookings(${p.page + 1});return false;">&raquo;</a></li>`;
+    }
+    pag.innerHTML = html;
+  }
+
+  async function verifyPayment(id) {
+    if (!confirm('Verify payment for this booking?')) return;
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/verify-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Payment verified by admin' }) });
+      const data = await res.json();
+      if (data.success) {
+        await fetch(`/api/admin/appointments/${id}/move-to-queue`, { method: 'POST' });
+        showNotification({ type: 'success', title: 'Payment Verified', message: 'Booking has been verified and moved to assignment queue.', duration: 4000 });
+        loadPendingBookings(currentPage);
+      } else {
+        showNotification({ type: 'error', title: 'Verification Failed', message: data.error || 'Failed to verify payment.', duration: 5000 });
+      }
+    } catch (e) { showNotification({ type: 'error', title: 'Error', message: 'An error occurred while verifying payment.', duration: 5000 }); }
+  }
+
+  function openReject(id) {
+    document.getElementById('rejectBookingId').value = id;
+    document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectNote').value = '';
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+  }
+
+  async function confirmReject() {
+    const id = document.getElementById('rejectBookingId').value;
+    const reason = document.getElementById('rejectReason').value;
+    const note = document.getElementById('rejectNote').value;
+    if (!reason) { showNotification({ type: 'warning', title: 'Required', message: 'Please select a rejection reason.', duration: 3000 }); return; }
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason, note }) });
+      const data = await res.json();
+      if (data.success) {
+        bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+        showNotification({ type: 'success', title: 'Booking Rejected', message: 'The booking has been rejected and the customer will be notified.', duration: 4000 });
+        loadPendingBookings(currentPage);
+      } else {
+        showNotification({ type: 'error', title: 'Rejection Failed', message: data.error || 'Failed to reject booking.', duration: 5000 });
+      }
+    } catch (e) { showNotification({ type: 'error', title: 'Error', message: 'An error occurred while rejecting the booking.', duration: 5000 }); }
+  }
+
+  async function viewDetail(id) {
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`);
+      const data = await res.json();
+      const b = data.booking;
+      const date = new Date(b.preferredDate || b.bookingDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const stLabel = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      const isRepair = b.serviceType === 'repair' || b.serviceModel === 'RepairService';
+      const serviceName = b.service?.name || (b.services?.map(s => s.name).join(', ')) || (isRepair ? 'Repair Service' : 'N/A');
+      const referenceText = b.bookingReference || b.workOrderNumber || `#${String(b._id).slice(-6).toUpperCase()}`;
+
+      document.getElementById('detailTitle').textContent = `Booking ${referenceText}`;
+      document.getElementById('detailBody').innerHTML = `
+        <div class="ent-detail-grid">
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Customer</span>
+              <span class="ent-detail-value">${b.customer?.name || 'N/A'}</span>
+              <span class="ent-detail-sub">${b.customer?.email || ''}</span>
+              <span class="ent-detail-sub">${b.customer?.phone || ''}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-tools text-success"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Service</span>
+              <span class="ent-detail-value">${serviceName}</span>
+              <span class="ent-detail-sub">${date}</span>
+              <span class="ent-detail-sub">${b.startTime && b.endTime ? b.startTime + ' – ' + b.endTime : b.preferredTime || b.startTime || ''}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Payment</span>
+              <span class="ent-detail-value fw-bold">₱${(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</span>
+              <span class="ent-detail-sub">${(b.paymentMethod || 'N/A').toUpperCase()} &middot; ${b.paymentStatus || 'pending'}</span>
+              ${(() => {
+                const total = b.totalPrice || b.estimatedFee || 0;
+                const isCOD = b.paymentMethod === 'cod';
+                const downpayment = b.downpaymentAmount || (isCOD ? 400 : 0);
+                const balance = b.balanceAmount > 0 ? b.balanceAmount : (isCOD ? Math.max(0, total - downpayment) : 0);
+                if (!isCOD) return '';
+                return `
+              <div style="margin-top:6px;padding:6px 8px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;">
+                <div style="font-size:0.72rem;color:#92400e;">
+                  <div class="d-flex justify-content-between"><span>Downpayment:</span><span class="fw-semibold">₱${downpayment.toLocaleString()}</span></div>
+                  <div class="d-flex justify-content-between"><span>Balance (on-site):</span><span class="fw-semibold">₱${balance.toLocaleString()}</span></div>
+                  ${b.amountPaid ? `<div class="d-flex justify-content-between mt-1 pt-1 border-top" style="border-color:#fde68a !important;"><span>Collected so far:</span><span class="fw-bold text-success">₱${b.amountPaid.toLocaleString()}</span></div>` : ''}
+                </div>
+              </div>`;
+              })()}
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-dark-subtle"><i class="bi bi-flag-fill text-dark"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Status</span>
+              <span class="ent-detail-value"><span class="badge bg-${b.paymentStatus === 'paid' ? 'success' : 'warning'}">${stLabel}</span></span>
+            </div>
+          </div>
+          <div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Service Location</span>
+              <span class="ent-detail-value">${b.location?.address || 'N/A'}</span>
+            </div>
+          </div>
+          ${isRepair && b.unitInfo ? `<div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-wrench text-info"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Unit Information</span>
+              <span class="ent-detail-value">${b.unitInfo.unitType || ''} ${b.unitInfo.brand || ''} ${b.unitInfo.model || ''}</span>
+              ${b.unitInfo.problemDescription ? `<span class="ent-detail-sub">${b.unitInfo.problemDescription}</span>` : ''}
+            </div>
+          </div>` : ''}
+          ${b.issueDescription ? `<div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-danger-subtle"><i class="bi bi-exclamation-triangle text-danger"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Issue Description</span>
+              <span class="ent-detail-value">${b.issueDescription}</span>
+            </div>
+          </div>` : ''}
+          ${(() => {
+            // Collect all available photos from any source on the booking
+            const photos = [];
+            if (b.paymentProof) photos.push(b.paymentProof);
+            if (data.payment && data.payment.proofUrl) { if (!photos.includes(data.payment.proofUrl)) photos.push(data.payment.proofUrl); }
+            if (b.imageUrl) { if (!photos.includes(b.imageUrl)) photos.push(b.imageUrl); }
+            if (b.unitInfo && Array.isArray(b.unitInfo.photos)) b.unitInfo.photos.forEach(p => { if (p && !photos.includes(p)) photos.push(p); });
+            if (!photos.length) return '';
+            return `<div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div>
+            <div class="ent-detail-card-content" style="width: 100%;">
+              <span class="ent-detail-label">Payment Receipt / Photos (${photos.length})</span>
+              <div class="mt-3 d-flex flex-wrap gap-3 justify-content-start">
+                ${photos.map((src, i) => `
+                  <div style="background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; flex: 0 0 auto;">
+                    <img src="${src}" alt="Photo ${i + 1}" style="max-width: 260px; max-height: 220px; border-radius: 6px; cursor: pointer; object-fit: contain; display: block;" onclick="window.open('${src}', '_blank')" onerror="this.closest('div').innerHTML='<div class=\\'text-muted small p-2\\'>Image unavailable</div>'">
+                    <div class="mt-1 text-muted text-center" style="font-size:0.7rem;">Photo ${i + 1} · Click to enlarge</div>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>`;
+          })()}
+        </div>`;
+
+      new bootstrap.Modal(document.getElementById('detailModal')).show();
+    } catch (e) { showToast('Error loading details', 'error'); }
+  }
+
+  function refreshList() { loadPendingBookings(currentPage); }
+
+  function showToast(msg, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'success'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+    document.body.appendChild(toast);
+    new bootstrap.Toast(toast).show();
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  // Enterprise notification system
+  function showNotification({ type = 'info', title = '', message = '', duration = 3000 }) {
+    const colors = {
+      success: { bg: '#f0fdf4', border: '#22c55e', icon: 'bi-check-circle-fill', iconColor: '#16a34a' },
+      error: { bg: '#fef2f2', border: '#ef4444', icon: 'bi-x-circle-fill', iconColor: '#dc2626' },
+      warning: { bg: '#fffbeb', border: '#f59e0b', icon: 'bi-exclamation-triangle-fill', iconColor: '#d97706' },
+      info: { bg: '#eff6ff', border: '#3b82f6', icon: 'bi-info-circle-fill', iconColor: '#2563eb' }
+    };
+    const c = colors[type] || colors.info;
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:20px;right:20px;z-index:99999;min-width:340px;max-width:420px;background:${c.bg};border:1px solid ${c.border};border-left:4px solid ${c.border};border-radius:12px;padding:16px 20px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:12px;animation:slideInRight 0.3s ease;`;
+    el.innerHTML = `<i class="bi ${c.icon}" style="font-size:1.3rem;color:${c.iconColor};margin-top:2px;"></i><div style="flex:1;"><div style="font-weight:700;font-size:0.9rem;color:#1e293b;margin-bottom:2px;">${title}</div><div style="font-size:0.82rem;color:#64748b;">${message}</div></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;">&times;</button>`;
+    document.body.appendChild(el);
+    if (!document.getElementById('notif-styles')) {
+      const style = document.createElement('style'); style.id = 'notif-styles';
+      style.textContent = '@keyframes slideInRight{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}';
+      document.head.appendChild(style);
+    }
+    setTimeout(() => { el.style.transition='all 0.3s ease'; el.style.opacity='0'; el.style.transform='translateX(100%)'; setTimeout(()=>el.remove(),300); }, duration);
+  }
+
+  function clearFilters() {
+    document.getElementById('filterPaymentStatus').value = '';
+    document.getElementById('filterPaymentMethod').value = '';
+    document.getElementById('filterDateRange').value = '';
+    document.getElementById('filterSort').value = 'newest';
+    applyFilters(1);
+  }
+
+  // Init
+  loadPendingBookings();
+
+  // Search debounce
+  let searchTimer;
+  document.getElementById('searchInput')?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadPendingBookings(1), 400);
+  });
+
+  // Filter change handlers (instant apply)
+  ['filterPaymentStatus', 'filterPaymentMethod', 'filterDateRange', 'filterSort'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => applyFilters(1));
+  });
+</script>
+<script src="/js/repair-queue.js"></script>

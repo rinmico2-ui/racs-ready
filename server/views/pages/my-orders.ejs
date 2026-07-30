@@ -1,0 +1,694 @@
+<!-- My Orders — Customer Order Tracking Page -->
+<section class="my-orders-page position-relative" style="overflow:hidden;background:#f0f4f8;min-height:100vh;">
+  <!-- Hero Header -->
+  <div class="position-relative py-5" style="overflow:hidden;">
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%);z-index:0;"></div>
+    <div class="position-absolute" style="width:600px;height:600px;background:radial-gradient(circle,rgba(59,130,246,0.15) 0%,transparent 70%);top:-250px;right:-250px;z-index:0;pointer-events:none;"></div>
+    <div class="position-absolute" style="width:400px;height:400px;background:radial-gradient(circle,rgba(139,92,246,0.1) 0%,transparent 70%);bottom:-150px;left:-100px;z-index:0;pointer-events:none;"></div>
+    <div class="container position-relative text-center" style="z-index:2;max-width:700px;">
+      <div style="width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;border:1px solid rgba(255,255,255,0.15);">
+        <i class="bi bi-bag-check" style="font-size:1.8rem;color:#60a5fa;"></i>
+      </div>
+      <h2 class="display-5 fw-bold mb-2" style="color:#fff;letter-spacing:-1px;">My <span style="background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Orders</span></h2>
+      <p class="fs-6 mx-auto" style="max-width:480px;color:rgba(219,234,254,0.6);">Track your aircon purchases, deliveries, and installations in real-time.</p>
+    </div>
+  </div>
+
+  <style>
+    /* ═══ Order Card ═══ */
+    .ord-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+    }
+    .ord-card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      border-color: #cbd5e1;
+      transform: translateY(-2px);
+    }
+    .ord-card-header {
+      padding: 16px 20px;
+      background: linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .ord-ref {
+      font-weight: 800;
+      color: #1e40af;
+      font-size: 0.88rem;
+      letter-spacing: 0.5px;
+      font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    }
+    .ord-date {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .ord-card-body {
+      padding: 20px;
+    }
+
+    /* ═══ Status Badges ═══ */
+    .ord-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ord-status.pending_payment { background:#fef3c7; color:#92400e; }
+    .ord-status.preparing_unit { background:#dbeafe; color:#1e40af; }
+    .ord-status.technician_assigned { background:#ede9fe; color:#5b21b6; }
+    .ord-status.out_for_delivery { background:#ffedd5; color:#9a3412; }
+    .ord-status.arrived { background:#cffafe; color:#155e75; }
+    .ord-status.installing { background:#fce7f3; color:#9d174d; }
+    .ord-status.completed { background:#dcfce7; color:#166534; }
+    .ord-status.cancelled { background:#fee2e2; color:#991b1b; }
+
+    /* ═══ Fulfillment Badge ═══ */
+    .ord-fulfill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* ═══ Product Item ═══ */
+    .ord-product {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid #f1f5f9;
+      margin-bottom: 10px;
+      transition: all 0.2s ease;
+    }
+    .ord-product:hover {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+    }
+    .ord-product:last-child {
+      margin-bottom: 0;
+    }
+    .ord-product-img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 2px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+    .ord-product-name {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+    .ord-product-meta {
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    .ord-product-price {
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: #1e40af;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    /* ═══ Info Row ═══ */
+    .ord-info-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      margin-top: 10px;
+    }
+    .ord-info-row i {
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    /* ═══ Total Row ═══ */
+    .ord-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0 0;
+      margin-top: 14px;
+      border-top: 2px solid #f1f5f9;
+    }
+    .ord-total-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ord-total-value {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #1e40af;
+    }
+
+    /* ═══ Timeline ═══ */
+    .ord-timeline {
+      position: relative;
+      padding-left: 24px;
+      margin-top: 14px;
+    }
+    .ord-timeline::before {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom,#e2e8f0,#f1f5f9);
+    }
+    .ord-timeline-item {
+      position: relative;
+      padding-bottom: 16px;
+    }
+    .ord-timeline-item:last-child {
+      padding-bottom: 0;
+    }
+    .ord-timeline-dot {
+      position: absolute;
+      left: -24px;
+      top: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid #e2e8f0;
+      background: #fff;
+      z-index: 1;
+    }
+    .ord-timeline-dot.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+    }
+    .ord-timeline-dot.completed {
+      background: #22c55e;
+      border-color: #22c55e;
+    }
+    .ord-timeline-status {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: #0f172a;
+    }
+    .ord-timeline-time {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      margin-top: 1px;
+    }
+    .ord-timeline-note {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ═══ Tracking Button ═══ */
+    .ord-track-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #fff;
+      color: #3b82f6;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 14px;
+    }
+    .ord-track-btn:hover {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    /* ═══ Rating Button ═══ */
+    .ord-rate-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 16px;
+      border: 1.5px solid #f59e0b;
+      border-radius: 20px;
+      background: transparent;
+      color: #d97706;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 12px;
+    }
+    .ord-rate-btn:hover {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+
+    /* ═══ Rating Stars ═══ */
+    .rating-star-btn {
+      background: none;
+      border: none;
+      font-size: 2.2rem;
+      color: #d1d5db;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      padding: 4px;
+    }
+    .rating-star-btn:hover, .rating-star-btn.active {
+      color: #f59e0b;
+      transform: scale(1.2);
+    }
+
+    /* ═══ Empty State ═══ */
+    .ord-empty {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .ord-empty-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#e2e8f0,#f1f5f9);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .ord-empty-icon i {
+      font-size: 2rem;
+      color: #94a3b8;
+    }
+
+    /* ═══ Responsive ═══ */
+    @media (max-width: 576px) {
+      .ord-card-header {
+        padding: 12px 16px;
+      }
+      .ord-card-body {
+        padding: 16px;
+      }
+      .ord-product {
+        padding: 10px;
+      }
+      .ord-product-img {
+        width: 50px;
+        height: 50px;
+      }
+    }
+  </style>
+
+  <div class="py-5" style="min-height:60vh;">
+    <div class="container" style="max-width:760px;">
+      <% const orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders : []; %>
+      <% 
+        const statusLabels = {
+          pending_payment: 'Pending Payment', preparing_unit: 'Preparing Unit', technician_assigned: 'Technician Assigned', out_for_delivery: 'Out for Delivery', arrived: 'Arrived', installing: 'Installing', completed: 'Completed', cancelled: 'Cancelled'
+        };
+        const statusIcons = {
+          pending_payment: 'bi-clock', preparing_unit: 'bi-box-seam', technician_assigned: 'bi-person-gear', out_for_delivery: 'bi-truck', arrived: 'bi-geo-alt', installing: 'bi-tools', completed: 'bi-check-circle-fill', cancelled: 'bi-x-circle'
+        };
+        const fulfillLabels = {
+          delivery_only: 'Delivery Only', delivery_installation: 'Delivery + Installation', customer_pickup: 'Pickup'
+        };
+      %>
+
+      <% if (orderList.length === 0) { %>
+        <div class="ord-empty">
+          <div class="ord-empty-icon"><i class="bi bi-bag-x"></i></div>
+          <h5 class="fw-bold" style="color:#334155;">No Orders Yet</h5>
+          <p style="color:#94a3b8;max-width:320px;margin:0 auto;">Browse our <a href="/products" style="color:#3b82f6;font-weight:600;">product catalog</a> to get started!</p>
+        </div>
+      <% } %>
+
+      <% orderList.forEach((order) => { %>
+        <div class="ord-card">
+          <!-- Header -->
+          <div class="ord-card-header">
+            <div>
+              <span class="ord-ref"><%= order.orderReference || order._id %></span>
+              <span class="ord-date ms-2"><%= new Date(order.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %></span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="ord-fulfill">
+                <i class="bi <%= order.fulfillmentType === 'customer_pickup' ? 'bi-shop' : 'bi-truck' %>"></i>
+                <%= fulfillLabels[order.fulfillmentType] || order.fulfillmentType %>
+              </span>
+              <span class="ord-status <%= order.status %>">
+                <i class="bi <%= statusIcons[order.status] || 'bi-circle' %>"></i>
+                <%= statusLabels[order.status] || order.status %>
+              </span>
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="ord-card-body">
+            <!-- Products -->
+            <% (order.items || []).forEach((item) => { %>
+              <div class="ord-product">
+                <img src="<%= item.imageUrl || '/images/products/default.png' %>" alt="" class="ord-product-img">
+                <div style="min-width:0;">
+                  <div class="ord-product-name"><%= item.modelLine || 'Aircon Unit' %></div>
+                  <div class="ord-product-meta"><%= item.capacity %> <%= item.capacityUnit || 'HP' %> · Qty: <%= item.quantity %></div>
+                </div>
+                <div class="ord-product-price">₱<%= (item.totalPrice || 0).toLocaleString() %></div>
+              </div>
+            <% }) %>
+
+            <!-- Delivery Info -->
+            <% if (order.delivery && order.delivery.address) { %>
+              <div class="ord-info-row" style="background:#eff6ff;color:#1e40af;">
+                <i class="bi bi-geo-alt-fill"></i>
+                <span><%= order.delivery.address %><% if (order.delivery.preferredDate) { %> · <i class="bi bi-calendar3 ms-1"></i> <%= new Date(order.delivery.preferredDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %><% } %></span>
+              </div>
+            <% } %>
+
+            <!-- Technician -->
+            <% if (order.technician && order.technician.name) { %>
+              <div class="ord-info-row" style="background:#f5f3ff;color:#6d28d9;">
+                <i class="bi bi-person-badge-fill"></i>
+                <span><strong><%= order.technician.name %></strong><% if (order.technician.phone) { %> · <i class="bi bi-telephone ms-1"></i> <%= order.technician.phone %><% } %></span>
+              </div>
+            <% } %>
+
+            <!-- Total -->
+            <div class="ord-total-row">
+              <span class="ord-total-label">Total Amount</span>
+              <span class="ord-total-value">₱<%= (order.total || 0).toLocaleString() %></span>
+            </div>
+
+            <!-- Rating Section -->
+            <% if (order.status === 'completed') { %>
+              <div class="mt-3">
+                <% if (order.customerRating) { %>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="small fw-semibold" style="color:#64748b;">Your Rating:</span>
+                    <div class="d-flex gap-1">
+                      <% for(let i = 1; i <= 5; i++) { %>
+                        <i class="bi bi-star<%= i <= Math.floor(order.customerRating) ? '-fill' : '' %>" style="color:<%= i <= Math.floor(order.customerRating) ? '#f59e0b' : '#d1d5db' %>;font-size:0.9rem;"></i>
+                      <% } %>
+                    </div>
+                    <% if (order.customerRatingComment) { %>
+                      <span class="small text-muted fst-italic">"<%= order.customerRatingComment %>"</span>
+                    <% } %>
+                  </div>
+                <% } else { %>
+                  <button class="ord-rate-btn" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech="<%= order.technician && order.technician.name ? order.technician.name : 'Technician' %>">
+                    <i class="bi bi-star"></i> Rate This Order
+                  </button>
+                <% } %>
+              </div>
+            <% } %>
+
+            <!-- Tracking Button -->
+            <% if (order.statusHistory && order.statusHistory.length > 0) { %>
+              <button class="ord-track-btn" type="button" data-bs-toggle="collapse" data-bs-target="#tracking-<%= order._id %>" onclick="setTimeout(() => window.dispatchEvent(new Event('resize')), 350)">
+                <i class="bi bi-clock-history"></i> View Tracking & Timeline
+              </button>
+              <div class="collapse" id="tracking-<%= order._id %>">
+                <div class="row mt-3">
+                  <!-- Timeline -->
+                  <div class="col-md-5">
+                    <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Order Timeline</div>
+                    <div class="ord-timeline">
+                      <% order.statusHistory.slice().reverse().forEach((h, hIdx) => { %>
+                        <div class="ord-timeline-item">
+                          <div class="ord-timeline-dot <%= hIdx === 0 ? 'active' : 'completed' %>"></div>
+                          <div class="ord-timeline-status"><%= statusLabels[h.status] || h.status %></div>
+                          <div class="ord-timeline-time"><%= new Date(h.timestamp).toLocaleString('en-PH') %></div>
+                          <% if (h.note) { %>
+                            <div class="ord-timeline-note"><%= h.note %></div>
+                          <% } %>
+                        </div>
+                      <% }) %>
+                    </div>
+                  </div>
+                  <!-- Map -->
+                  <div class="col-md-7">
+                    <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;margin-top:14px;">Live Tracking</div>
+                    <% var hasCoords = order.delivery && order.delivery.coordinates && Array.isArray(order.delivery.coordinates.coordinates) && order.delivery.coordinates.coordinates.length === 2; %>
+                    <% var isTrackable = ['technician_assigned', 'out_for_delivery', 'arrived', 'installing'].includes(order.status); %>
+                    <% if (hasCoords && isTrackable && order.technician) { %>
+                      <div class="ord-track-map rounded-3 border" id="map-<%= order._id %>" style="height:280px;width:100%;z-index:1;border-radius:12px !important;" data-order-id="<%= order._id %>" data-lat="<%= order.delivery.coordinates.coordinates[1] %>" data-lng="<%= order.delivery.coordinates.coordinates[0] %>" data-tech-id="<%= order.technician._id || order.technicianId || order.technician %>"></div>
+                      <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded-2" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                        <button class="btn btn-sm py-1 px-2" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;" id="btn-focus-cust-<%= order._id %>">
+                          <i class="bi bi-geo-alt-fill text-danger me-1" style="font-size:0.7rem;"></i><span style="font-size:0.72rem;font-weight:600;">Customer</span>
+                        </button>
+                        <span id="eta-info-<%= order._id %>" class="fw-bold text-primary text-center px-2" style="font-size:0.82rem;line-height:1.2;">
+                          <i class="bi bi-arrow-repeat spin-anim"></i> Calculating...
+                        </span>
+                        <button class="btn btn-sm py-1 px-2" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;" id="btn-focus-tech-<%= order._id %>" disabled>
+                          <i class="bi bi-person-badge-fill text-primary me-1" style="font-size:0.7rem;"></i><span style="font-size:0.72rem;font-weight:600;">Technician</span>
+                        </button>
+                      </div>
+                    <% } else if (order.status === 'completed') { %>
+                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#f0fdf4;border:1px solid #bbf7d0;">
+                        <i class="bi bi-check2-circle fs-2 mb-2" style="color:#22c55e;"></i>
+                        <h6 class="mb-0 fw-bold" style="color:#166534;">Order Completed</h6>
+                        <p class="small mb-0" style="color:#16a34a;">Tracking is no longer active.</p>
+                      </div>
+                    <% } else if (order.status === 'cancelled') { %>
+                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#fef2f2;border:1px solid #fecaca;">
+                        <i class="bi bi-x-circle fs-2 mb-2" style="color:#dc2626;"></i>
+                        <h6 class="mb-0 fw-bold" style="color:#991b1b;">Order Cancelled</h6>
+                      </div>
+                    <% } else { %>
+                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                        <i class="bi bi-box-seam fs-2 mb-2" style="color:#94a3b8;"></i>
+                        <h6 class="mb-0 fw-bold" style="color:#475569;">Preparing for Delivery</h6>
+                        <p class="small mb-0" style="color:#94a3b8;">Check back once a technician is assigned.</p>
+                      </div>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    .custom-customer-icon { background:none; border:none; }
+    .custom-customer-icon i { font-size:32px; color:#dc3545; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+    .custom-tech-icon { background:none; border:none; }
+    .custom-tech-icon i { font-size:32px; color:#0d6efd; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+    .map-tooltip { background:white; border:1px solid rgba(0,0,0,0.1); box-shadow:0 4px 12px rgba(0,0,0,0.15); font-weight:600; font-size:0.75rem; color:#334155; padding:4px 8px; border-radius:6px; }
+    @keyframes spin { 100% { transform:rotate(360deg); } }
+    .spin-anim { display:inline-block; animation:spin 1s linear infinite; }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const mapElements = document.querySelectorAll('.ord-track-map');
+      const customerIcon = L.divIcon({ html:'<i class="bi bi-geo-alt-fill"></i>', className:'custom-customer-icon', iconSize:[32,32], iconAnchor:[16,32] });
+      const techIcon = L.divIcon({ html:'<i class="bi bi-person-badge-fill"></i>', className:'custom-tech-icon', iconSize:[32,32], iconAnchor:[16,32] });
+
+      mapElements.forEach(el => {
+        const orderId = el.dataset.orderId;
+        const custLat = parseFloat(el.dataset.lat);
+        const custLng = parseFloat(el.dataset.lng);
+        const techId = el.dataset.techId;
+        if (isNaN(custLat) || isNaN(custLng)) return;
+
+        const map = L.map(el.id).setView([custLat, custLng], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+        L.marker([custLat, custLng], { icon:customerIcon }).addTo(map).bindTooltip('Delivery Location', { permanent:true, direction:'top', offset:[0,-28], className:'map-tooltip' });
+
+        const btnCust = document.getElementById(`btn-focus-cust-${orderId}`);
+        if (btnCust) btnCust.addEventListener('click', () => map.flyTo([custLat, custLng], 16, { duration:1 }));
+
+        let techMarker = null, routeLayer = null, currentTechLat = null, currentTechLng = null;
+        const btnTech = document.getElementById(`btn-focus-tech-${orderId}`);
+        if (btnTech) btnTech.addEventListener('click', () => { if (currentTechLat !== null) map.flyTo([currentTechLat, currentTechLng], 16, { duration:1 }); });
+
+        async function fetchTechLocation() {
+          if (!techId) return;
+          try {
+            const res = await fetch(`/api/services/technician-location?id=${techId}`);
+            if (!res.ok) throw new Error('API Error');
+            const data = await res.json();
+            if (data && data.lat !== undefined && data.lng !== undefined) {
+              const techLat = parseFloat(data.lat), techLng = parseFloat(data.lng);
+              currentTechLat = techLat; currentTechLng = techLng;
+              if (btnTech) btnTech.disabled = false;
+              if (techMarker) { techMarker.setLatLng([techLat, techLng]); }
+              else { techMarker = L.marker([techLat, techLng], { icon:techIcon }).addTo(map).bindTooltip('Technician', { permanent:true, direction:'bottom', offset:[0,4], className:'map-tooltip text-primary' }); }
+              try {
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${techLng},${techLat};${custLng},${custLat}?overview=full&geometries=geojson`;
+                const routeRes = await fetch(osrmUrl);
+                const routeData = await routeRes.json();
+                if (routeData && routeData.routes && routeData.routes.length > 0) {
+                  const route = routeData.routes[0];
+                  const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                  if (routeLayer) map.removeLayer(routeLayer);
+                  routeLayer = L.polyline(coords, { color:'#3b82f6', weight:4, dashArray:'8,8', opacity:0.8 }).addTo(map);
+                  const distanceKm = (route.distance / 1000).toFixed(1);
+                  const durationMin = Math.ceil(route.duration / 60);
+                  const etaInfo = document.getElementById(`eta-info-${orderId}`);
+                  if (etaInfo) etaInfo.innerHTML = `Duration: <strong>${durationMin} mins</strong><br><span class="text-secondary fw-normal" style="font-size:0.75rem;">(${distanceKm} km away)</span>`;
+                }
+              } catch (routeErr) { console.error('Routing failed:', routeErr); }
+              const group = new L.featureGroup([L.marker([custLat, custLng]), L.marker([techLat, techLng])]);
+              map.fitBounds(group.getBounds(), { padding:[50,50] });
+            }
+          } catch (e) { console.error('Failed to fetch tech location:', e); }
+        }
+        fetchTechLocation();
+        setInterval(fetchTechLocation, 10000);
+
+        const collapseEl = document.getElementById(`tracking-${orderId}`);
+        if (collapseEl) collapseEl.addEventListener('shown.bs.collapse', () => setTimeout(() => map.invalidateSize(), 100));
+      });
+    });
+  </script>
+
+  <!-- Rating Modal -->
+  <div class="modal fade" id="orderRatingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border:none;border-radius:20px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:24px 28px;color:#fff;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:1.3rem;backdrop-filter:blur(10px);">
+                <i class="bi bi-stars"></i>
+              </div>
+              <div>
+                <h6 class="modal-title fw-bold mb-0" style="font-size:1.05rem;">Rate This Order</h6>
+                <small style="opacity:0.7;font-size:0.78rem;" id="ratingModalSubtitle">How was your experience?</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+        <!-- Body -->
+        <div style="padding:28px;background:#f8fafc;">
+          <!-- Technician Info -->
+          <div class="text-center mb-4">
+            <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;box-shadow:0 4px 12px rgba(59,130,246,0.3);margin-bottom:10px;">
+              <i class="bi bi-person-badge"></i>
+            </div>
+            <div class="fw-bold" style="color:#0f172a;font-size:0.95rem;" id="ratingModalTechName">Technician Name</div>
+            <div style="font-size:0.75rem;color:#94a3b8;">Service Technician</div>
+          </div>
+          <!-- Stars -->
+          <div class="text-center mb-3">
+            <div class="d-flex justify-content-center gap-2 mb-2" id="ratingModalStars">
+              <button type="button" class="rating-star-btn" data-value="1"><i class="bi bi-star"></i></button>
+              <button type="button" class="rating-star-btn" data-value="2"><i class="bi bi-star"></i></button>
+              <button type="button" class="rating-star-btn" data-value="3"><i class="bi bi-star"></i></button>
+              <button type="button" class="rating-star-btn" data-value="4"><i class="bi bi-star"></i></button>
+              <button type="button" class="rating-star-btn" data-value="5"><i class="bi bi-star"></i></button>
+            </div>
+            <p class="fw-semibold mb-0" id="ratingModalLabel" style="color:#64748b;font-size:0.88rem;">Tap a star to rate</p>
+          </div>
+          <!-- Comment -->
+          <div>
+            <label class="form-label fw-bold" style="font-size:0.82rem;color:#334155;">Review (Optional)</label>
+            <textarea class="form-control" id="ratingModalComment" rows="3" placeholder="Share your experience with the service..." style="border-radius:12px;font-size:0.88rem;resize:none;border:1px solid #e2e8f0;"></textarea>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div style="border-top:1px solid #e2e8f0;padding:16px 28px;background:#fff;display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" class="btn" data-bs-dismiss="modal" style="border-radius:10px;padding:8px 20px;background:#f1f5f9;color:#475569;font-weight:600;font-size:0.85rem;">Cancel</button>
+          <button type="button" class="btn" id="submitOrderRating" style="border-radius:10px;padding:8px 24px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:600;font-size:0.85rem;box-shadow:0 2px 8px rgba(59,130,246,0.3);">
+            <i class="bi bi-check-circle me-1"></i>Submit
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      let currentOrderId = null, currentOrderRef = null, currentRating = 0;
+      const ratingLabels = ['Poor','Fair','Good','Very Good','Excellent'];
+
+      document.querySelectorAll('.ord-rate-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          currentOrderId = this.getAttribute('data-id');
+          currentOrderRef = this.getAttribute('data-ref');
+          const techName = this.getAttribute('data-tech');
+          document.getElementById('ratingModalTechName').textContent = techName || 'Technician';
+          document.getElementById('ratingModalComment').value = '';
+          document.getElementById('ratingModalSubtitle').textContent = `Order ${currentOrderRef}`;
+          currentRating = 0;
+          updateStars(0);
+          document.getElementById('ratingModalLabel').textContent = 'Tap a star to rate';
+          new bootstrap.Modal(document.getElementById('orderRatingModal')).show();
+        });
+      });
+
+      const starsContainer = document.getElementById('ratingModalStars');
+      if (starsContainer) {
+        const stars = starsContainer.querySelectorAll('.rating-star-btn');
+        stars.forEach((star, index) => {
+          star.addEventListener('mouseenter', () => { highlightStars(stars, index + 1); document.getElementById('ratingModalLabel').textContent = ratingLabels[index]; });
+          star.addEventListener('click', () => { currentRating = index + 1; highlightStars(stars, currentRating); document.getElementById('ratingModalLabel').textContent = ratingLabels[index]; });
+        });
+        starsContainer.addEventListener('mouseleave', () => { highlightStars(stars, currentRating); document.getElementById('ratingModalLabel').textContent = currentRating > 0 ? ratingLabels[currentRating - 1] : 'Tap a star to rate'; });
+      }
+
+      function highlightStars(stars, value) {
+        stars.forEach((star, i) => {
+          if (i < value) { star.classList.add('active'); star.querySelector('i').classList.replace('bi-star','bi-star-fill'); }
+          else { star.classList.remove('active'); star.querySelector('i').classList.replace('bi-star-fill','bi-star'); }
+        });
+      }
+      function updateStars(value) { highlightStars(document.querySelectorAll('#ratingModalStars .rating-star-btn'), value); }
+
+      document.getElementById('submitOrderRating').addEventListener('click', async function() {
+        if (!currentRating) { alert('Please select a star rating.'); return; }
+        const comment = document.getElementById('ratingModalComment').value.trim();
+        const originalText = this.innerHTML;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+        this.disabled = true;
+        try {
+          const res = await fetch(`/api/rating/order/${encodeURIComponent(currentOrderId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score: currentRating, comment })
+          });
+          const data = await res.json();
+          if (res.ok) { bootstrap.Modal.getInstance(document.getElementById('orderRatingModal')).hide(); window.location.reload(); }
+          else { alert(data.error || 'Failed to submit rating.'); this.innerHTML = originalText; this.disabled = false; }
+        } catch(e) { console.error(e); alert('Network error.'); this.innerHTML = originalText; this.disabled = false; }
+      });
+    });
+  </script>
+</section>

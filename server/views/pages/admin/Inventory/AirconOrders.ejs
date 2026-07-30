@@ -1,0 +1,401 @@
+<style>
+  /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
+  :root {
+    --ao-primary: #2563eb; --ao-primary-dark: #1d4ed8; --ao-primary-light: #3b82f6;
+    --ao-success: #10b981; --ao-warning: #f59e0b; --ao-danger: #ef4444;
+    --ao-purple: #8b5cf6; --ao-cyan: #06b6d4; --ao-rose: #f43f5e;
+    --ao-dark: #0f172a; --ao-muted: #64748b; --ao-border: #e2e8f0;
+    --ao-bg: #f8fafc; --ao-radius: 16px; --ao-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.03);
+    --ao-shadow-hover: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    --ao-transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  body { font-family: "Inter", "Segoe UI", sans-serif; color: var(--ao-dark); -webkit-font-smoothing: antialiased; background: var(--ao-bg); }
+  body::-webkit-scrollbar { display: none; }
+  body { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .ao-page { max-width: 1440px; margin: 0 auto; padding: 0 28px 48px; }
+  @media(max-width:767px){ .ao-page { padding: 0 14px 32px; } }
+
+  /* ═══ HERO ═══ */
+
+  /* ═══ TABS ═══ */
+  .ao-tabs-wrapper { background: #fff; border: 1px solid var(--ao-border); border-radius: 16px; padding: 5px; margin-bottom: 24px; box-shadow: var(--ao-shadow); position: relative; }
+  .ao-tabs { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; overflow-x: auto; scrollbar-width: none; }
+  .ao-tabs::-webkit-scrollbar { display: none; }
+  .ao-tab-btn { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; border-radius: 12px; background: transparent; color: var(--ao-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: var(--ao-transition); white-space: nowrap; font-family: "Inter", sans-serif; position: relative; }
+  .ao-tab-btn:hover { background: #f1f5f9; color: #334155; }
+  .ao-tab-btn.active { background: linear-gradient(135deg, var(--ao-primary) 0%, #1d4ed8 100%); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.35); transform: translateY(-1px); }
+  .ao-tab-btn i { font-size: 0.9rem; }
+  .ao-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: #e2e8f0; color: var(--ao-muted); font-size: 0.65rem; font-weight: 700; line-height: 1; transition: var(--ao-transition); }
+  .ao-tab-btn.active .ao-tab-badge { background: rgba(255,255,255,0.25); color: #fff; }
+  .ao-tab-btn:not(.active) .ao-tab-badge:empty { display: none; }
+
+  /* ═══ STATS CARDS ═══ */
+  .ao-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .ao-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px 22px; display: flex; align-items: center; gap: 14px; transition: all 0.25s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .ao-stat-card:hover { border-color: #cbd5e1; box-shadow: 0 6px 20px rgba(15,23,42,0.08); transform: translateY(-2px); }
+  .ao-stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
+  .ao-stat-icon.blue { background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #2563eb; }
+  .ao-stat-icon.amber { background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #d97706; }
+  .ao-stat-icon.red { background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #dc2626; }
+  .ao-stat-icon.green { background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: #16a34a; }
+  .ao-stat-icon.purple { background: linear-gradient(135deg, #f3e8ff, #e9d5ff); color: #7c3aed; }
+  .ao-stat-icon.cyan { background: linear-gradient(135deg, #ecfeff, #cffafe); color: #0891b2; }
+  .ao-stat-icon.rose { background: linear-gradient(135deg, #fdf2f8, #fce7f3); color: #e11d48; }
+  .ao-stat-value { font-size: 1.6rem; font-weight: 800; color: #0f172a; font-family: "Outfit", sans-serif; line-height: 1.1; }
+  .ao-stat-label { font-size: 0.78rem; color: #64748b; font-family: "Inter", sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  /* Stat Cards */
+  .stat-card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+  .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+  .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+  .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+  .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+  .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+  .kpi-trend i { font-size:0.55rem; }
+  .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
+  .stat-sparkline { height:40px; margin-top:0.5rem; }
+  .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+
+  /* ═══ ORDER CARDS ═══ */
+  .ao-order-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 14px; transition: all 0.2s; position: relative; }
+  .ao-order-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+  .ao-order-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); opacity: 0; transition: opacity 0.3s; border-radius: 14px 14px 0 0; }
+  .ao-order-card:hover::before { opacity: 1; }
+  .ao-order-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .ao-order-ref { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+  .ao-order-customer { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 2px 0; }
+  .ao-order-fulfill { font-size: 0.85rem; color: #64748b; }
+  .ao-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+  .ao-detail-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #475569; }
+  .ao-detail-item i { color: #94a3b8; width: 14px; }
+  .ao-action-bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #f1f5f9; }
+  .ao-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
+  .ao-empty i { font-size: 3.5rem; display: block; margin-bottom: 12px; }
+  .ao-empty p { margin: 0; font-size: 0.9rem; }
+
+  /* ═══ STATUS BADGES ═══ */
+  .ao-st-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; letter-spacing: 0.2px; display: inline-flex; align-items: center; gap: 0.3rem; }
+  .ao-st-pending_payment { background: #fef3c7; color: #92400e; }
+  .ao-st-preparing_unit { background: #dbeafe; color: #1e40af; }
+  .ao-st-technician_assigned { background: #ede9fe; color: #5b21b6; }
+  .ao-st-out_for_delivery { background: #ffedd5; color: #9a3412; }
+  .ao-st-arrived { background: #ccfbf1; color: #0f766e; }
+  .ao-st-installing { background: #fce7f3; color: #9d174d; }
+  .ao-st-completed { background: #d1fae5; color: #065f46; }
+  .ao-st-cancelled { background: #f1f5f9; color: #64748b; }
+  .ao-st-fulfillment { background: rgba(37,99,235,0.06); color: #2563eb; border: 1px solid rgba(37,99,235,0.1); padding: 3px 10px; border-radius: 50px; font-size: 0.7rem; font-weight: 600; }
+  .ao-st-payment { padding: 3px 10px; border-radius: 50px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+  .ao-st-payment.paid { background: #d1fae5; color: #065f46; }
+  .ao-st-payment.pending { background: #fef3c7; color: #92400e; }
+  .ao-st-payment.failed { background: #fee2e2; color: #991b1b; }
+
+  /* ═══ ENTERPRISE MODAL ═══ */
+  .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+  .ent-modal-header { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; }
+  .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .ent-modal-body { padding: 24px; }
+  .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+  .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .ent-detail-card-wide { grid-column: span 2; }
+  .ent-detail-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ent-detail-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+  .ent-detail-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+  .ent-detail-sub { font-size: 0.8rem; color: #64748b; }
+  @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+
+  /* ═══ UPGRADED TECH CARDS ═══ */
+  .ao-tech-list-upgraded { display: flex; flex-direction: column; gap: 10px; }
+  .ao-tech-card { background: #fff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: all 0.2s; }
+  .ao-tech-card:hover { border-color: #3b82f6; background: #f8faff; }
+  .ao-tech-card.selected { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  .ao-tech-card-top { display: flex; align-items: center; gap: 10px; }
+  .ao-tech-card-avatar-up { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; position: relative; flex-shrink: 0; }
+  .ao-tech-card-avatar-up::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--status-color, #94a3b8); border: 2px solid #fff; }
+  .ao-tech-card-info { flex: 1; min-width: 0; }
+  .ao-tech-card-name { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+  .ao-tech-card-status { font-size: 0.72rem; color: #64748b; }
+  .ao-tech-card-rating { font-size: 0.8rem; color: #f59e0b; font-weight: 600; white-space: nowrap; }
+  .ao-tech-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .ao-tech-badge { font-size: 0.7rem; background: #f1f5f9; color: #475569; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; white-space: nowrap; }
+  .ao-tech-badge i { font-size: 0.65rem; }
+  .ao-tech-card-footer { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+  .ao-assign-now-btn { font-size: 0.75rem; padding: 2px 10px; }
+
+  /* ═══ TECH PICKER ═══ */
+  .ao-tech-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .ao-tech-option { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 2px solid #e2e8f0; cursor: pointer; transition: all 0.15s; background: #f8fafc; flex: 1; min-width: 180px; }
+  .ao-tech-option:hover { border-color: #3b82f6; background: #eff6ff; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(59,130,246,0.12); }
+  .ao-tech-option.selected { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  .ao-tech-option.unavailable { opacity: 0.5; pointer-events: none; }
+  .ao-tech-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0; }
+  .ao-tech-avatar.online { background: linear-gradient(135deg, #10b981, #059669); }
+  .ao-tech-name { font-size: 0.85rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ao-tech-status { font-size: 0.7rem; color: #64748b; }
+  .ao-tech-status .online { color: #22c55e; }
+  .ao-tech-rating { font-size: 0.7rem; color: #f59e0b; }
+  .ao-action-btn { padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; transition: var(--ao-transition); }
+
+  /* ═══ DETAIL MODAL INNER ═══ */
+  .pm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+  .pm-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;transition:all .2s}
+  .pm-card:hover{border-color:#cbd5e1;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+  .pm-card-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;background:#fafbfc}
+  .pm-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+  .pm-card-title{font-size:.82rem;font-weight:700;color:#1e293b;margin:0}
+  .pm-card-body{padding:14px 18px}
+  .pm-row{display:flex;flex-direction:column;gap:1px;padding:7px 0}
+  .pm-row+.pm-row{border-top:1px solid #f1f5f9}
+  .pm-lbl{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8}
+  .pm-val{font-size:.88rem;font-weight:600;color:#1e293b;line-height:1.3}
+  .pm-sub{font-size:.76rem;color:#64748b}
+  .pm-status-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .pm-section-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .pm-section-title{font-size:.85rem;font-weight:700;color:#1e293b}
+</style>
+
+<div class="ao-page">
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-receipt"></i></div>
+        <div>
+          <h1>Aircon Orders</h1>
+          <p>Manage customer aircon orders — payment, assignment, delivery &amp; installation</p>
+        </div>
+      </div>
+      <div class="au-hero-stats" style="display:none;">
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroTotal">-</div><div class="au-hero-stat-lbl">Total</div></div>
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroActive">-</div><div class="au-hero-stat-lbl">Active</div></div>
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroCompleted">-</div><div class="au-hero-stat-lbl">Completed</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB NAVIGATION ═══ -->
+  <div class="ao-tabs-wrapper">
+    <ul class="ao-tabs" role="tablist">
+      <li role="presentation"><button class="ao-tab-btn active" data-bs-toggle="tab" data-bs-target="#ao-tab-overview" type="button" role="tab"><i class="bi bi-pie-chart-fill"></i> Overview <span class="ao-tab-badge" id="aoTabTotalBadge"></span></button></li>
+      <li role="presentation"><button class="ao-tab-btn" data-bs-toggle="tab" data-bs-target="#ao-tab-payment" type="button" role="tab"><i class="bi bi-credit-card"></i> Pending Payment <span class="ao-tab-badge" id="aoTabPaymentBadge"></span></button></li>
+      <li role="presentation"><button class="ao-tab-btn" data-bs-toggle="tab" data-bs-target="#ao-tab-assign" type="button" role="tab"><i class="bi bi-person-check"></i> Assignment Queue <span class="ao-tab-badge" id="aoTabAssignBadge"></span></button></li>
+      <li role="presentation"><button class="ao-tab-btn" data-bs-toggle="tab" data-bs-target="#ao-tab-waiting" type="button" role="tab"><i class="bi bi-hourglass-split"></i> Waiting for Acceptance <span class="ao-tab-badge" id="aoTabWaitingBadge"></span></button></li>
+      <li role="presentation"><button class="ao-tab-btn" data-bs-toggle="tab" data-bs-target="#ao-tab-active" type="button" role="tab"><i class="bi bi-truck"></i> In Progress <span class="ao-tab-badge" id="aoTabActiveBadge"></span></button></li>
+      <li role="presentation"><button class="ao-tab-btn" data-bs-toggle="tab" data-bs-target="#ao-tab-completed" type="button" role="tab"><i class="bi bi-check-circle-fill"></i> Completed <span class="ao-tab-badge" id="aoTabDoneBadge"></span></button></li>
+    </ul>
+  </div>
+
+  <div class="tab-content">
+    <!-- ═══ OVERVIEW TAB ═══ -->
+    <div class="tab-pane fade show active" id="ao-tab-overview" role="tabpanel">
+      <div class="ao-stats" id="aoOverviewStats"></div>
+      <div class="d-flex gap-2 mb-3 flex-wrap">
+        <input type="text" class="form-control form-control-sm" id="aoSearch" placeholder="Search ref, customer..." style="max-width:280px;border-radius:10px;">
+        <select class="form-select form-select-sm" id="aoStatusFilter" style="width:170px;border-radius:10px;">
+          <option value="all">All Statuses</option>
+          <option value="pending_payment">Pending Payment</option>
+          <option value="preparing_unit">Preparing Unit</option>
+          <option value="technician_assigned">Technician Assigned</option>
+          <option value="out_for_delivery">Out for Delivery</option>
+          <option value="arrived">Arrived</option>
+          <option value="installing">Installing</option>
+          <option value="completed">Completed</option>
+          <option value="technician_declined">Technician Declined</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select class="form-select form-select-sm" id="aoFulfillFilter" style="width:160px;border-radius:10px;">
+          <option value="all">All Types</option>
+          <option value="delivery_only">Delivery Only</option>
+          <option value="delivery_installation">Delivery + Install</option>
+          <option value="customer_pickup">Customer Pickup</option>
+        </select>
+        <button class="btn btn-sm btn-primary fw-semibold" id="aoFilterBtn" style="border-radius:10px;padding:6px 16px;"><i class="bi bi-funnel me-1"></i>Filter</button>
+      </div>
+      <div id="aoOverviewContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading orders...</p></div>
+      </div>
+      <div class="d-flex justify-content-center mt-3" id="aoPagination"></div>
+    </div>
+
+    <!-- ═══ PENDING PAYMENT TAB ═══ -->
+    <div class="tab-pane fade" id="ao-tab-payment" role="tabpanel">
+      <div class="ao-stats" id="aoPaymentStats" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div id="aoPaymentContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading payment queue...</p></div>
+      </div>
+    </div>
+
+    <!-- ═══ READY TO ASSIGN TAB ═══ -->
+    <div class="tab-pane fade" id="ao-tab-assign" role="tabpanel">
+      <div class="ao-stats" id="aoAssignStats" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div id="aoAssignContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading assignable orders...</p></div>
+      </div>
+    </div>
+
+    <!-- ═══ WAITING FOR ACCEPTANCE TAB ═══ -->
+    <div class="tab-pane fade" id="ao-tab-waiting" role="tabpanel">
+      <div class="ao-stats" id="aoWaitingStats" style="grid-template-columns:repeat(2,1fr);"></div>
+      <div id="aoWaitingContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
+      </div>
+    </div>
+
+    <!-- ═══ IN PROGRESS TAB ═══ -->
+    <div class="tab-pane fade" id="ao-tab-active" role="tabpanel">
+      <div class="ao-stats" id="aoActiveStats" style="grid-template-columns:repeat(4,1fr);"></div>
+      <div id="aoActiveContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading active orders...</p></div>
+      </div>
+    </div>
+
+    <!-- ═══ COMPLETED TAB ═══ -->
+    <div class="tab-pane fade" id="ao-tab-completed" role="tabpanel">
+      <div class="ao-stats" id="aoCompletedStats" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div id="aoCompletedContainer">
+        <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading completed orders...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Order Detail Modal ═══ -->
+<div class="modal fade" id="aoDetailsModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered modal-lg">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-receipt"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Order Details</h6>
+            <small style="opacity:0.85;font-size:0.8rem;" id="aoModalSubtitle">Loading...</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" id="aoModalBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading order details...</p></div>
+      </div>
+      <div class="modal-footer ent-modal-footer" id="aoModalFooter">
+        <button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Image Viewer Modal (on top of all modals) ═══ -->
+<div class="modal fade" id="aoImageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:90vw;">
+    <div class="modal-content" style="background:transparent;border:none;box-shadow:none;">
+      <div class="text-center">
+        <button type="button" class="btn-close btn-close-white mb-2" data-bs-dismiss="modal" aria-label="Close" style="position:absolute;top:-8px;right:-8px;background:#1e293b;border-radius:50%;opacity:1;padding:0.75rem;"></button>
+        <img id="aoImageModalImg" src="" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Assign Technician Modal (Upgraded) ═══ -->
+<div class="modal fade" id="aoAssignTechModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1100px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-person-check"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Assign Technician</h6>
+            <small style="opacity:0.85;font-size:0.8rem;">Select an available technician for this order</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" style="max-height:75vh;overflow-y:auto;">
+        <div class="ent-detail-card ent-detail-card-wide mb-3">
+          <div class="ent-detail-card-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-box-seam"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Order</span>
+            <span class="ent-detail-value fw-bold" id="aoAssignOrderRef">—</span>
+            <span class="ent-detail-sub" id="aoAssignCustomerName">—</span>
+          </div>
+        </div>
+        <hr class="my-3">
+        <!-- Map + Tech Panel -->
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div id="aoAssignMapContainer" style="height:340px;border-radius:12px;overflow:hidden;border:1px solid #dee2e6;background:#f8f9fa;"></div>
+            <div class="d-flex align-items-center justify-content-between mt-2">
+              <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>Technician locations relative to delivery</small>
+              <small class="text-muted" id="aoAssignMapTechCount">0 technicians</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <!-- AI Recommended -->
+            <div id="aoAIRecommendSection" class="d-flex align-items-center gap-2 mb-2 p-2 bg-warning bg-opacity-10 rounded" style="display:none;">
+              <span class="badge bg-warning text-dark"><i class="bi bi-robot me-1"></i>AI Recommended</span>
+              <span class="small fw-semibold" id="aoAIRecommendName">—</span>
+              <span class="small text-muted" id="aoAIRecommendReason">—</span>
+              <button class="btn btn-sm btn-outline-warning ms-auto" onclick="window._aoAssignAIPick()">Assign</button>
+            </div>
+            <h6 class="fw-bold mb-2" style="font-size:0.82rem;"><i class="bi bi-people me-2"></i>Available Technicians <span class="badge bg-primary rounded-pill" id="aoTechCountBadge">0</span></h6>
+            <div id="aoTechListContainer" style="max-height:270px;overflow-y:auto;"><div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div></div>
+          </div>
+        </div>
+        <hr class="my-3">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Priority</label>
+            <select class="form-select form-select-sm bg-light" id="aoAssignPriority" style="border-radius:8px;border:1px solid #e2e8f0;">
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Customer Preferred Date</label>
+            <input type="date" class="form-control form-control-sm bg-light" id="aoAssignDate" readonly style="border-radius:8px;border:1px solid #e2e8f0; pointer-events: none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Customer Preferred Time</label>
+            <input type="text" class="form-control form-control-sm bg-light" id="aoAssignTimeSlot" readonly style="border-radius:8px;border:1px solid #e2e8f0; pointer-events: none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">Notes <small class="text-muted">(optional)</small></label>
+            <input type="text" class="form-control form-control-sm" id="aoAssignNote" placeholder="Special instructions..." style="border-radius:8px;border:2px solid #e2e8f0;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer ent-modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary fw-bold" id="aoAssignConfirmBtn" disabled style="border-radius:8px;">
+          <i class="bi bi-check-lg me-1"></i>Assign Selected Technician
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Image viewer modal helper - ensure it appears on top of all modals
+  document.addEventListener("DOMContentLoaded", () => {
+    const css = document.createElement("style");
+    css.textContent = "#aoImageModal { z-index: 9999 !important; } #aoImageModal ~ .modal-backdrop { z-index: 9990 !important; }";
+    document.head.appendChild(css);
+    
+    window.openAoImage = function(src) {
+      const img = document.getElementById('aoImageModalImg');
+      if (img) img.src = src;
+      const modalEl = document.getElementById('aoImageModal');
+      if (modalEl) {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+      }
+    };
+  });
+</script>
+<script src="/js/admin-aircon-orders.js"></script>

@@ -1,0 +1,1687 @@
+// Client-side Booking History (front-end only)
+// - Fetches /api/appointments, filters client-side to the current user and renders a responsive list/table
+// - Provides search, status/date filters, pagination, view details modal and JSON download
+
+(function () {
+  "use strict";
+
+  const root = document.getElementById("bookHistoryRoot");
+  if (!root) return;
+
+  const userId = root.getAttribute("data-user-id") || "";
+  const userEmail = (root.getAttribute("data-user-email") || "").toLowerCase();
+
+  const perPage = 8;
+  let bookings = [];
+  let originalBookings = [];
+  let filtered = [];
+  let page = 0;
+  let usingSample = false;
+
+  // UI elements
+  const el = {
+    loading: document.getElementById("bh-loading"),
+    empty: document.getElementById("bh-empty"),
+    tableWrap: document.getElementById("bh-table-wrapper"),
+    tbody: document.getElementById("bh-tbody"),
+    count: document.getElementById("bh-count"),
+    prev: document.getElementById("bh-prev"),
+    next: document.getElementById("bh-next"),
+    search: document.getElementById("bh-search"),
+    status: document.getElementById("bh-status"),
+    from: document.getElementById("bh-from"),
+    to: document.getElementById("bh-to"),
+    clear: document.getElementById("bh-clear"),
+    showSample: document.getElementById("bh-show-sample"),
+    modalElement: document.getElementById("bhDetailModal"),
+    modal: null,
+    modalBody: document.getElementById("bh-modal-body"),
+    downloadJsonBtn: document.getElementById("bh-download-json"),
+  };
+
+  function setupModalEnvironment() {
+    if (!el.modalElement) return;
+    if (el.modalElement.parentElement !== document.body) {
+      document.body.appendChild(el.modalElement);
+    }
+  }
+
+  setupModalEnvironment();
+
+  function ensureModalInstance() {
+    if (el.modal) return el.modal;
+    if (!el.modalElement) return null;
+    if (window.bootstrap && window.bootstrap.Modal) {
+      el.modal = new window.bootstrap.Modal(el.modalElement, { backdrop: true, keyboard: true });
+      return el.modal;
+    }
+    return null;
+  }
+
+  function statusBadge(status) {
+    const map = {
+      pending: "warning",
+      confirmed: "success",
+      completed: "secondary",
+      cancelled: "danger",
+      "re-scheduled": "info",
+      // Enterprise Repair statuses
+      repair_requested: "warning",
+      pending_inspection: "info",
+      inspection_scheduled: "primary",
+      inspection_in_progress: "info",
+      inspection_completed: "primary",
+      awaiting_approval: "warning",
+      repair_approved: "success",
+      repair_declined: "danger",
+      waiting_parts: "info",
+      parts_reserved: "primary",
+      ready_for_repair: "success",
+      repair_scheduled: "primary",
+      repair_in_progress: "primary",
+      repair_completed: "success",
+      under_warranty: "success",
+      warranty_claim: "warning",
+      closed: "secondary",
+    };
+    const cls = map[String(status || "").toLowerCase()] || "secondary";
+    const label = String(status || "unknown").replace(/_/g, " ");
+    return `<span class="badge bg-${cls} text-capitalize">${label}</span>`;
+  }
+
+  function shortId(id) {
+    if (!id) return "-";
+    const s = String(id);
+    return s.length > 8 ? s.slice(-8) : s;
+  }
+
+  function formatDateTime(d) {
+    if (!d) return "-";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return d;
+    return (
+      dt.toLocaleDateString() +
+      " • " +
+      dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
+  }
+
+  function formatTime(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const raw = String(value).trim();
+
+    // already in HH:MM form
+    if (/^\d{1,2}:\d{2}$/.test(raw)) {
+      const [h, m] = raw.split(":").map((n) => Number(n));
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // minute-of-day numeric string or number
+    const mins = Number(raw);
+    if (Number.isFinite(mins)) {
+      const h = Math.floor(mins / 60) % 24;
+      const m = mins % 60;
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // fallback for values like '08:00 AM'
+    return raw;
+  }
+
+  function renderTable() {
+    const start = page * perPage;
+    const pageItems = filtered.slice(start, start + perPage);
+
+    el.tbody.innerHTML = pageItems
+      .map((b) => {
+        const dateText = b.bookingDate
+          ? new Date(b.bookingDate).toLocaleDateString()
+          : "-";
+        const timeText = b.startTime || "-";
+        const svc = (b.serviceType || "service") + (b.serviceId ? "" : "");
+        const location =
+          b.location && b.location.address ? b.location.address : "-";
+        const rated = b.customerRating != null && b.customerRating !== "";
+        const ratingCell = (() => {
+          if (b.status !== "completed") return "";
+          if (rated) {
+            return `<div class="text-warning" style="white-space:nowrap">${ratingStars(b.customerRating)}</div>`;
+          }
+          return `<button class="btn btn-sm btn-outline-success bh-rate" data-id="${b._id}">Rate</button>`;
+        })();
+        return `
+        <tr data-id="${b._id}">
+          <td><div class="fw-semibold">${shortId(b._id)}</div><div class="small text-muted">Created: ${formatDateTime(b.createdAt)}</div></td>
+          <td>${escapeHtml(svc)}</td>
+          <td><div class="fw-semibold">${escapeHtml(dateText)}</div><div class="small text-muted">${escapeHtml(timeText)}</div></td>
+          <td>${statusBadge(b.status)}</td>
+          <td class="text-truncate" style="max-width:220px">${escapeHtml(location)}</td>
+          <td class="text-center">${ratingCell}</td>
+          <td class="text-end">
+            <div class="btn-group" role="group">
+              <button class="btn btn-sm btn-outline-primary bh-view" data-id="${b._id}"><i class="bi bi-eye"></i></button>
+              <button class="btn btn-sm btn-outline-secondary bh-download" data-id="${b._id}"><i class="bi bi-download"></i></button>
+              ${b.status === 'pending' ? `
+                <button class="btn btn-sm btn-outline-warning bh-reschedule" data-id="${b._id}" title="Re-schedule"><i class="bi bi-calendar-event"></i></button>
+                <button class="btn btn-sm btn-outline-danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>
+              ` : ''}
+              ${b.status === 'repair_approved' ? `
+                <button class="btn btn-sm btn-outline-primary bh-schedule-later" data-id="${b._id}" title="Schedule Repair" style="white-space:nowrap;"><i class="bi bi-calendar-plus me-1"></i>Schedule</button>
+              ` : ''}
+              ${b.status === 'awaiting_approval' ? `
+                <button class="btn btn-sm btn-outline-success bh-view" data-id="${b._id}" title="Review Quotation" style="white-space:nowrap;"><i class="bi bi-receipt me-1"></i>Review</button>
+              ` : ''}
+              <a class="btn btn-sm btn-primary" href="/services" title="Rebook"><i class="bi bi-arrow-repeat"></i></a>
+            </div>
+          </td>
+        </tr>`;
+      })
+      .join("");
+
+    el.count.textContent = `Showing ${Math.min(filtered.length, start + 1)}–${Math.min(filtered.length, start + perPage)} of ${filtered.length}`;
+    el.prev.disabled = page <= 0;
+    el.next.disabled = start + perPage >= filtered.length;
+
+    // toggle visibility
+    el.loading.classList.add("d-none");
+    el.empty.classList.toggle("d-none", filtered.length !== 0);
+    el.tableWrap.classList.toggle("d-none", filtered.length === 0);
+
+    attachRowHandlers();
+  }
+
+  function ratingStars(score) {
+    if (!score || isNaN(score)) return "";
+    let out = "";
+    for (let i = 1; i <= 5; i++) {
+      if (i <= Math.floor(score)) {
+        out += '<i class="bi bi-star-fill"></i>';
+      } else if (i - score < 1) {
+        out += '<i class="bi bi-star-half"></i>';
+      } else {
+        out += '<i class="bi bi-star"></i>';
+      }
+    }
+    return out;
+  }
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c];
+    });
+  }
+
+  function attachRowHandlers() {
+    document.querySelectorAll(".bh-view").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        const b = bookings.find((x) => String(x._id) === String(id));
+        if (!b) return;
+        showDetailModal(b);
+      };
+    });
+
+    document.querySelectorAll(".bh-download").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        const b = bookings.find((x) => String(x._id) === String(id));
+        if (!b) return;
+        downloadJSON(b, `booking-${shortId(b._id)}.json`);
+      };
+    });
+
+    // rating buttons - use premium modal
+    document.querySelectorAll(".bh-rate").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        const b = bookings.find((x) => String(x._id) === String(id));
+        if (!b) return;
+        // Open premium rating modal
+        if (window.openRatingModal) {
+          const techText = b.technicianName || (b.technician && b.technician.name) || null;
+          window.openRatingModal(id, b.serviceType || 'Service', techText);
+        } else {
+          // Fallback to native prompt if modal not available
+          const score = prompt("Enter rating (1-5)");
+          if (!score) return;
+          submitRating(id, Number(score), null);
+        }
+      };
+    });
+
+    // cancel button handler
+    document.querySelectorAll(".bh-cancel").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        const b = bookings.find((x) => String(x._id) === String(id));
+        if (!b) return;
+        const reason = prompt("Please provide a reason for cancelling this booking:");
+        if (reason === null) return; // User clicked cancel
+        if (reason.trim() === "") {
+          alert("Please provide a reason for cancellation.");
+          return;
+        }
+        if (confirm("Are you sure you want to cancel this booking?")) {
+          cancelBooking(id, reason.trim());
+        }
+      };
+    });
+
+    // reschedule button handler
+    document.querySelectorAll(".bh-reschedule").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        const b = bookings.find((x) => String(x._id) === String(id));
+        if (!b) return;
+        openRescheduleModal(b);
+      };
+    });
+
+    // schedule later button handler (for repair_approved bookings)
+    document.querySelectorAll(".bh-schedule-later").forEach((btn) => {
+      btn.onclick = function () {
+        const id = this.getAttribute("data-id");
+        bhShowRepairTodayChoice(id);
+      };
+    });
+  }
+
+  function showDetailModal(b) {
+    const isRepair = b.serviceType === 'repair' || b.serviceModel === 'RepairService' || b.unitInfo;
+    const serviceTypeLabel = isRepair ? 'Repair Service' : 'Core Service';
+    const serviceName =
+      (b.service && b.service.name) ||
+      (b.serviceId && b.serviceId.name) ||
+      b.serviceType ||
+      "Service";
+    const bookingRef = b.bookingReference || b.workOrderNumber || "—";
+    // For repair bookings, use preferredDate/preferredTime as the primary schedule
+    // since bookingDate is set to creation date, not the intended service date.
+    // For core service bookings, bookingDate is the actual service date.
+    const scheduleDate = b.preferredDate || b.bookingDate;
+    const dateText = scheduleDate
+      ? new Date(scheduleDate).toLocaleDateString()
+      : "—";
+    const timeText = b.selectedTimeLabel || b.preferredTime || b.startTime || "—";
+    const occupiedBlock =
+      b.startTime && b.endTime ? `${formatTime(b.startTime)} – ${formatTime(b.endTime)}` : "—";
+    const techText =
+      b.technicianName ||
+      (b.technician && b.technician.name) ||
+      b.technicianId ||
+      "—";
+    const locationText = (b.location && b.location.address) || "—";
+    const feeText =
+      b.estimatedFee != null && b.estimatedFee !== ""
+        ? `₱${Number(b.estimatedFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : "—";
+
+    // Ensure modal close buttons work reliably
+    const closeModalFn = () => {
+      const inst = ensureModalInstance();
+      if (inst) inst.hide();
+    };
+
+    el.modalBody.innerHTML = `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="text-primary fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+            <div class="bg-primary text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-info-circle"></i></div>
+            Booking Information
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Reference</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(String(bookingRef))}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Booking ID</div>
+              <div class="fw-bold fs-6 text-dark text-truncate" title="${escapeHtml(String(b._id || "—"))}"><code>${escapeHtml(String(b._id || "—"))}</code></div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Status</div>
+              <div>${statusBadge(b.status)}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Created</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(formatDateTime(b.createdAt))}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="text-success fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+            <div class="bg-success text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-clock-history"></i></div>
+            Schedule
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Date</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(dateText)}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Selected Time</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(timeText)}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Occupied Block</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(occupiedBlock)}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Travel Time</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(b.travelTime != null ? String(b.travelTime) + " min" : "—")}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="text-purple fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #8b5cf6;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #8b5cf6;"><i class="bi bi-tools"></i></div>
+            Service & Assignment
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Service</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(serviceTypeLabel)}${!isRepair && serviceName !== 'Service' ? ' — ' + escapeHtml(serviceName) : ''}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Technician</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(String(techText))}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Estimated Fee</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(feeText)}</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small fw-semibold text-uppercase mb-1">Location</div>
+              <div class="fw-bold fs-6 text-dark">${escapeHtml(locationText)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      ${(() => {
+        const pm = b.paymentMethod || '';
+        const total = b.totalPrice || b.estimatedFee || 0;
+        const dp = b.downpaymentAmount || 400;
+        const amountPaid = b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0);
+        const balance = b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0);
+        const isPaid = b.paymentStatus === 'paid';
+        const isPartial = b.paymentStatus === 'partial';
+
+        if (!pm) return '';
+
+        const methodLabel = pm === 'cod' ? 'Cash on Delivery' : pm === 'gcash' ? 'GCash' : pm.toUpperCase();
+        const statusLabel = isPaid ? 'Paid in Full' : isPartial ? 'Downpayment Received' : 'Pending';
+        const statusClass = isPaid ? 'bg-success' : isPartial ? 'bg-info text-dark' : 'bg-warning text-dark';
+
+        let breakdown = '';
+        if (pm === 'cod') {
+          breakdown = `
+            <div class="p-3 rounded-3 mt-3" style="background:#fffbeb;border:1px solid #fde68a;">
+              <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+                <span class="text-muted">Total Service Fee</span>
+                <span class="fw-bold">₱${Number(total).toLocaleString()}</span>
+              </div>
+              <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+                <span class="text-muted">Downpayment (paid now)</span>
+                <span class="fw-bold text-primary">-₱${Number(dp).toLocaleString()}</span>
+              </div>
+              <hr class="my-2" style="border-color:#fde68a;">
+              <div class="d-flex justify-content-between" style="font-size:0.9rem;">
+                <span class="fw-bold">Balance on Completion</span>
+                <span class="fw-bold ${balance <= 0 ? 'text-success' : 'text-warning'}">₱${Number(balance).toLocaleString()}</span>
+              </div>
+              ${amountPaid > dp ? `
+              <div class="d-flex justify-content-between mt-2 pt-2 border-top" style="border-color:#fde68a !important;font-size:0.85rem;">
+                <span class="text-success"><i class="bi bi-check-circle me-1"></i>Total Paid</span>
+                <span class="fw-bold text-success">₱${Number(amountPaid).toLocaleString()}</span>
+              </div>` : ''}
+            </div>`;
+        }
+
+        return `
+          <div class="card border-0 bg-transparent mb-4">
+            <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+              <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #059669;">
+                <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #059669;"><i class="bi bi-cash-coin"></i></div>
+                Payment Details
+              </h6>
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  <div class="text-muted small fw-semibold text-uppercase mb-1">Method</div>
+                  <div class="fw-bold fs-6 text-dark">${escapeHtml(methodLabel)}</div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="text-muted small fw-semibold text-uppercase mb-1">Status</div>
+                  <div><span class="badge ${statusClass}" style="font-size:0.78rem;">${statusLabel}</span></div>
+                </div>
+              </div>
+              ${breakdown}
+            </div>
+          </div>`;
+      })()}
+
+      ${b.unitInfo || b.serviceType === 'repair' || (b.status && b.status.startsWith('repair_')) || ['pending_inspection','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','repair_declined','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','repair_completed','under_warranty','warranty_claim','closed'].includes(b.status) ? `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #d97706;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #d97706;"><i class="bi bi-wrench"></i></div>
+            Unit Information
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Unit Type</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.unitType || '—')}</div></div>
+            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Brand</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.brand || '—')}</div></div>
+            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Model</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.model || 'N/A')}</div></div>
+            <div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Problem</div><div class="fw-bold text-dark" style="font-size:0.9rem;line-height:1.5;">${escapeHtml(b.unitInfo?.problemDescription || b.issueDescription || '—')}</div></div>
+          </div>
+        </div>
+      </div>` : ''}
+
+      ${b.preferredDate && !isRepair ? `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #d97706;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #d97706;"><i class="bi bi-calendar-event"></i></div>
+            Preferred Schedule
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Date</div><div class="fw-bold text-dark">${escapeHtml(new Date(b.preferredDate).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}</div></div>
+            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Time</div><div class="fw-bold text-dark">${escapeHtml(b.preferredTime || '—')}</div></div>
+          </div>
+        </div>
+      </div>` : ''}
+
+      ${b.inspection?.completedAt ? `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #059669;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #059669;"><i class="bi bi-clipboard-check"></i></div>
+            Inspection Results
+          </h6>
+          <div class="row g-3">
+            <div class="col-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Findings</div><div class="fw-bold text-dark" style="font-size:0.9rem;line-height:1.5;">${escapeHtml(b.inspection.findings || '—')}</div></div>
+            ${b.inspection.damagedParts?.length ? `<div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Damaged Parts</div><div class="fw-bold text-dark">${escapeHtml(b.inspection.damagedParts.join(', '))}</div></div>` : ''}
+            ${b.inspection.laborRequired ? `<div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Labor Required</div><div class="fw-bold text-dark">${escapeHtml(b.inspection.laborRequired)}</div></div>` : ''}
+          </div>
+        </div>
+      </div>` : ''}
+
+      ${b.quotation?.totalCost ? `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #7c3aed;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #7c3aed;"><i class="bi bi-receipt"></i></div>
+            Repair Quotation
+            ${b.approval?.status ? `<span class="badge ${b.approval.status === 'approved' ? 'bg-success' : b.approval.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:0.65rem;margin-left:auto;">${b.approval.status.toUpperCase()}</span>` : ''}
+          </h6>
+          ${b.quotation.parts?.length ? b.quotation.parts.map(p => `
+            <div class="d-flex justify-content-between align-items-center py-1" style="font-size:0.88rem;">
+              <span class="text-muted">${escapeHtml(p.name)} <span class="text-secondary">×${p.quantity || 1}</span></span>
+              <span class="fw-bold text-dark">₱${Number((p.cost||0)*(p.quantity||1)).toLocaleString()}</span>
+            </div>
+          `).join('') : ''}
+          <div class="d-flex justify-content-between align-items-center py-1" style="font-size:0.88rem;">
+            <span class="text-muted">Labor</span>
+            <span class="fw-bold text-dark">₱${Number(b.quotation.laborCost || 0).toLocaleString()}</span>
+          </div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between align-items-center py-1">
+            <span class="fw-bold">Total</span>
+            <span class="fw-bold fs-5 text-primary">₱${Number(b.quotation.totalCost).toLocaleString()}</span>
+          </div>
+          ${b.quotation.notes ? `<div class="mt-2 p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:0.82rem;color:#64748b;"><i class="bi bi-info-circle me-1"></i>${escapeHtml(b.quotation.notes)}</div>` : ''}
+
+          ${b.status === 'awaiting_approval' ? `
+          <div class="mt-3 pt-3 border-top d-flex gap-2">
+            <button class="btn btn-success flex-fill fw-bold" onclick="bhApproveQuotation('${b._id}')">
+              <i class="bi bi-check-circle me-2"></i>Approve Quotation
+            </button>
+            <button class="btn btn-outline-danger fw-bold" onclick="bhDeclineQuotation('${b._id}')">
+              <i class="bi bi-x-circle me-2"></i>Decline
+            </button>
+          </div>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${b.warranty?.startDate ? `
+      <div class="card border-0 bg-transparent mb-4">
+        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
+          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #16a34a;">
+            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #16a34a;"><i class="bi bi-shield-check"></i></div>
+            Warranty ${b.warranty.status === 'claimed' ? '<span class="badge bg-warning text-dark ms-2">CLAIMED</span>' : b.warranty.status === 'expired' ? '<span class="badge bg-secondary ms-2">EXPIRED</span>' : '<span class="badge bg-success ms-2">ACTIVE</span>'}
+          </h6>
+          <div class="row g-3">
+            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">Duration</div><div class="fw-bold text-dark">${b.warranty.days || 30} days</div></div>
+            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">Start</div><div class="fw-bold text-dark">${new Date(b.warranty.startDate).toLocaleDateString()}</div></div>
+            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">End</div><div class="fw-bold text-dark">${b.warranty.endDate ? new Date(b.warranty.endDate).toLocaleDateString() : '—'}</div></div>
+          </div>
+          ${b.status === 'under_warranty' && b.warranty.status === 'active' ? `
+          <div class="mt-3 pt-3 border-top">
+            <button class="btn btn-outline-warning btn-sm" onclick="window.bhWarrantyClaim('${b._id}')">
+              <i class="bi bi-exclamation-triangle me-1"></i>File Warranty Claim
+            </button>
+          </div>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${b.notes ? `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle"><h6 class="text-secondary fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-secondary text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-file-text"></i></div>Notes</h6><div class="text-dark">${escapeHtml(String(b.notes))}</div></div></div>` : ""}
+    `;
+
+    // wire download button inside modal
+    el.downloadJsonBtn.onclick = function () {
+      downloadJSON(b, `booking-${shortId(b._id)}.json`);
+    };
+
+    // show rating inside modal if present or allow rating
+    if (b.status === "completed") {
+      const existing = b.customerRating != null && b.customerRating !== "";
+      const rateSection = existing
+        ? `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle"><h6 class="text-warning fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-warning text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-star-fill"></i></div>Your Rating</h6><div class="row g-3"><div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Score</div><div class="text-warning fs-5" style="white-space:nowrap">${ratingStars(b.customerRating)}</div></div>${
+            b.customerRatingComment
+              ? `<div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Comment</div><div class="fw-bold fs-6 text-dark">${escapeHtml(b.customerRatingComment)}</div></div>`
+              : ""
+          }</div></div></div>`
+        : `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle d-flex justify-content-between align-items-center"><h6 class="text-warning fw-bold text-uppercase mb-0 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-warning text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-chat-right-text"></i></div>Leave Feedback</h6><button class="btn btn-outline-warning fw-bold rounded-pill px-4 bh-rate" data-id="${b._id}">Rate this booking</button></div></div>`;
+      el.modalBody.innerHTML += rateSection;
+    }
+
+    const modalInstance = ensureModalInstance();
+    if (modalInstance) {
+      modalInstance.show();
+
+      // Fallback: ensure close buttons dismiss the modal even if data-bs-dismiss
+      // isn't working (e.g. due to Bootstrap version quirks or backdrop config)
+      const xBtn = document.querySelector('#bhDetailModal .bh-modal-close');
+      const closeBtn = document.querySelector('#bhDetailModal .bh-modal-footer .bh-btn-primary');
+      const doClose = () => { try { modalInstance.hide(); } catch(e) {} };
+      if (xBtn) xBtn.addEventListener('click', doClose);
+      if (closeBtn) closeBtn.addEventListener('click', doClose);
+    } else {
+      console.warn(
+        "Bootstrap Modal is unavailable. Ensure bootstrap.bundle is loaded before /js/book-history.js",
+      );
+      alert("Booking details loaded, but modal UI is unavailable right now.");
+    }
+  }
+
+  function downloadJSON(obj, filename) {
+    try {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "booking.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download error", e);
+    }
+  }
+
+  function bookingBelongsToUser(b) {
+    if (!b) return false;
+    // customerId can be a plain string, ObjectId-like, or an object with _id
+    const cidRaw = b.customerId || b.customer_id || b.customer || "";
+    const cid =
+      cidRaw && typeof cidRaw === "object"
+        ? cidRaw._id || (cidRaw.toString && cidRaw.toString())
+        : String(cidRaw || "");
+    if (cid && userId && String(cid) === String(userId)) return true;
+    const cust = String(b.customer || b.customerEmail || "").toLowerCase();
+    if (cust && userEmail && cust.indexOf(userEmail) !== -1) return true;
+    return false;
+  }
+
+  function applyFilters() {
+    const q = (el.search.value || "").toLowerCase().trim();
+    const status = (el.status.value || "all").toLowerCase();
+    const from = el.from.value ? new Date(el.from.value) : null;
+    const to = el.to.value ? new Date(el.to.value) : null;
+    if (to) {
+      to.setHours(23, 59, 59, 999);
+    }
+
+    filtered = bookings.filter((b) => {
+      // client-side ownership filter
+      if (userId && !bookingBelongsToUser(b)) return false;
+
+      // status filter
+      if (status !== "all" && String(b.status || "").toLowerCase() !== status)
+        return false;
+
+      // date range
+      if (from || to) {
+        const dt = b.bookingDate
+          ? new Date(b.bookingDate)
+          : b.createdAt
+            ? new Date(b.createdAt)
+            : null;
+        if (!dt) return false;
+        if (from && dt < from) return false;
+        if (to && dt > to) return false;
+      }
+
+      // search
+      if (q) {
+        const hay = [
+          String(b._id || ""),
+          String(b.serviceType || ""),
+          String(b.status || ""),
+          String(b.notes || ""),
+          String(b.technicianId || ""),
+          String((b.location && b.location.address) || ""),
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+
+      return true;
+    });
+
+    // most-recent-first
+    filtered.sort(
+      (a, b) =>
+        new Date(b.bookingDate || b.createdAt) -
+        new Date(a.bookingDate || a.createdAt),
+    );
+
+    page = 0;
+    renderTable();
+  }
+
+  function createSampleBookings() {
+    const now = new Date();
+    const sampleOwnerId = userId || undefined;
+    const sampleOwner = userEmail || "guest@example.com";
+    return [
+      {
+        _id: "sample0000000000000001",
+        customerId: sampleOwnerId,
+        customer: sampleOwner,
+        serviceType: "core",
+        serviceId: "core-101",
+        bookingDate: new Date(
+          now.getTime() - 7 * 24 * 3600 * 1000,
+        ).toISOString(),
+        startTime: "09:00",
+        status: "completed",
+        location: { address: "Brgy. San Isidro, Sample City" },
+        technicianId: "Tech-001",
+        createdAt: new Date(now.getTime() - 8 * 24 * 3600 * 1000).toISOString(),
+        notes: "Sample completed booking — AC maintenance.",
+      },
+      {
+        _id: "sample0000000000000002",
+        customerId: sampleOwnerId,
+        customer: sampleOwner,
+        serviceType: "repair",
+        serviceId: "repair-201",
+        bookingDate: new Date(
+          now.getTime() + 2 * 24 * 3600 * 1000,
+        ).toISOString(),
+        startTime: "13:00",
+        status: "pending",
+        location: { address: "Brgy. Santa Maria, Example Town" },
+        technicianId: "Tech-007",
+        createdAt: new Date(now.getTime() - 1 * 24 * 3600 * 1000).toISOString(),
+        notes: "Sample pending booking — diagnostics.",
+      },
+      {
+        _id: "sample0000000000000003",
+        customerId: sampleOwnerId,
+        customer: sampleOwner,
+        serviceType: "core",
+        serviceId: "core-103",
+        bookingDate: new Date(
+          now.getTime() + 10 * 24 * 3600 * 1000,
+        ).toISOString(),
+        startTime: "15:30",
+        status: "confirmed",
+        location: { address: "Brgy. Poblacion, Demo City" },
+        technicianId: "Tech-003",
+        createdAt: new Date(now.getTime() - 2 * 24 * 3600 * 1000).toISOString(),
+        notes: "Sample confirmed booking — installation.",
+      },
+    ];
+  }
+
+  async function fetchBookings() {
+    try {
+      el.loading.classList.remove("d-none");
+      el.tableWrap.classList.add("d-none");
+      el.empty.classList.add("d-none");
+
+      const res = await fetch("/api/appointments?limit=1000");
+      if (!res.ok) throw new Error("Failed to load");
+      const payload = await res.json();
+      let items = [];
+      if (Array.isArray(payload.items)) items = payload.items;
+      else if (Array.isArray(payload)) items = payload;
+
+      bookings = items || [];
+      originalBookings = bookings.slice();
+      applyFilters();
+
+      // show sample bookings button only when available
+      if (el.showSample) el.showSample.classList.remove("d-none");
+    } catch (e) {
+      console.error("Failed to load bookings", e);
+      el.loading.innerHTML =
+        '<div class="text-danger">Failed to load bookings. Try reloading the page.</div>';
+
+      // still allow sample demonstration when network fails
+      if (el.showSample) el.showSample.classList.remove("d-none");
+    }
+  }
+
+  // events
+  el.search.addEventListener("input", debounce(applyFilters, 250));
+  el.status.addEventListener("change", applyFilters);
+  el.from.addEventListener("change", applyFilters);
+  el.to.addEventListener("change", applyFilters);
+  el.clear.addEventListener("click", function () {
+    el.search.value = "";
+    el.status.value = "all";
+    el.from.value = "";
+    el.to.value = "";
+    applyFilters();
+  });
+
+  // sample bookings toggle (front-end only)
+  if (el.showSample) {
+    el.showSample.addEventListener("click", function () {
+      if (!usingSample) {
+        bookings = originalBookings.concat(createSampleBookings());
+        usingSample = true;
+        el.showSample.textContent = "Hide example bookings";
+        el.showSample.classList.remove("btn-outline-primary");
+        el.showSample.classList.add("btn-outline-secondary");
+      } else {
+        bookings = originalBookings.slice();
+        usingSample = false;
+        el.showSample.textContent = "Show example bookings";
+        el.showSample.classList.remove("btn-outline-secondary");
+        el.showSample.classList.add("btn-outline-primary");
+      }
+      applyFilters();
+    });
+  }
+
+  el.prev.addEventListener("click", function () {
+    if (page > 0) {
+      page--;
+      renderTable();
+    }
+  });
+  el.next.addEventListener("click", function () {
+    if ((page + 1) * perPage < filtered.length) {
+      page++;
+      renderTable();
+    }
+  });
+
+  // Expose submit rating function for premium modal
+  window.submitBookingRating = function(bookingId, score, comment) {
+    fetch(`/api/rating/booking/${encodeURIComponent(bookingId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ score: score, comment: comment }),
+    })
+      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(j))))
+      .then(() => fetchBookings())
+      .catch((err) => {
+        console.error(err);
+        alert("Failed to submit rating");
+      });
+  };
+
+  // Cancel booking function
+  function cancelBooking(bookingId, reason) {
+    fetch(`/api/appointments/${encodeURIComponent(bookingId)}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason }),
+    })
+      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(j))))
+      .then(() => {
+        alert("Booking cancelled successfully");
+        fetchBookings();
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Failed to cancel booking: " + (err.message || "Unknown error"));
+      });
+  }
+
+  // ── Quotation approve/decline (customer-facing) ──
+  window.bhApproveQuotation = function(bookingId) {
+    Swal.fire({
+      title: 'Approve Quotation?',
+      text: "You're approving this repair quotation. After approval, you can choose to repair now or schedule for later.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, Approve',
+      cancelButtonText: 'Cancel'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      fetch(`/api/bookings/${encodeURIComponent(bookingId)}/approve-quotation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Approved by customer" }),
+        credentials: "same-origin"
+      })
+        .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+        .then(() => {
+          fetchBookings();
+          bhShowRepairTodayChoice(bookingId);
+        })
+        .catch(err => { console.error(err); bhToast('error', 'Failed to approve: ' + (err.message || 'Unknown error')); });
+    });
+  };
+
+  window.bhDeclineQuotation = function(bookingId) {
+    Swal.fire({
+      title: 'Decline Quotation?',
+      text: "Are you sure you want to decline this repair quotation? This action cannot be undone.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, Decline',
+      cancelButtonText: 'Cancel',
+      input: 'text',
+      inputPlaceholder: 'Reason for declining (optional)',
+      inputAttributes: { maxlength: 200 }
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      fetch(`/api/bookings/${encodeURIComponent(bookingId)}/decline-quotation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: result.value || "Declined by customer" }),
+        credentials: "same-origin"
+      })
+        .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+        .then(() => {
+          bhToast('success', 'Quotation declined successfully.');
+          fetchBookings();
+        })
+        .catch(err => { console.error(err); bhToast('error', 'Failed to decline: ' + (err.message || 'Unknown error')); });
+    });
+  };
+
+  // ── Schedule Later (for repair_approved bookings) ──
+  window.bhScheduleLater = function(bookingId, directToSchedule) {
+    if (directToSchedule) {
+      // Customer clicked email link with ?schedule=true — go directly to date picker
+      bhShowScheduleLaterForm(bookingId);
+    } else {
+      bhShowRepairTodayChoice(bookingId);
+    }
+  };
+
+  // ── Toast notification helper ──
+  function bhToast(type, message) {
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: type,
+        title: message,
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+      });
+    } else {
+      const toast = document.createElement('div');
+      toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} position-fixed`;
+      toast.style.cssText = 'top:20px;right:20px;z-index:9999;min-width:300px;box-shadow:0 8px 24px rgba(0,0,0,0.15);border-radius:10px;';
+      toast.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'error' ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i><span>${message}</span></div>`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+  }
+  window.bhToast = bhToast;
+
+  // ── Repair Today / Schedule Later Choice Modal ──
+  window.bhShowRepairTodayChoice = function(bookingId) {
+    // Remove existing modals
+    const existing1 = document.getElementById('repairTodayModal');
+    if (existing1) existing1.remove();
+    const existing2 = document.getElementById('scheduleLaterModal');
+    if (existing2) existing2.remove();
+
+    const modalHtml = `
+    <div class="modal fade" id="repairTodayModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content" style="border:none;border-radius:20px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+          <div style="background:linear-gradient(135deg,#1e3a5f 0%,#7c3aed 100%);padding:24px 28px;color:#fff;">
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+                <i class="bi bi-calendar2-check" style="font-size:1.4rem;"></i>
+              </div>
+              <div>
+                <h5 class="fw-bold mb-0" style="font-size:1.15rem;">Schedule Your Repair</h5>
+                <small class="opacity-75">Choose when you'd like the repair done</small>
+              </div>
+            </div>
+          </div>
+          <div class="modal-body" style="padding:24px 28px;">
+            <p style="font-size:0.88rem;color:#475569;margin-bottom:1.25rem;line-height:1.6;">
+              Your quotation has been approved. Would you like the repair to be done <strong>today</strong>, or would you prefer to <strong>schedule it for another day</strong>?
+            </p>
+            <div class="d-flex flex-column gap-3">
+              <button class="btn text-start p-3" style="border:2px solid #22c55e;background:#f0fdf4;border-radius:14px;transition:all 0.2s;" 
+                onmouseover="this.style.borderColor='#16a34a';this.style.boxShadow='0 0 0 3px rgba(34,197,94,0.15)'" 
+                onmouseout="this.style.borderColor='#22c55e';this.style.boxShadow='none'"
+                onclick="bhChooseRepairToday('${bookingId}', 'today')">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#dcfce7,#bbf7d0);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="bi bi-lightning-charge-fill" style="color:#16a34a;font-size:1.3rem;"></i>
+                  </div>
+                  <div>
+                    <div class="fw-bold" style="color:#166534;font-size:0.95rem;">Yes, Repair Today</div>
+                    <div style="font-size:0.78rem;color:#16a34a;line-height:1.4;">If technician is available, repair starts immediately</div>
+                  </div>
+                  <i class="bi bi-chevron-right ms-auto" style="color:#22c55e;"></i>
+                </div>
+              </button>
+              <button class="btn text-start p-3" style="border:2px solid #3b82f6;background:#eff6ff;border-radius:14px;transition:all 0.2s;"
+                onmouseover="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(59,130,246,0.15)'" 
+                onmouseout="this.style.borderColor='#3b82f6';this.style.boxShadow='none'"
+                onclick="bhChooseRepairToday('${bookingId}', 'later')">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#dbeafe,#bfdbfe);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="bi bi-calendar3" style="color:#2563eb;font-size:1.3rem;"></i>
+                  </div>
+                  <div>
+                    <div class="fw-bold" style="color:#1e40af;font-size:0.95rem;">Schedule for Another Day</div>
+                    <div style="font-size:0.78rem;color:#2563eb;line-height:1.4;">Choose your preferred dates and our team will confirm</div>
+                  </div>
+                  <i class="bi bi-chevron-right ms-auto" style="color:#3b82f6;"></i>
+                </div>
+              </button>
+            </div>
+          </div>
+          <div style="padding:16px 28px;border-top:1px solid #f1f5f9;background:#fafbfc;text-align:center;">
+            <small class="text-muted" style="font-size:0.75rem;">You can also decide later from your booking history</small>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('repairTodayModal'));
+    modal.show();
+  };
+
+  window.bhChooseRepairToday = function(bookingId, choice) {
+    if (choice === 'today') {
+      // Show loading state
+      const modal = document.getElementById('repairTodayModal');
+      if (modal) {
+        const body = modal.querySelector('.modal-body');
+        if (body) {
+          body.innerHTML = `
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary mb-3" role="status" style="width:3rem;height:3rem;">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="fw-semibold text-dark mb-1">Checking Technician Availability</p>
+              <p class="text-muted" style="font-size:0.82rem;">Please wait a moment...</p>
+            </div>`;
+        }
+      }
+
+      fetch(`/api/appointments/${encodeURIComponent(bookingId)}/repair-today-choice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choice: "today" }),
+        credentials: "same-origin"
+      })
+        .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+        .then(data => {
+          bootstrap.Modal.getInstance(document.getElementById('repairTodayModal'))?.hide();
+          if (data.available) {
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'success',
+              title: data.message || 'Technician is available! Repair will start shortly.',
+              showConfirmButton: false,
+              timer: 5000,
+              timerProgressBar: true
+            });
+          } else {
+            // Not available — auto-open schedule later form
+            Swal.fire({
+              icon: 'info',
+              title: 'Technician Not Available Today',
+              text: data.message || 'The technician is not available today. Would you like to schedule for another day?',
+              showCancelButton: true,
+              confirmButtonText: 'Schedule for Later',
+              cancelButtonText: 'Close',
+              confirmButtonColor: '#3b82f6'
+            }).then((result) => {
+              if (result.isConfirmed) {
+                bhShowScheduleLaterForm(bookingId);
+              }
+            });
+          }
+          fetchBookings();
+        })
+        .catch(err => { 
+          console.error(err); 
+          bootstrap.Modal.getInstance(document.getElementById('repairTodayModal'))?.hide();
+          bhToast('error', 'Failed: ' + (err.message || 'Unknown error')); 
+          fetchBookings();
+        });
+    } else {
+      // Show schedule later form
+      bhShowScheduleLaterForm(bookingId);
+    }
+  };
+
+  window.bhShowScheduleLaterForm = function(bookingId) {
+    // Remove existing modals
+    const existing1 = document.getElementById('repairTodayModal');
+    if (existing1) bootstrap.Modal.getInstance(existing1)?.hide();
+    const existing2 = document.getElementById('scheduleLaterModal');
+    if (existing2) existing2.remove();
+
+    const today = new Date();
+    const dates = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      dates.push(d);
+    }
+
+    const dateOptions = dates.map(d => {
+      const dayName = d.toLocaleDateString('en-PH', { weekday: 'short' });
+      const monthDay = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+      const fullDate = d.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+      const value = d.toISOString().split('T')[0];
+      return `<label class="schedule-date-option" data-date="${value}">
+        <input type="checkbox" class="form-check-input schedule-date-cb" value="${value}">
+        <div class="schedule-date-content">
+          <div class="schedule-date-day">${dayName}</div>
+          <div class="schedule-date-md">${monthDay}</div>
+        </div>
+      </label>`;
+    }).join('');
+
+    const modalHtml = `
+    <style>
+      .schedule-date-option {
+        display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+        border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer;
+        background: #fff; transition: all 0.2s;
+      }
+      .schedule-date-option:hover { border-color: #3b82f6; background: #eff6ff; }
+      .schedule-date-option:has(input:checked) { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+      .schedule-date-option input { width: 18px; height: 18px; accent-color: #3b82f6; }
+      .schedule-date-day { font-weight: 700; font-size: 0.88rem; color: #1e293b; }
+      .schedule-date-md { font-size: 0.78rem; color: #64748b; }
+      .schedule-time-option {
+        display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+        border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer;
+        background: #fff; transition: all 0.2s; flex: 1;
+      }
+      .schedule-time-option:hover { border-color: #3b82f6; background: #eff6ff; }
+      .schedule-time-option:has(input:checked) { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+      .schedule-time-option input { width: 18px; height: 18px; accent-color: #3b82f6; }
+    </style>
+    <div class="modal fade" id="scheduleLaterModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border:none;border-radius:20px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
+          <div style="background:linear-gradient(135deg,#1e3a5f 0%,#7c3aed 100%);padding:24px 28px;color:#fff;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div class="d-flex align-items-center gap-3">
+                <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+                  <i class="bi bi-calendar-week" style="font-size:1.4rem;"></i>
+                </div>
+                <div>
+                  <h5 class="fw-bold mb-0" style="font-size:1.15rem;">Choose Preferred Dates</h5>
+                  <small class="opacity-75">Select up to 3 dates that work for you</small>
+                </div>
+              </div>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+          <div class="modal-body" style="padding:24px 28px;">
+            <div class="mb-4">
+              <label class="form-label fw-bold d-flex align-items-center gap-2" style="font-size:0.85rem;color:#1e293b;">
+                <i class="bi bi-calendar3" style="color:#7c3aed;"></i>
+                Preferred Dates
+                <span class="text-muted fw-normal" style="font-size:0.75rem;">(select 1-3 dates)</span>
+              </label>
+              <div id="scheduleDateGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">
+                ${dateOptions}
+              </div>
+              <div id="scheduleDateCount" class="mt-2" style="font-size:0.75rem;color:#64748b;">
+                <span id="dateCountNum">0</span> of 3 dates selected
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold d-flex align-items-center gap-2" style="font-size:0.85rem;color:#1e293b;">
+                <i class="bi bi-clock" style="color:#7c3aed;"></i>
+                Preferred Time Window
+              </label>
+              <div class="d-flex gap-3">
+                <label class="schedule-time-option">
+                  <input type="radio" name="scheduleTimeRadio" value="any" checked>
+                  <div>
+                    <div class="fw-bold" style="font-size:0.88rem;color:#1e293b;">Any Time</div>
+                    <div style="font-size:0.72rem;color:#64748b;">8AM - 5PM</div>
+                  </div>
+                </label>
+                <label class="schedule-time-option">
+                  <input type="radio" name="scheduleTimeRadio" value="morning">
+                  <div>
+                    <div class="fw-bold" style="font-size:0.88rem;color:#1e293b;">Morning</div>
+                    <div style="font-size:0.72rem;color:#64748b;">8AM - 12PM</div>
+                  </div>
+                </label>
+                <label class="schedule-time-option">
+                  <input type="radio" name="scheduleTimeRadio" value="afternoon">
+                  <div>
+                    <div class="fw-bold" style="font-size:0.88rem;color:#1e293b;">Afternoon</div>
+                    <div style="font-size:0.72rem;color:#64748b;">12PM - 5PM</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div id="scheduleError" class="alert alert-danger d-none" style="font-size:0.82rem;border-radius:10px;"></div>
+          </div>
+          <div style="padding:16px 28px;border-top:1px solid #f1f5f9;background:#fafbfc;display:flex;justify-content:space-between;align-items:center;">
+            <small class="text-muted" style="font-size:0.75rem;"><i class="bi bi-info-circle me-1"></i>Our team will confirm the final schedule within 24 hours</small>
+            <div class="d-flex gap-2">
+              <button class="btn btn-light fw-semibold" data-bs-dismiss="modal" style="border-radius:10px;">Cancel</button>
+              <button class="btn btn-primary fw-semibold" onclick="bhSubmitScheduleLater('${bookingId}')" style="border-radius:10px;padding:8px 20px;">
+                <i class="bi bi-check-lg me-1"></i>Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Date selection logic (max 3)
+    const dateCbs = document.querySelectorAll('.schedule-date-cb');
+    const countEl = document.getElementById('dateCountNum');
+    dateCbs.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const checked = document.querySelectorAll('.schedule-date-cb:checked');
+        if (checked.length > 3) {
+          cb.checked = false;
+          bhToast('info', 'Maximum 3 dates allowed.');
+          return;
+        }
+        countEl.textContent = checked.length;
+        // Update visual state
+        document.querySelectorAll('.schedule-date-option').forEach(opt => {
+          const checkbox = opt.querySelector('input[type="checkbox"]');
+          if (checkbox.checked) {
+            opt.style.borderColor = '#3b82f6';
+            opt.style.background = '#eff6ff';
+          } else {
+            opt.style.borderColor = '#e2e8f0';
+            opt.style.background = '#fff';
+          }
+        });
+      });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('scheduleLaterModal'));
+    modal.show();
+  };
+
+  window.bhSubmitScheduleLater = function(bookingId) {
+    const checked = document.querySelectorAll('.schedule-date-cb:checked');
+    const timeRadio = document.querySelector('input[name="scheduleTimeRadio"]:checked');
+    const timeWindow = timeRadio ? timeRadio.value : 'any';
+    const errorBox = document.getElementById('scheduleError');
+
+    if (checked.length === 0) {
+      errorBox.textContent = 'Please select at least one preferred date.';
+      errorBox.classList.remove('d-none');
+      return;
+    }
+
+    const preferredDates = Array.from(checked).map(cb => cb.value);
+
+    // Show loading
+    const submitBtn = document.querySelector('#scheduleLaterModal .btn-primary');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
+    }
+
+    fetch(`/api/appointments/${encodeURIComponent(bookingId)}/repair-today-choice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choice: "later", preferredDates, preferredTimeWindow: timeWindow }),
+      credentials: "same-origin"
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => {
+        bootstrap.Modal.getInstance(document.getElementById('scheduleLaterModal'))?.hide();
+        Swal.fire({
+          icon: 'success',
+          title: 'Schedule Request Submitted!',
+          html: `
+            <div class="text-start">
+              <p style="color:#475569;margin-bottom:12px;">${data.message || 'Our team will confirm the final schedule shortly.'}</p>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;">
+                <div style="font-size:0.82rem;color:#166534;">
+                  <strong>What happens next?</strong>
+                  <ul style="margin:8px 0 0;padding-left:16px;">
+                    <li>Our team will review your preferred dates</li>
+                    <li>You'll receive an email confirmation within 24 hours</li>
+                    <li>The final schedule will appear in your booking history</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          `,
+          confirmButtonColor: '#3b82f6',
+          confirmButtonText: 'Got it!'
+        });
+        fetchBookings();
+      })
+      .catch(err => { 
+        console.error(err); 
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Submit Request';
+        }
+        bhToast('error', 'Failed: ' + (err.message || 'Unknown error')); 
+      });
+  };
+
+  // Reschedule modal state
+  let currentRescheduleBooking = null;
+  let currentRescheduleTechnicianId = null;
+  let selectedRescheduleDate = null;
+  let selectedRescheduleTime = null;
+  let rescheduleCalendarState = {
+    currentMonth: new Date().getMonth(),
+    currentYear: new Date().getFullYear(),
+    availableDates: []
+  };
+
+  function formatDateKeyLocal(d) {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  }
+
+  // Open reschedule modal
+  function openRescheduleModal(booking) {
+    currentRescheduleBooking = booking;
+    currentRescheduleTechnicianId = booking.technicianId || booking.technician?._id;
+    selectedRescheduleDate = null;
+    selectedRescheduleTime = null;
+
+    // Show loading state
+    document.getElementById('bhRescheduleLoading').classList.remove('d-none');
+    document.getElementById('bhRescheduleError').classList.add('d-none');
+    document.getElementById('bhRescheduleCalendarContent').classList.add('d-none');
+    document.getElementById('bhSubmitReschedule').disabled = true;
+
+    // Set technician name
+    const techName = booking.technicianName || booking.technician?.name || 'Not assigned';
+    document.getElementById('bhRescheduleTechName').textContent = techName;
+
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('bhRescheduleModal'));
+    modal.show();
+
+    // If no technician assigned, show error
+    if (!currentRescheduleTechnicianId) {
+      document.getElementById('bhRescheduleLoading').classList.add('d-none');
+      document.getElementById('bhRescheduleError').textContent = 'No technician assigned to this booking. Please contact customer support.';
+      document.getElementById('bhRescheduleError').classList.remove('d-none');
+      return;
+    }
+
+    // Fetch available slots for this technician
+    fetchAvailableSlots();
+  }
+
+  // Fetch available slots for the technician
+  async function fetchAvailableSlots() {
+    try {
+      const response = await fetch(`/api/schedule/technician/${encodeURIComponent(currentRescheduleTechnicianId)}/available-slots`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch available slots');
+      }
+
+      rescheduleCalendarState.availableDates = data.availableDates || [];
+
+      // Initialize calendar
+      rescheduleCalendarState.currentMonth = new Date().getMonth();
+      rescheduleCalendarState.currentYear = new Date().getFullYear();
+
+      // Show calendar content
+      document.getElementById('bhRescheduleLoading').classList.add('d-none');
+      document.getElementById('bhRescheduleCalendarContent').classList.remove('d-none');
+
+      renderRescheduleCalendar();
+    } catch (error) {
+      console.error('Error fetching available slots:', error);
+      document.getElementById('bhRescheduleLoading').classList.add('d-none');
+      document.getElementById('bhRescheduleError').textContent = error.message || 'Failed to load available slots. Please try again.';
+      document.getElementById('bhRescheduleError').classList.remove('d-none');
+    }
+  }
+
+  // Render reschedule calendar
+  function renderRescheduleCalendar() {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById('bhCalendarTitle').textContent = `${monthNames[rescheduleCalendarState.currentMonth]} ${rescheduleCalendarState.currentYear}`;
+
+    const grid = document.getElementById('bhCalendarGrid');
+    grid.innerHTML = '';
+
+    const firstDay = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth, 1);
+    const lastDay = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth + 1, 0);
+    const startingDay = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < startingDay; i++) {
+      const emptyCell = document.createElement('div');
+      emptyCell.className = 'calendar-cell disabled';
+      grid.appendChild(emptyCell);
+    }
+
+    // Add days of the month
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let day = 1; day <= totalDays; day++) {
+      const date = new Date(rescheduleCalendarState.currentYear, rescheduleCalendarState.currentMonth, day);
+      const dateStr = formatDateKeyLocal(date);
+
+      const cell = document.createElement('button');
+      cell.className = 'calendar-cell';
+      cell.innerHTML = `<span class="date-num">${day}</span>`;
+
+      // Check if date is available
+      const isAvailable = rescheduleCalendarState.availableDates.some(availableDate =>
+        availableDate.date === dateStr && availableDate.available
+      );
+
+      // Check if date is in the past
+      const isPast = date < today;
+
+      if (isAvailable && !isPast) {
+        cell.setAttribute('data-status', 'available');
+        cell.onclick = function() {
+          selectRescheduleDate(date, dateStr, this);
+        };
+      } else if (isPast) {
+        cell.classList.add('disabled');
+        cell.setAttribute('data-status', 'blocked');
+      } else {
+        cell.setAttribute('data-status', 'blocked');
+        cell.classList.add('disabled');
+      }
+
+      // Check if this date is selected
+      if (selectedRescheduleDate === dateStr) {
+        cell.classList.add('is-selected');
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+
+  // Select reschedule date
+  function selectRescheduleDate(date, dateStr, cellElement) {
+    selectedRescheduleDate = dateStr;
+    selectedRescheduleTime = null;
+
+    // Update calendar selection
+    document.querySelectorAll('#bhCalendarGrid .calendar-cell').forEach(cell => {
+      cell.classList.remove('is-selected');
+    });
+    cellElement.classList.add('is-selected');
+
+    // For project bookings, hide time slots — date only is sufficient
+    const container = document.getElementById('bhTimeSlotsContainer');
+    const isProject = currentRescheduleBooking && (currentRescheduleBooking.isProject || currentRescheduleBooking.projectScheduling);
+    if (isProject) {
+      if (container) {
+        container.classList.remove('d-none');
+        container.innerHTML = `
+          <div class="alert alert-info mb-0">
+            <i class="bi bi-kanban me-2"></i>
+            <strong>Project Booking</strong> — Only a new start date is needed. The Operations Team will prepare the multi-day schedule.
+          </div>`;
+      }
+      const reason = document.getElementById('bhRescheduleReason').value.trim();
+      document.getElementById('bhSubmitReschedule').disabled = !reason;
+      return;
+    }
+
+    // Find available time slots for this date
+    const availableDate = rescheduleCalendarState.availableDates.find(ad => ad.date === dateStr);
+    const timeSlots = availableDate ? availableDate.timeSlots : [];
+
+    // Render time slots
+    renderTimeSlots(timeSlots);
+  }
+
+  // Render time slots
+  function renderTimeSlots(timeSlots) {
+    const container = document.getElementById('bhTimeSlotsContainer');
+    const slotsContainer = document.getElementById('bhTimeSlots');
+
+    if (timeSlots.length === 0) {
+      container.classList.add('d-none');
+      document.getElementById('bhSubmitReschedule').disabled = true;
+      return;
+    }
+
+    container.classList.remove('d-none');
+    slotsContainer.innerHTML = '';
+
+    timeSlots.forEach(slot => {
+      const slotBtn = document.createElement('button');
+      slotBtn.className = 'time-slot';
+      slotBtn.innerHTML = `
+        <div class="time-slot-time">${slot.time}</div>
+        <div class="text-muted small">${slot.duration || '60 min'}</div>
+      `;
+      slotBtn.onclick = () => selectRescheduleTime(slot.time, slotBtn);
+      slotsContainer.appendChild(slotBtn);
+    });
+
+    document.getElementById('bhSubmitReschedule').disabled = true;
+  }
+
+  // Select reschedule time
+  function selectRescheduleTime(time, btnElement) {
+    selectedRescheduleTime = time;
+
+    // Update selection
+    document.querySelectorAll('#bhTimeSlots .time-slot').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    btnElement.classList.add('active');
+
+    // Enable submit button if reason is provided
+    const reason = document.getElementById('bhRescheduleReason').value.trim();
+    document.getElementById('bhSubmitReschedule').disabled = !reason;
+  }
+
+  // Setup calendar navigation
+  document.getElementById('bhPrevMonth').addEventListener('click', () => {
+    rescheduleCalendarState.currentMonth--;
+    if (rescheduleCalendarState.currentMonth < 0) {
+      rescheduleCalendarState.currentMonth = 11;
+      rescheduleCalendarState.currentYear--;
+    }
+    renderRescheduleCalendar();
+  });
+
+  document.getElementById('bhNextMonth').addEventListener('click', () => {
+    rescheduleCalendarState.currentMonth++;
+    if (rescheduleCalendarState.currentMonth > 11) {
+      rescheduleCalendarState.currentMonth = 0;
+      rescheduleCalendarState.currentYear++;
+    }
+    renderRescheduleCalendar();
+  });
+
+  // Handle reason input change
+  document.getElementById('bhRescheduleReason').addEventListener('input', function() {
+    const reason = this.value.trim();
+    document.getElementById('bhSubmitReschedule').disabled = !reason || !selectedRescheduleDate || !selectedRescheduleTime;
+  });
+
+  // Submit reschedule request
+  document.getElementById('bhSubmitReschedule').addEventListener('click', async function() {
+    const reason = document.getElementById('bhRescheduleReason').value.trim();
+    const isProject = currentRescheduleBooking && (currentRescheduleBooking.isProject || currentRescheduleBooking.projectScheduling);
+
+    if (!reason || !selectedRescheduleDate) {
+      alert('Please select a date and provide a reason for rescheduling.');
+      return;
+    }
+
+    if (!isProject && !selectedRescheduleTime) {
+      alert('Please select a preferred time.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/appointments/${encodeURIComponent(currentRescheduleBooking._id)}/reschedule-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestedDate: selectedRescheduleDate,
+          requestedTime: selectedRescheduleTime || null,
+          reason: reason,
+          isProject: isProject
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit reschedule request');
+      }
+
+      // Close modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('bhRescheduleModal'));
+      modal.hide();
+
+      alert('Reschedule request submitted successfully! The secretary will review your request and you will be notified once it is approved.');
+      fetchBookings();
+    } catch (error) {
+      console.error('Error submitting reschedule request:', error);
+      alert('Failed to submit reschedule request: ' + error.message);
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", function() {
+    fetchBookings().then(() => {
+      // Handle ?highlight= query parameter from email links
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get('highlight');
+      const openSchedule = params.get('schedule') === 'true';
+      if (highlightId) {
+        setTimeout(() => {
+          const row = document.querySelector(`tr[data-id="${highlightId}"]`);
+          if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.style.transition = 'background 0.3s';
+            row.style.background = '#fef3c7';
+            setTimeout(() => { row.style.background = ''; }, 3000);
+            // Auto-open the detail modal
+            const b = bookings.find(x => String(x._id) === String(highlightId));
+            if (b) {
+              showDetailModal(b);
+              // If ?schedule=true, auto-open the Schedule Later form after detail modal loads
+              if (openSchedule && (b.status === 'repair_approved' || b.status === 'awaiting_approval')) {
+                setTimeout(() => {
+                  const detailModalEl = document.getElementById('detailModal');
+                  if (detailModalEl && (detailModalEl.classList.contains('show') || detailModalEl.style.display === 'block')) {
+                    bhScheduleLater(b._id, true);
+                  }
+                }, 800);
+              }
+            }
+          }
+          // Clean URL
+          if (window.history && window.history.replaceState) {
+            const u = new URL(window.location.href);
+            u.searchParams.delete('highlight');
+            u.searchParams.delete('schedule');
+            window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+          }
+        }, 500);
+      }
+    });
+  });
+
+  // helpers
+  function debounce(fn, delay) {
+    let t;
+    return function () {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, arguments), delay);
+    };
+  }
+
+  // ── Warranty Claim ──
+  window.bhWarrantyClaim = function(bookingId) {
+    const issue = prompt("Describe the issue you are experiencing (warranty claim):");
+    if (!issue || !issue.trim()) return;
+    fetch(`/api/bookings/${encodeURIComponent(bookingId)}/warranty-claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ issue: issue.trim() }),
+      credentials: "same-origin"
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => {
+        alert("Warranty claim submitted. We will contact you shortly.");
+        fetchBookings();
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Failed to submit warranty claim: " + (err.message || "Unknown error"));
+      });
+  };
+})();

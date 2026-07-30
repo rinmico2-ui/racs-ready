@@ -1,0 +1,58 @@
+{
+  "name": "capstone_proj",
+  "version": "1.0.0",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "seed:test-user": "node server/scripts/seedUser.js",
+    "seed:hvac": "node server/scripts/seedHVACProducts.js",
+    "import-holidays": "node server/scripts/importNagerHolidays.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/recaptcha-enterprise": "^6.4.0",
+    "@tavily/core": "^0.7.6",
+    "axios": "^1.13.4",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
+    "connect-mongo": "^4.6.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.6",
+    "csvtojson": "^2.0.14",
+    "dotenv": "^17.3.1",
+    "ejs": "^4.0.1",
+    "esprima": "^4.0.1",
+    "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-session": "^1.19.0",
+    "express-validator": "^7.3.1",
+    "geoip-lite": "^2.0.3",
+    "googleapis": "^171.4.0",
+    "gsap": "^3.14.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.2.1",
+    "multer": "^2.1.1",
+    "nodemailer": "^9.0.3",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.3",
+    "ua-parser-js": "^1.0.41",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

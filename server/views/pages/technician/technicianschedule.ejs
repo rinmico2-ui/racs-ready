@@ -1,0 +1,1273 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.css" />
+
+<div class="admin-dashboard container-fluid px-0 py-4 technician-schedule-page">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <div class="container pb-4">
+    <!-- ─── HERO HEADER ─── -->
+    <div class="dashboard-hero mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="page-title">
+            <i class="bi bi-calendar3 me-2"></i>
+            <% if (technician && technician.name) { %>
+              <%= technician.name %>'s Schedule
+            <% } else { %>
+              My Schedule
+            <% } %>
+          </h1>
+          <p class="hero-sub small mb-0">
+            Service appointments &amp; product delivery orders &bull; Last 30 days &amp; upcoming
+          </p>
+        </div>
+        <div class="col-md-4 text-md-end mt-2 mt-md-0">
+          <span class="badge bg-light text-dark border px-3 py-2">
+            <i class="bi bi-clock me-1"></i>
+            <span id="currentDateTime"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── ENTERPRISE KPI ROW ─── -->
+    <div class="row g-3 schedule-kpi-row align-items-stretch mb-4">
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon blue"><i class="bi bi-clipboard2-check-fill"></i></div>
+            <span class="kpi-enterprise-badge blue" id="badge_kpiTotal">Tasks</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Total Tasks</p>
+            <div class="kpi-enterprise-value" id="kpiTotal">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiTotal"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiTotal"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="50">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon green"><i class="bi bi-check-circle-fill"></i></div>
+            <span class="kpi-enterprise-badge green" id="badge_kpiCompleted">Jobs</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Completed</p>
+            <div class="kpi-enterprise-value" id="kpiCompleted">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiCompleted"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiCompleted"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+            <span class="kpi-enterprise-badge amber" id="badge_kpiPending">Tasks</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Pending</p>
+            <div class="kpi-enterprise-value" id="kpiPending">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiPending"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiPending"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="150">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon red"><i class="bi bi-calendar-day-fill"></i></div>
+            <span class="kpi-enterprise-badge red" id="badge_kpiToday">Tasks</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Today</p>
+            <div class="kpi-enterprise-value" id="kpiToday">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiToday"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiToday"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="200">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-exchange"></i></div>
+            <span class="kpi-enterprise-badge cyan" id="badge_kpiRevenue">Earnings</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Revenue</p>
+            <div class="kpi-enterprise-value" id="kpiRevenue">₱0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiRevenue"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiRevenue"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="250">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon purple"><i class="bi bi-percent"></i></div>
+            <span class="kpi-enterprise-badge purple" id="badge_kpiCompletionRate">Rate</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Completion %</p>
+            <div class="kpi-enterprise-value" id="kpiCompletionRate">0%</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kpiCompletionRate"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiCompletionRate"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── DATA SOURCE SUMMARY (Enterprise) ─── -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-6">
+        <div class="schedule-premium-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="schedule-source-icon indigo"><i class="bi bi-wrench-adjustable-circle"></i></div>
+            <div>
+              <div class="fw-semibold" style="color:#1e293b;">Service Appointments</div>
+              <div class="small" style="color:#64748b;"><span id="bookingCount">0</span> bookings loaded</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="schedule-premium-card">
+          <div class="d-flex align-items-center gap-3">
+            <div class="schedule-source-icon pink"><i class="bi bi-box-seam"></i></div>
+            <div>
+              <div class="fw-semibold" style="color:#1e293b;">Product Orders</div>
+              <div class="small" style="color:#64748b;"><span id="orderCount">0</span> delivery/installation orders loaded</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CALENDAR (Enterprise Card) ─── -->
+    <div class="schedule-premium-card p-0 mb-4 overflow-hidden">
+      <div class="schedule-card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-calendar3 me-2" style="color:#3b82f6;"></i>Schedule Calendar</h6>
+          <div class="d-flex align-items-center gap-3 flex-wrap small">
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#22c55e"></span> Confirmed</span>
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#f59e0b"></span> Pending</span>
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#0ea5e9"></span> Completed</span>
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#ef4444"></span> Cancelled</span>
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#6366f1"></span> Re-scheduled</span>
+            <span class="d-flex align-items-center gap-1"><span class="sched-dot" style="background:#ec4899"></span> Delivery</span>
+          </div>
+        </div>
+      </div>
+      <div class="p-3 pt-0">
+        <div id="technicianScheduleCalendar"></div>
+      </div>
+    </div>
+
+    <!-- ─── TASKS TABLE (Enterprise) ─── -->
+    <div class="schedule-premium-card p-0 overflow-hidden">
+      <div class="schedule-card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-list-task me-2" style="color:#3b82f6;"></i>All Assigned Tasks</h6>
+          <div class="d-flex gap-2">
+            <select id="filterType" class="schedule-filter-select">
+              <option value="all">All Types</option>
+              <option value="appointment">Appointments</option>
+              <option value="order">Orders</option>
+            </select>
+            <select id="filterStatus" class="schedule-filter-select">
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="p-3 pt-0">
+        <div class="table-responsive">
+          <table class="table schedule-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Customer</th>
+                <th>Service / Items</th>
+                <th>Date &amp; Time</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleTableBody">
+              <tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="emptyState" class="schedule-empty d-none">
+          <i class="bi bi-calendar-x display-4" style="color:#94a3b8;"></i>
+          <p style="color:#94a3b8; margin: 8px 0 0 0;">No tasks match the selected filters.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════
+     ENTERPRISE SCHEDULE PAGE – Full premium overhaul
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  #technicianScheduleCalendar { min-height: 620px; }
+
+  /* ── Legend dots ── */
+  .sched-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; flex-shrink: 0;
+  }
+
+  /* ── KPI row flex layout (kept because layout-specific) ── */
+  .schedule-kpi-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .schedule-kpi-row > [class*="col-"] {
+    display: flex;
+    min-width: 180px;
+    flex: 1 1 180px;
+    margin-bottom: 0;
+  }
+  .schedule-kpi-row .kpi-enterprise {
+    width: 100%;
+  }
+  @media (max-width: 1199px) {
+    .schedule-kpi-row > [class*="col-"] { min-width: 220px; }
+  }
+  @media (max-width: 767px) {
+    .schedule-kpi-row > [class*="col-"] { min-width: calc(50% - 0.75rem); }
+  }
+
+  /* ── Premium Card (data source, calendar, table) ── */
+  .schedule-premium-card {
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    padding: 1rem 1.25rem;
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .schedule-premium-card:hover {
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+  }
+  .schedule-premium-card.p-0 { padding: 0 !important; }
+
+  .schedule-card-header {
+    padding: 1rem 1.25rem 0.85rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  }
+  .schedule-card-header h6 {
+    font-size: 0.95rem;
+    color: #0f172a;
+  }
+  .schedule-card-header h6 i {
+    font-size: 1rem;
+  }
+
+  /* ── Data-source icon ── */
+  .schedule-source-icon {
+    width: 44px; height: 44px; min-width: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+  .schedule-source-icon.indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .schedule-source-icon.pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+
+  /* ── Enterprise Filter Selects ── */
+  .schedule-filter-select {
+    width: auto;
+    min-width: 130px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 0.82rem;
+    padding: 0.35rem 1.8rem 0.35rem 0.65rem;
+    color: #334155;
+    font-weight: 500;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='%2364748b'%3E%3Cpath d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.55rem center;
+    cursor: pointer;
+  }
+  .schedule-filter-select:hover {
+    border-color: #3b82f6;
+  }
+  .schedule-filter-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    background-color: #fff;
+  }
+
+  /* ── Enterprise Table ── */
+  .schedule-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.82rem;
+    width: 100%;
+  }
+  .schedule-table thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.7rem 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .schedule-table tbody td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+  }
+  .schedule-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .schedule-table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.04) !important;
+  }
+  .schedule-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* ── Type badges ── */
+  .type-badge {
+    font-size: 0.68rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .type-badge.appointment {
+    background: rgba(99, 102, 241, 0.10);
+    color: #4f46e5;
+  }
+  .type-badge.order {
+    background: rgba(236, 72, 153, 0.10);
+    color: #db2777;
+  }
+  .type-badge i {
+    font-size: 0.65rem;
+  }
+
+  /* ── Status pills ── */
+  .status-pill {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  /* ── Enterprise Button ── */
+  .schedule-table .btn-outline-primary {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid #dbe1ed;
+    color: #3b82f6;
+    background: transparent;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+  .schedule-table .btn-outline-primary:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  }
+
+  /* ── Empty State ── */
+  .schedule-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  /* ── FullCalendar Enterprise Overrides ── */
+  .fc {
+    font-family: inherit !important;
+  }
+  .fc .fc-event {
+    border-radius: 5px !important;
+    padding: 2px 5px !important;
+    font-size: 0.76rem !important;
+    font-weight: 500 !important;
+    border: none !important;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .fc .fc-event:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .fc .fc-daygrid-event-dot { display: none; }
+  .fc .fc-toolbar-title {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    letter-spacing: -0.01em;
+  }
+  .fc .fc-button {
+    font-size: 0.78rem !important;
+    padding: 0.35rem 0.75rem !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+  }
+  .fc .fc-button-primary {
+    background-color: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #475569 !important;
+  }
+  .fc .fc-button-primary:not(:disabled):hover {
+    background-color: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #1e293b !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+  }
+  .fc .fc-button-primary:not(:disabled).fc-button-active {
+    background-color: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.25) !important;
+  }
+  .fc .fc-button-primary:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+  }
+  .fc .fc-today-button {
+    font-weight: 600 !important;
+  }
+  .fc .fc-today-button:disabled {
+    opacity: 0.4 !important;
+  }
+  .fc .fc-daygrid-day.fc-day-today {
+    background-color: rgba(59, 130, 246, 0.05) !important;
+  }
+  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    background: #3b82f6;
+    color: #fff !important;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin: 2px;
+  }
+  .fc .fc-col-header-cell {
+    border-right: none !important;
+  }
+  .fc .fc-col-header-cell-cushion {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #64748b;
+    padding: 6px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .fc .fc-daygrid-day-number {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #334155;
+    padding: 4px;
+  }
+  .fc .fc-daygrid-day-events {
+    min-height: 2rem;
+  }
+  .fc .fc-more-link {
+    font-size: 0.72rem;
+    color: #3b82f6;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .fc .fc-more-popover {
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(15,23,42,0.12);
+    border: 1px solid #e2e8f0;
+  }
+  .fc .fc-more-popover .fc-popover-body {
+    padding: 6px;
+  }
+
+  /* ── Modal (dynamic) ── */
+  #techScheduleDetailsModal .btn-close:hover {
+    background-color: rgba(59, 130, 246, 0.12) !important;
+    border-radius: 6px;
+  }
+  #techScheduleDetailsModal .modal-content {
+    animation: scheduleModalIn 0.2s ease-out;
+  }
+  @keyframes scheduleModalIn {
+    from { opacity:0; transform:scale(0.96) translateY(8px); }
+    to { opacity:1; transform:scale(1) translateY(0); }
+  }
+
+  /* ── Responsive tweaks ── */
+  @media (max-width: 767px) {
+    .schedule-card-header .d-flex {
+      flex-direction: column;
+      align-items: flex-start !important;
+    }
+    .fc .fc-toolbar-title {
+      font-size: 0.95rem !important;
+    }
+    .fc .fc-header-toolbar {
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .fc .fc-toolbar-chunk {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.5/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var h = window.techHelpers;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 1. SAFE DATA INJECTION — Prevents XSS / broken JSON from EJS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const rawAppointments = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(initialAppointments || [])) %>"));
+  const rawOrders       = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(initialProductOrders || [])) %>"));
+  const scheduleConfig  = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(technicianSchedule || null)) %>"));
+
+  console.log("[Schedule] Raw appointments:", rawAppointments.length, "| Raw orders:", rawOrders.length);
+
+  // Update data-source counters
+  const bcEl = document.getElementById("bookingCount");
+  const ocEl = document.getElementById("orderCount");
+  if (bcEl) bcEl.textContent = rawAppointments.length;
+  if (ocEl) ocEl.textContent = rawOrders.length;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 2. MERGE INTO UNIFIED LIST
+  // ═══════════════════════════════════════════════════════════════════════════
+  const allItems = [];
+
+  rawAppointments.forEach(a => {
+    allItems.push(Object.assign({}, a, { itemType: "appointment" }));
+  });
+
+  rawOrders.forEach(o => {
+    const clone = Object.assign({}, o, { itemType: "order" });
+    // Normalize date for orders — prefer delivery date, then pickup, then creation
+    clone.bookingDate = (clone.delivery && clone.delivery.preferredDate) || clone.pickupDate || clone.createdAt;
+    // Orders are all-day blocks unless they have a timeslot
+    if (clone.timeSlot) {
+      clone.startTime = clone.timeSlot;
+      const h = parseInt(clone.timeSlot.split(":")[0], 10);
+      clone.endTime = String(h + 2).padStart(2, "0") + ":00";
+    }
+    allItems.push(clone);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 3. HELPERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  function parseMinuteValue(value) {
+    if (value == null) return NaN;
+    const raw = String(value).trim();
+    if (!raw) return NaN;
+    if (/^\d{1,4}$/.test(raw)) return Number(raw);
+    const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) {
+      let hh = Number(ampm[1]) % 12;
+      if (ampm[3].toUpperCase() === "PM") hh += 12;
+      return hh * 60 + Number(ampm[2]);
+    }
+    return NaN;
+  }
+
+  function fmtMinute(m) {
+    if (!Number.isFinite(m)) return "—";
+    const hh = Math.floor(m / 60), mm = m % 60;
+    const ap = hh >= 12 ? "PM" : "AM";
+    const h12 = ((hh + 11) % 12) + 1;
+    return `${String(h12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ap}`;
+  }
+
+  function statusNorm(raw, itemType) {
+    const s = String(raw || "").toLowerCase().trim();
+    if (itemType === "order") {
+      if (s === "delivered") return "completed";
+      if (s === "out_for_delivery") return "on-the-way";
+      if (s === "technician_assigned") return "scheduled";
+      if (s === "preparing_unit") return "pending";
+      if (s === "pending_payment") return "pending";
+      if (s === "installing") return "in-progress";
+    }
+    return s;
+  }
+
+  const STATUS_COLORS = {
+    confirmed: { bg: "#22c55e", cls: "success" },
+    scheduled: { bg: "#22c55e", cls: "success" },
+    pending:   { bg: "#f59e0b", cls: "warning" },
+    completed: { bg: "#0ea5e9", cls: "info" },
+    cancelled: { bg: "#ef4444", cls: "danger" },
+    "re-scheduled": { bg: "#6366f1", cls: "primary" },
+    "on-the-way":   { bg: "#f59e0b", cls: "warning" },
+    "in-progress":  { bg: "#f59e0b", cls: "warning" },
+    arrived:        { bg: "#22c55e", cls: "success" },
+  };
+  const ORDER_COLOR = "#ec4899";
+
+  function getStatusInfo(st, itemType) {
+    const n = statusNorm(st, itemType);
+    return STATUS_COLORS[n] || { bg: "#64748b", cls: "secondary" };
+  }
+
+  function getServiceLabel(a) {
+    if (a.itemType === "order") {
+      const items = (a.items || []).map(i => i.modelLine || "Aircon").join(", ");
+      const ft = a.fulfillmentType === "delivery_installation" ? "Delivery + Install" :
+                 a.fulfillmentType === "delivery_only" ? "Delivery" : "Pickup";
+      return `${ft}: ${items || "Product Order"}`;
+    }
+    return (a.service && typeof a.service === "object" ? (a.service.name || a.service.title) : a.service) ||
+           (a.serviceId && typeof a.serviceId === "object" ? (a.serviceId.name || a.serviceId.title) : a.serviceType) ||
+           "Service Task";
+  }
+
+  function getCustomer(a) {
+    if (a.itemType === "order") {
+      return (a.customer && (a.customer.name || a.customer.email)) || "Customer";
+    }
+    return a.customerName || (a.customer && (a.customer.name || a.customer.email)) || "Customer";
+  }
+
+  function getLocation(a) {
+    if (a.itemType === "order") {
+      if (a.fulfillmentType === "customer_pickup") return a.pickupLocation || "Store Pickup";
+      return (a.delivery && a.delivery.address) || "Delivery Address";
+    }
+    if (a.location && a.location.address) return a.location.address;
+    if (a.customer && a.customer.address) return a.customer.address;
+    return a.address || "—";
+  }
+
+  function getReference(a) {
+    if (a.itemType === "order") return a.orderReference || a._id || "—";
+    return a.bookingReference || a._id || "—";
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4. FULLCALENDAR EVENT MAPPER — Strict ISO 8601 dates
+  // ═══════════════════════════════════════════════════════════════════════════
+  function toCalendarEvent(a) {
+    const startMin = parseMinuteValue(a.startTime);
+    const endMin   = parseMinuteValue(a.endTime);
+    const hasTime  = Number.isFinite(startMin);
+    const isOrder  = a.itemType === "order";
+    const isAllDay = (isOrder && !a.timeSlot) || !hasTime;
+
+    const day = new Date(a.bookingDate || a.date || a.start || Date.now());
+    const yyyy = day.getFullYear();
+    const mo = String(day.getMonth() + 1).padStart(2, "0");
+    const dd = String(day.getDate()).padStart(2, "0");
+    const dateOnly = `${yyyy}-${mo}-${dd}`;
+
+    let startStr = dateOnly;
+    let endStr = null;
+
+    if (!isAllDay) {
+      const sH = String(Math.floor(startMin / 60)).padStart(2, "0");
+      const sM = String(startMin % 60).padStart(2, "0");
+      startStr = `${dateOnly}T${sH}:${sM}:00`;
+
+      if (Number.isFinite(endMin) && endMin > startMin) {
+        const eH = String(Math.floor(endMin / 60)).padStart(2, "0");
+        const eM = String(endMin % 60).padStart(2, "0");
+        endStr = `${dateOnly}T${eH}:${eM}:00`;
+      } else {
+        const fallEnd = startMin + 60;
+        endStr = `${dateOnly}T${String(Math.floor(fallEnd / 60)).padStart(2, "0")}:${String(fallEnd % 60).padStart(2, "0")}:00`;
+      }
+    }
+
+    const status = statusNorm(a.status, a.itemType);
+    const color = isOrder ? ORDER_COLOR : getStatusInfo(a.status, a.itemType).bg;
+
+    const ev = {
+      id: String(a._id || a.id || ""),
+      title: getServiceLabel(a),
+      start: startStr,
+      allDay: isAllDay,
+      backgroundColor: color,
+      borderColor: color,
+      extendedProps: { type: a.itemType, status, raw: a },
+    };
+    if (endStr && !isAllDay) ev.end = endStr;
+    return ev;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 5. KPI CARDS
+  // ═══════════════════════════════════════════════════════════════════════════
+  function updateKpis(list) {
+    if (!h) h = window.techHelpers;
+    let total = list.length, completed = 0, pending = 0, today = 0;
+    let allTimeRevenue = 0; // Revenue from all completed tasks in the entire dataset
+    const todayStr = new Date().toDateString();
+
+    // Calculate KPIs from filtered list
+    list.forEach(a => {
+      const st = statusNorm(a.status, a.itemType);
+      if (st === "completed") {
+        completed++;
+      } else if (["pending"].includes(st)) {
+        pending++;
+      }
+
+      const d = new Date(a.bookingDate || a.date || a.start || 0);
+      if (d.toDateString() === todayStr) today++;
+    });
+
+    // Calculate revenue from ALL completed tasks in the entire dataset
+    allItems.forEach(a => {
+      const st = statusNorm(a.status, a.itemType);
+      if (st === "completed") {
+        if (a.itemType === "order") {
+          allTimeRevenue += (a.total || a.subtotal || 0);
+        } else {
+          allTimeRevenue += (a.estimatedFee || a.servicePrice || 0);
+        }
+      }
+    });
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set("kpiTotal", total);
+    set("kpiCompleted", completed);
+    set("kpiPending", pending);
+    set("kpiToday", today);
+    set("kpiRevenue", "₱" + allTimeRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 }));
+    set("kpiCompletionRate", total > 0 ? Math.round((completed / total) * 100) + "%" : "0%");
+
+    // Update trends
+    function updTrend(id, val, upLabel, downLabel) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var icon = el.querySelector('i');
+      if (val > 0) { el.className = 'kpi-enterprise-trend up'; if (icon) icon.className = 'bi bi-arrow-up'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + upLabel; }
+      else if (val < 0) { el.className = 'kpi-enterprise-trend down'; if (icon) icon.className = 'bi bi-arrow-down'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + downLabel; }
+      else { el.className = 'kpi-enterprise-trend neutral'; if (icon) icon.className = 'bi bi-dash'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + 'No change'; }
+    }
+    updTrend('trend_kpiTotal', total - 0, '+' + total + ' tasks', 'No data');
+    updTrend('trend_kpiCompleted', completed - 0, '+' + completed + ' jobs done', 'None completed');
+    updTrend('trend_kpiPending', pending - 0, '+' + pending + ' pending', 'None pending');
+    updTrend('trend_kpiToday', today - 0, '+' + today + ' today', 'None today');
+    updTrend('trend_kpiRevenue', allTimeRevenue, '+' + allTimeRevenue.toLocaleString() + ' earnings', 'No revenue');
+    var rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    updTrend('trend_kpiCompletionRate', rate - 0, rate + '% rate', 'No completions');
+
+    // Render sparklines with mock data for visual appeal
+    if (h && h.renderSparkline) {
+      h.renderSparkline('spark_kpiTotal', [total, total + Math.floor(Math.random() * 2), total, total + Math.floor(Math.random() * 2), total], '#3b82f6');
+      h.renderSparkline('spark_kpiCompleted', [completed, completed + Math.floor(Math.random() * 2), completed, completed + Math.floor(Math.random() * 2), completed], '#10b981');
+      h.renderSparkline('spark_kpiPending', [pending, pending + Math.floor(Math.random() * 2), pending, pending + Math.floor(Math.random() * 2), pending], '#f59e0b');
+      h.renderSparkline('spark_kpiToday', [today, today + Math.floor(Math.random() * 2), today, today + Math.floor(Math.random() * 2), today], '#ef4444');
+      h.renderSparkline('spark_kpiRevenue', [allTimeRevenue * 0.8, allTimeRevenue * 0.9, allTimeRevenue * 0.85, allTimeRevenue * 0.95, allTimeRevenue], '#0891b2');
+      h.renderSparkline('spark_kpiCompletionRate', [total > 0 ? Math.round((completed / total) * 100) : 0, total > 0 ? Math.round((completed / total) * 100) + 5 : 5, total > 0 ? Math.round((completed / total) * 100) : 0, total > 0 ? Math.round((completed / total) * 100) + 3 : 3, total > 0 ? Math.round((completed / total) * 100) : 0], '#8b5cf6');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 6. TABLE RENDERING + FILTERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderTable(list) {
+    const tbody = document.getElementById("scheduleTableBody");
+    const empty = document.getElementById("emptyState");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    if (!list.length) {
+      tbody.innerHTML = "";
+      if (empty) empty.classList.remove("d-none");
+      return;
+    }
+    if (empty) empty.classList.add("d-none");
+
+    const frag = document.createDocumentFragment();
+    list.forEach(a => {
+      const tr = document.createElement("tr");
+      const isOrder = a.itemType === "order";
+      const ref = getReference(a);
+      const customer = getCustomer(a);
+      const service = getServiceLabel(a);
+      const dateObj = new Date(a.bookingDate || a.date || a.start || 0);
+      const startMin = parseMinuteValue(a.startTime);
+      const timeStr = isOrder ? (a.timeSlot || "All Day") : (Number.isFinite(startMin) ? fmtMinute(startMin) : "Anytime");
+      const location = getLocation(a);
+      const status = statusNorm(a.status, a.itemType);
+      const si = getStatusInfo(a.status, a.itemType);
+
+      tr.innerHTML = `
+        <td><span class="type-badge ${a.itemType}">${isOrder ? '<i class="bi bi-box-seam me-1"></i>Order' : '<i class="bi bi-wrench me-1"></i>Appt'}</span></td>
+        <td><strong class="small">${ref}</strong></td>
+        <td class="small">${customer}</td>
+        <td class="small">${service}</td>
+        <td class="small">${dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}<br><span class="text-muted"><i class="bi bi-clock me-1"></i>${timeStr}</span></td>
+        <td class="small text-truncate" style="max-width:180px" title="${location}">${location}</td>
+        <td><span class="status-pill bg-${si.cls}" style="color:#fff">${status}</span></td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary" onclick="window.techScheduleViewDetails('${a._id || a.id}', '${a.itemType}')">
+            <i class="bi bi-eye me-1"></i>View
+          </button>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  // Filter logic
+  function applyFilters() {
+    const typeFilter = document.getElementById("filterType").value;
+    const statusFilter = document.getElementById("filterStatus").value;
+
+    const filtered = sorted.filter(a => {
+      if (typeFilter !== "all" && a.itemType !== typeFilter) return false;
+      if (statusFilter !== "all" && statusNorm(a.status, a.itemType) !== statusFilter) return false;
+      return true;
+    });
+    renderTable(filtered);
+  }
+
+  document.getElementById("filterType").addEventListener("change", applyFilters);
+  document.getElementById("filterStatus").addEventListener("change", applyFilters);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. CALENDAR INIT
+  // ═══════════════════════════════════════════════════════════════════════════
+  function buildBackgroundEvents() {
+    const bg = [];
+    if (!scheduleConfig) return bg;
+    if (scheduleConfig.restDates && scheduleConfig.restDates.length) {
+      scheduleConfig.restDates.forEach(rd => {
+        if (rd.date) {
+          bg.push({
+            start: new Date(rd.date).toISOString().split("T")[0],
+            display: "background", color: "#fecaca",
+            title: rd.reason || "Rest Day", allDay: true,
+            extendedProps: { type: "rest", reason: rd.reason },
+          });
+        }
+      });
+    }
+    return bg;
+  }
+
+  function initCalendar(list) {
+    const calEl = document.getElementById("technicianScheduleCalendar");
+    if (!calEl || !window.FullCalendar) {
+      console.warn("[Schedule] FullCalendar not available");
+      return;
+    }
+
+    const events = list.map(toCalendarEvent).concat(buildBackgroundEvents());
+
+    console.log("[Schedule Calendar] Rendering", events.length, "events:", JSON.stringify(events, null, 2));
+
+    let businessHoursConfig;
+    if (scheduleConfig && scheduleConfig.workingDays && scheduleConfig.workingDays.length) {
+      businessHoursConfig = scheduleConfig.workingDays.map(wd => ({
+        daysOfWeek: [wd.dayOfWeek],
+        startTime: `${String(Math.floor(wd.startMinutes / 60)).padStart(2, "0")}:${String(wd.startMinutes % 60).padStart(2, "0")}`,
+        endTime: `${String(Math.floor(wd.endMinutes / 60)).padStart(2, "0")}:${String(wd.endMinutes % 60).padStart(2, "0")}`,
+      }));
+    }
+
+    const calendar = new FullCalendar.Calendar(calEl, {
+      initialView: "dayGridMonth",
+      height: 700,
+      contentHeight: "auto",
+      businessHours: businessHoursConfig,
+      hiddenDays: [],
+      nowIndicator: true,
+      headerToolbar: {
+        left: "prev,next today",
+        center: "title",
+        right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth",
+      },
+      events,
+      eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
+      eventClick: info => {
+        if (info.event.display === "background") {
+          alert("Rest Day: " + (info.event.extendedProps.reason || "Day Off"));
+          return;
+        }
+        const a = info.event.extendedProps.raw;
+        const t = info.event.extendedProps.type;
+        if (a) window.techScheduleViewDetails(String(a._id || a.id || ""), t);
+      },
+    });
+
+    calendar.render();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 8. SORT + RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+  const sorted = allItems.sort((a, b) => {
+    const da = new Date(a.bookingDate || a.date || a.start || 0).getTime();
+    const db = new Date(b.bookingDate || b.date || b.start || 0).getTime();
+    if (da !== db) return da - db;
+    return parseMinuteValue(a.startTime) - parseMinuteValue(b.startTime);
+  });
+
+  updateKpis(sorted);
+  renderTable(sorted);
+
+  // Small delay to ensure DOM is fully painted before FullCalendar measures
+  setTimeout(() => initCalendar(sorted), 150);
+
+  // Live clock
+  function tick() {
+    const el = document.getElementById("currentDateTime");
+    if (el) el.textContent = new Date().toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  tick(); setInterval(tick, 30000);
+})();
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEW DETAILS MODAL — handles both appointments and orders
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+  "use strict";
+
+  function parseMinuteValue(value) {
+    if (value == null) return NaN;
+    const raw = String(value).trim();
+    if (!raw) return NaN;
+    if (/^\d{1,4}$/.test(raw)) return Number(raw);
+    const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+    return NaN;
+  }
+
+  function fmtMinute(m) {
+    if (!Number.isFinite(m)) return "—";
+    const hh = Math.floor(m / 60), mm = m % 60;
+    const ap = hh >= 12 ? "PM" : "AM";
+    const h12 = ((hh + 11) % 12) + 1;
+    return `${String(h12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ap}`;
+  }
+
+  function peso(v) {
+    if (v == null || isNaN(Number(v))) return "—";
+    return Number(v).toLocaleString(undefined, { style: "currency", currency: "PHP", maximumFractionDigits: 2 });
+  }
+
+  function getOrCreateModal() {
+    let modal = document.getElementById("techScheduleDetailsModal");
+    if (!modal) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div class="modal fade" id="techScheduleDetailsModal" tabindex="-1" aria-hidden="true" style="backdrop-filter:blur(4px);background:rgba(15,23,42,0.25);">
+          <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius:18px;border:none;overflow:hidden;box-shadow:0 24px 64px rgba(15,23,42,0.16);">
+              <div style="height:4px;background:linear-gradient(90deg,#3b82f6,#8b5cf6,#ec4899);"></div>
+              <div class="modal-header" id="scheduleModalHeader" style="border:none;padding:1.5rem 1.5rem 0.75rem;background:linear-gradient(135deg,#f8fafc,#ffffff);">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                  <div id="scheduleModalIcon" style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;box-shadow:0 4px 12px rgba(59,130,246,0.25);flex-shrink:0;">
+                    <i class="bi bi-info-circle"></i>
+                  </div>
+                  <div>
+                    <h5 class="modal-title fw-bold" id="detailsModalTitle" style="font-size:1.1rem;color:#0f172a;letter-spacing:-0.01em;line-height:1.3;">Task Details</h5>
+                    <div style="font-size:0.72rem;color:#94a3b8;margin-top:1px;">Detailed information</div>
+                  </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="opacity:0.45;transition:all 0.2s;width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;"></button>
+              </div>
+              <div class="modal-body p-0" id="techScheduleDetailsBody" style="font-size:0.85rem;padding:0.5rem 1.5rem 1.5rem !important;color:#334155;">Loading…</div>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(wrapper);
+      modal = document.getElementById("techScheduleDetailsModal");
+    }
+    return modal;
+  }
+
+  window.techScheduleViewDetails = async function (id, itemType) {
+    if (!id) return alert("Invalid ID");
+    const modal = getOrCreateModal();
+    const body = document.getElementById("techScheduleDetailsBody");
+    const title = document.getElementById("detailsModalTitle");
+    body.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;"><div class="spinner-border" style="width:2.2rem;height:2.2rem;color:#3b82f6;" role="status"><span class="visually-hidden">Loading…</span></div><div style="font-size:0.82rem;color:#94a3b8;margin-top:0.75rem;">Loading details…</div></div>';
+
+    try {
+      const bsModal = new bootstrap.Modal(modal);
+      bsModal.show();
+    } catch (e) { modal.style.display = "block"; }
+
+    try {
+      if (itemType === "order") {
+        // Fetch order details
+        title.textContent = "Order Details";
+        var headerIcon = document.getElementById('scheduleModalIcon');
+        if (headerIcon) { headerIcon.style.background = 'linear-gradient(135deg,#ec4899,#db2777)'; headerIcon.style.boxShadow = '0 4px 12px rgba(236,72,153,0.3)'; headerIcon.innerHTML = '<i class="bi bi-box-seam"></i>'; }
+        var modalHeader = document.getElementById('scheduleModalHeader');
+        if (modalHeader) modalHeader.style.background = 'linear-gradient(135deg,#fdf2f8,#ffffff)';
+
+        const res = await fetch("/api/orders/" + encodeURIComponent(id), { credentials: "include" });
+        const d = await res.json();
+        const order = d.order || d;
+        if (!order) throw new Error("Order not found");
+
+        const items = (order.items || []).map(function(i) {
+          return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid #f1f5f9;"><div style="width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#db2777);flex-shrink:0;"></div><span style="font-weight:500;">' + (i.modelLine || 'Aircon') + '</span> <span style="color:#94a3b8;">(' + (i.capacity || '—') + ' ' + (i.capacityUnit || 'HP') + ')</span> <span style="color:#64748b;margin-left:auto;font-weight:600;">×' + i.quantity + '</span></div>';
+        }).join('');
+
+        function ic(label, value) {
+          return '<div style="flex:1 1 calc(50% - 0.5rem);min-width:140px;"><div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin-bottom:2px;">' + label + '</div><div style="font-size:0.88rem;font-weight:600;color:#0f172a;">' + value + '</div></div>';
+        }
+        function section(title, icon, accent, content) {
+          return '<div style="background:#ffffff;border-radius:12px;padding:0;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(15,23,42,0.03);overflow:hidden;"><div style="height:3px;background:linear-gradient(90deg,' + accent + ');"></div><div style="padding:0.85rem 1rem 1rem;"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.4rem;"><i class="bi bi-' + icon + '" style="color:' + accent.split(',')[0] + ';"></i>' + title + '</div>' + content + '</div></div>';
+        }
+
+        // Build status badge color
+        var s = (order.status || '').replace(/_/g, ' ');
+        var sc = '#0891b2', sbg = 'rgba(6,182,212,0.10)';
+        if (s.indexOf('cancel') > -1) { sc = '#dc2626'; sbg = 'rgba(220,38,38,0.10)'; }
+        else if (s.indexOf('complete') > -1 || s.indexOf('delivered') > -1) { sc = '#059669'; sbg = 'rgba(16,185,129,0.10)'; }
+        else if (s.indexOf('pending') > -1) { sc = '#d97706'; sbg = 'rgba(245,158,11,0.10)'; }
+
+        body.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:0.85rem;">
+            <!-- Hero reference strip -->
+            <div style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-radius:12px;padding:1rem 1.15rem;border:1px solid #fbcfe8;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+              <div>
+                <div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#db2777;">Order Reference</div>
+                <div style="font-size:1.15rem;font-weight:700;color:#be185d;letter-spacing:-0.02em;">${order.orderReference || order._id}</div>
+              </div>
+              <span style="font-size:0.75rem;font-weight:600;padding:0.3rem 0.85rem;border-radius:20px;background:${sbg};color:${sc};">${s.toUpperCase()}</span>
+            </div>
+
+            ${section('Customer Info', 'person', '#3b82f6,#2563eb',
+              '<div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;">' +
+                ic('Customer', (order.customer && order.customer.name) || '—') +
+                ic('Phone', (order.customer && order.customer.phone) || (order.delivery && order.delivery.contactNumber) || '—') +
+                ic('Fulfillment', (order.fulfillmentType || '—').replace(/_/g, ' ')) +
+                ic('Delivery Date', order.delivery && order.delivery.preferredDate ? new Date(order.delivery.preferredDate).toLocaleDateString() : '—') +
+              '</div>' +
+              (order.delivery && order.delivery.address ? '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px dashed #f1f5f9;"><div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin-bottom:2px;">ADDRESS</div><div style="font-size:0.85rem;color:#334155;">' + order.delivery.address + '</div></div>' : '')
+            )}
+
+            ${section('Financial Summary', 'currency-exchange', '#059669,#10b981',
+              '<div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;">' +
+                ic('Subtotal', peso(order.subtotal)) +
+                ic('Transport Fee', peso(order.transportationFee)) +
+                ic('Installation Fee', peso(order.installationFee)) +
+                ic('Total', '<span style="font-size:1.05rem;color:#059669;">' + peso(order.total) + '</span>') +
+              '</div>'
+            )}
+
+            ${section('Order Items', 'box', '#ec4899,#db2777',
+              '<div style="margin:-0.2rem 0;">' + (items || '<div style="color:#94a3b8;font-size:0.82rem;padding:0.4rem 0;">No items listed</div>') + '</div>'
+            )}
+
+            ${order.delivery && order.delivery.notes ? section('Notes', 'chat-text', '#8b5cf6,#a855f7',
+              '<p style="margin:0;font-size:0.82rem;color:#475569;line-height:1.5;">' + order.delivery.notes + '</p>'
+            ) : ''}
+          </div>`;
+      } else {
+        // Fetch appointment details
+        title.textContent = "Appointment Details";
+        var headerIcon = document.getElementById('scheduleModalIcon');
+        if (headerIcon) { headerIcon.style.background = 'linear-gradient(135deg,#6366f1,#4f46e5)'; headerIcon.style.boxShadow = '0 4px 12px rgba(99,102,241,0.3)'; headerIcon.innerHTML = '<i class="bi bi-wrench-adjustable-circle"></i>'; }
+        var modalHeader = document.getElementById('scheduleModalHeader');
+        if (modalHeader) modalHeader.style.background = 'linear-gradient(135deg,#eef2ff,#ffffff)';
+
+        const res = await fetch("/api/appointments/" + encodeURIComponent(id), { credentials: "include" });
+        const d = await res.json();
+        const appt = (d && d.appointment) ? d.appointment : d;
+        if (!appt) throw new Error("Appointment not found");
+
+        const when = `${new Date(appt.bookingDate || appt.date || Date.now()).toLocaleDateString()} • ${fmtMinute(parseMinuteValue(appt.startTime))}${Number.isFinite(parseMinuteValue(appt.endTime)) ? " – " + fmtMinute(parseMinuteValue(appt.endTime)) : ""}`;
+
+        function ic(label, value) {
+          return '<div style="flex:1 1 calc(50% - 0.5rem);min-width:140px;"><div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin-bottom:2px;">' + label + '</div><div style="font-size:0.88rem;font-weight:600;color:#0f172a;">' + value + '</div></div>';
+        }
+        function section(title, icon, accent, content) {
+          return '<div style="background:#ffffff;border-radius:12px;padding:0;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(15,23,42,0.03);overflow:hidden;"><div style="height:3px;background:linear-gradient(90deg,' + accent + ');"></div><div style="padding:0.85rem 1rem 1rem;"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.4rem;"><i class="bi bi-' + icon + '" style="color:' + accent.split(',')[0] + ';"></i>' + title + '</div>' + content + '</div></div>';
+        }
+
+        // Build status badge color
+        var s = (appt.status || '—');
+        var sc = '#0891b2', sbg = 'rgba(6,182,212,0.10)';
+        if (s.toLowerCase().indexOf('cancel') > -1) { sc = '#dc2626'; sbg = 'rgba(220,38,38,0.10)'; }
+        else if (s.toLowerCase().indexOf('complete') > -1) { sc = '#059669'; sbg = 'rgba(16,185,129,0.10)'; }
+        else if (s.toLowerCase().indexOf('pending') > -1) { sc = '#d97706'; sbg = 'rgba(245,158,11,0.10)'; }
+        else if (s.toLowerCase().indexOf('confirm') > -1 || s.toLowerCase().indexOf('scheduled') > -1) { sc = '#059669'; sbg = 'rgba(16,185,129,0.10)'; }
+
+        body.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:0.85rem;">
+            <!-- Hero reference strip -->
+            <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border-radius:12px;padding:1rem 1.15rem;border:1px solid #c7d2fe;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+              <div>
+                <div style="font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#4f46e5;">Appointment Reference</div>
+                <div style="font-size:1.15rem;font-weight:700;color:#3730a3;letter-spacing:-0.02em;">${appt.bookingReference || appt._id || '—'}</div>
+              </div>
+              <span style="font-size:0.75rem;font-weight:600;padding:0.3rem 0.85rem;border-radius:20px;background:${sbg};color:${sc};">${s.toUpperCase()}</span>
+            </div>
+
+            ${section('Schedule', 'calendar-check', '#6366f1,#4f46e5',
+              '<div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;">' +
+                ic('Date & Time', when) +
+                ic('Customer', appt.customerName || (appt.customer && appt.customer.name) || '—') +
+                ic('Service', (appt.service && appt.service.name) || '—') +
+                ic('Payment', (appt.paymentMethod || '—').toUpperCase()) +
+              '</div>' +
+              ((appt.location && appt.location.address) || appt.address ? '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px dashed #f1f5f9;"><div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin-bottom:2px;">LOCATION</div><div style="font-size:0.85rem;color:#334155;">' + ((appt.location && appt.location.address) || appt.address) + '</div></div>' : '')
+            )}
+
+            ${(() => {
+              const pm = appt.paymentMethod || '';
+              const total = appt.totalPrice || appt.estimatedFee || 0;
+              const dp = appt.downpaymentAmount || 400;
+              const balance = appt.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0);
+              const isPaid = appt.paymentStatus === 'paid';
+              const isPartial = appt.paymentStatus === 'partial';
+
+              if (pm === 'cod') {
+                return section('Payment Details', 'cash-stack', '#059669,#10b981',
+                  '<div style="display:flex;flex-direction:column;gap:0.4rem;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;"><span style="color:#64748b;">Total Service Fee</span><span style="font-weight:600;color:#0f172a;">' + peso(total) + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;"><span style="color:#64748b;">Downpayment (collected)</span><span style="font-weight:600;color:#2563eb;">' + peso(dp) + '</span></div>' +
+                    '<div style="height:1px;background:#e2e8f0;margin:4px 0;"></div>' +
+                    '<div style="display:flex;justify-content:space-between;font-size:0.88rem;"><span style="font-weight:700;color:#0f172a;">Balance on Completion</span><span style="font-weight:700;color:' + (balance <= 0 ? '#059669' : '#d97706') + ';">' + peso(balance) + '</span></div>' +
+                    (isPartial ? '<div style="display:flex;justify-content:space-between;font-size:0.78rem;margin-top:4px;"><span style="color:#d97706;"><i class="bi bi-exclamation-triangle me-1"></i>Collect balance after service</span></div>' : '') +
+                    (isPaid ? '<div style="display:flex;justify-content:space-between;font-size:0.78rem;margin-top:4px;"><span style="color:#059669;"><i class="bi bi-check-circle me-1"></i>Fully paid</span></div>' : '') +
+                  '</div>'
+                );
+              } else {
+                return section('Financial Summary', 'currency-exchange', '#059669,#10b981',
+                  '<div>' + ic('Estimated Fee', peso(total)) + '</div>' +
+                  (isPaid ? '<div style="margin-top:0.4rem;font-size:0.78rem;color:#059669;"><i class="bi bi-check-circle me-1"></i>Paid in full via GCash</div>' : '')
+                );
+              }
+            })()}
+
+            ${appt.issueDescription ? section('Issue Description', 'chat-text', '#8b5cf6,#a855f7',
+              '<p style="margin:0;font-size:0.82rem;color:#475569;line-height:1.5;">' + appt.issueDescription + '</p>'
+            ) : ''}
+
+            <!-- Location Map -->
+            <div style="background:#ffffff;border-radius:12px;padding:0;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(15,23,42,0.03);overflow:hidden;">
+              <div style="height:3px;background:linear-gradient(90deg,#3b82f6,#06b6d4);"></div>
+              <div style="padding:0.85rem 1rem 1rem;">
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:0.7rem;display:flex;align-items:center;gap:0.4rem;"><i class="bi bi-geo-alt" style="color:#3b82f6;"></i>Location Map</div>
+                <div id="scheduleDetailMap" style="height:250px;border-radius:10px;border:1px solid #e2e8f0;background:#f1f5f9;"></div>
+                <div style="display:flex;gap:12px;margin-top:8px;font-size:0.7rem;color:#64748b;">
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;display:inline-block;"></span>Customer Location</span>
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>Your Location</span>
+                </div>
+              </div>
+            </div>
+          </div>`;
+
+        // Initialize map after DOM is ready
+        setTimeout(function() {
+          try {
+            var mapEl = document.getElementById('scheduleDetailMap');
+            if (!mapEl || typeof L === 'undefined') return;
+
+            var custLat = appt.location && appt.location.lat;
+            var custLng = appt.location && appt.location.lng;
+            var techLat = null, techLng = null;
+
+            // Try to get technician's live location
+            if (appt.technicianId && typeof appt.technicianId === 'object') {
+              techLat = appt.technicianId.location && appt.technicianId.location.coordinates && appt.technicianId.location.coordinates[1];
+              techLng = appt.technicianId.location && appt.technicianId.location.coordinates && appt.technicianId.location.coordinates[0];
+            }
+
+            var centerLat = custLat || techLat || 14.5995;
+            var centerLng = custLng || techLng || 120.9842;
+            var zoom = (custLat && techLat) ? 13 : 15;
+
+            var detailMap = L.map(mapEl, { zoomControl: false, attributionControl: false }).setView([centerLat, centerLng], zoom);
+            L.control.zoom({ position: 'topright' }).addTo(detailMap);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+              maxZoom: 19
+            }).addTo(detailMap);
+
+            // Customer marker
+            if (custLat && custLng) {
+              L.marker([custLat, custLng], { icon: L.divIcon({
+                className: 'cust-map-icon',
+                html: '<div style="background:#8b5cf6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(139,92,246,0.4);display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
+                iconSize: [28, 28], iconAnchor: [14, 14]
+              }) }).addTo(detailMap).bindPopup('<strong>Customer</strong><br>' + ((appt.location && appt.location.address) || 'Service location'));
+            }
+
+            // Technician marker
+            if (techLat && techLng) {
+              L.marker([techLat, techLng], { icon: L.divIcon({
+                className: 'tech-map-icon',
+                html: '<div style="background:#3b82f6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;"><i class="bi bi-person-fill" style="color:#fff;font-size:12px;"></i></div>',
+                iconSize: [28, 28], iconAnchor: [14, 14]
+              }) }).addTo(detailMap).bindPopup('<strong>You</strong><br>Your current location');
+
+              // Fit bounds to show both markers
+              if (custLat && custLng) {
+                var bounds = L.latLngBounds([[custLat, custLng], [techLat, techLng]]);
+                detailMap.fitBounds(bounds, { padding: [40, 40] });
+              }
+            }
+
+            // Force map to recalculate size
+            setTimeout(function() { detailMap.invalidateSize(); }, 200);
+          } catch(mapErr) {
+            console.error('Map init error:', mapErr);
+          }
+        }, 300);
+      }
+    } catch (err) {
+      body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1rem;text-align:center;color:#dc2626;font-size:0.85rem;font-weight:500;"><i class="bi bi-exclamation-triangle me-2"></i>' + (err.message || err) + '</div>';
+    }
+  };
+})();
+</script>

@@ -1,0 +1,287 @@
+/* Improved alignment and spacing for service card content */
+.services-combined .service-item,
+.services-combined .repair-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  padding: 1.1rem 1.3rem;
+  min-height: 90px;
+  min-width: 240px;
+  max-width: 100%;
+  width: 100%;
+  background: #fff;
+  border: 2px solid #0d6efd;
+  border-radius: 0.8rem;
+  box-shadow: 0 2px 10px 0 rgba(13,110,253,0.07);
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+  overflow: visible;
+}
+.services-combined .service-item i,
+.services-combined .repair-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  height: 2.2em;
+  font-size: 1.7rem;
+  margin-right: 0.7rem;
+  color: #0d6efd;
+  flex-shrink: 0;
+}
+.services-combined .service-item p,
+.services-combined .repair-card h6,
+.services-combined .repair-card p {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  height: 2.2em;
+  line-height: 2.2em;
+  font-size: 1.08rem;
+  font-weight: 500;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.services-combined .service-item .text-dark,
+.services-combined .repair-card .text-dark {
+  font-size: 1.08rem;
+  font-weight: 500;
+}
+@media (max-width: 991.98px) {
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    padding: 0.7rem 0.7rem;
+    min-height: 70px;
+    font-size: 0.97rem;
+  }
+  .services-combined .service-item i,
+  .services-combined .repair-icon {
+    font-size: 1.2rem;
+    min-width: 1.5em;
+    min-height: 1.5em;
+    margin-right: 0.5rem;
+  }
+}
+@media (max-width: 575.98px) {
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.5rem 0.5rem;
+    min-height: 50px;
+    font-size: 0.92rem;
+  }
+  .services-combined .service-item i,
+  .services-combined .repair-icon {
+    margin-right: 0;
+    margin-bottom: 0.3rem;
+  }
+}
+/* Custom maximize and horizontal style for service and repair cards on landing page */
+
+/* Make service and repair cards wider and horizontal */
+.services-combined .service-item,
+.services-combined .repair-card {
+  min-width: 320px;
+  width: 100%;
+  max-width: 100%;
+  min-height: 90px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1.25rem 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.15rem;
+  box-sizing: border-box;
+}
+
+.services-combined .service-item .text-dark,
+.services-combined .repair-card .text-dark {
+  font-size: 1.1rem;
+}
+
+.services-combined .repair-icon {
+  margin-right: 1.5rem;
+  font-size: 2rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    min-width: 220px;
+    padding: 1rem 1.2rem;
+    font-size: 1rem;
+  }
+  .services-combined .repair-icon {
+    margin-right: 1rem;
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 100%;
+    padding: 0.8rem 0.7rem;
+    font-size: 0.98rem;
+  }
+  .services-combined .repair-icon {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+  }
+}
+/* Make service/repair cards slightly smaller so more fit per row, but not too small. */
+.services-combined .row.g-3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.6rem;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+.services-combined .col-6,
+.services-combined .col-md-4,
+.services-combined .col-lg-3 {
+  flex: 0 1 180px;
+  max-width: 180px;
+  min-width: 120px;
+  padding: 0;
+  display: flex;
+}
+.services-combined .service-item,
+.services-combined .repair-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 55px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0;
+  font-size: 0.91rem;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 6px 0 rgba(0,0,0,0.06);
+  border-left: 4px solid #0d6efd;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.services-combined .service-item:hover,
+.services-combined .repair-card:hover {
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.13);
+  transform: translateY(-2px) scale(1.03);
+}
+@media (max-width: 991.98px) {
+  .services-combined .row.g-3 {
+    gap: 0.3rem 0.3rem;
+  }
+  .services-combined .col-6,
+  .services-combined .col-md-4,
+  .services-combined .col-lg-3 {
+    min-width: 90px;
+    max-width: 100%;
+  }
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.87rem;
+  }
+}
+@media (max-width: 575.98px) {
+  .services-combined .row.g-3 {
+    gap: 0.15rem 0.15rem;
+  }
+  .services-combined .col-6,
+  .services-combined .col-md-4,
+  .services-combined .col-lg-3 {
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .services-combined .service-item,
+  .services-combined .repair-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.3rem 0.3rem;
+    font-size: 0.85rem;
+  }
+}
+/* Custom maximize and horizontal style for service and repair cards on landing page */
+
+
+/* Match the card style of 'Professional Technicians You Can Trust' */
+.services-combined .service-item,
+.services-combined .repair-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 90px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1.1rem 1.5rem;
+  margin-bottom: 1.1rem;
+  font-size: 1.08rem;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
+  border-left: 6px solid #0d6efd;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.services-combined .service-item:hover,
+.services-combined .repair-card:hover {
+  box-shadow: 0 6px 24px 0 rgba(13,110,253,0.18);
+  border-color: #084298;
+  transform: translateY(-3px) scale(1.04);
+  z-index: 2;
+}
+
+.services-combined .service-item .text-dark,
+.services-combined .repair-card .text-dark {
+  font-size: 1.1rem;
+}
+
+.services-combined .repair-icon {
+  margin-right: 1.5rem;
+  font-size: 2rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .services-combined .service-item p,
+  .services-combined .repair-card h6,
+  .services-combined .repair-card p {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    min-height: 2.2em;
+    font-size: 1.08rem;
+    font-weight: 500;
+    color: #222;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+    align-items: flex-start;
+    min-width: 100%;
+    padding: 0.8rem 0.7rem;
+    font-size: 0.98rem;
+  }
+  .services-combined .repair-icon {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+  }
+}

@@ -1,0 +1,695 @@
+<%
+// Get current user from session
+const currentUser = user || null;
+// Check if user is authenticated
+const isAuthenticated = currentUser && currentUser.id;
+%>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopping Cart - HVAC Solutions</title>
+  <meta name="description" content="Your shopping cart for air conditioner products and services">
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <!-- Custom CSS -->
+  <style>
+    /* Landing Page Color Palette */
+    :root {
+      --sapphire-900: #0a1628;
+      --sapphire-800: #0c1e3a;
+      --sapphire-700: #0f2b5e;
+      --sapphire-600: #1a4fd8;
+      --sapphire-500: #2563eb;
+      --sapphire-400: #3b82f6;
+      --sapphire-300: #60a5fa;
+      --sapphire-200: #93c5fd;
+      --sapphire-100: #dbeafe;
+      --sapphire-50:  #eff6ff;
+    }
+
+    * { font-family: 'Inter', sans-serif; }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(37, 99, 235, 0.18), transparent 60%),
+        radial-gradient(900px 500px at -10% 10%, rgba(96, 165, 250, 0.12), transparent 55%),
+        linear-gradient(180deg, var(--sapphire-900) 0%, #06101f 100%);
+      min-height: 100vh;
+      color: #e6eefc;
+    }
+
+    /* Glass panel base */
+    .glass-panel {
+      background: rgba(15, 43, 94, 0.45);
+      border: 1px solid rgba(96, 165, 250, 0.18);
+      border-radius: 1rem;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 10px 40px rgba(3, 10, 25, 0.45);
+    }
+
+    /* User Avatar */
+    .user-avatar .avatar-circle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--sapphire-500), var(--sapphire-700));
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+    }
+
+    /* Cart Items */
+    .cart-item {
+      background: rgba(15, 43, 94, 0.45);
+      border: 1px solid rgba(96, 165, 250, 0.18);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(3, 10, 25, 0.4);
+      transition: all 0.3s ease;
+      margin-bottom: 1rem;
+    }
+
+    .cart-item:hover {
+      transform: translateY(-3px);
+      border-color: rgba(96, 165, 250, 0.4);
+      box-shadow: 0 16px 44px rgba(3, 10, 25, 0.55);
+    }
+
+    .product-img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(96, 165, 250, 0.25);
+    }
+
+    /* Service Selection */
+    .service-option {
+      border: 2px solid rgba(96, 165, 250, 0.25);
+      border-radius: 0.6rem;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(10, 22, 40, 0.4);
+      margin-bottom: 0.5rem;
+    }
+
+    .service-option:hover {
+      border-color: var(--sapphire-400);
+      background: rgba(37, 99, 235, 0.15);
+    }
+
+    .service-option.selected {
+      border-color: var(--sapphire-400);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(15, 43, 94, 0.4));
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--sapphire-500), var(--sapphire-700));
+      border: none;
+      font-weight: 600;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.6rem;
+      transition: all 0.3s ease;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--sapphire-400), var(--sapphire-600));
+      transform: translateY(-2px);
+      box-shadow: 0 8px 26px rgba(37, 99, 235, 0.45);
+      color: #fff;
+    }
+
+    .btn-outline-primary {
+      color: var(--sapphire-200);
+      border: 2px solid var(--sapphire-500);
+      font-weight: 600;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.6rem;
+      transition: all 0.3s ease;
+      background: transparent;
+    }
+
+    .btn-outline-primary:hover {
+      background: rgba(37, 99, 235, 0.18);
+      border-color: var(--sapphire-400);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 26px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-outline-secondary {
+      color: var(--sapphire-200);
+      border: 2px solid rgba(96, 165, 250, 0.3);
+      font-weight: 600;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.6rem;
+      transition: all 0.3s ease;
+      background: transparent;
+    }
+
+    .btn-outline-secondary:hover {
+      background: rgba(96, 165, 250, 0.15);
+      border-color: var(--sapphire-400);
+      color: #fff;
+    }
+
+    /* Cart Summary */
+    .cart-summary {
+      background: rgba(15, 43, 94, 0.5);
+      border: 1px solid rgba(96, 165, 250, 0.22);
+      border-radius: 1rem;
+      padding: 2rem;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 10px 40px rgba(3, 10, 25, 0.45);
+      position: sticky;
+      top: 2rem;
+    }
+
+    /* Empty Cart */
+    .empty-cart {
+      text-align: center;
+      padding: 4rem 2rem;
+      background: rgba(15, 43, 94, 0.5);
+      border: 1px solid rgba(96, 165, 250, 0.22);
+      border-radius: 1rem;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 10px 40px rgba(3, 10, 25, 0.45);
+    }
+
+    .empty-cart i {
+      font-size: 4rem;
+      color: var(--sapphire-300);
+      margin-bottom: 1rem;
+    }
+
+    /* HP Selection */
+    .hp-selection {
+      background: rgba(10, 22, 40, 0.4);
+      border: 1px solid rgba(96, 165, 250, 0.25);
+      border-radius: 0.6rem;
+      padding: 0.5rem;
+    }
+
+    /* Form controls on dark theme */
+    .form-select, .form-control, .quantity-input {
+      background: rgba(10, 22, 40, 0.6);
+      border: 1px solid rgba(96, 165, 250, 0.25);
+      color: #e6eefc;
+      border-radius: 0.5rem;
+    }
+    .form-select:focus, .form-control:focus, .quantity-input:focus {
+      background: rgba(10, 22, 40, 0.75);
+      border-color: var(--sapphire-400);
+      color: #fff;
+      box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+    }
+    .form-select option { background: var(--sapphire-900); color: #e6eefc; }
+
+    /* Quantity Controls */
+    .quantity-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .quantity-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      background: rgba(10, 22, 40, 0.5);
+      color: var(--sapphire-200);
+      border-radius: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .quantity-btn:hover {
+      background: rgba(37, 99, 235, 0.25);
+      border-color: var(--sapphire-400);
+      color: #fff;
+    }
+
+    .quantity-input {
+      width: 60px;
+      text-align: center;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 0.35rem;
+      padding: 0.25rem;
+      background: rgba(10, 22, 40, 0.6);
+      color: #e6eefc;
+    }
+
+    /* Text helpers on dark theme */
+    .text-primary { color: var(--sapphire-300) !important; }
+    .text-muted { color: rgba(159, 190, 235, 0.7) !important; }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .cart-summary {
+        position: relative;
+        top: 0;
+        margin-top: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Main Content -->
+  <main class="container my-5">
+    <!-- User Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="glass-panel p-4">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <div class="user-avatar me-3">
+                <div class="avatar-circle bg-primary text-white">
+                  <%= currentUser.name.charAt(0).toUpperCase() %>
+                </div>
+              </div>
+              <div>
+                <h5 class="fw-bold mb-1 text-white">Welcome back, <%= currentUser.name %></h5>
+                <p class="text-muted mb-0"><%= currentUser.email %></p>
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <div class="text-end">
+                <small class="text-muted d-block">Account Type</small>
+                <span class="badge bg-success">Premium Customer</span>
+              </div>
+              <div class="text-end">
+                <small class="text-muted d-block">Member Since</small>
+                <span class="fw-bold text-white"><%= new Date(currentUser.createdAt || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) %></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="fw-bold mb-1 text-white">Shopping Cart</h1>
+        <p class="text-muted mb-0">Review and configure your air conditioner selections</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/product" class="btn btn-outline-primary">
+          <i class="bi bi-arrow-left me-2"></i>Continue Shopping
+        </a>
+        <a href="/profile" class="btn btn-outline-secondary">
+          <i class="bi bi-person me-2"></i>My Account
+        </a>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Cart Items -->
+      <div class="col-lg-8">
+        <div id="cartItemsContainer">
+          <!-- Cart items will be dynamically loaded here -->
+        </div>
+      </div>
+
+      <!-- Cart Summary -->
+      <div class="col-lg-4">
+          <div class="cart-summary">
+            <h5 class="fw-bold mb-4 text-white">Order Summary</h5>
+          
+          <div id="cartSummaryContent">
+            <!-- Summary will be dynamically loaded here -->
+          </div>
+
+          <div class="d-grid gap-2 mt-4">
+            <button class="btn btn-primary btn-lg fw-bold" id="proceedToCheckout">
+              <i class="bi bi-lock me-2"></i>Proceed to Checkout
+            </button>
+            <button class="btn btn-outline-secondary" onclick="clearCart()">
+              <i class="bi bi-trash me-2"></i>Clear Cart
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Cart Management JavaScript -->
+  <script>
+    // Cart Management System
+    class CartManager {
+      constructor() {
+        this.cart = JSON.parse(localStorage.getItem('hvacCart') || '[]');
+        this.isAuthenticated = true; // User is authenticated to access this page
+        this.currentUser = <%= JSON.stringify(currentUser) %>;
+        this.serviceFees = {
+          'delivery-installation': 2500,
+          'delivery-only': 800,
+          'pickup': 0
+        };
+        this.init();
+      }
+
+      init() {
+        // Check for pending cart item from login redirect
+        this.handlePendingCartItem();
+        this.renderCart();
+        this.setupEventListeners();
+      }
+
+      handlePendingCartItem() {
+        const pendingItem = sessionStorage.getItem('pendingCartItem');
+        if (pendingItem) {
+          try {
+            const productData = JSON.parse(pendingItem);
+            this.addToCart(productData);
+            sessionStorage.removeItem('pendingCartItem');
+            sessionStorage.removeItem('returnTo');
+            this.showNotification('Product added to cart successfully!', 'success');
+          } catch (error) {
+            console.error('Error adding pending item to cart:', error);
+          }
+        }
+      }
+
+      setupEventListeners() {
+        // Proceed to checkout
+        document.getElementById('proceedToCheckout')?.addEventListener('click', () => {
+          if (this.cart.length === 0) {
+            this.showNotification('Your cart is empty', 'warning');
+            return;
+          }
+          // Redirect to checkout or show checkout modal
+          this.showCheckoutModal();
+        });
+      }
+
+      renderCart() {
+        const container = document.getElementById('cartItemsContainer');
+        const summaryContainer = document.getElementById('cartSummaryContent');
+
+        if (this.cart.length === 0) {
+          container.innerHTML = `
+            <div class="empty-cart">
+              <i class="bi bi-cart-x"></i>
+              <h4 class="fw-bold mb-3 text-white">Your cart is empty</h4>
+              <p class="text-muted mb-4">Start adding air conditioners to your cart</p>
+              <a href="/product" class="btn btn-primary">
+                <i class="bi bi-shop me-2"></i>Browse Products
+              </a>
+            </div>
+          `;
+
+          summaryContainer.innerHTML = `
+            <div class="text-center text-muted">
+              <p>No items in cart</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Render cart items
+        container.innerHTML = this.cart.map((item, index) => this.createCartItemHTML(item, index)).join('');
+
+        // Render summary
+        this.renderSummary();
+
+        // Setup event listeners for cart items
+        this.setupCartItemListeners();
+      }
+
+      createCartItemHTML(item, index) {
+        return `
+          <div class="cart-item" data-index="${index}">
+            <div class="row align-items-center">
+              <div class="col-md-2">
+                <img src="${item.imageUrl || '/images/products/default-aircon.jpg'}" alt="${item.name}" class="product-img">
+              </div>
+              <div class="col-md-4">
+                <h6 class="fw-bold mb-1">${item.name}</h6>
+                <p class="text-muted small mb-2">${item.brand} · ${item.type}</p>
+                <div class="hp-selection">
+                  <small class="text-muted">Capacity:</small>
+                  <select class="form-select form-select-sm hp-select" data-index="${index}">
+                    ${this.getAvailableHPs(item).map(hp => 
+                      `<option value="${hp.id}" ${hp.id === item.variantId ? 'selected' : ''} data-price="${hp.price}" data-capacity="${hp.capacity}">
+                        ${hp.capacity} HP - ₱${hp.price.toLocaleString()}
+                      </option>`
+                    ).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="mb-3">
+                  <small class="text-muted d-block">Service Type:</small>
+                  <div class="service-option ${item.deliveryOption === 'delivery-installation' ? 'selected' : ''}" data-index="${index}" data-service="delivery-installation">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="small">🚚 Delivery + Installation</span>
+                      <span class="small fw-bold">₱2,500</span>
+                    </div>
+                  </div>
+                  <div class="service-option ${item.deliveryOption === 'delivery-only' ? 'selected' : ''}" data-index="${index}" data-service="delivery-only">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="small">📦 Delivery Only</span>
+                      <span class="small fw-bold">₱800</span>
+                    </div>
+                  </div>
+                  <div class="service-option ${item.deliveryOption === 'pickup' ? 'selected' : ''}" data-index="${index}" data-service="pickup">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="small">🏪 Store Pickup</span>
+                      <span class="small fw-bold">Free</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="d-flex align-items-center justify-content-between">
+                  <div class="quantity-controls">
+                    <button class="quantity-btn" onclick="cartManager.updateQuantity(${index}, -1)">
+                      <i class="bi bi-dash"></i>
+                    </button>
+                    <input type="number" class="quantity-input" value="${item.quantity}" min="1" max="10" data-index="${index}">
+                    <button class="quantity-btn" onclick="cartManager.updateQuantity(${index}, 1)">
+                      <i class="bi bi-plus"></i>
+                    </button>
+                  </div>
+                  <button class="btn btn-sm btn-outline-danger" onclick="cartManager.removeFromCart(${index})">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+                <div class="text-end mt-2">
+                  <div class="small text-muted">Item total:</div>
+                  <div class="fw-bold text-primary item-total" data-index="${index}">₱${(item.price * item.quantity + item.deliveryFee).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      getAvailableHPs(item) {
+        // This would ideally come from the product data
+        // For now, return the current variant as an option
+        return [{
+          id: item.variantId,
+          capacity: item.capacity,
+          price: item.price
+        }];
+      }
+
+      setupCartItemListeners() {
+        // HP selection change
+        document.querySelectorAll('.hp-select').forEach(select => {
+          select.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            this.updateItemVariant(index, {
+              variantId: selectedOption.value,
+              capacity: selectedOption.dataset.capacity,
+              price: parseFloat(selectedOption.dataset.price)
+            });
+          });
+        });
+
+        // Service option selection
+        document.querySelectorAll('.service-option').forEach(option => {
+          option.addEventListener('click', (e) => {
+            const index = parseInt(e.currentTarget.dataset.index);
+            const service = e.currentTarget.dataset.service;
+            this.updateItemService(index, service);
+          });
+        });
+
+        // Quantity input change
+        document.querySelectorAll('.quantity-input').forEach(input => {
+          input.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const quantity = parseInt(e.target.value);
+            this.updateQuantity(index, quantity - this.cart[index].quantity);
+          });
+        });
+      }
+
+      updateItemVariant(index, variantData) {
+        this.cart[index].variantId = variantData.variantId;
+        this.cart[index].capacity = variantData.capacity;
+        this.cart[index].price = variantData.price;
+        this.saveCart();
+        this.renderCart();
+      }
+
+      updateItemService(index, service) {
+        // Update UI
+        document.querySelectorAll(`.service-option[data-index="${index}"]`).forEach(opt => {
+          opt.classList.remove('selected');
+        });
+        document.querySelector(`.service-option[data-index="${index}"][data-service="${service}"]`).classList.add('selected');
+
+        // Update data
+        this.cart[index].deliveryOption = service;
+        this.cart[index].deliveryFee = this.serviceFees[service];
+        this.saveCart();
+        this.renderCart();
+      }
+
+      updateQuantity(index, change) {
+        const newQuantity = this.cart[index].quantity + change;
+        if (newQuantity < 1 || newQuantity > 10) return;
+
+        this.cart[index].quantity = newQuantity;
+        this.saveCart();
+        this.renderCart();
+      }
+
+      removeFromCart(index) {
+        this.cart.splice(index, 1);
+        this.saveCart();
+        this.renderCart();
+        this.showNotification('Item removed from cart', 'info');
+      }
+
+      renderSummary() {
+        const subtotal = this.cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+        const deliveryTotal = this.cart.reduce((total, item) => total + (item.deliveryFee * item.quantity), 0);
+        const total = subtotal + deliveryTotal;
+
+        document.getElementById('cartSummaryContent').innerHTML = `
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-2">
+              <span>Subtotal (${this.cart.length} items):</span>
+              <span class="fw-bold">₱${subtotal.toLocaleString()}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span>Delivery & Installation:</span>
+              <span class="fw-bold">₱${deliveryTotal.toLocaleString()}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="h5 fw-bold">Total:</span>
+              <span class="h4 fw-bold text-primary">₱${total.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      saveCart() {
+        localStorage.setItem('hvacCart', JSON.stringify(this.cart));
+      }
+
+      showCheckoutModal() {
+        // This would open a checkout modal or redirect to checkout page
+        this.showNotification('Proceeding to checkout...', 'success');
+        // For now, just show an alert
+        alert('Checkout functionality would be implemented here. Total: ₱' + this.calculateTotal().toLocaleString());
+      }
+
+      calculateTotal() {
+        const subtotal = this.cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+        const deliveryTotal = this.cart.reduce((total, item) => total + (item.deliveryFee * item.quantity), 0);
+        return subtotal + deliveryTotal;
+      }
+
+      showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} notification-toast`;
+        notification.innerHTML = `
+          <div class="d-flex align-items-center">
+            <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+            <div>${message}</div>
+          </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.style.animation = 'slideOut 0.3s ease forwards';
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+    }
+
+    // Initialize cart manager
+    let cartManager;
+    document.addEventListener('DOMContentLoaded', () => {
+      cartManager = new CartManager();
+      window.cartManager = cartManager;
+    });
+
+    // Global function to clear cart
+    function clearCart() {
+      if (confirm('Are you sure you want to clear your cart?')) {
+        cartManager.cart = [];
+        cartManager.saveCart();
+        cartManager.renderCart();
+        cartManager.showNotification('Cart cleared', 'info');
+      }
+    }
+  </script>
+
+  <style>
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    
+    .notification-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      min-width: 300px;
+      z-index: 9999;
+      border: none;
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 40px rgba(10, 22, 40, 0.2);
+      animation: slideIn 0.3s ease;
+    }
+  </style>
+</body>
+</html>

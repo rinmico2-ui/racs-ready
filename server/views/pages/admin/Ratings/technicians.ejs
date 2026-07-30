@@ -1,0 +1,890 @@
+<div class="container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link rel="stylesheet" href="/css/analytics.css">
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-person-workspace"></i></div>
+        <div>
+          <h1>Technician Ratings</h1>
+          <p>Performance reviews and ratings for service technicians</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <button class="btn btn-outline-success" onclick="generatePerformanceReport()">
+          <i class="bi bi-file-earmark-bar-graph me-2"></i>Performance Report
+        </button>
+        <button class="btn btn-primary" onclick="refreshTechnicianRatings()">
+          <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technician Performance Overview -->
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-2">Total Technicians</h6>
+              <h3 class="mb-0" id="totalTechnicians">0</h3>
+              <small class="text-muted">Active staff</small>
+            </div>
+            <div class="ms-3">
+              <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-people-fill text-primary fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-2">Avg Rating</h6>
+              <h3 class="mb-0" id="avgTechnicianRating">0.0</h3>
+              <div class="text-warning">
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-half"></i>
+              </div>
+            </div>
+            <div class="ms-3">
+              <div class="bg-success bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-trophy text-success fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-2">Total Reviews</h6>
+              <h3 class="mb-0" id="totalReviews">0</h3>
+              <small class="text-success">
+                <i class="bi bi-arrow-up"></i> 15% this month
+              </small>
+            </div>
+            <div class="ms-3">
+              <div class="bg-info bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-chat-dots text-info fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-2">Top Performers</h6>
+              <h3 class="mb-0" id="topPerformers">0</h3>
+              <small class="text-muted">4.5+ rating</small>
+            </div>
+            <div class="ms-3">
+              <div class="bg-warning bg-opacity-10 rounded-circle p-3">
+                <i class="bi bi-award text-warning fs-4"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance Metrics -->
+  <div class="row mb-4">
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Rating Distribution</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="ratingDistributionChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Performance Trends</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="performanceTrendsChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4 mb-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">Top Performers</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="topPerformersChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters and Search -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label">Department</label>
+          <select class="form-select" id="departmentFilter">
+            <option value="">All Departments</option>
+            <option value="installation">Installation</option>
+            <option value="repair">Repair</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="inspection">Inspection</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Rating</label>
+          <select class="form-select" id="ratingFilter">
+            <option value="">All Ratings</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4+ Stars</option>
+            <option value="3">3+ Stars</option>
+            <option value="2">Below 3 Stars</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="statusFilter">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="on-leave">On Leave</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Experience</label>
+          <select class="form-select" id="experienceFilter">
+            <option value="">All Levels</option>
+            <option value="junior">Junior (0-2 years)</option>
+            <option value="mid">Mid (2-5 years)</option>
+            <option value="senior">Senior (5+ years)</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sort By</label>
+          <select class="form-select" id="sortBy">
+            <option value="rating">Highest Rated</option>
+            <option value="reviews">Most Reviews</option>
+            <option value="experience">Most Experience</option>
+            <option value="name">Name A-Z</option>
+            <option value="recent">Recently Rated</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <div class="d-grid">
+            <button class="btn btn-primary" onclick="applyFilters()">
+              <i class="bi bi-funnel me-2"></i>Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technician Ratings Table -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Technician Performance</h5>
+        <div class="d-flex gap-2">
+          <span class="text-muted" id="technicianCount">Showing 0 technicians</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Technician</th>
+              <th>Department</th>
+              <th>Rating</th>
+              <th>Reviews</th>
+              <th>Jobs Completed</th>
+              <th>Experience</th>
+              <th>Status</th>
+              <th>Performance</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="technicianRatingsTable">
+            <tr>
+              <td colspan="9" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Loading technician ratings...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      <nav aria-label="Technician ratings pagination" class="mt-3">
+        <ul class="pagination justify-content-center" id="pagination">
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <%- include('../../../partials/chart-drilldown-modal') %>
+</div>
+
+<!-- Technician Details Modal -->
+<div class="modal fade" id="technicianModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Technician Performance Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="technicianModalBody">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-info" onclick="viewFullProfile()">Full Profile</button>
+        <button type="button" class="btn btn-warning" onclick="scheduleReview()">Schedule Review</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Styles -->
+<style>
+  .rating-stars {
+    color: #ffc107;
+  }
+  .technician-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6c757d;
+  }
+  .technician-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+  .performance-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .experience-level {
+    font-size: 0.875rem;
+    color: #6c757d;
+  }
+  .rating-count {
+    font-size: 0.75rem;
+    color: #6c757d;
+  }
+</style>
+
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/chart-drilldown.js"></script>
+<script>
+  // @ts-nocheck
+  let technicianRatings = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  let techCharts = {};
+
+  function openDrill(title, subtitle, chartCfg, details, filters, ff, summary) {
+    if (typeof ChartDrilldown === 'undefined') return;
+    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: ff || 'category', summary: summary || {} });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadTechnicianRatings();
+  });
+
+  async function loadTechnicianRatings() {
+    try {
+      showLoadingState();
+      const response = await fetch('/api/admin/ratings/technicians');
+      if (response.ok) {
+        const data = await response.json();
+        technicianRatings = data.technicians || [];
+        updateOverviewStats(data.stats || {});
+        renderTechnicianRatings();
+        updateTechnicianCount();
+        initializeTechCharts(data);
+      } else {
+        showErrorState();
+      }
+    } catch (error) {
+      console.error('Error loading technician ratings:', error);
+      showErrorState();
+    }
+  }
+
+  function updateOverviewStats(stats) {
+    document.getElementById('totalTechnicians').textContent = stats.totalTechnicians || 0;
+    document.getElementById('avgTechnicianRating').textContent = (stats.avgRating || 0).toFixed(1);
+    document.getElementById('totalReviews').textContent = stats.totalReviews || 0;
+    document.getElementById('topPerformers').textContent = stats.topPerformers || 0;
+  }
+
+  function initializeTechCharts(data) {
+    var ratingDistribution = data.ratingDistribution || [35, 40, 20, 4, 1];
+    var performanceTrends = data.performanceTrends || {};
+    var trendLabels = performanceTrends.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    var trendRating = performanceTrends.rating || [4.2, 4.3, 4.4, 4.5, 4.6, 4.7];
+    var trendJobs = performanceTrends.jobs || [45, 52, 48, 58, 62, 70];
+
+    var topPerformersList = (data.technicians || [])
+      .slice()
+      .sort(function(a, b) { return (b.avgRating || 0) - (a.avgRating || 0); })
+      .slice(0, 10);
+
+    var tpLabels = topPerformersList.map(function(t) { return t.name || 'Tech'; });
+    var tpValues = topPerformersList.map(function(t) { return t.avgRating || 0; });
+
+    var starLabels = ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
+    var starColors = ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'];
+
+    // Rating Distribution Doughnut
+    var distCtx = document.getElementById('ratingDistributionChart').getContext('2d');
+    var ratingDistCfg = {
+      type: 'doughnut',
+      data: {
+        labels: starLabels,
+        datasets: [{
+          data: ratingDistribution,
+          backgroundColor: starColors
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    };
+    var distCanvas = distCtx.canvas;
+    distCanvas.style.cursor = 'pointer';
+    distCanvas.onclick = function(evt) {
+      var elements = techCharts.ratingDist.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var clickedVal = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = starLabels[idx] || '';
+        clickedVal = ratingDistribution[idx] || 0;
+      }
+      var details = [{ category: label, value: clickedVal }];
+      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
+      openDrill(
+        'Rating Distribution - ' + label,
+        'Technician star distribution for ' + (label || 'all'),
+        ratingDistCfg, details, filters, 'category',
+        { total: clickedVal }
+      );
+    };
+    techCharts.ratingDist = new Chart(distCtx, ratingDistCfg);
+
+    // Performance Trends Line
+    var trendsCtx = document.getElementById('performanceTrendsChart').getContext('2d');
+    var perfTrendsCfg = {
+      type: 'line',
+      data: {
+        labels: trendLabels,
+        datasets: [{
+          label: 'Average Rating',
+          data: trendRating,
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13, 110, 253, 0.1)',
+          tension: 0.4
+        }, {
+          label: 'Jobs Completed',
+          data: trendJobs,
+          borderColor: '#198754',
+          backgroundColor: 'rgba(25, 135, 84, 0.1)',
+          tension: 0.4,
+          yAxisID: 'y1'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 3,
+            max: 5,
+            position: 'left'
+          },
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: {
+              drawOnChartArea: false
+            }
+          }
+        }
+      }
+    };
+    var trendsCanvas = trendsCtx.canvas;
+    trendsCanvas.style.cursor = 'pointer';
+    trendsCanvas.onclick = function(evt) {
+      var elements = techCharts.performanceTrends.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var ratingVal = 0;
+      var jobsVal = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = trendLabels[idx] || '';
+        ratingVal = trendRating[idx] || 0;
+        jobsVal = trendJobs[idx] || 0;
+      }
+      var details = [
+        { category: 'Average Rating', value: ratingVal },
+        { category: 'Jobs Completed', value: jobsVal }
+      ];
+      var filters = [
+        { id: 'rating', label: 'Average Rating', active: true },
+        { id: 'jobs', label: 'Jobs Completed', active: false }
+      ];
+      openDrill(
+        'Performance Trends - ' + label,
+        'Breakdown for ' + (label || 'selected month'),
+        perfTrendsCfg, details, filters, 'category',
+        { total: ratingVal + jobsVal }
+      );
+    };
+    techCharts.performanceTrends = new Chart(trendsCtx, perfTrendsCfg);
+
+    // Top Performers Bar Chart
+    var tpCtx = document.getElementById('topPerformersChart').getContext('2d');
+    var topPerformersCfg = {
+      type: 'bar',
+      data: {
+        labels: tpLabels,
+        datasets: [{
+          label: 'Average Rating',
+          data: tpValues,
+          backgroundColor: tpValues.map(function(v) {
+            if (v >= 4.5) return 'rgba(25, 135, 84, 0.8)';
+            if (v >= 4.0) return 'rgba(13, 110, 253, 0.8)';
+            if (v >= 3.5) return 'rgba(255, 193, 7, 0.8)';
+            return 'rgba(220, 53, 69, 0.8)';
+          })
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            beginAtZero: false,
+            min: 3,
+            max: 5
+          }
+        }
+      }
+    };
+    var tpCanvas = tpCtx.canvas;
+    tpCanvas.style.cursor = 'pointer';
+    tpCanvas.onclick = function(evt) {
+      var elements = techCharts.topPerformers.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (typeof ChartDrilldown === 'undefined') return;
+      var label = '';
+      var val = 0;
+      if (elements.length > 0) {
+        var idx = elements[0].index;
+        label = tpLabels[idx] || '';
+        val = tpValues[idx] || 0;
+      }
+      var starBreakdown = data.ratingDistribution || [35, 40, 20, 4, 1];
+      var details = starLabels.map(function(l, i) { return { category: l, value: starBreakdown[i] }; });
+      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: i === 0 }; });
+      openDrill(
+        'Top Performer - ' + label,
+        'Overall rating distribution',
+        topPerformersCfg, details, filters, 'category',
+        { total: starBreakdown.reduce(function(a, b) { return a + b; }, 0) }
+      );
+    };
+    techCharts.topPerformers = new Chart(tpCtx, topPerformersCfg);
+  }
+
+  function renderTechnicianRatings() {
+    const tbody = document.getElementById('technicianRatingsTable');
+    
+    if (technicianRatings.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="text-center py-4">
+            <div class="text-muted">
+              <i class="bi bi-person-workspace fs-1 d-block mb-2"></i>
+              No technician ratings found
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = technicianRatings.map(tech => `
+      <tr>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="technician-avatar me-3">
+              ${tech.avatar ? 
+                `<img src="${tech.avatar}" alt="${tech.name}">` : 
+                getInitials(tech.name)
+              }
+            </div>
+            <div>
+              <div class="fw-medium">${tech.name}</div>
+              <small class="text-muted">${tech.email}</small>
+              <div class="experience-level">${getExperienceLevel(tech.experience)}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="badge bg-${getDepartmentColor(tech.department)}">
+            ${tech.department}
+          </span>
+        </td>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="rating-stars">
+              ${generateStars(tech.avgRating)}
+            </div>
+            <span class="ms-2 fw-bold">${tech.avgRating.toFixed(1)}</span>
+          </div>
+          <div class="rating-count">${tech.reviewCount} reviews</div>
+        </td>
+        <td>
+          <div class="text-center">
+            <div class="fw-bold">${tech.reviewCount}</div>
+            <small class="text-muted">total</small>
+          </div>
+        </td>
+        <td>
+          <div class="text-center">
+            <div class="fw-bold">${tech.jobsCompleted}</div>
+            <small class="text-muted">jobs</small>
+          </div>
+        </td>
+        <td>
+          <span class="badge bg-${getExperienceBadgeColor(tech.experience)}">
+            ${tech.experience} years
+          </span>
+        </td>
+        <td>
+          <span class="status-badge bg-${getStatusColor(tech.status)}">
+            ${tech.status}
+          </span>
+        </td>
+        <td>
+          <div class="text-center">
+            ${getPerformanceIndicator(tech.avgRating)}
+          </div>
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" onclick="viewTechnicianDetails('${tech.id}')" title="View Details">
+              <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-outline-info" onclick="viewReviews('${tech.id}')" title="View Reviews">
+              <i class="bi bi-chat-dots"></i>
+            </button>
+            <button class="btn btn-outline-success" onclick="sendFeedback('${tech.id}')" title="Send Feedback">
+              <i class="bi bi-envelope"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    renderPagination();
+  }
+
+  function getInitials(name) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
+
+  function generateStars(rating) {
+    let stars = '';
+    for (let i = 1; i <= 5; i++) {
+      if (i <= rating) {
+        stars += '<i class="bi bi-star-fill"></i>';
+      } else if (i - 0.5 <= rating) {
+        stars += '<i class="bi bi-star-half"></i>';
+      } else {
+        stars += '<i class="bi bi-star"></i>';
+      }
+    }
+    return stars;
+  }
+
+  function getExperienceLevel(years) {
+    if (years < 2) return 'Junior Technician';
+    if (years < 5) return 'Mid-level Technician';
+    return 'Senior Technician';
+  }
+
+  function getDepartmentColor(department) {
+    const colors = {
+      'installation': 'primary',
+      'repair': 'info',
+      'maintenance': 'warning',
+      'inspection': 'success'
+    };
+    return colors[department] || 'secondary';
+  }
+
+  function getExperienceBadgeColor(years) {
+    if (years < 2) return 'info';
+    if (years < 5) return 'warning';
+    return 'success';
+  }
+
+  function getStatusColor(status) {
+    const colors = {
+      'active': 'success',
+      'on-leave': 'warning',
+      'inactive': 'danger'
+    };
+    return colors[status] || 'secondary';
+  }
+
+  function getPerformanceIndicator(rating) {
+    if (rating >= 4.5) {
+      return '<i class="bi bi-trophy-fill text-warning" title="Top Performer"></i>';
+    } else if (rating >= 4.0) {
+      return '<i class="bi bi-star-fill text-success" title="Good Performance"></i>';
+    } else if (rating >= 3.5) {
+      return '<i class="bi bi-circle-fill text-info" title="Average Performance"></i>';
+    } else {
+      return '<i class="bi bi-exclamation-triangle-fill text-danger" title="Needs Improvement"></i>';
+    }
+  }
+
+  function updateTechnicianCount() {
+    const count = technicianRatings.length;
+    document.getElementById('technicianCount').textContent = `Showing ${count} technician${count !== 1 ? 's' : ''}`;
+  }
+
+  function showLoadingState() {
+    const tbody = document.getElementById('technicianRatingsTable');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <div class="mt-2">Loading technician ratings...</div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function showErrorState() {
+    const tbody = document.getElementById('technicianRatingsTable');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-4">
+          <div class="text-danger">
+            <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+            Error loading technician ratings
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function refreshTechnicianRatings() {
+    loadTechnicianRatings();
+  }
+
+  function applyFilters() {
+    console.log('Applying filters...');
+    loadTechnicianRatings();
+  }
+
+  function viewTechnicianDetails(technicianId) {
+    const technician = technicianRatings.find(t => t.id === technicianId);
+    if (!technician) return;
+
+    const modalBody = document.getElementById('technicianModalBody');
+    modalBody.innerHTML = `
+      <div class="row">
+        <div class="col-md-4">
+          <div class="text-center">
+            <div class="technician-avatar mx-auto mb-3" style="width: 120px; height: 120px; font-size: 2rem;">
+              ${technician.avatar ? 
+                `<img src="${technician.avatar}" alt="${technician.name}">` : 
+                getInitials(technician.name)
+              }
+            </div>
+            <h5>${technician.name}</h5>
+            <p class="text-muted">${technician.department} • ${technician.experience} years experience</p>
+            <div class="rating-stars fs-4">
+              ${generateStars(technician.avgRating)}
+            </div>
+            <div class="fw-bold">${technician.avgRating.toFixed(1)} / 5.0</div>
+            <div class="text-muted">${technician.reviewCount} reviews</div>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <h6>Performance Metrics</h6>
+          <div class="row mb-3">
+            <div class="col-md-3 text-center">
+              <div class="h4 text-primary">${technician.jobsCompleted}</div>
+              <small class="text-muted">Jobs Completed</small>
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h4 text-success">${technician.avgResponseTime}h</div>
+              <small class="text-muted">Avg Response</small>
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h4 text-info">${technician.completionRate}%</div>
+              <small class="text-muted">Completion Rate</small>
+            </div>
+            <div class="col-md-3 text-center">
+              <div class="h4 text-warning">${technician.customerSatisfaction}%</div>
+              <small class="text-muted">Satisfaction</small>
+            </div>
+          </div>
+          
+          <h6>Recent Reviews</h6>
+          <div class="reviews-list">
+            ${technician.recentReviews ? technician.recentReviews.map(review => `
+              <div class="border-bottom pb-2 mb-2">
+                <div class="d-flex justify-content-between">
+                  <strong>${review.customer}</strong>
+                  <div class="rating-stars">
+                    ${generateStars(review.rating)}
+                  </div>
+                </div>
+                <p class="mb-1">${review.comment}</p>
+                <small class="text-muted">${formatDate(review.date)}</small>
+              </div>
+            `).join('') : '<p class="text-muted">No recent reviews</p>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('technicianModal'));
+    modal.show();
+  }
+
+  function viewReviews(technicianId) {
+    console.log('View reviews for technician:', technicianId);
+    alert('Review viewing functionality would be implemented here');
+  }
+
+  function sendFeedback(technicianId) {
+    console.log('Send feedback to technician:', technicianId);
+    alert('Feedback functionality would be implemented here');
+  }
+
+  function viewFullProfile() {
+    console.log('View full profile');
+    alert('Full profile functionality would be implemented here');
+  }
+
+  function scheduleReview() {
+    console.log('Schedule performance review');
+    alert('Scheduling functionality would be implemented here');
+  }
+
+  function generatePerformanceReport() {
+    console.log('Generating performance report...');
+    alert('Report generation would be implemented here');
+  }
+
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }
+
+  function renderPagination() {
+    const pagination = document.getElementById('pagination');
+    if (totalPages <= 1) {
+      pagination.innerHTML = '';
+      return;
+    }
+
+    let paginationHTML = '';
+    
+    paginationHTML += `
+      <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+      </li>
+    `;
+
+    for (let i = 1; i <= totalPages; i++) {
+      paginationHTML += `
+        <li class="page-item ${currentPage === i ? 'active' : ''}">
+          <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+        </li>
+      `;
+    }
+
+    paginationHTML += `
+      <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+      </li>
+    `;
+
+    pagination.innerHTML = paginationHTML;
+  }
+
+  function changePage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    loadTechnicianRatings();
+  }
+</script>

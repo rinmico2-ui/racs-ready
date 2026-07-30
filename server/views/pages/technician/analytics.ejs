@@ -1,0 +1,777 @@
+<div class="admin-dashboard container-fluid px-0 py-4">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <div class="container pb-4">
+    <!-- ─── HERO ─── -->
+    <div class="dashboard-hero mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h1 class="page-title"><i class="bi bi-graph-up-arrow me-2"></i>Performance Analytics</h1>
+          <p class="hero-sub small mb-0">
+            <% if (technician && technician.name) { %><%= technician.name %> &bull; <% } %>
+            Comprehensive insights from service bookings &amp; product orders
+          </p>
+        </div>
+        <div class="col-md-6 text-md-end mt-2 mt-md-0">
+          <span class="badge bg-light text-dark border px-3 py-2"><i class="bi bi-clock me-1"></i><span id="liveTime"></span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── ENTERPRISE FILTER BAR ─── -->
+    <div class="admin-filter-bar" style="margin-bottom:24px;">
+      <div class="filter-group">
+        <span class="filter-label"><i class="bi bi-funnel me-1"></i>Filters</span>
+        <div class="filter-item">
+          <i class="bi bi-calendar3"></i>
+          <select id="filterRange" class="form-select">
+            <option value="7">Last 7 Days</option>
+            <option value="30" selected>Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+            <option value="180">Last 6 Months</option>
+            <option value="365">Last 12 Months</option>
+            <option value="all">All Time</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <i class="bi bi-diagram-3"></i>
+          <select id="filterSource" class="form-select">
+            <option value="all">All Sources</option>
+            <option value="booking">Service Bookings</option>
+            <option value="order">Product Orders</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <i class="bi bi-flag"></i>
+          <select id="filterStatus" class="form-select">
+            <option value="all">All Statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="scheduled">Confirmed/Scheduled</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="filter-actions">
+        <button id="btnReset" class="btn btn-outline" style="display:inline-flex;align-items:center;gap:6px;"><i class="bi bi-arrow-counterclockwise"></i>Reset</button>
+      </div>
+    </div>
+
+    <!-- ─── ENTERPRISE KPI ROW ─── -->
+    <div class="row g-3 schedule-kpi-row align-items-stretch mb-4">
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon blue"><i class="bi bi-clipboard2-check-fill"></i></div>
+            <span class="kpi-enterprise-badge blue" id="badge_kTotal">Tasks</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Total Tasks</p>
+            <div class="kpi-enterprise-value" id="kTotal">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kTotal"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kTotal"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="50">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon green"><i class="bi bi-check-circle-fill"></i></div>
+            <span class="kpi-enterprise-badge green" id="badge_kCompleted">Jobs</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Completed</p>
+            <div class="kpi-enterprise-value" id="kCompleted">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kCompleted"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kCompleted"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+            <span class="kpi-enterprise-badge amber" id="badge_kPending">Tasks</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Pending</p>
+            <div class="kpi-enterprise-value" id="kPending">0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kPending"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kPending"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="150">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-exchange"></i></div>
+            <span class="kpi-enterprise-badge cyan" id="badge_kRevenue">Earnings</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Revenue</p>
+            <div class="kpi-enterprise-value" id="kRevenue">₱0</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kRevenue"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kRevenue"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="200">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon red"><i class="bi bi-star-fill"></i></div>
+            <span class="kpi-enterprise-badge red" id="badge_kRating">Rating</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Avg Rating</p>
+            <div class="kpi-enterprise-value" id="kRating">—</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kRating"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kRating"></canvas></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="250">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon purple"><i class="bi bi-percent"></i></div>
+            <span class="kpi-enterprise-badge purple" id="badge_kRate">Rate</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Completion %</p>
+            <div class="kpi-enterprise-value" id="kRate">0%</div>
+            <div class="kpi-enterprise-trend neutral" id="trend_kRate"><i class="bi bi-dash"></i> No change</div>
+          </div>
+          <div class="kpi-enterprise-sparkline"><canvas id="spark_kRate"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PERFORMANCE SUMMARY (Enterprise) ─── -->
+    <div class="schedule-premium-card mb-4">
+      <div style="display:flex;align-items:flex-start;gap:0.85rem;">
+        <div class="schedule-source-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5);width:42px;height:42px;min-width:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;box-shadow:0 4px 12px rgba(99,102,241,0.2);">
+          <i class="bi bi-clipboard2-pulse"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <h6 style="font-weight:700;margin:0 0 2px;font-size:0.92rem;color:#0f172a;">Performance Summary</h6>
+          <p id="perfSummaryText" style="margin:0;font-size:0.82rem;color:#64748b;line-height:1.7;">Analyzing your performance data…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CHARTS ROW 1 ─── -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-8">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-bar-chart-line me-2" style="color:#3b82f6;"></i>Monthly Trends</h6>
+          </div>
+          <div class="analytics-chart-body"><canvas id="chartMonthly" height="280"></canvas></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-pie-chart me-2" style="color:#8b5cf6;"></i>Status Breakdown</h6>
+          </div>
+          <div class="analytics-chart-body d-flex align-items-center justify-content-center"><canvas id="chartStatus" height="250"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CHARTS ROW 2 ─── -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-6">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-cash-stack me-2" style="color:#059669;"></i>Revenue Breakdown</h6>
+          </div>
+          <div class="analytics-chart-body"><canvas id="chartRevenue" height="260"></canvas></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-activity me-2" style="color:#d97706;"></i>Daily Activity Heatmap</h6>
+          </div>
+          <div class="analytics-chart-body"><canvas id="chartWeekday" height="260"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SUMMARY TABLE (Enterprise) ─── -->
+    <div class="schedule-premium-card p-0 overflow-hidden">
+      <div class="schedule-card-header">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-table me-2" style="color:#3b82f6;"></i>Filtered Task Summary</h6>
+      </div>
+      <div class="p-3 pt-0">
+        <div class="table-responsive">
+          <table class="table schedule-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Type</th><th>Reference</th><th>Customer</th><th>Service / Items</th><th>Date</th><th>Revenue</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody">
+              <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3" style="font-size:0.78rem;color:#64748b;">
+          <span id="tableCount">0 records</span>
+          <span id="tableRevenue">₱0 total revenue</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  canvas { max-width: 100%; }
+
+  /* ── KPI row flex ── */
+  .schedule-kpi-row { display:flex;flex-wrap:wrap; }
+  .schedule-kpi-row > [class*="col-"] { display:flex;min-width:180px;flex:1 1 180px; }
+  .schedule-kpi-row .kpi-enterprise { width:100%; }
+  @media (max-width:1199px) { .schedule-kpi-row > [class*="col-"] { min-width:220px; } }
+  @media (max-width:767px) { .schedule-kpi-row > [class*="col-"] { min-width:calc(50% - 0.75rem); } }
+
+  /* ── Premium Card ── */
+  .schedule-premium-card {
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    padding: 1rem 1.25rem;
+    transition: box-shadow 0.25s ease;
+  }
+  .schedule-premium-card:hover { box-shadow:0 8px 32px rgba(15,23,42,0.08),0 2px 8px rgba(15,23,42,0.04); }
+  .schedule-premium-card.p-0 { padding: 0 !important; }
+
+  .schedule-card-header {
+    padding: 1rem 1.25rem 0.85rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  }
+  .schedule-card-header h6 { font-size:0.9rem;color:#0f172a; }
+
+  /* ── Analytics Chart Card ── */
+  .analytics-chart-card {
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .analytics-chart-card:hover { box-shadow:0 8px 32px rgba(15,23,42,0.08),0 2px 8px rgba(15,23,42,0.04); }
+  .analytics-chart-header {
+    padding: 0.9rem 1.25rem 0;
+    border-bottom: none;
+  }
+  .analytics-chart-header h6 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+  .analytics-chart-body {
+    padding: 0.75rem 1.25rem 1.25rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* ── Enterprise Table ── */
+  .schedule-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.82rem;
+    width: 100%;
+  }
+  .schedule-table thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.7rem 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .schedule-table tbody td {
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+  }
+  .schedule-table tbody tr { transition: background-color 0.15s ease; }
+  .schedule-table tbody tr:hover { background-color: rgba(59, 130, 246, 0.04) !important; }
+  .schedule-table tbody tr:last-child td { border-bottom: none; }
+
+  /* ── Enterprise Table Type Badges ── */
+  .table-type-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .table-type-badge.booking { background: rgba(99,102,241,0.10); color: #4f46e5; }
+  .table-type-badge.order { background: rgba(236,72,153,0.10); color: #db2777; }
+
+  /* ── Enterprise Status Badge ── */
+  .table-status-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    display: inline-block;
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DATA INJECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+  const rawBookings = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(allBookings || [])) %>"));
+  const rawOrders   = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(allOrders || [])) %>"));
+  const serverStats = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(stats || {})) %>"));
+
+  // Merge into unified list
+  const allItems = [];
+  rawBookings.forEach(b => allItems.push(Object.assign({}, b, { _type: "booking" })));
+  rawOrders.forEach(o => {
+    const clone = Object.assign({}, o, { _type: "order" });
+    clone.bookingDate = (clone.delivery && clone.delivery.preferredDate) || clone.createdAt;
+    clone.revenue = clone.total || clone.subtotal || 0;
+    allItems.push(clone);
+  });
+
+  // Normalize booking revenue
+  allItems.forEach(a => {
+    if (a._type === "booking") {
+      a.revenue = a.estimatedFee || a.servicePrice || 0;
+    }
+  });
+
+  function statusNorm(raw, type) {
+    const s = String(raw || "").toLowerCase().trim();
+    if (type === "order") {
+      if (s === "delivered" || s === "completed") return "completed";
+      if (s === "technician_assigned" || s === "preparing_unit") return "scheduled";
+      if (s === "out_for_delivery" || s === "installing" || s === "arrived") return "in-progress";
+      if (s === "pending_payment") return "pending";
+    }
+    if (s === "confirmed" || s === "scheduled") return "scheduled";
+    if (["on-the-way", "in-progress", "arrived"].includes(s)) return "in-progress";
+    return s;
+  }
+
+  function peso(v) { return "₱" + Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+
+  const STATUS_COLORS = {
+    completed: "#22c55e", scheduled: "#3b82f6", pending: "#f59e0b",
+    "in-progress": "#8b5cf6", cancelled: "#ef4444", "re-scheduled": "#6366f1"
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FILTER ENGINE
+  // ═══════════════════════════════════════════════════════════════════════════
+  const elRange  = document.getElementById("filterRange");
+  const elSource = document.getElementById("filterSource");
+  const elStatus = document.getElementById("filterStatus");
+  const btnReset = document.getElementById("btnReset");
+
+  function getFiltered() {
+    const days = elRange.value;
+    const src  = elSource.value;
+    const st   = elStatus.value;
+
+    let cutoff = null;
+    if (days !== "all") {
+      cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - Number(days));
+      cutoff.setHours(0, 0, 0, 0);
+    }
+
+    return allItems.filter(a => {
+      if (src === "booking" && a._type !== "booking") return false;
+      if (src === "order" && a._type !== "order") return false;
+
+      if (cutoff) {
+        const d = new Date(a.bookingDate || a.createdAt || 0);
+        if (d < cutoff) return false;
+      }
+
+      if (st !== "all") {
+        const norm = statusNorm(a.status, a._type);
+        if (st === "completed" && norm !== "completed") return false;
+        if (st === "pending" && norm !== "pending") return false;
+        if (st === "scheduled" && norm !== "scheduled") return false;
+        if (st === "cancelled" && norm !== "cancelled") return false;
+      }
+      return true;
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // KPI UPDATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  function set(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function updateKpis(list) {
+    const total = list.length;
+    let completed = 0, pending = 0, revenue = 0, ratings = [], cancelled = 0;
+
+    list.forEach(a => {
+      const st = statusNorm(a.status, a._type);
+      if (st === "completed") { completed++; revenue += (a.revenue || 0); }
+      else if (st === "pending") pending++;
+      else if (st === "cancelled") cancelled++;
+      else revenue += (a.revenue || 0);
+
+      if (a._type === "booking" && a.customerRating && a.customerRating > 0) {
+        ratings.push(a.customerRating);
+      }
+    });
+
+    set("kTotal", total);
+    set("kCompleted", completed);
+    set("kPending", pending);
+    set("kRevenue", peso(revenue));
+    set("kRating", ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) + " ★" : "—");
+    set("kRate", total > 0 ? Math.round((completed / total) * 100) + "%" : "0%");
+
+    function updTrend(id, val, upLabel, downLabel) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var icon = el.querySelector('i');
+      if (val > 0) { el.className = 'kpi-enterprise-trend up'; if (icon) icon.className = 'bi bi-arrow-up'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + upLabel; }
+      else if (val < 0) { el.className = 'kpi-enterprise-trend down'; if (icon) icon.className = 'bi bi-arrow-down'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + downLabel; }
+      else { el.className = 'kpi-enterprise-trend neutral'; if (icon) icon.className = 'bi bi-dash'; el.innerHTML = (icon ? icon.outerHTML + ' ' : '') + 'No change'; }
+    }
+    updTrend('trend_kTotal', total, '+' + total + ' tasks', 'No data');
+    updTrend('trend_kCompleted', completed, '+' + completed + ' jobs', 'None completed');
+    updTrend('trend_kPending', pending, '+' + pending + ' pending', 'None pending');
+    updTrend('trend_kRevenue', revenue, '+' + Math.round(revenue).toLocaleString() + ' earnings', 'No revenue');
+    var rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    updTrend('trend_kRate', rate, rate + '% rate', 'No completions');
+    updTrend('trend_kRating', ratings.length, ratings.length + ' ratings', 'No ratings');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHARTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  let chartMonthly, chartStatus, chartRevenue, chartWeekday;
+
+  function buildMonthlyChart(list) {
+    const months = {};
+    list.forEach(a => {
+      const d = new Date(a.bookingDate || a.createdAt || 0);
+      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      if (!months[key]) months[key] = { bookings: 0, orders: 0, revenue: 0 };
+      if (a._type === "booking") months[key].bookings++;
+      else months[key].orders++;
+      months[key].revenue += (a.revenue || 0);
+    });
+
+    const keys = Object.keys(months).sort();
+    const labels = keys.map(k => {
+      const [y, m] = k.split("-");
+      return new Date(y, m - 1).toLocaleString("default", { month: "short", year: "2-digit" });
+    });
+
+    const ctx = document.getElementById("chartMonthly");
+    if (chartMonthly) chartMonthly.destroy();
+    chartMonthly = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          { label: "Bookings", data: keys.map(k => months[k].bookings), backgroundColor: "rgba(99,102,241,0.7)", borderRadius: 6 },
+          { label: "Orders", data: keys.map(k => months[k].orders), backgroundColor: "rgba(236,72,153,0.7)", borderRadius: 6 },
+          { label: "Revenue (₱)", data: keys.map(k => months[k].revenue), type: "line", borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)", yAxisID: "y1", tension: 0.4, fill: true, pointRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 16 } } },
+        scales: {
+          y: { beginAtZero: true, title: { display: true, text: "Count" }, grid: { color: "rgba(0,0,0,0.04)" } },
+          y1: { beginAtZero: true, position: "right", title: { display: true, text: "Revenue (₱)" }, grid: { drawOnChartArea: false } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function buildStatusChart(list) {
+    const counts = {};
+    list.forEach(a => {
+      const st = statusNorm(a.status, a._type);
+      counts[st] = (counts[st] || 0) + 1;
+    });
+
+    const labels = Object.keys(counts);
+    const colors = labels.map(l => STATUS_COLORS[l] || "#94a3b8");
+
+    const ctx = document.getElementById("chartStatus");
+    if (chartStatus) chartStatus.destroy();
+    chartStatus = new Chart(ctx, {
+      type: "doughnut",
+      data: { labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)), datasets: [{ data: Object.values(counts), backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "60%",
+        plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 12 } } }
+      }
+    });
+  }
+
+  function buildRevenueChart(list) {
+    let serviceFees = 0, travelFares = 0, orderRevenue = 0, installFees = 0;
+    list.forEach(a => {
+      if (a._type === "booking") {
+        serviceFees += (a.servicePrice || 0);
+        travelFares += (a.travelFare || 0);
+      } else {
+        orderRevenue += (a.subtotal || 0);
+        installFees += (a.installationFee || 0);
+      }
+    });
+
+    const ctx = document.getElementById("chartRevenue");
+    if (chartRevenue) chartRevenue.destroy();
+    chartRevenue = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["Service Fees", "Travel Fares", "Product Sales", "Installation Fees"],
+        datasets: [{ data: [serviceFees, travelFares, orderRevenue, installFees],
+          backgroundColor: ["rgba(99,102,241,0.75)", "rgba(14,165,233,0.75)", "rgba(236,72,153,0.75)", "rgba(245,158,11,0.75)"],
+          borderRadius: 8, barThickness: 48 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: "y",
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => "₱" + Number(ctx.raw).toLocaleString() } } },
+        scales: { x: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.04)" } }, y: { grid: { display: false } } }
+      }
+    });
+  }
+
+  function buildWeekdayChart(list) {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    list.forEach(a => {
+      const d = new Date(a.bookingDate || a.createdAt || 0);
+      counts[d.getDay()]++;
+    });
+
+    const ctx = document.getElementById("chartWeekday");
+    if (chartWeekday) chartWeekday.destroy();
+    chartWeekday = new Chart(ctx, {
+      type: "radar",
+      data: {
+        labels: days,
+        datasets: [{
+          label: "Tasks per Day",
+          data: counts,
+          backgroundColor: "rgba(99,102,241,0.15)",
+          borderColor: "#6366f1",
+          borderWidth: 2,
+          pointBackgroundColor: "#6366f1",
+          pointRadius: 5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { r: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: "rgba(0,0,0,0.06)" } } }
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TABLE
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderTable(list) {
+    const tbody = document.getElementById("summaryBody");
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No records match the selected filters.</td></tr>';
+      set("tableCount", "0 records");
+      set("tableRevenue", "₱0 total revenue");
+      return;
+    }
+
+    let totalRev = 0;
+    const sorted = list.slice().sort((a, b) => new Date(b.bookingDate || b.createdAt || 0) - new Date(a.bookingDate || a.createdAt || 0));
+    const rows = sorted.slice(0, 100).map(a => {
+      const isOrder = a._type === "order";
+      const ref = isOrder ? (a.orderReference || a._id) : (a.bookingReference || a._id);
+      const customer = isOrder ? ((a.customer && a.customer.name) || "—") : (a.customerName || "—");
+      const svc = isOrder ? (a.items || []).map(i => i.modelLine || "Product").join(", ") : ((a.service && a.service.name) || a.serviceType || "—");
+      const dateStr = new Date(a.bookingDate || a.createdAt || 0).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const rev = a.revenue || 0;
+      totalRev += rev;
+      const st = statusNorm(a.status, a._type);
+      const stColor = STATUS_COLORS[st] || "#94a3b8";
+      const stBg = {completed:'rgba(34,197,94,0.10)',scheduled:'rgba(59,130,246,0.10)',pending:'rgba(245,158,11,0.10)',cancelled:'rgba(239,68,68,0.10)',"in-progress":'rgba(139,92,246,0.10)',"re-scheduled":'rgba(99,102,241,0.10)'}[st] || 'rgba(148,163,184,0.10)';
+
+      return `<tr>
+        <td><span class="table-type-badge ${isOrder ? 'order' : 'booking'}">${isOrder ? 'ORDER' : 'BOOKING'}</span></td>
+        <td style="font-size:0.82rem;font-weight:600;color:#1e293b;">${String(ref).slice(-12)}</td>
+        <td style="font-size:0.82rem;color:#475569;">${customer}</td>
+        <td style="font-size:0.82rem;color:#475569;">${svc}</td>
+        <td style="font-size:0.82rem;color:#64748b;">${dateStr}</td>
+        <td style="font-size:0.85rem;font-weight:700;color:#0f172a;">${peso(rev)}</td>
+        <td><span class="table-status-badge" style="background:${stBg};color:${stColor};">${st.toUpperCase()}</span></td>
+      </tr>`;
+    }).join("");
+
+    tbody.innerHTML = rows;
+    set("tableCount", list.length + " records" + (list.length > 100 ? " (showing top 100)" : ""));
+    set("tableRevenue", peso(totalRev) + " total revenue");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REFRESH ALL
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERFORMANCE SUMMARY NARRATIVE
+  // ═══════════════════════════════════════════════════════════════════════════
+  const techName = decodeURIComponent("<%- encodeURIComponent((technician && technician.name) || 'Technician') %>");
+
+  function generateSummary(list) {
+    const el = document.getElementById("perfSummaryText");
+    if (!el) return;
+
+    if (!list.length) {
+      el.innerHTML = "No activity found for the selected period. Try expanding your date range filter to see more data.";
+      return;
+    }
+
+    const total = list.length;
+    let completed = 0, pending = 0, cancelled = 0, inProgress = 0;
+    let revenue = 0, bookings = 0, orders = 0;
+    const ratings = [];
+    const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+    const dayNames = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+
+    list.forEach(a => {
+      const st = statusNorm(a.status, a._type);
+      if (st === "completed") completed++;
+      else if (st === "pending") pending++;
+      else if (st === "cancelled") cancelled++;
+      else inProgress++;
+
+      revenue += (a.revenue || 0);
+      if (a._type === "booking") bookings++;
+      else orders++;
+
+      if (a._type === "booking" && a.customerRating > 0) ratings.push(a.customerRating);
+      const d = new Date(a.bookingDate || a.createdAt || 0);
+      dayCounts[d.getDay()]++;
+    });
+
+    const completionRate = Math.round((completed / total) * 100);
+    const avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null;
+    const busiestIdx = dayCounts.indexOf(Math.max(...dayCounts));
+    const avgRevenuePerTask = completed > 0 ? Math.round(revenue / completed) : 0;
+    const rangeDays = elRange.value === "all" ? "all time" : `the last ${elRange.value} days`;
+
+    const parts = [];
+
+    // Workload overview
+    parts.push(`Over <strong>${rangeDays}</strong>, <strong>${techName}</strong> has handled a total of <strong>${total} task${total !== 1 ? 's' : ''}</strong>`);
+    if (bookings > 0 && orders > 0) parts[0] += ` — <strong>${bookings}</strong> service booking${bookings !== 1 ? 's' : ''} and <strong>${orders}</strong> product order${orders !== 1 ? 's' : ''}.`;
+    else if (bookings > 0) parts[0] += ` (all service bookings).`;
+    else parts[0] += ` (all product orders).`;
+
+    // Completion analysis
+    if (completed > 0) {
+      let quality = completionRate >= 90 ? "an <strong style='color:#16a34a'>excellent</strong>" : completionRate >= 70 ? "a <strong style='color:#f59e0b'>good</strong>" : completionRate >= 50 ? "a <strong>moderate</strong>" : "a <strong style='color:#ef4444'>low</strong>";
+      parts.push(`${quality} completion rate of <strong>${completionRate}%</strong> (${completed} completed out of ${total}).`);
+    } else {
+      parts.push(`No tasks have been completed yet in this period.`);
+    }
+
+    // Pending/In-progress
+    if (pending > 0 || inProgress > 0) {
+      const active = [];
+      if (pending > 0) active.push(`<strong>${pending}</strong> pending`);
+      if (inProgress > 0) active.push(`<strong>${inProgress}</strong> in-progress`);
+      parts.push(`Currently, there ${pending + inProgress === 1 ? 'is' : 'are'} ${active.join(' and ')} task${pending + inProgress !== 1 ? 's' : ''} requiring attention.`);
+    }
+
+    // Revenue
+    if (revenue > 0) {
+      parts.push(`Total revenue generated is <strong>${peso(revenue)}</strong>` + (avgRevenuePerTask > 0 ? `, averaging <strong>${peso(avgRevenuePerTask)}</strong> per completed task.` : '.'));
+    }
+
+    // Rating
+    if (avgRating) {
+      let ratingDesc = avgRating >= 4.5 ? "outstanding" : avgRating >= 4.0 ? "very good" : avgRating >= 3.0 ? "satisfactory" : "needs improvement";
+      parts.push(`Customer satisfaction is <strong>${ratingDesc}</strong> with an average rating of <strong>${avgRating} ★</strong> across ${ratings.length} review${ratings.length !== 1 ? 's' : ''}.`);
+    }
+
+    // Busiest day
+    if (dayCounts[busiestIdx] > 0) {
+      parts.push(`The busiest day of the week is <strong>${dayNames[busiestIdx]}</strong> with ${dayCounts[busiestIdx]} task${dayCounts[busiestIdx] !== 1 ? 's' : ''}.`);
+    }
+
+    // Cancelled warning
+    if (cancelled > 0) {
+      const cancelRate = Math.round((cancelled / total) * 100);
+      if (cancelRate > 20) parts.push(`<span style='color:#ef4444'><i class='bi bi-exclamation-triangle me-1'></i>Note: ${cancelled} task${cancelled !== 1 ? 's were' : ' was'} cancelled (${cancelRate}%), which may need review.</span>`);
+    }
+
+    el.innerHTML = parts.join(" ");
+  }
+
+  function refresh() {
+    const filtered = getFiltered();
+    updateKpis(filtered);
+    generateSummary(filtered);
+    buildMonthlyChart(filtered);
+    buildStatusChart(filtered);
+    buildRevenueChart(filtered);
+    buildWeekdayChart(filtered);
+    renderTable(filtered);
+
+    // Sparklines
+    if (window.techHelpers) {
+      techHelpers.renderSparkline('spark_kTotal',[1,2,1,3,2],'#3b82f6');
+      techHelpers.renderSparkline('spark_kCompleted',[1,2,1,3,2],'#10b981');
+      techHelpers.renderSparkline('spark_kPending',[1,0,2,1,1],'#f59e0b');
+      techHelpers.renderSparkline('spark_kRevenue',[1,2,1,3,2],'#0891b2');
+      techHelpers.renderSparkline('spark_kRating',[1,2,1,3,2],'#ef4444');
+      techHelpers.renderSparkline('spark_kRate',[1,2,1,3,2],'#8b5cf6');
+    }
+  }
+
+  elRange.addEventListener("change", refresh);
+  elSource.addEventListener("change", refresh);
+  elStatus.addEventListener("change", refresh);
+  btnReset.addEventListener("click", () => {
+    elRange.value = "30"; elSource.value = "all"; elStatus.value = "all";
+    refresh();
+  });
+
+  // Initial render
+  refresh();
+
+  // Live clock
+  function tick() { const el = document.getElementById("liveTime"); if (el) el.textContent = new Date().toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+  tick(); setInterval(tick, 30000);
+})();
+</script>

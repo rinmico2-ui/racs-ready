@@ -1,0 +1,22 @@
+
+.footer-link {
+    color: #adb5bd;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+    color: #ffffff;
+}
+
+.footer-icon {
+    color: #adb5bd;
+    font-size: 1.2rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.footer-icon:hover {
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+

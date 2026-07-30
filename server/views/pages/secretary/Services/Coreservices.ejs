@@ -1,0 +1,290 @@
+<div class="ent-svc-page core-services-page">
+  <link rel="stylesheet" href="/css/enterprise-services.css" />
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <!-- Hero -->
+  <div class="ent-svc-hero d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="es-icon"><i class="bi bi-gear-fill"></i></div>
+      <div>
+        <h1>Core Services Catalog</h1>
+        <p class="es-sub">Configure standard service packages, rates, and service-level policies</p>
+      </div>
+    </div>
+    <button class="btn-es-primary new-core-service">
+      <i class="bi bi-plus-lg me-2"></i>New Core Service
+    </button>
+  </div>
+
+  <% const totalCount = coreServices ? coreServices.length : 0; %>
+  <% const activeCount = coreServices ? coreServices.filter(s=>s.active).length : 0; %>
+  <% const reviewCount = totalCount - activeCount; %>
+  <% const avgTime = coreServices && coreServices.length ? (coreServices.reduce((sum,s)=>sum + (s.durationMinutes||0),0) / coreServices.length) : 0; %>
+
+  <!-- KPI cards -->
+  <div class="es-kpi-grid">
+    <div class="es-kpi">
+      <div class="es-kpi-icon" style="background:linear-gradient(135deg,#4361ee,#3a0ca3)"><i class="bi bi-clipboard-data"></i></div>
+      <div>
+        <div class="es-kpi-label">Total Core Services</div>
+        <div class="es-kpi-value" id="statTotalCore"><%= totalCount %></div>
+      </div>
+      <div class="es-kpi-bar" style="background:linear-gradient(90deg,#4361ee,#3a0ca3)"></div>
+    </div>
+    <div class="es-kpi">
+      <div class="es-kpi-icon" style="background:linear-gradient(135deg,#2ec4b6,#1a8f85)"><i class="bi bi-check-circle"></i></div>
+      <div>
+        <div class="es-kpi-label">Active Services</div>
+        <div class="es-kpi-value" id="statActive"><%= activeCount %></div>
+      </div>
+      <div class="es-kpi-bar" style="background:linear-gradient(90deg,#2ec4b6,#1a8f85)"></div>
+    </div>
+    <div class="es-kpi">
+      <div class="es-kpi-icon" style="background:linear-gradient(135deg,#ff9f1c,#ff7422)"><i class="bi bi-pencil-square"></i></div>
+      <div>
+        <div class="es-kpi-label">Needs Review</div>
+        <div class="es-kpi-value" id="statReview"><%= reviewCount %></div>
+      </div>
+      <div class="es-kpi-bar" style="background:linear-gradient(90deg,#ff9f1c,#ff7422)"></div>
+    </div>
+    <div class="es-kpi">
+      <div class="es-kpi-icon" style="background:linear-gradient(135deg,#7b2d8b,#560bad)"><i class="bi bi-clock"></i></div>
+      <div>
+        <div class="es-kpi-label">Avg Completion Time</div>
+        <div class="es-kpi-value" id="statAvgTimeCore"><%= fmtDuration(Math.round(avgTime)) %></div>
+      </div>
+      <div class="es-kpi-bar" style="background:linear-gradient(90deg,#7b2d8b,#560bad)"></div>
+    </div>
+  </div>
+
+  <!-- Toolbar / filters -->
+  <div class="es-panel">
+    <div class="es-panel-body">
+      <div class="es-toolbar">
+        <div class="es-field">
+          <label>Search Service</label>
+          <div class="es-input-group">
+            <span class="es-input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="es-input" placeholder="Service name, code, or category" />
+          </div>
+        </div>
+        <div class="es-field">
+          <label>Category</label>
+          <select class="es-select">
+            <option>All Categories</option>
+            <option>Cleaning</option>
+            <option>Installation</option>
+            <option>Maintenance</option>
+          </select>
+        </div>
+        <div class="es-field">
+          <label>Status</label>
+          <select class="es-select">
+            <option>All</option>
+            <option>Active</option>
+            <option>Draft</option>
+            <option>Archived</option>
+          </select>
+        </div>
+        <button class="es-btn"><i class="bi bi-funnel me-1"></i>Filter</button>
+      </div>
+    </div>
+  </div>
+
+  <% /* helpers */ %>
+  <% function fmtPrice(p) {
+       if (p == null) return '';
+       return '₱ ' + Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+     } %>
+  <% function fmtDuration(mins) {
+       if (!mins && mins !== 0) return '';
+       const h = Math.floor(mins / 60);
+       const m = mins % 60;
+       let out = '';
+       if (h) out += h + 'h';
+       if (m) out += (out ? ' ' : '') + m + 'm';
+       return out || '0m';
+     } %>
+  <% function badgeClass(cat) {
+       return 'es-badge es-badge-cat';
+     } %>
+
+  <!-- List -->
+  <div class="es-panel">
+    <div class="es-panel-head">
+      <h6>Core Service List</h6>
+      <span class="es-meta">Last pricing sync: today</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="es-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Code</th>
+            <th>Category</th>
+            <th>Base Price</th>
+            <th>Estimated Duration</th>
+            <th>Bookings (lifetime)</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (coreServices && coreServices.length) { %>
+            <% coreServices.forEach(function(svc) { %>
+              <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
+                <td>
+                  <div class="es-svc-name"><%= svc.name %></div>
+                  <div class="es-svc-sub"><%= svc.description || '' %></div>
+                </td>
+                <td><span class="es-mono"><%= svc.slug || svc._id %></span></td>
+                <td><span class="<%= badgeClass(svc.category) %>"><%= svc.category || '-' %></span></td>
+                <td class="es-price"><%= fmtPrice(svc.basePrice) %></td>
+                <td class="es-svc-sub"><%= fmtDuration(svc.durationMinutes) %></td>
+                <td class="es-svc-name"><%= svc.bookingCount || 0 %></td>
+                <td>
+                  <% if (svc.active) { %>
+                    <span class="es-badge es-badge-active"><span class="es-dot"></span>Active</span>
+                  <% } else { %>
+                    <span class="es-badge es-badge-inactive">Inactive</span>
+                  <% } %>
+                </td>
+                <td class="text-end">
+                  <button class="es-act edit-core-service">Edit</button>
+                </td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr><td colspan="8" class="es-empty">No core services defined.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- modal to create/edit core service -->
+<div class="modal fade" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form id="coreServiceForm" class="modal-content es-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="coreServiceModalLabel"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input type="text" name="name" class="form-control" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Slug</label>
+          <input type="text" name="slug" class="form-control" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Category</label>
+          <input type="text" name="category" class="form-control" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Base Price</label>
+          <input type="number" step="0.01" name="basePrice" class="form-control" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Duration (minutes)</label>
+          <input type="number" name="durationMinutes" class="form-control" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-control"></textarea>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" name="active" class="form-check-input" id="activeCheck" checked />
+          <label class="form-check-label" for="activeCheck">Active</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('coreServiceModal');
+    if (!modalEl) return;
+    if (!window.bootstrap || !bootstrap.Modal) {
+      console.error('Bootstrap JS not available');
+    }
+    const modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
+    const form = document.getElementById('coreServiceForm');
+    let editingId = null;
+
+    function openForm(data) {
+      if (data) {
+        editingId = data._id;
+        modalEl.querySelector('.modal-title').innerText = 'Edit Core Service';
+        form.name.value = data.name || '';
+        form.slug.value = data.slug || '';
+        form.category.value = data.category || '';
+        form.description.value = data.description || '';
+        form.basePrice.value = data.basePrice || '';
+        form.durationMinutes.value = data.durationMinutes || '';
+        form.active.checked = !!data.active;
+      } else {
+        editingId = null;
+        modalEl.querySelector('.modal-title').innerText = 'New Core Service';
+        form.reset();
+        form.active.checked = true;
+      }
+      modal.show();
+    }
+
+    document.querySelector('.new-core-service').addEventListener('click', function() {
+      openForm();
+    });
+
+    document.body.addEventListener('click', function(e) {
+      if (e.target.matches('.edit-core-service')) {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        const svc = JSON.parse(decodeURIComponent(tr.dataset.svc || '{}'));
+        openForm(svc);
+      }
+    });
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const payload = {
+        name: form.name.value.trim(),
+        slug: form.slug.value.trim(),
+        category: form.category.value.trim(),
+        description: form.description.value.trim(),
+        basePrice: form.basePrice.value ? parseFloat(form.basePrice.value) : undefined,
+        durationMinutes: form.durationMinutes.value ? parseInt(form.durationMinutes.value) : undefined,
+        active: form.active.checked,
+      };
+      let url = '/api/secretary/core-services';
+      let method = 'POST';
+      if (editingId) {
+        url += '/' + editingId;
+        method = 'PATCH';
+      }
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          location.reload();
+        } else {
+          const j = await r.json();
+          alert(j.error || 'Save failed');
+        }
+      } catch (err) {
+        alert('Save failed');
+      }
+    });
+  });
+</script>

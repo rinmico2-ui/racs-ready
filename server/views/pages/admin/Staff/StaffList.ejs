@@ -1,0 +1,1432 @@
+<div class="admin-dashboard container-fluid py-4 staff-list-page">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       ENTERPRISE STAFF LIST
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* ── KPI Enterprise Cards ── */
+    .kpi-enterprise {
+      position: relative;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 20px 20px 16px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .kpi-enterprise:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+    .kpi-enterprise::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; opacity: 0; transition: opacity 0.3s ease;
+    }
+    .kpi-enterprise:hover::before { opacity: 1; }
+    .kpi-enterprise[data-accent="blue"]::before { background: linear-gradient(90deg, #2563eb, #1d4ed8); }
+    .kpi-enterprise[data-accent="green"]::before { background: linear-gradient(90deg, #10b981, #059669); }
+    .kpi-enterprise[data-accent="amber"]::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .kpi-enterprise-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+    .kpi-enterprise-icon { width:40px;height:40px;min-width:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(0,0,0,0.08);flex-shrink:0; }
+    .kpi-enterprise-icon.blue { background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff; }
+    .kpi-enterprise-icon.green { background:linear-gradient(135deg,#10b981,#059669);color:#fff; }
+    .kpi-enterprise-icon.amber { background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff; }
+    .kpi-enterprise-badge { display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;letter-spacing:0.04em;padding:3px 10px;border-radius:999px;white-space:nowrap; }
+    .kpi-enterprise-badge.blue { background:rgba(59,130,246,0.10);color:#2563eb; }
+    .kpi-enterprise-badge.green { background:rgba(16,185,129,0.10);color:#059669; }
+    .kpi-enterprise-badge.amber { background:rgba(245,158,11,0.10);color:#d97706; }
+    .kpi-enterprise-body { flex:1;display:flex;flex-direction:column;justify-content:space-between; }
+    .kpi-enterprise-label { font-size:0.78rem;font-weight:500;color:#64748b;margin:0 0 2px;line-height:1.3; }
+    .kpi-enterprise-value { font-size:1.6rem;font-weight:700;color:#0f172a;line-height:1.2;letter-spacing:-0.02em; }
+
+    /* ── Premium Card ── */
+    .staff-premium-card {
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      padding: 1.25rem;
+      transition: box-shadow 0.25s ease;
+    }
+    .staff-premium-card:hover { box-shadow:0 8px 32px rgba(15,23,42,0.08),0 2px 8px rgba(15,23,42,0.04); }
+
+    /* ── Add Staff Form ── */
+    .staff-form-card {
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      padding: 1.5rem;
+      transition: box-shadow 0.25s ease;
+    }
+    .staff-form-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .staff-form-control {
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      padding: 0.45rem 0.7rem;
+      font-size: 0.85rem;
+      color: #1e293b;
+      background: #f8fafc;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      width: 100%;
+    }
+    .staff-form-control:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background: #fff;
+    }
+    .staff-form-control::placeholder { color: #94a3b8; font-size:0.8rem; }
+    .staff-form-select {
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      padding: 0.45rem 1.8rem 0.45rem 0.7rem;
+      font-size: 0.85rem;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='%2364748b'%3E%3Cpath d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 0.6rem center;
+      appearance: none;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      width: 100%;
+    }
+    .staff-form-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: #fff;
+    }
+    .staff-form-text {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      margin-top: 0.2rem;
+    }
+    .staff-btn-primary {
+      border-radius: 8px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.82rem;
+      padding: 0.5rem 1.5rem;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .staff-btn-primary:hover {
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+      transform: translateY(-1px);
+    }
+    .staff-btn-primary:active { transform: translateY(0) scale(0.98); }
+
+    /* ── Wizard Step Indicators ── */
+    .wizard-step { display:flex; align-items:center; gap:6px; }
+    .wizard-step-circle {
+      width:26px; height:26px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:0.7rem; font-weight:700;
+      background:#e2e8f0; color:#94a3b8;
+      transition:all 0.3s ease;
+    }
+    .wizard-step.active .wizard-step-circle { background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; box-shadow:0 2px 8px rgba(59,130,246,0.3); }
+    .wizard-step.completed .wizard-step-circle { background:#10b981; color:#fff; }
+    .wizard-step-label { font-size:0.72rem; font-weight:500; color:#94a3b8; transition:color 0.3s ease; }
+    .wizard-step.active .wizard-step-label { color:#0f172a; font-weight:600; }
+    .wizard-step.completed .wizard-step-label { color:#059669; }
+    .wizard-step-line { flex:1; height:2px; background:#e2e8f0; margin:0 4px; border-radius:1px; transition:background 0.3s ease; }
+    .wizard-step.completed + .wizard-step-line { background:#10b981; }
+
+    /* ── Wizard Panels ── */
+    .wizard-panel { display:none; animation:wizFadeIn 0.3s ease; }
+    .wizard-panel.active { display:block; }
+    @keyframes wizFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Role Selector Buttons ── */
+    .role-option {
+      flex:1; display:flex; align-items:center; gap:0.6rem;
+      padding:0.7rem 0.85rem; border-radius:10px;
+      border:2px solid #e2e8f0; background:#f8fafc;
+      cursor:pointer; transition:all 0.2s ease; text-align:left;
+    }
+    .role-option:hover { border-color:#93c5fd; background:#eff6ff; }
+    .role-option.active { border-color:#3b82f6; background:#eff6ff; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .role-option i { color:#3b82f6; }
+    .role-option.active i { color:#2563eb; }
+
+    /* ── Wizard Validation ── */
+    .wiz-error { font-size:0.68rem; color:#ef4444; margin-top:0.2rem; min-height:0.8rem; }
+    .wiz-hint { font-size:0.68rem; color:#94a3b8; margin-top:0.2rem; }
+    .staff-form-control.is-invalid { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,0.1); }
+    .staff-form-control.is-valid { border-color:#10b981; }
+
+    /* ── Staff Card ── */
+    .staff-card {
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      padding: 1rem 1.15rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      height: 100%;
+    }
+    .staff-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+      border-color: rgba(59, 130, 246, 0.15);
+    }
+    .staff-avatar {
+      width: 44px; height: 44px; min-width: 44px;
+      border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1rem; color: #fff;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    .staff-card-body { flex: 1; min-width: 0; }
+    .staff-card-name {
+      font-weight: 600;
+      font-size: 0.88rem;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .staff-card-email {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .staff-role-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-block;
+    }
+    .staff-role-tag.technician { background: rgba(59,130,246,0.10); color: #2563eb; }
+    .staff-role-tag.secretary { background: rgba(236,72,153,0.10); color: #db2777; }
+    .staff-role-tag:hover { transform: scale(1.05); }
+    .staff-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .staff-actions .btn-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      padding: 0;
+    }
+    .staff-actions .btn-icon:hover {
+      border-color: #3b82f6;
+      color: #3b82f6;
+      background: rgba(59,130,246,0.06);
+    }
+
+    /* ── Recent Staff ── */
+    .staff-recent-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.82rem;
+    }
+    .staff-recent-item:last-child { border-bottom: none; }
+    .staff-recent-dot {
+      width: 7px; height: 7px; min-width: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    /* ── Loading/Error states ── */
+    .staff-state {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+    .staff-state .spinner-border {
+      width: 1.5rem; height: 1.5rem;
+      color: #3b82f6;
+    }
+    .staff-no-results {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      background: #f8fafc;
+      border-radius: 10px;
+      border: 1px dashed #e2e8f0;
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 767px) {
+      .staff-form-card { padding: 1rem; }
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-people-fill"></i></div>
+        <div>
+          <h1>Staff Directory</h1>
+          <p>Manage secretaries and technicians</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div class="row">
+    <div class="col-12">
+
+      <!-- ── Enterprise KPI Row ── -->
+          <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+            <div style="flex:1 1 180px;min-width:160px;">
+              <div class="kpi-enterprise" data-accent="blue">
+                <div class="kpi-enterprise-top">
+                  <div class="kpi-enterprise-icon blue"><i class="bi bi-people-fill"></i></div>
+                  <span class="kpi-enterprise-badge blue">Staff</span>
+                </div>
+                <div class="kpi-enterprise-body">
+                  <p class="kpi-enterprise-label">Total Staff</p>
+                  <div class="kpi-enterprise-value" id="statTotalStaff">--</div>
+                </div>
+              </div>
+            </div>
+            <div style="flex:1 1 180px;min-width:160px;">
+              <div class="kpi-enterprise" data-accent="green">
+                <div class="kpi-enterprise-top">
+                  <div class="kpi-enterprise-icon green"><i class="bi bi-tools"></i></div>
+                  <span class="kpi-enterprise-badge green">Techs</span>
+                </div>
+                <div class="kpi-enterprise-body">
+                  <p class="kpi-enterprise-label">Technicians</p>
+                  <div class="kpi-enterprise-value" id="statTech">--</div>
+                </div>
+              </div>
+            </div>
+            <div style="flex:1 1 180px;min-width:160px;">
+              <div class="kpi-enterprise" data-accent="amber">
+                <div class="kpi-enterprise-top">
+                  <div class="kpi-enterprise-icon amber"><i class="bi bi-people"></i></div>
+                  <span class="kpi-enterprise-badge amber">Secrets</span>
+                </div>
+                <div class="kpi-enterprise-body">
+                  <p class="kpi-enterprise-label">Secretaries</p>
+                  <div class="kpi-enterprise-value" id="statSecretary">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+      <!-- ── Add Staff Button Bar ── -->
+      <div class="staff-form-card mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;box-shadow:0 4px 12px rgba(59,130,246,0.2);">
+            <i class="bi bi-people-fill"></i>
+          </div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Staff Management</h6>
+            <p style="margin:0;font-size:0.78rem;color:#94a3b8;">Manage your team members and their roles</p>
+          </div>
+        </div>
+        <button id="btnOpenAddStaff" class="staff-btn-primary" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+          <i class="bi bi-plus-lg me-1"></i>Add New Staff
+        </button>
+      </div>
+
+      <!-- ── Staff Directory Section ── -->
+      <div class="staff-premium-card p-0 overflow-hidden mb-4">
+        <div style="padding:1rem 1.25rem 0.85rem;border-bottom:1px solid rgba(226,232,240,0.7);">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 style="margin:0;font-weight:700;font-size:0.92rem;color:#0f172a;">
+              <i class="bi bi-people-fill me-2" style="color:#3b82f6;"></i>Staff Directory
+            </h6>
+            <div class="d-flex align-items-center gap-3" style="font-size:0.78rem;color:#94a3b8;">
+              <span><span class="stat-tech-count" style="font-weight:600;color:#2563eb;">0</span> Technicians</span>
+              <span><span class="stat-sec-count" style="font-weight:600;color:#db2777;">0</span> Secretaries</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3">
+          <!-- Filter bar -->
+          <div class="admin-filter-bar" style="margin-bottom:1rem;">
+            <div class="filter-group">
+              <div class="filter-item" style="flex:1;min-width:200px;">
+                <i class="bi bi-search"></i>
+                <input id="staffSearch" class="form-control" placeholder="Search by name or email..." />
+              </div>
+              <div class="filter-item">
+                <i class="bi bi-funnel"></i>
+                <select id="staffFilterRole" class="form-select">
+                  <option value="">All Roles</option>
+                  <option value="technician">Technician</option>
+                  <option value="secretary">Secretary</option>
+                </select>
+              </div>
+            </div>
+            <div class="filter-actions">
+              <button id="btn-refresh-staff" class="btn btn-outline" title="Reload staff list"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+            </div>
+          </div>
+
+          <!-- Staff Cards Grid -->
+          <div id="staffCards" class="row g-3"></div>
+
+          <!-- Recent Staff Sidebar -->
+          <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
+              <i class="bi bi-clock-history" style="color:#94a3b8;font-size:0.85rem;"></i>
+              <span style="font-size:0.78rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Recently Added</span>
+            </div>
+            <div id="recentStaff" style="font-size:0.82rem;color:#94a3b8;">
+              <div class="staff-recent-item"><span class="staff-recent-dot"></span>No recent activity</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modals placed outside admin-dashboard to avoid CSS stacking context issues -->
+<div class="modal fade" id="viewStaffModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div id="viewStaffAvatar" style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.95rem;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.1);"></div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;" id="viewStaffName"></h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="viewStaffRole"></p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0.5rem 1.5rem 1.5rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div style="background:#f8fafc;border-radius:10px;padding:0.75rem 1rem;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;margin-bottom:0.2rem;">Email</div>
+            <div style="font-size:0.82rem;color:#0f172a;word-break:break-all;" id="viewStaffEmail"></div>
+          </div>
+          <div style="background:#f8fafc;border-radius:10px;padding:0.75rem 1rem;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;margin-bottom:0.2rem;">Phone</div>
+            <div style="font-size:0.82rem;color:#0f172a;" id="viewStaffPhone">—</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:10px;padding:0.75rem 1rem;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;margin-bottom:0.2rem;">Status</div>
+            <div id="viewStaffStatus"></div>
+          </div>
+          <div style="background:#f8fafc;border-radius:10px;padding:0.75rem 1rem;">
+            <div style="font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;margin-bottom:0.2rem;">Created</div>
+            <div style="font-size:0.82rem;color:#0f172a;" id="viewStaffCreated"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="editStaffModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;box-shadow:0 3px 10px rgba(0,0,0,0.1);">
+            <i class="bi bi-pencil-fill"></i>
+          </div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Edit Staff</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="editStaffSubtitle">Update staff details</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0.5rem 1.5rem 1.25rem;">
+        <form id="editStaffForm">
+          <input type="hidden" id="editStaffId" />
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="staff-form-label">First Name</label>
+              <input id="editStaffFirst" class="staff-form-control" />
+            </div>
+            <div class="col-6">
+              <label class="staff-form-label">Last Name</label>
+              <input id="editStaffLast" class="staff-form-control" />
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label">Email</label>
+              <input id="editStaffEmail" class="staff-form-control" type="email" />
+            </div>
+            <div class="col-6">
+              <label class="staff-form-label">Phone</label>
+              <input id="editStaffPhone" class="staff-form-control" />
+            </div>
+            <div class="col-6">
+              <label class="staff-form-label">Role</label>
+              <select id="editStaffRole" class="staff-form-select">
+                <option value="secretary">Secretary</option>
+                <option value="technician">Technician</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label">Active</label>
+              <select id="editStaffActive" class="staff-form-select">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer" style="border:none;padding:0 1.5rem 1.25rem;gap:0.5rem;">
+        <button type="button" class="btn" data-bs-dismiss="modal" style="border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:0.82rem;padding:0.45rem 1.25rem;color:#475569;">Cancel</button>
+        <button id="saveEditStaffBtn" type="button" class="staff-btn-primary" style="padding:0.45rem 1.5rem;"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ADD STAFF WIZARD MODAL ═══ -->
+<div class="modal fade" id="addStaffModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+    <div class="modal-content" style="border-radius:16px;border:none;overflow:hidden;box-shadow:0 24px 64px rgba(15,23,42,0.18);">
+
+      <!-- Header -->
+      <div style="padding:1.5rem 1.75rem 0;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;box-shadow:0 4px 14px rgba(59,130,246,0.25);">
+            <i class="bi bi-person-plus-fill"></i>
+          </div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:1rem;color:#0f172a;">Add New Staff</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">Create a new team member account</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Step Indicators -->
+      <div style="padding:1.25rem 1.75rem 0;">
+        <div style="display:flex;align-items:center;gap:0;" id="wizardSteps">
+          <div class="wizard-step active" data-step="1">
+            <div class="wizard-step-circle">1</div>
+            <span class="wizard-step-label">Account</span>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="2">
+            <div class="wizard-step-circle">2</div>
+            <span class="wizard-step-label">Details</span>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="3">
+            <div class="wizard-step-circle">3</div>
+            <span class="wizard-step-label">Confirm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Body -->
+      <div class="modal-body" style="padding:1.25rem 1.75rem 1rem;">
+
+        <!-- STEP 1: Account Credentials -->
+        <div class="wizard-panel active" id="wizardPanel1">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Account Credentials</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Set the role and login credentials for this staff member.</div>
+          </div>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="staff-form-label">Role *</label>
+              <div style="display:flex;gap:0.5rem;" id="roleSelector">
+                <button type="button" class="role-option active" data-role="technician">
+                  <i class="bi bi-wrench" style="font-size:1.1rem;"></i>
+                  <div>
+                    <div style="font-weight:600;font-size:0.82rem;">Technician</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;">Field service staff</div>
+                  </div>
+                </button>
+                <button type="button" class="role-option" data-role="secretary">
+                  <i class="bi bi-headset" style="font-size:1.1rem;"></i>
+                  <div>
+                    <div style="font-weight:600;font-size:0.82rem;">Secretary</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;">Office staff</div>
+                  </div>
+                </button>
+              </div>
+              <input type="hidden" id="wizRole" value="technician" />
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label">Email Address *</label>
+              <div style="position:relative;">
+                <i class="bi bi-envelope" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizEmail" class="staff-form-control" type="email" maxlength="50" required placeholder="juan.santos@example.com" style="padding-left:2rem;" />
+              </div>
+              <div class="wiz-error" id="wizEmailError"></div>
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label">Password *</label>
+              <div style="position:relative;">
+                <i class="bi bi-lock" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizPassword" class="staff-form-control" type="password" minlength="8" maxlength="12" pattern="[A-Za-z0-9]+" required placeholder="8-12 alphanumeric characters" style="padding-left:2rem;padding-right:2.5rem;" />
+                <button type="button" id="toggleWizPass" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;font-size:0.85rem;padding:4px;"><i class="bi bi-eye"></i></button>
+              </div>
+              <div class="wiz-hint" id="wizPassHint">8-12 characters, letters and numbers only</div>
+              <div class="wiz-error" id="wizPassError"></div>
+              <div style="display:flex;gap:4px;margin-top:6px;" id="passStrength">
+                <div style="flex:1;height:3px;border-radius:2px;background:#e2e8f0;"></div>
+                <div style="flex:1;height:3px;border-radius:2px;background:#e2e8f0;"></div>
+                <div style="flex:1;height:3px;border-radius:2px;background:#e2e8f0;"></div>
+                <div style="flex:1;height:3px;border-radius:2px;background:#e2e8f0;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Personal Details -->
+        <div class="wizard-panel" id="wizardPanel2">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Personal Information</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Enter the staff member's personal details.</div>
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="staff-form-label">First Name *</label>
+              <input id="wizFirst" class="staff-form-control" placeholder="Juan" required />
+              <div class="wiz-error" id="wizFirstError"></div>
+            </div>
+            <div class="col-6">
+              <label class="staff-form-label">Last Name *</label>
+              <input id="wizLast" class="staff-form-control" placeholder="Santos" required />
+              <div class="wiz-error" id="wizLastError"></div>
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label">Phone Number</label>
+              <div style="position:relative;">
+                <i class="bi bi-phone" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizPhone" class="staff-form-control" placeholder="09171234567" style="padding-left:2rem;" />
+              </div>
+              <div class="wiz-error" id="wizPhoneError"></div>
+            </div>
+            <div class="col-12" id="wizTechFields">
+              <label class="staff-form-label">Work Location</label>
+              <div style="position:relative;">
+                <i class="bi bi-geo-alt" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizLocation" class="staff-form-control" placeholder="Office address or area e.g. Makati, Taguig" style="padding-left:2rem;padding-right:7rem;" />
+                <button id="wizBtnUseLocation" type="button" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;font-size:0.72rem;padding:0.3rem 0.6rem;color:#475569;cursor:pointer;transition:all 0.2s;white-space:nowrap;">Use GPS</button>
+              </div>
+              <input type="hidden" id="wizLocationGeo" />
+              <div style="font-size:0.68rem;color:#94a3b8;margin-top:0.25rem;">Optional. Used for dispatching and scheduling.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: Confirmation -->
+        <div class="wizard-panel" id="wizardPanel3">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Review & Confirm</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Verify all details before creating the account.</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:12px;padding:1rem 1.25rem;border:1px solid #e2e8f0;">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid #e2e8f0;">
+              <div id="confirmAvatar" style="width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.1);"></div>
+              <div>
+                <div id="confirmName" style="font-weight:700;font-size:0.95rem;color:#0f172a;"></div>
+                <div id="confirmRole" style="font-size:0.72rem;color:#94a3b8;"></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Email</div>
+                <div id="confirmEmail" style="font-size:0.8rem;color:#0f172a;word-break:break-all;"></div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Phone</div>
+                <div id="confirmPhone" style="font-size:0.8rem;color:#0f172a;">—</div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Location</div>
+                <div id="confirmLocation" style="font-size:0.8rem;color:#0f172a;">—</div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Password</div>
+                <div style="font-size:0.8rem;color:#0f172a;">••••••••</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:0.75rem;padding:0.6rem 0.8rem;background:rgba(59,130,246,0.06);border-radius:8px;border:1px solid rgba(59,130,246,0.12);">
+            <div style="font-size:0.72rem;color:#2563eb;display:flex;align-items:flex-start;gap:6px;">
+              <i class="bi bi-info-circle" style="margin-top:2px;flex-shrink:0;"></i>
+              <span id="confirmNote">A technician account will be added to the scheduling roster automatically.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div style="padding:0 1.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <button type="button" id="wizBackBtn" class="btn" style="border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:0.82rem;padding:0.5rem 1.25rem;color:#475569;display:none;transition:all 0.2s;">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </button>
+        <div style="flex:1;"></div>
+        <button type="button" id="wizNextBtn" class="staff-btn-primary" style="padding:0.5rem 1.5rem;">
+          Next<i class="bi bi-arrow-right ms-1"></i>
+        </button>
+        <button type="button" id="wizCreateBtn" class="staff-btn-primary" style="padding:0.5rem 1.5rem;display:none;background:linear-gradient(135deg,#059669,#10b981);">
+          <i class="bi bi-check-lg me-1"></i>Create Account
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    // Move modals to body to escape AOS transform stacking context on <main>
+    !function(){var m=document.getElementById('viewStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
+    !function(){var m=document.getElementById('editStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
+    !function(){var m=document.getElementById('addStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
+
+    const el = (id) => document.getElementById(id);
+
+    function stringToHslColor(str, s = 65, l = 52) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++)
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      const h = Math.abs(hash) % 360;
+      return `hsl(${h}, ${s}%, ${l}%)`;
+    }
+
+    function renderItem(u) {
+      const name =
+        ((u.firstName || "") + " " + (u.lastName || "")).trim() ||
+        u.name ||
+        u.email ||
+        "";
+      const seed = String(u._id || u.email || name || "user");
+      const color = stringToHslColor(seed, 65, 50);
+      const role = (u.role || "").toString().toLowerCase();
+      const roleTag = `<span class='staff-role-tag ${role}' data-role='${role}' title='Filter by role'>${role || ''}</span>`;
+      const initial = (
+        (u.firstName || "")[0] ||
+        (u.name || "")[0] ||
+        "U"
+      ).toUpperCase();
+
+      return `
+<div class='col-md-4 mb-0 staff-card-col' data-role='${role}' data-email='${u.email || ""}' data-name='${(name || "").replace(/'/g, "&#39;")}' data-id='${u._id || ""}'>
+  <div class="staff-card">
+    <div class="staff-avatar" style="background:${color};">${initial}</div>
+    <div class="staff-card-body">
+      <div class="staff-card-name">${name}</div>
+      <div class="staff-card-email">${u.email || ""}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      ${roleTag}
+      <div class="staff-actions">
+        <button class="btn-icon view-staff" data-id='${u._id || ""}' title='View'><i class="bi bi-eye"></i></button>
+        <button class="btn-icon edit-staff" data-id='${u._id || ""}' title='Edit'><i class="bi bi-pencil"></i></button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    }
+
+    async function loadStaff() {
+      // show spinner in cards area
+      const spinner = `<div class="text-center py-4 text-muted small">
+          <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+          Loading staff…
+        </div>`;
+      if (el("staffCards")) el("staffCards").innerHTML = spinner;
+      try {
+        const r = await fetch("/api/admin/staff", {
+          credentials: "same-origin",
+        });
+        if (!r.ok) {
+          console.error(
+            "staff fetch failed",
+            r.status,
+            await r.text(),
+          );
+          if (el("staffCards"))
+            el("staffCards").innerHTML =
+              `<div class="text-center py-4 text-muted small"><div>Unable to load staff at this time.</div><div class="mt-2"><button id="retryLoadStaff" class="btn btn-sm btn-outline-primary">Retry</button></div></div>`;
+          document
+            .getElementById("retryLoadStaff")
+            ?.addEventListener("click", loadStaff);
+          return;
+        }
+        const j = await r.json();
+        const arr = j.staff || [];
+        // sort by role for consistency (technicians first, then secretaries)
+        arr.sort((a, b) => {
+          if (a.role === b.role) return 0;
+          if (a.role === 'technician') return -1;
+          if (b.role === 'technician') return 1;
+          // secretary last
+          return 0;
+        });
+
+        // Apply current client-side filters immediately so the DOM only contains matching staff
+        const currentSearch = (
+          document.getElementById("staffSearch")?.value || ""
+        )
+          .trim()
+          .toLowerCase();
+        const currentRoleFilter = (
+          document.getElementById("staffFilterRole")?.value || ""
+        )
+          .trim()
+          .toLowerCase();
+        const filtered = arr.filter((u) => {
+          const n = (
+            ((u.firstName || "") + " " + (u.lastName || "")).trim() ||
+            u.name ||
+            ""
+          ).toLowerCase();
+          const e = (u.email || "").toLowerCase();
+          const matchesSearch =
+            !currentSearch ||
+            n.includes(currentSearch) ||
+            e.includes(currentSearch);
+          const matchesRole =
+            !currentRoleFilter ||
+            (u.role || "").toString().toLowerCase() ===
+              currentRoleFilter;
+          return matchesSearch && matchesRole;
+        });
+
+        if (el("staffCards"))
+          el("staffCards").innerHTML =
+            filtered.map(renderItem).join("") ||
+            (arr.length
+              ? '<div class="small text-muted">No staff match your search/filter.</div>'
+              : '<div class="small text-muted">No staff found.</div>');
+
+        // Update summary stats (totals for all staff)
+        // prefer counts based on actual User documents when available
+        if (j.userCounts) {
+          document.getElementById("statTotalStaff").innerText = j.userCounts.total;
+          document.getElementById("statTech").innerText = j.userCounts.technicians;
+          document.getElementById("statSecretary").innerText = j.userCounts.secretaries;
+          // Update inline header counters
+          var techCountEl = document.querySelector('.stat-tech-count');
+          var secCountEl = document.querySelector('.stat-sec-count');
+          if (techCountEl) techCountEl.innerText = j.userCounts.technicians;
+          if (secCountEl) secCountEl.innerText = j.userCounts.secretaries;
+          // admin metric no longer present by design
+          const adminEl = document.getElementById("statAdmins");
+          if (adminEl) {
+            adminEl.innerText = 0;
+            const card = adminEl.closest('.col-md-3');
+            if (card) card.style.display = 'none';
+          }
+        } else {
+          document.getElementById("statTotalStaff").innerText = arr.length;
+          document.getElementById("statTech").innerText = arr.filter(
+            (s) => s.role === "technician",
+          ).length;
+          const adminEl = document.getElementById("statAdmins");
+          if (adminEl) {
+            const adminCount = arr.filter((s) => s.role === "admin").length;
+            adminEl.innerText = adminCount;
+            if (adminCount === 0) {
+              const adminCard = adminEl.closest('.col-md-3');
+              if (adminCard) adminCard.style.display = 'none';
+            }
+          }
+          document.getElementById("statSecretary").innerText =
+            arr.filter((s) => s.role === "secretary").length;
+          // Update inline header counters
+          var techCountEl = document.querySelector('.stat-tech-count');
+          var secCountEl = document.querySelector('.stat-sec-count');
+          if (techCountEl) techCountEl.innerText = arr.filter((s) => s.role === "technician").length;
+          if (secCountEl) secCountEl.innerText = arr.filter((s) => s.role === "secretary").length;
+        }
+
+        // Update recently added
+        const recentArr = arr.slice(-3);
+        if (recentArr.length) {
+          document.getElementById("recentStaff").innerHTML =
+            recentArr.map((u) =>
+              `<div class="staff-recent-item"><span class="staff-recent-dot"></span>${((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email}</div>`
+            ).join("");
+        } else {
+          document.getElementById("recentStaff").innerHTML =
+            `<div class="staff-recent-item"><span class="staff-recent-dot"></span>No recent activity</div>`;
+        }
+
+        // Re-apply active search/filter so the UI remains consistent after refresh
+        try {
+          if (typeof filterStaffList === "function")
+            filterStaffList();
+        } catch (e) {
+          /* noop */
+        }
+      } catch (e) {
+        console.error("loadStaff error", e);
+        if (el("staffCards"))
+          el("staffCards").innerHTML =
+            `<div class="text-center py-4 text-muted small"><div>Unable to load staff — network or server error.</div><div class="mt-2"><button id="retryLoadStaff2" class="btn btn-sm btn-outline-primary">Retry</button></div></div>`;
+        document
+          .getElementById("retryLoadStaff2")
+          ?.addEventListener("click", loadStaff);
+      }
+    }
+
+    // ═══ ADD STAFF WIZARD ═══
+    (function () {
+      let wizStep = 1;
+      const totalSteps = 3;
+
+      const roleSelector = document.getElementById("roleSelector");
+      if (roleSelector) {
+        roleSelector.querySelectorAll(".role-option").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            roleSelector.querySelectorAll(".role-option").forEach(function (b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+            el("wizRole").value = btn.dataset.role;
+            // Toggle location field visibility
+            var techFields = el("wizTechFields");
+            if (techFields) techFields.style.display = btn.dataset.role === "technician" ? "" : "none";
+          });
+        });
+      }
+
+      function updateWizardUI() {
+        // Update step indicators
+        document.querySelectorAll("#wizardSteps .wizard-step").forEach(function (s) {
+          var step = parseInt(s.dataset.step);
+          s.classList.remove("active", "completed");
+          if (step === wizStep) s.classList.add("active");
+          else if (step < wizStep) s.classList.add("completed");
+        });
+        // Update panels
+        document.querySelectorAll(".wizard-panel").forEach(function (p) { p.classList.remove("active"); });
+        var panel = el("wizardPanel" + wizStep);
+        if (panel) panel.classList.add("active");
+        // Update buttons
+        el("wizBackBtn").style.display = wizStep > 1 ? "" : "none";
+        el("wizNextBtn").style.display = wizStep < totalSteps ? "" : "none";
+        el("wizCreateBtn").style.display = wizStep === totalSteps ? "" : "none";
+      }
+
+      function clearErrors() {
+        document.querySelectorAll(".wiz-error").forEach(function (e) { e.textContent = ""; });
+        document.querySelectorAll(".wizard-panel .staff-form-control").forEach(function (c) { c.classList.remove("is-invalid", "is-valid"); });
+      }
+
+      function setError(id, msg) { var e = el(id); if (e) e.textContent = msg; }
+
+      function validateStep1() {
+        clearErrors();
+        var valid = true;
+        var email = (el("wizEmail").value || "").trim();
+        var pass = el("wizPassword").value || "";
+        if (!email) { setError("wizEmailError", "Email is required"); el("wizEmail").classList.add("is-invalid"); valid = false; }
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("wizEmailError", "Enter a valid email address"); el("wizEmail").classList.add("is-invalid"); valid = false; }
+        else { el("wizEmail").classList.add("is-valid"); }
+        if (!pass) { setError("wizPassError", "Password is required"); el("wizPassword").classList.add("is-invalid"); valid = false; }
+        else if (pass.length < 8 || pass.length > 12) { setError("wizPassError", "Must be 8-12 characters"); el("wizPassword").classList.add("is-invalid"); valid = false; }
+        else if (!/^[A-Za-z0-9]+$/.test(pass)) { setError("wizPassError", "Letters and numbers only"); el("wizPassword").classList.add("is-invalid"); valid = false; }
+        else { el("wizPassword").classList.add("is-valid"); }
+        return valid;
+      }
+
+      function validateStep2() {
+        clearErrors();
+        var valid = true;
+        var first = (el("wizFirst").value || "").trim();
+        var last = (el("wizLast").value || "").trim();
+        var phone = (el("wizPhone").value || "").trim();
+        if (!first) { setError("wizFirstError", "First name is required"); el("wizFirst").classList.add("is-invalid"); valid = false; }
+        else { el("wizFirst").classList.add("is-valid"); }
+        if (!last) { setError("wizLastError", "Last name is required"); el("wizLast").classList.add("is-invalid"); valid = false; }
+        else { el("wizLast").classList.add("is-valid"); }
+        if (phone && !/^\d{10,11}$/.test(phone)) { setError("wizPhoneError", "Enter a valid 10-11 digit phone number"); el("wizPhone").classList.add("is-invalid"); valid = false; }
+        else if (phone) { el("wizPhone").classList.add("is-valid"); }
+        return valid;
+      }
+
+      function populateConfirmation() {
+        var role = el("wizRole").value;
+        var first = (el("wizFirst").value || "").trim();
+        var last = (el("wizLast").value || "").trim();
+        var email = (el("wizEmail").value || "").trim();
+        var phone = (el("wizPhone").value || "").trim();
+        var location = (el("wizLocation").value || "").trim();
+        var name = (first + " " + last).trim() || email;
+
+        // Avatar
+        var seed = email || name;
+        var hash = 0;
+        for (var i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+        var hue = Math.abs(hash) % 360;
+        var avatar = el("confirmAvatar");
+        if (avatar) {
+          avatar.style.background = "hsl(" + hue + ", 65%, 50%)";
+          avatar.textContent = (first[0] || "U").toUpperCase();
+        }
+        var nameEl = el("confirmName"); if (nameEl) nameEl.textContent = name;
+        var roleEl = el("confirmRole"); if (roleEl) roleEl.textContent = role === "technician" ? "Technician" : "Secretary";
+        var emailEl = el("confirmEmail"); if (emailEl) emailEl.textContent = email;
+        var phoneEl = el("confirmPhone"); if (phoneEl) phoneEl.textContent = phone || "—";
+        var locEl = el("confirmLocation"); if (locEl) locEl.textContent = location || "Not specified";
+        var noteEl = el("confirmNote");
+        if (noteEl) noteEl.textContent = role === "technician"
+          ? "A technician account will be added to the scheduling roster automatically."
+          : "A secretary account will be created with standard permissions.";
+      }
+
+      // Password strength indicator
+      var passInput = el("wizPassword");
+      if (passInput) {
+        passInput.addEventListener("input", function () {
+          var v = this.value || "";
+          var strength = 0;
+          if (v.length >= 8) strength++;
+          if (/[A-Z]/.test(v)) strength++;
+          if (/[0-9]/.test(v)) strength++;
+          if (v.length >= 10) strength++;
+          var bars = document.querySelectorAll("#passStrength div");
+          var colors = ["#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
+          bars.forEach(function (bar, i) {
+            bar.style.background = i < strength ? colors[Math.min(strength - 1, 3)] : "#e2e8f0";
+          });
+        });
+      }
+
+      // Password toggle
+      var toggleBtn = el("toggleWizPass");
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", function () {
+          var input = el("wizPassword");
+          var icon = this.querySelector("i");
+          if (input.type === "password") { input.type = "text"; icon.className = "bi bi-eye-slash"; }
+          else { input.type = "password"; icon.className = "bi bi-eye"; }
+        });
+      }
+
+      // Next button
+      var nextBtn = el("wizNextBtn");
+      if (nextBtn) {
+        nextBtn.addEventListener("click", function () {
+          if (wizStep === 1 && !validateStep1()) return;
+          if (wizStep === 2 && !validateStep2()) return;
+          if (wizStep === 2) populateConfirmation();
+          if (wizStep < totalSteps) { wizStep++; updateWizardUI(); }
+        });
+      }
+
+      // Back button
+      var backBtn = el("wizBackBtn");
+      if (backBtn) {
+        backBtn.addEventListener("click", function () {
+          if (wizStep > 1) { wizStep--; updateWizardUI(); }
+        });
+      }
+
+      // Create button
+      var createBtn = el("wizCreateBtn");
+      if (createBtn) {
+        createBtn.addEventListener("click", async function () {
+          var payload = {
+            role: el("wizRole").value,
+            firstName: (el("wizFirst").value || "").trim(),
+            lastName: (el("wizLast").value || "").trim(),
+            email: (el("wizEmail").value || "").trim(),
+            phone: (el("wizPhone").value || "").trim(),
+            password: el("wizPassword").value,
+          };
+          var geoVal = el("wizLocationGeo")?.value;
+          if (geoVal) {
+            try { payload.location = JSON.parse(geoVal); } catch (e) {
+              payload.location = (el("wizLocation").value || "").trim() || undefined;
+            }
+          } else if (payload.role === "technician") {
+            payload.location = (el("wizLocation").value || "").trim() || undefined;
+          }
+          createBtn.disabled = true;
+          createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creating...';
+          try {
+            var res = await fetch("/api/admin/staff", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+              var modal = bootstrap.Modal.getInstance(el("addStaffModal"));
+              if (modal) modal.hide();
+              window.notify.success("Staff account created successfully");
+              // Reset wizard
+              wizStep = 1;
+              el("wizEmail").value = "";
+              el("wizPassword").value = "";
+              el("wizFirst").value = "";
+              el("wizLast").value = "";
+              el("wizPhone").value = "";
+              el("wizLocation").value = "";
+              el("wizLocationGeo").value = "";
+              clearErrors();
+              updateWizardUI();
+              loadStaff();
+            } else {
+              var t = await res.text();
+              var msg = t;
+              try { var j = JSON.parse(t); if (j && j.error) msg = j.error; } catch (e) {}
+              window.notify.error("Failed: " + msg);
+            }
+          } catch (err) { window.notify.error("Failed to create staff"); }
+          createBtn.disabled = false;
+          createBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Create Account';
+        });
+      }
+
+      // Reset wizard when modal closes
+      var addModal = el("addStaffModal");
+      if (addModal) {
+        addModal.addEventListener("hidden.bs.modal", function () {
+          wizStep = 1;
+          clearErrors();
+          updateWizardUI();
+        });
+      }
+
+      // Geolocation for wizard
+      var wizLocBtn = el("wizBtnUseLocation");
+      if (wizLocBtn) {
+        wizLocBtn.addEventListener("click", function () {
+          if (!navigator.geolocation) return;
+          wizLocBtn.disabled = true;
+          wizLocBtn.textContent = "Locating...";
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              el("wizLocationGeo").value = JSON.stringify({ type: "Point", coordinates: [Number(pos.coords.longitude), Number(pos.coords.latitude)] });
+              el("wizLocation").value = pos.coords.latitude.toFixed(6) + ", " + pos.coords.longitude.toFixed(6);
+              wizLocBtn.disabled = false;
+              wizLocBtn.textContent = "Use GPS";
+            },
+            function () { wizLocBtn.disabled = false; wizLocBtn.textContent = "Use GPS"; },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
+      }
+    })();
+
+    const refreshBtn = el("btn-refresh-staff");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", loadStaff);
+    }
+
+    // Geolocation capture: fill hidden field with GeoJSON and display coords in the text input
+    (function () {
+      const btn = document.getElementById("btnUseLocation");
+      const geoField = document.getElementById("staffLocationGeo");
+      const locInput = document.getElementById("staffLocation");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        if (!navigator.geolocation) {
+          return alert("Geolocation not supported by this browser.");
+        }
+        btn.disabled = true;
+        btn.innerText = "Locating...";
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            const coords = {
+              type: "Point",
+              coordinates: [
+                Number(pos.coords.longitude),
+                Number(pos.coords.latitude),
+              ],
+            };
+            if (geoField) geoField.value = JSON.stringify(coords);
+            if (locInput)
+              locInput.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+            btn.disabled = false;
+            btn.innerText = "Use current location";
+          },
+          function (err) {
+            alert("Unable to get location: " + (err && err.message));
+            btn.disabled = false;
+            btn.innerText = "Use current location";
+          },
+          { enableHighAccuracy: true, timeout: 10000 },
+        );
+      });
+    })();
+
+    // Search + Filter functionality (applies to card layout)
+    const staffSearch = document.getElementById("staffSearch");
+    const staffFilterRole =
+      document.getElementById("staffFilterRole");
+
+    function debounce(fn, wait = 160) {
+      let t;
+      return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    }
+
+    function filterStaffList() {
+      const search = ((staffSearch && staffSearch.value) || "")
+        .trim()
+        .toLowerCase();
+      const role = ((staffFilterRole && staffFilterRole.value) || "")
+        .trim()
+        .toLowerCase();
+
+      const container = document.getElementById("staffCards");
+      if (!container) return;
+
+      // Scope queries to card columns
+      const items = Array.from(
+        container.querySelectorAll(
+          ".staff-card-col",
+        ),
+      );
+
+      items.forEach((it) => {
+        let name = "";
+        let email = "";
+        let badgeRole = "";
+
+        if (it.dataset) {
+          name = (it.dataset.name || "").toLowerCase();
+          email = (it.dataset.email || "").toLowerCase();
+          badgeRole = (it.dataset.role || "").toLowerCase();
+        }
+
+        if (!name) {
+          const nameEl = it.querySelector && it.querySelector(".staff-card-name");
+          if (nameEl) name = (nameEl.innerText || "").toLowerCase();
+        }
+        if (!email) {
+          const emailEl = it.querySelector && it.querySelector(".staff-card-email");
+          if (emailEl)
+            email = (emailEl.innerText || "").toLowerCase();
+        }
+        if (!badgeRole) {
+          const roleEl = it.querySelector && it.querySelector(".staff-role-tag");
+          if (roleEl)
+            badgeRole = (
+              (roleEl.dataset && roleEl.dataset.role) ||
+              roleEl.innerText ||
+              ""
+            ).toLowerCase();
+        }
+
+        const hay = (name + " " + email).toLowerCase();
+        const matches =
+          (!search || hay.includes(search)) &&
+          (!role || role === badgeRole);
+
+        it.classList.toggle("d-none", !matches);
+      });
+
+      const anyVisible = Array.from(
+        container.querySelectorAll(
+          ".staff-card-col",
+        ),
+      ).some(
+        (el) =>
+          !el.classList.contains("d-none") &&
+          el.style.display !== "none",
+      );
+      let noEl = container.querySelector(".staff-no-results");
+      if (!anyVisible) {
+        if (!noEl) {
+          noEl = document.createElement("div");
+          noEl.className = "staff-no-results";
+          noEl.innerText = "No staff match your search/filter.";
+          container.appendChild(noEl);
+        }
+      } else {
+        if (noEl && noEl.remove) noEl.remove();
+      }
+    }
+
+    // attach listeners with safe fallbacks (works even if elements are missing / loaded later)
+    const debouncedFilter = debounce(filterStaffList, 160);
+    if (staffSearch) {
+      staffSearch.addEventListener("input", debouncedFilter);
+    } else {
+      document.addEventListener("input", function (ev) {
+        if (ev.target && ev.target.id === "staffSearch")
+          debouncedFilter();
+      });
+    }
+    if (staffFilterRole) {
+      staffFilterRole.addEventListener("change", debouncedFilter);
+    } else {
+      document.addEventListener("change", function (ev) {
+        if (ev.target && ev.target.id === "staffFilterRole")
+          debouncedFilter();
+      });
+    }
+    if (!staffSearch && !staffFilterRole)
+      console.warn("Staff list: filter elements not found on page.");
+
+    // make role badges clickable: clicking a badge will set/toggle the role filter
+    document
+      .getElementById("staffCards")
+      .addEventListener("click", function (ev) {
+        const badge =
+          ev.target.closest && ev.target.closest(".staff-role-tag");
+        if (!badge) return;
+        const clickedRole = (badge.dataset.role || "")
+          .toString()
+          .trim()
+          .toLowerCase();
+        if (!clickedRole) return;
+        if (staffFilterRole.value === clickedRole) {
+          staffFilterRole.value = "";
+        } else {
+          staffFilterRole.value = clickedRole;
+        }
+        debouncedFilter();
+      });
+
+    // ── View Staff click handler ──
+    document.getElementById("staffCards").addEventListener("click", function (ev) {
+      var btn = ev.target.closest && ev.target.closest(".view-staff");
+      if (!btn) return;
+      var id = btn.dataset.id;
+      if (!id) return;
+
+      fetch("/api/admin/staff/" + id)
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
+          var u = j.staff;
+          var name = ((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email || "";
+          document.getElementById("viewStaffName").innerText = name;
+          document.getElementById("viewStaffRole").innerText = (u.role || "").charAt(0).toUpperCase() + (u.role || "").slice(1);
+          document.getElementById("viewStaffEmail").innerText = u.email || "—";
+          document.getElementById("viewStaffPhone").innerText = u.phone || "—";
+
+          var statusEl = document.getElementById("viewStaffStatus");
+          if (u.active !== false) {
+            statusEl.innerHTML = '<span style="font-size:0.72rem;font-weight:600;padding:0.15rem 0.6rem;border-radius:999px;background:rgba(34,197,94,0.12);color:#16a34a;">Active</span>';
+          } else {
+            statusEl.innerHTML = '<span style="font-size:0.72rem;font-weight:600;padding:0.15rem 0.6rem;border-radius:999px;background:rgba(239,68,68,0.10);color:#dc2626;">Inactive</span>';
+          }
+
+          document.getElementById("viewStaffCreated").innerText = u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+          var avatarEl = document.getElementById("viewStaffAvatar");
+          var seed = String(u._id || u.email || name);
+          var hue = 0;
+          for (var i = 0; i < seed.length; i++) { hue += seed.charCodeAt(i); }
+          hue = hue % 360;
+          avatarEl.style.background = "hsl(" + hue + ", 65%, 50%)";
+          var initial = (u.firstName || "")[0] || (u.name || "")[0] || "U";
+          avatarEl.innerText = initial.toUpperCase();
+
+          new bootstrap.Modal(document.getElementById("viewStaffModal")).show();
+        })
+        .catch(function () { window.notify.error("Failed to load staff"); });
+    });
+
+    // ── Edit Staff click handler ──
+    document.getElementById("staffCards").addEventListener("click", function (ev) {
+      var btn = ev.target.closest && ev.target.closest(".edit-staff");
+      if (!btn) return;
+      var id = btn.dataset.id;
+      if (!id) return;
+
+      fetch("/api/admin/staff/" + id)
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
+          var u = j.staff;
+          document.getElementById("editStaffId").value = u._id;
+          document.getElementById("editStaffFirst").value = u.firstName || "";
+          document.getElementById("editStaffLast").value = u.lastName || "";
+          document.getElementById("editStaffEmail").value = u.email || "";
+          document.getElementById("editStaffPhone").value = u.phone || "";
+          document.getElementById("editStaffRole").value = u.role || "secretary";
+          document.getElementById("editStaffActive").value = u.active !== false ? "true" : "false";
+
+          var name = ((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email || "";
+          document.getElementById("editStaffSubtitle").innerText = "Editing " + name;
+
+          new bootstrap.Modal(document.getElementById("editStaffModal")).show();
+        })
+        .catch(function () { window.notify.error("Failed to load staff"); });
+    });
+
+    // ── Save Edit ──
+    document.getElementById("saveEditStaffBtn").addEventListener("click", function () {
+      var id = document.getElementById("editStaffId").value;
+      if (!id) return;
+      var payload = {
+        firstName: document.getElementById("editStaffFirst").value.trim(),
+        lastName: document.getElementById("editStaffLast").value.trim(),
+        email: document.getElementById("editStaffEmail").value.trim(),
+        phone: document.getElementById("editStaffPhone").value.trim(),
+        role: document.getElementById("editStaffRole").value,
+        active: document.getElementById("editStaffActive").value === "true",
+      };
+
+      fetch("/api/admin/staff/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) {
+          return r.text().then(function (t) { return { ok: r.ok, status: r.status, body: t }; });
+        })
+        .then(function (res) {
+          console.log("PATCH response", res);
+          if (!res.ok) throw new Error("Status " + res.status + ": " + res.body);
+          var j = JSON.parse(res.body);
+          window.notify.success("Staff updated (modified: " + (j.modified || "?") + ")");
+          var modal = bootstrap.Modal.getInstance(document.getElementById("editStaffModal"));
+          if (modal) modal.hide();
+          loadStaff();
+        })
+        .catch(function (err) {
+          console.error("PATCH error", err);
+          window.notify.error("Failed: " + err.message);
+        });
+    });
+
+    // load staff after filter handlers are in place so loadStaff can re-apply active filters
+    loadStaff();
+  })();
+</script>

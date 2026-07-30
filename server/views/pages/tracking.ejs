@@ -1,0 +1,2991 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<div class="container py-4 page-min-height tracking-root" id="customerTrackingRoot">
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- ANIMATED HERO HEADER                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="trk-hero">
+    <div class="trk-hero-bg">
+      <div class="trk-hero-orb trk-hero-orb-1"></div>
+      <div class="trk-hero-orb trk-hero-orb-2"></div>
+      <div class="trk-hero-orb trk-hero-orb-3"></div>
+      <div class="trk-hero-grid"></div>
+    </div>
+    <div class="trk-hero-content">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="trk-hero-icon">
+            <i class="bi bi-geo-alt-fill"></i>
+          </div>
+          <div>
+            <h1 class="trk-hero-title" id="trkGreeting">My Schedule</h1>
+            <p class="trk-hero-sub">Track your technician in real-time and manage upcoming appointments</p>
+          </div>
+        </div>
+        <div class="trk-hero-badges" id="trkHeroBadges">
+          <div class="trk-badge trk-badge-active">
+            <i class="bi bi-broadcast"></i>
+            <span id="trkActiveCount">0</span> Active
+          </div>
+          <div class="trk-badge trk-badge-upcoming">
+            <i class="bi bi-calendar-event"></i>
+            <span id="trkUpcomingCount">0</span> Upcoming
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- QUICK STATS ROW                                                    -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="row g-3 mb-4 trk-stats-row">
+    <div class="col-6 col-md-3">
+      <div class="trk-stat-card" data-accent="blue">
+        <div class="trk-stat-icon blue"><i class="bi bi-calendar-check"></i></div>
+        <div class="trk-stat-info">
+          <span class="trk-stat-value" id="trkStatTotal">0</span>
+          <span class="trk-stat-label">Total Bookings</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="trk-stat-card" data-accent="emerald">
+        <div class="trk-stat-icon emerald"><i class="bi bi-lightning-charge"></i></div>
+        <div class="trk-stat-info">
+          <span class="trk-stat-value" id="trkStatActive">0</span>
+          <span class="trk-stat-label">Active Now</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="trk-stat-card" data-accent="amber">
+        <div class="trk-stat-icon amber"><i class="bi bi-calendar-event"></i></div>
+        <div class="trk-stat-info">
+          <span class="trk-stat-value" id="trkStatUpcoming">0</span>
+          <span class="trk-stat-label">Upcoming</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="trk-stat-card" data-accent="violet">
+        <div class="trk-stat-icon violet"><i class="bi bi-check2-circle"></i></div>
+        <div class="trk-stat-info">
+          <span class="trk-stat-value" id="trkStatCompleted">0</span>
+          <span class="trk-stat-label">Completed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- MASTER-DETAIL: LIST OF BOOKINGS  →  DETAIL (progress + map)        -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- ── List View ── -->
+  <div id="trkListView">
+    <div class="trk-list-toolbar">
+      <div class="trk-list-title">
+        <i class="bi bi-calendar2-week"></i> Your Bookings
+        <span class="trk-list-count" id="trkListCount">0</span>
+      </div>
+      <div class="trk-list-filter" id="trkListFilter">
+        <button class="trk-filter-chip active" data-filter="all">All</button>
+        <button class="trk-filter-chip" data-filter="active">Active</button>
+        <button class="trk-filter-chip" data-filter="upcoming">Upcoming</button>
+        <button class="trk-filter-chip" data-filter="completed">Completed</button>
+      </div>
+    </div>
+    <div id="trkBookingList" class="trk-booking-list"></div>
+
+    <!-- Booking Calendar (schedule overview) -->
+    <div class="trk-card trk-calendar-card mt-4">
+      <div class="trk-card-header">
+        <h6 class="trk-card-title"><i class="bi bi-calendar-week"></i> Booking Calendar</h6>
+        <span class="trk-card-link" id="trkCalHint" style="font-size:0.72rem;"></span>
+      </div>
+      <div class="trk-card-body">
+        <div id="trackCalendar" class="trk-calendar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Detail View ── -->
+  <div id="trkDetailView" style="display:none;">
+    <button class="trk-back-btn" onclick="showListView()">
+      <i class="bi bi-arrow-left"></i> Back to bookings
+    </button>
+
+    <div class="row g-4">
+      <!-- Left column: details + progress -->
+      <div class="col-lg-6 trk-detail-left" id="trkDetailInner">
+        <!-- Booking Details Card -->
+        <div class="trk-card trk-booking-details mb-4" id="trkBookingDetails">
+          <div class="trk-card-header">
+            <h6 class="trk-card-title"><i class="bi bi-info-circle"></i> Booking Details</h6>
+            <span class="trk-status-pill" id="trkStatusPill">—</span>
+          </div>
+          <div class="trk-card-body">
+            <div id="trkBookingInfo">
+              <div class="trk-empty-state-sm">
+                <i class="bi bi-calendar-x"></i>
+                <span>Select a booking to view details</span>
+              </div>
+            </div>
+            <div id="trkRatingSection" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Technician Card -->
+        <div class="trk-card trk-tech-card mb-4" id="trkTechCard" style="display:none;">
+          <div class="trk-card-header">
+            <h6 class="trk-card-title"><i class="bi bi-person-badge"></i> Your Technician</h6>
+          </div>
+          <div class="trk-card-body">
+            <div class="trk-tech-profile">
+              <div class="trk-tech-avatar">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <div class="trk-tech-info">
+                <div class="trk-tech-name" id="trkTechName">—</div>
+                <div class="trk-tech-status" id="trkTechStatus">
+                  <span class="trk-pulse-dot"></span> Waiting for update
+                </div>
+              </div>
+            </div>
+            <div class="trk-tech-actions">
+              <button id="customerRouteBtn" class="trk-btn trk-btn-outline" disabled>
+                <i class="bi bi-signpost-2"></i> Customer Route
+              </button>
+              <button id="technicianRouteBtn" class="trk-btn trk-btn-outline" disabled>
+                <i class="bi bi-person-walking"></i> Technician Route
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Progress -->
+        <div class="trk-card trk-lifecycle mb-4" id="trkLifecycle" style="display:none;">
+          <div class="trk-card-header">
+            <h6 class="trk-card-title"><i class="bi bi-diagram-3"></i> Service Progress</h6>
+            <span class="trk-status-pill" id="trkLifecycleStatus"></span>
+          </div>
+          <div class="trk-card-body">
+            <div class="trk-timeline" id="trkTimeline"></div>
+          </div>
+        </div>
+
+        <!-- Live Work Progress -->
+        <div class="trk-card trk-work-progress mb-4" id="trkWorkProgress" style="display:none;">
+          <div class="trk-card-header">
+            <h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>
+            <span class="trk-live-tag" id="trkWorkLiveTag" style="display:none;">
+              <span class="trk-pulse-dot live"></span> LIVE
+            </span>
+          </div>
+          <div class="trk-card-body">
+            <div class="trk-current-action" id="trkCurrentAction" style="display:none;">
+              <div class="trk-current-action-icon"><i class="bi bi-arrow-repeat"></i></div>
+              <div class="trk-current-action-text">
+                <div class="trk-current-action-title" id="trkCurrentActionTitle">Working…</div>
+                <div class="trk-current-action-sub" id="trkCurrentActionSub"></div>
+              </div>
+            </div>
+            <div class="trk-task-list" id="trkTaskList"></div>
+            <div class="trk-activity-head" id="trkActivityHead" style="display:none;">
+              <span>Activity Timeline</span>
+            </div>
+            <div class="trk-activity-feed" id="trkActivityFeed"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column: Live Map -->
+      <div class="col-lg-6">
+        <div class="trk-card trk-map-card trk-map-sticky" id="trkMapCard">
+          <div class="trk-card-header trk-map-header">
+            <h6 class="trk-card-title"><i class="bi bi-map"></i> Live Map</h6>
+            <div class="trk-map-live-badge" id="trkMapLiveBadge">
+              <span class="trk-pulse-dot"></span> LIVE
+            </div>
+          </div>
+          <div class="trk-map-status" id="trkMapStatus"></div>
+          <div class="trk-map-wrap">
+            <div id="customerTrackMap" class="trk-map"></div>
+            <div class="trk-map-controls">
+              <button id="btnGoTech" class="trk-map-ctrl tech" disabled title="Fly to Technician">
+                <i class="bi bi-arrow-up-circle"></i>
+              </button>
+              <button id="btnGoCust" class="trk-map-ctrl cust" disabled title="Fly to My Location">
+                <i class="bi bi-crosshair"></i>
+              </button>
+            </div>
+            <div class="trk-map-eta" id="trkMapEta" style="display:none;">
+              <i class="bi bi-clock"></i>
+              <span id="trkEtaText">Calculating...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- RATING MODAL                                                      -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="trk-rating-modal" id="trkRatingModal" style="display:none;">
+    <div class="trk-rating-backdrop" onclick="closeRatingModal()"></div>
+    <div class="trk-rating-dialog" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="trk-rating-header" id="trkRatingHeader">
+        <div class="trk-rating-icon-wrap">
+          <div class="trk-rating-icon">
+            <i class="bi bi-star-fill"></i>
+          </div>
+          <div class="trk-rating-icon-ring"></div>
+        </div>
+        <h5>Rate Your Experience</h5>
+        <p id="trkRatingServiceName">How was the service?</p>
+      </div>
+      <!-- Body -->
+      <div class="trk-rating-body" id="trkRatingBody">
+        <!-- Proof photo (if available) -->
+        <div id="trkProofPhotoSection" class="d-none" style="margin-bottom:20px;">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:#dcfce7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="bi bi-camera-fill" style="color:#16a34a;font-size:1rem;"></i>
+            </div>
+            <div style="min-width:0;">
+              <div style="font-size:0.78rem;font-weight:700;color:#166534;">Completion Photo</div>
+              <div style="font-size:0.72rem;color:#15803d;">Technician submitted proof of service</div>
+            </div>
+            <a id="trkProofPhotoLink" href="#" target="_blank" class="btn btn-sm btn-outline-success ms-auto" style="border-radius:8px;font-size:0.72rem;font-weight:600;white-space:nowrap;">
+              <i class="bi bi-eye me-1"></i>View
+            </a>
+          </div>
+        </div>
+        <!-- Stars -->
+        <div class="trk-stars" id="trkStars">
+          <button class="trk-star" data-score="1"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="2"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="3"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="4"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="5"><i class="bi bi-star-fill"></i></button>
+        </div>
+        <div class="trk-rating-label" id="trkRatingLabel">Tap a star to rate</div>
+        <!-- Comment -->
+        <div style="position:relative;margin-top:8px;">
+          <textarea class="trk-rating-comment" id="trkRatingComment" placeholder="Share details of your experience (optional)..." rows="3"></textarea>
+          <div style="position:absolute;bottom:10px;right:12px;font-size:0.68rem;color:#94a3b8;" id="trkCommentCount">0/300</div>
+        </div>
+        <!-- Actions -->
+        <div class="trk-rating-actions">
+          <button class="btn trk-rating-btn-skip" onclick="closeRatingModal()">Maybe Later</button>
+          <button class="btn trk-rating-btn-submit" id="trkSubmitRating" onclick="submitRating()" disabled>
+            <i class="bi bi-send me-1"></i>Submit
+          </button>
+        </div>
+      </div>
+      <!-- Success state -->
+      <div class="trk-rating-body trk-rating-success d-none" id="trkRatingSuccess">
+        <div class="trk-success-check">
+          <svg viewBox="0 0 52 52" class="trk-success-svg">
+            <circle cx="26" cy="26" r="24" fill="none" stroke="#10b981" stroke-width="2.5" class="trk-success-circle"/>
+            <path fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14 27l7 7 16-16" class="trk-success-check-path"/>
+          </svg>
+        </div>
+        <h5>Thank You!</h5>
+        <p style="color:#64748b;font-size:0.85rem;margin:0;">Your feedback helps us improve our service quality.</p>
+        <button class="btn trk-rating-btn-done" onclick="closeRatingModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- RESCHEDULE MODAL                                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="trk-rating-modal" id="trkRescheduleModal" style="display:none;">
+    <div class="trk-rating-backdrop" onclick="closeRescheduleModal()"></div>
+    <div class="trk-rating-dialog" style="max-width:480px;" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div style="text-align:center;padding:28px 24px 20px;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 50%,#1e40af 100%);position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-40px;right:-40px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);"></div>
+        <div style="position:absolute;bottom:-30px;left:-30px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;margin-bottom:10px;border:2px solid rgba(255,255,255,0.3);position:relative;z-index:1;">
+          <i class="bi bi-calendar-event"></i>
+        </div>
+        <h5 style="font-weight:800;color:#fff;margin:0;font-size:1.1rem;position:relative;z-index:1;">Reschedule Booking</h5>
+        <p style="font-size:0.8rem;color:rgba(255,255,255,0.8);margin:4px 0 0;position:relative;z-index:1;" id="rescheduleServiceLabel">Select a new date and time</p>
+      </div>
+      <!-- Body -->
+      <div style="padding:24px;">
+        <!-- Current Booking Info -->
+        <div id="rescheduleCurrentInfo" style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:14px;padding:14px 16px;margin-bottom:20px;">
+          <div style="font-size:0.72rem;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Current Schedule</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;color:#1e293b;" id="rescheduleCurrentDate">--</div>
+              <div style="font-size:0.78rem;color:#64748b;" id="rescheduleCurrentTime">--</div>
+            </div>
+            <i class="bi bi-arrow-right" style="color:#94a3b8;font-size:1.2rem;"></i>
+            <div style="text-align:right;">
+              <div style="font-size:0.88rem;font-weight:600;color:#2563eb;" id="rescheduleNewDate">--</div>
+              <div style="font-size:0.78rem;color:#64748b;" id="rescheduleNewTime">--</div>
+            </div>
+          </div>
+        </div>
+        <!-- Calendar -->
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <button class="btn btn-sm btn-outline-secondary" onclick="reschedulePrevMonth()" style="border-radius:8px;padding:4px 10px;"><i class="bi bi-chevron-left"></i></button>
+            <span style="font-weight:700;font-size:0.9rem;color:#1e293b;" id="rescheduleMonthLabel">June 2026</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="rescheduleNextMonth()" style="border-radius:8px;padding:4px 10px;"><i class="bi bi-chevron-right"></i></button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;margin-bottom:4px;">
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Sun</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Mon</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Tue</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Wed</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Thu</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Fri</span>
+            <span style="font-size:0.65rem;font-weight:600;color:#94a3b8;">Sat</span>
+          </div>
+          <div id="rescheduleCalendarGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+        </div>
+        <!-- Time Slots -->
+        <div id="rescheduleTimeSlotsSection" style="display:none;margin-bottom:16px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px;">Available Times</div>
+          <div id="rescheduleTimeSlots" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+        </div>
+        <!-- Reason -->
+        <div style="margin-bottom:16px;">
+          <label style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Reason for Rescheduling</label>
+          <textarea id="rescheduleReason" rows="2" placeholder="Briefly explain why you need to reschedule..." style="width:100%;border:2px solid #e2e8f0;border-radius:12px;padding:12px 14px;font-size:0.85rem;resize:none;background:#f8fafc;transition:all 0.25s;"></textarea>
+        </div>
+        <!-- Error -->
+        <div id="rescheduleError" class="d-none" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:16px;">
+          <small style="color:#991b1b;" id="rescheduleErrorMsg"></small>
+        </div>
+        <!-- Actions -->
+        <div style="display:flex;gap:10px;">
+          <button class="btn" onclick="closeRescheduleModal()" style="flex:1;border-radius:12px;font-weight:600;padding:12px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:0.85rem;">Cancel</button>
+          <button class="btn" id="submitRescheduleBtn" onclick="submitRescheduleRequest()" disabled style="flex:1.5;border-radius:12px;font-weight:700;padding:12px;border:none;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:0.88rem;box-shadow:0 4px 16px rgba(37,99,235,0.3);">
+            <i class="bi bi-calendar-check me-1"></i>Submit Request
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upcoming Schedule / Calendar moved into the List view above -->
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- PREMIUM STYLES                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root {
+    --trk-primary: #2563eb;
+    --trk-primary-light: #3b82f6;
+    --trk-primary-dark: #1d4ed8;
+    --trk-primary-50: rgba(37,99,235,0.05);
+    --trk-primary-100: rgba(37,99,235,0.1);
+    --trk-emerald: #059669;
+    --trk-amber: #d97706;
+    --trk-violet: #7c3aed;
+    --trk-rose: #e11d48;
+    --trk-surface: #ffffff;
+    --trk-surface-hover: #f8fafc;
+    --trk-border: rgba(226,232,240,0.8);
+    --trk-text: #0f172a;
+    --trk-text-secondary: #64748b;
+    --trk-text-muted: #94a3b8;
+    --trk-radius: 16px;
+    --trk-radius-sm: 10px;
+    --trk-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+    --trk-shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    --trk-shadow-lg: 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    --trk-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  .tracking-root { font-family: var(--trk-font); }
+
+  /* ── Hero Header ─────────────────────────────────────────────────────── */
+  .trk-hero {
+    position: relative;
+    border-radius: 20px;
+    padding: 36px 40px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0a1628 0%, #1e3a8a 40%, #2563eb 100%);
+    box-shadow: 0 20px 50px rgba(15,36,96,0.3);
+  }
+  .trk-hero-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .trk-hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.35;
+  }
+  .trk-hero-orb-1 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(59,130,246,0.6), transparent 70%);
+    top: -150px; right: -50px;
+    animation: trkOrbFloat 8s ease-in-out infinite;
+  }
+  .trk-hero-orb-2 {
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(139,92,246,0.4), transparent 70%);
+    bottom: -100px; left: -50px;
+    animation: trkOrbFloat 10s ease-in-out infinite reverse;
+  }
+  .trk-hero-orb-3 {
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(16,185,129,0.3), transparent 70%);
+    top: 50%; left: 50%;
+    animation: trkOrbFloat 12s ease-in-out infinite;
+  }
+  .trk-hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  @keyframes trkOrbFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(20px, -15px) scale(1.05); }
+    66% { transform: translate(-10px, 10px) scale(0.95); }
+  }
+  .trk-hero-content { position: relative; z-index: 2; }
+  .trk-hero-icon {
+    width: 60px; height: 60px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.18);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .trk-hero-icon i { font-size: 1.6rem; color: #fff; }
+  .trk-hero-title {
+    font-size: 1.75rem; font-weight: 800; color: #fff; margin: 0;
+    letter-spacing: -0.5px; line-height: 1.2;
+  }
+  .trk-hero-sub {
+    color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 0.9rem;
+    font-weight: 400;
+  }
+  .trk-hero-badges { display: flex; gap: 10px; }
+  .trk-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 12px;
+    font-size: 0.78rem; font-weight: 700;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .trk-badge-active {
+    background: rgba(16,185,129,0.2); color: #6ee7b7;
+  }
+  .trk-badge-upcoming {
+    background: rgba(251,191,36,0.2); color: #fcd34d;
+  }
+
+  /* ── Stats Cards ─────────────────────────────────────────────────────── */
+  .trk-stat-card {
+    background: var(--trk-surface);
+    border: 1px solid var(--trk-border);
+    border-radius: var(--trk-radius);
+    padding: 18px;
+    display: flex; align-items: center; gap: 14px;
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: var(--trk-shadow);
+  }
+  .trk-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--trk-shadow-lg);
+  }
+  .trk-stat-icon {
+    width: 46px; height: 46px; min-width: 46px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; color: #fff;
+  }
+  .trk-stat-icon.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+  .trk-stat-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
+  .trk-stat-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+  .trk-stat-icon.violet { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+  .trk-stat-info { display: flex; flex-direction: column; }
+  .trk-stat-value {
+    font-size: 1.5rem; font-weight: 800; color: var(--trk-text);
+    line-height: 1.1;
+  }
+  .trk-stat-label {
+    font-size: 0.72rem; color: var(--trk-text-secondary);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  /* ── Cards ────────────────────────────────────────────────────────────── */
+  .trk-card {
+    background: var(--trk-surface);
+    border: 1px solid var(--trk-border);
+    border-radius: var(--trk-radius);
+    overflow: hidden;
+    box-shadow: var(--trk-shadow);
+    transition: box-shadow 0.25s ease;
+  }
+  .trk-card:hover { box-shadow: var(--trk-shadow-md); }
+  .trk-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(226,232,240,0.6);
+    background: rgba(248,250,252,0.5);
+  }
+  .trk-card-title {
+    font-size: 0.85rem; font-weight: 700; color: var(--trk-text);
+    margin: 0; display: flex; align-items: center; gap: 8px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .trk-card-title i {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--trk-primary-100); color: var(--trk-primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+  }
+  .trk-card-link {
+    font-size: 0.75rem; color: var(--trk-primary); font-weight: 600;
+    text-decoration: none; display: flex; align-items: center; gap: 4px;
+    transition: gap 0.2s ease;
+  }
+  .trk-card-link:hover { gap: 8px; text-decoration: underline; }
+  .trk-card-body { padding: 16px 20px; }
+
+  /* ── Booking Selector ─────────────────────────────────────────────── */
+  .trk-select-group { position: relative; }
+  .trk-select-wrap { position: relative; }
+  .trk-select-arrow {
+    position: absolute; right: 16px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--trk-text-muted); font-size: 0.8rem;
+    pointer-events: none; z-index: 2;
+  }
+  .trk-select {
+    width: 100%; padding: 14px 44px 14px 16px;
+    border: 1.5px solid var(--trk-border);
+    border-radius: var(--trk-radius-sm);
+    background: var(--trk-surface);
+    font-size: 0.9rem; font-weight: 500;
+    color: var(--trk-text); font-family: var(--trk-font);
+    appearance: none; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .trk-select:focus {
+    outline: none; border-color: var(--trk-primary);
+    box-shadow: 0 0 0 4px var(--trk-primary-100);
+  }
+  .trk-select:hover { border-color: #cbd5e1; }
+
+  /* ── Status Pill ─────────────────────────────────────────────────── */
+  .trk-status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .trk-status-pill.pending { background: #fef3c7; color: #92400e; }
+  .trk-status-pill.confirmed { background: #d1fae5; color: #065f46; }
+  .trk-status-pill.scheduled { background: #dbeafe; color: #1e40af; }
+  .trk-status-pill.on-the-way { background: #e0e7ff; color: #3730a3; }
+  .trk-status-pill.in-progress { background: #ede9fe; color: #5b21b6; }
+  .trk-status-pill.completed { background: #d1fae5; color: #065f46; }
+  .trk-status-pill.re-scheduled { background: #cffafe; color: #155e75; }
+  .trk-status-pill.cancelled { background: #fee2e2; color: #991b1b; }
+  .trk-status-pill.expired { background: #fef3c7; color: #92400e; }
+
+  /* ── Booking Details ─────────────────────────────────────────────── */
+  .trk-detail-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(226,232,240,0.5);
+  }
+  .trk-detail-row:last-child { border-bottom: none; }
+  .trk-detail-icon {
+    width: 32px; height: 32px; min-width: 32px;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; background: var(--trk-primary-50); color: var(--trk-primary);
+  }
+  .trk-detail-content { flex: 1; min-width: 0; }
+  .trk-detail-label {
+    font-size: 0.68rem; font-weight: 700; color: var(--trk-text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 2px;
+  }
+  .trk-detail-value {
+    font-size: 0.88rem; font-weight: 600; color: var(--trk-text);
+    line-height: 1.3; word-break: break-word;
+  }
+
+  /* ── Detail Hero & Rich Detail ──────────────────────────────────── */
+  .trk-detail-hero {
+    display: flex; align-items: center; gap: 14px;
+    padding: 4px 0 14px; margin-bottom: 6px;
+    border-bottom: 1px solid rgba(226,232,240,0.6);
+  }
+  .trk-detail-hero-icon {
+    width: 50px; height: 50px; min-width: 50px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--trk-primary), var(--trk-primary-dark));
+    color: #fff; font-size: 1.3rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(37,99,235,0.28);
+  }
+  .trk-detail-hero-title { font-size: 1.02rem; font-weight: 800; color: var(--trk-text); line-height: 1.2; }
+  .trk-detail-hero-sub { font-size: 0.72rem; color: var(--trk-text-muted); font-weight: 600; margin-top: 2px; }
+
+  .trk-tech-call {
+    margin-left: 8px; color: #16a34a; font-size: 0.8rem;
+    text-decoration: none; vertical-align: middle;
+  }
+  .trk-tech-call:hover { color: #15803d; }
+
+  .trk-payment-summary {
+    margin-top: 12px; padding: 12px 14px;
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid #bbf7d0; border-radius: 12px;
+  }
+  .trk-payment-line {
+    display: flex; justify-content: space-between;
+    font-size: 0.8rem; color: var(--trk-text-secondary); padding: 3px 0;
+  }
+  .trk-payment-line span:last-child { font-weight: 700; color: var(--trk-text); }
+  .trk-payment-line.due span:last-child { color: #dc2626; }
+  .trk-payment-line.ok span:last-child { color: #16a34a; }
+  .trk-payment-total { border-top: 1px dashed #a7f3d0; margin-top: 4px; padding-top: 8px !important; font-weight: 700; color: var(--trk-text); }
+  .trk-payment-total span:last-child { color: var(--trk-primary) !important; }
+  .trk-payment-meta {
+    margin-top: 6px; padding-top: 8px; border-top: 1px dashed #a7f3d0;
+    font-size: 0.72rem; color: #15803d; font-weight: 600;
+  }
+
+  .trk-repair-details { margin-top: 14px; }
+  .trk-detail-subsection {
+    padding: 10px 12px; margin-bottom: 8px;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  }
+  .trk-detail-subhead {
+    font-size: 0.74rem; font-weight: 800; color: var(--trk-primary-dark);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .trk-detail-subtext { font-size: 0.8rem; color: var(--trk-text-secondary); line-height: 1.4; margin-bottom: 2px; }
+  .trk-quote-part {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-size: 0.78rem; color: var(--trk-text-secondary); padding: 2px 0;
+  }
+  .trk-quote-part span:last-child { font-weight: 700; color: var(--trk-text); }
+  .trk-quote-total {
+    display: flex; justify-content: space-between;
+    font-size: 0.85rem; font-weight: 800; color: var(--trk-primary-dark);
+    padding-top: 6px; margin-top: 4px; border-top: 1px solid #e2e8f0;
+  }
+  .trk-proof-link {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
+    font-size: 0.76rem; font-weight: 700; color: #16a34a; text-decoration: none;
+  }
+  .trk-proof-link:hover { text-decoration: underline; }
+
+  /* ── Rating CTA / Done (in detail panel) ────────────────────────── */
+  .trk-rating-cta {
+    width: 100%; margin-top: 14px; padding: 11px 16px;
+    border: none; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff;
+    font-size: 0.85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(245,158,11,0.28);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .trk-rating-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(245,158,11,0.36); }
+  .trk-rating-done {
+    margin-top: 14px; padding: 12px 14px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .trk-rating-done-stars { color: #f59e0b; font-size: 1.1rem; letter-spacing: 2px; }
+  .trk-rating-done-text { font-size: 0.78rem; color: #92400e; line-height: 1.35; }
+  .trk-rating-edit-btn {
+    align-self: flex-start; margin-top: 4px;
+    background: none; border: 1px solid #fcd34d; color: #b45309;
+    border-radius: 8px; padding: 5px 12px; font-size: 0.74rem; font-weight: 700; cursor: pointer;
+  }
+  .trk-rating-edit-btn:hover { background: #fef3c7; }
+
+  /* ── Work Progress (task tracking + activity) ───────────────────── */
+  .trk-live-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em;
+    color: #16a34a; background: #dcfce7; padding: 3px 9px; border-radius: 99px;
+  }
+  .trk-current-action {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-bottom: 16px;
+    background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+    border: 1px solid #bfdbfe; border-radius: 12px;
+  }
+  .trk-current-action.live { border-color: #86efac; background: linear-gradient(135deg, #ecfdf5, #f0fdf4); }
+  .trk-current-action-icon {
+    width: 40px; height: 40px; min-width: 40px; border-radius: 10px;
+    background: var(--trk-primary); color: #fff; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .trk-current-action.live .trk-current-action-icon { background: #16a34a; }
+  .trk-current-action.live .trk-current-action-icon i { animation: trkSpin 1.4s linear infinite; }
+  .trk-current-action-title { font-size: 0.9rem; font-weight: 800; color: var(--trk-text); }
+  .trk-current-action-sub { font-size: 0.76rem; color: var(--trk-text-muted); line-height: 1.35; }
+
+  .trk-task-list { display: flex; flex-direction: row; gap: 0; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .trk-task { display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1; min-width: 78px; position: relative; padding: 0 4px; }
+  .trk-task::before {
+    content: ''; position: absolute; top: 16px; left: -50%; width: 100%;
+    height: 2px; background: #e2e8f0; z-index: 0;
+  }
+  .trk-task:first-child::before { display: none; }
+  .trk-task.done::before { background: var(--trk-primary); }
+  .trk-task-dot {
+    width: 34px; height: 34px; min-width: 34px; border-radius: 50%;
+    background: #f1f5f9; border: 2px solid #e2e8f0; color: #94a3b8;
+    display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+    z-index: 1; transition: all 0.3s ease;
+  }
+  .trk-task.done .trk-task-dot { background: var(--trk-primary); border-color: var(--trk-primary); color: #fff; }
+  .trk-task.active .trk-task-dot {
+    background: #16a34a; border-color: #16a34a; color: #fff;
+    box-shadow: 0 0 0 4px rgba(22,163,74,0.16);
+  }
+  .trk-task-body { padding-top: 6px; }
+  .trk-task-label { font-size: 0.72rem; font-weight: 700; color: var(--trk-text-muted); line-height: 1.15; }
+  .trk-task.done .trk-task-label, .trk-task.active .trk-task-label { color: var(--trk-text); }
+  .trk-task-desc { font-size: 0.66rem; color: var(--trk-text-muted); line-height: 1.25; margin-top: 2px; }
+
+  .trk-activity-head {
+    margin: 14px 0 8px; font-size: 0.72rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--trk-text-muted);
+    border-top: 1px solid #e2e8f0; padding-top: 14px;
+  }
+  .trk-activity-feed { display: flex; flex-direction: column; }
+  .trk-activity-item { display: flex; gap: 12px; padding: 6px 0; position: relative; }
+  .trk-activity-item::before {
+    content: ''; position: absolute; left: 5px; top: 18px; bottom: -6px;
+    width: 2px; background: #e2e8f0;
+  }
+  .trk-activity-item:last-child::before { display: none; }
+  .trk-activity-dot {
+    width: 12px; height: 12px; min-width: 12px; border-radius: 50%;
+    background: #cbd5e1; margin-top: 4px; z-index: 1;
+  }
+  .trk-activity-item:last-child .trk-activity-dot { background: var(--trk-primary); }
+  .trk-activity-icon {
+    width: 26px; height: 26px; min-width: 26px; border-radius: 50%;
+    background: rgba(37,99,235,0.10); color: var(--trk-primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; margin-top: 1px; z-index: 1;
+  }
+  .trk-activity-empty { font-size: 0.78rem; color: var(--trk-text-muted); padding: 6px 0; }
+  .trk-map-status { font-size: 0.75rem; color: var(--trk-text-secondary); padding: 6px 12px 0; }
+  .trk-activity-body { flex: 1; }
+  .trk-activity-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .trk-activity-status { font-size: 0.8rem; font-weight: 700; color: var(--trk-text); text-transform: capitalize; }
+  .trk-activity-time { font-size: 0.7rem; color: var(--trk-text-muted); white-space: nowrap; }
+  .trk-activity-note { font-size: 0.75rem; color: var(--trk-text-secondary); margin-top: 2px; line-height: 1.35; }
+  .trk-activity-by { font-size: 0.7rem; color: var(--trk-text-muted); font-style: italic; }
+
+  @keyframes trkSpin { to { transform: rotate(360deg); } }
+
+  /* ── Master-Detail: List + Detail views ─────────────────────────── */
+  .trk-list-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+  }
+  .trk-list-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.05rem; font-weight: 800; color: var(--trk-text);
+  }
+  .trk-list-title i { color: var(--trk-primary); font-size: 1.2rem; }
+  .trk-list-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 26px; padding: 0 8px; border-radius: 99px;
+    background: var(--trk-primary); color: #fff; font-size: 0.78rem; font-weight: 800;
+  }
+  .trk-list-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+  .trk-filter-chip {
+    border: 1px solid #e2e8f0; background: #fff; color: var(--trk-text-secondary);
+    font-size: 0.8rem; font-weight: 700; padding: 7px 16px; border-radius: 99px;
+    cursor: pointer; transition: all 0.2s ease;
+  }
+  .trk-filter-chip:hover { border-color: var(--trk-primary); color: var(--trk-primary); }
+  .trk-filter-chip.active {
+    background: var(--trk-primary); border-color: var(--trk-primary); color: #fff;
+    box-shadow: 0 6px 16px rgba(37,99,235,0.25);
+  }
+
+  .trk-booking-list { display: flex; flex-direction: column; gap: 12px; }
+  .trk-booking-card {
+    display: flex; align-items: stretch; gap: 14px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+    padding: 14px 16px; cursor: pointer; position: relative; overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .trk-booking-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: transparent; transition: background 0.2s ease;
+  }
+  .trk-booking-card:hover {
+    transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,0.10);
+    border-color: #cbd5e1;
+  }
+  .trk-booking-card.live::before { background: #16a34a; }
+  .trk-booking-card.today::before { background: var(--trk-primary); }
+  .trk-booking-card.selected {
+    border-color: var(--trk-primary); box-shadow: 0 10px 26px rgba(37,99,235,0.18);
+  }
+  .trk-bc-date {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-width: 58px; padding: 6px 4px; border-radius: 12px;
+    background: linear-gradient(135deg, #eff6ff, #f8fafc); color: var(--trk-primary-dark);
+    flex-shrink: 0;
+  }
+  .trk-bc-date-day { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+  .trk-bc-date-month { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .trk-bc-main { flex: 1; min-width: 0; }
+  .trk-bc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+  .trk-bc-service { font-size: 0.95rem; font-weight: 700; color: var(--trk-text); line-height: 1.25; }
+  .trk-bc-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px; }
+  .trk-bc-meta span {
+    font-size: 0.76rem; color: var(--trk-text-secondary);
+    display: inline-flex; align-items: center;
+  }
+  .trk-bc-meta i { color: var(--trk-text-muted); }
+  .trk-bc-live {
+    color: #16a34a !important; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .trk-bc-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 8px; flex-shrink: 0; }
+  .trk-bc-view {
+    border: none; background: var(--trk-primary); color: #fff;
+    font-size: 0.78rem; font-weight: 700; padding: 8px 14px; border-radius: 10px;
+    cursor: pointer; white-space: nowrap; transition: background 0.2s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .trk-bc-view:hover { background: var(--trk-primary-dark); }
+  .trk-bc-reschedule {
+    width: 34px; height: 34px; border-radius: 10px; border: 1px solid #e2e8f0;
+    background: #fff; color: var(--trk-primary); cursor: pointer; font-size: 0.9rem;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .trk-bc-reschedule:hover { background: #eff6ff; }
+
+  .trk-list-empty {
+    text-align: center; padding: 56px 20px; color: var(--trk-text-muted);
+    background: #fff; border: 1px dashed #cbd5e1; border-radius: 16px;
+  }
+  .trk-list-empty-icon { font-size: 2.6rem; color: #cbd5e1; margin-bottom: 10px; }
+  .trk-list-empty h6 { font-weight: 800; color: var(--trk-text); margin-bottom: 4px; }
+  .trk-list-empty p { font-size: 0.82rem; margin: 0; }
+
+  .trk-back-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid #e2e8f0; background: #fff; color: var(--trk-text);
+    font-size: 0.85rem; font-weight: 700; padding: 9px 16px; border-radius: 99px;
+    cursor: pointer; margin-bottom: 18px; transition: all 0.2s ease;
+  }
+  .trk-back-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+  .trk-back-btn i { font-size: 0.9rem; }
+
+  .trk-map-sticky { position: sticky; top: 20px; }
+
+  @media (max-width: 991px) {
+    .trk-map-sticky { position: static; }
+  }
+
+  /* Detail view enter animation */
+  #trkDetailView { animation: trkFadeUp 0.35s ease; }
+  /* When the map column is hidden (e.g. completed bookings), let the
+     detail column expand to full width so there's no empty right gap. */
+  .trk-detail-left.trk-detail-full { flex: 0 0 100%; max-width: 100%; }
+  @keyframes trkFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+
+  /* ── Technician Card ─────────────────────────────────────────────── */
+  .trk-tech-profile {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .trk-tech-avatar {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--trk-primary), var(--trk-primary-dark));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 1.3rem;
+    box-shadow: 0 6px 16px rgba(37,99,235,0.3);
+  }
+  .trk-tech-name {
+    font-size: 0.95rem; font-weight: 700; color: var(--trk-text);
+  }
+  .trk-tech-status {
+    font-size: 0.78rem; color: var(--trk-text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .trk-pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #fbbf24; display: inline-block;
+    animation: trkPulse 2s ease-in-out infinite;
+  }
+  .trk-pulse-dot.live { background: #22c55e; }
+  @keyframes trkPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .trk-tech-actions { display: flex; gap: 8px; }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
+  .trk-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 16px; border-radius: var(--trk-radius-sm);
+    font-size: 0.8rem; font-weight: 600; font-family: var(--trk-font);
+    cursor: pointer; transition: all 0.2s ease;
+    border: none; text-decoration: none;
+  }
+  .trk-btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--trk-border);
+    color: var(--trk-text-secondary);
+  }
+  .trk-btn-outline:hover:not(:disabled) {
+    border-color: var(--trk-primary); color: var(--trk-primary);
+    background: var(--trk-primary-50);
+  }
+  .trk-btn:disabled {
+    opacity: 0.45; cursor: not-allowed;
+  }
+
+  /* ── Map Card ──────────────────────────────────────────────────────── */
+  .trk-map-card { overflow: hidden; }
+  .trk-map-header { border-bottom: none; }
+  .trk-map-live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    background: rgba(239,68,68,0.1); color: #ef4444;
+    font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em;
+  }
+  .trk-map-live-badge .trk-pulse-dot { background: #ef4444; }
+  .trk-map-wrap {
+    position: relative; padding: 0 12px 12px;
+  }
+  .trk-map {
+    height: 480px; width: 100%;
+    border-radius: 14px;
+    border: 1px solid var(--trk-border);
+  }
+  .trk-map-controls {
+    position: absolute; top: 24px; right: 24px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .trk-map-ctrl {
+    width: 42px; height: 42px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  .trk-map-ctrl.tech { color: var(--trk-primary); }
+  .trk-map-ctrl.cust { color: var(--trk-emerald); }
+  .trk-map-ctrl:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+  .trk-map-ctrl:disabled { opacity: 0.4; cursor: not-allowed; }
+  .trk-map-eta {
+    position: absolute; bottom: 24px; left: 24px; z-index: 1000;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 12px;
+    background: rgba(15,23,42,0.88);
+    backdrop-filter: blur(10px);
+    color: #fff; font-size: 0.82rem; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+  .trk-map-eta i { color: #fbbf24; }
+
+  /* ── Schedule Cards ──────────────────────────────────────────────── */
+  .trk-schedule-body { padding: 12px 16px; max-height: 420px; overflow-y: auto; }
+  .trk-schedule-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: var(--trk-radius-sm);
+    background: var(--trk-surface-hover);
+    border: 1px solid transparent;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .trk-schedule-item:last-child { margin-bottom: 0; }
+  .trk-schedule-item:hover {
+    border-color: var(--trk-primary-100);
+    background: var(--trk-primary-50);
+    transform: translateX(4px);
+  }
+  .trk-schedule-item.selected {
+    border-color: var(--trk-primary);
+    background: var(--trk-primary-50);
+    box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+  }
+  .trk-schedule-item.today {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    box-shadow: 0 2px 8px rgba(245,158,11,0.15);
+  }
+  .trk-schedule-item.today .trk-schedule-date {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+  }
+  .trk-schedule-item.today .trk-schedule-date-day { color: #fff; }
+  .trk-schedule-item.today .trk-schedule-date-month { color: rgba(255,255,255,0.85); }
+  .trk-schedule-item.today::before {
+    content: "TODAY"; position: absolute; top: 6px; right: 8px;
+    font-size: 0.55rem; font-weight: 800; letter-spacing: 0.08em;
+    padding: 1px 6px; border-radius: 4px; background: #f59e0b; color: #fff;
+  }
+  .trk-schedule-item { position: relative; }
+  .trk-schedule-date {
+    width: 52px; min-width: 52px; text-align: center;
+    padding: 8px 4px; border-radius: 10px;
+    background: var(--trk-primary-100);
+  }
+  .trk-schedule-date-day {
+    font-size: 1.2rem; font-weight: 800; color: var(--trk-primary);
+    line-height: 1;
+  }
+  .trk-schedule-date-month {
+    font-size: 0.6rem; font-weight: 700; color: var(--trk-primary);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .trk-schedule-info { flex: 1; min-width: 0; }
+  .trk-schedule-service {
+    font-size: 0.85rem; font-weight: 700; color: var(--trk-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trk-schedule-meta {
+    font-size: 0.75rem; color: var(--trk-text-secondary);
+    display: flex; align-items: center; gap: 8px; margin-top: 2px;
+  }
+  .trk-schedule-status {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Empty States ────────────────────────────────────────────────── */
+  .trk-empty-state-sm {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; padding: 28px 16px; color: var(--trk-text-muted);
+    text-align: center;
+  }
+  .trk-empty-state-sm i { font-size: 2rem; opacity: 0.5; }
+  .trk-empty-state-sm span { font-size: 0.85rem; font-weight: 500; }
+
+  /* ── Calendar ─────────────────────────────────────────────────────── */
+  .trk-calendar {
+    min-height: 420px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: var(--trk-radius);
+    padding: 20px;
+    border: 1px solid var(--trk-border);
+  }
+  .trk-calendar .fc-toolbar { margin-bottom: 24px !important; padding: 0 12px; }
+  .trk-calendar .fc-toolbar-title {
+    font-weight: 700; color: var(--trk-text); font-size: 1.25rem;
+    letter-spacing: -0.025em; font-family: var(--trk-font);
+  }
+  .trk-calendar .fc-button {
+    border-radius: 10px; padding: 0.65rem 1.3rem;
+    font-weight: 600; text-transform: capitalize;
+    font-size: 0.82rem; font-family: var(--trk-font);
+    border: 2px solid transparent;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  .trk-calendar .fc-button-primary {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    border-color: #2563eb; color: #fff;
+  }
+  .trk-calendar .fc-button-primary:hover {
+    background: linear-gradient(145deg, #1d4ed8, #1e40af);
+    transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.15);
+  }
+  .trk-calendar .fc-button-active {
+    background: linear-gradient(145deg, #1d4ed8, #1e40af) !important;
+    border-color: #1d4ed8 !important;
+  }
+  .trk-calendar .fc-daygrid-day-number {
+    color: #334155; font-weight: 600; font-size: 0.85rem;
+    font-family: var(--trk-font);
+  }
+  .trk-calendar .fc-col-header-cell {
+    background: transparent; padding: 14px 10px;
+    border-bottom: 2px solid rgba(148,163,184,0.1);
+  }
+  .trk-calendar .fc-col-header-cell-cushion {
+    color: var(--trk-text-secondary); font-weight: 700;
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+    font-family: var(--trk-font);
+  }
+  .trk-calendar .fc-daygrid-day-frame { min-height: 100px; }
+  .trk-calendar .fc-daygrid-day:hover { background: var(--trk-primary-50); border-radius: 8px; }
+  .trk-calendar .fc-event {
+    border-radius: 8px; border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin: 3px 5px; padding: 5px 8px;
+    font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+  }
+  .trk-calendar .fc-event:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  }
+  .trk-calendar .fc-event-main { padding: 0; background: transparent; }
+  .trk-calendar .fc-event-title { font-weight: 600; font-size: 0.72rem; color: #fff; line-height: 1.3; }
+  .trk-calendar .fc-event-time { font-weight: 500; font-size: 0.65rem; opacity: 0.9; color: #fff; }
+  .trk-calendar .fc-daygrid-event-dot { display: none; }
+  .trk-calendar .fc-day-today { background: var(--trk-primary-50) !important; border-radius: 8px; }
+  .trk-calendar .fc-day-today .fc-daygrid-day-number { color: var(--trk-primary); font-weight: 700; }
+  .trk-calendar .fc-daygrid-day.fc-day-past { opacity: 0.55; }
+  .trk-calendar .fc-popover {
+    border-radius: 14px; border: 1px solid var(--trk-border);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+    background: #fff; overflow: hidden;
+  }
+  .trk-calendar .fc-popover-title {
+    background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+    border-bottom: 1px solid rgba(148,163,184,0.1);
+    font-weight: 700; color: var(--trk-text);
+    font-family: var(--trk-font); padding: 14px 18px;
+  }
+
+  /* ── Progress Timeline (Horizontal) ────────────────────────────── */
+  .trk-timeline {
+    margin-top: 12px; padding: 20px 16px; background: #f8fafc;
+    border-radius: 12px; border: 1px solid var(--trk-border);
+    overflow-x: auto;
+  }
+  .trk-timeline-track {
+    display: flex; align-items: flex-start; gap: 0; min-width: max-content;
+  }
+  .trk-timeline-step {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; min-width: 90px; position: relative; flex-shrink: 0;
+  }
+  .trk-timeline-dot {
+    width: 36px; height: 36px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    background: #e2e8f0; color: #94a3b8; font-size: 0.85rem; z-index: 1;
+    border: 2px solid #e2e8f0; transition: all 0.3s;
+  }
+  .trk-timeline-step.completed .trk-timeline-dot {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff; border-color: #22c55e;
+    box-shadow: 0 2px 8px rgba(34,197,94,0.3);
+  }
+  .trk-timeline-step.active .trk-timeline-dot {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff; border-color: #2563eb;
+    box-shadow: 0 2px 12px rgba(37,99,235,0.4);
+    animation: trkStepPulse 2s ease-in-out infinite;
+  }
+  .trk-timeline-label {
+    font-size: 0.68rem; font-weight: 600; color: var(--trk-text-muted);
+    text-align: center; white-space: nowrap; transition: color 0.3s;
+  }
+  .trk-timeline-step.completed .trk-timeline-label,
+  .trk-timeline-step.active .trk-timeline-label { color: var(--trk-text); font-weight: 700; }
+  .trk-timeline-connector {
+    width: 40px; height: 2px; background: #e2e8f0; flex-shrink: 0;
+    margin-top: 17px; transition: background 0.3s;
+  }
+  .trk-timeline-connector.completed { background: #22c55e; }
+  .trk-timeline-connector.active { background: linear-gradient(90deg, #22c55e, #2563eb); }
+
+  /* ── Rating Modal ───────────────────────────────────────────────── */
+  .trk-rating-modal {
+    position: fixed; inset: 0; z-index: 9999; display: flex;
+    align-items: center; justify-content: center;
+    animation: trkFadeIn 0.3s ease;
+  }
+  .trk-rating-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
+  }
+  .trk-rating-dialog {
+    position: relative; background: #fff; border-radius: 24px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.3); width: 92%; max-width: 420px;
+    overflow: hidden; animation: trkSlideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .trk-rating-header {
+    text-align: center; padding: 36px 24px 24px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+    position: relative; overflow: hidden;
+  }
+  .trk-rating-header::before {
+    content: ''; position: absolute; top: -50px; right: -50px;
+    width: 140px; height: 140px; border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .trk-rating-header::after {
+    content: ''; position: absolute; bottom: -40px; left: -40px;
+    width: 110px; height: 110px; border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+  }
+  .trk-rating-icon-wrap { position: relative; display: inline-block; margin-bottom: 14px; }
+  .trk-rating-icon {
+    width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; color: #fff; position: relative; z-index: 1;
+    backdrop-filter: blur(4px); border: 2px solid rgba(255,255,255,0.3);
+  }
+  .trk-rating-icon-ring {
+    position: absolute; inset: -8px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+    animation: trkRingPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes trkRingPulse {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+  }
+  .trk-rating-header h5 { font-weight: 800; color: #fff; margin: 0; font-size: 1.15rem; letter-spacing: -0.01em; }
+  .trk-rating-header p { font-size: 0.82rem; color: rgba(255,255,255,0.85); margin: 6px 0 0; position: relative; z-index: 1; }
+  .trk-rating-body { padding: 28px 24px; }
+  .trk-stars { display: flex; justify-content: center; gap: 4px; margin-bottom: 6px; }
+  .trk-star {
+    background: none; border: none; font-size: 2.4rem; color: #d1d5db;
+    cursor: pointer; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); padding: 6px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+    line-height: 1;
+  }
+  .trk-star:hover {
+    color: #fbbf24; transform: scale(1.25) rotate(-5deg);
+    filter: drop-shadow(0 3px 10px rgba(245,158,11,0.35));
+  }
+  .trk-star.active {
+    color: #f59e0b; transform: scale(1.15);
+    filter: drop-shadow(0 2px 8px rgba(245,158,11,0.4));
+  }
+  .trk-star.active:hover { transform: scale(1.25) rotate(-5deg); }
+  .trk-star.active { animation: trkStarPop 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes trkStarPop {
+    0% { transform: scale(0.6) rotate(-10deg); } 50% { transform: scale(1.35) rotate(5deg); } 100% { transform: scale(1.15) rotate(0deg); }
+  }
+  .trk-rating-label {
+    text-align: center; font-size: 0.82rem; font-weight: 600;
+    color: #64748b; margin-bottom: 20px; min-height: 20px;
+    transition: color 0.2s;
+  }
+  .trk-rating-label[data-score] { color: #d97706; }
+  .trk-rating-comment {
+    width: 100%; border: 2px solid #e2e8f0; border-radius: 14px;
+    padding: 14px 44px 14px 16px; font-size: 0.88rem; resize: none;
+    font-family: var(--trk-font); transition: all 0.25s;
+    background: #f8fafc; line-height: 1.5;
+  }
+  .trk-rating-comment:focus {
+    outline: none; border-color: #f59e0b; background: #fff;
+    box-shadow: 0 0 0 4px rgba(245,158,11,0.1);
+  }
+  .trk-rating-comment::placeholder { color: #94a3b8; }
+  .trk-rating-actions {
+    display: flex; gap: 10px; margin-top: 20px;
+  }
+  .trk-rating-btn-skip {
+    flex: 1; border-radius: 12px; font-weight: 600; padding: 12px;
+    border: 2px solid #e2e8f0; background: #fff; color: #64748b;
+    font-size: 0.85rem; transition: all 0.2s;
+  }
+  .trk-rating-btn-skip:hover { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+  .trk-rating-btn-submit {
+    flex: 1.5; border-radius: 12px; font-weight: 700; padding: 12px;
+    border: none; background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff; font-size: 0.88rem; transition: all 0.25s;
+    box-shadow: 0 4px 16px rgba(245,158,11,0.3);
+    letter-spacing: 0.01em;
+  }
+  .trk-rating-btn-submit:hover:not(:disabled) {
+    box-shadow: 0 8px 24px rgba(245,158,11,0.4);
+    transform: translateY(-2px);
+  }
+  .trk-rating-btn-submit:active:not(:disabled) { transform: translateY(0); }
+  .trk-rating-btn-submit:disabled {
+    opacity: 0.4; cursor: not-allowed; box-shadow: none; transform: none;
+  }
+  .trk-rating-btn-done {
+    margin-top: 24px; border-radius: 12px; font-weight: 700; padding: 12px 48px;
+    border: none; background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff; font-size: 0.88rem; transition: all 0.25s;
+    box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+  }
+  .trk-rating-btn-done:hover { box-shadow: 0 8px 24px rgba(16,185,129,0.4); transform: translateY(-2px); }
+  .trk-rating-success { text-align: center; padding: 40px 24px; }
+  .trk-success-check { width: 80px; height: 80px; margin: 0 auto 20px; }
+  .trk-success-svg { width: 100%; height: 100%; }
+  .trk-success-circle {
+    stroke-dasharray: 151; stroke-dashoffset: 151;
+    animation: trkCircleAnim 0.6s ease-out 0.2s forwards;
+  }
+  .trk-success-check-path {
+    stroke-dasharray: 50; stroke-dashoffset: 50;
+    animation: trkCheckAnim 0.4s ease-out 0.7s forwards;
+  }
+  @keyframes trkCircleAnim { to { stroke-dashoffset: 0; } }
+  @keyframes trkCheckAnim { to { stroke-dashoffset: 0; } }
+  .trk-rating-success h5 { font-weight: 800; color: #1e293b; margin: 0; font-size: 1.2rem; }
+
+  /* ── Reschedule Calendar ─────────────────────────────────────────── */
+  .rsc-day {
+    width: 100%; aspect-ratio: 1; border-radius: 10px; border: none; background: #f8fafc;
+    font-size: 0.8rem; font-weight: 500; color: #475569; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+  }
+  .rsc-day:hover:not(:disabled):not(.rsc-disabled) { background: #eff6ff; color: #2563eb; }
+  .rsc-day.rsc-available { background: #eff6ff; color: #2563eb; font-weight: 600; }
+  .rsc-day.rsc-available:hover { background: #dbeafe; }
+  .rsc-day.rsc-selected { background: #2563eb; color: #fff; font-weight: 700; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+  .rsc-day.rsc-disabled { color: #cbd5e1; cursor: not-allowed; background: #f8fafc; }
+  .rsc-day.rsc-today { outline: 2px solid #f59e0b; outline-offset: -2px; }
+  .rsc-slot {
+    padding: 10px 8px; border-radius: 10px; border: 2px solid #e2e8f0; background: #fff;
+    font-size: 0.78rem; font-weight: 600; color: #475569; cursor: pointer;
+    transition: all 0.2s; text-align: center;
+  }
+  .rsc-slot:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+  .rsc-slot.rsc-slot-selected { border-color: #2563eb; background: #2563eb; color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+  .rsc-slot:disabled { opacity: 0.4; cursor: not-allowed; }
+  .trk-schedule-item .trk-reschedule-btn {
+    font-size: 0.68rem; padding: 3px 8px; border-radius: 6px; font-weight: 600;
+    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .trk-schedule-item .trk-reschedule-btn:hover { background: #2563eb; color: #fff; }
+
+  /* ── Customer Late Alert ─────────────────────────────────────────── */
+  @keyframes custLateSlideIn { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes custLateSlideOut { to { opacity:0; transform:translateY(-20px); } }
+
+  /* ── Responsive ──────────────────────────────────────────────────── */
+  @media (max-width: 767.98px) {
+    .trk-hero { padding: 24px 20px; }
+    .trk-hero-title { font-size: 1.35rem; }
+    .trk-hero-badges { flex-wrap: wrap; }
+    .trk-badge { padding: 6px 12px; font-size: 0.72rem; }
+    .trk-map { height: 350px; }
+    .trk-map-controls { top: 16px; right: 16px; }
+    .trk-map-ctrl { width: 38px; height: 38px; font-size: 1rem; }
+    .trk-map-eta { bottom: 16px; left: 16px; padding: 8px 14px; font-size: 0.78rem; }
+    .trk-stat-card { padding: 14px; }
+    .trk-stat-value { font-size: 1.25rem; }
+  }
+
+  /* ── Animations ──────────────────────────────────────────────────── */
+  .trk-fade-in {
+    animation: trkFadeIn 0.5s cubic-bezier(0.4,0,0.2,1) forwards;
+    opacity: 0;
+  }
+  @keyframes trkFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes trkSlideUp {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .trk-fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .trk-fade-in:nth-child(2) { animation-delay: 0.1s; }
+  .trk-fade-in:nth-child(3) { animation-delay: 0.15s; }
+  .trk-fade-in:nth-child(4) { animation-delay: 0.2s; }
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS                                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script id="customerTrackInitialBookings" type="application/json"><%- JSON.stringify(initialBookings || []) %></script>
+<script id="customerTrackInitialBooking" type="application/json"><%- JSON.stringify(initialBooking || null) %></script>
+<script>
+(function () {
+  const initialBookings = JSON.parse(
+    document.getElementById("customerTrackInitialBookings")?.textContent || "[]",
+  );
+  const initialBooking = JSON.parse(
+    document.getElementById("customerTrackInitialBooking")?.textContent || "null",
+  );
+
+  let currentBookingId = null;
+  const statusEl = document.getElementById("trkTechStatus");
+  const bookingTextEl = document.getElementById("trkBookingInfo");
+  const bookingListEl = document.getElementById("trkBookingList");
+  const listViewEl = document.getElementById("trkListView");
+  const detailViewEl = document.getElementById("trkDetailView");
+  let listFilter = 'all';
+
+  // ── Socket.IO for real-time tracking ────────────────────────────────────
+  const socket = io({ path: "/socket.io" });
+  socket.on("connect", () => {
+    // Join customer room for targeted updates
+    try {
+      const userEl = document.getElementById("customerTrackInitialBookings");
+      // Extract customer ID from the first booking's customerId
+      const firstBooking = initialBookings[0];
+      if (firstBooking?.customerId) {
+        const cid = typeof firstBooking.customerId === "object" ? firstBooking.customerId._id : firstBooking.customerId;
+        if (cid) socket.emit("customer:join", cid);
+      }
+    } catch (_) {}
+  });
+
+  function updateTechAccCircle(coords, acc) {
+    const accOk = typeof acc === 'number' && acc > 0 && acc < 5000;
+    if (!accOk) {
+      if (techAccCircle) { map.removeLayer(techAccCircle); techAccCircle = null; }
+      return;
+    }
+    if (techAccCircle) {
+      techAccCircle.setLatLng(coords).setRadius(acc);
+    } else {
+      techAccCircle = L.circle(coords, { color: '#4361ee', fillColor: '#4361ee', fillOpacity: .08, weight: 1.5, radius: acc }).addTo(map);
+    }
+  }
+  // Listen for real-time GPS updates from technician
+  socket.on("gps:location", (data) => {
+    const selected = getSelectedBooking();
+    if (!selected) return;
+    const bookingTechId = getTechnicianId(selected);
+    if (bookingTechId && String(bookingTechId) === String(data.techId)) {
+      ensureTechMarker([data.lat, data.lng], data.accuracy);
+      updateTechAccCircle([data.lat, data.lng], data.accuracy);
+      statusEl.innerHTML = `<span class="trk-pulse-dot live"></span> Live tracking active • Updated ${new Date().toLocaleTimeString()}`;
+      updateRouteIfNeeded(true);
+    }
+  });
+
+  // Listen for booking status changes (e.g. technician goes en route)
+  socket.on("booking:status-change", (data) => {
+    const booking = bookings.find(b => String(b._id || b.id) === String(data.bookingId));
+    if (booking) {
+      booking.status = data.status;
+      if (data.proofPhoto) booking.proofPhoto = data.proofPhoto;
+      renderScheduleList();
+      const selected = getSelectedBooking();
+      if (selected && String(selected._id || selected.id) === String(data.bookingId)) {
+        renderBookingDetails(selected);
+        refreshTechnicianLocation(selected);
+      }
+      // Auto-show rating modal when status changes to completed
+      if (data.status === 'completed') {
+        setTimeout(() => checkAndShowRatingModal(booking), 1500);
+      }
+    }
+  });
+
+  // Listen for technician late notifications
+  socket.on("booking:technician-late", (data) => {
+    showTechLateAlert(data);
+  });
+
+  function showTechLateAlert(data) {
+    let container = document.getElementById('custLateAlertContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'custLateAlertContainer';
+      container.style.cssText = 'position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;max-width:420px;width:90%;';
+      document.body.appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:16px 20px;border-radius:16px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(245,158,11,0.35);animation:custLateSlideIn 0.4s ease;position:relative;overflow:hidden;';
+    el.innerHTML = `
+      <div style="position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.1);"></div>
+      <div style="display:flex;align-items:flex-start;gap:12px;position:relative;z-index:1;">
+        <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="bi bi-clock-history" style="font-size:1.1rem;"></i>
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.9rem;margin-bottom:2px;">Technician Running Late</div>
+          <div style="font-size:0.78rem;font-weight:400;opacity:0.9;line-height:1.4;">${data.message || 'Your technician is running a bit late. They are on their way.'}</div>
+          <div style="font-size:0.7rem;opacity:0.7;margin-top:6px;">${data.scheduledTime ? 'Scheduled: ' + data.scheduledTime : ''} • ${data.delayMinutes ? data.delayMinutes + ' min late' : ''}</div>
+        </div>
+        <button onclick="this.closest('#custLateAlertContainer > div').style.animation='custLateSlideOut 0.3s ease forwards';setTimeout(()=>this.closest('#custLateAlertContainer > div').remove(),300);" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.8rem;">&times;</button>
+      </div>`;
+    container.appendChild(el);
+    setTimeout(() => { if (el.parentNode) { el.style.animation = 'custLateSlideOut 0.3s ease forwards'; setTimeout(() => el.remove(), 300); } }, 12000);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  function normalizeStatus(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "approved") return "confirmed";
+    return s || "pending";
+  }
+
+  function statusBadgeClass(status) {
+    const s = normalizeStatus(status);
+    if (s === "confirmed") return "confirmed";
+    if (s === "pending") return "pending";
+    if (s === "completed") return "completed";
+    if (s === "cancelled") return "cancelled";
+    if (s === "expired") return "expired";
+    if (s === "re-scheduled") return "re-scheduled";
+    if (s === "on-the-way") return "on-the-way";
+    if (s === "in-progress") return "in-progress";
+    if (s === "scheduled") return "scheduled";
+    return "pending";
+  }
+
+  function formatDate(value) {
+    if (!value) return "—";
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? "—" : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function formatTime(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    const mins = Number(value);
+    if (!Number.isFinite(mins)) return String(value);
+    const hh = Math.floor(mins / 60);
+    const mm = mins % 60;
+    const ampm = hh >= 12 ? "PM" : "AM";
+    const hh12 = ((hh + 11) % 12) + 1;
+    return `${String(hh12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
+  }
+
+  function getDayMonth(value) {
+    if (!value) return { day: '—', month: '' };
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return { day: '—', month: '' };
+    return {
+      day: d.getDate(),
+      month: d.toLocaleDateString('en-PH', { month: 'short' })
+    };
+  }
+
+  function getCustomerCoordsFromBooking(b) {
+    const arr = b && b.location && b.location.coordinates && b.location.coordinates.coordinates;
+    if (!Array.isArray(arr) || arr.length < 2) return null;
+    const lng = Number(arr[0]);
+    const lat = Number(arr[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return [lat, lng];
+  }
+
+  function getCustomerAddressFromBooking(b) {
+    if (!b) return null;
+    if (b.location && b.location.address) return b.location.address;
+    if (b.customer && b.customer.address) return b.customer.address;
+    return null;
+  }
+
+  function getTechnicianId(b) {
+    if (!b) return "";
+    if (b.technicianId && typeof b.technicianId === "object") return String(b.technicianId._id || "");
+    return String(b.technicianId || "");
+  }
+
+  function getTechnicianName(b) {
+    if (!b) return "—";
+    if (b.technicianName) return b.technicianName;
+    if (b.technician && b.technician.name) return b.technician.name;
+    if (b.technicianId && typeof b.technicianId === "object") return b.technicianId.name || b.technicianId.fullName || "—";
+    return "—";
+  }
+
+  function getServiceName(b) {
+    return (
+      (b.service && (b.service.name || b.service.title)) ||
+      (b.serviceId && typeof b.serviceId === "object" && (b.serviceId.name || b.serviceId.title)) ||
+      b.serviceType || "Service"
+    );
+  }
+
+  function getBookingCustomerId(b) {
+    if (!b) return null;
+    if (b.customerId && (typeof b.customerId === "string" || typeof b.customerId === "number")) return String(b.customerId);
+    if (b.customerId && typeof b.customerId === "object") return String(b.customerId._id || b.customerId.id || "");
+    if (b.customer && typeof b.customer === "object") return String(b.customer._id || b.customer.id || "");
+    return null;
+  }
+
+  // ── Data ──────────────────────────────────────────────────────────────
+  const currentCustomerId = getBookingCustomerId(initialBooking);
+  const bookings = (initialBookings || [])
+    .filter((b) => !currentCustomerId || getBookingCustomerId(b) === currentCustomerId)
+    .sort((a, b) => {
+      const ad = new Date(a.bookingDate || 0).getTime();
+      const bd = new Date(b.bookingDate || 0).getTime();
+      if (ad !== bd) return ad - bd;
+      return Number(a.startTime || 0) - Number(b.startTime || 0);
+    });
+
+  // ── Stats ─────────────────────────────────────────────────────────────
+  // Active = technician is en route or working (on-the-way, in-progress, arrived)
+  const activeStatuses = ['on-the-way', 'in-progress', 'arrived'];
+  // Upcoming = confirmed/scheduled but not yet started
+  const upcomingStatuses = ['confirmed', 'scheduled'];
+  const completedStatuses = ['completed'];
+
+  const activeBookings = bookings.filter(b => activeStatuses.includes(normalizeStatus(b.status)));
+  const upcomingBookings = bookings.filter(b => upcomingStatuses.includes(normalizeStatus(b.status)));
+  const completedBookings = bookings.filter(b => completedStatuses.includes(normalizeStatus(b.status)));
+
+  document.getElementById('trkStatTotal').textContent = bookings.length;
+  document.getElementById('trkStatActive').textContent = activeBookings.length;
+  document.getElementById('trkStatUpcoming').textContent = upcomingBookings.length;
+  document.getElementById('trkStatCompleted').textContent = completedBookings.length;
+  document.getElementById('trkActiveCount').textContent = activeBookings.length;
+  document.getElementById('trkUpcomingCount').textContent = bookings.filter(b => {
+    const s = normalizeStatus(b.status);
+    return s !== 'completed' && s !== 'cancelled';
+  }).length;
+
+  // ── Booking List (master view) ──────────────────────────────────────
+  function bookingMatchesFilter(b, filter) {
+    const s = normalizeStatus(b.status);
+    if (filter === 'all') return true;
+    if (filter === 'active') return ['on-the-way', 'in-progress', 'arrived'].includes(s);
+    if (filter === 'upcoming') return ['confirmed', 'scheduled'].includes(s);
+    if (filter === 'completed') return s === 'completed';
+    return true;
+  }
+
+  function renderScheduleList() {
+    const countEl = document.getElementById('trkListCount');
+    if (countEl) countEl.textContent = bookings.length;
+
+    const visible = bookings.filter(b => bookingMatchesFilter(b, listFilter));
+    if (!bookings.length) {
+      bookingListEl.innerHTML = `
+        <div class="trk-list-empty">
+          <div class="trk-list-empty-icon"><i class="bi bi-calendar2-x"></i></div>
+          <h6>No bookings yet</h6>
+          <p>You have no service bookings at the moment.</p>
+        </div>`;
+      return;
+    }
+    if (!visible.length) {
+      bookingListEl.innerHTML = `
+        <div class="trk-list-empty">
+          <div class="trk-list-empty-icon"><i class="bi bi-funnel"></i></div>
+          <h6>No ${listFilter} bookings</h6>
+          <p>Try a different filter to see other bookings.</p>
+        </div>`;
+      return;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    bookingListEl.innerHTML = visible.map((b) => {
+      const status = normalizeStatus(b.status);
+      const dm = getDayMonth(b.bookingDate);
+      const isSelected = currentBookingId && String(b._id || b.id || "") === String(currentBookingId);
+      const isToday = b.bookingDate && new Date(b.bookingDate).toDateString() === today.toDateString();
+      const isLive = ['on-the-way', 'in-progress', 'arrived'].includes(status);
+      const canReschedule = ['confirmed','scheduled'].includes(status) && b.bookingDate && new Date(b.bookingDate) >= today;
+      const tech = getTechnicianName(b);
+      return `
+        <div class="trk-booking-card ${isSelected ? 'selected' : ''} ${isLive ? 'live' : ''} ${isToday ? 'today' : ''}" data-booking-id="${b._id || b.id || ''}" onclick="trkSelectBooking('${b._id || b.id || ''}')">
+          <div class="trk-bc-date">
+            <div class="trk-bc-date-day">${dm.day}</div>
+            <div class="trk-bc-date-month">${dm.month}</div>
+          </div>
+          <div class="trk-bc-main">
+            <div class="trk-bc-top">
+              <div class="trk-bc-service">${getServiceName(b)}</div>
+              <span class="trk-status-pill ${statusBadgeClass(status)}">${status.replace(/-/g, ' ')}</span>
+            </div>
+            <div class="trk-bc-meta">
+              <span><i class="bi bi-clock me-1"></i>${formatTime(b.startTime)}</span>
+              <span><i class="bi bi-geo-alt me-1"></i>${getCustomerAddressFromBooking(b) ? (getCustomerAddressFromBooking(b).length > 26 ? getCustomerAddressFromBooking(b).slice(0,26) + '…' : getCustomerAddressFromBooking(b)) : 'No address'}</span>
+            </div>
+            <div class="trk-bc-meta">
+              <span><i class="bi bi-person me-1"></i>${tech !== '—' ? tech : 'Technician TBA'}</span>
+              ${isLive ? `<span class="trk-bc-live"><span class="trk-pulse-dot live"></span>Live</span>` : ''}
+            </div>
+          </div>
+          <div class="trk-bc-action">
+            <button class="trk-bc-view" onclick="event.stopPropagation();trkSelectBooking('${b._id || b.id || ''}')">
+              View <i class="bi bi-arrow-right"></i>
+            </button>
+            ${canReschedule ? `<button class="trk-bc-reschedule" onclick="event.stopPropagation();openRescheduleModal('${b._id || b.id}')" title="Reschedule"><i class="bi bi-calendar-week"></i></button>` : ''}
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // Wire filter chips
+  const filterWrap = document.getElementById('trkListFilter');
+  if (filterWrap) {
+    filterWrap.querySelectorAll('.trk-filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        filterWrap.querySelectorAll('.trk-filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        listFilter = chip.dataset.filter;
+        renderScheduleList();
+      });
+    });
+  }
+
+  // Auto-select an active (en route) or initial booking
+  (function autoSelect() {
+    if (!bookings.length) return;
+    const enRouteBooking = bookings.find(b => {
+      const s = normalizeStatus(b.status);
+      return s === 'on-the-way' || s === 'in-progress' || s === 'arrived';
+    });
+    const target = enRouteBooking || initialBooking || bookings[0];
+    currentBookingId = String(target._id || target.id || "");
+  })();
+
+  renderScheduleList();
+
+  // ── Selection / Master-Detail navigation ────────────────────────────
+  window.trkSelectBooking = function(id) {
+    currentBookingId = String(id);
+    renderScheduleList();
+    showDetailView(id);
+  };
+
+  // Normalize an appointment fetched from /api/appointments/:id into the
+  // shape the render helpers expect (technician name, statusHistory, etc.)
+  function normalizeFetchedBooking(a) {
+    if (!a) return a;
+    const tech = a.technicianId && typeof a.technicianId === 'object' ? a.technicianId : null;
+    if (tech) {
+      tech.name = [tech.firstName, tech.lastName].filter(Boolean).join(' ').trim() || tech.name || 'Technician';
+      tech.fullName = tech.name;
+    }
+    if (tech && tech.phone) a.technicianPhone = tech.phone;
+    if (!Array.isArray(a.statusHistory)) a.statusHistory = [];
+    return a;
+  }
+
+  async function trkLoadBooking(id) {
+    // Show a loading state in the detail view
+    const detailBody = document.getElementById('trkDetailInner');
+    if (detailBody) detailBody.style.opacity = '0.45';
+    const statusEl = document.getElementById('trkMapStatus');
+    if (statusEl) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Loading booking details…';
+
+    try {
+      const resp = await fetch('/api/appointments/' + encodeURIComponent(id), { credentials: 'include' });
+      if (!resp.ok) throw new Error('Failed to load');
+      const data = await resp.json();
+      const appt = data.appointment || data.booking || data;
+      const normalized = normalizeFetchedBooking(appt);
+      // Replace the cached copy with the freshly-fetched data
+      const idx = bookings.findIndex(b => String(b._id || b.id) === String(id));
+      if (idx >= 0) bookings[idx] = Object.assign({}, bookings[idx], normalized);
+      else bookings.push(normalized);
+      currentBookingId = String(id);
+      refreshSelected();
+    } catch (err) {
+      if (statusEl) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Could not load details';
+    } finally {
+      if (detailBody) detailBody.style.opacity = '';
+    }
+  }
+
+  window.showListView = function() {
+    detailViewEl.style.display = 'none';
+    listViewEl.style.display = '';
+    renderScheduleList();
+  };
+
+  window.showDetailView = function(id) {
+    currentBookingId = String(id);
+    listViewEl.style.display = 'none';
+    detailViewEl.style.display = '';
+    // Leaflet needs a resize once the (previously hidden) map is visible
+    if (window._trkMap) {
+      setTimeout(() => { try { window._trkMap.invalidateSize(); } catch (_) {} }, 60);
+    }
+    // Fetch fresh booking data, then render the detail view
+    trkLoadBooking(id);
+  };
+
+  // ── Booking Details ───────────────────────────────────────────────────
+  function renderBookingDetails(b) {
+    if (!b) {
+      bookingTextEl.innerHTML = '<div class="trk-empty-state-sm"><i class="bi bi-calendar-x"></i><span>Select a booking to view details</span></div>';
+      document.getElementById('trkStatusPill').textContent = '—';
+      document.getElementById('trkStatusPill').className = 'trk-status-pill';
+      document.getElementById('trkTechCard').style.display = 'none';
+      document.getElementById('trkLifecycle').style.display = 'none';
+      return;
+    }
+
+    const status = normalizeStatus(b.status);
+    const pill = document.getElementById('trkStatusPill');
+    pill.textContent = status.replace(/-/g, ' ');
+    pill.className = 'trk-status-pill ' + statusBadgeClass(status);
+
+    const address = getCustomerAddressFromBooking(b) || 'No address provided';
+    const techName = getTechnicianName(b);
+    const hasTech = getTechnicianId(b);
+    const isRepair = String(b.serviceType || '').toLowerCase() === 'repair' || (b.service && (b.service.name || '').toLowerCase().includes('repair')) || (b.issueDescription || b.repairIssues);
+
+    // Payment summary — composed of service fee + travel fee.
+    // `totalPrice` already INCLUDES travelFare, so derive the service fee as
+    // (totalPrice - travelFare) to avoid double-counting travel.
+    // `amountPaid` is computed from actual payment records (authoritative),
+    // so derive the balance from total - amountPaid rather than the
+    // sometimes-stale `balanceAmount` field.
+    const travelFee = Number(b.travelFare || 0);
+    const total = Number(b.totalPrice || b.totalFinalCost || b.estimatedFee || 0);
+    const serviceFee = Math.max(0, total - travelFee);
+    const downpayment = Number(b.downpaymentAmount || 0);
+    // `amountPaid` comes from Payment records (may not count a pending
+    // downpayment). The downpayment is collected at booking, so include it
+    // in the paid total when it isn't already reflected.
+    const payments = Array.isArray(b.payments) ? b.payments : [];
+    const dpCounted = payments.some(p => String(p.type || '').toLowerCase() === 'downpayment' && ['', 'paid', 'succeeded', 'completed', 'verified'].includes(String(p.status || '').toLowerCase()));
+    let paid = Number(b.amountPaid != null ? b.amountPaid : 0);
+    if (downpayment > 0 && !dpCounted) paid += downpayment;
+    const balance = Math.max(0, total - paid);
+    const payMethod = (b.paymentMethod || '—').replace(/_/g, ' ');
+    const isFullyPaid = balance <= 0;
+    const showPayment = total > 0;
+
+    bookingTextEl.innerHTML = `
+      <div class="trk-detail-hero">
+        <div class="trk-detail-hero-icon"><i class="bi bi-${isRepair ? 'wrench' : 'tools'}"></i></div>
+        <div class="trk-detail-hero-text">
+          <div class="trk-detail-hero-title">${getServiceName(b)}</div>
+          <div class="trk-detail-hero-sub">${isRepair ? 'Repair Service' : 'Core Service'} • Booking #${String(b._id || b.id || '').slice(-6).toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon"><i class="bi bi-calendar3"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Date & Time</div>
+          <div class="trk-detail-value">${formatDate(b.bookingDate)} at ${formatTime(b.startTime)}</div>
+        </div>
+      </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon"><i class="bi bi-geo-alt"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Location</div>
+          <div class="trk-detail-value">${address}</div>
+        </div>
+      </div>
+      ${hasTech ? `
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon"><i class="bi bi-person-badge"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Assigned Technician</div>
+          <div class="trk-detail-value">${techName}${b.technicianPhone ? ` <a href="tel:${b.technicianPhone}" class="trk-tech-call" title="Call technician"><i class="bi bi-telephone-fill"></i></a>` : ''}</div>
+        </div>
+      </div>` : ''}
+      ${showPayment ? `
+      <div class="trk-payment-summary">
+        ${serviceFee > 0 ? `<div class="trk-payment-line"><span>Service Fee</span><span>₱${serviceFee.toLocaleString()}</span></div>` : ''}
+        ${travelFee > 0 ? `<div class="trk-payment-line"><span>Travel Fee</span><span>₱${travelFee.toLocaleString()}</span></div>` : ''}
+        <div class="trk-payment-line trk-payment-total"><span>Total Service Fee</span><span>₱${total.toLocaleString()}</span></div>
+        ${downpayment > 0 ? `<div class="trk-payment-line"><span>Downpayment Paid</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
+        <div class="trk-payment-line"><span>Amount Paid</span><span>₱${paid.toLocaleString()}</span></div>
+        ${isFullyPaid ? `
+        <div class="trk-payment-line ok"><span>Status</span><span>Fully Paid</span></div>
+        <div class="trk-payment-meta"><i class="bi bi-credit-card"></i> Paid via ${payMethod}</div>
+        ` : `
+        <div class="trk-payment-line due"><span>Balance Due</span><span>₱${balance.toLocaleString()}</span></div>
+        <div class="trk-payment-meta"><i class="bi bi-credit-card"></i> ${payMethod} • Pay the remaining balance onsite</div>
+        `}
+      </div>` : ''}
+      ${isRepair ? renderRepairDetails(b) : ''}
+    `;
+
+    // Technician card
+    if (hasTech) {
+      document.getElementById('trkTechCard').style.display = '';
+      document.getElementById('trkTechName').textContent = techName;
+    } else {
+      document.getElementById('trkTechCard').style.display = 'none';
+    }
+
+    // Live work progress (checklist + activity timeline)
+    renderWorkProgress(b, status);
+    renderRatingSection(b, status);
+  }
+
+  // ── Rating section (completed bookings) ──────────────────────────
+  function renderRatingSection(b, status) {
+    const wrap = document.getElementById('trkRatingSection');
+    if (!wrap) return;
+    if (status !== 'completed') { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+
+    const bid = b._id || b.id;
+    const existing = Number(b.customerRating || 0);
+    wrap.style.display = '';
+    if (existing > 0) {
+      wrap.innerHTML = `
+        <div class="trk-rating-done">
+          <div class="trk-rating-done-stars">${'★'.repeat(existing)}${'☆'.repeat(5 - existing)}</div>
+          <div class="trk-rating-done-text">You rated this service <strong>${existing}/5</strong>${b.customerRatingComment ? ` — "${escHtml(b.customerRatingComment)}"` : ''}</div>
+          <button class="trk-rating-edit-btn" onclick="openRatingForBooking('${bid}', true)"><i class="bi bi-pencil-square me-1"></i>Edit Rating</button>
+        </div>`;
+    } else {
+      wrap.innerHTML = `
+        <button class="trk-rating-cta" onclick="openRatingForBooking('${bid}', false)">
+          <i class="bi bi-star-fill me-2"></i> Rate this service
+        </button>`;
+    }
+  }
+
+  window.openRatingForBooking = function(bid, isEdit) {
+    const booking = bookings.find(b => String(b._id || b.id) === String(bid));
+    if (!booking) return;
+    // Allow opening even if previously dismissed/rated (edit mode)
+    if (isEdit) ratingDismissed.delete(String(bid));
+    openRatingModal(booking, isEdit);
+  };
+
+  // Open the rating modal directly (used by both the auto-prompt and the
+  // "Edit Rating" button). Unlike checkAndShowRatingModal, this opens even
+  // when the booking already has a rating (edit scenario).
+  function openRatingModal(booking, isEdit) {
+    if (!booking) return;
+    const bid = booking._id || booking.id;
+    const existing = Number(booking.customerRating || 0);
+    if (!isEdit && existing > 0) return; // already rated and not editing
+    ratingBookingId = bid;
+    isRatingModalOpen = true;
+
+    document.getElementById('trkRatingServiceName').textContent = `How was your ${getServiceName(booking)} service?`;
+
+    const proofSection = document.getElementById('trkProofPhotoSection');
+    const proofLink = document.getElementById('trkProofPhotoLink');
+    if (booking.proofPhoto) {
+      proofLink.href = booking.proofPhoto;
+      proofSection.classList.remove('d-none');
+    } else {
+      proofSection.classList.add('d-none');
+    }
+
+    // Prefill with existing rating when editing
+    selectedRating = isEdit && existing > 0 ? existing : 0;
+    updateStarDisplay();
+    document.getElementById('trkRatingComment').value = (isEdit && booking.customerRatingComment) || '';
+    document.getElementById('trkCommentCount').textContent = `${(booking.customerRatingComment || '').length}/300`;
+
+    document.getElementById('trkRatingBody').classList.remove('d-none');
+    document.getElementById('trkRatingSuccess').classList.add('d-none');
+    document.getElementById('trkRatingModal').style.display = '';
+  }
+
+  // ── Service Progress Timeline ────────────────────────────────────────
+  const STEPS_ORDER = ['confirmed', 'on-the-way', 'arrived', 'in-progress', 'completed'];
+
+  function renderLifecycleStepper(status) {
+    const panel = document.getElementById('trkLifecycle');
+    if (!status || status === 'pending' || status === 'cancelled' || status === 're-scheduled') {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+
+    // Status label
+    const statusPill = document.getElementById('trkLifecycleStatus');
+    statusPill.textContent = status.replace(/-/g, ' ');
+    statusPill.className = 'trk-status-pill ' + statusBadgeClass(status);
+
+    // Render timeline
+    renderTimeline(status);
+  }
+
+  function renderTimeline(status) {
+    const selected = getSelectedBooking();
+    if (!selected) return;
+    const timeline = document.getElementById('trkTimeline');
+
+    const timelineSteps = [
+      { key: 'confirmed', icon: 'bi-check-lg', label: 'Confirmed' },
+      { key: 'assigned', icon: 'bi-person-check', label: 'Assigned' },
+      { key: 'on-the-way', icon: 'bi-geo-alt', label: 'En Route' },
+      { key: 'arrived', icon: 'bi-pin-map', label: 'Arrived' },
+      { key: 'in-progress', icon: 'bi-gear', label: 'In Progress' },
+      { key: 'completed', icon: 'bi-check-circle', label: 'Completed' },
+    ];
+
+    const statusToStepIndex = { 'confirmed': 0, 'scheduled': 1, 'on-the-way': 2, 'arrived': 3, 'in-progress': 4, 'completed': 5 };
+    const activeIdx = statusToStepIndex[status] !== undefined ? statusToStepIndex[status] : 0;
+
+    let html = '<div class="trk-timeline-track">';
+    timelineSteps.forEach((step, i) => {
+      let cls = '';
+      if (i < activeIdx) cls = 'completed';
+      else if (i === activeIdx) cls = 'active';
+
+      html += `<div class="trk-timeline-step ${cls}">
+        <div class="trk-timeline-dot"><i class="bi ${step.icon}"></i></div>
+        <div class="trk-timeline-label">${step.label}</div>
+      </div>`;
+
+      if (i < timelineSteps.length - 1) {
+        let connCls = '';
+        if (i < activeIdx) connCls = 'completed';
+        else if (i === activeIdx) connCls = 'active';
+        html += `<div class="trk-timeline-connector ${connCls}"></div>`;
+      }
+    });
+    html += '</div>';
+    timeline.innerHTML = html;
+  }
+
+  // ── Repair Detail Breakdown ─────────────────────────────────────────
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderRepairDetails(b) {
+    const blocks = [];
+    const insp = b.inspection;
+    if (insp && (insp.findings || insp.completedAt)) {
+      blocks.push(`
+        <div class="trk-detail-subsection">
+          <div class="trk-detail-subhead"><i class="bi bi-clipboard-check"></i> Inspection</div>
+          ${insp.findings ? `<div class="trk-detail-subtext">${escHtml(insp.findings)}</div>` : ''}
+          ${insp.severity ? `<div class="trk-detail-subtext"><strong>Severity:</strong> ${escHtml(insp.severity)}</div>` : ''}
+        </div>`);
+    }
+    const diag = b.diagnosis;
+    if (diag && (diag.findings || diag.recommendedAction)) {
+      blocks.push(`
+        <div class="trk-detail-subsection">
+          <div class="trk-detail-subhead"><i class="bi bi-stethoscope"></i> Diagnosis</div>
+          ${diag.findings ? `<div class="trk-detail-subtext">${escHtml(diag.findings)}</div>` : ''}
+          ${diag.recommendedAction ? `<div class="trk-detail-subtext"><strong>Recommended Action:</strong> ${escHtml(diag.recommendedAction)}</div>` : ''}
+        </div>`);
+    }
+    const q = b.quotation;
+    if (q && (q.parts && q.parts.length || q.laborCost || q.totalCost)) {
+      const partsHtml = (q.parts || []).map(p =>
+        `<div class="trk-quote-part"><span>${escHtml(p.name || 'Part')} ×${p.quantity || 1}</span><span>₱${Number(p.cost || 0).toLocaleString()}</span></div>`
+      ).join('');
+      blocks.push(`
+        <div class="trk-detail-subsection">
+          <div class="trk-detail-subhead"><i class="bi bi-receipt"></i> Quotation</div>
+          ${partsHtml}
+          ${q.laborCost ? `<div class="trk-quote-part"><span>Labor</span><span>₱${Number(q.laborCost).toLocaleString()}</span></div>` : ''}
+          ${q.totalCost ? `<div class="trk-quote-total"><span>Total</span><span>₱${Number(q.totalCost).toLocaleString()}</span></div>` : ''}
+        </div>`);
+    }
+    const rc = b.repairCompletion;
+    if (rc && (rc.completedAt || rc.partsInstalled || rc.completionNotes)) {
+      const partsHtml = (rc.partsInstalled || []).map(p =>
+        `<div class="trk-quote-part"><span>${escHtml(p.name || 'Part')} ×${p.quantity || 1}</span><span>₱${Number(p.cost || p.unitPrice || 0).toLocaleString()}</span></div>`
+      ).join('');
+      blocks.push(`
+        <div class="trk-detail-subsection">
+          <div class="trk-detail-subhead"><i class="bi bi-tools"></i> Repair Completion</div>
+          ${partsHtml}
+          ${rc.completionNotes ? `<div class="trk-detail-subtext">${escHtml(rc.completionNotes)}</div>` : ''}
+          ${b.proofPhoto ? `<a href="${b.proofPhoto}" target="_blank" class="trk-proof-link"><i class="bi bi-camera-fill"></i> View completion photo</a>` : ''}
+        </div>`);
+    }
+    return blocks.length ? `<div class="trk-repair-details">${blocks.join('')}</div>` : '';
+  }
+
+  // ── Live Work Progress (technician task tracking) ──────────────────
+  const WORK_TASKS = [
+    { key: 'confirmed', label: 'Booking Confirmed', icon: 'bi-check-lg', desc: 'Your service is booked and confirmed.' },
+    { key: 'assigned', label: 'Technician Assigned', icon: 'bi-person-check', desc: 'A technician has been assigned to your job.' },
+    { key: 'on-the-way', label: 'En Route', icon: 'bi-geo-alt', desc: 'Your technician is on the way to your location.' },
+    { key: 'arrived', label: 'Arrived Onsite', icon: 'bi-pin-map', desc: 'Technician has arrived and is assessing the unit.' },
+    { key: 'in-progress', label: 'Service In Progress', icon: 'bi-gear', desc: 'Work is being performed on your unit.' },
+    { key: 'completed', label: 'Service Completed', icon: 'bi-check-circle', desc: 'Job finished. Thank you!' },
+  ];
+
+  const STATUS_ACTION_TEXT = {
+    'on-the-way': { t: 'Heading to your location', s: 'Live GPS tracking is active — watch the map for arrival.' },
+    'arrived': { t: 'Arrived at your location', s: 'The technician is now onsite preparing for the service.' },
+    'in-progress': { t: 'Working on your unit', s: 'The technician is performing the service right now.' },
+    'confirmed': { t: 'Scheduled & confirmed', s: 'Your appointment is set. We will notify you when the technician is en route.' },
+    'completed': { t: 'Service completed', s: 'Your technician has finished the job.' },
+  };
+
+  function renderWorkProgress(b, status) {
+    const panel = document.getElementById('trkWorkProgress');
+    const liveTag = document.getElementById('trkWorkLiveTag');
+    const curAction = document.getElementById('trkCurrentAction');
+    const curTitle = document.getElementById('trkCurrentActionTitle');
+    const curSub = document.getElementById('trkCurrentActionSub');
+    const taskList = document.getElementById('trkTaskList');
+    const activityHead = document.getElementById('trkActivityHead');
+    const feed = document.getElementById('trkActivityFeed');
+
+    const isLive = ['on-the-way', 'arrived', 'in-progress'].includes(status);
+    if (!status || status === 'pending' || status === 'cancelled') {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+
+    // Current action banner
+    const act = STATUS_ACTION_TEXT[status];
+    if (act) {
+      curAction.style.display = '';
+      curTitle.textContent = act.t;
+      curSub.textContent = act.s;
+      liveTag.style.display = isLive ? '' : 'none';
+      curAction.classList.toggle('live', isLive);
+    } else {
+      curAction.style.display = 'none';
+      liveTag.style.display = 'none';
+    }
+
+    // Task checklist
+    const statusIdx = WORK_TASKS.findIndex(t => t.key === status);
+    taskList.innerHTML = WORK_TASKS.map((t, i) => {
+      let cls = '';
+      if (i < statusIdx) cls = 'done';
+      else if (i === statusIdx) cls = 'active';
+      const icon = i < statusIdx ? 'bi-check-lg' : (i === statusIdx && isLive ? 'bi-arrow-repeat' : t.icon.replace('bi-', 'bi-'));
+      return `<div class="trk-task ${cls}">
+        <div class="trk-task-dot"><i class="bi ${icon}"></i></div>
+        <div class="trk-task-body">
+          <div class="trk-task-label">${t.label}</div>
+          <div class="trk-task-desc">${t.desc}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // ── Rich activity / service history ──────────────────────────────
+    // Always show as a history: build from statusHistory plus derived
+    // events (quotation/invoice, work started, service ended, payment).
+    const events = [];
+
+    const pushEvent = (key, label, icon, ts, opts) => {
+      events.push(Object.assign({ key, label, icon, ts: ts ? new Date(ts) : null }, opts || {}));
+    };
+
+    // Status transitions from statusHistory
+    const history = Array.isArray(b.statusHistory) ? b.statusHistory.slice() : [];
+    history.sort((a, c) => new Date(a.timestamp || 0) - new Date(c.timestamp || 0));
+    const statusLabelMap = {
+      'confirmed': 'Booking confirmed',
+      'assigned': 'Technician assigned',
+      'scheduled': 'Appointment scheduled',
+      'on-the-way': 'Technician en route',
+      'arrived': 'Technician arrived',
+      'in-progress': 'Work started',
+      'completed': 'Service ended',
+      'cancelled': 'Booking cancelled',
+      're-scheduled': 'Rescheduled',
+    };
+    const statusIconMap = {
+      'confirmed': 'bi-check-lg', 'assigned': 'bi-person-check', 'scheduled': 'bi-calendar-check',
+      'on-the-way': 'bi-geo-alt', 'arrived': 'bi-pin-map', 'in-progress': 'bi-gear',
+      'completed': 'bi-check-circle', 'cancelled': 'bi-x-circle', 're-scheduled': 'bi-arrow-repeat',
+    };
+    history.forEach(h => {
+      const to = h.toStatus || '';
+      if (!to) return;
+      pushEvent(to, statusLabelMap[to] || (to.replace(/-/g, ' ')), statusIconMap[to] || 'bi-circle', h.timestamp, {
+        note: h.notes || '',
+        by: h.changedByName || ''
+      });
+    });
+
+    // Derived events not always recorded in statusHistory
+    const quote = b.quotation;
+    if (quote && (quote.createdAt || quote.date || quote.total)) {
+      pushEvent('quotation', 'Quotation & invoice issued', 'bi-receipt', quote.createdAt || quote.date, {
+        note: quote.total ? `Amount: ₱${Number(quote.total).toLocaleString('en-PH')}` : ''
+      });
+    }
+    const rep = b.repairCompletion;
+    if (rep && (rep.completedAt || rep.notes)) {
+      pushEvent('service-ended', 'Service ended', 'bi-check-circle', rep.completedAt, {
+        note: rep.notes ? escHtml(rep.notes) : ''
+      });
+    }
+    if (b.endTime) {
+      pushEvent('service-ended', 'Service ended', 'bi-check-circle', b.endTime);
+    }
+    if (b.proofPhoto) {
+      pushEvent('proof', 'Proof of service uploaded', 'bi-image', null);
+    }
+
+    events.sort((a, c) => {
+      const ta = a.ts ? a.ts.getTime() : (a.key === 'proof' ? 1e15 : 0);
+      const tc = c.ts ? c.ts.getTime() : (c.key === 'proof' ? 1e15 : 0);
+      return ta - tc;
+    });
+
+    if (events.length) {
+      activityHead.style.display = '';
+      feed.innerHTML = events.map(e => {
+        const ts = e.ts ? e.ts.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        const note = e.note ? `<div class="trk-activity-note">${escHtml(e.note)}</div>` : '';
+        const by = e.by ? `<span class="trk-activity-by">${escHtml(e.by)}</span>` : '';
+        return `<div class="trk-activity-item">
+          <div class="trk-activity-dot"></div>
+          <div class="trk-activity-icon"><i class="bi ${e.icon}"></i></div>
+          <div class="trk-activity-body">
+            <div class="trk-activity-top"><span class="trk-activity-status">${escHtml(e.label)}</span>${ts ? `<span class="trk-activity-time">${ts}</span>` : ''}</div>
+            ${note}${by}
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      activityHead.style.display = 'none';
+      feed.innerHTML = '<div class="trk-activity-empty">No activity recorded yet.</div>';
+    }
+  }
+
+  // ── Rating System ─────────────────────────────────────────────────────
+  let ratingBookingId = null;
+  let selectedRating = 0;
+  let isRatingModalOpen = false; // prevent refreshSelected from resetting modal
+  const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+  const ratingDismissed = new Set();
+
+  function checkAndShowRatingModal(booking) {
+    if (!booking) return;
+    // NEVER touch the modal if it's already open or was dismissed
+    if (isRatingModalOpen) return;
+    const status = normalizeStatus(booking.status);
+    if (status !== 'completed') return;
+    if (booking.customerRating) return;
+    const bid = booking._id || booking.id;
+    if (ratingDismissed.has(String(bid))) return;
+
+    ratingBookingId = bid;
+    isRatingModalOpen = true;
+
+    // Service name
+    document.getElementById('trkRatingServiceName').textContent = `How was your ${getServiceName(booking)} service?`;
+
+    // Proof photo section
+    const proofSection = document.getElementById('trkProofPhotoSection');
+    const proofLink = document.getElementById('trkProofPhotoLink');
+    if (booking.proofPhoto) {
+      proofLink.href = booking.proofPhoto;
+      proofSection.classList.remove('d-none');
+    } else {
+      proofSection.classList.add('d-none');
+    }
+
+    // Reset state
+    selectedRating = 0;
+    updateStarDisplay();
+    document.getElementById('trkRatingComment').value = '';
+    document.getElementById('trkCommentCount').textContent = '0/300';
+
+    // Show rating body, hide success
+    document.getElementById('trkRatingBody').classList.remove('d-none');
+    document.getElementById('trkRatingSuccess').classList.add('d-none');
+    document.getElementById('trkRatingModal').style.display = '';
+  }
+
+  // Comment character count
+  document.getElementById('trkRatingComment').addEventListener('input', function() {
+    const len = this.value.length;
+    document.getElementById('trkCommentCount').textContent = `${Math.min(len, 300)}/300`;
+    if (len > 300) this.value = this.value.slice(0, 300);
+  });
+
+  function updateStarDisplay() {
+    document.querySelectorAll('.trk-star').forEach(star => {
+      const score = parseInt(star.dataset.score);
+      star.classList.toggle('active', score <= selectedRating);
+    });
+    document.getElementById('trkRatingLabel').textContent = selectedRating ? ratingLabels[selectedRating] : 'Tap a star to rate';
+    document.getElementById('trkSubmitRating').disabled = selectedRating === 0;
+  }
+
+  window.closeRatingModal = function() {
+    if (ratingBookingId) ratingDismissed.add(String(ratingBookingId));
+    document.getElementById('trkRatingModal').style.display = 'none';
+    isRatingModalOpen = false;
+    ratingBookingId = null;
+    selectedRating = 0;
+  };
+
+  window.submitRating = async function() {
+    if (!ratingBookingId || selectedRating === 0) return;
+    const btn = document.getElementById('trkSubmitRating');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Submitting...';
+    try {
+      const comment = document.getElementById('trkRatingComment').value.trim();
+      const res = await fetch(`/api/rating/booking/${ratingBookingId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ score: selectedRating, comment: comment || null }),
+      });
+      if (res.ok) {
+        // Update local booking data so it won't re-prompt and reflects in details
+        const booking = bookings.find(b => String(b._id || b.id) === String(ratingBookingId));
+        if (booking) {
+          booking.customerRating = selectedRating;
+          booking.customerRatingComment = comment;
+        }
+        // Show success
+        document.getElementById('trkRatingBody').classList.add('d-none');
+        document.getElementById('trkRatingSuccess').classList.remove('d-none');
+        // Auto-close after a short delay and refresh the rating section
+        setTimeout(() => {
+          closeRatingModal();
+          if (booking) renderRatingSection(booking, 'completed');
+        }, 1600);
+      } else {
+        let msg = 'Unable to submit rating.';
+        try { const d = await res.json(); if (d && d.error) msg = d.error; } catch (_) {}
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+        const lbl = document.getElementById('trkRatingLabel');
+        if (lbl) { lbl.textContent = msg; lbl.style.color = '#dc2626'; }
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+      const lbl = document.getElementById('trkRatingLabel');
+      if (lbl) { lbl.textContent = 'Network error. Please try again.'; lbl.style.color = '#dc2626'; }
+    }
+  };
+
+  document.querySelectorAll('.trk-star').forEach(star => {
+    star.addEventListener('click', () => {
+      selectedRating = parseInt(star.dataset.score);
+      updateStarDisplay();
+    });
+    star.addEventListener('mouseenter', () => {
+      const score = parseInt(star.dataset.score);
+      document.querySelectorAll('.trk-star').forEach(s => {
+        s.style.color = parseInt(s.dataset.score) <= score ? '#f59e0b' : '#d1d5db';
+      });
+    });
+    star.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.trk-star').forEach(s => {
+        s.style.color = '';
+      });
+    });
+  });
+
+  // ── Map & Tracking ────────────────────────────────────────────────────
+  function parseStartMinutes(value) {
+    if (value === null || value === undefined) return NaN;
+    const num = Number(value);
+    if (!Number.isNaN(num) && Number.isFinite(num)) return num;
+    const str = String(value).trim();
+    const m = str.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!m) return NaN;
+    let hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return NaN;
+    if (m[3]) {
+      const ampm = m[3].toUpperCase();
+      if (ampm === "PM" && hh < 12) hh += 12;
+      if (ampm === "AM" && hh === 12) hh = 0;
+    }
+    return hh * 60 + mm;
+  }
+
+  function bookingToEvent(b) {
+    if (!b || !b.bookingDate) return null;
+    const base = new Date(b.bookingDate);
+    if (Number.isNaN(base.getTime())) return null;
+    const minutes = parseStartMinutes(b.startTime);
+    if (!Number.isFinite(minutes) || minutes < 0 || minutes >= 24 * 60) return null;
+    const start = new Date(base);
+    start.setHours(0, 0, 0, 0);
+    start.setMinutes(minutes);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    return {
+      id: String(b._id || b.id || `${b.bookingDate}-${minutes}`),
+      title: `${getServiceName(b)} • ${getTechnicianName(b)}`,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      allDay: false,
+    };
+  }
+
+  const calendarEl = document.getElementById("trackCalendar");
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: "dayGridMonth",
+    headerToolbar: {
+      left: "title",
+      center: "",
+      right: "prev,next timeGridWeek,dayGridMonth"
+    },
+    height: "auto",
+    contentHeight: 440,
+    nowIndicator: true,
+    events: bookings.map(bookingToEvent).filter(Boolean),
+    eventColor: "#2563eb",
+    eventTextColor: "#fff",
+    eventDisplay: "block",
+    dayHeaderFormat: { weekday: 'short' },
+    views: {
+      timeGridWeek: {
+        slotMinTime: "06:00:00",
+        slotMaxTime: "22:00:00",
+        slotDuration: "00:30:00",
+        slotLabelFormat: { hour: 'numeric', minute: '2-digit', hour12: true },
+      },
+    },
+    eventContent: function(arg) {
+      const timeText = arg.timeText || "";
+      const titleText = arg.event.title || "Booking";
+      const time = timeText ? `<div class="fc-event-time">${timeText}</div>` : "";
+      const title = `<div class="fc-event-title">${titleText}</div>`;
+      return { html: `<div>${time}${title}</div>` };
+    },
+    eventClick: function(info) {
+      const id = info.event.id || (info.event.extendedProps && info.event.extendedProps.bookingId);
+      if (id) window.trkSelectBooking(id);
+    },
+  });
+  calendar.render();
+  const calHint = document.getElementById('trkCalHint');
+  if (calHint) calHint.textContent = 'Tap a booking to view details';
+
+  // ── Leaflet Map ───────────────────────────────────────────────────────
+  let mapDefaultLat = 14.676049, mapDefaultLng = 121.043731;
+  const map = L.map("customerTrackMap", { maxZoom: 19 }).setView([mapDefaultLat, mapDefaultLng], 12);
+  window._trkMap = map;
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd', maxZoom: 19, maxNativeZoom: 19
+  }).addTo(map);
+
+  const companyIcon = L.divIcon({
+    className: "",
+    html: '<div style="position:relative;width:36px;height:36px;">' +
+            '<div style="position:absolute;width:100%;height:100%;background:rgba(234,88,12,0.15);border-radius:50%;animation:trkCompPulse 2.5s infinite;"></div>' +
+            '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;background:#ea580c;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(234,88,12,0.4);"></div>' +
+          '</div>' +
+          '<style>@keyframes trkCompPulse{0%{transform:scale(1);opacity:1}100%{transform:scale(3);opacity:0}}</style>',
+    iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -18],
+  });
+  let companyMarker = null;
+
+  fetch('/api/public/company/location')
+    .then(r => r.json())
+    .then(loc => {
+      if (loc && loc.configured && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+        mapDefaultLat = loc.lat;
+        mapDefaultLng = loc.lng;
+        map.setView([mapDefaultLat, mapDefaultLng], 14);
+        companyMarker = L.marker([mapDefaultLat, mapDefaultLng], { icon: companyIcon })
+          .addTo(map)
+          .bindPopup(`<strong>Company Location</strong>${loc.address ? `<br>${loc.address}` : ''}`);
+      }
+    })
+    .catch(() => {});
+
+  setTimeout(() => map.invalidateSize(), 300);
+
+  let techMarker = null;
+  let techAccCircle = null;
+  let customerMarker = null;
+  const routeLayer = L.geoJSON(null, {
+    style: { color: "#2563eb", weight: 5, opacity: 0.85, lineCap: "round" },
+  }).addTo(map);
+  const companyRouteLayer = L.geoJSON(null, {
+    style: { color: "#ea580c", weight: 4, opacity: 0.8, dashArray: "8 6", lineCap: "round" },
+  }).addTo(map);
+  let routeFetchController = null;
+  let companyRouteFetchController = null;
+  let liveTechCoords = null;
+  let bookingCustomerCoords = null;
+
+  const btnGoTech = document.getElementById("btnGoTech");
+  const btnGoCust = document.getElementById("btnGoCust");
+  const customerRouteBtn = document.getElementById("customerRouteBtn");
+  const technicianRouteBtn = document.getElementById("technicianRouteBtn");
+
+  function updateLocationButtons() {
+    const hasTech = !!liveTechCoords;
+    const hasCust = !!bookingCustomerCoords;
+    btnGoTech.disabled = !hasTech;
+    btnGoCust.disabled = !hasCust;
+    customerRouteBtn.disabled = !hasCust;
+    technicianRouteBtn.disabled = !hasTech;
+  }
+
+  btnGoTech.addEventListener("click", function () {
+    if (liveTechCoords) { map.flyTo(liveTechCoords, 16, { duration: 1 }); if (techMarker) techMarker.openPopup(); }
+  });
+  btnGoCust.addEventListener("click", function () {
+    if (bookingCustomerCoords) { map.flyTo(bookingCustomerCoords, 16, { duration: 1 }); if (customerMarker) customerMarker.openPopup(); }
+  });
+  customerRouteBtn.addEventListener("click", function () {
+    if (bookingCustomerCoords) {
+      const [lat, lng] = bookingCustomerCoords;
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    }
+  });
+  technicianRouteBtn.addEventListener("click", function () {
+    if (liveTechCoords) {
+      const [lat, lng] = liveTechCoords;
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    }
+  });
+
+  // Premium map markers
+  const techIcon = L.divIcon({
+    className: "",
+    html: '<div style="position:relative;width:44px;height:44px;">' +
+            '<div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:20px;height:8px;background:radial-gradient(ellipse,rgba(0,0,0,0.3) 0%,transparent 70%);"></div>' +
+            '<div style="width:44px;height:44px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:50%;border:3px solid #fff;box-shadow:0 4px 12px rgba(37,99,235,0.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;animation:trkTechBounce 2s infinite ease-in-out;"><i class="bi bi-person-fill"></i></div>' +
+          '</div>' +
+          '<style>@keyframes trkTechBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}</style>',
+    iconSize: [44, 44], iconAnchor: [22, 44], popupAnchor: [0, -44],
+  });
+
+  const custIcon = L.divIcon({
+    className: "",
+    html: '<div style="position:relative;width:28px;height:28px;">' +
+            '<div style="position:absolute;width:100%;height:100%;background:rgba(16,185,129,0.3);border-radius:50%;animation:trkCustPulse 2s infinite;"></div>' +
+            '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:#10b981;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>' +
+          '</div>' +
+          '<style>@keyframes trkCustPulse{0%{transform:scale(1);opacity:1}100%{transform:scale(3.5);opacity:0}}</style>',
+    iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14],
+  });
+
+  let lastRouteCoords = null;
+
+  function coordsEqual(a, b) { return a && b && a[0] === b[0] && a[1] === b[1]; }
+
+  function clearMapLayers() {
+    if (techMarker) map.removeLayer(techMarker);
+    if (techAccCircle) { map.removeLayer(techAccCircle); techAccCircle = null; }
+    if (customerMarker) map.removeLayer(customerMarker);
+    routeLayer.clearLayers();
+    companyRouteLayer.clearLayers();
+    techMarker = null; customerMarker = null; lastRouteCoords = null;
+  }
+
+  function ensureCustomerMarker(coords, customerAddress) {
+    if (!coords) return;
+    const popupHtml = `<strong>Booking location</strong>${customerAddress ? `<br>${customerAddress.replace(/\n/g, "<br>")}` : ""}`;
+    if (customerMarker) { customerMarker.setLatLng(coords); customerMarker.setPopupContent(popupHtml); }
+    else { customerMarker = L.marker(coords, { icon: custIcon }).addTo(map).bindPopup(popupHtml); }
+    bookingCustomerCoords = coords;
+  }
+
+  function ensureTechMarker(coords, acc) {
+    if (!coords) return;
+    if (techMarker) techMarker.setLatLng(coords);
+    else techMarker = L.marker(coords, { icon: techIcon }).addTo(map).bindPopup("Technician (live)");
+    liveTechCoords = coords;
+    if (typeof acc === 'number' && acc > 0) {
+      techMarker.setPopupContent(`Technician (live)<br><small style="color:#64748b;">±${acc < 1000 ? Math.round(acc) + ' m' : (acc/1000).toFixed(1) + ' km'}</small>`);
+    }
+  }
+
+  async function updateRouteIfNeeded(forceFitBounds = false) {
+    if (!liveTechCoords || !bookingCustomerCoords) return;
+    const coordsChanged = !lastRouteCoords || !coordsEqual(lastRouteCoords.tech, liveTechCoords) || !coordsEqual(lastRouteCoords.cust, bookingCustomerCoords);
+    if (!coordsChanged && routeLayer.getLayers().length > 0) return;
+    if (routeFetchController) { routeFetchController.abort(); routeFetchController = null; }
+
+    const controller = new AbortController();
+    routeFetchController = controller;
+    const { signal } = controller;
+
+    try {
+      const coords = `${liveTechCoords[1]},${liveTechCoords[0]};${bookingCustomerCoords[1]},${bookingCustomerCoords[0]}`;
+      const resp = await fetch(`/api/services/osrm-route?coords=${encodeURIComponent(coords)}`, { signal });
+      if (!resp.ok) throw new Error("route fetch failed");
+      const data = await resp.json();
+      if (data.routes && data.routes.length && data.routes[0].geometry) {
+        const route = data.routes[0];
+        routeLayer.clearLayers();
+        routeLayer.addData(route.geometry);
+
+        const distKm = (route.distance / 1000).toFixed(1);
+        const durMin = Math.ceil(route.duration / 60);
+
+        // Update ETA overlay
+        const etaEl = document.getElementById('trkMapEta');
+        etaEl.style.display = '';
+        document.getElementById('trkEtaText').textContent = `${distKm} km away • ~${durMin} min drive`;
+
+        // Update tech status
+        statusEl.innerHTML = `<span class="trk-pulse-dot live"></span> ${distKm} km away • ~${durMin} min • Updated ${new Date().toLocaleTimeString()}`;
+
+        if (forceFitBounds || !lastRouteCoords) map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+        lastRouteCoords = { tech: [...liveTechCoords], cust: [...bookingCustomerCoords] };
+        return;
+      }
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      console.warn("OSRM route fetch failed", e);
+    }
+
+    routeLayer.clearLayers();
+    map.fitBounds([liveTechCoords, bookingCustomerCoords], { padding: [40, 40], maxZoom: 17 });
+    statusEl.innerHTML = `<span class="trk-pulse-dot live"></span> Live tracking active • Updated ${new Date().toLocaleTimeString()}`;
+    document.getElementById('trkMapEta').style.display = 'none';
+    lastRouteCoords = { tech: [...liveTechCoords], cust: [...bookingCustomerCoords] };
+  }
+
+  async function updateCompanyToCustomerRoute(selectedBooking, forceFitBounds = false) {
+    if (!companyMarker || !bookingCustomerCoords) return;
+    if (selectedBooking) {
+      const status = normalizeStatus(selectedBooking.status);
+      const isEnroute = status === 'on-the-way' || status === 'in-progress' || status === 'arrived';
+      if (isEnroute) {
+        companyRouteLayer.clearLayers();
+        return;
+      }
+    }
+    const companyLatLng = companyMarker.getLatLng();
+    const companyCoords = [companyLatLng.lat, companyLatLng.lng];
+    if (companyRouteFetchController) { companyRouteFetchController.abort(); companyRouteFetchController = null; }
+
+    const controller = new AbortController();
+    companyRouteFetchController = controller;
+    const { signal } = controller;
+
+    try {
+      const coords = `${companyCoords[1]},${companyCoords[0]};${bookingCustomerCoords[1]},${bookingCustomerCoords[0]}`;
+      const resp = await fetch(`/api/services/osrm-route?coords=${encodeURIComponent(coords)}`, { signal });
+      if (!resp.ok) throw new Error("route fetch failed");
+      const data = await resp.json();
+      if (data.routes && data.routes.length && data.routes[0].geometry) {
+        companyRouteLayer.clearLayers();
+        companyRouteLayer.addData(data.routes[0].geometry);
+      }
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      console.warn("Company route fetch failed", e);
+    }
+  }
+
+  async function refreshTechnicianLocation(selectedBooking) {
+    const techId = getTechnicianId(selectedBooking);
+    const status = normalizeStatus(selectedBooking.status);
+
+    // Only track technician when on-the-way or in-progress (technician actively traveling)
+    const shouldTrackTech = techId && (status === 'on-the-way' || status === 'in-progress' || status === 'arrived');
+
+    if (!shouldTrackTech) {
+      liveTechCoords = null;
+      techMarker && map.removeLayer(techMarker);
+      techMarker = null;
+      routeLayer.clearLayers();
+      document.getElementById('trkMapEta').style.display = 'none';
+
+      // Show company marker when available and no tech marker
+      if (companyMarker) {
+        statusEl.innerHTML = `<span class="trk-pulse-dot"></span> Technician not yet en route`;
+      } else {
+        statusEl.innerHTML = '<span class="trk-pulse-dot"></span> No technician assigned yet';
+      }
+      updateLocationButtons();
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/services/technician-location?id=${encodeURIComponent(techId)}`);
+      if (!resp.ok) throw new Error("location fetch failed");
+      const data = await resp.json();
+      if (Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+        ensureTechMarker([Number(data.lat), Number(data.lng)]);
+        statusEl.innerHTML = `<span class="trk-pulse-dot live"></span> Live tracking active • Updated ${new Date().toLocaleTimeString()}`;
+      }
+    } catch (e) {
+      statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Unable to refresh location';
+    }
+    updateLocationButtons();
+  }
+
+  function getSelectedBooking() {
+    const id = String(currentBookingId || "");
+    if (!id) return null;
+    return bookings.find((b) => String(b._id || b.id || "") === id) || null;
+  }
+
+  let lastRenderedBooking = null;
+
+  async function refreshSelected() {
+    // Only run heavy tracking refresh while a booking detail is open
+    if (detailViewEl.style.display === 'none' || !currentBookingId) {
+      return;
+    }
+    const selected = getSelectedBooking();
+    if (!selected) {
+      currentBookingId = null;
+      lastRenderedBooking = null;
+      clearMapLayers();
+      renderBookingDetails(null);
+      statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Waiting for live updates…';
+      updateLocationButtons();
+      return;
+    }
+
+    const selectedId = String(selected._id || selected.id || "");
+    // Re-render when the id changes OR when a freshly-fetched booking object
+    // replaced the cached one (so updated data shows up).
+    const bookingChanged = currentBookingId !== selectedId || selected !== lastRenderedBooking;
+
+    if (bookingChanged) {
+      currentBookingId = selectedId;
+      lastRenderedBooking = selected;
+      bookingCustomerCoords = getCustomerCoordsFromBooking(selected);
+      const customerAddress = getCustomerAddressFromBooking(selected);
+      clearMapLayers();
+      ensureCustomerMarker(bookingCustomerCoords, customerAddress);
+      renderBookingDetails(selected);
+      statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Loading route…';
+    }
+    await refreshTechnicianLocation(selected);
+    await updateRouteIfNeeded(bookingChanged);
+    await updateCompanyToCustomerRoute(selected, bookingChanged);
+
+    // Company marker visibility depending on technician status
+    const status = normalizeStatus(selected.status);
+    const isEnroute = status === 'on-the-way' || status === 'in-progress' || status === 'arrived';
+    const mapCard = document.getElementById('trkMapCard');
+    const detailLeft = document.getElementById('trkDetailInner');
+    if (mapCard) mapCard.style.display = isEnroute ? '' : 'none';
+    // When the map is hidden (e.g. completed), let the detail column fill the width
+    if (detailLeft) detailLeft.classList.toggle('trk-detail-full', !isEnroute);
+    if (isEnroute) {
+      // Map just became visible — force Leaflet to recompute its size
+      setTimeout(() => { try { if (window._trkMap) window._trkMap.invalidateSize(); } catch (_) {} }, 80);
+      if (companyMarker && map.hasLayer(companyMarker)) {
+        map.removeLayer(companyMarker);
+      }
+      companyRouteLayer.clearLayers();
+    } else {
+      if (companyMarker && !map.hasLayer(companyMarker)) {
+        companyMarker.addTo(map);
+      }
+    }
+
+    if (!liveTechCoords && !bookingCustomerCoords) map.setView([mapDefaultLat, mapDefaultLng], 14);
+    else if (!liveTechCoords && bookingCustomerCoords) map.setView(bookingCustomerCoords, 14);
+
+    // Check if we should show the rating modal
+    checkAndShowRatingModal(selected);
+  }
+
+  refreshSelected();
+  setInterval(refreshSelected, 1000);
+
+  // ── Reschedule Modal ────────────────────────────────────────────────
+  let rscBooking = null;
+  let rscYear, rscMonth, rscSelectedDate = null, rscSelectedTime = null;
+
+  function getStatus(b) {
+    const s = (b.status || '').toLowerCase();
+    if (s === 'on-the-way' || s === 'on_the_way' || s === 'en-route' || s === 'en_route') return 'en-route';
+    if (s === 'arrived' || s === 'on_site') return 'arrived';
+    if (s === 'in-progress' || s === 'in_progress') return 'in-progress';
+    if (s === 'completed') return 'completed';
+    return s || 'unknown';
+  }
+
+  window.openRescheduleModal = function(bookingId) {
+    rscBooking = bookings.find(b => (b._id || b.id) === bookingId);
+    if (!rscBooking) return;
+    const st = getStatus(rscBooking);
+    if (!['confirmed','scheduled'].includes(st)) return;
+
+    rscSelectedDate = null;
+    rscSelectedTime = null;
+    const now = new Date();
+    rscYear = now.getFullYear();
+    rscMonth = now.getMonth();
+
+    const currentBookingDate = rscBooking.bookingDate ? new Date(rscBooking.bookingDate) : null;
+    document.getElementById('rescheduleServiceLabel').textContent = getServiceName(rscBooking);
+    document.getElementById('rescheduleCurrentDate').textContent = currentBookingDate ? currentBookingDate.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' }) : '--';
+    document.getElementById('rescheduleCurrentTime').textContent = formatTime(rscBooking.startTime);
+    document.getElementById('rescheduleNewDate').textContent = '--';
+    document.getElementById('rescheduleNewTime').textContent = '--';
+    document.getElementById('rescheduleReason').value = '';
+    document.getElementById('rescheduleError').classList.add('d-none');
+    document.getElementById('rescheduleTimeSlotsSection').style.display = 'none';
+    document.getElementById('submitRescheduleBtn').disabled = true;
+
+    document.getElementById('trkRescheduleModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    renderRescheduleCalendar();
+  };
+
+  window.closeRescheduleModal = function() {
+    document.getElementById('trkRescheduleModal').style.display = 'none';
+    document.body.style.overflow = '';
+  };
+
+  window.reschedulePrevMonth = function() {
+    rscMonth--;
+    if (rscMonth < 0) { rscMonth = 11; rscYear--; }
+    renderRescheduleCalendar();
+  };
+
+  window.rescheduleNextMonth = function() {
+    rscMonth++;
+    if (rscMonth > 11) { rscMonth = 0; rscYear++; }
+    renderRescheduleCalendar();
+  };
+
+  function renderRescheduleCalendar() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('rescheduleMonthLabel').textContent = monthNames[rscMonth] + ' ' + rscYear;
+    const grid = document.getElementById('rescheduleCalendarGrid');
+    const firstDay = new Date(rscYear, rscMonth, 1).getDay();
+    const daysInMonth = new Date(rscYear, rscMonth + 1, 0).getDate();
+    let html = '';
+    for (let i = 0; i < firstDay; i++) html += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(rscYear, rscMonth, d);
+      const isPast = cellDate < today;
+      const isToday = cellDate.getTime() === today.getTime();
+      const isSelected = rscSelectedDate && cellDate.toDateString() === rscSelectedDate.toDateString();
+      const classes = ['rsc-day'];
+      if (isPast) classes.push('rsc-disabled');
+      if (isSelected) classes.push('rsc-selected');
+      else if (!isPast) classes.push('rsc-available');
+      if (isToday) classes.push('rsc-today');
+      html += `<button class="${classes.join(' ')}" ${isPast ? 'disabled' : ''} onclick="rscPickDate(${rscYear},${rscMonth},${d})">${d}</button>`;
+    }
+    grid.innerHTML = html;
+  }
+
+  window.rscPickDate = function(y, m, d) {
+    rscSelectedDate = new Date(y, m, d);
+    rscSelectedTime = null;
+    document.getElementById('rescheduleNewDate').textContent = rscSelectedDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    document.getElementById('rescheduleNewTime').textContent = '--';
+    document.getElementById('submitRescheduleBtn').disabled = true;
+    renderRescheduleCalendar();
+    loadRescheduleTimeSlots();
+  };
+
+  async function loadRescheduleTimeSlots() {
+    const section = document.getElementById('rescheduleTimeSlotsSection');
+    const container = document.getElementById('rescheduleTimeSlots');
+    if (!rscSelectedDate || !rscBooking) { section.style.display = 'none'; return; }
+    const dateStr = rscSelectedDate.toISOString().split('T')[0];
+    const serviceId = rscBooking.serviceId || rscBooking.service || '';
+    try {
+      const res = await fetch(`/api/schedule/time-slots?date=${dateStr}&serviceId=${serviceId}`);
+      const data = await res.json();
+      if (data.success && data.timeSlots) {
+        container.innerHTML = data.timeSlots.map(slot => {
+          const time = slot.time || slot.label || slot;
+          const disabled = slot.available === false;
+          return `<button class="rsc-slot ${rscSelectedTime === time ? 'rsc-slot-selected' : ''}" ${disabled ? 'disabled' : ''} onclick="rscPickTime('${time.replace(/'/g, "\\'")}')">${time}</button>`;
+        }).join('');
+        section.style.display = 'block';
+      } else {
+        section.style.display = 'none';
+      }
+    } catch (err) {
+      console.error('Failed to load time slots:', err);
+      section.style.display = 'none';
+    }
+  }
+
+  window.rscPickTime = function(time) {
+    rscSelectedTime = time;
+    document.getElementById('rescheduleNewTime').textContent = formatTime(time);
+    document.getElementById('submitRescheduleBtn').disabled = false;
+    loadRescheduleTimeSlots();
+  };
+
+  window.submitRescheduleRequest = async function() {
+    if (!rscBooking || !rscSelectedDate || !rscSelectedTime) return;
+    const btn = document.getElementById('submitRescheduleBtn');
+    const errDiv = document.getElementById('rescheduleError');
+    const errMsg = document.getElementById('rescheduleErrorMsg');
+    const reason = document.getElementById('rescheduleReason').value.trim();
+    if (!reason) {
+      errDiv.classList.remove('d-none');
+      errMsg.textContent = 'Please provide a reason for rescheduling.';
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Submitting…';
+    errDiv.classList.add('d-none');
+    try {
+      const dateStr = rscSelectedDate.toISOString().split('T')[0];
+      const res = await fetch(`/api/appointments/${rscBooking._id || rscBooking.id}/reschedule-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          newDate: dateStr,
+          newTime: rscSelectedTime,
+          reason: reason
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeRescheduleModal();
+        showToast('Reschedule request submitted! You will be notified once reviewed.', 'success');
+        setTimeout(() => refreshSelected(), 1500);
+      } else {
+        errDiv.classList.remove('d-none');
+        errMsg.textContent = data.error || data.message || 'Failed to submit reschedule request.';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Submit Request';
+      }
+    } catch (err) {
+      console.error('Reschedule error:', err);
+      errDiv.classList.remove('d-none');
+      errMsg.textContent = 'Network error. Please try again.';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Submit Request';
+    }
+  };
+
+  function showToast(message, type) {
+    const existing = document.getElementById('trkToast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'trkToast';
+    const bg = type === 'success' ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#ef4444,#dc2626)';
+    toast.style.cssText = `position:fixed;top:24px;right:24px;z-index:99999;background:${bg};color:#fff;padding:14px 24px;border-radius:14px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.25);animation:trkSlideIn 0.3s ease;`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.animation = 'trkSlideOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 4000);
+  }
+
+  // ── Greeting ──────────────────────────────────────────────────────────
+  const hour = new Date().getHours();
+  let greeting = 'Good evening';
+  if (hour < 12) greeting = 'Good morning';
+  else if (hour < 17) greeting = 'Good afternoon';
+  document.getElementById('trkGreeting').textContent = greeting + ', My Schedule';
+
+})();
+</script>

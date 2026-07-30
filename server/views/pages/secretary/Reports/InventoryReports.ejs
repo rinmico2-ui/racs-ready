@@ -1,0 +1,1083 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+    <div class="dashboard-hero mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="page-title">
+            <i class="bi bi-box-seam me-2"></i>Inventory Analytics
+          </h1>
+          <p class="hero-sub">
+            Monitor stock velocity, shrinkage trends, and replenishment
+            performance
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Key Metrics</div>
+    <style>
+      /* remove built‑in container padding so KPI cards start at the left edge of the main area */
+      .admin-dashboard.container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      /* also strip the default padding from the main wrapper on this page */
+      .admin-content>main.p-4 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      /* tighten spacing around KPI row and cards specifically for this report */
+      .admin-dashboard .kpi-row {
+        gap: 12px !important;
+        margin-bottom: 0 !important;
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        width: 100% !important;
+        /* allow more cards per row by reducing minimum width */
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+      }
+
+      /* shrink cards further by reducing padding */
+      .admin-dashboard .kpi-row .kpi-card {
+        height: auto !important;
+        padding: 6px 8px !important;
+      }
+
+      /* make wave area even smaller */
+      .admin-dashboard .kpi-micro {
+        height: 50px !important;
+      }
+
+      .admin-dashboard .kpi-micro canvas {
+        height: 50px !important;
+      }
+
+      /* ensure cards shrink at all breakpoints */
+      @media (max-width:767px) {
+        .admin-dashboard .kpi-row .kpi-card {
+          height: auto !important;
+        }
+      }
+
+      @media (min-width:1200px) {
+        .admin-dashboard .kpi-row .kpi-card {
+          height: auto !important;
+        }
+      }
+
+      /* make KPI cards expand to fill available space so they stretch edge‑to‑edge */
+      .admin-dashboard .kpi-row .kpi-card {
+        flex: 1 1 0 !important;
+        min-width: 200px !important;
+        /* prevent collapse at very small widths */
+        max-width: none !important;
+      }
+
+      /* override some card colours for reports page */
+      .admin-dashboard .card {
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
+      /* provide vertical space between KPI row and following cards */
+      .admin-dashboard .kpi-row {
+        margin-bottom: 1.5rem !important;
+      }
+
+      /* reduce the page container min-height so content doesn't stretch to full viewport */
+      .admin-dashboard {
+        min-height: auto !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+      }
+
+      /* ensure no large top margin on cards in this page */
+      .admin-dashboard .card {
+        margin-top: 0 !important;
+      }
+
+      .admin-dashboard .card-header {
+        background: #fff;
+        font-weight: 600;
+      }
+
+      /* filter controls smaller, consistent margin */
+      .admin-dashboard .card-body.row .form-label {
+        font-size: 0.75rem;
+        letter-spacing: 0.03em;
+      }
+
+      .admin-dashboard .card-body.row .form-select {
+        font-size: 0.875rem;
+      }
+
+      /* table styling */
+      .admin-dashboard table {
+        font-size: 0.875rem;
+      }
+
+      .admin-dashboard table thead {
+        background: #f8f9fa;
+        text-transform: uppercase;
+      }
+
+      .admin-dashboard table tbody tr:hover {
+        background: rgba(0, 0, 0, 0.03);
+      }
+
+      /* enterprise chart and modal enhancements */
+      canvas {
+        cursor: pointer;
+        transition: transform .2s ease;
+      }
+
+      canvas:hover {
+        transform: scale(1.02);
+      }
+
+      /* Enterprise KPI Card Styles */
+      .dash-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .dash-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      }
+      .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .kpi-sparkline-container {
+        height: 40px;
+        margin-top: 0.5rem;
+      }
+      .kpi-sparkline-container canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      .bg-success-subtle {
+        background-color: rgba(16, 185, 129, 0.15);
+      }
+      .bg-info-subtle {
+        background-color: rgba(8, 145, 178, 0.15);
+      }
+      .bg-warning-subtle {
+        background-color: rgba(245, 158, 11, 0.15);
+      }
+      .bg-danger-subtle {
+        background-color: rgba(220, 38, 38, 0.15);
+      }
+      .fs-7 {
+        font-size: 0.75rem;
+      }
+    </style>
+    <div class="mb-4 kpi-row">
+      <div class="kpi-card kpi-accent-blue kpi-primary" role="region" aria-label="Total Products KPI">
+        <div class="kpi-header">
+          <div class="kpi-text">
+            <div class="kpi-label">Total Products</div>
+            <div class="kpi-value" id="inv-kpi-skus"><%= analytics ? analytics.totalProducts.toLocaleString() : "0" %></div>
+          </div>
+          <div class="kpi-icon" aria-hidden><i class="bi bi-box-seam"></i></div>
+        </div>
+        <div class="kpi-badge <%= analytics && analytics.inStock > analytics.totalProducts * 0.7 ? 'positive' : 'warning' %>">
+          <%= analytics ? Math.round((analytics.inStock / analytics.totalProducts) * 100) : 0 %>% In Stock
+        </div>
+        <div class="kpi-micro mt-2"><canvas id="invSparkSKUs"></canvas></div>
+      </div>
+      <div class="kpi-card kpi-accent-info kpi-info" role="region" aria-label="Inventory Value KPI">
+        <div class="kpi-header">
+          <div class="kpi-text">
+            <div class="kpi-label">Inventory Value</div>
+            <div class="kpi-value" id="inv-kpi-turnover">₱<%= analytics ? (analytics.inventoryValue / 1000000).toFixed(2) : "0.00" %>M</div>
+          </div>
+          <div class="kpi-icon" aria-hidden><i class="bi bi-currency-dollar"></i></div>
+        </div>
+        <div class="kpi-badge <%= analytics && analytics.profitPotential > 0 ? 'positive' : 'negative' %>">
+          Margin: <%= analytics ? ((analytics.profitPotential / analytics.inventoryValue) * 100).toFixed(1) : "0.0" %>%
+        </div>
+        <div class="kpi-micro mt-2"><canvas id="invSparkTurnover"></canvas></div>
+      </div>
+      <div class="kpi-card kpi-accent-danger kpi-danger" role="region" aria-label="Low Stock Items KPI">
+        <div class="kpi-header">
+          <div class="kpi-text">
+            <div class="kpi-label">Low Stock Alerts</div>
+            <div class="kpi-value" id="inv-kpi-lowstock"><%= analytics ? (analytics.lowStock + analytics.toolsLowStock) : "0" %></div>
+          </div>
+          <div class="kpi-icon" aria-hidden><i class="bi bi-exclamation-triangle-fill"></i></div>
+        </div>
+        <div class="kpi-badge <%= analytics && (analytics.lowStock + analytics.toolsLowStock) === 0 ? 'positive' : 'negative' %>">
+          <%= analytics ? analytics.toolsLowStock : "0" %> Tools + <%= analytics ? analytics.lowStock : "0" %> Products
+        </div>
+        <div class="kpi-micro mt-2"><canvas id="invSparkLowstock"></canvas></div>
+      </div>
+      <div class="kpi-card kpi-accent-warning kpi-warning" role="region" aria-label="Stock-out Items KPI">
+        <div class="kpi-header">
+          <div class="kpi-text">
+            <div class="kpi-label">Out of Stock</div>
+            <div class="kpi-value" id="inv-kpi-stockout"><%= analytics ? (analytics.outOfStock + analytics.toolsOutOfStock) : "0" %></div>
+          </div>
+          <div class="kpi-icon" aria-hidden><i class="bi bi-hourglass-split"></i></div>
+        </div>
+        <div class="kpi-badge <%= analytics && (analytics.outOfStock + analytics.toolsOutOfStock) === 0 ? 'positive' : 'warning' %>">
+          <%= analytics ? analytics.toolsOutOfStock : "0" %> Tools + <%= analytics ? analytics.outOfStock : "0" %> Products
+        </div>
+        <div class="kpi-micro mt-2"><canvas id="invSparkStockout"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body row g-3">
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Period</label><select class="form-select">
+            <option>Last 30 Days</option>
+            <option>Quarterly</option>
+            <option>Year-to-Date</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Category</label><select class="form-select">
+            <option>All Categories</option>
+            <option>Parts</option>
+            <option>Consumables</option>
+            <option>Equipment</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Warehouse</label><select
+            class="form-select">
+            <option>All</option>
+            <option>Main Storage</option>
+            <option>Field Mobile Stock</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button class="btn btn-light border w-100">
+            <i class="bi bi-funnel me-2"></i>Apply
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-7" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100 mb-0">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Stock Movement Trend</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 250px">
+              <canvas id="inventoryMovementChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Inventory Value by Category</h6>
+          </div>
+          <div class="card-body px-4 pb-4 d-flex flex-column justify-content-center">
+            <div style="height: 180px">
+              <canvas id="inventoryCategoryValueChart"></canvas>
+            </div>
+            <ul class="list-unstyled small mb-0 mt-3 px-2">
+              <li class="d-flex justify-content-between py-2 border-bottom"
+                style="border-color: rgba(226, 232, 240, 0.4) !important;">
+                <span class="text-muted"><i class="bi bi-circle-fill me-2"
+                    style="color: #14b8a6; font-size: 0.6rem;"></i>Spare Parts</span><strong style="color: #1e3a5f;">₱
+                  220k</strong>
+              </li>
+              <li class="d-flex justify-content-between py-2 border-bottom"
+                style="border-color: rgba(226, 232, 240, 0.4) !important;">
+                <span class="text-muted"><i class="bi bi-circle-fill me-2"
+                    style="color: #10b981; font-size: 0.6rem;"></i>Consumables</span><strong style="color: #1e3a5f;">₱
+                  145k</strong>
+              </li>
+              <li class="d-flex justify-content-between py-2">
+                <span class="text-muted"><i class="bi bi-circle-fill me-2"
+                    style="color: #f59e0b; font-size: 0.6rem;"></i>Equipment</span><strong style="color: #1e3a5f;">₱
+                  87k</strong>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100 mb-0">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Stock Aging Distribution</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="inventoryAgingChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Top Consumed Items</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="topConsumedItemsChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI-Powered Insights Section -->
+    <div class="row g-3 mb-4">
+      <div class="col-12" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white" style="border-left: 4px solid #3b82f6;">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">
+              <i class="bi bi-robot me-2 text-primary"></i>AI-Powered Inventory Intelligence
+            </h6>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Schema-Based Analysis</span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div class="row g-4">
+              <!-- Critical Alerts from Database -->
+              <div class="col-lg-4">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                    <strong class="text-dark">Critical Stock Alerts</strong>
+                    <span class="badge bg-danger ms-auto"><%= analytics ? (analytics.lowStockAlerts ? analytics.lowStockAlerts.length : 0) : 0 %></span>
+                  </div>
+                  <% if (analytics && analytics.lowStockAlerts && analytics.lowStockAlerts.length > 0) { %>
+                    <div class="small text-muted mb-0" style="max-height: 100px; overflow-y: auto;">
+                      <% analytics.lowStockAlerts.slice(0, 3).forEach(function(alert) { %>
+                        <div class="d-flex justify-content-between align-items-center mb-1 py-1 border-bottom">
+                          <span><%= alert.name %></span>
+                          <span class="badge <%= alert.quantity === 0 ? 'bg-danger' : 'bg-warning' %>"><%= alert.quantity %>/<%= alert.minStock %></span>
+                        </div>
+                      <% }); %>
+                    </div>
+                  <% } else { %>
+                    <p class="small text-muted mb-0">No critical stock alerts. All inventory levels are within normal range.</p>
+                  <% } %>
+                </div>
+              </div>
+              
+              <!-- Inventory Value Analysis -->
+              <div class="col-lg-4">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-lightbulb-fill text-primary me-2"></i>
+                    <strong class="text-dark">Value Analysis</strong>
+                  </div>
+                  <p class="small text-muted mb-2">
+                    Total Inventory Value: <strong>₱<%= analytics ? analytics.inventoryValue.toLocaleString() : "0" %></strong>
+                  </p>
+                  <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar bg-primary inventory-value-bar" role="progressbar" 
+                         data-value="<%= analytics ? analytics.inventoryValue : 0 %>"></div>
+                  </div>
+                  <p class="small text-muted mb-0">
+                    Cost: ₱<%= analytics ? analytics.inventoryCost.toLocaleString() : "0" %> | 
+                    Margin: <%= analytics ? ((analytics.profitPotential / (analytics.inventoryValue || 1)) * 100).toFixed(1) : "0.0" %>%
+                  </p>
+                </div>
+              </div>
+              
+              <!-- Stock Distribution -->
+              <div class="col-lg-4">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-graph-up-arrow text-success me-2"></i>
+                    <strong class="text-dark">Stock Health</strong>
+                  </div>
+                  <div class="row text-center">
+                    <div class="col-4">
+                      <div class="h5 mb-0 text-success"><%= analytics ? analytics.inStock : 0 %></div>
+                      <small class="text-muted">In Stock</small>
+                    </div>
+                    <div class="col-4">
+                      <div class="h5 mb-0 text-warning"><%= analytics ? analytics.lowStock : 0 %></div>
+                      <small class="text-muted">Low</small>
+                    </div>
+                    <div class="col-4">
+                      <div class="h5 mb-0 text-danger"><%= analytics ? analytics.outOfStock : 0 %></div>
+                      <small class="text-muted">Out</small>
+                    </div>
+                  </div>
+                  <div class="mt-2 pt-2 border-top">
+                    <small class="text-muted">
+                      Tools: <%= analytics ? analytics.toolsInStock : 0 %> in stock, 
+                      <%= analytics ? analytics.toolsLowStock : 0 %> low
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Recommended Actions Based on Real Data -->
+            <div class="mt-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+              <h6 class="fw-bold mb-3" style="color: #1e3a5f;">
+                <i class="bi bi-clipboard-data me-2"></i>AI-Generated Recommendations
+              </h6>
+              <div class="row g-3">
+                <% if (analytics && analytics.lowStockAlerts && analytics.lowStockAlerts.length > 0) { %>
+                  <div class="col-md-6">
+                    <div class="d-flex align-items-start">
+                      <span class="badge bg-danger me-2 mt-1">1</span>
+                      <div>
+                        <strong>Immediate Reorder Required</strong>
+                        <p class="small text-muted mb-0">
+                          <%= analytics.lowStockAlerts.slice(0, 2).map(a => a.name).join(", ") %> 
+                          <%= analytics.lowStockAlerts.length > 2 ? " and " + (analytics.lowStockAlerts.length - 2) + " more items" : "" %> need immediate reordering.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+                
+                <% if (analytics && analytics.outOfStock > 0) { %>
+                  <div class="col-md-6">
+                    <div class="d-flex align-items-start">
+                      <span class="badge bg-warning me-2 mt-1"><%= analytics.lowStockAlerts && analytics.lowStockAlerts.length > 0 ? "2" : "1" %></span>
+                      <div>
+                        <strong>Restock Out-of-Stock Items</strong>
+                        <p class="small text-muted mb-0">
+                          <%= analytics.outOfStock %> products and <%= analytics.toolsOutOfStock %> tools are currently out of stock and unavailable for sale.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+                
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-info me-2 mt-1">
+                      <%= (analytics && analytics.lowStockAlerts && analytics.lowStockAlerts.length > 0 ? 1 : 0) + (analytics && analytics.outOfStock > 0 ? 1 : 0) + 1 %>
+                    </span>
+                    <div>
+                      <strong>Inventory Optimization</strong>
+                      <p class="small text-muted mb-0">
+                        Current margin is <%= analytics ? ((analytics.profitPotential / (analytics.inventoryValue || 1)) * 100).toFixed(1) : "0.0" %>%. 
+                        Consider reviewing pricing strategy for low-margin items.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-success me-2 mt-1">
+                      <%= (analytics && analytics.lowStockAlerts && analytics.lowStockAlerts.length > 0 ? 1 : 0) + (analytics && analytics.outOfStock > 0 ? 1 : 0) + 2 %>
+                    </span>
+                    <div>
+                      <strong>Stock Level Review</strong>
+                      <p class="small text-muted mb-0">
+                        <%= analytics ? Math.round(((analytics.inStock + analytics.toolsInStock) / (analytics.totalProducts + analytics.totalTools)) * 100) : 0 %>% of items are at healthy stock levels.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Additional Analytics Charts -->
+    <div class="row g-3 mb-4">
+      <!-- Tool Usage Analytics -->
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">
+              <i class="bi bi-wrench me-2"></i>Tool Usage Analytics (30 Days)
+            </h6>
+            <span class="badge bg-info-subtle text-info border border-info-subtle">
+              <%= (analytics && analytics.totalToolUsage) ? analytics.totalToolUsage.toLocaleString() : "0" %> items used
+            </span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <% if (analytics && analytics.topUsedTools && analytics.topUsedTools.length > 0) { %>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                  <thead>
+                    <tr>
+                      <th>Tool/Material</th>
+                      <th class="text-end">Quantity Used</th>
+                      <th class="text-end">% of Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% analytics.topUsedTools.forEach(function(tool) { %>
+                      <tr>
+                        <td><%= tool.name %></td>
+                        <td class="text-end fw-bold"><%= tool.quantity.toLocaleString() %></td>
+                        <td class="text-end">
+                          <span class="badge bg-primary-subtle text-primary">
+                            <%= analytics.totalToolUsage > 0 ? Math.round((tool.quantity / analytics.totalToolUsage) * 100) : 0 %>%
+                          </span>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-3 p-2 bg-light rounded">
+                <small class="text-muted">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Total usage value: <strong>₱<%= (analytics && analytics.toolUsageValue) ? analytics.toolUsageValue.toLocaleString() : "0" %></strong>
+                </small>
+              </div>
+            <% } else { %>
+              <div class="text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-2">No tool usage data available for the last 30 days</p>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Stock Turnover Analysis -->
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">
+              <i class="bi bi-arrow-repeat me-2"></i>Stock Turnover Analysis
+            </h6>
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">High Velocity Items</span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <% if (analytics && analytics.stockTurnover && analytics.stockTurnover.length > 0) { %>
+              <div style="height: 220px;">
+                <canvas id="stockTurnoverChart"></canvas>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted">
+                  <i class="bi bi-lightning-charge me-1 text-warning"></i>
+                  Top mover: <strong><%= analytics.stockTurnover[0].name %></strong> 
+                  (<%= analytics.stockTurnover[0].turnoverRate.toFixed(2) %>x turnover)
+                </small>
+              </div>
+            <% } else { %>
+              <div class="text-center py-4 text-muted">
+                <i class="bi bi-graph-down fs-1"></i>
+                <p class="mt-2">Insufficient data for turnover analysis</p>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inventory Health Score & Category Breakdown -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">
+              <i class="bi bi-heart-pulse me-2"></i>Inventory Health Score
+            </h6>
+          </div>
+          <div class="card-body px-4 pb-4 text-center">
+            <div class="position-relative d-inline-block">
+              <canvas id="healthScoreChart" width="180" height="180"></canvas>
+              <div class="position-absolute top-50 start-50 translate-middle text-center">
+                <div class="h2 mb-0 fw-bold" style="color: #1e3a5f;">
+                  <%= analytics ? analytics.inventoryHealthScore : 0 %>
+                </div>
+                <small class="text-muted">/100</small>
+              </div>
+            </div>
+            <div class="mt-3">
+              <% const healthStatus = analytics && analytics.inventoryHealthScore >= 80 ? "Excellent" : 
+                                      analytics && analytics.inventoryHealthScore >= 60 ? "Good" : 
+                                      analytics && analytics.inventoryHealthScore >= 40 ? "Fair" : "Critical"; %>
+              <% const healthColor = analytics && analytics.inventoryHealthScore >= 80 ? "success" : 
+                                     analytics && analytics.inventoryHealthScore >= 60 ? "info" : 
+                                     analytics && analytics.inventoryHealthScore >= 40 ? "warning" : "danger"; %>
+              <span class="badge bg-<%= healthColor %>-subtle text-<%= healthColor %> border border-<%= healthColor %>-subtle fs-6 px-3 py-2">
+                <%= healthStatus %>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Inventory by Type</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 200px">
+              <canvas id="inventoryTypeChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="400">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1e3a5f; font-size: 1.1rem;">Value Distribution</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 200px">
+              <canvas id="valueDistributionChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="inventory-data" type="application/json">
+      {
+        "stockTurnover": <%- JSON.stringify(analytics && analytics.stockTurnover ? analytics.stockTurnover.slice(0, 5).map(t => ({ name: t.name, rate: parseFloat(t.turnoverRate.toFixed(2)) })) : [{name:'Item 1', rate:1.2}, {name:'Item 2', rate:0.9}, {name:'Item 3', rate:0.7}, {name:'Item 4', rate:0.5}, {name:'Item 5', rate:0.3}]) %>,
+        "healthScore": <%= analytics ? analytics.inventoryHealthScore : 0 %>,
+        "typeCounts": <%- JSON.stringify(analytics && analytics.typeCounts ? Object.keys(analytics.typeCounts) : ['Split', 'Window', 'Cassette', 'Floor']) %>,
+        "typeCountValues": <%- JSON.stringify(analytics && analytics.typeCounts ? Object.values(analytics.typeCounts) : [45, 25, 15, 15]) %>,
+        "typeValuesKeys": <%- JSON.stringify(analytics && analytics.typeValues ? Object.keys(analytics.typeValues).slice(0, 5) : ['Type A', 'Type B', 'Type C', 'Type D', 'Type E']) %>,
+        "typeValuesData": <%- JSON.stringify(analytics && analytics.typeValues ? Object.values(analytics.typeValues).slice(0, 5).map(v => Math.round(v / 1000)) : [450, 320, 280, 190, 150]) %>,
+        "totalValue": <%= analytics ? (analytics.totalValue || 0) : 0 %>,
+        "inventoryValue": <%= analytics ? (analytics.inventoryValue || 0) : 0 %>
+      }
+    </script>
+    <script>
+      // @ts-nocheck
+      var inventoryAnalytics = JSON.parse(document.getElementById('inventory-data').textContent);
+
+      (function () {
+        if (typeof Chart === "undefined") return;
+
+        var movementCtx = document.getElementById("inventoryMovementChart");
+        if (movementCtx) {
+          var gradientInbound = movementCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientInbound.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); // emerald
+          gradientInbound.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
+
+          var gradientOutbound = movementCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientOutbound.addColorStop(0, 'rgba(239, 68, 68, 0.4)'); // red
+          gradientOutbound.addColorStop(1, 'rgba(239, 68, 68, 0.05)');
+
+          new Chart(movementCtx, {
+            type: "line",
+            data: {
+              labels: ["W1", "W2", "W3", "W4", "W5", "W6"],
+              datasets: [
+                {
+                  label: "Inbound",
+                  data: [180, 220, 205, 240, 265, 250],
+                  borderColor: "#10b981",
+                  backgroundColor: gradientInbound,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#10b981",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+                {
+                  label: "Outbound",
+                  data: [140, 155, 168, 175, 190, 201],
+                  borderColor: "#ef4444",
+                  backgroundColor: gradientOutbound,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#ef4444",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 2000, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 100 },
+              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
+              },
+            },
+          });
+        }
+
+        var categoryCtx = document.getElementById("inventoryCategoryValueChart");
+        if (categoryCtx) {
+          new Chart(categoryCtx, {
+            type: "bar",
+            data: {
+              labels: ["Parts", "Consumables", "Equipment"],
+              datasets: [
+                {
+                  data: [220, 145, 87],
+                  backgroundColor: ["#14b8a6", "#10b981", "#f59e0b"],
+                  borderRadius: 6,
+                  barThickness: 24,
+                },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 1800, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 150 },
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
+              },
+            },
+          });
+        }
+
+        var agingCtx = document.getElementById("inventoryAgingChart");
+        if (agingCtx) {
+          new Chart(agingCtx, {
+            type: "bar",
+            data: {
+              labels: ["Parts", "Consumables", "Equipment"],
+              datasets: [
+                { label: "<30d", data: [60, 45, 20], backgroundColor: "#10b981", borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 4, bottomRight: 4 } },
+                {
+                  label: "31-90d",
+                  data: [28, 22, 12],
+                  backgroundColor: "#f59e0b",
+                  borderRadius: 0,
+                },
+                { label: ">90d", data: [10, 8, 5], backgroundColor: "#ef4444", borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 } },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 1800, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 150 },
+              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
+              scales: {
+                x: { stacked: true, grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { stacked: true, grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
+              },
+            },
+          });
+        }
+
+        // Additional enterprise charts
+        var turnoverCtx = document.getElementById("turnoverByCategoryChart");
+        if (turnoverCtx) {
+          new Chart(turnoverCtx, {
+            type: "radar",
+            data: {
+              labels: ["Parts", "Consumables", "Equipment", "Tools", "Safety"],
+              datasets: [{
+                label: "Turnover Rate",
+                data: [4.2, 6.8, 2.1, 3.5, 5.2],
+                backgroundColor: "rgba(59, 130, 246, 0.2)",
+                borderColor: "#3b82f6",
+                borderWidth: 2,
+                pointBackgroundColor: "#3b82f6",
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                r: {
+                  beginAtZero: true,
+                  max: 8,
+                  ticks: { display: false },
+                  grid: { color: "rgba(0,0,0,0.1)" }
+                }
+              }
+            }
+          });
+        }
+
+        var stockoutCtx = document.getElementById("stockoutFrequencyChart");
+        if (stockoutCtx) {
+          new Chart(stockoutCtx, {
+            type: "line",
+            data: {
+              labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+              datasets: [{
+                label: "Stockouts",
+                data: [5, 3, 7, 4, 2, 3],
+                borderColor: "#ef4444",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { display: false } },
+                y: { grid: { color: "#e5e7eb" }, beginAtZero: true }
+              }
+            }
+          });
+        }
+
+        var carryingCtx = document.getElementById("carryingCostChart");
+        if (carryingCtx) {
+          new Chart(carryingCtx, {
+            type: "doughnut",
+            data: {
+              labels: ["Storage", "Insurance", "Depreciation", "Capital"],
+              datasets: [{
+                data: [35, 15, 25, 25],
+                backgroundColor: ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              cutout: "60%",
+              plugins: {
+                legend: { position: "right", labels: { boxWidth: 12, font: { size: 10 } } }
+              }
+            }
+          });
+        }
+
+        var consumedCtx = document.getElementById("topConsumedItemsChart");
+        if (consumedCtx) {
+          new Chart(consumedCtx, {
+            type: "bar",
+            data: {
+              labels: [
+                "R-32 Gas",
+                "Capacitor 45uF",
+                "Copper Tube",
+                "Sealant",
+                "Filter Drier",
+              ],
+              datasets: [
+                {
+                  label: "Units",
+                  data: [96, 74, 69, 55, 41],
+                  backgroundColor: "#14b8a6",
+                  borderRadius: 6,
+                  barThickness: 16,
+                },
+              ],
+            },
+            options: {
+              indexAxis: "y",
+              maintainAspectRatio: false,
+              animation: { duration: 1800, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 150 },
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
+              },
+            },
+          });
+        }
+
+        // New Enterprise Charts - Stock Turnover Analysis
+        var turnoverCtx = document.getElementById("stockTurnoverChart");
+        if (turnoverCtx && inventoryAnalytics.stockTurnover.length > 0) {
+          new Chart(turnoverCtx, {
+            type: "bar",
+            data: {
+              labels: inventoryAnalytics.stockTurnover.map(function(t) { return t.name; }),
+              datasets: [{
+                label: "Turnover Rate",
+                data: inventoryAnalytics.stockTurnover.map(function(t) { return t.rate; }),
+                backgroundColor: ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444"],
+                borderRadius: 6,
+                barThickness: 20
+              }]
+            },
+            options: {
+              indexAxis: "y",
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { grid: { color: '#e5e7eb' }, ticks: { color: '#6b7280' } },
+                y: { grid: { display: false }, ticks: { color: '#374151', font: { size: 11 } } }
+              }
+            }
+          });
+        }
+
+        // Inventory Health Score Chart
+        var healthCtx = document.getElementById("healthScoreChart");
+        if (healthCtx) {
+          var healthScore = inventoryAnalytics.healthScore;
+          new Chart(healthCtx, {
+            type: "doughnut",
+            data: {
+              labels: ["Healthy", "At Risk"],
+              datasets: [{
+                data: [healthScore, 100 - healthScore],
+                backgroundColor: [healthScore >= 60 ? "#10b981" : healthScore >= 40 ? "#f59e0b" : "#ef4444", "#e5e7eb"],
+                borderWidth: 0,
+                cutout: "75%"
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+          });
+        }
+
+        // Inventory Type Distribution
+        var typeCtx = document.getElementById("inventoryTypeChart");
+        if (typeCtx) {
+          new Chart(typeCtx, {
+            type: "doughnut",
+            data: {
+              labels: inventoryAnalytics.typeCounts,
+              datasets: [{
+                data: inventoryAnalytics.typeCountValues,
+                backgroundColor: ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"],
+                borderWidth: 2,
+                borderColor: "#fff"
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              cutout: "50%",
+              plugins: {
+                legend: { position: "right", labels: { boxWidth: 12, font: { size: 10 } } }
+              }
+            }
+          });
+        }
+
+        // Value Distribution Chart
+        var valueCtx = document.getElementById("valueDistributionChart");
+        if (valueCtx) {
+          new Chart(valueCtx, {
+            type: "polarArea",
+            data: {
+              labels: inventoryAnalytics.typeValuesKeys,
+              datasets: [{
+                data: inventoryAnalytics.typeValuesData,
+                backgroundColor: ["rgba(59, 130, 246, 0.7)", "rgba(16, 185, 129, 0.7)", "rgba(245, 158, 11, 0.7)", "rgba(139, 92, 246, 0.7)", "rgba(236, 72, 153, 0.7)"],
+                borderWidth: 1
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: "right", labels: { boxWidth: 10, font: { size: 10 } } }
+              },
+              scales: {
+                r: { grid: { color: "#e5e7eb" }, ticks: { display: false } }
+              }
+            }
+          });
+        }
+
+        // Initialize progress bars with data attributes
+        document.querySelectorAll('.inventory-value-bar').forEach(function(bar) {
+          var value = parseFloat(bar.getAttribute('data-value')) || 0;
+          var maxValue = 10000000;
+          var width = Math.min((value / maxValue) * 100, 100);
+          bar.style.width = width + '%';
+        });
+
+        // draw small wave sparklines inside the KPI cards
+        function createSparkline(id, data, color) {
+          var c = document.getElementById(id);
+          if (!c) return null;
+          var ctx = c.getContext('2d');
+          var height = c.height || c.offsetHeight || 50;
+          var grad = ctx.createLinearGradient(0, 0, 0, height);
+          grad.addColorStop(0, color);
+          grad.addColorStop(1, 'rgba(255,255,255,0)');
+          return new Chart(c, {
+            type: 'line',
+            data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: grad, fill: true, tension: 0.35 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, elements: { point: { radius: 0 } }, scales: { x: { display: false }, y: { display: false } } }
+          });
+        }
+        var invBase = [25, 30, 28, 35, 40, 38, 42];
+        createSparkline('invSparkSKUs', invBase, '#0d6efd');
+        createSparkline('invSparkTurnover', invBase.map(v => Math.round(v * 0.3)), '#3b82f6');
+        createSparkline('invSparkLowstock', [2, 3, 1, 4, 2, 3, 2], '#dc3545');
+        createSparkline('invSparkStockout', [1, 0, 2, 1, 1, 0, 3], '#f59e0b');
+      })();
+    </script>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="mb-0 fw-bold">Reorder Intelligence</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-4">Item</th>
+              <th>Current Stock</th>
+              <th>Reorder Point</th>
+              <th>Avg Daily Use</th>
+              <th>Days Remaining</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ps-4 fw-semibold">R-32 Refrigerant</td>
+              <td>12</td>
+              <td>20</td>
+              <td>2.1</td>
+              <td>6 days</td>
+              <td>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">High</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-4 fw-semibold">Compressor Capacitor 45uF</td>
+              <td>28</td>
+              <td>25</td>
+              <td>1.3</td>
+              <td>21 days</td>
+              <td>
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Medium</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="ps-4 fw-semibold">Copper Tube 1/2</td>
+              <td>90</td>
+              <td>50</td>
+              <td>2.8</td>
+              <td>32 days</td>
+              <td>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">Stable</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+</div>
+<!-- end admin-dashboard container -->
+
+
+
+

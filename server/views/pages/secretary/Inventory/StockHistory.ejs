@@ -1,0 +1,265 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-bar-chart-line me-2"></i>Stock Movement History
+        </h1>
+        <p class="hero-sub">
+          Audit trail of all inventory transactions (In, Out, Adjustments)
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-row mb-4">
+    <div class="kpi-card kpi-success" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Replenished Today</div>
+          <div class="kpi-value">120</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-plus-circle-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-primary" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Used in Jobs (Today)</div>
+          <div class="kpi-value">35</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-box-arrow-up-right"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-warning" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Adjustments (Loss/Dmg)</div>
+          <div class="kpi-value">2</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-exclamation-triangle-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+    <div class="kpi-card kpi-purple" role="region">
+      <div class="kpi-header">
+        <div class="kpi-text">
+          <div class="kpi-label">Active Users Today</div>
+          <div class="kpi-value">8</div>
+        </div>
+        <div class="kpi-icon" aria-hidden><i class="bi bi-people-fill"></i></div>
+      </div>
+      <div class="kpi-micro mt-2"></div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Search by Item, SKU or Reference #..."
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Transaction Type</label
+          >
+          <select class="form-select">
+            <option value="all">All Types</option>
+            <option value="in">New Stock (In)</option>
+            <option value="out">Used / Sold (Out)</option>
+            <option value="adj">Adjustment / Correction</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Date Range</label
+          >
+          <input type="date" class="form-control" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light w-100 border">
+            <i class="bi bi-arrow-repeat me-2"></i>Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Table -->
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Recent Transactions</h6>
+      <span class="text-muted small fw-normal">Live Feed</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Date & Time</th>
+            <th>Item Details</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Reference / Notes</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Transaction 1: Restock (IN) -->
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">Feb 20, 2024</div>
+              <div class="text-muted text-micro">10:45 AM</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="p-1 border rounded bg-light me-2">
+                  <i class="bi bi-box-seam text-secondary"></i>
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">R-32 Refrigerant</div>
+                  <div class="text-muted text-micro font-monospace">GAS-R32-11K</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge bg-success-subtle text-success border border-success-subtle rounded-pill"
+                ><i class="bi bi-arrow-down-circle me-1"></i>Stock In</span
+              >
+            </td>
+            <td><span class="fw-bold text-success">+10</span></td>
+            <td>
+              <div class="text-dark text-micro">Purchase Order #PO-992</div>
+              <div class="text-muted text-micro">Supplier: CoolAir Parts Inc.</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-secondary text-white text-micro d-flex align-items-center justify-content-center me-2"
+                  style="width: 24px; height: 24px"
+                >
+                  AD
+                </div>
+                <span class="text-muted text-micro">Admin</span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Transaction 2: Usage (OUT) -->
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">Feb 19, 2024</div>
+              <div class="text-muted text-micro">03:15 PM</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="p-1 border rounded bg-light me-2">
+                  <i class="bi bi-fan text-secondary"></i>
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">Capacitor 45uF</div>
+                  <div class="text-muted text-micro font-monospace">ELEC-CAP-45</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill"
+                ><i class="bi bi-arrow-up-circle me-1"></i>Usage</span
+              >
+            </td>
+            <td><span class="fw-bold text-danger">-1</span></td>
+            <td>
+              <div class="text-dark text-micro">Assigned to Job #JOB-2024-001</div>
+              <div class="text-muted text-micro">Tech: Mike Ross</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-info text-white text-micro d-flex align-items-center justify-content-center me-2"
+                  style="width: 24px; height: 24px"
+                >
+                  SC
+                </div>
+                <span class="text-muted text-micro">Secretary</span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Transaction 3: Adjustment -->
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">Feb 18, 2024</div>
+              <div class="text-muted text-micro">09:00 AM</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="p-1 border rounded bg-light me-2">
+                  <i class="bi bi-tools text-secondary"></i>
+                </div>
+                <div>
+                  <div class="fw-bold text-dark">Cleaning Bag (Large)</div>
+                  <div class="text-muted text-micro font-monospace">TOOL-BAG-L</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill"
+                ><i class="bi bi-exclamation-circle me-1"></i>Adjust</span
+              >
+            </td>
+            <td><span class="fw-bold text-danger">-1</span></td>
+            <td>
+              <div class="text-dark text-micro">Damaged during transport</div>
+              <div class="text-muted text-micro">Written off</div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div
+                  class="avatar-sm rounded-circle bg-secondary text-white text-micro d-flex align-items-center justify-content-center me-2"
+                  style="width: 24px; height: 24px"
+                >
+                  AD
+                </div>
+                <span class="text-muted text-micro">Admin</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm justify-content-end mb-0">
+          <li class="page-item disabled">
+            <a class="page-link" href="#">Previous</a>
+          </li>
+          <li class="page-item active"><a class="page-link" href="#">1</a></li>
+          <li class="page-item"><a class="page-link" href="#">2</a></li>
+          <li class="page-item"><a class="page-link" href="#">Next</a></li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+</div>

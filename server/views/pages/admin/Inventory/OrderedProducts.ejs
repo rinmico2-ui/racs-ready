@@ -1,0 +1,106 @@
+<div class="admin-dashboard container-fluid py-4 ordered-products-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-bag-check"></i></div>
+        <div>
+          <h1>Ordered Products</h1>
+          <p>List of products customers have ordered through the online store.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              id="ordersSearch"
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Order ID, product name, customer"
+            />
+          </div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Date</label
+          >
+          <input type="date" class="form-control" id="ordersDateFilter" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light border w-100" id="ordersFilterBtn">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold">Customer Orders</h6>
+      <span class="text-muted small">Connected to inventory/products</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Order #</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Date</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ordersTableBody">
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">Loading orders...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <ul class="pagination justify-content-end mb-0">
+        <li class="page-item disabled">
+          <a class="page-link" href="#">Previous</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">Next</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- details modal (optional) -->
+<div class="modal fade" id="orderDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header border-0 text-white" style="background:linear-gradient(135deg,#2ec4b6,#1a8f85);padding:26px 26px 18px;">
+        <h5 class="modal-title" id="orderDetailsTitle">Order details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4" id="orderDetailsBody">
+        <!-- filled by script -->
+        <p class="text-center text-muted">Loading...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin-ordered-products.js"></script>

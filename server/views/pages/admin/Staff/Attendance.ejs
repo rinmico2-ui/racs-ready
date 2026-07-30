@@ -1,0 +1,540 @@
+<script src="/js/qrcode.min.js"></script>
+
+<div class="admin-dashboard container-fluid py-4 staff-attendance-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═══════════════════════════════════════════
+       ATTENDANCE SETTINGS — Premium Light-Blue Theme
+       ═══════════════════════════════════════════ */
+    .staff-attendance-page {
+      --ss-primary: #0ea5e9;
+      --ss-primary-dark: #0284c7;
+      --ss-primary-deeper: #0369a1;
+      --ss-accent: #38bdf8;
+      --ss-light: #e0f2fe;
+      --ss-pale: #f0f9ff;
+      --ss-text: #0c4a6e;
+      --ss-muted: #94a3b8;
+      --ss-border: #e2e8f0;
+      --ss-radius: 16px;
+      --ss-shadow: 0 4px 6px -1px rgba(14,165,233,0.07), 0 2px 4px -2px rgba(14,165,233,0.04);
+      --ss-shadow-hover: 0 10px 25px -5px rgba(14,165,233,0.12), 0 4px 6px -4px rgba(14,165,233,0.06);
+    }
+
+    .staff-attendance-page .dashboard-hero .hero-sub { color: var(--ss-muted); }
+
+    /* Cards */
+    .staff-attendance-page .ss-card {
+      background: var(--ss-pale);
+      border: 1px solid var(--ss-border);
+      border-radius: var(--ss-radius);
+      box-shadow: var(--ss-shadow);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .staff-attendance-page .ss-card:hover {
+      transform: translateY(-2px); box-shadow: var(--ss-shadow-hover);
+    }
+    .staff-attendance-page .ss-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .staff-attendance-page .ss-card-head .ch-title-wrap {
+      display: flex; align-items: center; gap: 0.55rem;
+    }
+    .staff-attendance-page .ss-card-head .ch-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; color: #fff; flex-shrink: 0;
+    }
+    .staff-attendance-page .ch-icon.sky { background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent)); box-shadow: 0 3px 10px rgba(14,165,233,0.25); }
+    .staff-attendance-page .ch-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 3px 10px rgba(5,150,105,0.25); }
+    .staff-attendance-page .ch-icon.purple { background: linear-gradient(135deg, #7c3aed, #a78bfa); box-shadow: 0 3px 10px rgba(124,58,237,0.25); }
+    
+    .staff-attendance-page .ss-card-head h3 {
+      font-size: 0.92rem; font-weight: 700 !important;
+      color: var(--ss-text); margin: 0; font-family: 'Outfit', sans-serif;
+    }
+    .staff-attendance-page .ss-card-body {
+      padding: 1.25rem; background: #fff;
+    }
+
+    /* Buttons */
+    .staff-attendance-page .btn-ss {
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-weight: 600 !important; font-size: 0.82rem;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: all 0.25s ease; border: none; cursor: pointer;
+      text-decoration: none;
+    }
+    .staff-attendance-page .btn-ss.primary {
+      background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent));
+      color: #fff; box-shadow: 0 4px 14px rgba(14,165,233,0.3);
+    }
+    .staff-attendance-page .btn-ss.primary:hover {
+      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(14,165,233,0.35);
+      color: #fff;
+    }
+    .staff-attendance-page .btn-ss.outline {
+      background: #fff; color: var(--ss-text);
+      border: 1.5px solid var(--ss-border);
+    }
+    .staff-attendance-page .btn-ss.outline:hover {
+      border-color: var(--ss-primary); color: var(--ss-primary);
+      background: var(--ss-pale); transform: translateY(-1px);
+    }
+
+    /* Stats Grid */
+    .staff-attendance-page .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .staff-attendance-page .stat-box {
+      padding: 1rem;
+      border-radius: 12px;
+      background: var(--ss-pale);
+      border: 1px solid var(--ss-border);
+      text-align: center;
+    }
+    .staff-attendance-page .stat-num {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--ss-text);
+      line-height: 1.2;
+    }
+    .staff-attendance-page .stat-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--ss-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Badges */
+    .staff-attendance-page .status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.30rem;
+    }
+    .staff-attendance-page .badge-present { background: rgba(16, 185, 129, 0.12); color: #059669; }
+    .staff-attendance-page .badge-late { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+    .staff-attendance-page .badge-absent { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+    .staff-attendance-page .badge-leave { background: rgba(99, 102, 241, 0.12); color: #4f46e5; }
+    .staff-attendance-page .badge-half { background: rgba(107, 114, 128, 0.12); color: #4b5563; }
+
+    .staff-attendance-page .availability-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.30rem;
+    }
+    .staff-attendance-page .badge-avail { background: rgba(16, 185, 129, 0.12); color: #059669; }
+    .staff-attendance-page .badge-offline { background: rgba(107, 114, 128, 0.12); color: #4b5563; }
+    .staff-attendance-page .badge-assigned { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+    .staff-attendance-page .badge-otw { background: rgba(99, 102, 241, 0.12); color: #4f46e5; }
+    .staff-attendance-page .badge-progress { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
+    .staff-attendance-page .badge-unavail { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+
+    /* Custom select style */
+    .staff-attendance-page .action-select {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--ss-border);
+      background-color: #fff;
+      color: var(--ss-text);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .staff-attendance-page .action-select:focus {
+      border-color: var(--ss-primary);
+    }
+  </style>
+
+  <!-- ═══ HERO ═══ -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-qr-code-scan"></i></div>
+        <div>
+          <h1>Technician Attendance</h1>
+          <p>Generate today's attendance QR code, view daily stats, and manually override check-ins.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- ═══ LEFT COLUMN: QR Code ═══ -->
+    <div class="col-lg-5">
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-title-wrap">
+            <div class="ch-icon sky"><i class="bi bi-qr-code"></i></div>
+            <h3>Daily Attendance QR</h3>
+          </div>
+          <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Regenerate</button>
+        </div>
+        <div class="ss-card-body text-center py-4">
+          <h5 class="text-secondary mb-1" id="lblTodayDate">-- -- --</h5>
+          <p class="text-muted small mb-4">Technicians scan this code after login to check in.</p>
+          
+          <div class="d-inline-block p-3 bg-white border rounded-3 mb-4 shadow-sm" style="min-height: 250px;">
+            <img id="imgQrCode" alt="Daily Attendance QR Code" style="width: 220px; height: 220px; display: none;" />
+            <div id="qrLoading" class="d-flex flex-column align-items-center justify-content-center" style="width: 220px; height: 220px;">
+              <div class="spinner-border text-sky" role="status"></div>
+              <span class="mt-2 text-muted small">Generating Token...</span>
+            </div>
+          </div>
+          
+          <div class="alert alert-info py-2 px-3 small text-start mx-auto mb-0" style="max-width: 320px;">
+            <i class="bi bi-info-circle me-1"></i> Cutoff time is <strong>9:00 AM</strong>. Scans after 9:00 AM will be automatically marked as <strong>Late</strong>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ RIGHT COLUMN: Statistics ═══ -->
+    <div class="col-lg-7">
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-title-wrap">
+            <div class="ch-icon emerald"><i class="bi bi-bar-chart-line"></i></div>
+            <h3>Today's Attendance Statistics</h3>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div class="stats-grid mb-3">
+            <div class="stat-box">
+              <div class="stat-num" id="statTotal">0</div>
+              <div class="stat-label">Total Staff</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num text-success" id="statPresent">0</div>
+              <div class="stat-label">Present</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num text-warning" id="statLate">0</div>
+              <div class="stat-label">Late</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num text-danger" id="statAbsent">0</div>
+              <div class="stat-label">Absent</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num text-primary" id="statLeave">0</div>
+              <div class="stat-label">On Leave</div>
+            </div>
+            <div class="stat-box text-secondary">
+              <div class="stat-num" id="statHalf">0</div>
+              <div class="stat-label">Checked Out</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FULL WIDTH: TODAY'S LOG ═══ -->
+  <div class="ss-card">
+    <div class="ss-card-head">
+      <div class="ch-title-wrap">
+        <div class="ch-icon purple"><i class="bi bi-people"></i></div>
+        <h3>Today's Roster & Check-ins</h3>
+      </div>
+    </div>
+    <div class="ss-card-body p-0">
+      <div class="table-responsive">
+        <table class="table align-middle table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Technician</th>
+              <th>Email</th>
+              <th>Attendance Status</th>
+              <th>Availability Status</th>
+              <th>Check-in Time</th>
+              <th>Method</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tblRosterBody">
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm text-sky me-2" role="status"></div>
+                Loading roster...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const lblTodayDate = document.getElementById("lblTodayDate");
+    const imgQrCode = document.getElementById("imgQrCode");
+    const qrLoading = document.getElementById("qrLoading");
+    const btnRegenerate = document.getElementById("btnRegenerate");
+    const tblRosterBody = document.getElementById("tblRosterBody");
+
+    // Stat boxes
+    const statTotal = document.getElementById("statTotal");
+    const statPresent = document.getElementById("statPresent");
+    const statLate = document.getElementById("statLate");
+    const statAbsent = document.getElementById("statAbsent");
+    const statLeave = document.getElementById("statLeave");
+    const statHalf = document.getElementById("statHalf");
+
+    // Format local date header
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    lblTodayDate.textContent = new Date().toLocaleDateString(undefined, options);
+
+    // Helper to dynamically load external scripts
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        if (typeof QRCode !== "undefined") return resolve();
+        
+        // Check if script tag is already in document
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+          existing.addEventListener("load", () => resolve());
+          existing.addEventListener("error", (e) => reject(e));
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load QRCode library script. Check your internet connection or Content Security Policy."));
+        document.head.appendChild(script);
+      });
+    }
+
+    // Load QR code token
+    async function loadQrToken() {
+      try {
+        qrLoading.classList.replace("d-none", "d-flex");
+        if (!qrLoading.classList.contains("d-flex")) qrLoading.classList.add("d-flex");
+        imgQrCode.style.display = "none";
+        
+        const res = await fetch("/api/admin/attendance/qr-token");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        
+        if (data.qrImage) {
+          imgQrCode.src = data.qrImage;
+          qrLoading.classList.replace("d-flex", "d-none");
+          imgQrCode.style.display = "inline";
+        } else {
+          throw new Error("No QR image returned from server.");
+        }
+      } catch (err) {
+        console.error("loadQrToken error:", err);
+        alert("Failed to load QR code token: " + err.message);
+      }
+    }
+
+    // Regenerate QR Code token
+    btnRegenerate.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to regenerate today's QR Code? Previous QR codes scanned today will still have checked-in status, but future scans must use the new code.")) return;
+      try {
+        qrLoading.classList.replace("d-none", "d-flex");
+        if (!qrLoading.classList.contains("d-flex")) qrLoading.classList.add("d-flex");
+        imgQrCode.style.display = "none";
+        
+        const res = await fetch("/api/admin/attendance/regenerate-token", { method: "POST" });
+        if (!res.ok) throw new Error("Failed to regenerate token");
+        
+        await loadQrToken();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to regenerate token.");
+      }
+    });
+
+    // Load today's roster and check-ins
+    async function loadRoster() {
+      try {
+        const res = await fetch("/api/admin/attendance/today");
+        if (!res.ok) throw new Error("Failed to load today's attendance logs");
+        
+        const roster = await res.json();
+        renderRoster(roster);
+      } catch (err) {
+        console.error(err);
+        tblRosterBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to load roster.</td></tr>`;
+      }
+    }
+
+    // Render table and stats
+    function renderRoster(roster) {
+      if (!roster || roster.length === 0) {
+        tblRosterBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No technicians registered in the system.</td></tr>`;
+        return;
+      }
+
+      // Calculate stats
+      let total = roster.length;
+      let present = 0;
+      let late = 0;
+      let absent = 0;
+      let leave = 0;
+      let checkedOutCount = 0;
+
+      let html = "";
+      roster.forEach(tech => {
+        // Increment stats
+        switch(tech.attendanceStatus) {
+          case "Present": present++; break;
+          case "Late": late++; break;
+          case "Absent": absent++; break;
+          case "On Leave":
+          case "Sick Leave": leave++; break;
+          case "Checked Out": checkedOutCount++; break;
+        }
+
+        // Badges
+        let attBadgeClass = "badge-absent";
+        if (tech.attendanceStatus === "Present") attBadgeClass = "badge-present";
+        else if (tech.attendanceStatus === "Late") attBadgeClass = "badge-late";
+        else if (["On Leave", "Sick Leave"].includes(tech.attendanceStatus)) attBadgeClass = "badge-leave";
+        else if (tech.attendanceStatus === "Checked Out") attBadgeClass = "badge-half";
+
+        let availBadgeClass = "badge-offline";
+        if (tech.availabilityStatus === "Available") availBadgeClass = "badge-avail";
+        else if (tech.availabilityStatus === "Assigned") availBadgeClass = "badge-assigned";
+        else if (tech.availabilityStatus === "On The Way") availBadgeClass = "badge-otw";
+        else if (tech.availabilityStatus === "In Progress") availBadgeClass = "badge-progress";
+        else if (tech.availabilityStatus === "Unavailable") availBadgeClass = "badge-unavail";
+
+        // Check-in Time
+        const checkInStr = tech.checkInTime 
+          ? new Date(tech.checkInTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+          : "—";
+
+        // Check-out Time
+        const checkOutStr = tech.checkOutTime 
+          ? new Date(tech.checkOutTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+          : "";
+
+        const timeDisplay = checkOutStr ? `${checkInStr} / ${checkOutStr}` : checkInStr;
+
+        // Method label
+        const methodStr = tech.method === "qr_scan" 
+          ? '<span class="text-success"><i class="bi bi-qr-code"></i> Scan</span>'
+          : tech.method === "manual"
+          ? '<span class="text-primary"><i class="bi bi-pencil-square"></i> Manual</span>'
+          : "—";
+
+        html += `
+          <tr>
+            <td class="ps-4 fw-semibold">${tech.name}</td>
+            <td class="text-muted small">${tech.email || "—"}</td>
+            <td>
+              <span class="status-badge ${attBadgeClass}">${tech.attendanceStatus}</span>
+            </td>
+            <td>
+              <span class="availability-badge ${availBadgeClass}">${tech.availabilityStatus}</span>
+            </td>
+            <td>${timeDisplay}</td>
+            <td>${methodStr}</td>
+            <td class="text-end pe-4">
+              <div class="d-inline-flex gap-1 align-items-center">
+                <select class="action-select attendance-select" data-tech-id="${tech.technicianId}">
+                  <option value="" disabled selected>Mark Attendance...</option>
+                  <option value="Present" ${tech.attendanceStatus === "Present" ? "disabled" : ""}>Present</option>
+                  <option value="Late" ${tech.attendanceStatus === "Late" ? "disabled" : ""}>Late</option>
+                  <option value="Absent" ${tech.attendanceStatus === "Absent" ? "disabled" : ""}>Absent</option>
+                  <option value="On Leave" ${tech.attendanceStatus === "On Leave" ? "disabled" : ""}>On Leave</option>
+                  <option value="Sick Leave" ${tech.attendanceStatus === "Sick Leave" ? "disabled" : ""}>Sick Leave</option>
+                  <option value="Checked Out" ${tech.attendanceStatus === "Checked Out" ? "disabled" : ""}>Checked Out</option>
+                </select>
+
+                <select class="action-select availability-select" data-tech-id="${tech.technicianId}">
+                  <option value="" disabled selected>Set Availability...</option>
+                  <option value="Offline" ${tech.availabilityStatus === "Offline" ? "disabled" : ""}>Offline</option>
+                  <option value="Available" ${tech.availabilityStatus === "Available" ? "disabled" : ""}>Available</option>
+                  <option value="Assigned" ${tech.availabilityStatus === "Assigned" ? "disabled" : ""}>Assigned</option>
+                  <option value="On The Way" ${tech.availabilityStatus === "On The Way" ? "disabled" : ""}>On The Way</option>
+                  <option value="In Progress" ${tech.availabilityStatus === "In Progress" ? "disabled" : ""}>In Progress</option>
+                  <option value="Unavailable" ${tech.availabilityStatus === "Unavailable" ? "disabled" : ""}>Unavailable</option>
+                </select>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      tblRosterBody.innerHTML = html;
+
+      // Update counters
+      statTotal.textContent = total;
+      statPresent.textContent = present;
+      statLate.textContent = late;
+      statAbsent.textContent = absent;
+      statLeave.textContent = leave;
+      statHalf.textContent = checkedOutCount;
+
+      // Attach event listeners for updates
+      document.querySelectorAll(".attendance-select").forEach(select => {
+        select.addEventListener("change", async (e) => {
+          const techId = e.target.getAttribute("data-tech-id");
+          const status = e.target.value;
+          await updateTechnician(techId, { status });
+        });
+      });
+
+      document.querySelectorAll(".availability-select").forEach(select => {
+        select.addEventListener("change", async (e) => {
+          const techId = e.target.getAttribute("data-tech-id");
+          const availabilityStatus = e.target.value;
+          await updateTechnician(techId, { availabilityStatus });
+        });
+      });
+    }
+
+    // Call API to update status
+    async function updateTechnician(techId, body) {
+      try {
+        const res = await fetch(`/api/admin/attendance/${techId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error("Failed to update status");
+
+        // Reload data
+        await loadRoster();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to update technician status.");
+      }
+    }
+
+    // Initialize
+    loadQrToken();
+    loadRoster();
+  });
+</script>

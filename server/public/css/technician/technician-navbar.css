@@ -1,0 +1,81 @@
+/* Technician Navbar Responsive Behavior */
+
+/*
+ * The <nav id="technicianNavbar"> is a normal flow child of .admin-topbar.
+ * We override .admin-topbar to be full-width (left: 0) at ALL screen sizes
+ * so the navbar spans edge-to-edge. The sidebar sits on top (z-index: 1000).
+ */
+
+/* ── All screen sizes: full-width topbar ── */
+.technician-layout .admin-topbar {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+}
+
+#technicianNavbar {
+  width: 100% !important;
+}
+
+/* ── Mobile sidebar backdrop ── */
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-backdrop.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* On mobile, content has no sidebar offset */
+@media (max-width: 767px) {
+  .admin-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding-top: 56px !important;
+  }
+
+  /* Mobile sidebar positioning */
+  .technician-layout .admin-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh !important;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Force sidebar visible when .open is toggled (override any specificity conflicts) */
+  .technician-layout .admin-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  /*
+   * sidebaradmin.css sets overflow-x: hidden + overflow-y: auto on 
+   * .admin-sidebar .sidebar. The inner .sidebar has padding (16px right),
+   * so the scrollbar appears pushed inward (centered). 
+   * 
+   * We set overflow: visible on the inner .sidebar so the scrollbar moves
+   * to the outer .admin-sidebar (which already has overflow-y: auto from
+   * admin.css) and sits at the right edge.
+   * 
+   * Note: setting only overflow-y: visible when overflow-x is hidden causes
+   * the browser to override visible → auto per CSS spec (incompatible combo).
+   * Both axes must be visible to suppress the inner scroll container.
+   */
+  .technician-layout .admin-sidebar .sidebar {
+    overflow: visible !important;
+  }
+}

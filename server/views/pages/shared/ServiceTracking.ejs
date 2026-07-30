@@ -1,0 +1,249 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../partials/dashboard-styles') %>
+  <style>
+    .dash-card {
+      border: none !important;
+      border-radius: 16px !important;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07), 0 2px 6px rgba(2,6,23,0.03) !important;
+      border: 1px solid rgba(0,0,0,0.05) !important;
+      transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+    .dash-card:hover {
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.09), 0 4px 10px rgba(2,6,23,0.05) !important;
+    }
+    .card-header-custom {
+      padding: 16px 20px !important;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+      border-bottom: 2px solid rgba(0,0,0,0.04) !important;
+    }
+    .card-header-custom h6 {
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      color: #0f172a !important;
+    }
+    /* KPI rows handled by kpi-cards partial and dashboard-styles */
+    .kpi-card-enterprise {
+      border: none;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07), 0 2px 6px rgba(2,6,23,0.03);
+      transition: all 0.3s ease;
+      overflow: hidden;
+      position: relative;
+    }
+    .kpi-card-enterprise:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.09), 0 4px 10px rgba(2,6,23,0.05);
+    }
+
+    /* Advanced filters layout fixes */
+    .filter-section-enterprise {
+      background: #fff;
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 14px;
+      box-shadow: 0 8px 22px rgba(15,23,42,0.08);
+      padding: 1rem 1rem 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .filter-section-enterprise .filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .filter-section-enterprise .form-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      color: #475569;
+      text-transform: uppercase;
+      margin-bottom: 0.3rem;
+      font-weight: 600;
+    }
+    .filter-section-enterprise .form-control,
+    .filter-section-enterprise .form-select,
+    .filter-section-enterprise .input-group-text {
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background: #f8fafc;
+    }
+    .filter-section-enterprise .input-group {
+      width: 100%;
+    }
+    .filter-section-enterprise .input-group .form-control {
+      border-left: 0;
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+    .filter-section-enterprise .row.g-3 > [class*='col-'] {
+      display: flex;
+      flex-direction: column;
+    }
+    .filter-section-enterprise .row.g-3 .form-control,
+    .filter-section-enterprise .row.g-3 .form-select {
+      min-width: 0;
+    }
+
+    .service-table-enterprise {
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(2, 6, 23, 0.07);
+      border: 1px solid rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
+    .service-table-enterprise .table {
+      margin-bottom: 0;
+      font-size: 0.92rem;
+    }
+    .service-table-enterprise .table th,
+    .service-table-enterprise .table td {
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .service-table-enterprise .table-responsive {
+      overflow-x: auto;
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-truck"></i></div>
+        <div>
+          <h1>Service Tracking</h1>
+          <p>Track service deliveries, logistics, and monitor shipment status in real-time</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Content -->
+
+  <!-- Enterprise KPI Cards -->
+  <div class="section-label">Key Metrics</div>
+  <!-- Enterprise KPI Cards -->
+  <div class="section-label">Key Metrics</div>
+  <%- include('../../partials/kpi-cards', { 
+    kpiItems: [
+      { id: 'totalServices', icon: 'bi bi-wrench', label: 'Total Services', variant: 'primary' },
+      { id: 'totalToolUsage', icon: 'bi bi-tools', label: 'Tools Used', variant: 'success' },
+      { id: 'totalCost', icon: 'bi bi-currency-dollar', label: 'Total Cost (₱)', variant: 'warning' },
+      { id: 'activeTechnicians', icon: 'bi bi-people', label: 'Active Technicians', variant: 'purple' }
+    ]
+  }) %>
+
+  <!-- Advanced Filters -->
+  <div class="filter-section-enterprise">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Advanced Filters</h5>
+      <button class="btn btn-sm btn-outline-secondary" id="resetFilters">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset All
+      </button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">Date Range</label>
+        <div class="input-group">
+          <input type="date" class="form-control form-control-enterprise" id="startDate" />
+          <span class="input-group-text">to</span>
+          <input type="date" class="form-control form-control-enterprise" id="endDate" />
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold">Technician</label>
+        <select class="form-select form-control-enterprise" id="technicianFilter">
+          <option value="">All Technicians</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold">Service Type</label>
+        <select class="form-select form-control-enterprise" id="serviceTypeFilter">
+          <option value="">All Services</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold">Status</label>
+        <select class="form-select form-control-enterprise" id="statusFilter">
+          <option value="">All Statuses</option>
+          <option value="completed">Completed</option>
+          <option value="in-progress">In Progress</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">Search</label>
+        <div class="input-group">
+          <input type="text" class="form-control form-control-enterprise" id="searchInput" placeholder="Search by booking, customer, or tool..." />
+          <button class="btn btn-primary btn-enterprise" id="searchBtn">
+            <i class="bi bi-search"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Tracking Table -->
+  <div class="card service-table-enterprise">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-table me-2"></i>Service Operations</h5>
+      <div class="d-flex gap-2">
+        <span class="badge bg-primary" id="recordCount">Loading...</span>
+        <button class="btn btn-sm btn-outline-primary btn-enterprise" id="toggleColumns">
+          <i class="bi bi-columns-gap me-1"></i>Columns
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover" id="serviceTable">
+        <thead>
+          <tr>
+            <th>Booking ID</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Technician</th>
+            <th>Service Type</th>
+            <th>Status</th>
+            <th>Tools Used</th>
+            <th>Total Cost</th>
+            <th>Fuel Cost</th>
+            <th>Duration</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="serviceTableBody">
+          <tr>
+            <td colspan="11" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-2 text-muted">Loading service data...</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Service Detail Modal -->
+<div class="modal fade service-detail-modal" id="serviceDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-clipboard-data me-2"></i>Service Detail
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="serviceDetailContent">
+        <!-- Content will be loaded dynamically -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.SERVICE_TRACKING_CONTEXT = {
+    apiBase: "<%= apiBase %>",
+    roleLabel: "<%= roleLabel %>",
+  };
+</script>
+<script src="/js/service-tracking.js"></script>

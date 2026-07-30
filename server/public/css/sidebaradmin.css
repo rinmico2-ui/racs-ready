@@ -1,0 +1,1151 @@
+.sidebar-header .admin-avatar i {
+  transition: transform 0.4s ease;
+}
+
+@keyframes submenuFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.admin-root.sidebar-collapsed .sidebar-header.premium-card,
+.sidebar.collapsed .sidebar-header.premium-card {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-brand { display: none; }
+.sidebar.collapsed .sidebar-footer .footer-meta { display: none; }
+.sidebar.collapsed .sidebar-footer { justify-content: center; padding: 12px 6px 8px; }
+.sidebar.collapsed .nav-section { display: none; }
+
+.sidebar-header.premium-card:hover .admin-avatar i {
+  transform: scale(1.08);
+}
+
+@keyframes sidebarCardFloat {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes avatarPulse {
+  0% { box-shadow: 0 18px 28px rgba(37, 99, 235, 0.35); }
+  50% { box-shadow: 0 24px 36px rgba(37, 99, 235, 0.45); }
+  100% { box-shadow: 0 18px 28px rgba(37, 99, 235, 0.35); }
+}
+/* Google Fonts (Inter + Outfit) loaded via admin.ejs layout — no @import needed here */
+
+/* accessibility: disable animations when user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+
+  .sidebar,
+  .sidebar * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+:root {
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 82px;
+
+  /* animation timings & easings */
+  --sidebar-duration: 0.42s;
+  --sidebar-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-pop-ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --submenu-stagger: 40ms;
+
+  /* consistent with admin.css / dashboard-styles */
+  --bg-main: #f8fafc;
+
+  /* Premium Blue palette */
+  --sidebar-bg: #ffffff;
+  --sidebar-bg-deep: #0f172a;
+  --sidebar-bg-soft: #eff6ff;
+
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+
+  --muted: #64748b;
+  --accent: #2563eb;
+
+  --primary: #2563eb;
+  --primary-soft: rgba(37, 99, 235, 0.08);
+  --primary-glow: rgba(37, 99, 235, 0.15);
+
+  --border-soft: rgba(37, 99, 235, 0.10);
+}
+
+/* =========================
+   BASE
+========================= */
+
+body {
+  margin: 0;
+  background: var(--bg-main);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  box-sizing: border-box;
+}
+
+/* ensure sidebar uses same font */
+.sidebar {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--sidebar-bg) !important;
+}
+
+/* =========================
+   BRAND HEADER
+========================= */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  margin: 0 6px 4px;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
+}
+
+.sidebar-brand .brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.sidebar-brand .brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-brand .brand-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.sidebar-brand .brand-sub {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* =========================
+   SECTION DIVIDERS
+========================= */
+.nav-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 22px 6px;
+  margin: 0;
+}
+
+.nav-section .section-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.nav-section .section-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+/* =========================
+   SIDEBAR FOOTER
+========================= */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px 10px 8px;
+  border-top: 1px solid rgba(37, 99, 235, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sidebar-footer .footer-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e0edff, #c3daff);
+  color: #1d4ed8;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.sidebar-footer .footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.sidebar-footer .footer-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-footer .footer-role {
+  font-size: 0.6rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* =========================
+   ADMIN TOPBAR (matches sidebar)
+   - complements sidebar colors
+========================= */
+.admin-topbar,
+.bg-admin-topbar {
+  background: #ffffff;
+}
+
+
+/* ensure brand text and dropdown text have consistent colors */
+.bg-admin-topbar .navbar-brand .brand-text,
+.bg-admin-topbar .nav-item .text-white,
+.bg-admin-topbar .btn-ghost,
+.bg-admin-topbar .btn-outline-light,
+.bg-admin-topbar .dropdown-toggle {
+  color: var(--text-primary) !important;
+}
+
+/* brand/logo */
+.navbar-brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: inline-block;
+  border-radius: 6px;
+}
+
+/* collapse brand text on very small screens */
+@media (max-width: 575px) {
+  .navbar-brand .brand-text {
+    display: none;
+  }
+
+  .navbar-brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.bg-admin-topbar .btn-outline-light {
+  border-color: rgba(37, 99, 235, 0.12);
+}
+
+.bg-admin-topbar .btn-outline-light:hover {
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--primary);
+}
+
+.bg-admin-topbar .badge {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+}
+
+/* keep dropdown menu readable (light background) */
+.bg-admin-topbar .dropdown-menu {
+  background: #fff;
+  color: var(--text-primary);
+}
+
+
+/* =========================
+   SIDEBAR CONTAINER
+========================= */
+
+.sidebar {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  max-width: var(--sidebar-width);
+  padding: 18px 14px 20px;
+
+  /* match scheduling page hero gradient */
+  background: var(--sidebar-bg);
+
+  /* elegant box shadow and border for light mode */
+  border-right: none;
+  box-shadow: 14px 17px 40px 4px rgba(112, 144, 176, 0.08);
+
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  /* slide + fade when opening/closing */
+  transition: width var(--sidebar-duration) var(--sidebar-ease) .10s,
+    transform var(--sidebar-duration) var(--sidebar-ease),
+    opacity var(--sidebar-duration) ease,
+    padding var(--sidebar-duration) var(--sidebar-ease);
+  will-change: transform, opacity, width;
+  opacity: 1;
+  transform: translateX(0);
+  overflow: hidden;
+  min-height: 0;
+
+  box-shadow: 14px 17px 40px 4px rgba(112, 144, 176, 0.08);
+}
+
+/* Collapsed */
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed);
+  transform: translate3d(-8px, 0, 0);
+  opacity: 0.92;
+  /* slightly faded when collapsed */
+}
+
+/* 3D right border effect */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.15));
+  transform: translateX(100%);
+}
+
+/* when collapsed reduce effect */
+.sidebar.collapsed::after {
+  width: 4px;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.12));
+}
+
+/* force link text/icons contrast for dark sidebar */
+.admin-sidebar .nav-link,
+.admin-sidebar .nav-link i {
+  color: var(--text-secondary) !important;
+}
+
+/* =========================
+   NAV LINK BASE
+========================= */
+.admin-sidebar .nav-link {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-radius: 10px;
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 500;
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
+  transition:
+    background 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 3px solid transparent;
+  margin: 1px 0;
+}
+
+/* hover — clean background + left accent bar */
+.admin-sidebar .nav-link:hover,
+.admin-sidebar .nav-link:focus-visible {
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--primary) !important;
+  border-left-color: rgba(37, 99, 235, 0.4);
+  transform: translateX(2px);
+}
+
+.admin-sidebar .nav-link:hover i,
+.admin-sidebar .nav-link:focus-visible i {
+  color: var(--primary) !important;
+}
+
+.admin-sidebar .nav-link:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -2px;
+}
+
+/* active — premium left pill + soft glow */
+.admin-sidebar .nav-link.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.04) 100%) !important;
+  color: var(--primary) !important;
+  border-left-color: var(--primary);
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.06),
+    0 4px 12px rgba(37, 99, 235, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-weight: 600;
+  transform: translateX(0);
+}
+
+.admin-sidebar .nav-link.active i {
+  color: var(--primary) !important;
+}
+
+/* active hover — slightly brighter */
+.admin-sidebar .nav-link.active:hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.11) 0%, rgba(37, 99, 235, 0.06) 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.1),
+    0 6px 16px rgba(37, 99, 235, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Dropdown connector lines */
+.btn-toggle-nav {
+  position: relative;
+  padding-left: 30px;
+  margin: 4px 0 6px;
+}
+
+.btn-toggle-nav::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 4px;
+  bottom: 12px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.03));
+  border-radius: 999px;
+}
+
+.btn-toggle-nav li {
+  position: relative;
+  padding-left: 20px;
+}
+
+.btn-toggle-nav li::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  width: 22px;
+  height: 1px;
+  background: rgba(59, 130, 246, 0.25);
+  transform: translateY(-50%);
+}
+
+.btn-toggle-nav li:last-child::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  bottom: -10px;
+  width: 4px;
+  height: 12px;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0));
+}
+
+.btn-toggle-nav li:last-child::before {
+  border-bottom-left-radius: 999px;
+}
+
+.btn-toggle-nav li .nav-link {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin: 3px 0;
+  margin-left: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary) !important;
+  transition:
+    background 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 2px solid transparent;
+}
+
+.btn-toggle-nav li .nav-link .nav-icon {
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.btn-toggle-nav li .nav-link:hover {
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--primary) !important;
+  border-left-color: rgba(37, 99, 235, 0.35);
+  transform: translateX(2px);
+}
+
+.btn-toggle-nav li .nav-link:hover i {
+  color: var(--primary) !important;
+}
+
+.btn-toggle-nav li .nav-link.active {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary) !important;
+  border-left-color: var(--primary);
+  font-weight: 600;
+}
+
+/* Parent toggle button (dropdown trigger) */
+.btn-toggle {
+  position: relative;
+  border-radius: 10px;
+  transition:
+    background 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* hover */
+.btn-toggle:hover {
+  background: rgba(37, 99, 235, 0.06) !important;
+  color: var(--primary) !important;
+}
+
+.btn-toggle:hover i {
+  color: var(--primary) !important;
+}
+
+/* expanded — left accent bar */
+.nav-item.expanded > .btn-toggle.nav-link {
+  color: var(--primary) !important;
+  background: rgba(37, 99, 235, 0.05);
+  border-left: 3px solid var(--primary);
+}
+
+.nav-item.expanded > .btn-toggle.nav-link i {
+  color: var(--primary) !important;
+}
+
+/* active toggle — premium left pill */
+.btn-toggle.nav-link.active {
+  color: var(--primary) !important;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.03) 100%) !important;
+  border-left: 3px solid var(--primary);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+}
+
+.btn-toggle.nav-link.active i {
+  color: var(--primary) !important;
+}
+
+.btn-toggle.nav-link.active:hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%) !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.1);
+}
+
+/* mobile behavior: slide-in overlay with backdrop, handled by admin.css on .admin-sidebar */
+@media (max-width:767px) {
+  /* make sidebar scrollable on mobile */
+  .admin-sidebar .sidebar {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* remove 3D right border effect on mobile */
+  .sidebar::after {
+    display: none !important;
+  }
+
+  .sidebar-header.premium-card {
+    position: relative;
+  }
+
+  /* content area should not be pushed when sidebar is open on small screens */
+  .admin-content {
+    margin-left: 0;
+    padding: 16px;
+  }
+
+  /* backdrop shown when sidebar slides in on small screens */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.45);
+    z-index: 80;
+    opacity: 0;
+    transition: opacity .22s ease;
+    pointer-events: none;
+  }
+
+  .sidebar-backdrop.visible,
+  .sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ===== dropdown animation ===== */
+/* rotate chevron when submenu is toggled */
+.btn-toggle .bi-chevron-down {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center;
+  will-change: transform;
+  font-size: 0.8em;
+}
+
+/* collapsed class present when submenu is closed */
+.btn-toggle.collapsed .bi-chevron-down {
+  transform: rotate(0deg);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.btn-toggle:not(.collapsed) .bi-chevron-down {
+  transform: rotate(-180deg);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Add smooth hover effect */
+.btn-toggle:hover .bi-chevron-down {
+  transform: scale(1.1) rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.btn-toggle:hover:not(.collapsed) .bi-chevron-down {
+  transform: scale(1.1) rotate(-180deg);
+  transition: transform 0.2s ease;
+}
+
+/* ensure collapse uses a smooth height transition (bootstrap handles this but reinforce) */
+.collapse {
+  transition: height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapsing {
+  transition: height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* fade + slide submenu items in/out for extra polish */
+.collapse .btn-toggle-nav {
+  transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapse:not(.show) .btn-toggle-nav {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.collapse.show .btn-toggle-nav {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sidebar-nav {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px 12px;
+  margin: 0;
+  list-style: none;
+}
+
+.sidebar-nav::after {
+  content: "";
+  flex: 0 0 8px;
+}
+
+.sidebar-nav .nav-item + .nav-item {
+  margin-top: 2px;
+}
+
+.sidebar-nav .nav-item:last-child {
+  margin-bottom: 0;
+}
+
+/* stagger submenu items on expand */
+.collapse.show .btn-toggle-nav li {
+  animation: submenuFadeIn 0.22s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+.collapsing .btn-toggle-nav li {
+  animation: submenuFadeOut 0.2s cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+
+@keyframes submenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.sidebar-header.premium-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  margin: 2px 6px 14px;
+  width: calc(100% - 12px);
+  flex-shrink: 0;
+  border-radius: 22px;
+  background: transparent !important;
+  box-shadow: none !important;
+  position: relative;
+  overflow: hidden;
+  border: none !important;
+  backdrop-filter: none;
+  animation: none;
+}
+
+.sidebar-header.premium-card:hover {
+  transform: none;
+  background: transparent !important;
+}
+
+.sidebar-header.premium-card::before {
+  display: none;
+}
+
+.sidebar-header.premium-card::after {
+  display: none;
+}
+
+
+.sidebar-header .admin-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e0edff, #c3daff);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  box-shadow: 0 18px 28px rgba(37, 99, 235, 0.25);
+  color: #1d4ed8;
+}
+
+.sidebar-header .admin-avatar i {
+  color: #1d4ed8;
+}
+
+.sidebar-header .admin-avatar {
+  font-size: 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: avatarPulse 6s ease-in-out infinite;
+}
+
+.sidebar-header .admin-avatar i {
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.25));
+}
+
+.sidebar-header .header-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-header .workspace-badge {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  padding: 4px 12px;
+  align-self: flex-start;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.sidebar-header .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-header .admin-name {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-header .admin-role {
+  font-size: 0.72rem;
+  color: #2563eb;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* =========================
+   NAVIGATION
+========================= */
+
+.sidebar-nav {
+  list-style: none;
+  padding: 12px 0 20px;
+  margin: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+  
+  /* same dark overlay as the header for continuity */
+  background: var(--sidebar-bg);
+}
+
+/* Scrollbar */
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .08);
+  border-radius: 20px;
+}
+
+.nav-item {
+  margin: 4px 10px;
+}
+
+/* Links */
+.nav-link,
+.btn-toggle.nav-link {
+  display: flex;
+  align-items: center;
+  /* center icon + label vertically */
+  padding: 10px 14px;
+  border-radius: 14px;
+
+  color: var(--text-secondary) !important;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+
+  transition: background .18s ease, color .18s ease, transform .12s ease;
+  position: relative;
+  background: transparent;
+  border: none;
+  width: 100%;
+  /* only top-level links should truncate; submenu allowed to wrap */
+}
+
+/* allow sub-links to wrap so long labels stay visible */
+.btn-toggle-nav .nav-link {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  padding: 10px 14px;
+}
+
+/* Reset bootstrap button padding for toggle links so they match <a> links */
+button.btn-toggle.nav-link {
+  display: flex !important;
+  width: 100% !important;
+  padding: 10px 14px !important;
+  line-height: inherit;
+}
+
+/* make sure collapsed sidebar links stay readable */
+.sidebar.collapsed .nav-link {
+  color: var(--text-secondary) !important;
+}
+
+/* Icon */
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  line-height: 24px;
+  /* ensure icon font centers vertically */
+  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: transform .2s ease;
+  margin-right: 12px;
+  color: #3b82f6 !important;
+  flex-shrink: 0;
+  vertical-align: middle;
+  /* ensure baseline alignment in flex container */
+}
+
+/* keep icons blue/active when link hovered/active */
+.nav-link:hover .nav-icon,
+.nav-link.active .nav-icon,
+.nav-link.active:hover .nav-icon {
+  color: var(--primary) !important;
+}
+
+/* Label */
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 0;
+  transition: opacity .2s ease;
+  display: inline-block;
+  line-height: 1.2;
+}
+
+
+/* Collapsed */
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .bi-chevron-down {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hover (transparent) */
+.nav-link:hover {
+  background: transparent;
+  color: var(--primary) !important;
+  transform: translateY(-2px);
+}
+
+.nav-link:hover .nav-icon {
+  color: var(--primary);
+  transform: scale(1.06);
+}
+
+/* Override admin.css specificity so admin layout sidebar links remain white on hover */
+.admin-sidebar .nav-link:hover {
+  color: var(--primary) !important;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+/* Active (Luxury Gradient + Glow) */
+.nav-link.active {
+  background: var(--primary-soft);
+  color: var(--primary) !important;
+  font-weight: 700;
+  box-shadow: none;
+  border-right: 4px solid var(--primary);
+  /* keep same left padding as non-active links to avoid icon shift */
+  padding-left: 16px;
+  border-radius: 12px;
+}
+
+.nav-link.active .nav-icon {
+  color: var(--primary) !important;
+}
+
+/* Active hover — keep transparent but emphasise with lift and glow */
+.nav-link.active:hover,
+.admin-sidebar .nav-link.active:hover {
+  transform: translateY(-2px);
+  background: var(--primary-soft);
+  /* transparent hover for active link */
+  color: var(--primary) !important;
+  box-shadow: none;
+}
+
+.nav-link.active:hover .nav-icon {
+  transform: scale(1.06);
+  color: var(--primary) !important;
+}
+
+/* FORCE: ensure admin.css or other rules can't change active text color */
+.admin-sidebar .nav-link.active,
+.admin-sidebar .nav-link.active:hover,
+.sidebar .nav-link.active,
+.sidebar .nav-link.active:hover {
+  color: var(--primary) !important;
+}
+
+.btn-toggle-nav .nav-link.active,
+.btn-toggle-nav .nav-link.active:hover {
+  color: var(--primary) !important;
+}
+
+/* Submenu active hover */
+.btn-toggle-nav .nav-link.active:hover {
+  transform: translateX(2px);
+  background: var(--primary-soft);
+  color: var(--primary) !important;
+}
+
+/* =========================
+   SUBMENU
+========================= */
+
+.btn-toggle-nav {
+  list-style: none;
+  /* removed extra left-padding so submenu icons align with top-level icons
+     (same behavior applied in secretary sidebar) */
+  padding-left: 0;
+  margin-top: 6px;
+}
+
+.btn-toggle-nav .nav-link {
+  /* match the padding of top‑level links so icons stay vertically aligned */
+  padding: 10px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  gap: 8px;
+  /* consistent spacing between icon and label */
+}
+
+.btn-toggle-nav .nav-link:hover {
+  background: var(--bg-main);
+  color: var(--primary);
+}
+
+.btn-toggle-nav .nav-link.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/* Align icons and labels consistently */
+.nav-link {
+  gap: 0;
+}
+
+/* gap handled by margin-right on .nav-icon */
+.nav-icon {
+  flex-shrink: 0;
+}
+
+.btn-toggle-nav .nav-icon {
+  width: 20px;
+  min-width: 20px;
+  max-width: 20px;
+  font-size: 0.95rem;
+  opacity: 0.95;
+  margin-right: 12px;
+}
+
+/* Hide submenu when collapsed */
+.sidebar.collapsed .collapse {
+  display: none !important;
+}
+
+/* =========================
+   TOOLTIP
+========================= */
+
+.nav-tooltip {
+  position: absolute;
+  left: 100%;
+  margin-left: 14px;
+
+  background: #0f172a;
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: .2s ease;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+}
+
+.sidebar.collapsed .nav-link:hover .nav-tooltip {
+  opacity: 1;
+}
+
+/* =========================
+   SMOOTH SIDEBAR RENDER
+   staggered entrance on page load
+   NOTE: items default to visible (opacity:1) so they never get stuck hidden
+========================= */
+.sidebar-nav .nav-item {
+  animation: sidebarItemIn 0.45s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+/* stagger each nav-item */
+.sidebar-nav .nav-item:nth-child(1) {
+  animation-delay: 0.06s;
+}
+
+.sidebar-nav .nav-item:nth-child(2) {
+  animation-delay: 0.10s;
+}
+
+.sidebar-nav .nav-item:nth-child(3) {
+  animation-delay: 0.14s;
+}
+
+.sidebar-nav .nav-item:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.sidebar-nav .nav-item:nth-child(5) {
+  animation-delay: 0.22s;
+}
+
+.sidebar-nav .nav-item:nth-child(6) {
+  animation-delay: 0.26s;
+}
+
+.sidebar-nav .nav-item:nth-child(7) {
+  animation-delay: 0.30s;
+}
+
+.sidebar-nav .nav-item:nth-child(8) {
+  animation-delay: 0.34s;
+}
+
+.sidebar-nav .nav-item:nth-child(9) {
+  animation-delay: 0.38s;
+}
+
+.sidebar-nav .nav-item:nth-child(10) {
+  animation-delay: 0.42s;
+}
+
+.sidebar-nav .nav-item:nth-child(11) {
+  animation-delay: 0.46s;
+}
+
+.sidebar-nav .nav-item:nth-child(12) {
+  animation-delay: 0.50s;
+}
+
+@keyframes sidebarItemIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+

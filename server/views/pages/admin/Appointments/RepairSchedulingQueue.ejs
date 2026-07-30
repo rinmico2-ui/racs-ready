@@ -1,0 +1,1510 @@
+<div class="admin-dashboard container-fluid px-0 py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═══ Enterprise Modal ═══ */
+    .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+    #assignModal .ent-modal-body { max-height: 55vh !important; overflow-y: scroll !important; overflow-x: hidden !important; padding-right: 8px; }
+    .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; display: flex !important; justify-content: space-between !important; align-items: center !important; }
+    .ent-modal-header > .d-flex { flex: 1 1 auto; min-width: 0; }
+    .ent-modal-header .btn-close { margin-left: auto !important; flex-shrink: 0; }
+    .ent-modal-header-success { background: linear-gradient(135deg, #064e3b 0%, #16a34a 100%); }
+    .ent-modal-body { padding: 24px; }
+    .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; display: flex !important; justify-content: flex-end !important; align-items: center; gap: 10px; }
+    .ent-modal-footer .btn[data-bs-dismiss="modal"] { background-color: #dc2626 !important; border-color: #dc2626 !important; color: #fff !important; }
+    .ent-modal-footer .btn[data-bs-dismiss="modal"]:hover { background-color: #b91c1c !important; border-color: #b91c1c !important; }
+    .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .ent-detail-card-wide { grid-column: span 2; }
+    .ent-detail-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ent-detail-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+    .ent-detail-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+    .ent-detail-sub { font-size: 0.8rem; color: #64748b; }
+    @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+
+    .rsq-page-inner { max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; }
+    @media (max-width: 767px) { .rsq-page-inner { padding: 0 1rem; } }
+
+
+
+    .rsq-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .rsq-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; display: flex; align-items: center; gap: 12px; }
+    .rsq-stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .rsq-stat-icon.blue { background: #eff6ff; color: #3b82f6; }
+    .rsq-stat-icon.amber { background: #fffbeb; color: #f59e0b; }
+    .rsq-stat-icon.green { background: #f0fdf4; color: #22c55e; }
+    .rsq-stat-icon.purple { background: #f5f3ff; color: #7c3aed; }
+    .rsq-stat-value { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
+    .rsq-stat-label { font-size: 0.75rem; color: #64748b; }
+
+    .rsq-filters { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .rsq-search { flex: 1; min-width: 200px; }
+
+    .rsq-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px; margin-bottom: 16px; transition: all 0.2s; }
+    .rsq-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+    .rsq-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+    .rsq-card-id { font-size: 0.75rem; color: #94a3b8; font-weight: 600; font-family: monospace; }
+    .rsq-card-customer { font-size: 1.05rem; font-weight: 700; color: #1e293b; margin: 2px 0; }
+    .rsq-card-unit { font-size: 0.82rem; color: #64748b; }
+
+    .rsq-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 14px 0; }
+    .rsq-info-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569; }
+    .rsq-info-item i { color: #94a3b8; width: 16px; text-align: center; }
+
+    .rsq-preferred-dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .rsq-date-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .rsq-date-chip.unavailable { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+    .rsq-date-chip i { font-size: 0.85rem; }
+
+    .rsq-time-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; background: #eff6ff; color: #1d4ed8; }
+
+    .rsq-priority-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 0.68rem; font-weight: 700; }
+    .rsq-priority-medium { background: #eff6ff; color: #3b82f6; }
+    .rsq-priority-high { background: #fffbeb; color: #f59e0b; }
+    .rsq-priority-critical { background: #fef2f2; color: #ef4444; }
+
+    .rsq-status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+    .rsq-status-pending { background: #fffbeb; color: #92400e; }
+    .rsq-status-scheduled { background: #f0fdf4; color: #166534; }
+
+    .rsq-availability-panel { background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px 18px; margin-top: 14px; }
+    .rsq-availability-panel.unavailable { background: linear-gradient(135deg, #fefce8, #fef3c7); border-color: #fde68a; }
+    .rsq-availability-title { font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .rsq-availability-panel.unavailable .rsq-availability-title { color: #92400e; }
+
+    /* ═══ Admin Date Grid ═══ */
+    .admin-date-card {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 12px 8px; border: 2px solid #e2e8f0; border-radius: 12px;
+      cursor: pointer; transition: all 0.2s; min-width: 85px; text-align: center;
+    }
+    .admin-date-card.available { background: #f0fdf4; border-color: #bbf7d0; }
+    .admin-date-card.available:hover { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.12); }
+    .admin-date-card.available.selected { border-color: #16a34a; background: #dcfce7; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
+    .admin-date-card.unavailable { background: #f8fafc; border-color: #e2e8f0; opacity: 0.5; cursor: not-allowed; }
+    .admin-date-day { font-weight: 700; font-size: 0.78rem; color: #1e293b; }
+    .admin-date-md { font-size: 0.72rem; color: #64748b; }
+    .admin-date-slots { font-size: 0.65rem; color: #16a34a; margin-top: 2px; }
+    .admin-date-card.unavailable .admin-date-slots { color: #94a3b8; }
+
+    /* ═══ Admin Time Slot Grid ═══ */
+    .admin-ts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; padding: 12px 0; }
+    .admin-ts {
+      position: relative; padding: 12px 14px; border-radius: 10px;
+      border: 2px solid #e2e8f0; background: #fff;
+      cursor: pointer; transition: all 0.2s; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    }
+    .admin-ts::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, #2563eb, #60a5fa); border-radius: 3px 0 0 3px; opacity: 0; transition: opacity 0.15s ease; }
+    .admin-ts:hover { background: rgba(37,99,235,0.04); border-color: #93c5fd; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(37,99,235,0.1); }
+    .admin-ts:hover::before { opacity: 1; }
+    .admin-ts:active { transform: translateY(0); box-shadow: none; }
+    .admin-ts.selected { background: linear-gradient(135deg, #2563eb, #1d4ed8) !important; border-color: transparent !important; color: #fff; box-shadow: 0 4px 16px rgba(37,99,235,0.3), inset 0 1px 0 rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .admin-ts.preferred { border-color: #86efac; background: linear-gradient(135deg, #f0fdf4, #dcfce7); position: relative; }
+    .admin-ts.preferred::after { content: 'Recommended'; position: absolute; top: 4px; right: 4px; font-size: 0.5rem; font-weight: 700; color: #166534; background: rgba(255,255,255,0.7); padding: 1px 5px; border-radius: 3px; letter-spacing: 0.02em; }
+    .admin-ts.preferred:hover { border-color: #22c55e; background: linear-gradient(135deg, #dcfce7, #bbf7d0); box-shadow: 0 3px 10px rgba(34,197,94,0.15); }
+    .admin-ts.preferred.selected { background: linear-gradient(135deg, #16a34a, #15803d) !important; border-color: transparent !important; color: #fff; box-shadow: 0 4px 16px rgba(22,163,74,0.3); }
+    .admin-ts.preferred.selected::after { color: #fff; background: rgba(255,255,255,0.15); }
+    .admin-ts.selected::before { opacity: 1; background: rgba(255,255,255,0.3); width: 3px; }
+    .admin-ts.selected .admin-ts-label { color: #ffffff; }
+    .admin-ts.selected .admin-ts-status { background: rgba(255,255,255,0.18); color: #ffffff; border: 1px solid rgba(255,255,255,0.2); }
+    .admin-ts.selected .admin-ts-status::before { background: #ffffff; box-shadow: none; }
+    .admin-ts.selected:hover { box-shadow: 0 6px 24px rgba(37,99,235,0.4), inset 0 1px 0 rgba(255,255,255,0.25); }
+    .admin-ts.unavailable { background: rgba(239,68,68,0.04); border-color: rgba(239,68,68,0.12); cursor: not-allowed; opacity: 0.6; }
+    .admin-ts.unavailable::before { background: #ef4444; opacity: 0.5; }
+    .admin-ts.unavailable .admin-ts-label { color: #6b7280; text-decoration: line-through; }
+    .admin-ts-label { font-size: 0.88rem; font-weight: 700; color: #1e293b; line-height: 1.2; margin-bottom: 4px; }
+    .admin-ts-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 4px; line-height: 1.4; }
+    .admin-ts-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .admin-ts-status.available { background: rgba(16,185,129,0.1); color: #065f46; border: 1px solid rgba(16,185,129,0.15); }
+    .admin-ts-status.available::before { background: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,0.15); }
+    .admin-ts-status.booked { background: rgba(239,68,68,0.08); color: #991b1b; border: 1px solid rgba(239,68,68,0.12); }
+    .admin-ts-status.booked::before { background: #ef4444; }
+    .admin-ts-status.few { background: rgba(245,158,11,0.1); color: #92400e; border: 1px solid rgba(245,158,11,0.15); }
+    .admin-ts-status.few::before { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.15); }
+
+    .rsq-tech-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #fff; border-radius: 10px; border: 2px solid #e2e8f0; cursor: pointer; transition: all 0.15s; margin-bottom: 8px; }
+    .rsq-tech-card:hover { border-color: #3b82f6; background: #eff6ff; }
+    .rsq-tech-card.selected { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .rsq-tech-card.recommended { border-color: #22c55e; background: #f0fdf4; }
+    .rsq-tech-card.recommended.selected { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+    .rsq-tech-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
+    .rsq-tech-card.recommended .rsq-tech-avatar { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #166534; }
+    .rsq-tech-info { flex: 1; min-width: 0; }
+    .rsq-tech-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
+    .rsq-tech-meta { font-size: 0.72rem; color: #64748b; }
+    .rsq-tech-reason { display: inline-flex; align-items: center; gap: 3px; font-size: 0.68rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 4px; }
+
+    .rsq-action-bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #f1f5f9; }
+
+    .rsq-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
+    .rsq-empty i { font-size: 3.5rem; display: block; margin-bottom: 16px; opacity: 0.5; }
+    .rsq-empty p { margin: 0; font-size: 0.95rem; }
+    .rsq-empty .sub { font-size: 0.82rem; margin-top: 6px; }
+
+    .rsq-loading { text-align: center; padding: 40px; }
+    .rsq-loading .spinner-border { width: 2rem; height: 2rem; color: #7c3aed; }
+
+    /* Assign Modal Enhancements */
+    .rsq-schedule-preview { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-top: 12px; }
+    .rsq-schedule-preview-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569; padding: 4px 0; }
+    .rsq-schedule-preview-item i { color: #7c3aed; width: 16px; text-align: center; }
+
+    /* Stat Cards */
+    .stat-card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+    .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+    .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+    .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+    .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+    .kpi-trend i { font-size:0.55rem; }
+    .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
+    .stat-sparkline { height:40px; margin-top:0.5rem; }
+    .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+  </style>
+
+  <div class="rsq-page-inner pb-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-calendar2-check"></i></div>
+          <div>
+            <h1>Repair Scheduling Queue</h1>
+            <p>Manage repair scheduling for customers who chose "Schedule Repair Later". Assign technicians and confirm preferred dates.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4" id="statsGrid">
+      <div class="col-lg col-md-6">
+        <div class="stat-card h-100" data-spark-color="#f59e0b">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Pending Scheduling</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statPending">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">Queue</span>
+              </div>
+              <small class="text-muted">Needs scheduling</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+              <i class="bi bi-hourglass-split text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="stat-card h-100" data-spark-color="#10b981">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Scheduled</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statScheduled">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">Done</span>
+              </div>
+              <small class="text-muted">Confirmed repairs</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
+              <i class="bi bi-check-circle text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="stat-card h-100" data-spark-color="#8b5cf6">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Total in Queue</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statTotal">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">Total</span>
+              </div>
+              <small class="text-muted">All repairs</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);">
+              <i class="bi bi-calendar3 text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="stat-card h-100" data-spark-color="#2563eb">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Submitted Today</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark" id="statToday">-</span>
+                <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge">New</span>
+              </div>
+              <small class="text-muted">New today</small>
+            </div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);">
+              <i class="bi bi-wrench text-white"></i>
+            </div>
+          </div>
+          <div class="stat-sparkline">
+            <canvas height="40"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="rsq-filters">
+      <div class="rsq-search">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+          <input type="text" class="form-control border-start-0" id="searchInput" placeholder="Search by work order, customer, or technician...">
+        </div>
+      </div>
+      <select class="form-select form-select-sm" id="filterStatus" style="width:auto;min-width:150px;">
+        <option value="">All Status</option>
+        <option value="repair_approved">Pending Scheduling</option>
+        <option value="waiting_parts">Waiting Parts</option>
+        <option value="repair_scheduled">Scheduled</option>
+      </select>
+      <select class="form-select form-select-sm" id="filterTimeWindow" style="width:auto;min-width:140px;">
+        <option value="">All Time Windows</option>
+        <option value="morning">Morning</option>
+        <option value="afternoon">Afternoon</option>
+        <option value="any">Any Time</option>
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadQueue()">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+
+    <!-- Queue List -->
+    <div id="queueContainer">
+      <div class="rsq-loading">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        <p class="mt-2 text-muted small">Loading scheduling queue...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ASSIGN & SCHEDULE MODAL -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16" style="color:#fff;">
+              <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm1.679-4.493-1.335 2.226a.5.5 0 0 1-.995.15l-1.02-2.275-1.02 2.275a.5.5 0 0 1-.995-.15l-1.335-2.226a.5.5 0 0 1 .93-.424l.71 1.185.77-1.71a.5.5 0 0 1 .91 0l.77 1.71.71-1.185a.5.5 0 0 1 .93.424Z"/>
+              <path d="M11 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+              <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2.5A5.5 5.5 0 0 1 8 5.5c.43 0 .85.05 1.25.13A2 2 0 0 0 10 4H2Z" fill-opacity="0.6"/>
+            </svg>
+          </div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Assign & Schedule Repair</h6>
+            <small class="opacity-75" id="assignWorkOrder"></small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="ent-modal-body">
+        <input type="hidden" id="assignBookingId">
+
+        <!-- Customer & Quotation Summary -->
+        <div class="ent-detail-grid mb-3">
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-person"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Customer</span>
+              <span class="ent-detail-value" id="assignCustomerName">-</span>
+              <span class="ent-detail-sub" id="assignCustomerContact">-</span>
+            </div>
+          </div>
+          <div class="ent-detail-card" style="grid-column:span 1;">
+            <div class="ent-detail-card-icon" style="background:#fef3c7;color:#f59e0b;"><i class="bi bi-cash-stack"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Quotation Total</span>
+              <span class="ent-detail-value" id="assignQuotationTotal">-</span>
+            </div>
+          </div>
+          <div class="ent-detail-card ent-detail-card-wide" id="assignPartsCard" style="display:none;">
+            <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#059669;"><i class="bi bi-box-seam"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Requested Parts</span>
+              <span class="ent-detail-value" id="assignPartsList" style="font-weight:500;font-size:0.85rem;">-</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#059669;"><i class="bi bi-clock-history"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Est. Duration</span>
+              <span class="ent-detail-value" id="assignDuration">-</span>
+              <span class="ent-detail-sub" id="assignComplexity"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Original Inspector Info -->
+        <div class="ent-detail-card ent-detail-card-wide mb-3" id="assignOriginalInspectorCard">
+          <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-person-badge"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Original Inspector</span>
+            <span class="ent-detail-value" id="assignOriginalInspector">-</span>
+          </div>
+        </div>
+
+        <!-- Preferred Dates -->
+        <label class="form-label fw-semibold mb-2">Preferred Repair Dates</label>
+        <div class="rsq-preferred-dates mb-3" id="assignPreferredDates"></div>
+
+        <!-- Technician Selection -->
+        <label class="form-label fw-semibold mb-2">Select Technician</label>
+        <div id="assignTechList">
+          <div class="text-muted small">Checking availability...</div>
+        </div>
+
+        <!-- Schedule Date/Time -->
+        <label class="form-label fw-semibold mb-2" id="adminDateLabel">Repair Date <span class="text-danger">*</span></label>
+        <div id="adminDateGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:8px;margin-bottom:12px;">
+          <div class="text-muted small" id="adminDatePlaceholder"><i class="bi bi-hourglass-split me-1"></i>Select a technician to see available dates</div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Time Slot <span class="text-danger">*</span>
+              <span id="adminTimeWindowHint" class="text-muted fw-normal small ms-1"></span>
+            </label>
+            <div class="admin-ts-grid" id="adminTimeGrid"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Capacity</label>
+            <div id="adminDateCapacity" class="form-control-plaintext text-muted small" style="font-size:0.85rem;padding-top:6px;">-</div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label fw-semibold">Notes <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" id="assignNotes" rows="2" placeholder="Additional scheduling notes..."></textarea>
+        </div>
+
+        <!-- Schedule Preview -->
+        <div class="rsq-schedule-preview mt-3" id="assignPreview" style="display:none;">
+          <div class="rsq-schedule-preview-item">
+            <i class="bi bi-calendar-check"></i>
+            <span id="previewDate">-</span>
+          </div>
+          <div class="rsq-schedule-preview-item">
+            <i class="bi bi-clock"></i>
+            <span id="previewTime">-</span>
+          </div>
+          <div class="rsq-schedule-preview-item">
+            <i class="bi bi-person"></i>
+            <span id="previewTech">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success btn-sm fw-semibold" id="assignSubmitBtn" onclick="submitAssignment()" disabled>
+          <i class="bi bi-check-lg me-1"></i> Assign & Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DETAIL MODAL -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="ent-modal-header" style="display:flex !important;justify-content:space-between !important;align-items:center !important;">
+        <div class="d-flex align-items-center gap-3" style="flex:1;min-width:0;">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;flex-shrink:0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16" style="color:#fff;">
+              <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zM9 1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5H9V1z"/>
+              <path d="M5 6.5A.5.5 0 0 1 5.5 6h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zM5.5 8a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+          </div>
+          <div style="min-width:0;">
+            <h6 class="modal-title fw-bold mb-0">Repair Request Details</h6>
+            <small class="opacity-75" id="detailWorkOrder"></small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="flex-shrink:0;margin-left:12px;"></button>
+      </div>
+      <div class="ent-modal-body" id="detailBody">
+        <!-- Populated dynamically -->
+      </div>
+      <div class="ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MANAGE PARTS MODAL -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="managePartsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="ent-modal-header" style="background:linear-gradient(135deg,#1d4ed8 0%,#7c3aed 100%);">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.15);"><i class="bi bi-box-seam"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0">Manage Parts</h6>
+            <small class="opacity-75" id="mpWorkOrder"></small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="ent-modal-body" id="mpBody">
+        <div id="mpPartsList"></div>
+        <div id="mpStatusInfo" class="mt-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-check-circle-fill" style="color:#16a34a;"></i>
+            <span class="fw-semibold" style="font-size:0.85rem;color:#166534;">All parts received — ready for scheduling</span>
+          </div>
+        </div>
+        <div id="mpProcureResult" class="mt-3" style="display:none;"></div>
+      </div>
+      <div class="ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold" id="mpCheckBtn" onclick="submitCheckAndProcure()" style="display:none;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;">
+          <i class="bi bi-search me-1"></i> Check &amp; Procure Parts
+        </button>
+        <button type="button" class="btn btn-success btn-sm fw-semibold" id="mpReceiveBtn" onclick="submitReceiveParts()" style="display:none;">
+          <i class="bi bi-check-lg me-1"></i> Mark All as Received
+        </button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold" id="mpScheduleBtn" onclick="proceedToSchedule()" style="display:none;">
+          <i class="bi bi-calendar-plus me-1"></i> Schedule &amp; Assign
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  let allBookings = [];
+  let selectedTechId = null;
+  let selectedAdminDate = null;
+  let currentAssignBooking = null;
+
+  // ── Load Queue ────────────────────────────────────────────────────────
+  window.loadQueue = async function() {
+    const container = document.getElementById('queueContainer');
+    container.innerHTML = '<div class="rsq-loading"><div class="spinner-border" role="status"></div><p class="mt-2 text-muted small">Loading...</p></div>';
+
+    try {
+      const [queueRes, statsRes] = await Promise.all([
+        fetch('/api/admin/repair-scheduling-queue', { credentials: 'same-origin' }),
+        fetch('/api/admin/repair-scheduling-queue/stats', { credentials: 'same-origin' })
+      ]);
+
+      if (!queueRes.ok) throw new Error('Failed to load queue');
+      const queueData = await queueRes.json();
+      const statsData = statsRes.ok ? await statsRes.json() : {};
+
+      allBookings = queueData.bookings || [];
+
+      // Update stats
+      document.getElementById('statPending').textContent = statsData.pendingScheduling || 0;
+      document.getElementById('statScheduled').textContent = statsData.scheduled || 0;
+      document.getElementById('statTotal').textContent = statsData.total || 0;
+
+      const today = new Date().toDateString();
+      const todayCount = allBookings.filter(b => b.submittedAt && new Date(b.submittedAt).toDateString() === today).length;
+      document.getElementById('statToday').textContent = todayCount;
+
+      renderQueue();
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-exclamation-triangle"></i><p>Failed to load scheduling queue</p><p class="sub text-danger">' + err.message + '</p></div>';
+    }
+  };
+
+  // ── Render Queue ──────────────────────────────────────────────────────
+  function renderQueue() {
+    const container = document.getElementById('queueContainer');
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('filterStatus').value;
+    const timeFilter = document.getElementById('filterTimeWindow').value;
+
+    let filtered = allBookings.filter(b => {
+      if (statusFilter && b.status !== statusFilter) return false;
+      if (timeFilter && b.preferredTimeWindow !== timeFilter) return false;
+      if (search) {
+        const haystack = [
+          b.workOrderNumber, b.customer?.name, b.originalInspector?.name,
+          b.customer?.email, b.customer?.phone
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-calendar2-check"></i><p>No scheduling requests found</p><p class="sub">Customers who choose "Schedule Repair Later" will appear here.</p></div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map(b => renderCard(b)).join('');
+  }
+
+  // ── Render Card ───────────────────────────────────────────────────────
+  function renderCard(b) {
+    const dates = (b.preferredDates || []).map(d => {
+      const dt = new Date(d);
+      const label = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
+      return `<span class="rsq-date-chip"><i class="bi bi-calendar3"></i> ${label}</span>`;
+    }).join('');
+
+    const timeLabel = { morning: 'Morning', afternoon: 'Afternoon', any: 'Any Time' }[b.preferredTimeWindow] || 'Any Time';
+
+    const statusClass = b.status === 'repair_scheduled' ? 'rsq-status-scheduled' : (b.status === 'waiting_parts' ? 'rsq-priority-critical' : (b.status === 'ready_for_repair' ? 'rsq-status-scheduled' : 'rsq-status-pending'));
+    const statusLabel = b.status === 'repair_scheduled' ? 'Scheduled' : (b.status === 'waiting_parts' ? 'Waiting Parts' : (b.status === 'ready_for_repair' ? 'Ready to Schedule' : 'Pending Scheduling'));
+
+    const priorityClass = `rsq-priority-${b.priority || 'medium'}`;
+
+    const unitInfo = b.unitInfo ? `${b.unitInfo.unitType || ''} ${b.unitInfo.brand ? '- ' + b.unitInfo.brand : ''}`.trim() : '';
+
+    const submittedLabel = b.submittedAt ? new Date(b.submittedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+
+    const canAssign = b.status === 'repair_approved' || b.status === 'ready_for_repair';
+    const isScheduled = b.status === 'repair_scheduled';
+    const isWaitingParts = b.status === 'waiting_parts';
+    const partsReady = b.stockAvailable !== false;
+    const partsStatusLabels = {
+      reserved: { label: 'Parts Ready', class: 'rsq-status-scheduled', icon: 'bi-check-circle-fill' },
+      waiting_parts: { label: 'Waiting Parts', class: 'rsq-priority-critical', icon: 'bi-exclamation-triangle-fill' },
+      pending_check: { label: 'Parts Pending', class: 'rsq-priority-medium', icon: 'bi-hourglass-split' },
+      none: { label: 'No Parts', class: 'rsq-status-scheduled', icon: 'bi-dash-circle' },
+    };
+
+    return `
+      <div class="rsq-card" data-id="${b._id}">
+        <div class="rsq-card-header">
+          <div>
+            <div class="rsq-card-id">${b.workOrderNumber}</div>
+            <div class="rsq-card-customer">${b.customer?.name || 'Unknown Customer'}</div>
+            ${unitInfo ? `<div class="rsq-card-unit">${unitInfo}</div>` : ''}
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${b.partsStatus ? `
+            <span class="rsq-status-badge ${partsStatusLabels[b.partsStatus]?.class || 'rsq-status-pending'}" style="font-size:0.65rem;">
+              <i class="bi ${partsStatusLabels[b.partsStatus]?.icon || 'bi-box'} me-1"></i>${partsStatusLabels[b.partsStatus]?.label || b.partsStatus}
+            </span>
+            ` : ''}
+            <span class="rsq-priority-badge ${priorityClass}"><i class="bi bi-flag"></i> ${b.priority || 'medium'}</span>
+            <span class="rsq-status-badge ${statusClass}">${statusLabel}</span>
+          </div>
+        </div>
+
+        <div class="rsq-info-grid">
+          <div class="rsq-info-item">
+            <i class="bi bi-person-badge"></i>
+            <span><strong>Inspector:</strong> ${b.originalInspector?.name || 'Unassigned'}</span>
+          </div>
+          <div class="rsq-info-item">
+            <i class="bi bi-calendar-check"></i>
+            <span><strong>Inspection:</strong> ${b.inspectionDate ? new Date(b.inspectionDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '-'}</span>
+          </div>
+          <div class="rsq-info-item">
+            <i class="bi bi-clock-history"></i>
+            <span><strong>Submitted:</strong> ${submittedLabel}</span>
+          </div>
+          <div class="rsq-info-item">
+            <i class="bi bi-cash-stack"></i>
+            <span><strong>Quotation:</strong> ${b.quotation?.totalCost ? '₱' + Number(b.quotation.totalCost).toLocaleString() : '-'}</span>
+          </div>
+        </div>
+
+        <!-- Parts summary -->
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="text-muted small fw-semibold"><i class="bi bi-box-seam"></i> Parts:</span>
+          ${renderPartsSummary(b)}
+        </div>
+
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="text-muted small fw-semibold">Preferred Dates:</span>
+          ${dates || '<span class="text-muted small">None</span>'}
+          <span class="rsq-time-badge"><i class="bi bi-clock"></i> ${timeLabel}</span>
+        </div>
+
+        <div class="rsq-action-bar">
+          ${!partsReady && canAssign ? `
+            <span class="text-danger small me-2" style="font-size:0.7rem;display:flex;align-items:center;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>Cannot schedule until parts are received
+            </span>
+          ` : ''}
+          <button class="btn btn-sm btn-outline-secondary" onclick="showDetail('${b._id}')">
+            <i class="bi bi-eye me-1"></i>Details
+          </button>
+          ${canAssign ? `
+            <button class="btn btn-sm ${partsReady ? 'btn-primary' : 'btn-outline-danger'}" onclick="${partsReady ? `openAssignModal('${b._id}')` : 'showPartsRequest(\'' + b._id + '\')' }">
+              <i class="bi ${partsReady ? 'bi-calendar-plus' : 'bi-box-seam'} me-1"></i>${partsReady ? 'Schedule & Assign' : 'Manage Parts'}
+            </button>
+          ` : isWaitingParts ? `
+            <button class="btn btn-sm btn-outline-warning" onclick="showPartsRequest('${b._id}')">
+              <i class="bi bi-box-seam me-1"></i>Manage Parts
+            </button>
+          ` : isScheduled ? `
+            <button class="btn btn-sm btn-success" disabled>
+              <i class="bi bi-check-circle me-1"></i>Scheduled
+            </button>
+          ` : `
+            <button class="btn btn-sm btn-outline-secondary" disabled>
+              <i class="bi bi-clock me-1"></i>${statusLabel}
+            </button>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  // ── Render Parts Summary ─────────────────────────────────────────────
+  function renderPartsSummary(b) {
+    const allParts = b.quotation?.parts || [];
+    if (allParts.length === 0) return '<span class="text-muted small">No parts required</span>';
+
+    // Only show parts that need procurement (insufficient stock)
+    const parts = allParts.filter(p => p.needsProcurement !== false);
+    if (parts.length === 0) return '<span class="text-muted small" style="color:#16a34a !important;"><i class="bi bi-check-circle me-1"></i>All parts in stock</span>';
+
+    const totalCost = parts.reduce((s, p) => s + ((p.cost || 0) * (p.quantity || 1)), 0);
+
+    const chips = parts.map(p => {
+      const qty = p.quantity || 1;
+      const cost = p.cost || 0;
+      const stock = p.currentStock || 0;
+      return `<span class="rsq-date-chip" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;font-size:0.72rem;">
+        <i class="bi bi-exclamation-triangle"></i> ${p.name || 'Part'} x${qty} <span style="opacity:0.7;">(₱${Number(cost * qty).toLocaleString()})</span>
+      </span>`;
+    }).join('');
+
+    return `<div class="d-flex flex-wrap gap-1">${chips}</div>`;
+  }
+
+  // ── Open Assign Modal ─────────────────────────────────────────────────
+  window.openAssignModal = async function(bookingId) {
+    const booking = allBookings.find(b => b._id === bookingId);
+    if (!booking) return;
+
+    currentAssignBooking = booking;
+    selectedTechId = null;
+    selectedAdminDate = null;
+    selectedAdminTime = null;
+    document.getElementById('assignBookingId').value = bookingId;
+    document.getElementById('assignWorkOrder').textContent = booking.workOrderNumber;
+    document.getElementById('assignCustomerName').textContent = booking.customer?.name || '-';
+    document.getElementById('assignCustomerContact').textContent = [booking.customer?.email, booking.customer?.phone].filter(Boolean).join(' | ') || '-';
+    document.getElementById('assignQuotationTotal').textContent = booking.quotation?.totalCost ? '₱' + Number(booking.quotation.totalCost).toLocaleString() : '-';
+
+    // Populate parts list
+    const partsCard = document.getElementById('assignPartsCard');
+    const partsList = document.getElementById('assignPartsList');
+    const parts = booking.quotation?.parts || [];
+    if (parts.length > 0) {
+      partsCard.style.display = '';
+      partsList.innerHTML = parts.map(p => {
+        const qty = p.quantity || 1;
+        const cost = p.cost || 0;
+        return `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:3px 8px;margin:2px;font-size:0.78rem;white-space:nowrap;">
+          <i class="bi bi-gear" style="font-size:0.65rem;"></i> ${p.name || 'Part'} ×${qty} <span style="opacity:0.6;">₱${Number(cost * qty).toLocaleString()}</span>
+        </span>`;
+      }).join(' ');
+    } else {
+      partsCard.style.display = 'none';
+    }
+
+    // Populate duration and complexity
+    const duration = booking.technicianAssistant?.estimatedDurationMinutes || 90;
+    const durationLabel = duration >= 60 ? Math.floor(duration/60) + 'h' + (duration%60 > 0 ? ' ' + duration%60 + 'm' : '') : duration + 'min';
+    document.getElementById('assignDuration').textContent = durationLabel;
+    const complexity = booking.repairComplexity || 'moderate';
+    const complexityLabels = { simple: 'Simple (1 part fix)', moderate: 'Moderate (multi-part)', complex: 'Complex (major overhaul)' };
+    document.getElementById('assignComplexity').textContent = complexityLabels[complexity] || complexity;
+
+    document.getElementById('assignOriginalInspector').textContent = booking.originalInspector?.name || 'Unassigned';
+
+    // Reset date and time grids
+    document.getElementById('adminDateGrid').innerHTML = '<div class="text-muted small" id="adminDatePlaceholder"><i class="bi bi-hourglass-split me-1"></i>Select a technician to see available dates</div>';
+    document.getElementById('adminDateCapacity').textContent = '-';
+    document.getElementById('adminTimeGrid').innerHTML = '';
+
+    // Render preferred dates with time window info
+    const datesHtml = (booking.preferredDates || []).map(d => {
+      const dt = new Date(d);
+      const label = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
+      return `<span class="rsq-date-chip"><i class="bi bi-calendar3"></i> ${label}</span>`;
+    }).join('');
+
+    const timeWindowLabels = { morning: 'Morning (8AM–12PM)', afternoon: 'Afternoon (12PM–5PM)', any: 'Any Time' };
+    const twLabel = timeWindowLabels[booking.preferredTimeWindow] || 'Any Time';
+    document.getElementById('assignPreferredDates').innerHTML = `
+      ${datesHtml || '<span class="text-muted small">No dates</span>'}
+      <span class="rsq-time-badge" style="background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;">
+        <i class="bi bi-clock"></i> ${twLabel}
+      </span>
+    `;
+
+    // Load availability
+    const techListEl = document.getElementById('assignTechList');
+    techListEl.innerHTML = '<div class="text-muted small"><i class="bi bi-hourglass-split me-1"></i>Checking technician availability...</div>';
+
+    const modal = new bootstrap.Modal(document.getElementById('assignModal'));
+    modal.show();
+
+    try {
+      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/availability`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Failed to check availability');
+      const data = await res.json();
+
+      renderTechList(data);
+      updatePreview();
+      // If a tech was auto-selected, load their available dates
+      if (selectedTechId) {
+        const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
+        fetchTechAvailableDates(selectedTechId, duration);
+      }
+    } catch (err) {
+      techListEl.innerHTML = '<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>' + err.message + '</div>';
+    }
+  };
+
+  // ── Render Technician List ────────────────────────────────────────────
+  function renderTechList(data) {
+    const techListEl = document.getElementById('assignTechList');
+    let html = '';
+
+    // Original inspector (recommended)
+    if (data.originalInspector && data.originalAvailable) {
+      const metaText = data.hasNoDates ? 'Select a date after choosing' : 'Available on preferred dates';
+      html += `
+        <div class="rsq-tech-card recommended selected" data-tech="${data.originalInspector._id}" onclick="selectTech(this, '${data.originalInspector._id}')">
+          <div class="rsq-tech-avatar">${(data.originalInspector.name || '?')[0].toUpperCase()}</div>
+          <div class="rsq-tech-info">
+            <div class="rsq-tech-name">${data.originalInspector.name}</div>
+            <div class="rsq-tech-meta">${metaText}</div>
+          </div>
+          <span class="rsq-tech-reason"><i class="bi bi-star-fill"></i> Original Inspector</span>
+        </div>
+      `;
+      selectedTechId = data.originalInspector._id;
+    } else if (data.originalInspector) {
+      html += `
+        <div class="rsq-tech-card" style="opacity:0.5;cursor:not-allowed;">
+          <div class="rsq-tech-avatar">${(data.originalInspector.name || '?')[0].toUpperCase()}</div>
+          <div class="rsq-tech-info">
+            <div class="rsq-tech-name">${data.originalInspector.name}</div>
+            <div class="rsq-tech-meta text-danger">Not available on preferred dates</div>
+          </div>
+          <span class="rsq-priority-badge rsq-priority-critical" style="font-size:0.65rem;">Unavailable</span>
+        </div>
+      `;
+    }
+
+    // Other available technicians
+    if (data.availableTechnicians && data.availableTechnicians.length > 0) {
+      html += '<div class="mt-2 mb-1"><small class="text-muted fw-semibold"><i class="bi bi-people me-1"></i>Other Available Technicians</small></div>';
+      data.availableTechnicians.forEach(tech => {
+        const availableDateCount = tech.availableDates ? tech.availableDates.length : 0;
+        const metaText = data.hasNoDates
+          ? (tech.rating ? '★ ' + tech.rating.toFixed(1) : 'Available')
+          : `Available ${availableDateCount} of preferred date(s)${tech.rating ? ' | ★ ' + tech.rating.toFixed(1) : ''}`;
+        html += `
+          <div class="rsq-tech-card" data-tech="${tech._id}" onclick="selectTech(this, '${tech._id}')">
+            <div class="rsq-tech-avatar">${(tech.name || '?')[0].toUpperCase()}</div>
+            <div class="rsq-tech-info">
+              <div class="rsq-tech-name">${tech.name}</div>
+              <div class="rsq-tech-meta">${metaText}</div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    if (!html) {
+      html = '<div class="text-warning small"><i class="bi bi-exclamation-triangle me-1"></i>No technicians available for the preferred dates.</div>';
+    }
+
+    techListEl.innerHTML = html;
+    updateAssignButton();
+  }
+
+  // ── Select Technician ─────────────────────────────────────────────────
+
+  window.selectTech = function(el, techId) {
+    if (el.style.opacity === '0.5') return; // unavailable
+    document.querySelectorAll('.rsq-tech-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedTechId = techId;
+    selectedAdminDate = null;
+    selectedAdminTime = null;
+    // Clear time slot grid when tech changes
+    document.getElementById('adminTimeGrid').innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;">Select a date to see available slots</div>';
+    document.getElementById('adminDateCapacity').textContent = '-';
+    updateAssignButton();
+    updatePreview();
+    // Fetch available dates for this technician using the booking's estimated duration
+    const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
+    fetchTechAvailableDates(techId, duration);
+  };
+
+  // ── Fetch Technician Available Dates ──────────────────────────────────
+  async function fetchTechAvailableDates(techId, duration) {
+    const gridEl = document.getElementById('adminDateGrid');
+    const placeholderEl = document.getElementById('adminDatePlaceholder');
+    const capacityEl = document.getElementById('adminDateCapacity');
+
+    if (placeholderEl) placeholderEl.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading available dates...';
+    gridEl.innerHTML = '';
+    if (placeholderEl) gridEl.appendChild(placeholderEl);
+    capacityEl.textContent = '-';
+
+    try {
+      const res = await fetch(`/api/admin/technicians/${techId}/available-dates?duration=${duration || 90}`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Failed to load dates');
+      const data = await res.json();
+
+      if (!data.dates || data.dates.length === 0) {
+        gridEl.innerHTML = '<div class="text-muted small">No dates available</div>';
+        return;
+      }
+
+      let html = '';
+      data.dates.forEach(d => {
+        const dt = new Date(d.date + 'T00:00:00');
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = dayNames[dt.getDay()];
+        const monthDay = `${monthNames[dt.getMonth()]} ${dt.getDate()}`;
+
+        if (d.available) {
+          const slotsText = d.remainingSlots === 1 ? '1 slot' : `${d.remainingSlots} slots`;
+          html += `<div class="admin-date-card available" data-date="${d.date}" onclick="selectAdminDate(this, '${d.date}', ${d.remainingSlots})" title="${d.remainingSlots} of ${d.totalSlots} slots available">
+            <div class="admin-date-day">${dayLabel}</div>
+            <div class="admin-date-md">${monthDay}</div>
+            <div class="admin-date-slots"><i class="bi bi-check-circle-fill"></i> ${slotsText}</div>
+          </div>`;
+        } else {
+          html += `<div class="admin-date-card unavailable" title="${d.reason}">
+            <div class="admin-date-day">${dayLabel}</div>
+            <div class="admin-date-md">${monthDay}</div>
+            <div class="admin-date-slots"><i class="bi bi-x-circle-fill"></i> ${d.reason}</div>
+          </div>`;
+        }
+      });
+
+      gridEl.innerHTML = html;
+      if (placeholderEl) placeholderEl.remove();
+    } catch (err) {
+      gridEl.innerHTML = '<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>' + err.message + '</div>';
+    }
+  }
+
+  // ── Select Admin Date ─────────────────────────────────────────────────
+  let selectedAdminTime = null;
+
+  window.selectAdminDate = function(el, date, slots) {
+    document.querySelectorAll('.admin-date-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedAdminDate = date;
+    selectedAdminTime = null;
+
+    // Update capacity display
+    const capacityEl = document.getElementById('adminDateCapacity');
+    capacityEl.textContent = `${slots} slot${slots === 1 ? '' : 's'} remaining`;
+    capacityEl.style.color = '#16a34a';
+    capacityEl.style.fontWeight = '600';
+
+    // Render time slots from real availability
+    renderAdminTimeSlots(date);
+    updateAssignButton();
+    updatePreview();
+  };
+
+  // ── Render Time Slots ─────────────────────────────────────────────────
+  async function renderAdminTimeSlots(date) {
+    const gridEl = document.getElementById('adminTimeGrid');
+    const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
+    const preferredWindow = currentAssignBooking?.preferredTimeWindow || 'any';
+
+    // Show time window hint next to the label
+    const hintEl = document.getElementById('adminTimeWindowHint');
+    if (hintEl) {
+      const labels = { morning: '(Customer prefers morning)', afternoon: '(Customer prefers afternoon)', any: '' };
+      hintEl.textContent = labels[preferredWindow] || '';
+    }
+
+    if (!selectedTechId || !date) {
+      gridEl.innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;">Select a technician and date</div>';
+      return;
+    }
+
+    // Show loading
+    gridEl.innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;"><div class="spinner-border spinner-border-sm me-1"></div>Loading slots...</div>';
+
+    try {
+      const resp = await fetch(`/api/admin/technicians/${selectedTechId}/available-slots?date=${date}&duration=${duration}`, { credentials: 'same-origin' });
+      const data = await resp.json();
+
+      if (data.reason) {
+        gridEl.innerHTML = `<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-info-circle me-1"></i>${data.reason}</div>`;
+        return;
+      }
+
+      const slots = data.slots || [];
+      if (slots.length === 0) {
+        gridEl.innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-exclamation-circle me-1"></i>No slots available for this duration</div>';
+        return;
+      }
+
+      const windowLabels = { morning: 'Morning (8:00 AM – 12:00 PM)', afternoon: 'Afternoon (12:00 PM – 5:00 PM)', any: 'Any Time' };
+      const windowLabel = windowLabels[preferredWindow] || 'Any Time';
+
+      // Helper: check if a slot start time falls within a given window
+      function slotInWindow(startTime, window) {
+        if (window === 'any') return true;
+        const hour = parseInt(startTime.split(':')[0]);
+        if (window === 'morning') return hour < 12;
+        if (window === 'afternoon') return hour >= 12;
+        return true;
+      }
+
+      // Group slots: preferred first, then non-preferred
+      const preferredSlots = [];
+      const otherSlots = [];
+      slots.forEach(slot => {
+        if (slot.available && slotInWindow(slot.start, preferredWindow)) {
+          preferredSlots.push(slot);
+        } else {
+          otherSlots.push(slot);
+        }
+      });
+
+      let html = '';
+
+      // Header showing preferred window
+      html += `<div style="grid-column:1/-1;margin-bottom:6px;">
+        <span class="badge bg-${preferredWindow === 'any' ? 'secondary' : 'info'}" style="font-size:0.7rem;padding:4px 10px;">
+          <i class="bi bi-clock-history me-1"></i>Customer Preferred: ${windowLabel}
+        </span>
+      </div>`;
+
+      // Render preferred slots section
+      if (preferredSlots.length > 0) {
+        if (preferredWindow !== 'any') {
+          html += `<div style="grid-column:1/-1;font-size:0.72rem;font-weight:600;color:#166534;margin-bottom:4px;">
+            <i class="bi bi-star-fill me-1" style="font-size:0.6rem;"></i>Recommended Slots
+          </div>`;
+        }
+        preferredSlots.forEach(slot => {
+          const startH = parseInt(slot.start.split(':')[0]);
+          const startM = slot.start.split(':')[1] || '00';
+          const ampm = startH >= 12 ? 'PM' : 'AM';
+          const h12 = startH > 12 ? startH - 12 : startH === 0 ? 12 : startH;
+          const label = `${h12}:${startM} ${ampm}`;
+
+          html += `<div class="admin-ts preferred" 
+            data-value="${slot.start}" 
+            onclick="selectAdminTime(this, '${slot.start}')"
+            title="${slot.label}">
+            <div class="admin-ts-label">${label}</div>
+            <div style="font-size:0.6rem;color:#64748b;margin-bottom:3px;">${duration >= 60 ? Math.floor(duration/60) + 'h' + (duration%60 > 0 ? ' ' + duration%60 + 'm' : '') : duration + 'min'}</div>
+            <span class="admin-ts-status available">Available</span>
+          </div>`;
+        });
+      }
+
+      // If no preferred slots available and there are other slots, show a notice
+      if (preferredSlots.length === 0 && otherSlots.some(s => s.available)) {
+        html += `<div style="grid-column:1/-1;font-size:0.72rem;color:#92400e;background:#fffbeb;padding:6px 10px;border-radius:6px;margin:4px 0;">
+          <i class="bi bi-exclamation-circle me-1"></i>No ${preferredWindow} slots available. Showing other available slots below.
+        </div>`;
+      }
+
+      // Render other (outside preference) slots
+      if (otherSlots.some(s => s.available)) {
+        if (preferredWindow !== 'any' && preferredSlots.length > 0) {
+          html += `<div style="grid-column:1/-1;font-size:0.72rem;font-weight:600;color:#64748b;margin-top:6px;margin-bottom:4px;border-top:1px dashed #e2e8f0;padding-top:8px;">
+            Other Available Slots
+          </div>`;
+        }
+        otherSlots.forEach(slot => {
+          const unavailable = !slot.available;
+          let statusClass = 'available';
+          let statusText = 'Available';
+
+          if (unavailable) {
+            statusClass = 'booked';
+            statusText = 'Booked';
+          }
+
+          html += `<div class="admin-ts ${unavailable ? 'unavailable' : ''}" 
+            data-value="${slot.start}" 
+            ${!unavailable ? `onclick="selectAdminTime(this, '${slot.start}')"` : ''}
+            title="${unavailable ? 'Already booked' : `${slot.label} — ${duration}min repair`}">
+            <div class="admin-ts-label">${slot.label}</div>
+            <div style="font-size:0.6rem;color:#64748b;margin-bottom:3px;">${duration >= 60 ? Math.floor(duration/60) + 'h' + (duration%60 > 0 ? ' ' + duration%60 + 'm' : '') : duration + 'min'}</div>
+            <span class="admin-ts-status ${statusClass}">${statusText}</span>
+          </div>`;
+        });
+      }
+
+      // If no slots at all, show message
+      if (preferredSlots.length === 0 && otherSlots.filter(s => s.available).length === 0) {
+        gridEl.innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-exclamation-circle me-1"></i>No available slots for this date</div>';
+        return;
+      }
+
+      gridEl.innerHTML = html;
+    } catch (err) {
+      gridEl.innerHTML = '<div class="text-danger small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load slots</div>';
+    }
+  }
+
+  // ── Select Time Slot ──────────────────────────────────────────────────
+  window.selectAdminTime = function(el, timeValue) {
+    document.querySelectorAll('.admin-ts').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedAdminTime = timeValue;
+    updateAssignButton();
+    updatePreview();
+  };
+
+  // ── Update Assign Button ──────────────────────────────────────────────
+  function updateAssignButton() {
+    const btn = document.getElementById('assignSubmitBtn');
+    btn.disabled = !selectedTechId || !selectedAdminDate || !selectedAdminTime;
+  }
+
+  // ── Update Preview ────────────────────────────────────────────────────
+  function updatePreview() {
+    const preview = document.getElementById('assignPreview');
+
+    if (selectedAdminDate && selectedTechId && selectedAdminTime) {
+      const dt = new Date(selectedAdminDate + 'T00:00:00');
+      document.getElementById('previewDate').textContent = dt.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+      // Convert 24h to 12h format
+      const [h, m] = selectedAdminTime.split(':');
+      const hour = parseInt(h);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+      document.getElementById('previewTime').textContent = `${h12}:${m || '00'} ${ampm}`;
+
+      const techCard = document.querySelector(`.rsq-tech-card[data-tech="${selectedTechId}"]`);
+      const techName = techCard ? techCard.querySelector('.rsq-tech-name')?.textContent : 'Unknown';
+      document.getElementById('previewTech').textContent = techName;
+
+      preview.style.display = 'block';
+    } else {
+      preview.style.display = 'none';
+    }
+  }
+
+  // ── Submit Assignment ─────────────────────────────────────────────────
+  window.submitAssignment = async function() {
+    const bookingId = document.getElementById('assignBookingId').value;
+    const date = selectedAdminDate;
+    const time = selectedAdminTime;
+    const notes = document.getElementById('assignNotes').value;
+
+    if (!selectedTechId || !date || !time) return;
+
+    const btn = document.getElementById('assignSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Scheduling...';
+
+    try {
+      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          technicianId: selectedTechId,
+          scheduledDate: date,
+          scheduledTime: time,
+          notes
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign');
+
+      // Close modal and refresh
+      bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+
+      // Show success toast
+      showToast('success', `Repair scheduled successfully! ${data.message || ''}`);
+
+      loadQueue();
+    } catch (err) {
+      showToast('error', err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Assign & Schedule';
+    }
+  };
+
+  // ── Show Parts Request Modal ─────────────────────────────────────────
+  let _mpBookingId = null;
+  window.showPartsRequest = function(bookingId) {
+    const b = allBookings.find(x => x._id === bookingId);
+    if (!b) return;
+    _mpBookingId = bookingId;
+    document.getElementById('mpWorkOrder').textContent = b.workOrderNumber;
+    document.getElementById('mpProcureResult').style.display = 'none';
+
+    const allParts = b.quotation?.parts || [];
+    // Only show parts that actually need procurement (insufficient stock)
+    const parts = allParts.filter(p => p.needsProcurement !== false);
+    const partsListEl = document.getElementById('mpPartsList');
+
+    const isReady = b.partsStatus === 'reserved' || b.partsStatus === 'none' || b.stockAvailable || b.status === 'ready_for_repair' || b.status === 'repair_approved';
+    const canReceive = b.partsStatus === 'waiting_parts';
+    const canCheck = b.partsStatus === 'pending_check';
+    const allInStock = parts.length === 0 && allParts.length > 0;
+
+    if (allInStock && canCheck) {
+      partsListEl.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-semibold" style="font-size:0.85rem;color:#0f172a;">All ${allParts.length} Part(s) In Stock</span>
+          <span class="rsq-status-badge rsq-priority-medium" style="font-size:0.65rem;"><i class="bi bi-hourglass-split me-1"></i>Pending Reservation</span>
+        </div>
+        <div style="border:1px solid #bbf7d0;border-radius:10px;overflow:hidden;background:#f0fdf4;padding:12px 16px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:#166534;">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>All parts are available in inventory. Click <strong>"Reserve Parts &amp; Schedule"</strong> to reserve stock and proceed to scheduling.</span>
+          </div>
+        </div>
+      `;
+      document.getElementById('mpReceiveBtn').style.display = 'none';
+      document.getElementById('mpCheckBtn').style.display = 'none';
+      document.getElementById('mpScheduleBtn').style.display = 'none';
+      document.getElementById('mpStatusInfo').style.display = 'none';
+      let reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
+      if (!reserveBtn) {
+        reserveBtn = document.createElement('button');
+        reserveBtn.id = 'mpReserveAndScheduleBtn';
+        reserveBtn.className = 'btn btn-success btn-sm fw-semibold';
+        document.querySelector('#managePartsModal .ent-modal-footer').insertBefore(reserveBtn, document.getElementById('mpScheduleBtn'));
+      }
+      reserveBtn.onclick = function() { reserveAndSchedule(bookingId); };
+      reserveBtn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i> Reserve Parts &amp; Schedule';
+      reserveBtn.style.display = '';
+    } else if (allInStock && !canCheck) {
+      partsListEl.innerHTML = `<div class="text-muted small text-center py-4" style="color:#16a34a !important;"><i class="bi bi-check-circle-fill me-1"></i>All ${allParts.length} part(s) are available in stock. No procurement needed.</div>`;
+      document.getElementById('mpReceiveBtn').style.display = 'none';
+      document.getElementById('mpCheckBtn').style.display = 'none';
+      document.getElementById('mpScheduleBtn').style.display = isReady ? '' : 'none';
+      document.getElementById('mpStatusInfo').style.display = isReady ? 'block' : 'none';
+      const reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
+      if (reserveBtn) reserveBtn.style.display = 'none';
+    } else {
+      const statusLabels = {
+        reserved: { label: 'Available', class: 'rsq-status-scheduled', icon: 'bi-check-circle-fill' },
+        waiting_parts: { label: 'Waiting for Parts', class: 'rsq-priority-critical', icon: 'bi-exclamation-triangle-fill' },
+        pending_check: { label: 'Pending Check', class: 'rsq-priority-medium', icon: 'bi-hourglass-split' },
+        none: { label: 'Available', class: 'rsq-status-scheduled', icon: 'bi-check-circle-fill' },
+      };
+      const status = statusLabels[b.partsStatus] || statusLabels.none;
+
+      partsListEl.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-semibold" style="font-size:0.85rem;color:#0f172a;">Parts Needing Procurement (${parts.length}${parts.length < allParts.length ? ' of ' + allParts.length : ''})</span>
+          <span class="rsq-status-badge ${status.class}" style="font-size:0.65rem;"><i class="bi ${status.icon} me-1"></i>${status.label}</span>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead><tr style="background:#f8fafc;"><th style="padding:8px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;">Part</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;">Qty Needed</th><th style="padding:8px 12px;text-align:center;font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;">In Stock</th><th style="padding:8px 12px;text-align:right;font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;">Cost</th></tr></thead>
+            <tbody>${parts.map(p => {
+              const qty = p.quantity || 1;
+              const cost = p.cost || 0;
+              const stock = p.currentStock || 0;
+              return `<tr><td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">${p.name || 'Part'}</td><td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;">${qty}</td><td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;"><span style="color:#dc2626;font-weight:600;">${stock}</span></td><td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;">₱${Number(cost * qty).toLocaleString()}</td></tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('mpReceiveBtn').style.display = canReceive ? '' : 'none';
+      document.getElementById('mpCheckBtn').style.display = canCheck ? '' : 'none';
+      document.getElementById('mpScheduleBtn').style.display = isReady ? '' : 'none';
+      if (canCheck) {
+        document.getElementById('mpCheckBtn').innerHTML = '<i class="bi bi-search me-1"></i> Check &amp; Procure Parts';
+      }
+      document.getElementById('mpStatusInfo').style.display = isReady ? 'block' : 'none';
+      const reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
+      if (reserveBtn) reserveBtn.style.display = 'none';
+    }
+
+    new bootstrap.Modal(document.getElementById('managePartsModal')).show();
+  };
+
+  // ── Reserve available parts and refresh queue ───────────────────────
+  window.reserveParts = async function(bookingId) {
+    if (!bookingId) return;
+    try {
+      Swal.fire({ title: 'Reserving stock...', allowOutsideClick: false, showConfirmButton: false, willOpen: () => Swal.showLoading() });
+      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      Swal.close();
+      if (!res.ok) throw new Error(data.error || 'Failed to reserve parts');
+      await window.loadQueue();
+      const newB = allBookings.find(x => x._id === bookingId);
+      if (newB) window.showPartsRequest(bookingId);
+    } catch (e) {
+      Swal.fire('Error', e.message, 'error');
+    }
+  };
+
+  // ── Reserve & Schedule (all parts in stock, just need reservation) ────
+  window.reserveAndSchedule = async function(bookingId) {
+    const btn = document.getElementById('mpReserveAndScheduleBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Reserving stock...'; }
+    try {
+      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: '{}',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reserve parts');
+      if (!data.allReady) {
+        showToast('warning', 'Some parts could not be reserved. Please procure missing parts first.');
+        bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
+        await loadQueue();
+        return;
+      }
+      showToast('success', 'Parts reserved successfully! Opening scheduler...');
+      bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
+      await loadQueue();
+      setTimeout(() => openAssignModal(bookingId), 300);
+    } catch (err) {
+      showToast('error', err.message);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i> Reserve Parts &amp; Schedule'; }
+    }
+  };
+
+  // ── Check & Procure Parts ────────────────────────────────────────────
+  window.submitCheckAndProcure = function() {
+    if (!_mpBookingId) return;
+    const b = allBookings.find(x => x._id === _mpBookingId);
+    const allParts = b?.quotation?.parts || [];
+    const needing = allParts.filter(p => p.needsProcurement !== false);
+    if (needing.length === 0) {
+      window.reserveParts(_mpBookingId);
+    } else {
+      window.location.href = `/admin/inventory/repair-parts?bookingId=${_mpBookingId}`;
+    }
+  };
+
+  // ── Submit Receive Parts ─────────────────────────────────────────────
+  window.submitReceiveParts = async function() {
+    const btn = document.getElementById('mpReceiveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
+    try {
+      const res = await fetch(`/api/admin/repair-queue/${_mpBookingId}/receive-parts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to receive parts');
+      showToast('success', data.message || 'Parts received successfully!');
+      bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
+      await loadQueue();
+      // If all parts received, re-open modal with schedule button visible
+      if (data.booking && data.booking.status === 'ready_for_repair') {
+        setTimeout(() => showPartsRequest(_mpBookingId), 300);
+      }
+    } catch (err) {
+      showToast('error', err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Mark All as Received';
+    }
+  };
+
+  // ── Proceed to Schedule ──────────────────────────────────────────────
+  window.proceedToSchedule = function() {
+    if (!_mpBookingId) return;
+    bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
+    setTimeout(() => openAssignModal(_mpBookingId), 300);
+  };
+
+  // ── Show Detail ───────────────────────────────────────────────────────
+  window.showDetail = function(bookingId) {
+    const b = allBookings.find(x => x._id === bookingId);
+    if (!b) return;
+
+    document.getElementById('detailWorkOrder').textContent = b.workOrderNumber;
+
+    const dates = (b.preferredDates || []).map(d => new Date(d).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })).join(', ');
+    const timeLabel = { morning: 'Morning', afternoon: 'Afternoon', any: 'Any Time' }[b.preferredTimeWindow] || 'Any Time';
+
+    document.getElementById('detailBody').innerHTML = `
+      <div class="ent-detail-grid">
+        <div class="ent-detail-card">
+          <div class="ent-detail-card-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-person"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Customer</span>
+            <span class="ent-detail-value">${b.customer?.name || '-'}</span>
+            <span class="ent-detail-sub">${b.customer?.email || ''} ${b.customer?.phone ? '| ' + b.customer.phone : ''}</span>
+          </div>
+        </div>
+        <div class="ent-detail-card">
+          <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-person-badge"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Original Inspector</span>
+            <span class="ent-detail-value">${b.originalInspector?.name || '-'}</span>
+          </div>
+        </div>
+        <div class="ent-detail-card">
+          <div class="ent-detail-card-icon" style="background:#fef3c7;color:#f59e0b;"><i class="bi bi-calendar-check"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Inspection Date</span>
+            <span class="ent-detail-value">${b.inspectionDate ? new Date(b.inspectionDate).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'}</span>
+          </div>
+        </div>
+        <div class="ent-detail-card">
+          <div class="ent-detail-card-icon" style="background:#f5f3ff;color:#7c3aed;"><i class="bi bi-cash-stack"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Quotation Total</span>
+            <span class="ent-detail-value">${b.quotation?.totalCost ? '₱' + Number(b.quotation.totalCost).toLocaleString() : '-'}</span>
+          </div>
+        </div>
+        <div class="ent-detail-card ent-detail-card-wide">
+          <div class="ent-detail-card-icon" style="background:#ecfdf5;color:#059669;"><i class="bi bi-calendar3"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Preferred Dates & Time</span>
+            <span class="ent-detail-value">${dates || 'None'}</span>
+            <span class="ent-detail-sub">Time: ${timeLabel}</span>
+          </div>
+        </div>
+        ${b.quotation?.parts?.length ? `
+        <div class="ent-detail-card ent-detail-card-wide">
+          <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#059669;"><i class="bi bi-box-seam"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Requested Parts (${b.quotation.parts.length} item${b.quotation.parts.length > 1 ? 's' : ''})</span>
+            <div class="ent-detail-value" style="font-weight:500;font-size:0.82rem;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+              ${b.quotation.parts.map(p => {
+                const qty = p.quantity || 1;
+                const cost = p.cost || 0;
+                return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:3px 8px;font-size:0.78rem;">
+                  ${p.name || 'Part'} ×${qty} <span style="opacity:0.6;">₱${Number(cost * qty).toLocaleString()}</span>
+                </span>`;
+              }).join('')}
+            </div>
+            <span class="ent-detail-sub" style="margin-top:4px;">
+              Labor: ₱${Number(b.quotation.laborCost || 0).toLocaleString()} | 
+              Total: ₱${Number(b.quotation.totalCost || 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+        ` : ''}
+        ${b.unitInfo ? `
+        <div class="ent-detail-card ent-detail-card-wide">
+          <div class="ent-detail-card-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-tools"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Unit Information</span>
+            <span class="ent-detail-value">${b.unitInfo.unitType || '-'}</span>
+            <span class="ent-detail-sub">${[b.unitInfo.brand, b.unitInfo.model].filter(Boolean).join(' - ')}</span>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    `;
+
+    new bootstrap.Modal(document.getElementById('detailModal')).show();
+  };
+
+  // ── Toast Notifications ───────────────────────────────────────────────
+  function showToast(type, message) {
+    const toast = document.createElement('div');
+    const alertClass = type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger';
+    const iconClass = type === 'success' ? 'check-circle-fill' : type === 'warning' ? 'exclamation-triangle-fill' : 'exclamation-triangle-fill';
+    toast.className = `alert alert-${alertClass} position-fixed`;
+    toast.style.cssText = 'top:20px;right:20px;z-index:9999;min-width:300px;box-shadow:0 8px 24px rgba(0,0,0,0.15);border-radius:10px;';
+    toast.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-${iconClass}"></i><span>${message}</span></div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  // ── Event Listeners ───────────────────────────────────────────────────
+  document.getElementById('searchInput').addEventListener('input', renderQueue);
+  document.getElementById('filterStatus').addEventListener('change', renderQueue);
+  document.getElementById('filterTimeWindow').addEventListener('change', renderQueue);
+
+  // Clean up dynamic buttons when manage parts modal is closed
+  document.getElementById('managePartsModal').addEventListener('hidden.bs.modal', function() {
+    const reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
+    if (reserveBtn) reserveBtn.style.display = 'none';
+  });
+
+  // ── Initial Load ──────────────────────────────────────────────────────
+  loadQueue();
+
+  // Stat card sparklines
+  (function(){
+    function spark(ctx, data, color){
+      if(!ctx || !window.Chart) return null;
+      var h = ctx.canvas.height || ctx.canvas.offsetHeight || 40;
+      var g = ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map(function(_,i){ return i+1; }),
+          datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 600 },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } }
+        }
+      });
+    }
+    function randomData(n){
+      var arr = [8 + Math.random()*12];
+      for(var i=1; i<n; i++){ arr.push(Math.max(3, Math.min(30, arr[i-1] + (Math.random()-0.5)*12))); }
+      return arr;
+    }
+    document.querySelectorAll('.stat-sparkline canvas').forEach(function(c){
+      var card = c.closest('.stat-card');
+      var color = card ? (card.dataset.sparkColor || '#2563eb') : '#2563eb';
+      spark(c.getContext('2d'), randomData(10), color);
+    });
+  })();
+})();
+</script>

@@ -1,0 +1,1230 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link rel="stylesheet" href="/css/analytics.css">
+
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-graph-up"></i></div>
+          <div>
+            <h1>Revenue Analytics</h1>
+            <p>Analyze earnings, margins, and payment performance across services and channels</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Key Metrics</div>
+    <style>
+      /* remove built‑in container padding so KPI cards start at the left edge of the main area */
+      .admin-dashboard.container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      /* also strip the default padding from the main wrapper on this page */
+      .admin-content>main.p-4 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      /* tighten spacing around KPI row and cards specifically for this report */
+      .admin-dashboard .kpi-row {
+        gap: 12px !important;
+        margin-bottom: 0 !important;
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        width: 100% !important;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+      }
+
+      /* KPI card overrides for reports page */
+      .admin-dashboard .dash-card {
+        padding: 1.25rem !important;
+      }
+
+      /* make KPI cards expand to fill available space so they stretch edge‑to‑edge */
+      .admin-dashboard .kpi-row .kpi-card {
+        flex: 1 1 0 !important;
+        min-width: 200px !important;
+        /* prevent collapse at very small widths */
+        max-width: none !important;
+      }
+
+      /* override some card colours for reports page */
+      .admin-dashboard .card {
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
+      /* provide vertical space between KPI row and following cards */
+      .admin-dashboard .kpi-row {
+        margin-bottom: 1.5rem !important;
+      }
+
+      /* reduce the page container min-height so content doesn't stretch to full viewport */
+      .admin-dashboard {
+        min-height: auto !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+      }
+
+      /* ensure no large top margin on cards in this page */
+      .admin-dashboard .card {
+        margin-top: 0 !important;
+      }
+
+      .admin-dashboard .card-header {
+        background: #fff;
+        font-weight: 600;
+      }
+
+      /* filter controls smaller, consistent margin */
+      .admin-dashboard .card-body.row .form-label {
+        font-size: 0.75rem;
+        letter-spacing: 0.03em;
+      }
+
+      .admin-dashboard .card-body.row .form-select {
+        font-size: 0.875rem;
+      }
+
+      /* table styling */
+      .admin-dashboard table {
+        font-size: 0.875rem;
+      }
+
+      .admin-dashboard table thead {
+        background: #f8f9fa;
+        text-transform: uppercase;
+      }
+
+      .admin-dashboard table tbody tr:hover {
+        background: rgba(0, 0, 0, 0.03);
+      }
+
+      /* enterprise chart and modal enhancements */
+      canvas {
+        cursor: pointer;
+        transition: transform .2s ease;
+      }
+
+      canvas:hover {
+        transform: scale(1.02);
+      }
+
+      /* Enterprise KPI Card Styles */
+      .dash-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .dash-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      }
+      .kpi-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      }
+      .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
+      .kpi-sparkline-container {
+        height: 40px;
+        margin-top: 0.5rem;
+      }
+      .kpi-sparkline-container canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      .bg-success-subtle {
+        background-color: rgba(16, 185, 129, 0.15);
+      }
+      .bg-info-subtle {
+        background-color: rgba(8, 145, 178, 0.15);
+      }
+      .bg-warning-subtle {
+        background-color: rgba(245, 158, 11, 0.15);
+      }
+      .bg-danger-subtle {
+        background-color: rgba(220, 38, 38, 0.15);
+      }
+      .fs-7 {
+        font-size: 0.75rem;
+      }
+    </style>
+    <div class="row g-3 mb-4">
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Revenue (12mo)</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.totalRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
+              </div>
+              <div class="badge bg-primary-subtle text-primary fs-7"><%= analytics ? analytics.totalTransactions.toLocaleString() : 0 %> transactions</div>
+              <small class="text-muted">Gross revenue</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+              <i class="bi bi-currency-dollar text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="revSparkGross" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Cost of Parts Used</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.totalPartsCost / 1000).toFixed(1) : "0.0" %>K</span>
+              </div>
+              <div class="badge bg-danger-subtle text-danger fs-7"><%= analytics ? Math.round((analytics.totalPartsCost / (analytics.totalRevenue || 1)) * 100) : 0 %>% of revenue</div>
+              <small class="text-muted">Parts & tool usage</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+              <i class="bi bi-tools text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="revSparkPartsCost" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Gross Profit</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.grossProfit / 1000000).toFixed(2) : "0.00" %>M</span>
+              </div>
+              <div class="badge bg-success-subtle text-success fs-7"><%= analytics ? analytics.grossProfitMargin : "0.0" %>% margin</div>
+              <small class="text-muted">Revenue minus costs</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+              <i class="bi bi-graph-up-arrow text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="revSparkProfit" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Paid Bookings</h6>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="h3 mb-0 fw-bold text-dark"><%= analytics ? Math.round((analytics.paidBookings / (analytics.totalTransactions || 1)) * 100) : 0 %>%</span>
+              </div>
+              <div class="badge bg-secondary-subtle text-secondary fs-7"><%= analytics ? analytics.pendingPayments : 0 %> pending</div>
+              <small class="text-muted">Collection rate</small>
+            </div>
+            <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+              <i class="bi bi-speedometer2 text-white"></i>
+            </div>
+          </div>
+          <div class="kpi-sparkline-container">
+            <canvas id="revSparkEfficiency" height="40"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body row g-3">
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Period</label><select class="form-select">
+            <option>This Month</option>
+            <option>Last Month</option>
+            <option>Quarterly</option>
+            <option>Year-to-Date</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Revenue Source</label><select
+            class="form-select">
+            <option>All Sources</option>
+            <option>Core Services</option>
+            <option>Repair Services</option>
+            <option>Products</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Payment Channel</label><select
+            class="form-select">
+            <option>All Channels</option>
+            <option>GCash</option>
+            <option>Cash</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button class="btn btn-light border w-100">
+            <i class="bi bi-funnel me-2"></i>Apply
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-8" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue Trend (Daily)</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 260px">
+              <canvas id="revenueTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue by Channel</h6>
+          </div>
+          <div class="card-body px-4 pb-4 d-flex flex-column justify-content-center">
+            <div style="height: 180px">
+              <canvas id="revenueChannelChart"></canvas>
+            </div>
+            <ul class="list-unstyled small mb-0 mt-3 px-2">
+              <li class="d-flex justify-content-between py-2 border-bottom"
+                style="border-color: rgba(226, 232, 240, 0.4) !important;">
+                <span class="text-muted"><i class="bi bi-circle-fill me-2"
+                    style="color: #1d4ed8; font-size: 0.6rem;"></i>GCash</span><strong
+                  style="color: #1d4ed8;">41%</strong>
+              </li>
+              <li class="d-flex justify-content-between py-2">
+                <span class="text-muted"><i class="bi bi-circle-fill me-2"
+                    style="color: #eab308; font-size: 0.6rem;"></i>Cash</span><strong
+                  style="color: #1d4ed8;">26%</strong>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Gross vs Net Margin Trend</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="marginTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue by Service Segment</h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="revenueSegmentChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI-Powered Revenue Insights Section -->
+    <div class="row g-3 mb-4">
+      <div class="col-12" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white" style="border-left: 4px solid #eab308;">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-robot me-2" style="color: #eab308;"></i>AI-Powered Financial Intelligence
+            </h6>
+            <span class="badge bg-warning-subtle border border-warning-subtle" style="color: #b45309;">Schema-Based Analysis</span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div class="row g-4">
+              <!-- Revenue Breakdown -->
+              <div class="col-lg-3">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-graph-up-arrow me-2" style="color: #eab308;"></i>
+                    <strong class="text-dark">Revenue Breakdown</strong>
+                  </div>
+                  <p class="small text-muted mb-2">
+                    Total: <strong>₱<%= analytics ? (analytics.totalRevenue / 1000000).toFixed(2) : "0.00" %>M</strong>
+                  </p>
+                  <div class="progress mb-2" style="height: 6px;">
+                    <div class="progress-bar" role="progressbar" data-revenue-progress
+                         data-value="<%= analytics ? Math.min((analytics.totalRevenue / 2000000) * 100, 100) : 0 %>"
+                         style="background-color: #eab308;"></div>
+                  </div>
+                  <small class="text-muted">
+                    <%= analytics ? analytics.totalTransactions.toLocaleString() : 0 %> transactions
+                  </small>
+                </div>
+              </div>
+              
+              <!-- Payment Method Analysis -->
+              <div class="col-lg-3">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-wallet-fill text-primary me-2"></i>
+                    <strong class="text-dark">Payment Mix</strong>
+                  </div>
+                  <p class="small text-muted mb-2">
+                    GCash: <strong>₱<%= analytics ? (analytics.gcashRevenue / 1000).toFixed(1) : "0.0" %>K</strong> | 
+                    COD: <strong>₱<%= analytics ? (analytics.codRevenue / 1000).toFixed(1) : "0.0" %>K</strong>
+                  </p>
+                  <div class="progress mb-2" style="height: 6px;">
+                    <div class="progress-bar bg-primary" role="progressbar" data-gcash-share
+                         data-value="<%= analytics ? (analytics.gcashRevenue / (analytics.totalRevenue || 1)) * 100 : 0 %>"></div>
+                  </div>
+                  <small class="text-muted">
+                    <%= analytics ? Math.round((analytics.gcashRevenue / (analytics.totalRevenue || 1)) * 100) : 0 %>% digital payments
+                  </small>
+                </div>
+              </div>
+              
+              <!-- Service Type Revenue -->
+              <div class="col-lg-3">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-tools text-danger me-2"></i>
+                    <strong class="text-dark">Service Revenue</strong>
+                  </div>
+                  <p class="small text-muted mb-2">
+                    Core: <strong>₱<%= analytics ? (analytics.coreRevenue / 1000).toFixed(1) : "0.0" %>K</strong> | 
+                    Repair: <strong>₱<%= analytics ? (analytics.repairRevenue / 1000).toFixed(1) : "0.0" %>K</strong>
+                  </p>
+                  <div class="progress mb-2" style="height: 6px;">
+                    <div class="progress-bar bg-danger" role="progressbar" data-core-share
+                         data-value="<%= analytics ? (analytics.coreRevenue / (analytics.totalRevenue || 1)) * 100 : 0 %>"></div>
+                  </div>
+                  <small class="text-muted">
+                    <%= analytics ? Math.round((analytics.coreRevenue / (analytics.totalRevenue || 1)) * 100) : 0 %>% core services
+                  </small>
+                </div>
+              </div>
+              
+              <!-- Top Performers -->
+              <div class="col-lg-3">
+                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-trophy-fill text-success me-2"></i>
+                    <strong class="text-dark">Top Performers</strong>
+                  </div>
+                  <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
+                    <p class="small text-muted mb-2">
+                      <strong><%= analytics.topTechnicians[0].name %></strong>: 
+                      ₱<%= (analytics.topTechnicians[0].revenue / 1000).toFixed(1) %>K
+                    </p>
+                    <div class="progress mb-2" style="height: 6px;">
+                      <div class="progress-bar bg-success" role="progressbar" data-top-tech
+                           data-value="<%= (analytics.topTechnicians[0].revenue / (analytics.totalRevenue || 1)) * 100 %>"></div>
+                    </div>
+                    <small class="text-muted">
+                      <%= analytics.topTechnicians[0].bookings %> bookings completed
+                    </small>
+                  <% } else { %>
+                    <p class="small text-muted mb-2">No technician data available</p>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Data-Driven Recommendations -->
+            <div class="mt-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+              <h6 class="fw-bold mb-3" style="color: #1d4ed8;">
+                <i class="bi bi-currency-dollar me-2"></i>Strategic Financial Recommendations
+              </h6>
+              <div class="row g-3">
+                <% if (analytics && analytics.pendingPayments > 0) { %>
+                  <div class="col-md-6">
+                    <div class="d-flex align-items-start">
+                      <span class="badge bg-warning me-2 mt-1">1</span>
+                      <div>
+                        <strong>Address Pending Payments</strong>
+                        <p class="small text-muted mb-0">
+                          <%= analytics.pendingPayments %> bookings have pending payments. Follow up to improve cash flow.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+                
+                <% if (analytics && analytics.gcashRevenue < analytics.codRevenue) { %>
+                  <div class="col-md-6">
+                    <div class="d-flex align-items-start">
+                      <span class="badge bg-warning me-2 mt-1">
+                        <%= analytics && analytics.pendingPayments > 0 ? "2" : "1" %>
+                      </span>
+                      <div>
+                        <strong>Promote Digital Payments</strong>
+                        <p class="small text-muted mb-0">
+                          GCash revenue (₱<%= (analytics.gcashRevenue / 1000).toFixed(1) %>K) is lower than COD. 
+                          Consider incentives for digital payments to reduce cash handling.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+                
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-warning me-2 mt-1">
+                      <%= (analytics && analytics.pendingPayments > 0 ? 1 : 0) + 
+                           (analytics && analytics.gcashRevenue < analytics.codRevenue ? 1 : 0) + 1 %>
+                    </span>
+                    <div>
+                      <strong>Service Mix Optimization</strong>
+                      <p class="small text-muted mb-0">
+                        Core services: ₱<%= analytics ? (analytics.coreRevenue / 1000).toFixed(1) : "0.0" %>K | 
+                        Repairs: ₱<%= analytics ? (analytics.repairRevenue / 1000).toFixed(1) : "0.0" %>K. 
+                        <%= analytics && analytics.repairRevenue > analytics.coreRevenue ? 
+                          "Repair demand is high - ensure parts inventory is stocked." : 
+                          "Core services are stable - consider maintenance packages." %>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-warning me-2 mt-1">
+                      <%= (analytics && analytics.pendingPayments > 0 ? 1 : 0) + 
+                           (analytics && analytics.gcashRevenue < analytics.codRevenue ? 1 : 0) + 2 %>
+                    </span>
+                    <div>
+                      <strong>Revenue Per Transaction</strong>
+                      <p class="small text-muted mb-0">
+                        Current average: ₱<%= analytics ? Math.round(analytics.avgTransactionValue) : 0 %>.
+                        <%= analytics && analytics.avgTransactionValue < 1500 ? 
+                          "Consider upselling add-on services to increase ticket size." : 
+                          "Strong transaction values - maintain service quality." %>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Revenue Trend & Analysis -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg-8" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-graph-up-arrow me-2"></i>12-Month Revenue Trend
+            </h6>
+            <div class="d-flex gap-2">
+              <span class="badge bg-success-subtle text-success border border-success-subtle">
+                <i class="bi bi-arrow-up me-1"></i><%= analytics ? analytics.growthRate : 0 %>% growth
+              </span>
+            </div>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 280px">
+              <canvas id="monthlyRevenueTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Revenue by Source Breakdown -->
+      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-pie-chart me-2"></i>Revenue by Source
+            </h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 200px">
+              <canvas id="revenueSourceChart"></canvas>
+            </div>
+            <div class="mt-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Services</span>
+                <span class="fw-bold">₱<%= analytics ? (analytics.serviceRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Product Orders</span>
+                <span class="fw-bold">₱<%= analytics ? (analytics.orderRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small text-muted">Delivery Fees</span>
+                <span class="fw-bold">₱<%= analytics ? (analytics.deliveryRevenue / 1000).toFixed(1) : "0.0" %>K</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Performers & Recent Transactions -->
+    <div class="row g-3 mb-4">
+      <!-- Top Technicians by Revenue -->
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-trophy me-2"></i>Top Revenue Generators
+            </h6>
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">By Technician</span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Technician</th>
+                      <th class="text-center">Bookings</th>
+                      <th class="text-center">Completed</th>
+                      <th class="text-end">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% analytics.topTechnicians.forEach(function(tech, index) { %>
+                      <tr>
+                        <td>
+                          <% if (index === 0) { %>
+                            <i class="bi bi-trophy-fill text-warning"></i>
+                          <% } else if (index === 1) { %>
+                            <i class="bi bi-trophy-fill text-secondary"></i>
+                          <% } else if (index === 2) { %>
+                            <i class="bi bi-trophy-fill" style="color: #cd7f32;"></i>
+                          <% } else { %>
+                            <span class="badge bg-light text-dark">#<%= index + 1 %></span>
+                          <% } %>
+                        </td>
+                        <td class="fw-bold"><%= tech.name %></td>
+                        <td class="text-center"><%= tech.bookings %></td>
+                        <td class="text-center"><span class="badge bg-success-subtle text-success"><%= tech.completed || 0 %></span></td>
+                        <td class="text-end fw-bold text-success">₱<%= tech.revenue.toLocaleString() %></td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            <% } else { %>
+              <div class="text-center py-4 text-muted">
+                <i class="bi bi-people fs-1"></i>
+                <p class="mt-2">No technician revenue data available</p>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recent Transactions -->
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-clock-history me-2"></i>Recent Transactions
+            </h6>
+            <span class="badge bg-info-subtle text-info border border-info-subtle">
+              <%= analytics && analytics.recentTransactions ? analytics.recentTransactions.length : 0 %> recent
+            </span>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <% if (analytics && analytics.recentTransactions && analytics.recentTransactions.length > 0) { %>
+              <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                <table class="table table-sm table-hover">
+                  <thead class="sticky-top bg-white">
+                    <tr>
+                      <th>Type</th>
+                      <th>Reference</th>
+                      <th>Customer</th>
+                      <th class="text-end">Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% analytics.recentTransactions.slice(0, 10).forEach(function(tx) { %>
+                      <tr>
+                        <td>
+                          <span class="badge <%= tx.type === 'service' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success' %>">
+                            <%= tx.type === 'service' ? 'Service' : 'Order' %>
+                          </span>
+                        </td>
+                        <td class="font-monospace small"><%= tx.reference || 'N/A' %></td>
+                        <td><%= tx.customer %></td>
+                        <td class="text-end fw-bold">₱<%= tx.amount ? tx.amount.toLocaleString() : 0 %></td>
+                        <td>
+                          <% const paymentStatusColors = {
+                            'paid': 'success',
+                            'pending': 'warning',
+                            'partial': 'info',
+                            'failed': 'danger'
+                          }; %>
+                          <span class="badge bg-<%= paymentStatusColors[tx.status] || 'secondary' %>-subtle text-<%= paymentStatusColors[tx.status] || 'secondary' %>">
+                            <%= tx.status %>
+                          </span>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            <% } else { %>
+              <div class="text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-2">No recent transactions</p>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Methods & Order Status -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-wallet2 me-2"></i>Payment Method Distribution
+            </h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="paymentMethodChart"></canvas>
+            </div>
+            <div class="row mt-3 g-2">
+              <div class="col-6">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="small text-muted"><i class="bi bi-phone me-1"></i>GCash</span>
+                  <span class="fw-bold">₱<%= analytics ? (analytics.gcashRevenue / 1000).toFixed(1) : "0.0" %>K</span>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="small text-muted"><i class="bi bi-cash me-1"></i>COD</span>
+                  <span class="fw-bold">₱<%= analytics ? (analytics.codRevenue / 1000).toFixed(1) : "0.0" %>K</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
+        <div class="dash-card bg-white h-100">
+          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
+              <i class="bi bi-check-circle me-2"></i>Payment Status Overview
+            </h6>
+          </div>
+          <div class="card-body px-4 pb-4">
+            <div style="height: 220px">
+              <canvas id="paymentStatusChart"></canvas>
+            </div>
+            <div class="row mt-3 text-center g-2">
+              <div class="col-3">
+                <div class="h5 mb-0 text-success"><%= analytics ? analytics.paidBookings : 0 %></div>
+                <small class="text-muted">Paid</small>
+              </div>
+              <div class="col-3">
+                <div class="h5 mb-0 text-warning"><%= analytics ? analytics.pendingPayments : 0 %></div>
+                <small class="text-muted">Pending</small>
+              </div>
+              <div class="col-3">
+                <div class="h5 mb-0 text-info"><%= analytics ? analytics.partialPayments : 0 %></div>
+                <small class="text-muted">Partial</small>
+              </div>
+              <div class="col-3">
+                <div class="h5 mb-0 text-danger"><%= analytics ? analytics.failedPayments : 0 %></div>
+                <small class="text-muted">Failed</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="revenue-data" type="application/json">
+      {
+        "monthlyRevenue": <%- JSON.stringify(analytics && analytics.monthlyRevenue ? (() => { const o = {}; Object.entries(analytics.monthlyRevenue).forEach(([month, data]) => { o[month] = { month, service: data.service, orders: data.orders, total: data.total, partsCost: (analytics.monthlyPartsCost && analytics.monthlyPartsCost[month]) || 0 }; }); return o; })() : {}) %>,
+        "revenueSources": {
+          "service": <%= analytics ? analytics.serviceRevenue : 0 %>,
+          "orders": <%= analytics ? analytics.orderRevenue : 0 %>,
+          "delivery": <%= analytics ? analytics.deliveryRevenue : 0 %>,
+          "installation": <%= analytics ? analytics.installationRevenue : 0 %>
+        },
+        "paymentMethods": {
+          "gcash": <%= analytics ? analytics.gcashRevenue : 0 %>,
+          "cod": <%= analytics ? analytics.codRevenue : 0 %>,
+          "bank": <%= analytics ? analytics.bankRevenue : 0 %>,
+          "other": <%= analytics ? (analytics.paymentRevenue - analytics.gcashRevenue - analytics.codRevenue - analytics.bankRevenue) : 0 %>
+        },
+        "paymentStatus": {
+          "paid": <%= analytics ? analytics.paidBookings : 0 %>,
+          "pending": <%= analytics ? analytics.pendingPayments : 0 %>,
+          "partial": <%= analytics ? analytics.partialPayments : 0 %>,
+          "failed": <%= analytics ? analytics.failedPayments : 0 %>
+        },
+        "growthRate": <%= analytics ? analytics.growthRate : 0 %>
+      }
+    </script>
+    <script>
+      // @ts-nocheck
+      var revenueAnalytics = JSON.parse(document.getElementById('revenue-data').textContent);
+
+      function openDrill(title, subtitle, chartCfg, details, filters, ff, summary) {
+        if (typeof ChartDrilldown === 'undefined') return;
+        ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: ff || 'category', summary: summary || {} });
+      }
+
+      (function () {
+        if (typeof Chart === "undefined") return;
+
+        var trendCtx = document.getElementById("revenueTrendChart");
+        if (trendCtx) {
+          var gradientGross = trendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientGross.addColorStop(0, 'rgba(29, 78, 216, 0.4)'); // Royal Blue
+          gradientGross.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
+
+          var gradientNet = trendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientNet.addColorStop(0, 'rgba(52, 211, 153, 0.4)'); // Mint
+          gradientNet.addColorStop(1, 'rgba(52, 211, 153, 0.05)');
+
+          var monthlyDataObj = revenueAnalytics.monthlyRevenue || {};
+          var monthlyData = Object.keys(monthlyDataObj).map(function(k) { return monthlyDataObj[k]; }).reverse();
+          var trendLabels = monthlyData.length ? monthlyData.map(function(m) { return m.month ? m.month.slice(0,3) : ''; }) : ["M1","M2","M3","M4","M5","M6"];
+          var grossData = monthlyData.length ? monthlyData.map(function(m) { return m.total || 0; }) : [420, 468, 452, 501, 518, 542, 565].slice(0,6);
+          var netData = grossData.map(function(g) { return Math.round(g * 0.8); });
+
+          var trendChartCfg = {
+            type: "line",
+            data: {
+              labels: trendLabels,
+              datasets: [
+                {
+                  label: "Gross",
+                  data: grossData,
+                  borderColor: "#1d4ed8",
+                  backgroundColor: gradientGross,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#1d4ed8",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+                {
+                  label: "Net (est.)",
+                  data: netData,
+                  borderColor: "#34d399",
+                  backgroundColor: gradientNet,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#34d399",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 2000, easing: 'easeOutQuart', delay: function(context) { return context.dataIndex * 100; } },
+              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
+              },
+            },
+          };
+          var trendDetails = monthlyData.map(function(item, i) { var parts = item.partsCost || 0; return { category: trendLabels[i], value: grossData[i], subtext: 'Service: ₱' + (item.service || 0).toLocaleString() + ' | Orders: ₱' + (item.orders || 0).toLocaleString() + ' | Parts: ₱' + parts.toLocaleString() }; });
+          trendCtx.canvas.style.cursor = 'pointer';
+          trendCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue Trend', 'Month revenue breakdown', trendChartCfg, trendDetails, trendLabels.map(function(l) { return { key: l, label: l }; }), 'category', { total: '₱' + grossData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
+          new Chart(trendCtx, trendChartCfg);
+        }
+
+        var channelCtx = document.getElementById("revenueChannelChart");
+        if (channelCtx) {
+          var methods = revenueAnalytics.paymentMethods || { gcash: 0, cod: 0, bank: 0, other: 0 };
+          var channelLabels = [];
+          var channelData = [];
+          var channelColors = ["#1d4ed8", "#eab308", "#475569", "#6b7280"];
+          Object.keys(methods).forEach(function(k, i) {
+            var v = methods[k];
+            if (v > 0) { channelLabels.push(k.charAt(0).toUpperCase() + k.slice(1)); channelData.push(v); }
+          });
+          if (!channelData.length) { channelLabels = ["GCash", "Cash", "Other"]; channelData = [41, 33, 26]; }
+
+          var channelChartCfg = {
+            type: "doughnut",
+            data: {
+              labels: channelLabels,
+              datasets: [{ data: channelData, backgroundColor: channelColors.slice(0, channelData.length), borderWidth: 0, hoverOffset: 4 }],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 2000, easing: 'easeOutElastic' },
+              plugins: { legend: { display: false } },
+              cutout: "75%",
+            },
+          };
+          var channelDetails = Object.keys(methods).map(function(k){ return { category: k.charAt(0).toUpperCase() + k.slice(1), value: methods[k] }; });
+          channelCtx.canvas.style.cursor = 'pointer';
+          channelCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue by Channel', 'Payment method breakdown', channelChartCfg, channelDetails, channelLabels.map(function(l){ return { id: l, label: l, active: true }; }), 'category', { total: '₱' + channelData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
+          new Chart(channelCtx, channelChartCfg);
+        }
+
+        var marginCtx = document.getElementById("marginTrendChart");
+        if (marginCtx) {
+          var gradientGrossMar = marginCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientGrossMar.addColorStop(0, 'rgba(29, 78, 216, 0.4)'); // Royal Blue
+          gradientGrossMar.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
+
+          var gradientProfit = marginCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          gradientProfit.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); // Emerald
+          gradientProfit.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
+
+          // Build real monthly data from analytics
+          var monthLabels = Object.keys(revenueAnalytics.monthlyRevenue || {}).reverse();
+          var revenueData = monthLabels.map(function(m) { return (revenueAnalytics.monthlyRevenue[m] || {}).total || 0; });
+          var partsCostData = monthLabels.map(function(m) { return (revenueAnalytics.monthlyPartsCost ? revenueAnalytics.monthlyPartsCost[m] : 0) || 0; });
+          var profitData = revenueData.map((r, i) => r - partsCostData[i]);
+
+          var marginChartCfg = {
+            type: "line",
+            data: {
+              labels: monthLabels.length > 0 ? monthLabels : ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+              datasets: [
+                {
+                  label: "Revenue",
+                  data: revenueData.length > 0 ? revenueData : [0, 0, 0, 0, 0, 0],
+                  borderColor: "#1d4ed8",
+                  backgroundColor: gradientGrossMar,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#1d4ed8",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+                {
+                  label: "Gross Profit",
+                  data: profitData.length > 0 ? profitData : [0, 0, 0, 0, 0, 0],
+                  borderColor: "#10b981",
+                  backgroundColor: gradientProfit,
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: "#fff",
+                  pointBorderColor: "#10b981",
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 2000, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 100 },
+              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { min: 0, grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' }, callback: function(v) { return '₱' + (v/1000).toFixed(0) + 'K'; } }, border: { display: false } }
+              },
+            },
+          };
+          var marginDetails = monthLabels.map(function(m, i) { return { category: m, value: revenueData[i] || 0, subtext: 'Profit: ₱' + (profitData[i] || 0).toLocaleString() }; });
+          marginCtx.canvas.style.cursor = 'pointer';
+          marginCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Margin Trend', 'Revenue vs gross profit breakdown', marginChartCfg, marginDetails, monthLabels.map(function(l) { return { key: l, label: l }; }), 'category', { total: '₱' + revenueData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
+          new Chart(marginCtx, marginChartCfg);
+        }
+
+        var segmentCtx = document.getElementById("revenueSegmentChart");
+        if (segmentCtx) {
+          var corePartsCost = <%= analytics ? analytics.corePartsCost || 0 : 0 %>;
+          var repairPartsCost = <%= analytics ? analytics.repairPartsCost || 0 : 0 %>;
+          var coreRevenue = <%= analytics ? analytics.coreRevenue || 0 : 0 %>;
+          var repairRevenue = <%= analytics ? analytics.repairRevenue || 0 : 0 %>;
+          var coreProfit = coreRevenue - corePartsCost;
+          var repairProfit = repairRevenue - repairPartsCost;
+
+          var segmentChartCfg = {
+            type: "bar",
+            data: {
+              labels: ["Core Services", "Repair Services"],
+              datasets: [
+                {
+                  label: "Revenue",
+                  data: [coreRevenue / 1000, repairRevenue / 1000],
+                  backgroundColor: "#1d4ed8",
+                  borderRadius: 6,
+                  barThickness: 20,
+                },
+                {
+                  label: "Parts Cost",
+                  data: [corePartsCost / 1000, repairPartsCost / 1000],
+                  backgroundColor: "#ef4444",
+                  borderRadius: 6,
+                  barThickness: 20,
+                },
+                {
+                  label: "Gross Profit",
+                  data: [coreProfit / 1000, repairProfit / 1000],
+                  backgroundColor: "#10b981",
+                  borderRadius: 6,
+                  barThickness: 20,
+                },
+              ],
+            },
+            options: {
+              maintainAspectRatio: false,
+              animation: { duration: 1800, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 150 },
+              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
+                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' }, callback: function(v) { return '₱' + v.toFixed(0) + 'K'; } }, border: { display: false } }
+              },
+            },
+          };
+          var segLabels = ['Core Services', 'Repair Services'];
+          var segRevenues = [coreRevenue, repairRevenue];
+          var segCosts = [corePartsCost, repairPartsCost];
+          var segProfits = [coreProfit, repairProfit];
+          var segmentDetails = segLabels.map(function(s, i) { return { category: s, value: segRevenues[i], subtext: 'Profit: ₱' + segProfits[i].toLocaleString() }; });
+          segmentCtx.canvas.style.cursor = 'pointer';
+          segmentCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Service Segment', 'Revenue, parts cost, and gross profit', segmentChartCfg, segmentDetails, segLabels.map(function(s) { return { key: s, label: s }; }), 'category', { total: '₱' + (coreRevenue + repairRevenue).toLocaleString() }); } };
+          new Chart(segmentCtx, segmentChartCfg);
+        }
+
+        // Enterprise Charts - Monthly Revenue Trend
+        var monthlyTrendCtx = document.getElementById("monthlyRevenueTrendChart");
+        if (monthlyTrendCtx && revenueAnalytics.monthlyRevenue.length > 0) {
+          var serviceGradient = monthlyTrendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          serviceGradient.addColorStop(0, 'rgba(234, 179, 8, 0.5)');
+          serviceGradient.addColorStop(1, 'rgba(234, 179, 8, 0.05)');
+          var ordersGradient = monthlyTrendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+          ordersGradient.addColorStop(0, 'rgba(29, 78, 216, 0.5)');
+          ordersGradient.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
+          
+          var monthlyTrendChartCfg = {
+            type: "line",
+            data: {
+              labels: revenueAnalytics.monthlyRevenue.map(function(m) { return m.month; }),
+              datasets: [
+                {
+                  label: "Service Revenue",
+                  data: revenueAnalytics.monthlyRevenue.map(function(m) { return m.service / 1000; }),
+                  borderColor: "#eab308",
+                  backgroundColor: serviceGradient,
+                  borderWidth: 3,
+                  tension: 0.4,
+                  fill: true
+                },
+                {
+                  label: "Order Revenue",
+                  data: revenueAnalytics.monthlyRevenue.map(function(m) { return m.orders / 1000; }),
+                  borderColor: "#1d4ed8",
+                  backgroundColor: ordersGradient,
+                  borderWidth: 3,
+                  tension: 0.4,
+                  fill: true
+                }
+              ]
+            },
+            options: {
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: { position: 'top', align: 'end', labels: { usePointStyle: true } }
+              },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: '#6b7280' } },
+                y: { grid: { color: '#e5e7eb' }, ticks: { color: '#6b7280' }, title: { display: true, text: 'Revenue (₱K)' } }
+              }
+            }
+          };
+          var monthlyTrendDetails = revenueAnalytics.monthlyRevenue.map(function(m) { return { category: m.month, value: (m.total || 0) / 1000, subtext: 'Service: ₱' + ((m.service || 0) / 1000).toFixed(1) + 'K | Orders: ₱' + ((m.orders || 0) / 1000).toFixed(1) + 'K' }; });
+          monthlyTrendCtx.canvas.style.cursor = 'pointer';
+          monthlyTrendCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Monthly Trend', 'Service vs order revenue', monthlyTrendChartCfg, monthlyTrendDetails, revenueAnalytics.monthlyRevenue.map(function(m) { return { key: m.month, label: m.month }; }), 'category', { total: '₱' + (revenueAnalytics.monthlyRevenue.reduce(function(a, m) { return a + (m.total || 0); }, 0) / 1000).toFixed(1) + 'K' }); } };
+          new Chart(monthlyTrendCtx, monthlyTrendChartCfg);
+        }
+
+        // Revenue Source Chart
+        var sourceCtx = document.getElementById("revenueSourceChart");
+        if (sourceCtx) {
+          var sourceChartCfg = {
+            type: "doughnut",
+            data: {
+              labels: ["Services", "Products", "Delivery", "Installation"],
+              datasets: [{
+                data: [
+                  revenueAnalytics.revenueSources.service / 1000,
+                  revenueAnalytics.revenueSources.orders / 1000,
+                  revenueAnalytics.revenueSources.delivery / 1000,
+                  revenueAnalytics.revenueSources.installation / 1000
+                ],
+                backgroundColor: ["#eab308", "#1d4ed8", "#10b981", "#8b5cf6"],
+                borderWidth: 2,
+                borderColor: "#fff"
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              cutout: "50%",
+              plugins: {
+                legend: { position: "right", labels: { boxWidth: 12, font: { size: 10 } } }
+              }
+            }
+          };
+          var sourceLabels = ['Services', 'Products', 'Delivery', 'Installation'];
+          var sourceData = [revenueAnalytics.revenueSources.service, revenueAnalytics.revenueSources.orders, revenueAnalytics.revenueSources.delivery, revenueAnalytics.revenueSources.installation];
+          sourceCtx.canvas.style.cursor = 'pointer';
+          sourceCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue Sources', 'Revenue by source type', sourceChartCfg, sourceLabels.map(function(l, i) { return { category: l, value: sourceData[i] }; }), sourceLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: '₱' + sourceData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() }); } };
+          new Chart(sourceCtx, sourceChartCfg);
+        }
+
+        // Payment Method Chart with real data
+        var payMethodCtx = document.getElementById("paymentMethodChart");
+        if (payMethodCtx) {
+          var pmLabels = ['GCash', 'COD', 'Bank', 'Other'];
+          var pmData = [revenueAnalytics.paymentMethods.gcash, revenueAnalytics.paymentMethods.cod, revenueAnalytics.paymentMethods.bank, revenueAnalytics.paymentMethods.other];
+          var pmChartCfg = {
+            type: "doughnut",
+            data: {
+              labels: pmLabels,
+              datasets: [{
+                data: pmData.map(function(v) { return v / 1000; }),
+                backgroundColor: ["#1d4ed8", "#eab308", "#10b981", "#6b7280"],
+                borderWidth: 0,
+                hoverOffset: 4
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              cutout: "65%",
+              plugins: {
+                legend: { position: "right", labels: { usePointStyle: true, boxWidth: 8 } }
+              }
+            }
+          };
+          payMethodCtx.canvas.style.cursor = 'pointer';
+          payMethodCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Payment Methods', 'Revenue by payment method', pmChartCfg, pmLabels.map(function(l, i) { return { category: l, value: pmData[i] }; }), pmLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: '₱' + pmData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() }); } };
+          new Chart(payMethodCtx, pmChartCfg);
+        }
+
+        // Payment Status Chart
+        var payStatusCtx = document.getElementById("paymentStatusChart");
+        if (payStatusCtx) {
+          var psLabels = ['Paid', 'Pending', 'Partial', 'Failed'];
+          var psData = [revenueAnalytics.paymentStatus.paid, revenueAnalytics.paymentStatus.pending, revenueAnalytics.paymentStatus.partial, revenueAnalytics.paymentStatus.failed];
+          var psChartCfg = {
+            type: "doughnut",
+            data: {
+              labels: psLabels,
+              datasets: [{
+                data: psData,
+                backgroundColor: ["#10b981", "#f59e0b", "#3b82f6", "#ef4444"],
+                borderWidth: 2,
+                borderColor: "#fff"
+              }]
+            },
+            options: {
+              maintainAspectRatio: false,
+              cutout: "60%",
+              plugins: {
+                legend: { display: false }
+              }
+            }
+          };
+          payStatusCtx.canvas.style.cursor = 'pointer';
+          payStatusCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Payment Status', 'Bookings by payment status', psChartCfg, psLabels.map(function(l, i) { return { category: l, value: psData[i] }; }), psLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: psData.reduce(function(a, b) { return a + b; }, 0) + ' bookings' }); } };
+          new Chart(payStatusCtx, psChartCfg);
+        }
+
+        // draw waves for revenue KPIs
+        function createSparkline(id, data, color) {
+          var c = document.getElementById(id);
+          if (!c) return null;
+          var ctx = c.getContext('2d');
+          var height = c.height || c.offsetHeight || 50;
+          var grad = ctx.createLinearGradient(0, 0, 0, height);
+          grad.addColorStop(0, color);
+          grad.addColorStop(1, 'rgba(255,255,255,0)');
+          return new Chart(c, {
+            type: 'line',
+            data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: grad, fill: true, tension: 0.35 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, elements: { point: { radius: 0 } }, scales: { x: { display: false }, y: { display: false } } }
+          });
+        }
+        createSparkline('revSparkGross', [50, 60, 55, 65, 70, 75, 80], '#212529');
+        createSparkline('revSparkPartsCost', [20, 25, 22, 28, 24, 30, 26], '#ef4444');
+        createSparkline('revSparkProfit', [30, 35, 33, 37, 46, 45, 54], '#10b981');
+        createSparkline('revSparkEfficiency', [90, 92, 91, 93, 94, 96, 95], '#7b2d8b');
+      })();
+    </script>
+    <script src="/js/chart-drilldown.js"></script>
+
+    <%- include('../../../partials/chart-drilldown-modal') %>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="mb-0 fw-bold">Top Revenue Drivers</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-4">Technician</th>
+              <th>Jobs</th>
+              <th>Revenue</th>
+              <th>Parts Cost</th>
+              <th>Gross Profit</th>
+              <th>Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
+              <% analytics.topTechnicians.forEach(function(tech) { %>
+                <% var margin = tech.revenue > 0 ? Math.round((tech.profit / tech.revenue) * 100) : 0; %>
+                <tr>
+                  <td class="ps-4 fw-semibold"><%= tech.name %></td>
+                  <td><%= tech.completed %>/<%= tech.bookings %></td>
+                  <td>₱<%= (tech.revenue / 1000).toFixed(1) %>K</td>
+                  <td>₱<%= (tech.partsCost / 1000).toFixed(1) %>K</td>
+                  <td class="<%= tech.profit >= 0 ? 'text-success' : 'text-danger' %> fw-bold">₱<%= (tech.profit / 1000).toFixed(1) %>K</td>
+                  <td><span class="badge <%= margin >= 50 ? 'bg-success' : (margin >= 20 ? 'bg-warning' : 'bg-danger') %>"><%= margin %>%</span></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">No technician revenue data available</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+</div>
+</div> <!-- end admin-dashboard container -->

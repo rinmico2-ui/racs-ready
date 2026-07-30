@@ -1,0 +1,1235 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+
+<br><br>
+<div class="technician-dashboard-page">
+  <div class="dashboard-page-inner">
+
+    <!-- Hero Header -->
+    <div class="td-hero">
+      <div class="row align-items-center">
+        <div class="col-md-7">
+          <h1 class="td-hero-title"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h1>
+          <p class="td-hero-sub">Welcome back, <strong><%= (technician && technician.name) || 'Technician' %></strong>. Here is your dashboard for today.</p>
+          <span class="td-hero-date"><i class="bi bi-calendar3 me-1"></i><%= new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+          <div class="td-hero-actions">
+            <div class="td-hero-stat" id="heroTodayCount">
+              <span class="stat-num" id="heroTodayNum">—</span>
+              <span class="stat-label">Today's Jobs</span>
+            </div>
+            <div class="td-hero-stat" id="heroActiveCount">
+              <span class="stat-num" id="heroActiveNum">—</span>
+              <span class="stat-label">Active Now</span>
+            </div>
+            <div class="td-hero-stat" id="heroCompletedCount">
+              <span class="stat-num" id="heroCompletedNum">—</span>
+              <span class="stat-label">Completed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="row g-4 mt-1">
+
+      <!-- Left Column: Core Work -->
+      <div class="col-lg-8">
+
+        <!-- 1. Current Job Panel -->
+        <div class="td-panel" id="activePanel">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-lightning-charge me-2 text-primary"></i>Current Job</h6>
+            <a href="/technician/assignments?status=active" class="td-panel-link">View Active <i class="bi bi-arrow-right"></i></a>
+          </div>
+          <div class="td-panel-body" id="activeJob">
+            <div class="td-empty-state">
+              <i class="bi bi-inbox"></i>
+              <p>No active job right now</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Job Expenses Panel (shown when active job has expenses) -->
+        <div class="td-panel mt-4" id="jobExpensesPanel" style="display:none;">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-receipt me-2 text-warning"></i>Job Expenses</h6>
+            <a href="/technician/expenses" class="td-panel-link">All Expenses <i class="bi bi-arrow-right"></i></a>
+          </div>
+          <div class="td-panel-body" id="jobExpensesList"></div>
+        </div>
+
+        <!-- 2. Today's Jobs Panel -->
+        <div class="td-panel mt-4" id="todayPanel">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-calendar-day me-2 text-info"></i>Today's Jobs</h6>
+            <a href="/technician/assignments?status=today" class="td-panel-link">View All <i class="bi bi-arrow-right"></i></a>
+          </div>
+          <div class="td-panel-body" id="todayList">
+            <div class="td-empty-state">
+              <i class="bi bi-calendar-check"></i>
+              <p>No jobs scheduled for today</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Pending Repairs Panel -->
+        <div class="td-panel mt-4" id="pendingPanel">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-wrench me-2 text-warning"></i>Pending Repairs & Assignments</h6>
+            <a href="/technician/assignments?status=pending_acceptance" class="td-panel-link">View All <i class="bi bi-arrow-right"></i></a>
+          </div>
+          <div class="td-panel-body" id="pendingList">
+            <div class="td-empty-state">
+              <i class="bi bi-check-circle"></i>
+              <p>No pending repairs or assignments</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Status & Actions -->
+      <div class="col-lg-4">
+
+        <!-- 4. Attendance Status Panel -->
+        <div class="td-panel mb-4">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-person-badge me-2 text-success"></i>Attendance Status</h6>
+          </div>
+          <div class="td-panel-body text-center py-4">
+            <div style="font-size:3rem; margin-bottom:10px;">
+              <i class="bi <%= (technician && ['Available','On The Way','In Progress'].includes(technician.availabilityStatus)) ? 'bi-emoji-smile text-success' : 'bi-emoji-neutral text-secondary' %>"></i>
+            </div>
+            <h5 style="font-weight:700; color:#1e293b; margin-bottom: 5px;">
+              <%= (technician && technician.availabilityStatus) || 'Offline' %>
+            </h5>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom: 20px;">
+              <%= (technician && ['Available','On The Way','In Progress'].includes(technician.availabilityStatus)) ? 'You are currently active and ready for jobs.' : 'You are currently offline or unavailable.' %>
+            </p>
+            <a href="/technician/attendance" class="btn btn-primary w-100 fw-bold" style="border-radius:10px;">
+              <i class="bi bi-qr-code-scan me-2"></i>Scan Attendance
+            </a>
+          </div>
+        </div>
+
+        <!-- NEW: Daily Progress -->
+        <div class="td-panel mb-4">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-bar-chart-line me-2 text-info"></i>Daily Progress</h6>
+          </div>
+          <div class="td-panel-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span style="font-size:0.85rem;color:#475569;">Jobs Completed Today</span>
+              <span style="font-weight:700;color:#1e293b;" id="dpProgressText">0 / 0</span>
+            </div>
+            <div style="background:#e2e8f0; border-radius:10px; height:10px; overflow:hidden; margin-bottom:14px;">
+              <div id="dpProgressBar" style="height:100%; width:0%; background:linear-gradient(90deg,#3b82f6,#06b6d4); border-radius:10px; transition:width 0.6s ease;"></div>
+            </div>
+            <div class="d-flex justify-content-between" style="font-size:0.78rem; color:#64748b;">
+              <span><i class="bi bi-clock-history me-1"></i>Pending: <strong id="dpPending">—</strong></span>
+              <span><i class="bi bi-check-circle me-1 text-success"></i>Done: <strong id="dpDone">—</strong></span>
+            </div>
+            <hr style="margin:12px 0;">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <span style="font-size:0.78rem;color:#64748b;">Today's Earnings (Est.)</span>
+                <div style="font-size:1.2rem;font-weight:800;color:#16a34a;" id="dpEarnings">₱0</div>
+              </div>
+              <a href="/technician/assignments" class="btn btn-sm btn-outline-primary">View Jobs</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- NEW: Today's Expenses -->
+        <div class="td-panel mb-4">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-wallet2 me-2 text-warning"></i>Today's Expenses</h6>
+          </div>
+          <div class="td-panel-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <div style="font-size:1.5rem;font-weight:800;color:#1e293b;" id="todayExpTotal">₱0.00</div>
+                <div style="font-size:0.78rem;color:#64748b;">logged today (<span id="todayExpCount">0</span> entries)</div>
+              </div>
+              <button class="btn btn-warning btn-sm fw-bold" onclick="openDailyExpenseModal()" style="border-radius:8px;">
+                <i class="bi bi-plus-lg me-1"></i>Log Now
+              </button>
+            </div>
+            <div id="todayExpBreakdown" style="font-size:0.82rem;color:#475569;">
+              <!-- type breakdown loaded by JS -->
+            </div>
+            <a href="/technician/expenses" class="btn btn-sm btn-outline-secondary w-100 mt-2" style="font-size:0.8rem;">View All Expenses</a>
+          </div>
+        </div>
+
+        <!-- 5. Quick Actions -->
+        <div class="td-panel mb-4">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-lightning me-2 text-info"></i>Quick Actions</h6>
+          </div>
+          <div class="td-panel-body">
+            <div class="td-quick-actions">
+              <a href="/technician/assignments" class="td-qa-btn">
+                <div class="td-qa-icon blue"><i class="bi bi-clipboard-check"></i></div>
+                <span>My Work</span>
+              </a>
+              <a href="/technician/expenses" class="td-qa-btn">
+                <div class="td-qa-icon amber"><i class="bi bi-receipt"></i></div>
+                <span>Today's Expenses</span>
+              </a>
+              <a href="/technician/reports" class="td-qa-btn">
+                <div class="td-qa-icon green"><i class="bi bi-file-text"></i></div>
+                <span>Service Reports</span>
+              </a>
+              <a href="/technician/tracking" class="td-qa-btn">
+                <div class="td-qa-icon rose"><i class="bi bi-geo-alt"></i></div>
+                <span>Live Tracking</span>
+              </a>
+              <a href="/technician/tools" class="td-qa-btn">
+                <div class="td-qa-icon violet"><i class="bi bi-tools"></i></div>
+                <span>My Tools</span>
+              </a>
+              <a href="/technician/schedule" class="td-qa-btn">
+                <div class="td-qa-icon emerald"><i class="bi bi-calendar3"></i></div>
+                <span>Schedule</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Notifications Panel -->
+        <div class="td-panel">
+          <div class="td-panel-header">
+            <h6 class="td-panel-title"><i class="bi bi-bell me-2 text-primary"></i>Notifications</h6>
+          </div>
+          <div class="td-panel-body">
+            <div class="td-empty-state py-4">
+              <i class="bi bi-bell-slash" style="font-size:2rem; color:#cbd5e1; margin-bottom:10px;"></i>
+              <p style="margin:0; font-size:0.9rem; color:#94a3b8;">You have no new notifications.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Daily Expense Quick Log Modal -->
+<div class="modal fade" id="dailyExpenseModal" tabindex="-1">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border:none;">
+        <h6 class="modal-title fw-bold"><i class="bi bi-receipt me-2"></i>Log Today's Expense</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="dailyExpenseForm" onsubmit="submitDailyExpense(event)">
+        <div class="modal-body py-4">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Expense Type *</label>
+            <div class="d-flex gap-2 flex-wrap" id="expTypeButtons">
+              <button type="button" class="btn btn-outline-info btn-sm exp-type-pill active" data-val="fuel"><i class="bi bi-fuel-pump me-1"></i>Fuel</button>
+              <button type="button" class="btn btn-outline-primary btn-sm exp-type-pill" data-val="material"><i class="bi bi-box me-1"></i>Materials</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm exp-type-pill" data-val="transport"><i class="bi bi-truck me-1"></i>Transport</button>
+              <button type="button" class="btn btn-outline-warning btn-sm exp-type-pill" data-val="meal"><i class="bi bi-cup-hot me-1"></i>Meal</button>
+              <button type="button" class="btn btn-outline-dark btn-sm exp-type-pill" data-val="other"><i class="bi bi-three-dots me-1"></i>Other</button>
+            </div>
+            <input type="hidden" id="dailyExpType" value="fuel">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Amount (₱) *</label>
+            <input type="number" class="form-control" id="dailyExpAmount" step="0.01" min="0.01" required placeholder="0.00">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description *</label>
+            <textarea class="form-control" id="dailyExpDesc" rows="2" maxlength="500" required placeholder="Brief description..."></textarea>
+          </div>
+          <div id="dailyFuelFields" style="background:#fffbeb;border-radius:10px;padding:14px;border:1px solid #fde68a;">
+            <label class="form-label fw-semibold text-warning-emphasis mb-2"><i class="bi bi-fuel-pump me-1"></i>Fuel Details (optional)</label>
+            <div class="row g-2">
+              <div class="col-6"><label class="form-label form-label-sm">Liters</label><input type="number" class="form-control form-control-sm" id="dailyExpLiters" step="0.01" min="0" placeholder="0.00"></div>
+              <div class="col-6"><label class="form-label form-label-sm">₱/Liter</label><input type="number" class="form-control form-control-sm" id="dailyExpPricePerLiter" step="0.01" min="0" placeholder="0.00"></div>
+              <div class="col-6"><label class="form-label form-label-sm">Odometer</label><input type="number" class="form-control form-control-sm" id="dailyExpOdometer" min="0" placeholder="km"></div>
+              <div class="col-6"><label class="form-label form-label-sm">Gas Station</label><input type="text" class="form-control form-control-sm" id="dailyExpStation" maxlength="100" placeholder="e.g. Shell"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="background:#f8fafc;border:none;">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning btn-sm fw-bold"><i class="bi bi-check-lg me-1"></i>Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .td-hero {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    color: #fff;
+  }
+  .td-hero-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
+  .td-hero-sub { color: #94a3b8; margin: 4px 0 0; font-size: 0.9rem; }
+  .td-hero-date { color: #94a3b8; font-size: 0.8rem; display: inline-block; margin-top: 8px; }
+  .td-hero-actions { display: flex; align-items: center; gap: 16px; justify-content: flex-end; flex-wrap: wrap; }
+  .td-hero-stat { text-align: center; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 16px; min-width: 80px; }
+  .td-hero-stat .stat-num { display: block; font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1; }
+  .td-hero-stat .stat-label { display: block; font-size: 0.7rem; color: #94a3b8; margin-top: 3px; white-space: nowrap; }
+  .td-availability-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  }
+  .td-availability-badge .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; }
+  .td-availability-badge.online .status-dot { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+  .td-availability-badge.offline .status-dot { background: #64748b; }
+  .exp-type-pill { border-radius: 20px !important; font-size: 0.78rem !important; transition: all 0.15s; }
+  .exp-type-pill.active { font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+
+  /* KPI Grid */
+  .td-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .td-kpi-card {
+    background: #fff; border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px;
+    border: 1px solid #eef2f7; transition: all 0.2s;
+  }
+  .td-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,0.06); }
+  .td-kpi-icon {
+    width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+  }
+  .td-kpi-icon.blue { background: #eff6ff; color: #3b82f6; }
+  .td-kpi-icon.amber { background: #fffbeb; color: #f59e0b; }
+  .td-kpi-icon.green { background: #f0fdf4; color: #22c55e; }
+  .td-kpi-icon.emerald { background: #ecfdf5; color: #10b981; }
+  .td-kpi-icon.violet { background: #f5f3ff; color: #8b5cf6; }
+  .td-kpi-icon.rose { background: #fff1f2; color: #f43f5e; }
+  .td-kpi-body { display: flex; flex-direction: column; }
+  .td-kpi-value { font-size: 1.6rem; font-weight: 800; color: #1e293b; line-height: 1.1; }
+  .td-kpi-label { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+
+  /* Panels */
+  .td-panel {
+    background: #fff; border-radius: 14px; border: 1px solid #eef2f7; overflow: hidden;
+  }
+  .td-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+  }
+  .td-panel-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .td-panel-link { font-size: 0.78rem; color: #3b82f6; text-decoration: none; font-weight: 600; }
+  .td-panel-link:hover { text-decoration: underline; }
+  .td-panel-body { padding: 16px 20px; }
+
+  /* Empty State */
+  .td-empty-state { text-align: center; padding: 24px 0; color: #94a3b8; }
+  .td-empty-state i { font-size: 2rem; margin-bottom: 8px; display: block; }
+  .td-empty-state p { margin: 0; font-size: 0.85rem; }
+
+  /* Assignment Card */
+  .td-assign-card {
+    display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 12px;
+    background: #f8fafc; border: 1px solid #eef2f7; margin-bottom: 10px; transition: all 0.15s;
+  }
+  .td-assign-card:hover { background: #f1f5f9; }
+  .td-assign-card:last-child { margin-bottom: 0; }
+  .td-assign-card.today-booking {
+    border: 2px solid #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4), inset 0 0 10px rgba(245, 158, 11, 0.1);
+    position: relative;
+  }
+  .td-assign-card.today-booking:hover { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+  @keyframes pulse-today {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  }
+  .pulse-today { animation: pulse-today 2s infinite; }
+  .td-assign-icon {
+    width: 42px; height: 42px; min-width: 42px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  .td-assign-info { flex: 1; min-width: 0; }
+  .td-assign-info h6 { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td-assign-info p { font-size: 0.75rem; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td-assign-actions { display: flex; gap: 6px; flex-shrink: 0; align-self: center; }
+  .td-assign-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 6px; font-weight: 600; white-space: nowrap; }
+
+  /* Active Job Card */
+  .td-active-card {
+    background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+    border: 1px solid #bfdbfe; border-radius: 14px; padding: 20px;
+  }
+  .td-active-card h5 { font-size: 1rem; font-weight: 700; color: #1e40af; margin: 0 0 10px; }
+  .td-active-detail { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569; margin-bottom: 6px; }
+  .td-active-detail i { color: #3b82f6; width: 16px; }
+  .td-active-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+  /* Repair Info Banner */
+  .td-repair-banner {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-radius: 10px; margin-top: 10px; font-size: 0.8rem;
+  }
+  .td-repair-banner i { font-size: 1.1rem; margin-top: 2px; flex-shrink: 0; }
+  .td-repair-banner strong { font-size: 0.82rem; }
+  .td-repair-banner span { font-size: 0.75rem; opacity: 0.85; }
+
+  /* Quick Actions */
+  .td-quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .td-qa-btn {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px;
+    background: #f8fafc; border: 1px solid #eef2f7; text-decoration: none; color: #1e293b;
+    font-size: 0.82rem; font-weight: 600; transition: all 0.15s;
+  }
+  .td-qa-btn:hover { background: #f1f5f9; border-color: #cbd5e1; transform: translateY(-1px); }
+  .td-qa-icon {
+    width: 36px; height: 36px; min-width: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  }
+  .td-qa-icon.blue { background: #eff6ff; color: #3b82f6; }
+  .td-qa-icon.amber { background: #fffbeb; color: #f59e0b; }
+  .td-qa-icon.green { background: #f0fdf4; color: #22c55e; }
+  .td-qa-icon.rose { background: #fff1f2; color: #f43f5e; }
+  .td-qa-icon.violet { background: #f5f3ff; color: #8b5cf6; }
+  .td-qa-icon.emerald { background: #ecfdf5; color: #10b981; }
+
+  /* Expense Summary */
+  .td-expense-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.82rem; }
+  .td-expense-row span { color: #64748b; }
+  .td-expense-row strong { color: #1e293b; font-size: 0.9rem; }
+
+  /* Job Expenses Panel */
+  #jobExpensesPanel .td-panel-body { padding: 14px 20px; }
+
+  @media (max-width: 991px) {
+    .td-hero-actions {
+      justify-content: flex-start;
+      gap: 12px;
+    }
+    .td-hero-stat {
+      min-width: 70px;
+      padding: 8px 12px;
+    }
+    .td-hero-stat .stat-num {
+      font-size: 1.2rem;
+    }
+    .td-hero-stat .stat-label {
+      font-size: 0.65rem;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .td-hero {
+      padding: 1.25rem;
+      border-radius: 12px;
+    }
+    .td-hero-title {
+      font-size: 1.25rem;
+    }
+    .td-hero-sub {
+      font-size: 0.85rem;
+    }
+    .td-hero-date {
+      font-size: 0.75rem;
+    }
+    .td-hero-actions {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 0.75rem;
+    }
+    .td-hero-stat {
+      flex: 1 1 calc(33.333% - 0.5rem);
+      min-width: 80px;
+      padding: 10px 12px;
+    }
+    .td-hero-stat .stat-num {
+      font-size: 1.3rem;
+    }
+    .td-hero-stat .stat-label {
+      font-size: 0.65rem;
+    }
+    .td-kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    .td-kpi-card {
+      padding: 1rem;
+    }
+    .td-kpi-icon {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
+    .td-kpi-value {
+      font-size: 1.3rem;
+    }
+    .td-kpi-label {
+      font-size: 0.7rem;
+    }
+    .td-panel-header {
+      padding: 1rem 1.25rem;
+    }
+    .td-panel-title {
+      font-size: 0.85rem;
+    }
+    .td-panel-link {
+      font-size: 0.72rem;
+    }
+    .td-panel-body {
+      padding: 1rem 1.25rem;
+    }
+    .td-assign-card {
+      padding: 1rem;
+      gap: 12px;
+    }
+    .td-assign-icon {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      font-size: 1rem;
+    }
+    .td-assign-info h6 {
+      font-size: 0.8rem;
+    }
+    .td-assign-info p {
+      font-size: 0.72rem;
+    }
+    .td-assign-badge {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+    }
+    .td-active-card {
+      padding: 1rem;
+    }
+    .td-active-card h5 {
+      font-size: 0.9rem;
+    }
+    .td-active-detail {
+      font-size: 0.78rem;
+    }
+    .td-active-actions {
+      gap: 0.5rem;
+    }
+    .td-quick-actions {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    .td-qa-btn {
+      padding: 0.875rem 1rem;
+      font-size: 0.78rem;
+    }
+    .td-qa-icon {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      font-size: 0.9rem;
+    }
+    .td-expense-row {
+      font-size: 0.78rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .td-hero {
+      padding: 1rem;
+    }
+    .td-hero-title {
+      font-size: 1.1rem;
+    }
+    .td-hero-sub {
+      font-size: 0.8rem;
+    }
+    .td-hero-stat {
+      flex: 1 1 100%;
+      min-width: 100%;
+    }
+    .td-kpi-grid {
+      grid-template-columns: 1fr;
+    }
+    .td-quick-actions {
+      grid-template-columns: 1fr;
+    }
+    .td-panel-header {
+      padding: 0.875rem 1rem;
+    }
+    .td-panel-body {
+      padding: 0.875rem 1rem;
+    }
+    .td-assign-card {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .td-assign-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .td-active-actions {
+      width: 100%;
+    }
+    .td-active-actions .btn {
+      flex: 1;
+    }
+  }
+</style>
+
+<script>
+(function() {
+  const API = '/api/technician/dashboard/overview';
+  const token = document.cookie.split('; ').find(c => c.startsWith('XSRF-TOKEN='))?.split('=')[1];
+
+  async function fetchOverview() {
+    try {
+      const res = await fetch(API, {
+        headers: { 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin'
+      });
+      if (!res.ok) throw new Error('Failed to load');
+      return await res.json();
+    } catch(e) {
+      console.error('Dashboard load error:', e);
+      return null;
+    }
+  }
+
+  function formatPeso(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function renderAssignmentCard(a, showActions, expenses) {
+    const statusColors = {
+      pending_acceptance: 'bg-warning text-dark',
+      accepted: 'bg-primary',
+      en_route: 'bg-info text-dark',
+      on_site: 'bg-dark',
+      in_progress: 'bg-primary',
+      completed: 'bg-success',
+      cancelled: 'bg-secondary',
+      declined: 'bg-danger',
+    };
+    const repairStatusColors = {
+      inspection_scheduled: '#f59e0b',
+      inspection_completed: '#3b82f6',
+      awaiting_approval: '#8b5cf6',
+      repair_approved: '#10b981',
+      repair_declined: '#ef4444',
+      waiting_parts: '#f97316',
+      parts_reserved: '#06b6d4',
+      ready_for_repair: '#22c55e',
+      repair_in_progress: '#3b82f6',
+      repair_completed: '#10b981',
+    };
+    const icons = {
+      pending_acceptance: 'bi-clock',
+      accepted: 'bi-check2',
+      en_route: 'bi-geo-alt',
+      on_site: 'bi-building',
+      in_progress: 'bi-gear',
+      completed: 'bi-check-circle',
+    };
+
+    // Today detection
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const isToday = a.bookingDate && new Date(a.bookingDate).toDateString() === today.toDateString();
+
+    // Determine if this is a repair job
+    const isRepair = a.serviceType === 'repair' || a.bookingStatus?.startsWith('inspection_') || a.bookingStatus?.startsWith('repair_') || a.bookingStatus === 'awaiting_approval' || a.bookingStatus === 'waiting_parts' || a.bookingStatus === 'parts_reserved' || a.bookingStatus === 'ready_for_repair';
+
+    // For repair jobs, use booking status; otherwise assignment status
+    let displayStatus, statusBadgeClass, statusBadgeStyle;
+    if (isRepair && a.bookingStatus) {
+      displayStatus = a.bookingStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const rc = repairStatusColors[a.bookingStatus] || '#6b7280';
+      statusBadgeClass = '';
+      statusBadgeStyle = `background:${rc};color:#fff;font-size:0.72rem;padding:3px 10px;border-radius:6px;`;
+    } else {
+      displayStatus = (a.status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      statusBadgeClass = statusColors[a.status] || 'bg-secondary';
+      statusBadgeStyle = 'font-size:0.72rem;padding:3px 10px;border-radius:6px;';
+    }
+    const iconBg = a.status === 'completed' ? '#f0fdf4' : '#eff6ff';
+    const iconColor = a.status === 'completed' ? '#22c55e' : '#3b82f6';
+
+    let actions = '';
+    if (showActions && a.status === 'pending_acceptance') {
+      actions = `
+        <button class="btn btn-sm btn-success" onclick="tdAccept('${a._id}')"><i class="bi bi-check-lg"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="tdDecline('${a._id}')"><i class="bi bi-x-lg"></i></button>
+      `;
+    }
+
+    // Expense indicator for this job
+    let expenseBadge = '';
+    if (expenses && expenses.length > 0) {
+      const total = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+      const pending = expenses.filter(e => e.status === 'pending').reduce((s, e) => s + (e.amount || 0), 0);
+      expenseBadge = `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span class="badge bg-warning text-dark" style="font-size:0.68rem;"><i class="bi bi-receipt me-1"></i>${expenses.length} expense${expenses.length > 1 ? 's' : ''} · ₱${Number(total).toLocaleString()}</span>
+        ${pending > 0 ? '<span class="badge bg-light text-warning border" style="font-size:0.65rem;">₱' + Number(pending).toLocaleString() + ' pending</span>' : ''}
+      </div>`;
+    }
+
+    const todayLabel = isToday ? '<span class="pulse-today" style="font-size:0.6rem;font-weight:800;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;background:#f59e0b;color:#fff;text-transform:uppercase;"><i class="bi bi-star-fill me-1"></i>Today</span>' : '';
+
+    return `
+      <div class="td-assign-card${isToday ? ' today-booking' : ''}">
+        <div class="td-assign-icon" style="background:${iconBg};color:${iconColor};">
+          <i class="bi ${icons[a.status] || 'bi-circle'}"></i>
+        </div>
+        <div class="td-assign-info">
+          <h6>${a.customerName || 'Customer'} - ${a.serviceName || 'Service'}</h6>
+          <p><i class="bi bi-clock me-1"></i>${a.startTime || ''} ${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-PH', {month:'short',day:'numeric'}) : ''}</p>
+          ${a.address ? '<p><i class="bi bi-geo-alt me-1"></i>' + a.address.substring(0, 50) + '</p>' : ''}
+          ${expenseBadge}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          ${todayLabel}
+          <span class="${statusBadgeClass}" style="${statusBadgeStyle}">${displayStatus}</span>
+          ${actions}
+        </div>
+      </div>`;
+  }
+
+  async function loadDashboard() {
+    const data = await fetchOverview();
+    if (!data) return;
+    window.__dashboardData = data;
+
+    // KPI Elements removed as requested.
+
+    // Pending List
+    const pendingEl = document.getElementById('pendingList');
+    if (data.pendingJobs && data.pendingJobs.length > 0) {
+      pendingEl.innerHTML = data.pendingJobs.map(a => renderAssignmentCard(a, true, null)).join('');
+    } else {
+      pendingEl.innerHTML = '<div class="td-empty-state"><i class="bi bi-check-circle"></i><p>No pending assignments</p></div>';
+    }
+
+    // Today's Jobs List
+    const todayEl = document.getElementById('todayList');
+    if (data.todayJobs && data.todayJobs.length > 0) {
+      todayEl.innerHTML = data.todayJobs.map(a => renderAssignmentCard(a, false, null)).join('');
+    } else {
+      todayEl.innerHTML = '<div class="td-empty-state"><i class="bi bi-calendar-check"></i><p>No jobs scheduled for today</p></div>';
+    }
+
+    // Active Job
+    const activeEl = document.getElementById('activeJob');
+    if (data.activeJob) {
+      const a = data.activeJob;
+      const activeExpenses = data.activeJobExpenses || [];
+      const isRepair = a.bookingServiceType === 'repair' || a.serviceType === 'repair' || a.repairInfo;
+
+      // For repair jobs, show booking status label; otherwise show assignment status
+      let statusLabel;
+      let statusColor = '#3b82f6';
+      if (isRepair && a.repairInfo) {
+        const rs = a.repairInfo.bookingStatus || a.bookingStatus;
+        statusLabel = rs.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const repairColors = {inspection_scheduled:'#f59e0b',inspection_completed:'#3b82f6',awaiting_approval:'#8b5cf6',repair_approved:'#10b981',waiting_parts:'#f97316',parts_reserved:'#06b6d4',ready_for_repair:'#22c55e',repair_scheduled:'#22c55e',on_the_way:'#3b82f6',arrived:'#8b5cf6',repair_in_progress:'#3b82f6',repair_completed:'#10b981'};
+        statusColor = repairColors[rs] || '#6b7280';
+      } else if (isRepair && a.bookingStatus) {
+        statusLabel = a.bookingStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const repairColors = {inspection_scheduled:'#f59e0b',inspection_completed:'#3b82f6',awaiting_approval:'#8b5cf6',repair_approved:'#10b981',waiting_parts:'#f97316',parts_reserved:'#06b6d4',ready_for_repair:'#22c55e',repair_scheduled:'#22c55e',on_the_way:'#3b82f6',arrived:'#8b5cf6',repair_in_progress:'#3b82f6',repair_completed:'#10b981'};
+        statusColor = repairColors[a.bookingStatus] || '#6b7280';
+      } else {
+        statusLabel = (a.status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        if (a.status === 'completed') statusColor = '#22c55e';
+      }
+
+      // Determine repair info banner text
+      let repairBanner = '';
+      if (isRepair && a.repairInfo) {
+        const rs = a.repairInfo.bookingStatus;
+        if (rs === 'waiting_parts') {
+          const partsNeeded = a.repairInfo.quotation?.parts?.length || 0;
+          repairBanner = `<div class="td-repair-banner" style="background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;">
+            <i class="bi bi-hourglass-split"></i>
+            <div><strong>Waiting for Parts & Schedule</strong><br><span>Admin is procuring ${partsNeeded} part(s). You'll be notified when ready.</span></div>
+          </div>`;
+        } else if (rs === 'parts_reserved') {
+          repairBanner = `<div class="td-repair-banner" style="background:#ecfeff;border:1px solid #a5f3fc;color:#0e7490;">
+            <i class="bi bi-box-seam"></i>
+            <div><strong>Parts Reserved</strong><br><span>Waiting for admin to schedule the repair date.</span></div>
+          </div>`;
+        } else if (rs === 'repair_approved' || rs === 'awaiting_approval') {
+          repairBanner = `<div class="td-repair-banner" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
+            <i class="bi bi-clock-history"></i>
+            <div><strong>Awaiting Admin Processing</strong><br><span>Quotation submitted. Waiting for parts check and repair schedule.</span></div>
+          </div>`;
+        } else if (rs === 'repair_scheduled' || rs === 'ready_for_repair') {
+          const schedDate = a.repairInfo.repairSchedule?.decidedAt ? new Date(a.repairInfo.repairSchedule.decidedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '';
+          repairBanner = `<div class="td-repair-banner" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+            <i class="bi bi-check-circle"></i>
+            <div><strong>Ready for Repair</strong><br><span>Parts reserved${schedDate ? '. Scheduled ' + schedDate : ''}. You can go En Route!</span></div>
+          </div>`;
+        } else if (rs === 'on-the-way') {
+          repairBanner = `<div class="td-repair-banner" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;">
+            <i class="bi bi-geo-alt"></i>
+            <div><strong>En Route</strong><br><span>Heading to customer location.</span></div>
+          </div>`;
+        } else if (rs === 'arrived') {
+          repairBanner = `<div class="td-repair-banner" style="background:#f5f3ff;border:1px solid #ddd6fe;color:#6d28d9;">
+            <i class="bi bi-building"></i>
+            <div><strong>Arrived at Location</strong><br><span>Ready to start repair work.</span></div>
+          </div>`;
+        } else if (rs === 'repair_in_progress') {
+          repairBanner = `<div class="td-repair-banner" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;">
+            <i class="bi bi-tools"></i>
+            <div><strong>Repair In Progress</strong><br><span>Completing the repair work.</span></div>
+          </div>`;
+        }
+      }
+
+      let actions = '';
+      if (isRepair && a.repairInfo) {
+        const rs = a.repairInfo.bookingStatus;
+        // Repair-specific action buttons based on booking status
+        if (rs === 'repair_scheduled' || rs === 'ready_for_repair') {
+          actions = `<button class="btn btn-sm btn-primary" onclick="tdRepairEnRoute('${a.repairInfo.bookingId}')"><i class="bi bi-geo-alt me-1"></i>En Route</button>`;
+        } else if (rs === 'on-the-way' || a.status === 'en_route') {
+          actions = `<button class="btn btn-sm btn-primary" onclick="tdRepairTransition('${a.repairInfo.bookingId}','on_site')"><i class="bi bi-building me-1"></i>Arrived</button>`;
+        } else if (rs === 'arrived' || a.status === 'on_site') {
+          actions = `<button class="btn btn-sm btn-primary" onclick="tdRepairTransition('${a.repairInfo.bookingId}','in_progress')"><i class="bi bi-gear me-1"></i>Start Work</button>`;
+        } else if (rs === 'repair_in_progress' || a.status === 'in_progress') {
+          actions = `<button class="btn btn-sm btn-success" onclick="tdRepairTransition('${a.repairInfo.bookingId}','completed')"><i class="bi bi-check-circle me-1"></i>Complete</button>`;
+        }
+        // For waiting_parts, parts_reserved, awaiting_approval — no action buttons (just the banner)
+      } else {
+        // Standard (non-repair) assignment actions
+        if (a.status === 'accepted') {
+          const canGo = true;
+          actions = `<button class="btn btn-sm btn-primary" ${!canGo ? 'disabled title="You can go En Route 30 minutes before the scheduled time"' : ''} onclick="tdTransition('${a._id}','en_route')"><i class="bi bi-geo-alt me-1"></i>En Route</button>`;
+        } else if (a.status === 'en_route') {
+          actions = `<button class="btn btn-sm btn-primary" onclick="tdTransition('${a._id}','on_site')"><i class="bi bi-building me-1"></i>Arrived</button>`;
+        } else if (a.status === 'on_site') {
+          actions = `<button class="btn btn-sm btn-primary" onclick="tdTransition('${a._id}','in_progress')"><i class="bi bi-gear me-1"></i>Start Work</button>`;
+        } else if (a.status === 'in_progress') {
+          const isCODWithBalance = ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && !a.balanceCollected && (a.balanceAmount || 0) > 0;
+          if (isCODWithBalance) {
+            actions = `<button class="btn btn-sm btn-warning" onclick="tdCollectAndComplete('${a._id}')"><i class="bi bi-cash me-1"></i>Collect ₱${Number(a.balanceAmount).toLocaleString()} & Complete</button>`;
+          } else {
+            actions = `<button class="btn btn-sm btn-success" onclick="tdTransition('${a._id}','completed')"><i class="bi bi-check-circle me-1"></i>Complete</button>`;
+          }
+        }
+      }
+      const paymentInfo = ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && !a.balanceCollected && (a.balanceAmount || 0) > 0
+        ? `<div class="td-active-detail" style="color:#d97706;"><i class="bi bi-exclamation-triangle"></i> Balance ₱${Number(a.balanceAmount).toLocaleString()} due on completion</div>`
+        : ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && a.balanceCollected
+        ? '<div class="td-active-detail" style="color:#16a34a;"><i class="bi bi-check-circle"></i> Fully Paid</div>'
+        : '';
+      // Expense summary for active job
+      let activeExpenseInfo = '';
+      if (activeExpenses.length > 0) {
+        const totalExp = activeExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+        const approvedExp = activeExpenses.filter(e => e.status === 'approved').reduce((s, e) => s + (e.amount || 0), 0);
+        const pendingExp = activeExpenses.filter(e => e.status === 'pending').reduce((s, e) => s + (e.amount || 0), 0);
+        activeExpenseInfo = `<div class="td-active-detail" style="color:#92400e;"><i class="bi bi-receipt"></i> ${activeExpenses.length} expense${activeExpenses.length > 1 ? 's' : ''} logged · ₱${Number(totalExp).toLocaleString()}${pendingExp > 0 ? ' (₱' + Number(pendingExp).toLocaleString() + ' pending)' : ''}</div>`;
+      }
+      // Unit info for repairs
+      let unitInfoHtml = '';
+      if (isRepair && a.repairInfo?.unitInfo) {
+        const u = a.repairInfo.unitInfo;
+        const unitLabel = `${u.brand || ''} ${u.unitType || ''}`.trim();
+        if (unitLabel) {
+          unitInfoHtml = `<div class="td-active-detail"><i class="bi bi-tag"></i> ${unitLabel}${u.model ? ' · ' + u.model : ''}${u.serialNumber ? ' · SN: ' + u.serialNumber : ''}</div>`;
+        }
+      }
+      activeEl.innerHTML = `
+        <div class="td-active-card">
+          <h5><i class="bi bi-lightning-charge me-2"></i>${a.customerName || 'Customer'} - ${a.serviceName || 'Service'}</h5>
+          <div class="td-active-detail"><i class="bi bi-clock"></i> ${a.startTime || 'N/A'} | ${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-PH', {weekday:'short',month:'short',day:'numeric'}) : ''}</div>
+          <div class="td-active-detail"><i class="bi bi-geo-alt"></i> ${a.address || 'No address'}</div>
+          ${unitInfoHtml}
+          <div class="td-active-detail"><i class="bi bi-tag"></i> <span class="badge" style="background:${statusColor};font-size:0.78rem;padding:4px 10px;">${statusLabel}</span></div>
+          ${repairBanner}
+          ${paymentInfo}
+          ${activeExpenseInfo}
+          <div class="td-active-actions">
+            ${actions}
+            ${actions.includes('onclick') || actions.includes('href') ? '' : `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-outline-secondary">Details</a>`}
+            <a href="/technician/expenses" class="btn btn-sm btn-outline-warning" title="Log expense for this job"><i class="bi bi-receipt me-1"></i>Log Expense</a>
+          </div>
+        </div>`;
+    }
+
+    // Completed Today & Repair Queue panels removed.
+
+    // Job Expenses Panel (active job)
+    const jobExpPanel = document.getElementById('jobExpensesPanel');
+    const jobExpList = document.getElementById('jobExpensesList');
+    if (data.activeJob && data.activeJobExpenses && data.activeJobExpenses.length > 0) {
+      jobExpPanel.style.display = '';
+      const expenses = data.activeJobExpenses;
+      const totalExp = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+      const byType = {};
+      expenses.forEach(e => {
+        if (!byType[e.type]) byType[e.type] = { count: 0, total: 0 };
+        byType[e.type].count++;
+        byType[e.type].total += e.amount || 0;
+      });
+      const typeLabels = { fuel: 'Fuel', material: 'Materials', transport: 'Transport', meal: 'Meal', other: 'Other' };
+      const typeIcons = { fuel: 'bi-fuel-pump', material: 'bi-box', transport: 'bi-truck', meal: 'bi-cup-hot', other: 'bi-three-dots' };
+      let breakdown = Object.entries(byType).map(([type, data]) =>
+        `<div class="td-expense-row">
+          <span><i class="bi ${typeIcons[type] || 'bi-circle'} me-1"></i>${typeLabels[type] || type} (${data.count})</span>
+          <strong>₱${Number(data.total).toLocaleString()}</strong>
+        </div>`
+      ).join('');
+      jobExpList.innerHTML = `
+        <div class="td-expense-row" style="border-bottom:1px solid #f1f5f9;padding-bottom:8px;margin-bottom:4px;">
+          <span class="fw-bold" style="color:#1e293b;">Total for this job</span>
+          <strong class="text-warning" style="font-size:1rem;">₱${Number(totalExp).toLocaleString()}</strong>
+        </div>
+        ${breakdown}
+        <div style="margin-top:10px;">
+          <a href="/technician/expenses" class="btn btn-sm btn-outline-warning w-100"><i class="bi bi-plus-lg me-1"></i>Add Expense</a>
+        </div>`;
+    } else {
+      jobExpPanel.style.display = 'none';
+    }
+
+    // Expense Summary
+    if (data.expenseSummary) {
+      const el1 = document.getElementById('expApproved');
+      const el2 = document.getElementById('expPending');
+      const el3 = document.getElementById('expFuel');
+      const el4 = document.getElementById('expCount');
+      if (el1) el1.textContent = formatPeso(data.expenseSummary.approvedTotal);
+      if (el2) el2.textContent = formatPeso(data.expenseSummary.pendingTotal);
+      if (el3) el3.textContent = formatPeso(data.expenseSummary.fuelTotal);
+      if (el4) el4.textContent = (data.expenseSummary.approvedCount || 0) + (data.expenseSummary.pendingCount || 0);
+    }
+
+    // SLA Panel
+    if (data.counts?.slaBreached > 0) {
+      const slaPanelEl = document.getElementById('slaPanel');
+      const slaListEl = document.getElementById('slaList');
+      if (slaPanelEl) slaPanelEl.style.display = '';
+      if (slaListEl) slaListEl.innerHTML = `<div class="td-empty-state"><i class="bi bi-exclamation-triangle text-danger"></i><p class="text-danger fw-bold">${data.counts.slaBreached} job(s) past SLA deadline</p></div>`;
+    }
+
+    // ── Hero Stats ────────────────────────────────────────────────────────
+    const todayCount = data.todayJobs?.length ?? 0;
+    const activeCount = data.activeJob ? 1 : 0;
+    const completedTodayCount = data.counts?.completedToday ?? 0;
+    const todayNumEl = document.getElementById('heroTodayNum');
+    const activeNumEl = document.getElementById('heroActiveNum');
+    const completedNumEl = document.getElementById('heroCompletedNum');
+    if (todayNumEl) todayNumEl.textContent = todayCount;
+    if (activeNumEl) activeNumEl.textContent = activeCount;
+    if (completedNumEl) completedNumEl.textContent = completedTodayCount;
+
+    // ── Daily Progress Widget ─────────────────────────────────────────────
+    const totalToday = todayCount;
+    const doneToday = completedTodayCount;
+    const pct = totalToday > 0 ? Math.round((doneToday / totalToday) * 100) : 0;
+    const dpBar = document.getElementById('dpProgressBar');
+    const dpText = document.getElementById('dpProgressText');
+    const dpPending = document.getElementById('dpPending');
+    const dpDone = document.getElementById('dpDone');
+    const dpEarnings = document.getElementById('dpEarnings');
+    if (dpBar) dpBar.style.width = pct + '%';
+    if (dpText) dpText.textContent = `${doneToday} / ${totalToday}`;
+    if (dpPending) dpPending.textContent = data.counts?.pendingAcceptance ?? 0;
+    if (dpDone) dpDone.textContent = doneToday;
+    // Rough today earnings estimate from completed today jobs
+    const todayEarnings = (data.completedToday || []).reduce((sum, j) => sum + (j.computedRevenue || j.totalPrice || j.bookingTotalPrice || 0), 0);
+    if (dpEarnings) dpEarnings.textContent = '\u20b1' + Number(todayEarnings).toLocaleString('en-PH', { minimumFractionDigits: 0 });
+  }
+
+  // ── Today's Expenses Widget ──────────────────────────────────────────────
+  async function loadTodayExpenses() {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/technician/expenses?startDate=${today}&endDate=${today}&limit=100`);
+      const data = await res.json();
+      const items = data.items || [];
+      const total = items.reduce((s, e) => s + (e.amount || 0), 0);
+      const countEl = document.getElementById('todayExpCount');
+      const totalEl = document.getElementById('todayExpTotal');
+      const breakdownEl = document.getElementById('todayExpBreakdown');
+      if (countEl) countEl.textContent = items.length;
+      if (totalEl) totalEl.textContent = '\u20b1' + Number(total).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+      if (breakdownEl) {
+        if (items.length === 0) {
+          breakdownEl.innerHTML = '<div style="color:#94a3b8;font-size:0.82rem;"><i class="bi bi-inbox me-1"></i>No expenses logged today yet.</div>';
+        } else {
+          const byType = {};
+          const typeLabels = { fuel:'Fuel', material:'Materials', transport:'Transport', meal:'Meal', other:'Other' };
+          const typeIcons  = { fuel:'bi-fuel-pump', material:'bi-box', transport:'bi-truck', meal:'bi-cup-hot', other:'bi-three-dots' };
+          items.forEach(e => {
+            if (!byType[e.type]) byType[e.type] = 0;
+            byType[e.type] += e.amount || 0;
+          });
+          breakdownEl.innerHTML = Object.entries(byType).map(([t, amt]) =>
+            `<div class="d-flex justify-content-between py-1" style="border-bottom:1px solid #f1f5f9;">
+              <span><i class="bi ${typeIcons[t] || 'bi-circle'} me-1 text-muted"></i>${typeLabels[t] || t}</span>
+              <strong>\u20b1${Number(amt).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </div>`
+          ).join('');
+        }
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  // ── Daily Expense Quick Log Modal ─────────────────────────────────────────
+  window.openDailyExpenseModal = function() {
+    document.getElementById('dailyExpenseForm').reset();
+    document.getElementById('dailyExpType').value = 'fuel';
+    document.getElementById('dailyFuelFields').style.display = '';
+    document.querySelectorAll('.exp-type-pill').forEach(b => b.classList.remove('active'));
+    document.querySelector('.exp-type-pill[data-val="fuel"]').classList.add('active');
+    new bootstrap.Modal(document.getElementById('dailyExpenseModal')).show();
+  };
+
+  document.querySelectorAll('.exp-type-pill').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.exp-type-pill').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById('dailyExpType').value = this.dataset.val;
+      document.getElementById('dailyFuelFields').style.display = this.dataset.val === 'fuel' ? '' : 'none';
+    });
+  });
+
+  window.submitDailyExpense = async function(e) {
+    e.preventDefault();
+    const body = {
+      type: document.getElementById('dailyExpType').value,
+      amount: parseFloat(document.getElementById('dailyExpAmount').value),
+      description: document.getElementById('dailyExpDesc').value,
+      expenseDate: new Date().toISOString().split('T')[0],
+    };
+    if (body.type === 'fuel') {
+      body.fuelLiters = parseFloat(document.getElementById('dailyExpLiters').value) || 0;
+      body.pricePerLiter = parseFloat(document.getElementById('dailyExpPricePerLiter').value) || 0;
+      body.odometerReading = parseFloat(document.getElementById('dailyExpOdometer').value) || 0;
+      body.gasStation = document.getElementById('dailyExpStation').value;
+    }
+    try {
+      const res = await fetch('/api/technician/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('dailyExpenseModal')).hide();
+        showToast('Expense logged!', 'success');
+        loadTodayExpenses();
+      } else {
+        showToast(data.error || 'Failed to save', 'danger');
+      }
+    } catch(err) { showToast('Network error', 'danger'); }
+  };
+
+  // ── Action Handlers ────────────────────────────────────────────────────
+  window.tdAccept = async function(id) {
+    if (!confirm('Accept this assignment?')) return;
+    try {
+      const res = await fetch(`/api/technician/assignments/${id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Assignment accepted!', 'success');
+        loadDashboard();
+      } else {
+        showToast(data.error || 'Failed', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  window.tdDecline = async function(id) {
+    const reason = prompt('Reason for declining (optional):');
+    if (reason === null) return;
+    try {
+      const res = await fetch(`/api/technician/assignments/${id}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ reason })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Assignment declined.', 'info');
+        loadDashboard();
+      } else {
+        showToast(data.error || 'Failed', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  window.tdTransition = async function(id, status) {
+    const labels = { en_route: 'mark as En Route', on_site: 'mark as Arrived', in_progress: 'start work', completed: 'mark as Completed' };
+    if (!confirm(`Are you sure you want to ${labels[status] || status}?`)) return;
+    try {
+      const res = await fetch(`/api/technician/assignments/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Status updated to ${status.replace(/_/g, ' ')}`, 'success');
+        loadDashboard();
+      } else {
+        showToast(data.error || 'Failed', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  // ── Collect Payment & Complete (Dashboard) ─────────────────────────────
+  window.tdCollectAndComplete = function(id) {
+    const activeJob = window.__dashboardData?.activeJob;
+    if (!activeJob || activeJob._id !== id) { tdTransition(id, 'completed'); return; }
+    const total = activeJob.totalPrice || activeJob.estimatedFee || 0;
+    const dp = activeJob.downpaymentAmount || 400;
+    const balance = activeJob.balanceAmount || Math.max(0, total - dp);
+    if (balance <= 0) { tdTransition(id, 'completed'); return; }
+
+    let modal = document.getElementById('tdCollectModal');
+    if (!modal) {
+      const html = `
+      <div class="modal fade" id="tdCollectModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:1rem 1.25rem;border-bottom:none;">
+              <h6 class="modal-title fw-bold"><i class="bi bi-cash-coin me-2"></i>Collect Payment</h6>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:1.25rem;background:#f8fafc;">
+              <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px;margin-bottom:12px;">
+                <div class="d-flex justify-content-between mb-1" style="font-size:0.82rem;"><span class="text-muted">Total:</span><span id="tdPayTotal" class="fw-bold">₱0</span></div>
+                <div class="d-flex justify-content-between mb-1" style="font-size:0.82rem;"><span class="text-muted">Downpayment:</span><span id="tdPayDP" class="text-primary fw-bold">₱0</span></div>
+                <div class="d-flex justify-content-between pt-1 border-top" style="border-color:#a7f3d0 !important;font-size:0.9rem;"><span class="fw-bold">Balance Due:</span><span id="tdPayBal" class="text-success fw-bold">₱0</span></div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-bold" style="font-size:0.82rem;">Amount <span class="text-danger">*</span></label>
+                <input type="number" class="form-control" id="tdPayAmount" style="border-radius:8px;font-weight:600;" />
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control" id="tdPayNotes" placeholder="Notes (optional)" style="border-radius:8px;font-size:0.85rem;" />
+              </div>
+              <div id="tdPayError" class="alert alert-danger d-none mb-0" style="font-size:0.82rem;"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:0.75rem 1.25rem;background:#fff;">
+              <button class="btn btn-sm btn-light" data-bs-dismiss="modal">Skip</button>
+              <button class="btn btn-sm btn-success" id="tdPayConfirm"><i class="bi bi-check-circle me-1"></i>Collect & Complete</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+      modal = document.getElementById('tdCollectModal');
+    }
+    document.getElementById('tdPayTotal').textContent = '₱' + total.toLocaleString();
+    document.getElementById('tdPayDP').textContent = '₱' + dp.toLocaleString();
+    document.getElementById('tdPayBal').textContent = '₱' + balance.toLocaleString();
+    document.getElementById('tdPayAmount').value = balance;
+    document.getElementById('tdPayNotes').value = '';
+    document.getElementById('tdPayError').classList.add('d-none');
+
+    const confirmBtn = document.getElementById('tdPayConfirm');
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect & Complete';
+
+    confirmBtn.onclick = async function() {
+      const amt = parseFloat(document.getElementById('tdPayAmount').value);
+      const notes = document.getElementById('tdPayNotes').value.trim();
+      if (!amt || amt <= 0) { document.getElementById('tdPayError').textContent = 'Enter a valid amount.'; document.getElementById('tdPayError').classList.remove('d-none'); return; }
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+      try {
+        const payRes = await fetch(`/api/technician/assignments/${id}/collect-payment`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ amount: amt, notes })
+        });
+        const payData = await payRes.json();
+        if (payRes.ok) {
+          bootstrap.Modal.getInstance(modal).hide();
+          showToast('Payment collected: ' + payData.message, 'success');
+          tdTransition(id, 'completed');
+        } else {
+          document.getElementById('tdPayError').textContent = payData.error || 'Failed';
+          document.getElementById('tdPayError').classList.remove('d-none');
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect & Complete';
+        }
+      } catch(e) {
+        document.getElementById('tdPayError').textContent = 'Network error';
+        document.getElementById('tdPayError').classList.remove('d-none');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect & Complete';
+      }
+    };
+
+    new bootstrap.Modal(modal).show();
+  };
+
+  // ── Repair En Route Handler ──────────────────────────────────────────────
+  window.tdRepairEnRoute = async function(bookingId) {
+    if (!confirm('Are you sure you want to go En Route for this repair?')) return;
+    try {
+      const res = await fetch(`/api/technician/repairs/${bookingId}/en-route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('En Route! Navigating to customer...', 'success');
+        loadDashboard();
+      } else {
+        showToast(data.error || 'Failed to start', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  // ── Repair Status Transition Handler ──────────────────────────────────────
+  window.tdRepairTransition = async function(bookingId, status) {
+    const labels = { on_site: 'mark as Arrived', in_progress: 'start work', completed: 'mark as Completed', no_show: 'mark as No Show' };
+    if (!confirm(`Are you sure you want to ${labels[status] || status}?`)) return;
+    try {
+      const res = await fetch(`/api/technician/repairs/${bookingId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token || '' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Status updated to ${status.replace(/_/g, ' ')}`, 'success');
+        loadDashboard();
+      } else {
+        showToast(data.error || 'Failed', 'danger');
+      }
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  function showToast(msg, type) {
+    var container = document.getElementById('globalToastContainer');
+    if (!container) return;
+    var id = 'toast_' + Date.now();
+    var bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-primary';
+    var html = '<div id="' + id + '" class="toast align-items-center text-white ' + bgClass + ' border-0 show" role="alert" aria-live="assertive" aria-atomic="true">' +
+      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div></div>';
+    container.insertAdjacentHTML('beforeend', html);
+    setTimeout(function() { var el = document.getElementById(id); if (el) el.remove(); }, 4000);
+  }
+
+  // Initial load
+  loadDashboard();
+  loadTodayExpenses();
+
+  // Refresh every 30s
+  setInterval(() => { loadDashboard(); loadTodayExpenses(); }, 30000);
+})();
+</script>

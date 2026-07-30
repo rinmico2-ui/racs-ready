@@ -1,0 +1,443 @@
+<div class="sidebar" id="sidebar">
+  <style>
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sidebar { -ms-overflow-style: none; scrollbar-width: none; }
+    .admin-sidebar .sidebar { height: 100%; display: flex; flex-direction: column; overflow-y: auto; }
+    .admin-sidebar { top: 0 !important; height: 100vh !important; z-index: 1000 !important; }
+
+    /* ── Brand Header ─────────────────────────────────── */
+    .sidebar-brand {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 18px 14px; margin: 0 6px 4px;
+      border-bottom: 1px solid rgba(37, 99, 235, 0.08);
+    }
+    .sidebar-brand .brand-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff; font-size: 1.15rem; flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    .sidebar-brand .brand-text { display: flex; flex-direction: column; gap: 1px; }
+    .sidebar-brand .brand-name { font-size: 0.92rem; font-weight: 700; color: #0f172a; letter-spacing: 0.01em; line-height: 1.2; }
+    .sidebar-brand .brand-sub { font-size: 0.62rem; font-weight: 600; color: #64748b; letter-spacing: 0.12em; text-transform: uppercase; }
+
+    /* ── Section Divider ──────────────────────────────── */
+    .nav-section {
+      display: flex; align-items: center; gap: 8px;
+      padding: 16px 22px 6px; margin: 0;
+    }
+    .nav-section .section-label {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #94a3b8; white-space: nowrap;
+    }
+    .nav-section .section-line {
+      flex: 1; height: 1px; background: rgba(37, 99, 235, 0.08);
+    }
+
+    /* ── Badge ────────────────────────────────────────── */
+    .nav-badge {
+      font-size: 0.6rem; padding: 0.15rem 0.45rem; border-radius: 999px;
+      margin-left: 6px; font-weight: 700; min-width: 1.1rem; text-align: center;
+      line-height: 1.3; flex-shrink: 0;
+    }
+    .nav-badge.bg-warning { background: #fbbf24 !important; color: #78350f !important; }
+    .nav-badge.bg-success { background: #22c55e !important; color: #fff !important; }
+    .nav-badge.bg-info    { background: #0ea5e9 !important; color: #fff !important; }
+    .nav-badge.bg-danger  { background: #ef4444 !important; color: #fff !important; }
+
+    /* ── Tooltip ──────────────────────────────────────── */
+    .nav-tooltip {
+      font-size: 0.68rem; color: #6c757d; opacity: 0;
+      transition: opacity 0.3s ease; margin-left: 0.5rem; font-style: italic;
+    }
+    .nav-link:hover .nav-tooltip { opacity: 1; }
+
+    /* ── Footer Profile ───────────────────────────────── */
+    .sidebar-footer {
+      margin-top: auto; padding: 12px 10px 6px;
+      border-top: 1px solid rgba(37, 99, 235, 0.08);
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .sidebar-footer .footer-avatar {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #e0edff, #c3daff);
+      color: #1d4ed8; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .sidebar-footer .footer-meta { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+    .sidebar-footer .footer-name { font-size: 0.75rem; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-footer .footer-role { font-size: 0.6rem; color: #64748b; font-weight: 500; }
+  </style>
+
+  <!-- Brand Header -->
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+    <div class="brand-text">
+      <span class="brand-name">RACS</span>
+      <span class="brand-sub">Admin Console</span>
+    </div>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <ul class="sidebar-nav nav-list">
+
+    <!-- ═══ CORE ═══ -->
+    <div class="nav-section">
+      <span class="section-label">Core</span>
+      <span class="section-line"></span>
+    </div>
+
+    <!-- Dashboard -->
+    <li class="nav-item">
+      <a href="/admin" class="nav-link">
+        <i class="bi bi-grid-1x2-fill nav-icon"></i>
+        <span class="nav-label">Dashboard</span>
+      </a>
+    </li>
+
+    <!-- ═══ OPERATIONS ═══ -->
+    <div class="nav-section">
+      <span class="section-label">Operations</span>
+      <span class="section-line"></span>
+    </div>
+
+    <!-- Appointment Management -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse"
+        data-bs-target="#appointment-mgmt-collapse" aria-expanded="false">
+        <i class="bi bi-calendar2-check nav-icon"></i>
+        <span class="nav-label">Bookings</span>
+        <span class="nav-badge badge bg-warning text-dark" id="pendingReviewCount" style="display:none;">0</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="appointment-mgmt-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li>
+            <a href="/admin/appointments" class="nav-link">
+              <i class="bi bi-grid-3x3-gap nav-icon"></i>
+              <span class="nav-label">All Bookings</span>
+              <span class="nav-badge badge bg-primary ms-auto" id="appointmentsBadge" style="display:none;">0</span>
+            </a>
+          </li>
+          <li><a href="/admin/appointments/orders" class="nav-link"><i class="bi bi-receipt nav-icon"></i><span class="nav-label">All Orders</span></a></li>
+          <li><a href="/admin/appointments/calendar" class="nav-link"><i class="bi bi-calendar3 nav-icon"></i><span class="nav-label">Calendar</span></a></li>
+          <li><a href="/admin/appointments/walk-in" class="nav-link"><i class="bi bi-person-plus nav-icon"></i><span class="nav-label">Walk-in</span></a></li>
+          <li>
+            <a href="/admin/appointments/expenses" class="nav-link">
+              <i class="bi bi-receipt nav-icon"></i>
+              <span class="nav-label">Expenses</span>
+              <span class="nav-badge badge bg-warning text-dark ms-auto" id="expensesBadge" style="display:none;">0</span>
+            </a>
+          </li>
+          <li>
+            <a href="/admin/appointments/repair-scheduling" class="nav-link">
+              <i class="bi bi-wrench nav-icon"></i>
+              <span class="nav-label">Repair Scheduling</span>
+              <span class="nav-badge badge bg-purple ms-auto" id="repairSchedBadge" style="display:none;background:#7c3aed !important;color:#fff !important;">0</span>
+            </a>
+          </li>
+          <li><a href="/admin/appointments/reschedule" class="nav-link"><i class="bi bi-arrow-repeat nav-icon"></i><span class="nav-label">Reschedule</span></a></li>
+          <li>
+            <a href="/admin/appointments/cancellation-log" class="nav-link">
+              <i class="bi bi-clock-history nav-icon"></i>
+              <span class="nav-label">Cancellation Log</span>
+              <span class="nav-badge badge bg-danger ms-auto" id="escalatedBadge" style="display:none;">0</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- Projects -->
+    <li class="nav-item">
+      <a href="/admin/projects" class="nav-link">
+        <i class="bi bi-building nav-icon"></i>
+        <span class="nav-label">Projects</span>
+        <span class="nav-badge badge bg-indigo ms-auto" id="projectsBadge" style="display:none;background:#6366f1 !important;color:#fff !important;">0</span>
+      </a>
+    </li>
+
+    <!-- Services -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#services-collapse"
+        aria-expanded="false">
+        <i class="bi bi-tools nav-icon"></i>
+        <span class="nav-label">Services</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="services-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/services/core" class="nav-link"><i class="bi bi-gear nav-icon"></i><span class="nav-label">Core Services</span></a></li>
+          <li><a href="/admin/services/repair" class="nav-link"><i class="bi bi-wrench nav-icon"></i><span class="nav-label">Repair Services</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- Inventory -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#inventory-collapse"
+        aria-expanded="false">
+        <i class="bi bi-box-seam nav-icon"></i>
+        <span class="nav-label">Inventory</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="inventory-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/inventory/pos" class="nav-link" style="color:#22c55e;"><i class="bi bi-shop nav-icon"></i><span class="nav-label fw-bold">Point of Sale</span></a></li>
+          <li><a href="/admin/inventory/repair-parts" class="nav-link"><i class="bi bi-box-seam nav-icon"></i><span class="nav-label">Parts &amp; Tools Catalog</span></a></li>
+          <li><a href="/admin/inventory" class="nav-link"><i class="bi bi-list-ul nav-icon"></i><span class="nav-label">Inventory List</span></a></li>
+          <li><a href="/admin/inventory/history" class="nav-link"><i class="bi bi-clock-history nav-icon"></i><span class="nav-label">Stock History</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- ═══ PEOPLE ═══ -->
+    <div class="nav-section">
+      <span class="section-label">People</span>
+      <span class="section-line"></span>
+    </div>
+
+    <!-- Customers -->
+    <li class="nav-item">
+      <a href="/admin/customers/list" class="nav-link">
+        <i class="bi bi-people nav-icon"></i>
+        <span class="nav-label">Customers</span>
+      </a>
+    </li>
+
+    <!-- Technicians -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#technicians-collapse"
+        aria-expanded="false">
+        <i class="bi bi-person-workspace nav-icon"></i>
+        <span class="nav-label">Technicians</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="technicians-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/technicians" class="nav-link"><i class="bi bi-people-fill nav-icon"></i><span class="nav-label">Technician List</span></a></li>
+          <li><a href="/admin/technicians/schedules" class="nav-link"><i class="bi bi-calendar3 nav-icon"></i><span class="nav-label">Schedules</span></a></li>
+          <li>
+            <a href="/admin/technicians/leaves" class="nav-link">
+              <i class="bi bi-calendar-x nav-icon"></i>
+              <span class="nav-label">Leave Requests</span>
+              <span class="nav-badge badge bg-warning text-dark ms-auto" id="leavesBadge" style="display:none;">0</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- Staff -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#staff-collapse"
+        aria-expanded="false">
+        <i class="bi bi-person-badge nav-icon"></i>
+        <span class="nav-label">Staff</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="staff-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/staff/list" class="nav-link"><i class="bi bi-people-fill nav-icon"></i><span class="nav-label">Staff List</span></a></li>
+          <li><a href="/admin/staff/attendance" class="nav-link"><i class="bi bi-qr-code-scan nav-icon"></i><span class="nav-label">Attendance</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- ═══ ANALYTICS ═══ -->
+    <div class="nav-section">
+      <span class="section-label">Analytics</span>
+      <span class="section-line"></span>
+    </div>
+
+    <!-- Reports -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#reports-collapse"
+        aria-expanded="false">
+        <i class="bi bi-bar-chart-line nav-icon"></i>
+        <span class="nav-label">Reports</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="reports-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/reports/service" class="nav-link"><i class="bi bi-bar-chart nav-icon"></i><span class="nav-label">Service Reports</span></a></li>
+          <li><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Inventory Reports</span></a></li>
+          <li><a href="/admin/reports/revenue" class="nav-link"><i class="bi bi-currency-dollar nav-icon"></i><span class="nav-label">Revenue Reports</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- Reviews & Ratings -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#ratings-collapse"
+        aria-expanded="false">
+        <i class="bi bi-star-half nav-icon"></i>
+        <span class="nav-label">Reviews &amp; Ratings</span>
+        <span class="nav-badge badge bg-warning text-dark" id="ratingsCount" style="display:none;">0</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="ratings-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/ratings/overview" class="nav-link"><i class="bi bi-graph-up nav-icon"></i><span class="nav-label">Overview</span></a></li>
+          <li><a href="/admin/ratings/service" class="nav-link"><i class="bi bi-wrench-adjustable nav-icon"></i><span class="nav-label">Service Ratings</span></a></li>
+          <li><a href="/admin/ratings/aircons" class="nav-link"><i class="bi bi-snow2 nav-icon"></i><span class="nav-label">Aircon Ratings</span></a></li>
+          <li><a href="/admin/ratings/technicians" class="nav-link"><i class="bi bi-person-workspace nav-icon"></i><span class="nav-label">Technician Ratings</span></a></li>
+          <li><a href="/admin/ratings/analytics" class="nav-link"><i class="bi bi-bar-chart-line nav-icon"></i><span class="nav-label">Analytics</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- ═══ SYSTEM ═══ -->
+    <div class="nav-section">
+      <span class="section-label">System</span>
+      <span class="section-line"></span>
+    </div>
+
+    <!-- Settings -->
+    <li class="nav-item">
+      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#settings-collapse"
+        aria-expanded="false">
+        <i class="bi bi-gear nav-icon"></i>
+        <span class="nav-label">Settings</span>
+        <i class="bi bi-chevron-down ms-auto"></i>
+      </button>
+      <div class="collapse" id="settings-collapse">
+        <ul class="btn-toggle-nav list-unstyled">
+          <li><a href="/admin/settings/system" class="nav-link"><i class="bi bi-hdd-network nav-icon"></i><span class="nav-label">System</span></a></li>
+          <li><a href="/admin/settings/fare" class="nav-link"><i class="bi bi-cash-coin nav-icon"></i><span class="nav-label">Fare &amp; Pricing</span></a></li>
+          <li><a href="/admin/settings/scheduling" class="nav-link"><i class="bi bi-calendar3 nav-icon"></i><span class="nav-label">Scheduling</span></a></li>
+          <li><a href="/admin/settings/email" class="nav-link"><i class="bi bi-envelope nav-icon"></i><span class="nav-label">Email / SMTP</span></a></li>
+          <li><a href="/admin/settings/company-location" class="nav-link"><i class="bi bi-pin-map nav-icon"></i><span class="nav-label">Company Location</span></a></li>
+        </ul>
+      </div>
+    </li>
+
+    <!-- Roles & Permissions -->
+    <li class="nav-item">
+      <a href="/admin/roles" class="nav-link">
+        <i class="bi bi-shield-lock nav-icon"></i>
+        <span class="nav-label">Roles &amp; Permissions</span>
+      </a>
+    </li>
+
+    <!-- System Logs -->
+    <li class="nav-item">
+      <a href="/admin/logs" class="nav-link">
+        <i class="bi bi-file-text nav-icon"></i>
+        <span class="nav-label">System Logs</span>
+      </a>
+    </li>
+  </ul>
+
+  <!-- Footer Profile -->
+  <div class="sidebar-footer">
+    <div class="footer-avatar"><i class="bi bi-person-fill"></i></div>
+    <div class="footer-meta">
+      <span class="footer-name">Administrator</span>
+      <span class="footer-role">System Admin</span>
+    </div>
+  </div>
+
+  <!-- JavaScript for Badge Polling -->
+  <script>
+    async function updateSidebarBadges() {
+      try {
+        const response = await fetch('/api/notifications/counts', { credentials: 'same-origin' });
+        if (response.ok) {
+          const data = await response.json();
+
+          const badges = [
+            { id: 'pendingReviewCount', key: 'pendingBookings' },
+            { id: 'expensesBadge', key: 'pendingExpenses' },
+            { id: 'escalatedBadge', key: 'escalatedBookings' },
+            { id: 'leavesBadge', key: 'pendingLeaveRequests' },
+          ];
+
+          // Combined appointments badge (pending + queue + active)
+          try {
+            const apptEl = document.getElementById('appointmentsBadge');
+            if (apptEl) {
+              const total = (data.pendingBookings || 0) + (data.assignmentQueue || 0) + (data.activeJobs || 0);
+              apptEl.textContent = total > 0 ? total : '';
+              apptEl.style.display = total > 0 ? 'inline-block' : 'none';
+            }
+          } catch(e) {}
+          badges.forEach(({ id, key }) => {
+            const el = document.getElementById(id);
+            if (el) {
+              const count = data[key] || 0;
+              el.textContent = count > 0 ? count : '';
+              el.style.display = count > 0 ? 'inline-block' : 'none';
+            }
+          });
+
+          // Fetch repair queue count for the pending review page badge
+          try {
+            const rqRes = await fetch('/api/admin/repair-queue/stats');
+            if (rqRes.ok) {
+              const rqData = await rqRes.json();
+              const totalActive = (rqData.repair_requested || 0) + (rqData.pending_inspection || 0) + (rqData.inspection_scheduled || 0) + (rqData.awaiting_approval || 0) + (rqData.waiting_parts || 0);
+              const el = document.getElementById('pendingReviewCount');
+              if (el) {
+                const current = parseInt(el.textContent) || 0;
+                el.textContent = current > 0 ? current : '';
+              }
+            }
+          } catch(e) {}
+
+          // Fetch project scheduling queue count
+          try {
+            const pRes = await fetch('/api/projects/dashboard');
+            if (pRes.ok) {
+              const pData = await pRes.json();
+              const pEl = document.getElementById('projectsBadge');
+              if (pEl) {
+                const count = pData.stats?.pendingScheduling || 0;
+                pEl.textContent = count > 0 ? count : '';
+                pEl.style.display = count > 0 ? 'inline-block' : 'none';
+              }
+            }
+          } catch(e) {}
+
+          // Fetch repair scheduling queue count
+          try {
+            const rsRes = await fetch('/api/admin/repair-scheduling-queue/stats');
+            if (rsRes.ok) {
+              const rsData = await rsRes.json();
+              const rsEl = document.getElementById('repairSchedBadge');
+              if (rsEl) {
+                const count = rsData.pendingScheduling || 0;
+                rsEl.textContent = count > 0 ? count : '';
+                rsEl.style.display = count > 0 ? 'inline-block' : 'none';
+              }
+            }
+          } catch(e) {}
+        }
+      } catch (e) { /* badges not available */ }
+    }
+
+    async function updateRatingCounts() {
+      try {
+        const response = await fetch('/api/admin/ratings/stats');
+        if (response.ok) {
+          const stats = await response.json();
+          const el = document.getElementById('ratingsCount');
+          if (el) {
+            const total = stats.totalRatings || 0;
+            el.textContent = total > 0 ? total : '';
+            el.style.display = total > 0 ? 'inline-block' : 'none';
+          }
+        }
+      } catch (e) { /* ratings not available */ }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      updateSidebarBadges();
+      updateRatingCounts();
+      setInterval(updateSidebarBadges, 30000);
+      setInterval(updateRatingCounts, 30000);
+    });
+  </script>
+</div>

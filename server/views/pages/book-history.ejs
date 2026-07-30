@@ -1,0 +1,1484 @@
+<div
+  class="container py-5 page-min-height book-history-premium"
+  id="bookHistoryRoot"
+  data-user-id="<%= user ? user._id : '' %>"
+  data-user-email="<%= user ? user.email : '' %>"
+  data-aos="fade-up"
+  data-aos-duration="800"
+>
+  <!-- Premium Header -->
+  <div class="bh-header-premium mb-4" data-aos="fade-up" data-aos-duration="800">
+    <div class="bh-header-glow"></div>
+    <div class="d-flex justify-content-between align-items-center position-relative" style="z-index:2;">
+      <div class="d-flex align-items-center gap-3">
+        <div class="bh-avatar-premium">
+          <i class="bi bi-calendar-check-fill"></i>
+        </div>
+        <div>
+          <h1 class="bh-title">Booking History</h1>
+          <p class="bh-subtitle">Your past bookings — view details, filter and download receipts</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Filter Card -->
+  <div class="bh-filter-card mb-4" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
+    <div class="bh-filter-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="bh-filter-label"><i class="bi bi-search"></i> Search</label>
+          <div class="bh-input-wrapper">
+            <i class="bi bi-search bh-input-icon"></i>
+            <input
+              id="bh-search"
+              class="bh-input"
+              placeholder="Search booking ID, service, technician..."
+            />
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <label class="bh-filter-label"><i class="bi bi-funnel"></i> Status</label>
+          <div class="bh-select-wrapper">
+             <i class="bi bi-funnel bh-select-icon-left"></i>
+            <select id="bh-status" class="bh-select">
+              <option value="all">All statuses</option>
+              <optgroup label="Core Services">
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="re-scheduled">Re-scheduled</option>
+              </optgroup>
+              <optgroup label="Repair Services">
+                <option value="awaiting_approval">Awaiting Approval</option>
+                <option value="repair_approved">Repair Approved</option>
+                <option value="repair_scheduled">Repair Scheduled</option>
+                <option value="repair_in_progress">Repair In Progress</option>
+                <option value="repair_completed">Repair Completed</option>
+                <option value="repair_declined">Repair Declined</option>
+              </optgroup>
+            </select>
+            <i class="bi bi-chevron-down bh-select-icon-right"></i>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <label class="bh-filter-label"><i class="bi bi-calendar3"></i> From</label>
+          <div class="bh-date-wrapper">
+            <i class="bi bi-calendar bh-date-icon"></i>
+            <input id="bh-from" type="text" class="bh-date-input" placeholder="Select date" readonly />
+            <button type="button" class="bh-date-btn" id="bh-from-btn"><i class="bi bi-calendar-event"></i></button>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <label class="bh-filter-label"><i class="bi bi-calendar3"></i> To</label>
+          <div class="bh-date-wrapper">
+            <i class="bi bi-calendar bh-date-icon"></i>
+            <input id="bh-to" type="text" class="bh-date-input" placeholder="Select date" readonly />
+            <button type="button" class="bh-date-btn" id="bh-to-btn"><i class="bi bi-calendar-event"></i></button>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <button id="bh-clear" class="bh-btn-clear">
+            <i class="bi bi-x-lg me-2"></i> Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Area -->
+  <div id="bh-listing">
+    <!-- Loading State -->
+    <div id="bh-loading" class="bh-loading-state">
+      <div class="bh-spinner">
+        <div class="bh-spinner-ring"></div>
+        <div class="bh-spinner-ring"></div>
+        <div class="bh-spinner-ring"></div>
+      </div>
+      <p class="bh-loading-text">Loading your bookings...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div id="bh-empty" class="bh-empty-state d-none">
+      <div class="bh-empty-icon">
+        <i class="bi bi-calendar-x"></i>
+      </div>
+      <h4 class="bh-empty-title">No bookings found</h4>
+      <p class="bh-empty-text">You don't have any bookings yet.</p>
+      <button id="bh-show-sample" class="bh-btn-outline">
+        <i class="bi bi-eye"></i> Show example bookings
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div id="bh-table-wrapper" class="d-none">
+      <div class="bh-table-card">
+        <div class="table-responsive">
+          <table class="table bh-table">
+            <thead>
+              <tr>
+                <th><i class="bi bi-hash"></i> Booking</th>
+                <th><i class="bi bi-tools"></i> Service</th>
+                <th><i class="bi bi-clock"></i> Date / Time</th>
+                <th><i class="bi bi-circle-fill"></i> Status</th>
+                <th><i class="bi bi-geo-alt"></i> Location</th>
+                <th><i class="bi bi-star"></i> Rating</th>
+                <th class="text-end"><i class="bi bi-gear"></i> Actions</th>
+              </tr>
+            </thead>
+            <tbody id="bh-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="bh-pagination">
+        <div class="bh-count" id="bh-count"></div>
+        <div class="bh-page-buttons">
+          <button id="bh-prev" class="bh-btn-page" disabled>
+            <i class="bi bi-chevron-left"></i> Prev
+          </button>
+          <button id="bh-next" class="bh-btn-page" disabled>
+            Next <i class="bi bi-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Custom calendar modal removed in favor of Flatpickr -->
+  <!-- Flatpickr for Premium Date Pickers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- Premium Styles -->
+  <style>
+    .book-history-premium {
+      --primary: #2563eb;
+      --primary-light: #3b82f6;
+      --primary-dark: #1d4ed8;
+    }
+    .bh-header-premium {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #1d4ed8 100%);
+      border-radius: 24px;
+      padding: 32px 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(37,99,235,0.25);
+    }
+    .bh-header-glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+      top: -150px;
+      right: -100px;
+      pointer-events: none;
+    }
+    .bh-avatar-premium {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255,255,255,0.3);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .bh-avatar-premium i {
+      font-size: 1.8rem;
+      color: #fff;
+    }
+    .bh-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #fff;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .bh-subtitle {
+      color: rgba(255,255,255,0.85);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+    .bh-filter-card {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+    }
+    .bh-filter-body {
+      padding: 24px 28px;
+    }
+    .bh-filter-label {
+      display: flex;
+      align-items: center;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-bottom: 0.5rem;
+    }
+    .bh-filter-label i {
+      margin-right: 0.4rem;
+      color: #2563eb;
+    }
+    .bh-input-wrapper {
+      position: relative;
+    }
+    .bh-input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      z-index: 2;
+    }
+    .bh-input {
+      width: 100%;
+      height: 52px;
+      padding: 0 14px 0 42px;
+      border: 2px solid #e2e8f0;
+      border-radius: 1rem;
+      background: #f8fafc;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      transition: all 0.3s ease;
+    }
+    .bh-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+    }
+    .bh-input:focus + .bh-input-icon,
+    .bh-input-wrapper:focus-within .bh-input-icon {
+      color: #3b82f6;
+    }
+    .bh-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    .bh-select option {
+      font-weight: 500;
+      color: #0f172a;
+      padding: 10px;
+    }
+    .bh-btn-clear {
+      width: 100%;
+      height: 52px;
+      background: #fef2f2;
+      border: 2px solid #fecaca;
+      border-radius: 1rem;
+      color: #ef4444;
+      font-size: 1.25rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .bh-btn-clear:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25);
+    }
+    .bh-loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem;
+    }
+    .bh-spinner {
+      position: relative;
+      width: 60px;
+      height: 60px;
+    }
+    .bh-spinner-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      border-top-color: #2563eb;
+      animation: bhSpin 1.2s linear infinite;
+    }
+    .bh-spinner-ring:nth-child(2) {
+      inset: 8px;
+      border-top-color: #3b82f6;
+      animation-duration: 0.9s;
+      animation-direction: reverse;
+    }
+    .bh-spinner-ring:nth-child(3) {
+      inset: 16px;
+      border-top-color: #60a5fa;
+      animation-duration: 0.6s;
+    }
+    @keyframes bhSpin {
+      to { transform: rotate(360deg); }
+    }
+    .bh-loading-text {
+      margin-top: 1.5rem;
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+    .bh-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem;
+      background: rgba(255,255,255,0.6);
+      border-radius: 20px;
+      border: 2px dashed rgba(148,163,184,0.3);
+    }
+    .bh-empty-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.05));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .bh-empty-icon i {
+      font-size: 2.5rem;
+      color: #94a3b8;
+    }
+    .bh-empty-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #0a1628;
+      margin-bottom: 0.5rem;
+    }
+    .bh-empty-text {
+      color: #64748b;
+      margin-bottom: 1.5rem;
+    }
+    .bh-btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 12px 24px;
+      background: transparent;
+      border: 1.5px solid #2563eb;
+      border-radius: 999px;
+      color: #2563eb;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bh-btn-outline:hover {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(37,99,235,0.3);
+    }
+    .bh-table-card {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(15,36,96,0.08);
+      backdrop-filter: blur(20px);
+    }
+    .bh-table {
+      margin: 0;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .bh-table thead th {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 1.2rem 1rem;
+      border: none;
+      background: rgba(241,245,249,0.8);
+      border-bottom: 2px solid rgba(37,99,235,0.1);
+    }
+    .bh-table thead th i {
+      margin-right: 0.4rem;
+      color: #2563eb;
+    }
+    .bh-table tbody td {
+      padding: 1rem;
+      border: none;
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+      vertical-align: middle;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+    .bh-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .bh-table tbody tr:hover {
+      background: rgba(37,99,235,0.03);
+    }
+    .bh-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.5rem;
+      padding: 0 0.5rem;
+    }
+    .bh-count {
+      font-size: 0.85rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .bh-page-buttons {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .bh-btn-page {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 10px 18px;
+      background: rgba(255,255,255,0.8);
+      border: 1.5px solid rgba(148,163,184,0.3);
+      border-radius: 12px;
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-btn-page:hover:not(:disabled) {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(37,99,235,0.15);
+    }
+    .bh-btn-page:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .bh-modal-content {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 32px 64px rgba(15,36,96,0.2);
+      backdrop-filter: blur(20px);
+    }
+    .bh-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      border-bottom: none;
+    }
+    .bh-modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .bh-modal-close {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-modal-close:hover {
+      background: rgba(255,255,255,0.25);
+      transform: rotate(90deg);
+    }
+    .bh-modal-body {
+      padding: 28px;
+    }
+    .bh-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 20px 28px;
+      background: rgba(241,245,249,0.5);
+      border-top: 1px solid rgba(148,163,184,0.1);
+    }
+    .bh-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 8px 24px rgba(37,99,235,0.3);
+    }
+    .bh-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(37,99,235,0.4);
+    }
+    .bh-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 12px 24px;
+      background: rgba(148,163,184,0.15);
+      border: 1.5px solid rgba(148,163,184,0.3);
+      border-radius: 12px;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-btn-secondary:hover {
+      background: rgba(148,163,184,0.25);
+      color: #475569;
+    }
+
+    /* Premium Select Dropdown */
+    .bh-select-wrapper {
+      position: relative;
+    }
+    .bh-select-icon-left {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 1rem;
+      z-index: 2;
+      transition: all 0.3s ease;
+    }
+    .bh-select-icon-right {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      font-size: 0.8rem;
+      pointer-events: none;
+      transition: transform 0.3s ease;
+    }
+    .bh-select-wrapper:focus-within .bh-select-icon-right {
+      transform: translateY(-50%) rotate(180deg);
+    }
+    .bh-select-wrapper:focus-within .bh-select-icon-left {
+      color: #2563eb;
+    }
+    .bh-select {
+      width: 100%;
+      height: 52px;
+      padding: 0 36px 0 44px;
+      border: 2px solid #e2e8f0;
+      border-radius: 1rem;
+      background: #f8fafc;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      appearance: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+    }
+
+    /* Premium Date Picker */
+    .bh-date-wrapper {
+      position: relative;
+      display: block;
+    }
+    .bh-date-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 1rem;
+      z-index: 2;
+      transition: all 0.3s ease;
+    }
+    .bh-date-input {
+      width: 100%;
+      height: 52px;
+      padding: 0 44px 0 44px;
+      border: 2px solid #e2e8f0;
+      border-radius: 1rem;
+      background: #f8fafc;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-date-input:focus,
+    .bh-date-wrapper:focus-within .bh-date-input {
+      outline: none;
+      border-color: #3b82f6;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+    }
+    .bh-date-wrapper:focus-within .bh-date-icon {
+      color: #3b82f6;
+    }
+    .bh-date-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(37,99,235,0.1);
+      border: none;
+      color: #2563eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .bh-date-btn:hover {
+      background: rgba(37,99,235,0.2);
+    }
+
+    /* Star Rating */
+    .bh-rating-service {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #0a1628;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Shared Rating Modal (enterprise design) */
+    .trk-rating-modal { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; }
+    .trk-rating-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(8px); }
+    .trk-rating-dialog { position:relative; background:#fff; border-radius:24px; box-shadow:0 32px 80px rgba(0,0,0,0.3); width:92%; max-width:420px; overflow:hidden; animation:bhSlideUp 0.4s cubic-bezier(0.16,1,0.3,1); }
+    @keyframes bhSlideUp { from { opacity:0; transform:translateY(24px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .trk-rating-header { text-align:center; padding:36px 24px 24px; background:linear-gradient(135deg,#f59e0b 0%,#d97706 50%,#b45309 100%); position:relative; overflow:hidden; }
+    .trk-rating-header::before { content:''; position:absolute; top:-50px; right:-50px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,0.08); }
+    .trk-rating-header::after { content:''; position:absolute; bottom:-40px; left:-40px; width:110px; height:110px; border-radius:50%; background:rgba(255,255,255,0.06); }
+    .trk-rating-icon-wrap { position:relative; display:inline-block; margin-bottom:14px; }
+    .trk-rating-icon { width:72px; height:72px; border-radius:50%; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; position:relative; z-index:1; backdrop-filter:blur(4px); border:2px solid rgba(255,255,255,0.3); }
+    .trk-rating-icon-ring { position:absolute; inset:-8px; border-radius:50%; border:2px solid rgba(255,255,255,0.2); animation:bhRingPulse 2.5s ease-in-out infinite; }
+    @keyframes bhRingPulse { 0%,100% { transform:scale(1); opacity:0.4; } 50% { transform:scale(1.1); opacity:0.8; } }
+    .trk-rating-header h5 { font-weight:800; color:#fff; margin:0; font-size:1.15rem; }
+    .trk-rating-header p { font-size:0.82rem; color:rgba(255,255,255,0.85); margin:6px 0 0; position:relative; z-index:1; }
+    .trk-rating-body { padding:28px 24px; }
+    .trk-stars { display:flex; justify-content:center; gap:4px; margin-bottom:6px; }
+    .trk-star { background:none; border:none; font-size:2.4rem; color:#d1d5db; cursor:pointer; transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1); padding:6px; line-height:1; }
+    .trk-star:hover { color:#fbbf24; transform:scale(1.25) rotate(-5deg); filter:drop-shadow(0 3px 10px rgba(245,158,11,0.35)); }
+    .trk-star.active { color:#f59e0b; transform:scale(1.15); filter:drop-shadow(0 2px 8px rgba(245,158,11,0.4)); }
+    .trk-star.active:hover { transform:scale(1.25) rotate(-5deg); }
+    .trk-rating-label { text-align:center; font-size:0.82rem; font-weight:600; color:#64748b; margin-bottom:20px; min-height:20px; }
+    .trk-rating-comment { width:100%; border:2px solid #e2e8f0; border-radius:14px; padding:14px 44px 14px 16px; font-size:0.88rem; resize:none; transition:all 0.25s; background:#f8fafc; line-height:1.5; }
+    .trk-rating-comment:focus { outline:none; border-color:#f59e0b; background:#fff; box-shadow:0 0 0 4px rgba(245,158,11,0.1); }
+    .trk-rating-comment::placeholder { color:#94a3b8; }
+    .trk-rating-actions { display:flex; gap:10px; margin-top:20px; }
+    .trk-rating-btn-skip { flex:1; border-radius:12px; font-weight:600; padding:12px; border:2px solid #e2e8f0; background:#fff; color:#64748b; font-size:0.85rem; transition:all 0.2s; }
+    .trk-rating-btn-skip:hover { background:#f1f5f9; border-color:#cbd5e1; color:#475569; }
+    .trk-rating-btn-submit { flex:1.5; border-radius:12px; font-weight:700; padding:12px; border:none; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:0.88rem; transition:all 0.25s; box-shadow:0 4px 16px rgba(245,158,11,0.3); }
+    .trk-rating-btn-submit:hover:not(:disabled) { box-shadow:0 8px 24px rgba(245,158,11,0.4); transform:translateY(-2px); }
+    .trk-rating-btn-submit:disabled { opacity:0.4; cursor:not-allowed; box-shadow:none; }
+    .trk-rating-btn-done { margin-top:24px; border-radius:12px; font-weight:700; padding:12px 48px; border:none; background:linear-gradient(135deg,#10b981,#059669); color:#fff; font-size:0.88rem; transition:all 0.25s; box-shadow:0 4px 16px rgba(16,185,129,0.3); }
+    .trk-rating-btn-done:hover { box-shadow:0 8px 24px rgba(16,185,129,0.4); transform:translateY(-2px); }
+    .trk-rating-success { text-align:center; padding:40px 24px; }
+    .trk-success-check { width:80px; height:80px; margin:0 auto 20px; }
+    .trk-success-svg { width:100%; height:100%; }
+    .trk-success-circle { stroke-dasharray:151; stroke-dashoffset:151; animation:bhCircleAnim 0.6s ease-out 0.2s forwards; }
+    .trk-success-check-path { stroke-dasharray:50; stroke-dashoffset:50; animation:bhCheckAnim 0.4s ease-out 0.7s forwards; }
+    @keyframes bhCircleAnim { to { stroke-dashoffset:0; } }
+    @keyframes bhCheckAnim { to { stroke-dashoffset:0; } }
+    .trk-rating-success h5 { font-weight:800; color:#1e293b; margin:0; font-size:1.2rem; }
+
+    /* Flatpickr Premium Overrides */
+    .flatpickr-calendar { border-radius: 1rem !important; border: none !important; box-shadow: 0 20px 40px rgba(15,36,96,0.1) !important; font-family: inherit !important; padding: 0.5rem !important; }
+    .flatpickr-day.selected { background: #2563eb !important; border-color: #2563eb !important; box-shadow: 0 4px 10px rgba(37,99,235,0.3) !important; font-weight: 700 !important; color: #fff !important; }
+    .flatpickr-day:hover { background: #f0f7ff !important; border-color: transparent !important; color: #2563eb !important; }
+    .flatpickr-current-month { font-weight: 800 !important; color: #0a1628 !important; }
+
+    @media (max-width: 767.98px) {
+      .bh-header-premium { padding: 24px; }
+      .bh-title { font-size: 1.4rem; }
+      .bh-filter-body { padding: 20px; }
+      .bh-table-card { border-radius: 16px; }
+      .bh-modal-header { padding: 20px 24px; }
+      .bh-modal-body { padding: 20px; }
+      .bh-modal-footer { padding: 16px 24px; flex-direction: column; }
+      .bh-btn-primary, .bh-btn-secondary { width: 100%; justify-content: center; }
+    }
+  </style>
+
+  <!-- Rating and Calendar JavaScript -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      // Star Rating Modal - Enterprise Design
+      const ratingModal = document.getElementById('bhRatingModal');
+      const ratingStars = document.getElementById('bhRatingStars');
+      const ratingLabel = document.getElementById('bhRatingLabel');
+      const ratingService = document.getElementById('bhRatingService');
+      const ratingTechWrapper = document.getElementById('bhRatingTechWrapper');
+      const ratingTechName = document.getElementById('bhRatingTechName');
+      const ratingComment = document.getElementById('bhRatingComment');
+      const submitRatingBtn = document.getElementById('bhSubmitRating');
+      let currentRating = 0;
+      let currentBookingId = null;
+      let bhRatingOpen = false;
+
+      const bhRatingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+
+      // Star interaction
+      if (ratingStars) {
+        const stars = ratingStars.querySelectorAll('.trk-star');
+        stars.forEach((star) => {
+          star.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentRating = parseInt(star.dataset.score);
+            bhUpdateStars(currentRating);
+          });
+          star.addEventListener('mouseenter', () => {
+            const score = parseInt(star.dataset.score);
+            stars.forEach(s => {
+              s.style.color = parseInt(s.dataset.score) <= score ? '#f59e0b' : '#d1d5db';
+            });
+          });
+          star.addEventListener('mouseleave', () => {
+            stars.forEach(s => { s.style.color = ''; });
+            bhUpdateStars(currentRating);
+          });
+        });
+      }
+
+      function bhUpdateStars(rating) {
+        const stars = ratingStars.querySelectorAll('.trk-star');
+        stars.forEach((star, index) => {
+          star.classList.toggle('active', index < rating);
+        });
+        ratingLabel.textContent = rating ? bhRatingLabels[rating] : 'Tap a star to rate';
+        submitRatingBtn.disabled = rating === 0;
+      }
+
+      // Comment character count
+      if (ratingComment) {
+        ratingComment.addEventListener('input', function() {
+          const len = this.value.length;
+          document.getElementById('bhCommentCount').textContent = `${Math.min(len, 300)}/300`;
+          if (len > 300) this.value = this.value.slice(0, 300);
+        });
+      }
+
+      // Submit rating
+      if (submitRatingBtn) {
+        submitRatingBtn.addEventListener('click', async () => {
+          if (currentRating === 0 || !currentBookingId) return;
+          submitRatingBtn.disabled = true;
+          submitRatingBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
+          try {
+            const commentVal = ratingComment ? ratingComment.value.trim() : null;
+            const res = await fetch(`/api/rating/booking/${currentBookingId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ score: currentRating, comment: commentVal || null }),
+            });
+            if (res.ok) {
+              // Show success
+              document.getElementById('bhRatingBody').classList.add('d-none');
+              document.getElementById('bhRatingSuccess').classList.remove('d-none');
+              // Refresh bookings list
+              if (typeof fetchBookings === 'function') fetchBookings();
+              else setTimeout(() => window.location.reload(), 1500);
+            } else {
+              const data = await res.json();
+              alert(data.error || 'Failed to submit rating');
+              submitRatingBtn.disabled = false;
+              submitRatingBtn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+            }
+          } catch (e) {
+            alert('Failed to submit rating. Please try again.');
+            submitRatingBtn.disabled = false;
+            submitRatingBtn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+          }
+        });
+      }
+
+      // Open/close functions
+      window.openRatingModal = function(bookingId, serviceName, techName) {
+        currentBookingId = bookingId;
+        currentRating = 0;
+        bhRatingOpen = true;
+
+        if (ratingService) ratingService.textContent = `How was your ${serviceName || 'Service'} service?`;
+
+        if (ratingTechWrapper && ratingTechName) {
+          if (techName) {
+            ratingTechName.textContent = techName;
+            ratingTechWrapper.classList.remove('d-none');
+          } else {
+            ratingTechWrapper.classList.add('d-none');
+          }
+        }
+
+        if (ratingComment) ratingComment.value = '';
+        document.getElementById('bhCommentCount').textContent = '0/300';
+        bhUpdateStars(0);
+
+        // Show rating body, hide success
+        document.getElementById('bhRatingBody').classList.remove('d-none');
+        document.getElementById('bhRatingSuccess').classList.add('d-none');
+
+        ratingModal.style.display = '';
+      };
+
+      window.closeBhRatingModal = function() {
+        ratingModal.style.display = 'none';
+        bhRatingOpen = false;
+        currentBookingId = null;
+        currentRating = 0;
+        submitRatingBtn.disabled = false;
+        submitRatingBtn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+      };
+
+      // Premium Flatpickr Initialization
+      const fpConfig = {
+        dateFormat: "m/d/Y",
+        disableMobile: "true",
+        onChange: function(selectedDates, dateStr, instance) {
+          instance.element.value = dateStr;
+          instance.element.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      };
+      
+      const fpFrom = flatpickr("#bh-from", fpConfig);
+      const fpTo = flatpickr("#bh-to", fpConfig);
+
+      const fromBtn = document.getElementById('bh-from-btn');
+      if (fromBtn) fromBtn.addEventListener('click', () => fpFrom.open());
+
+      const toBtn = document.getElementById('bh-to-btn');
+      if (toBtn) toBtn.addEventListener('click', () => fpTo.open());
+    });
+  </script>
+</div>
+
+  <!-- Premium Modal -->
+  <div class="modal fade" id="bhDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="bh-modal-content">
+        <div class="bh-modal-header">
+          <h5 class="bh-modal-title">
+            <i class="bi bi-calendar-check"></i> Booking Details
+          </h5>
+          <button
+            type="button"
+            class="bh-modal-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          >
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="bh-modal-body" id="bh-modal-body">
+          <!-- populated by JS -->
+        </div>
+        <div class="bh-modal-footer">
+          <button id="bh-download-json" class="bh-btn-secondary">
+            <i class="bi bi-download"></i> Download JSON
+          </button>
+          <button type="button" class="bh-btn-primary" data-bs-dismiss="modal">
+            <i class="bi bi-check-lg"></i> Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Rating Modal -->
+  <div class="trk-rating-modal" id="bhRatingModal" style="display:none;">
+    <div class="trk-rating-backdrop" onclick="closeBhRatingModal()"></div>
+    <div class="trk-rating-dialog" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="trk-rating-header" id="bhRatingHeader">
+        <div class="trk-rating-icon-wrap">
+          <div class="trk-rating-icon">
+            <i class="bi bi-star-fill"></i>
+          </div>
+          <div class="trk-rating-icon-ring"></div>
+        </div>
+        <h5>Rate Your Experience</h5>
+        <p id="bhRatingService">How was the service?</p>
+      </div>
+      <!-- Body -->
+      <div class="trk-rating-body" id="bhRatingBody">
+        <!-- Technician info -->
+        <div id="bhRatingTechWrapper" class="d-none" style="margin-bottom:20px;">
+          <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:#e0e7ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="bi bi-person-badge" style="color:#4f46e5;font-size:1rem;"></i>
+            </div>
+            <div style="min-width:0;">
+              <div style="font-size:0.78rem;font-weight:700;color:#3730a3;">Technician</div>
+              <div style="font-size:0.82rem;color:#4338ca;font-weight:600;" id="bhRatingTechName">Name</div>
+            </div>
+          </div>
+        </div>
+        <!-- Stars -->
+        <div class="trk-stars" id="bhRatingStars">
+          <button class="trk-star" data-score="1"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="2"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="3"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="4"><i class="bi bi-star-fill"></i></button>
+          <button class="trk-star" data-score="5"><i class="bi bi-star-fill"></i></button>
+        </div>
+        <div class="trk-rating-label" id="bhRatingLabel">Tap a star to rate</div>
+        <!-- Comment -->
+        <div style="position:relative;margin-top:8px;">
+          <textarea class="trk-rating-comment" id="bhRatingComment" placeholder="Share details of your experience (optional)..." rows="3"></textarea>
+          <div style="position:absolute;bottom:10px;right:12px;font-size:0.68rem;color:#94a3b8;" id="bhCommentCount">0/300</div>
+        </div>
+        <!-- Actions -->
+        <div class="trk-rating-actions">
+          <button class="btn trk-rating-btn-skip" onclick="closeBhRatingModal()">Cancel</button>
+          <button class="btn trk-rating-btn-submit" id="bhSubmitRating" disabled>
+            <i class="bi bi-send me-1"></i>Submit
+          </button>
+        </div>
+      </div>
+      <!-- Success state -->
+      <div class="trk-rating-body trk-rating-success d-none" id="bhRatingSuccess">
+        <div class="trk-success-check">
+          <svg viewBox="0 0 52 52" class="trk-success-svg">
+            <circle cx="26" cy="26" r="24" fill="none" stroke="#10b981" stroke-width="2.5" class="trk-success-circle"/>
+            <path fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14 27l7 7 16-16" class="trk-success-check-path"/>
+          </svg>
+        </div>
+        <h5>Thank You!</h5>
+        <p style="color:#64748b;font-size:0.85rem;margin:0;">Your feedback helps us improve our service quality.</p>
+        <button class="btn trk-rating-btn-done" onclick="closeBhRatingModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reschedule Modal -->
+  <div class="modal fade" id="bhRescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen-lg-down modal-dialog-centered">
+      <div class="bh-modal-content">
+        <div class="bh-modal-header">
+          <h5 class="bh-modal-title"><i class="bi bi-calendar-event"></i> Reschedule Booking</h5>
+          <button type="button" class="bh-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="bh-modal-body">
+          <div id="bhRescheduleContent">
+            <!-- Loading state -->
+            <div id="bhRescheduleLoading" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-2 text-muted">Loading available slots...</p>
+            </div>
+
+            <!-- Error state -->
+            <div id="bhRescheduleError" class="d-none alert alert-danger"></div>
+
+            <!-- Calendar content -->
+            <div id="bhRescheduleCalendarContent" class="d-none">
+              <!-- Technician info -->
+              <div class="alert alert-info d-flex align-items-center gap-3">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                  <i class="bi bi-person-badge fs-5"></i>
+                </div>
+                <div>
+                  <div class="fw-bold">Technician</div>
+                  <div id="bhRescheduleTechName" class="mb-0">Loading...</div>
+                </div>
+              </div>
+
+              <!-- Calendar -->
+              <div class="calendar-widget mb-4">
+                <div class="calendar-header d-flex justify-content-between align-items-center mb-3">
+                  <button type="button" class="btn-icon" id="bhPrevMonth">
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+                  <h5 class="mb-0" id="bhCalendarTitle"></h5>
+                  <button type="button" class="btn-icon" id="bhNextMonth">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+                <div class="calendar-weekdays">
+                  <div>Sun</div>
+                  <div>Mon</div>
+                  <div>Tue</div>
+                  <div>Wed</div>
+                  <div>Thu</div>
+                  <div>Fri</div>
+                  <div>Sat</div>
+                </div>
+                <div class="calendar-grid" id="bhCalendarGrid"></div>
+              </div>
+
+              <!-- Time slots -->
+              <div id="bhTimeSlotsContainer" class="d-none">
+                <h6 class="mb-3 fw-semibold">Select Preferred Time</h6>
+                <div class="d-flex flex-wrap gap-2" id="bhTimeSlots"></div>
+              </div>
+
+              <!-- Reschedule reason -->
+              <div class="mt-4">
+                <label class="form-label fw-semibold">Reason for Rescheduling</label>
+                <textarea class="form-control" id="bhRescheduleReason" rows="3" placeholder="Please provide a reason for rescheduling..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bh-modal-footer">
+          <button type="button" class="bh-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="bh-btn-primary" id="bhSubmitReschedule" disabled>
+            <i class="bi bi-check-lg"></i> Submit Reschedule Request
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enterprise-level Reschedule Calendar Styles -->
+  <style>
+    /* Reschedule Modal Styles */
+    #bhRescheduleModal .modal-dialog {
+      max-width: 95vw !important;
+      width: 1100px !important;
+      margin: 1.75rem auto;
+    }
+
+    #bhRescheduleModal .bh-modal-content {
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      height: 90vh;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #bhRescheduleModal .bh-modal-body {
+      padding: 24px;
+      background: #f8f9fa;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    #bhRescheduleModal .bh-modal-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 24px;
+      border-bottom: none;
+      flex-shrink: 0;
+    }
+
+    #bhRescheduleModal .bh-modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    #bhRescheduleModal .bh-modal-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    #bhRescheduleModal .bh-modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: rotate(90deg);
+    }
+
+    #bhRescheduleModal .bh-modal-footer {
+      background: white;
+      padding: 20px 24px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 0 0 16px 16px;
+      flex-shrink: 0;
+    }
+
+    /* Technician Info Card */
+    #bhRescheduleModal .alert-info {
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+      border: 1px solid rgba(25, 118, 210, 0.1);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    #bhRescheduleModal .alert-info .bg-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Calendar Widget */
+    #bhRescheduleModal .calendar-widget {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    #bhRescheduleModal .calendar-header {
+      padding: 0 8px 16px 8px;
+      border-bottom: 2px solid #f0f0f0;
+      margin-bottom: 20px !important;
+    }
+
+    #bhRescheduleModal .calendar-header .btn-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 1px solid #dee2e6;
+      color: #495057;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #bhRescheduleModal .calendar-header .btn-icon:hover {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    #bhRescheduleModal #bhCalendarTitle {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #212529;
+      letter-spacing: -0.3px;
+    }
+
+    #bhRescheduleModal .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    #bhRescheduleModal .calendar-weekdays div {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 0;
+    }
+
+    #bhRescheduleModal .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+
+    #bhRescheduleModal .calendar-cell {
+      border: none;
+      background: transparent;
+      padding: 0;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.95rem;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      color: #212529;
+      cursor: default;
+      border: 2px solid transparent;
+      pointer-events: auto !important;
+      z-index: 1;
+    }
+
+    #bhRescheduleModal .calendar-cell .date-num {
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="available"] {
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+      color: #1976d2;
+      border: 2px solid rgba(25, 118, 210, 0.2);
+      cursor: pointer !important;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+      pointer-events: auto !important;
+      z-index: 10;
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="available"]:hover {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+      z-index: 20;
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="available"]::before {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #4caf50;
+      border-radius: 50%;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="available"]:hover::before {
+      background: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="blocked"] {
+      background: #f8f9fa;
+      color: #adb5bd;
+      border: 2px solid #e9ecef;
+      cursor: not-allowed;
+    }
+
+    #bhRescheduleModal .calendar-cell[data-status="blocked"].disabled {
+      opacity: 0.5;
+    }
+
+    #bhRescheduleModal .calendar-cell.is-selected {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: 2px solid #667eea;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+      transform: scale(1.05);
+    }
+
+    #bhRescheduleModal .calendar-cell.is-selected::before {
+      background: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    /* Time Slots */
+    #bhTimeSlotsContainer {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    #bhTimeSlotsContainer h6 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #495057;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    #bhTimeSlots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    #bhTimeSlots .time-slot {
+      border: 2px solid #e9ecef;
+      background: white;
+      color: #495057;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      min-width: 120px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #bhTimeSlots .time-slot::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #bhTimeSlots .time-slot:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+    }
+
+    #bhTimeSlots .time-slot:hover::before {
+      opacity: 1;
+    }
+
+    #bhTimeSlots .time-slot.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      transform: translateY(-2px) scale(1.02);
+    }
+
+    #bhTimeSlots .time-slot.active::before {
+      opacity: 0;
+    }
+
+    #bhTimeSlots .time-slot .time-slot-time {
+      position: relative;
+      z-index: 1;
+      font-weight: 700;
+    }
+
+    #bhTimeSlots .time-slot .text-muted {
+      position: relative;
+      z-index: 1;
+      font-size: 0.75rem;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+
+    /* Reason Input */
+    #bhRescheduleModal .form-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #495057;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    #bhRescheduleModal .form-control {
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+
+    #bhRescheduleModal .form-control:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      outline: none;
+    }
+
+    /* Buttons */
+    #bhRescheduleModal .bh-btn-secondary {
+      background: #f8f9fa;
+      border: 2px solid #dee2e6;
+      color: #495057;
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    #bhRescheduleModal .bh-btn-secondary:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+      transform: translateY(-1px);
+    }
+
+    #bhRescheduleModal .bh-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      padding: 10px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    #bhRescheduleModal .bh-btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #5568d3 0%, #6a3f8c 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+
+    #bhRescheduleModal .bh-btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Loading and Error States */
+    #bhRescheduleModal .spinner-border {
+      width: 3rem;
+      height: 3rem;
+      border-width: 0.25em;
+    }
+
+    #bhRescheduleModal .alert-danger {
+      border-radius: 12px;
+      border: 2px solid #f8d7da;
+      background: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%);
+    }
+  </style>
+
+<script src="/js/book-history.js"></script>

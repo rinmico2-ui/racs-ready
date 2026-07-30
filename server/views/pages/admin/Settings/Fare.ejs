@@ -1,0 +1,414 @@
+<div class="admin-dashboard container-fluid py-4 fare-settings-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .fare-settings-page {
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --line: rgba(15,23,42,0.08);
+      --line-strong: rgba(15,23,42,0.14);
+      --brand: #0d6efd;
+      --text-muted: #64748b;
+    }
+    .fare-settings-page .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(15,23,42,0.05);
+      background: linear-gradient(180deg,#ffffff,#fbfdff);
+    }
+    .fare-settings-page .form-control {
+      border-radius: 10px;
+      border-color: var(--line-strong);
+    }
+    .fare-settings-page .form-control:focus {
+      border-color: rgba(13,110,253,0.45);
+      box-shadow: 0 0 0 0.15rem rgba(13,110,253,0.16);
+    }
+    .fare-preview {
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+    .fare-preview table { width: 100%; border-collapse: collapse; }
+    .fare-preview td { padding: 4px 0; }
+    .fare-preview td:last-child { text-align: right; font-weight: 600; color: #0d6efd; }
+    .fee-calc-preview {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      font-size: 0.85rem;
+      color: #166534;
+    }
+    .fee-calc-preview table { width: 100%; border-collapse: collapse; }
+    .fee-calc-preview td { padding: 4px 0; }
+    .fee-calc-preview td:last-child { text-align: right; font-weight: 600; color: #15803d; }
+  </style>
+
+  <!-- Header -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-cash-coin"></i></div>
+        <div>
+          <h1>Fare &amp; Pricing Settings</h1>
+          <p>Configure distance meter fare rate and default project fees.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert area -->
+  <div id="fareAlert" class="d-none mb-3"></div>
+
+  <div class="row g-4">
+    <!-- Edit card for Distance Rate -->
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-pencil-square me-2 text-primary"></i>Distance Meter Rate</h5>
+        <p class="small text-muted mb-3">
+          This rate is applied when calculating the travel fare shown to customers
+          during the booking process based on distance.
+        </p>
+        <div class="mb-3">
+          <label for="farePerKmInput" class="form-label fw-semibold">Rate (₱ per km)</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="farePerKmInput" class="form-control" min="0" max="10000" step="1" placeholder="e.g. 40" />
+            <span class="input-group-text">/ km</span>
+          </div>
+        </div>
+        
+        <h5 class="fw-semibold mb-1 mt-4"><i class="bi bi-tools me-2 text-primary"></i>Aircon Installation Fee</h5>
+        <p class="small text-muted mb-3">
+          The standard flat fee charged to users when checking out an aircon with the "Delivery + Installation" fulfillment option.
+        </p>
+        <div class="mb-4">
+          <label for="installFeeInput" class="form-label fw-semibold">Installation Fee</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="installFeeInput" class="form-control" min="0" max="50000" step="1" placeholder="e.g. 1500" />
+            <span class="input-group-text">flat</span>
+          </div>
+        </div>
+
+        <button type="button" id="saveFareBtn" class="btn btn-primary" style="min-width:140px;">
+          <i class="bi bi-floppy-disk me-1"></i>Save Pricing
+        </button>
+      </div>
+    </div>
+
+    <!-- Live preview card -->
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-calculator me-2 text-success"></i>Fare Preview</h5>
+        <p class="small text-muted mb-3">
+          How the current rate translates at common distances.
+        </p>
+        <div class="fare-preview p-2">
+          <table id="farePreviewTable" class="table table-sm table-borderless table-dense mb-0">
+            <tr><td>1 km</td><td class="text-end fw-bold text-primary" id="prev1">—</td></tr>
+            <tr><td>3 km</td><td class="text-end fw-bold text-primary" id="prev3">—</td></tr>
+            <tr><td>5 km</td><td class="text-end fw-bold text-primary" id="prev5">—</td></tr>
+            <tr><td>10 km</td><td class="text-end fw-bold text-primary" id="prev10">—</td></tr>
+            <tr><td>20 km</td><td class="text-end fw-bold text-primary" id="prev20">—</td></tr>
+          </table>
+        </div>
+        <p class="small text-muted mt-3 mb-0">
+          <i class="bi bi-info-circle me-1"></i>Distances use actual road distance
+          (OSRM routing), not straight-line.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Large-Scale Project Fee Defaults ─────────────────────────────────── -->
+  <div class="row g-4 mt-2">
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-building me-2 text-warning"></i>Large-Scale Project — Default Fees</h5>
+        <p class="small text-muted mb-3">
+          Default labor rate pre-filled when a technician lead collects payment for a large-scale project.
+          The lead can adjust this per project at payment time.
+        </p>
+        <div class="mb-4">
+          <label for="projLaborInput" class="form-label fw-semibold">Labor Rate per Technician per Day</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="projLaborInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 800" />
+            <span class="input-group-text">/ tech / day</span>
+          </div>
+        </div>
+        <button type="button" id="saveProjFeesBtn" class="btn btn-primary" style="min-width:140px;">
+          <i class="bi bi-floppy-disk me-1"></i>Save Project Fees
+        </button>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-calculator me-2 text-success"></i>Fee Preview</h5>
+        <p class="small text-muted mb-3">
+          How the default rates translate for typical project sizes.
+        </p>
+        <div class="fee-calc-preview p-2">
+          <table class="table table-sm table-borderless table-dense mb-0">
+            <tr><td>Core: 1 tech × 1 day</td><td class="text-end fw-bold" id="projPrev1">—</td></tr>
+            <tr><td>Core: 3 tech × 3 days</td><td class="text-end fw-bold" id="projPrev2">—</td></tr>
+            <tr><td>Core: 5 tech × 5 days</td><td class="text-end fw-bold" id="projPrev3">—</td></tr>
+          </table>
+          <div class="mt-2" style="font-size:.75rem;color:#166534;"><b>Note:</b> Service fee &amp; travel fare (from booking) are added on top at payment time.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Repair Complexity Labor Rates ─────────────────────────────────── -->
+  <div class="row g-4 mt-2">
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-tools me-2 text-danger"></i>Repair Service — Complexity Labor Rates</h5>
+        <p class="small text-muted mb-3">
+          Labor rates for large-scale repair projects based on repair complexity.
+          These are used when the linked booking is a repair service.
+        </p>
+        <div class="mb-3">
+          <label for="repairStdInput" class="form-label fw-semibold">Standard (low complexity)</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="repairStdInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 350" />
+            <span class="input-group-text">/ day</span>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="repairCpxInput" class="form-label fw-semibold">Complex (medium complexity)</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="repairCpxInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 500" />
+            <span class="input-group-text">/ day</span>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label for="repairMajInput" class="form-label fw-semibold">Major (high complexity)</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" id="repairMajInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 700" />
+            <span class="input-group-text">/ day</span>
+          </div>
+        </div>
+        <button type="button" id="saveRepairFeesBtn" class="btn btn-primary" style="min-width:140px;">
+          <i class="bi bi-floppy-disk me-1"></i>Save Repair Rates
+        </button>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-calculator me-2 text-success"></i>Repair Fee Preview</h5>
+        <p class="small text-muted mb-3">
+          How the complexity rates translate for typical durations.
+        </p>
+        <div class="fee-calc-preview p-2">
+          <table class="table table-sm table-borderless table-dense mb-0">
+            <tr><td>Standard × 1 day</td><td class="text-end fw-bold" id="rPrev1">—</td></tr>
+            <tr><td>Complex × 3 days</td><td class="text-end fw-bold" id="rPrev2">—</td></tr>
+            <tr><td>Major × 5 days</td><td class="text-end fw-bold" id="rPrev3">—</td></tr>
+          </table>
+          <div class="mt-2" style="font-size:.75rem;color:#166534;"><b>Note:</b> For repair projects, labor = complexity rate × working days (no crew multiplier).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const inputFare = document.getElementById("farePerKmInput");
+  const inputInstall = document.getElementById("installFeeInput");
+  const inputProjLabor = document.getElementById("projLaborInput");
+  const inputRepairStd = document.getElementById("repairStdInput");
+  const inputRepairCpx = document.getElementById("repairCpxInput");
+  const inputRepairMaj = document.getElementById("repairMajInput");
+  
+  const saveBtn = document.getElementById("saveFareBtn");
+  const saveProjBtn = document.getElementById("saveProjFeesBtn");
+  const saveRepairBtn = document.getElementById("saveRepairFeesBtn");
+  const alertEl = document.getElementById("fareAlert");
+
+  function updatePreview() {
+    const rate = parseFloat(inputFare.value) || 0;
+    [1, 3, 5, 10, 20].forEach((km) => {
+      const el = document.getElementById("prev" + km);
+      if (el) el.textContent = "₱" + (km * rate).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    });
+  }
+
+  function updateProjPreview() {
+    const labor = parseFloat(inputProjLabor.value) || 0;
+    const combos = [
+      { tech: 1, days: 1, id: "projPrev1" },
+      { tech: 3, days: 3, id: "projPrev2" },
+      { tech: 5, days: 5, id: "projPrev3" },
+    ];
+    combos.forEach(c => {
+      const total = labor * c.tech * c.days;
+      const el = document.getElementById(c.id);
+      if (el) el.textContent = "₱" + total.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    });
+  }
+
+  function updateRepairPreview() {
+    const std = parseFloat(inputRepairStd.value) || 0;
+    const cpx = parseFloat(inputRepairCpx.value) || 0;
+    const maj = parseFloat(inputRepairMaj.value) || 0;
+    const el1 = document.getElementById("rPrev1");
+    const el2 = document.getElementById("rPrev2");
+    const el3 = document.getElementById("rPrev3");
+    if (el1) el1.textContent = "₱" + (std * 1).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    if (el2) el2.textContent = "₱" + (cpx * 3).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    if (el3) el3.textContent = "₱" + (maj * 5).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  }
+
+  function showAlert(msg, type) {
+    alertEl.className = "alert alert-" + type;
+    alertEl.textContent = msg;
+    alertEl.classList.remove("d-none");
+    setTimeout(() => alertEl.classList.add("d-none"), 4000);
+  }
+
+  // Load all settings on page load
+  Promise.all([
+    fetch("/api/admin/settings/fare", { credentials: "same-origin" }).then(r => r.json()),
+    fetch("/api/admin/settings/project-fees", { credentials: "same-origin" }).then(r => r.json()),
+  ]).then(([fareData, projData]) => {
+    inputFare.value = fareData.farePerKm ?? 40;
+    inputInstall.value = fareData.airconInstallFee ?? 1500;
+    inputProjLabor.value = projData.laborRatePerDay ?? 0;
+    inputRepairStd.value = projData.repairLaborStandard ?? 0;
+    inputRepairCpx.value = projData.repairLaborComplex ?? 0;
+    inputRepairMaj.value = projData.repairLaborMajor ?? 0;
+    updatePreview();
+    updateProjPreview();
+    updateRepairPreview();
+  }).catch(() => {
+    inputFare.value = 40;
+    inputInstall.value = 1500;
+    inputProjLabor.value = 0;
+    inputRepairStd.value = 0;
+    inputRepairCpx.value = 0;
+    inputRepairMaj.value = 0;
+    updatePreview();
+    updateProjPreview();
+    updateRepairPreview();
+  });
+
+  // Live preview on input
+  inputFare.addEventListener("input", updatePreview);
+  inputProjLabor.addEventListener("input", updateProjPreview);
+  inputRepairStd.addEventListener("input", updateRepairPreview);
+  inputRepairCpx.addEventListener("input", updateRepairPreview);
+  inputRepairMaj.addEventListener("input", updateRepairPreview);
+
+  // Save fare settings
+  saveBtn.addEventListener("click", async () => {
+    const fareVal = parseFloat(inputFare.value);
+    const installVal = parseFloat(inputInstall.value);
+    
+    if (!Number.isFinite(fareVal) || fareVal < 0 || fareVal > 10000) {
+      showAlert("Please enter a valid rate between 0 and 10,000.", "danger");
+      return;
+    }
+    if (!Number.isFinite(installVal) || installVal < 0 || installVal > 50000) {
+      showAlert("Please enter a valid installation fee between 0 and 50,000.", "danger");
+      return;
+    }
+    
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const resp = await fetch("/api/admin/settings/fare", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ farePerKm: fareVal, airconInstallFee: installVal }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Save failed");
+      showAlert("Pricing settings updated successfully.", "success");
+      updatePreview();
+    } catch (err) {
+      showAlert("Error: " + err.message, "danger");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bi bi-floppy-disk me-1"></i>Save Pricing';
+    }
+  });
+
+  // Save project fee defaults
+  saveProjBtn.addEventListener("click", async () => {
+    const laborVal = parseFloat(inputProjLabor.value);
+    
+    if (!Number.isFinite(laborVal) || laborVal < 0 || laborVal > 100000) {
+      showAlert("Please enter a valid labor rate between 0 and 100,000.", "danger");
+      return;
+    }
+    
+    saveProjBtn.disabled = true;
+    saveProjBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const resp = await fetch("/api/admin/settings/project-fees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ laborRatePerDay: laborVal }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Save failed");
+      showAlert("Project fee defaults updated successfully.", "success");
+      updateProjPreview();
+    } catch (err) {
+      showAlert("Error: " + err.message, "danger");
+    } finally {
+      saveProjBtn.disabled = false;
+      saveProjBtn.innerHTML = '<i class="bi bi-floppy-disk me-1"></i>Save Project Fees';
+    }
+  });
+
+  // Save repair complexity rates
+  saveRepairBtn.addEventListener("click", async () => {
+    const std = parseFloat(inputRepairStd.value);
+    const cpx = parseFloat(inputRepairCpx.value);
+    const maj = parseFloat(inputRepairMaj.value);
+    
+    for (const [label, val, max] of [["Standard", std, 100000], ["Complex", cpx, 100000], ["Major", maj, 100000]]) {
+      if (!Number.isFinite(val) || val < 0 || val > max) {
+        showAlert(`Please enter a valid ${label} rate between 0 and ${max.toLocaleString()}.`, "danger");
+        return;
+      }
+    }
+    
+    saveRepairBtn.disabled = true;
+    saveRepairBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const resp = await fetch("/api/admin/settings/project-fees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ repairLaborStandard: std, repairLaborComplex: cpx, repairLaborMajor: maj }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Save failed");
+      showAlert("Repair complexity rates updated successfully.", "success");
+      updateRepairPreview();
+    } catch (err) {
+      showAlert("Error: " + err.message, "danger");
+    } finally {
+      saveRepairBtn.disabled = false;
+      saveRepairBtn.innerHTML = '<i class="bi bi-floppy-disk me-1"></i>Save Repair Rates';
+    }
+  });
+})();
+</script>

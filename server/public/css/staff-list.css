@@ -1,0 +1,286 @@
+/* =========================================================
+   ENTERPRISE STAFF MANAGEMENT
+   Clean • Structured • Scalable
+   ========================================================= */
+
+:root {
+  /* Neutral Enterprise Palette */
+  --sl-bg: #f6f8fb;
+  --sl-surface: #ffffff;
+  --sl-border: #e6eaf0;
+  --sl-border-soft: #f0f3f7;
+
+  --sl-text-primary: #0f172a;
+  --sl-text-secondary: #64748b;
+  --sl-text-muted: #94a3b8;
+
+  --sl-accent: #2563eb;
+  --sl-accent-soft: #eff6ff;
+
+  --sl-success: #16a34a;
+  --sl-warning: #d97706;
+  --sl-danger: #dc2626;
+
+  --sl-radius: 12px;
+  --sl-radius-sm: 8px;
+
+  --sl-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+  --sl-shadow-md: 0 6px 18px rgba(15,23,42,0.06);
+}
+
+/* =========================================================
+   PAGE STRUCTURE
+   ========================================================= */
+
+.staff-list-page {
+  background: var(--sl-bg);
+}
+
+.staff-list-page h3 {
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--sl-text-primary);
+}
+
+.staff-list-page .text-muted {
+  color: var(--sl-text-secondary) !important;
+}
+
+/* =========================================================
+   PANEL CARD
+   ========================================================= */
+
+.panel-card {
+  background: var(--sl-surface);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius);
+  padding: 20px;
+  box-shadow: var(--sl-shadow-sm);
+  transition: box-shadow .2s ease;
+}
+
+.panel-card:hover {
+  box-shadow: var(--sl-shadow-md);
+}
+
+/* =========================================================
+   FORM STYLING (Enterprise feel)
+   ========================================================= */
+
+#addStaffForm .form-label {
+  font-weight: 600;
+  font-size: .8rem;
+  color: var(--sl-text-secondary);
+  margin-bottom: 4px;
+}
+
+#addStaffForm .form-control,
+#addStaffForm .form-select {
+  border-radius: var(--sl-radius-sm);
+  border: 1px solid var(--sl-border);
+  font-size: .85rem;
+  padding: 8px 10px;
+  transition: border .15s ease, box-shadow .15s ease;
+}
+
+#addStaffForm .form-control:focus,
+#addStaffForm .form-select:focus {
+  border-color: var(--sl-accent);
+  box-shadow: 0 0 0 3px var(--sl-accent-soft);
+}
+
+/* Primary button override */
+#addStaffBtn {
+  border-radius: var(--sl-radius-sm);
+  font-weight: 600;
+  padding: 7px 16px;
+}
+
+/* =========================================================
+   TABLE SYSTEM (Clean Enterprise Layout)
+   ========================================================= */
+
+.staff-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: .9rem;
+  min-width: 720px;
+}
+
+.staff-table thead th {
+  background: #f8fafc;
+  color: var(--sl-text-secondary);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sl-border);
+}
+
+.staff-table tbody tr {
+  background: var(--sl-surface);
+  transition: background .12s ease;
+}
+
+.staff-table tbody tr:hover {
+  background: #f9fbff;
+}
+
+.staff-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sl-border-soft);
+  vertical-align: middle;
+}
+
+/* =========================================================
+   AVATAR SYSTEM
+   ========================================================= */
+
+.staff-avatar-sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: inset 0 -6px 12px rgba(255,255,255,.1);
+}
+
+/* =========================================================
+   ROLE BADGES (Minimal + Professional)
+   ========================================================= */
+
+.staff-role-badge {
+  font-size: .7rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: .03em;
+  cursor: pointer;
+}
+
+.staff-role-badge[data-role="admin"] {
+  background: rgba(37,99,235,.1);
+  color: #1d4ed8;
+}
+
+.staff-role-badge[data-role="technician"] {
+  background: rgba(16,185,129,.1);
+  color: #059669;
+}
+
+.staff-role-badge[data-role="secretary"] {
+  background: rgba(217,119,6,.1);
+  color: #b45309;
+}
+
+/* =========================================================
+   ROLE SELECT
+   ========================================================= */
+
+.staff-role-select {
+  margin-top: 6px;
+  border-radius: var(--sl-radius-sm);
+  border: 1px solid var(--sl-border);
+  font-size: .75rem;
+  padding: 4px 8px;
+}
+
+.staff-role-select:focus {
+  border-color: var(--sl-accent);
+  box-shadow: 0 0 0 2px var(--sl-accent-soft);
+}
+
+/* =========================================================
+   SKILL TAGS
+   ========================================================= */
+
+.staff-skill-chip {
+  display: inline-block;
+  background: #f1f5f9;
+  color: var(--sl-text-secondary);
+  font-size: .7rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin: 2px 4px 2px 0;
+}
+
+/* =========================================================
+   ACTION BUTTONS
+   ========================================================= */
+
+.staff-table .btn-group .btn {
+  border-radius: var(--sl-radius-sm);
+  font-size: .75rem;
+  padding: 4px 10px;
+  border: 1px solid var(--sl-border);
+}
+
+.staff-table .btn-outline-secondary {
+  background: #fff;
+}
+
+.staff-table .btn-outline-secondary:hover {
+  background: var(--sl-accent-soft);
+  border-color: var(--sl-accent);
+  color: var(--sl-accent);
+}
+
+/* =========================================================
+   EMPTY / LOADING STATE
+   ========================================================= */
+
+.staff-table td[colspan] {
+  padding: 30px 0;
+  color: var(--sl-text-muted);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 880px) {
+
+  .staff-table {
+    min-width: 0;
+    font-size: .85rem;
+  }
+
+  .staff-table thead {
+    display: none;
+  }
+
+  .staff-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--sl-border);
+    border-radius: var(--sl-radius);
+    box-shadow: var(--sl-shadow-sm);
+  }
+
+  .staff-table tbody td {
+    display: block;
+    border-bottom: 1px solid var(--sl-border-soft);
+    padding: 10px 14px;
+  }
+
+  .staff-table tbody td:last-child {
+    border-bottom: none;
+  }
+}
+
+/* =========================================================
+   PRINT
+   ========================================================= */
+
+@media print {
+  .panel-card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}

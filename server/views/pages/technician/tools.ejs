@@ -1,0 +1,180 @@
+<div class="technician-page">
+  <div class="container-fluid px-4 py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-tools me-2"></i>My Assigned Tools</h4>
+        <small class="text-muted">Tools currently assigned to you</small>
+      </div>
+    </div>
+
+    <!-- Currently Assigned -->
+    <div class="td-panel mb-4">
+      <div class="td-panel-header">
+        <h6 class="td-panel-title"><i class="bi bi-box-seam me-2 text-primary"></i>Currently Assigned</h6>
+        <span class="badge bg-primary" id="assignedCount">0</span>
+      </div>
+      <div class="td-panel-body" id="assignedTools">
+        <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+      </div>
+    </div>
+
+    <!-- Booking Equipment -->
+    <div class="td-panel mb-4">
+      <div class="td-panel-header">
+        <h6 class="td-panel-title"><i class="bi bi-box-seam me-2 text-info"></i>Booking Equipment</h6>
+        <span class="badge bg-info" id="bookingEquipmentCount">0</span>
+      </div>
+      <div class="td-panel-body" id="bookingEquipment">
+        <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="td-panel">
+      <div class="td-panel-header">
+        <h6 class="td-panel-title"><i class="bi bi-clock-history me-2 text-secondary"></i>Tool History</h6>
+      </div>
+      <div class="td-panel-body" id="toolHistory">
+        <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .td-panel { background: #fff; border-radius: 14px; border: 1px solid #eef2f7; overflow: hidden; }
+  .td-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+  .td-panel-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .td-panel-body { padding: 16px 20px; }
+  .tool-card {
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 10px;
+    background: #f8fafc; border: 1px solid #eef2f7; margin-bottom: 10px;
+  }
+  .tool-card:last-child { margin-bottom: 0; }
+  .tool-icon { width: 42px; height: 42px; min-width: 42px; border-radius: 10px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+  .tool-info { flex: 1; }
+  .tool-info h6 { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .tool-info p { font-size: 0.75rem; color: #64748b; margin: 0; }
+  .tool-history-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; }
+  .tool-history-item:last-child { border-bottom: none; }
+</style>
+
+<script>
+(function() {
+  const conditionBadges = { good: 'bg-success', fair: 'bg-warning text-dark', damaged: 'bg-danger', lost: 'bg-secondary' };
+
+  async function loadTools() {
+    try {
+      const res = await fetch('/api/technician/tools/assigned');
+      const data = await res.json();
+      const container = document.getElementById('assignedTools');
+      document.getElementById('assignedCount').textContent = data.count || 0;
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-tools" style="font-size:2rem;"></i><br>No tools currently assigned</div>';
+      } else {
+        container.innerHTML = data.items.map(t => `
+          <div class="tool-card">
+            <div class="tool-icon"><i class="bi bi-tools"></i></div>
+            <div class="tool-info">
+              <h6>${t.toolName || 'Tool'}</h6>
+              <p>Qty: ${t.quantity || 1} ${t.toolBarcode ? '| ' + t.toolBarcode : ''}</p>
+            </div>
+            <span class="badge ${conditionBadges[t.condition] || 'bg-secondary'}">${(t.condition || 'good').toUpperCase()}</span>
+          </div>
+        `).join('');
+      }
+    } catch(e) {
+      document.getElementById('assignedTools').innerHTML = '<div class="text-danger">Failed to load</div>';
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/technician/tools/assigned/history');
+      const data = await res.json();
+      const container = document.getElementById('toolHistory');
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted">No tool history</div>';
+      } else {
+        container.innerHTML = data.items.map(t => {
+          const assigned = t.assignedDate ? new Date(t.assignedDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '';
+          const returned = t.returnedDate ? new Date(t.returnedDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : 'Still assigned';
+          return `
+            <div class="tool-history-item">
+              <div>
+                <strong>${t.toolName || 'Tool'}</strong>
+                <span class="text-muted ms-2">x${t.quantity || 1}</span>
+              </div>
+              <div class="text-end">
+                <span class="badge ${t.status === 'returned' ? 'bg-success' : t.status === 'lost' ? 'bg-danger' : 'bg-primary'}">${t.status || 'assigned'}</span>
+                <div class="text-muted" style="font-size:0.72rem;">${assigned} → ${returned}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+    } catch(e) {
+      document.getElementById('toolHistory').innerHTML = '<div class="text-danger">Failed to load</div>';
+    }
+  }
+
+  async function loadBookingEquipment() {
+    try {
+      const res = await fetch('/api/technician/equipment');
+      const data = await res.json();
+      const container = document.getElementById('bookingEquipment');
+      const countEl = document.getElementById('bookingEquipmentCount');
+      const activeItems = (data.items || []).filter(e => e.status === 'checked_out' || e.status === 'in_use');
+      if (countEl) countEl.textContent = activeItems.length;
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-tools" style="font-size:2rem;"></i><br>No booking equipment assigned</div>';
+        return;
+      }
+      container.innerHTML = data.items.map(e => {
+        const statusClass = e.status === 'reserved' ? 'bg-warning text-dark' : e.status === 'checked_out' ? 'bg-info' : e.status === 'returned' ? 'bg-success' : 'bg-secondary';
+        const canReturn = e.status === 'checked_out' || e.status === 'in_use';
+        const bookingRef = e.bookingId?.bookingReference || 'Booking';
+        return `
+          <div class="tool-card">
+            <div class="tool-icon"><i class="bi bi-tools"></i></div>
+            <div class="tool-info">
+              <h6>${e.equipmentName || 'Tool'}</h6>
+              <p>Qty: ${e.quantity || 1} | ${bookingRef} <span class="badge ${statusClass}">${e.status}</span></p>
+            </div>
+            ${canReturn ? `<button class="btn btn-sm btn-outline-primary" onclick="returnBookingEquipment('${e._id}', '${String(e.equipmentName).replace(/'/g, '\\\'')}')">Return</button>` : ''}
+          </div>`;
+      }).join('');
+    } catch(e) {
+      document.getElementById('bookingEquipment').innerHTML = '<div class="text-danger">Failed to load booking equipment</div>';
+    }
+  }
+
+  window.returnBookingEquipment = async function(id, name) {
+    const good = confirm(`Return ${name} in good condition? OK = Good, Cancel = Damaged`);
+    const condition = good ? 'good' : 'damaged';
+    let damageDescription = '';
+    if (!good) {
+      const reason = prompt(`Describe the issue with ${name}:`, '');
+      if (reason === null) return;
+      damageDescription = reason;
+    }
+    try {
+      const res = await fetch(`/api/technician/equipment/${id}/return`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ condition, damageDescription }) });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification({ type: 'success', title: 'Equipment Returned', message: `${name} returned as ${condition}.`, duration: 4000 });
+        loadBookingEquipment();
+      } else {
+        showNotification({ type: 'error', title: 'Return Failed', message: data.error || 'Failed to return equipment.', duration: 5000 });
+      }
+    } catch(e) { showNotification({ type: 'error', title: 'Network Error', message: 'Please try again', duration: 5000 }); }
+  };
+
+  loadTools();
+  loadHistory();
+  loadBookingEquipment();
+})();
+</script>

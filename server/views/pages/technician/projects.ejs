@@ -1,0 +1,697 @@
+<div class="container-fluid py-4">
+  <style>
+    .tp-hero { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 18px; padding: 1.4rem 1.5rem; color: #fff; margin-bottom: 1.25rem; box-shadow: 0 12px 30px rgba(79,70,229,0.22); }
+    .tp-hero h1 { font-size: 1.35rem; font-weight: 800; margin: 0; }
+    .tp-hero .sub { font-size: 0.82rem; opacity: 0.85; margin-top: 0.25rem; }
+
+    .tp-project { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(99,102,241,0.07); margin-bottom: 1.5rem; overflow: hidden; }
+    .tp-project-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; background: #fbfcff; }
+    .tp-project-head h3 { font-size: 1rem; font-weight: 800; margin: 0; color: #0f172a; }
+    .tp-project-head .meta { font-size: 0.76rem; color: #64748b; margin-top: 0.2rem; }
+    .tp-project-body { padding: 1.1rem 1.25rem; }
+
+    .tp-bar { height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+    .tp-bar > div { height: 100%; border-radius: 999px; background: linear-gradient(90deg,#4f46e5,#818cf8); transition: width 0.4s; }
+
+    .wo-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 1rem; margin-bottom: 0.9rem; background: #fff; }
+    .wo-card:last-child { margin-bottom: 0; }
+    .wo-title { font-size: 0.92rem; font-weight: 700; color: #0f172a; }
+    .wo-mini { font-size: 0.74rem; color: #64748b; }
+    .wo-status { font-size: 0.66rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .wo-status.pending { background: #f1f5f9; color: #64748b; }
+    .wo-status.assigned { background: #e0e7ff; color: #3730a3; }
+    .wo-status.accepted { background: #cffafe; color: #0e7490; }
+    .wo-status.in_progress { background: #d1fae5; color: #065f46; }
+    .wo-status.completed { background: #dbeafe; color: #1e40af; }
+    .wo-status.cancelled { background: #fee2e2; color: #991b1b; }
+    .wo-status.en_route { background: #fef3c7; color: #92400e; }
+    .wo-status.arrived { background: #ede9fe; color: #5b21b6; }
+    .wo-status.rescheduled { background: #fae8ff; color: #86198f; }
+    .tp-lead { background: linear-gradient(135deg,#0ea5e9,#6366f1); color:#fff; border-radius:14px; padding:1rem 1.2rem; margin-bottom:1.25rem; }
+    .tp-lead h4 { font-size:0.95rem;font-weight:800;margin:0 0 0.4rem; }
+    .tp-issue-item { border-bottom:1px solid #f1f5f9; padding:0.5rem 0; font-size:0.8rem; }
+    .wo-tag { display: inline-flex; align-items: center; gap: 0.3rem; background: #eef2ff; color: #4338ca; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 6px; }
+    .tp-btn { padding: 0.4rem 0.8rem; border-radius: 9px; font-size: 0.76rem; font-weight: 600; border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer; transition: all 0.2s; }
+    .tp-btn:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
+    .tp-btn.primary { background: linear-gradient(135deg,#4f46e5,#6366f1); color: #fff; border: none; }
+    .tp-btn.success { background: #059669; color: #fff; border: none; }
+    .tp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tp-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.82rem; }
+    .tp-check.done { text-decoration: line-through; color: #94a3b8; }
+
+    .tp-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .tp-empty i { font-size: 2.2rem; display: block; margin-bottom: 0.5rem; }
+    .tp-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1055; display: flex; align-items: center; justify-content: center; }
+    .tp-modal { background: #fff; border-radius: 16px; padding: 1.4rem; width: 460px; max-width: 92vw; max-height: 85vh; overflow-y: auto; }
+  </style>
+
+  <div class="tp-hero">
+    <h1><i class="bi bi-kanban me-2"></i>My Projects</h1>
+    <div class="sub">Large-scale project work orders assigned to you. Accept, execute, and update unit progress — the project completion rolls up automatically.</div>
+  </div>
+
+  <div id="projectsContainer">
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const qs = (s) => document.querySelector(s);
+  const API = '/api/technician/projects';
+
+  const WO_LABELS = { pending:'Pending', assigned:'Assigned', accepted:'Accepted', en_route:'En Route', arrived:'Arrived', in_progress:'In Progress', completed:'Completed', cancelled:'Cancelled', rescheduled:'Rescheduled' };
+
+  function toast(msg, type = 'success') {
+    let t = qs('#tpToast');
+    if (!t) { t = document.createElement('div'); t.id = 'tpToast'; t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:0.7rem 1.1rem;border-radius:12px;font-weight:600;color:#fff;'; document.body.appendChild(t); }
+    t.style.background = type === 'error' ? 'linear-gradient(135deg,#e11d48,#fb7185)' : 'linear-gradient(135deg,#059669,#10b981)';
+    t.textContent = msg; t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+  }
+
+  async function api(path, opts) {
+    const r = await fetch(path, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  async function load() {
+    try {
+      // Identify current technician (for lead detection)
+      let meId = null;
+      try { const me = await (await fetch('/api/auth/verify')).json(); meId = me.user?.technicianId || me.user?._id || null; } catch (_) {}
+
+      const data = await api(API);
+      const assignments = data.assignments || [];
+      if (assignments.length === 0) {
+        qs('#projectsContainer').innerHTML = '<div class="tp-empty"><i class="bi bi-folder2-open"></i>You have no project work orders assigned yet.</div>';
+        return;
+      }
+      // Group by project
+      const groups = {};
+      assignments.forEach(a => {
+        const pid = a.project ? a.project._id : 'none';
+        (groups[pid] = groups[pid] || { project: a.project, workOrders: [] }).workOrders.push(a.workOrder);
+      });
+      const htmlParts = [];
+      // Lead Technician view (monitor only — no reassignment power)
+      Object.values(groups).forEach(g => {
+        if (g.project && meId && (g.project.leadTechnicianId || '').toString() === meId.toString()) {
+          htmlParts.push(renderLeadView(g.project, g.workOrders));
+        }
+      });
+      htmlParts.push(...Object.values(groups).map(g => renderProject(g.project, g.workOrders)));
+      qs('#projectsContainer').innerHTML = htmlParts.join('');
+    } catch (e) {
+      qs('#projectsContainer').innerHTML = '<div class="tp-empty text-danger">Failed to load projects.</div>';
+    }
+  }
+
+  function renderLeadView(project, workOrders) {
+    const totalUnits = workOrders.reduce((s, w) => s + (w.unitCount || 0), 0);
+    const doneUnits = workOrders.reduce((s, w) => s + (w.completedUnitCount || 0), 0);
+    const progress = totalUnits > 0 ? Math.round((doneUnits / totalUnits) * 100) : 0;
+    const allDone = totalUnits > 0 && doneUnits >= totalUnits;
+    const name = project.customer?.name || project.service?.name || 'Project';
+    const pmt = project.payment || {};
+    const isPaid = pmt.paymentStatus === 'paid';
+    const hasProof = !!pmt.completionProofUrl;
+    const isCompleted = project.status === 'completed' || project.status === 'closed';
+
+    // Completion workflow steps
+    const steps = [
+      { n: 1, label: 'Execute Units', done: allDone, icon: 'bi-check2-circle' },
+      { n: 2, label: 'Collect Payment', done: isPaid, icon: 'bi-cash-coin' },
+      { n: 3, label: 'Proof of Completion', done: hasProof, icon: 'bi-camera' },
+      { n: 4, label: 'Project Closed', done: isCompleted, icon: 'bi-archive' },
+    ];
+
+    return `
+      <div class="tp-lead" style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 50%,#4f46e5 100%);border-radius:18px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 12px 30px rgba(37,99,235,0.25);">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h4 style="font-size:1.1rem;font-weight:800;margin:0;color:#fff;"><i class="bi bi-star-fill me-2" style="color:#fbbf24;"></i>Lead Dashboard</h4>
+            <div style="font-size:0.82rem;color:rgba(255,255,255,0.85);margin-top:0.25rem;">${name} — ${project.service?.name || 'Project'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:2rem;font-weight:800;color:#fff;line-height:1;">${progress}%</div>
+            <div style="font-size:0.72rem;color:rgba(255,255,255,0.7);">${doneUnits}/${totalUnits} units</div>
+          </div>
+        </div>
+        <div style="height:6px;background:rgba(255,255,255,0.2);border-radius:999px;overflow:hidden;margin-bottom:1rem;">
+          <div style="height:100%;width:${progress}%;background:linear-gradient(90deg,#fbbf24,#f59e0b);border-radius:999px;transition:width 0.5s;"></div>
+        </div>
+
+        <!-- Completion Workflow Steps -->
+        <div style="display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap;">
+          ${steps.map(s => `
+            <div style="flex:1;min-width:120px;background:${s.done ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'};border-radius:10px;padding:10px 12px;text-align:center;border:1px solid ${s.done ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.1)'};">
+              <div style="font-size:1.1rem;margin-bottom:2px;">${s.done ? '<i class="bi bi-check-circle-fill" style="color:#4ade80;"></i>' : `<i class="bi ${s.icon}" style="color:rgba(255,255,255,0.5);"></i>`}</div>
+              <div style="font-size:0.68rem;font-weight:700;color:${s.done ? '#4ade80' : 'rgba(255,255,255,0.7)'};">${s.label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Team Status -->
+        <div style="font-size:0.78rem;color:rgba(255,255,255,0.8);margin-bottom:0.75rem;">
+          <i class="bi bi-people me-1"></i>
+          ${workOrders.length} work orders · ${project.assignedTechnicians?.length || 0} team members
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${allDone && !isPaid ? `
+            <button class="tp-btn primary" onclick="openProjectPayment('${project._id}')" style="background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:700;padding:0.55rem 1rem;border-radius:10px;">
+              <i class="bi bi-cash-coin me-1"></i>Collect Payment
+            </button>` : ''}
+          ${isPaid && !hasProof ? `
+            <button class="tp-btn primary" onclick="openProjectProof('${project._id}')" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;color:#fff;font-weight:700;padding:0.55rem 1rem;border-radius:10px;">
+              <i class="bi bi-camera me-1"></i>Upload Proof
+            </button>` : ''}
+          ${allDone && isPaid && hasProof && !isCompleted ? `
+            <div style="background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.4);border-radius:10px;padding:0.55rem 1rem;font-size:0.82rem;font-weight:700;color:#fbbf24;">
+              <i class="bi bi-hourglass-split me-1"></i>Awaiting Admin Confirmation
+            </div>` : ''}
+          ${isCompleted ? `
+            <div style="background:rgba(74,222,128,0.2);border:1px solid rgba(74,222,128,0.4);border-radius:10px;padding:0.55rem 1rem;font-size:0.82rem;font-weight:700;color:#4ade80;">
+              <i class="bi bi-check-circle-fill me-1"></i>Project Completed
+            </div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderRepairDetails(project) {
+    const repair = project.repair || {};
+    if (repair.serviceType !== 'repair' && project.service?.category !== 'repair') return '';
+    const u = repair.unitInfo || {};
+    const photos = (u.photos || []).filter(Boolean);
+    const probable = repair.inspection?.probableCauses?.length ? repair.inspection.probableCauses : (repair.diagnosis?.probableCauses || []);
+    const parts = repair.inspection?.possibleParts?.length ? repair.inspection.possibleParts : (repair.diagnosis?.possibleParts || []);
+    return `
+      <div class="wo-card" style="background:#f8fafc;border-left:4px solid #2563eb;margin-bottom:0.75rem;">
+        <div class="wo-title" style="display:flex;align-items:center;gap:0.5rem;color:#1e40af;"><i class="bi bi-tools"></i>Repair Details</div>
+        <div class="wo-mini" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.35rem 1rem;margin-top:0.5rem;">
+          <div><span style="color:#64748b;">Unit:</span> ${u.unitType || '—'}</div>
+          <div><span style="color:#64748b;">Brand:</span> ${u.brand || '—'}</div>
+          <div><span style="color:#64748b;">Model:</span> ${u.model || '—'}</div>
+          <div style="grid-column:1 / -1;"><span style="color:#64748b;">Problem:</span> ${u.problemDescription || '—'}</div>
+        </div>
+        ${probable.length ? `<div style="margin-top:0.5rem;font-size:0.74rem;color:#1e293b;"><span style="color:#64748b;">Probable causes:</span> ${probable.slice(0,3).join(', ')}${probable.length > 3 ? ' +' + (probable.length - 3) + ' more' : ''}</div>` : ''}
+        ${parts.length ? `<div style="margin-top:0.25rem;font-size:0.74rem;color:#1e293b;"><span style="color:#64748b;">Possible parts:</span> ${parts.slice(0,3).join(', ')}${parts.length > 3 ? ' +' + (parts.length - 3) + ' more' : ''}</div>` : ''}
+        ${photos.length ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">${photos.map(url => `<img src="${url}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;">`).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderProject(project, workOrders) {
+    const totalUnits = workOrders.reduce((s, w) => s + (w.unitCount || 0), 0);
+    const doneUnits = workOrders.reduce((s, w) => s + (w.completedUnitCount || 0), 0);
+    const progress = totalUnits > 0 ? Math.round((doneUnits / totalUnits) * 100) : 0;
+    const name = project ? (project.customer?.name || project.service?.name || 'Project') : 'Unassigned Project';
+
+    return `
+      <div class="tp-project">
+        <div class="tp-project-head">
+          <div>
+            <h3>${name}</h3>
+            <div class="meta">${project?.service?.name || ''} · ${project?.totalUnits || totalUnits} units · ${project?.estimatedTotalHours ? project.estimatedTotalHours.toFixed(0) + ' est. hrs' : ''}</div>
+          </div>
+          <span class="wo-status ${progress === 100 ? 'completed' : 'in_progress'}">${progress}% done</span>
+        </div>
+        <div class="tp-project-body">
+          <div class="tp-bar mb-3"><div style="width:${progress}%;"></div></div>
+          ${renderRepairDetails(project)}
+          ${workOrders.map(w => renderWO(w)).join('')}
+        </div>
+      </div>`;
+  }
+
+  function renderWO(wo) {
+    const progress = wo.unitCount > 0 ? Math.round((wo.completedUnitCount / wo.unitCount) * 100) : 0;
+    const checklist = (wo.checklist && wo.checklist.length)
+      ? (wo.checklist.map((c, i) => `
+      <label class="tp-check ${c.completed ? 'done' : ''}">
+        <input type="checkbox" class="tp-chk" data-wo="${wo._id}" data-idx="${i}" ${c.completed ? 'checked' : ''}> ${c.label}
+      </label>`).join('') + `<button class="btn btn-sm btn-link p-0 mt-1" style="font-size:0.72rem;" onclick="addTechChecklistItem('${wo._id}')"><i class="bi bi-plus-lg"></i> Add item</button>`)
+      : `<div class="wo-mini d-flex justify-content-between align-items-center">No checklist <button class="btn btn-sm btn-link p-0" style="font-size:0.72rem;" onclick="addTechChecklistItem('${wo._id}')"><i class="bi bi-plus-lg"></i> Add</button></div>`;
+
+    let actions = '';
+    if (wo.status === 'assigned') actions = `<button class="tp-btn primary" onclick="acceptWO('${wo._id}')"><i class="bi bi-check-lg"></i> Accept</button>`;
+    else if (wo.status === 'accepted') actions = `<button class="tp-btn primary" onclick="enRouteWO('${wo._id}')"><i class="bi bi-truck"></i> En Route</button>`;
+    else if (wo.status === 'en_route') actions = `<button class="tp-btn primary" onclick="arriveWO('${wo._id}')"><i class="bi bi-geo-alt"></i> Arrived</button>`;
+    else if (wo.status === 'arrived') actions = `<button class="tp-btn primary" onclick="startWO('${wo._id}')"><i class="bi bi-play-fill"></i> Start Work</button>`;
+    else if (wo.status === 'in_progress') actions = `<button class="tp-btn success" onclick="completeWO('${wo._id}')"><i class="bi bi-check-lg"></i> Mark Complete</button>`;
+
+    return `
+      <div class="wo-card" id="wo-${wo._id}">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div>
+            <span class="wo-title">${wo.title || wo.section || 'Work Order'}</span>
+            ${wo.section ? `<span class="wo-mini ms-2"><i class="bi bi-geo-alt"></i> ${wo.section}</span>` : ''}
+          </div>
+          <span class="wo-status ${wo.status}">${WO_LABELS[wo.status] || wo.status}</span>
+        </div>
+        <div class="d-flex justify-content-between wo-mini mb-1">
+          <span><i class="bi bi-grid-3x3-gap"></i> ${wo.completedUnitCount || 0}/${wo.unitCount} units · ${wo.estimatedHours || 0}h est.</span>
+        </div>
+        <div class="tp-bar mb-2"><div style="width:${progress}%;"></div></div>
+        ${actions ? `<div class="mb-2">${actions}</div>` : ''}
+        <div class="d-flex gap-2 flex-wrap mb-2">
+          <button class="tp-btn" style="font-size:0.72rem;" onclick="openProgress('${wo._id}', ${wo.completedUnitCount || 0}, ${wo.unitCount || 0})"><i class="bi bi-sliders"></i> Update Units</button>
+          ${['accepted','en_route','arrived','in_progress'].includes(wo.status) ? `<button class="tp-btn" style="font-size:0.72rem;" onclick="reportIssue('${wo.projectId || ''}', '${wo._id}')"><i class="bi bi-exclamation-triangle"></i> Report Issue</button>` : ''}
+          ${['accepted','en_route','arrived','in_progress'].includes(wo.status) ? `<button class="tp-btn" style="font-size:0.72rem;" onclick="submitExpense('${wo.projectId || ''}', '${wo._id}')"><i class="bi bi-cash"></i> Submit Expense</button>` : ''}
+        </div>
+        <div class="mt-2" style="border-top:1px solid #f1f5f9;padding-top:0.5rem;">${checklist}</div>
+      </div>`;
+  }
+
+  window.acceptWO = async function (id) {
+    try { await api(`/api/work-orders/${id}/accept`, { method: 'PUT' }); toast('Work order accepted'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  window.enRouteWO = async function (id) {
+    try {
+      // Share live location with admin (best-effort)
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+            await fetch('/api/technician/location', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }) });
+          } catch (_) {}
+        }, () => {}, { enableHighAccuracy: true, timeout: 8000 });
+      }
+      await api(`/api/work-orders/${id}/en-route`, { method: 'PUT' }); toast('Status: En Route'); load();
+    }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  window.arriveWO = async function (id) {
+    try { await api(`/api/work-orders/${id}/arrived`, { method: 'PUT' }); toast('Status: Arrived'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  window.startWO = async function (id) {
+    try { await api(`/api/work-orders/${id}/start`, { method: 'PUT' }); toast('Work started'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  window.completeWO = async function (id) {
+    try { await api(`/api/work-orders/${id}/progress`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'completed' }) }); toast('Work order completed'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+
+  // ── Report Issue ────────────────────────────────────────────────
+  window.reportIssue = function (projectId, woId) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="tp-modal">
+        <h5 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Report Issue</h5>
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;">Category</label>
+        <select id="issCat" class="form-select form-select-sm mt-1" style="font-size:0.82rem;">
+          <option value="electrical">Electrical</option>
+          <option value="inventory">Inventory</option>
+          <option value="customer">Customer</option>
+          <option value="safety">Safety</option>
+          <option value="access">Access</option>
+          <option value="other">Other</option>
+        </select>
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;" class="mt-2">Title</label>
+        <input id="issTitle" class="form-control form-control-sm mt-1" placeholder="Short summary">
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;" class="mt-2">Details</label>
+        <textarea id="issDesc" class="form-control form-control-sm mt-1" rows="3" placeholder="Describe the issue, add photo URL or remark"></textarea>
+        <div class="d-flex gap-2 justify-content-end mt-3">
+          <button class="tp-btn" onclick="this.closest('.tp-modal-overlay').remove()">Cancel</button>
+          <button class="tp-btn primary" id="issSave">Submit</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#issSave').addEventListener('click', async () => {
+      const payload = {
+        projectId,
+        workOrderId: woId,
+        category: overlay.querySelector('#issCat').value,
+        title: overlay.querySelector('#issTitle').value,
+        description: overlay.querySelector('#issDesc').value,
+      };
+      try {
+        await api('/api/issues', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        toast('Issue reported to admin'); overlay.remove();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+
+  // ── Submit Expense ──────────────────────────────────────────────
+  window.submitExpense = function (projectId, woId) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="tp-modal">
+        <h5 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Submit Daily Expense</h5>
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;">Type</label>
+        <select id="expType" class="form-select form-select-sm mt-1" style="font-size:0.82rem;">
+          <option value="fuel">Fuel</option>
+          <option value="transport">Transport</option>
+          <option value="meal">Meal</option>
+          <option value="material">Materials</option>
+          <option value="other">Other</option>
+        </select>
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;" class="mt-2">Amount (₱)</label>
+        <input id="expAmount" type="number" class="form-control form-control-sm mt-1" min="1" value="0">
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;" class="mt-2">Description</label>
+        <input id="expDesc" class="form-control form-control-sm mt-1" placeholder="e.g., Fuel for site travel">
+        <div class="d-flex gap-2 justify-content-end mt-3">
+          <button class="tp-btn" onclick="this.closest('.tp-modal-overlay').remove()">Cancel</button>
+          <button class="tp-btn primary" id="expSave">Submit</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#expSave').addEventListener('click', async () => {
+      const amount = parseFloat(overlay.querySelector('#expAmount').value) || 0;
+      if (amount <= 0) { toast('Enter a valid amount', 'error'); return; }
+      const payload = {
+        projectId,
+        workOrderId: woId,
+        type: overlay.querySelector('#expType').value,
+        amount,
+        description: overlay.querySelector('#expDesc').value || 'Project expense',
+      };
+      try {
+        await api('/api/expenses', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        toast('Expense submitted for approval'); overlay.remove();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+
+  window.openProgress = function (id, completed, total) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tp-modal-overlay';
+    overlay.innerHTML = `
+      <div class="tp-modal">
+        <h5 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Update Unit Progress</h5>
+        <label style="font-size:0.78rem;font-weight:600;color:#64748b;">Completed Units (of ${total})</label>
+        <input type="number" id="tpUnits" class="form-control form-control-sm mt-1" value="${completed}" min="0" max="${total}">
+        <div class="d-flex gap-2 justify-content-end mt-3">
+          <button class="tp-btn" onclick="this.closest('.tp-modal-overlay').remove()">Cancel</button>
+          <button class="tp-btn primary" id="tpSaveUnits">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#tpSaveUnits').addEventListener('click', async () => {
+      const val = parseInt(overlay.querySelector('#tpUnits').value) || 0;
+      const status = val >= total ? 'completed' : 'in_progress';
+      try {
+        await api(`/api/work-orders/${id}/progress`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ completedUnitCount: val, status }) });
+        toast('Progress updated'); overlay.remove(); load();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+
+  // Checklist toggle (save on change)
+  document.addEventListener('change', async function (e) {
+    const chk = e.target.closest('.tp-chk');
+    if (!chk) return;
+    const woId = chk.dataset.wo;
+    const card = document.getElementById('wo-' + woId);
+    if (!card) return;
+    const items = [...card.querySelectorAll('.tp-chk')].map(c => ({
+      label: c.closest('.tp-check').textContent.replace(/^\s*Add item\s*$/, '').trim(),
+      completed: c.checked
+    }));
+    try {
+      await api(`/api/work-orders/${woId}/checklist`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ checklist: items }) });
+      toast('Checklist saved');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  window.addTechChecklistItem = async function (woId) {
+    const card = document.getElementById('wo-' + woId);
+    if (!card) return;
+    const label = prompt('Checklist item:');
+    if (!label) return;
+    const items = [...card.querySelectorAll('.tp-chk')].map(c => ({
+      label: c.closest('.tp-check').textContent.replace(/^\s*Add item\s*$/, '').trim(),
+      completed: c.checked
+    }));
+    items.push({ label, completed: false });
+    try {
+      await api(`/api/work-orders/${woId}/checklist`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ checklist: items }) });
+      toast('Item added'); load();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  // ── Collect Payment Modal (Enterprise Level) ──────────────────────
+  window.openProjectPayment = async function (projectId) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tp-modal-overlay';
+    overlay.style.zIndex = '2000';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px;width:520px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
+        <div style="background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:1.5rem;border-radius:20px 20px 0 0;">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;">
+              <i class="bi bi-cash-coin"></i>
+            </div>
+            <div>
+              <h5 style="font-size:1.05rem;font-weight:800;margin:0;">Collect Project Payment</h5>
+              <small style="opacity:0.85;font-size:0.8rem;">Enterprise payment collection</small>
+            </div>
+          </div>
+          <button onclick="this.closest('.tp-modal-overlay').remove()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:1.1rem;">&times;</button>
+        </div>
+        <div style="padding:1.5rem;background:#f8fafc;" id="pmtBody">
+          <div class="text-center py-4"><div class="spinner-border text-success"></div><div class="mt-2 text-muted" style="font-size:0.82rem;">Loading payment summary...</div></div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/payment-summary`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Failed to load payment summary');
+      const s = await res.json();
+      const body = overlay.querySelector('#pmtBody');
+      body.innerHTML = `
+        <!-- Customer & Service -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:16px;margin-bottom:16px;">
+          <div class="d-flex justify-content-between mb-1" style="font-size:0.82rem;">
+            <span class="text-muted"><i class="bi bi-person me-1"></i>Customer:</span>
+            <span class="fw-semibold">${s.customerName}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1" style="font-size:0.82rem;">
+            <span class="text-muted"><i class="bi bi-kanban me-1"></i>Units:</span>
+            <span class="fw-semibold">${s.completedUnits}/${s.totalUnits} completed</span>
+          </div>
+          <div class="d-flex justify-content-between" style="font-size:0.82rem;">
+            <span class="text-muted"><i class="bi bi-people me-1"></i>Crew:</span>
+            <span class="fw-semibold">${s.crewSize} technicians · ${s.daysWorked} days worked</span>
+          </div>
+        </div>
+
+        <!-- Cost Breakdown -->
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:14px;padding:16px;margin-bottom:16px;">
+          <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+            <span class="text-muted">Labor (${s.laborType === 'repair' ? 'Repair' : 'Core'} — ₱${s.laborRatePerDay.toLocaleString()}/day${s.laborType !== 'repair' ? ' × ' + s.crewSize + ' crew' : ''} × ${s.daysWorked} days):</span>
+            <span class="fw-semibold">₱${s.laborTotal.toLocaleString()}</span>
+          </div>
+          ${s.travelFare > 0 ? `<div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+            <span class="text-muted">Travel Fare:</span>
+            <span class="fw-semibold">₱${s.travelFare.toLocaleString()}</span>
+          </div>` : ''}
+          ${s.serviceFee > 0 ? `<div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+            <span class="text-muted">Service Fee:</span>
+            <span class="fw-semibold">₱${s.serviceFee.toLocaleString()}</span>
+          </div>` : ''}
+          ${s.partsCost > 0 ? `<div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+            <span class="text-muted">Parts/Materials:</span>
+            <span class="fw-semibold">₱${s.partsCost.toLocaleString()}</span>
+          </div>` : ''}
+          <div class="d-flex justify-content-between pt-2 border-top" style="border-color:#a7f3d0 !important;font-size:0.95rem;">
+            <span class="fw-bold">Total Amount:</span>
+            <span class="fw-bold" style="color:#059669;">₱${s.total.toLocaleString()}</span>
+          </div>
+          ${s.alreadyPaid > 0 ? `<div class="d-flex justify-content-between mt-1" style="font-size:0.85rem;">
+            <span class="text-muted">Less: Already Paid:</span>
+            <span class="fw-semibold text-primary">-₱${s.alreadyPaid.toLocaleString()}</span>
+          </div>` : ''}
+          <div class="d-flex justify-content-between pt-2 border-top mt-1" style="border-color:#a7f3d0 !important;font-size:1.05rem;">
+            <span class="fw-bold">Balance Due:</span>
+            <span class="fw-bold" style="color:#059669;">₱${s.balance.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <!-- Payment Form -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:16px;">
+          <label class="form-label fw-bold" style="font-size:0.85rem;">Amount Received <span class="text-danger">*</span></label>
+          <div class="input-group mb-3">
+            <span class="input-group-text" style="border-radius:10px 0 0 10px;background:#f1f5f9;font-weight:700;">₱</span>
+            <input type="number" class="form-control" id="pmtAmount" min="0" step="0.01" value="${s.balance}" style="border-radius:0 10px 10px 0;font-size:1.1rem;font-weight:700;">
+          </div>
+          <label class="form-label fw-bold" style="font-size:0.85rem;">Payment Method</label>
+          <select id="pmtMethod" class="form-select mb-3" style="border-radius:10px;font-size:0.9rem;">
+            <option value="cash">Cash</option>
+            <option value="gcash">GCash</option>
+            <option value="bank_transfer">Bank Transfer</option>
+          </select>
+          <label class="form-label fw-bold" style="font-size:0.85rem;">Remarks (optional)</label>
+          <input type="text" class="form-control mb-3" id="pmtRemarks" placeholder="e.g. Cash received in full" style="border-radius:10px;font-size:0.9rem;">
+          <div id="pmtError" class="alert alert-danger d-none" style="font-size:0.85rem;"></div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end">
+          <button class="tp-btn" onclick="this.closest('.tp-modal-overlay').remove()">Cancel</button>
+          <button class="tp-btn primary" id="pmtConfirmBtn" style="background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;padding:0.6rem 1.5rem;border-radius:10px;font-weight:700;">
+            <i class="bi bi-check-circle me-1"></i>Collect ₱${s.balance.toLocaleString()}
+          </button>
+        </div>`;
+
+      overlay.querySelector('#pmtConfirmBtn').addEventListener('click', async function () {
+        const amount = parseFloat(overlay.querySelector('#pmtAmount').value) || 0;
+        if (amount <= 0) { overlay.querySelector('#pmtError').textContent = 'Enter a valid amount'; overlay.querySelector('#pmtError').classList.remove('d-none'); return; }
+        this.disabled = true; this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+        try {
+          const r = await fetch(`/api/projects/${projectId}/collect-payment`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount,
+              paymentMethod: overlay.querySelector('#pmtMethod').value,
+              remarks: overlay.querySelector('#pmtRemarks').value,
+            }),
+          });
+          const data = await r.json();
+          if (r.ok) {
+            toast('Payment collected successfully!'); overlay.remove(); load();
+          } else {
+            overlay.querySelector('#pmtError').textContent = data.error || 'Failed'; overlay.querySelector('#pmtError').classList.remove('d-none');
+            this.disabled = false; this.innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect Payment';
+          }
+        } catch (e) {
+          overlay.querySelector('#pmtError').textContent = 'Network error'; overlay.querySelector('#pmtError').classList.remove('d-none');
+          this.disabled = false; this.innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect Payment';
+        }
+      });
+    } catch (e) {
+      overlay.querySelector('#pmtBody').innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-exclamation-circle" style="font-size:2rem;"></i><div class="mt-2">${e.message}</div></div>`;
+    }
+  };
+
+  // ── Proof of Completion Modal (Enterprise Level) ──────────────────
+  window.openProjectProof = function (projectId) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tp-modal-overlay';
+    overlay.style.zIndex = '2000';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px;width:480px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
+        <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;padding:1.5rem;border-radius:20px 20px 0 0;">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;">
+              <i class="bi bi-camera"></i>
+            </div>
+            <div>
+              <h5 style="font-size:1.05rem;font-weight:800;margin:0;">Proof of Completion</h5>
+              <small style="opacity:0.85;font-size:0.8rem;">Upload photo evidence of finished work</small>
+            </div>
+          </div>
+          <button onclick="this.closest('.tp-modal-overlay').remove()" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:1.1rem;">&times;</button>
+        </div>
+        <div style="padding:1.5rem;background:#f8fafc;">
+          <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:14px;padding:16px;margin-bottom:16px;">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-info-circle" style="color:#7c3aed;"></i>
+              <span class="fw-bold" style="font-size:0.85rem;color:#7c3aed;">Requirements</span>
+            </div>
+            <ul style="margin:0;padding-left:1.2rem;font-size:0.82rem;color:#64748b;">
+              <li>Upload a clear photo showing the completed work</li>
+              <li>Photo should show the finished installation/repair</li>
+              <li>Acceptable formats: JPG, PNG, WebP (max 5MB)</li>
+            </ul>
+          </div>
+
+          <!-- Upload Area -->
+          <div id="proofUploadArea" style="border:2px dashed #c4b5fd;border-radius:14px;padding:2rem;text-align:center;background:#faf5ff;cursor:pointer;transition:all 0.2s;" onclick="document.getElementById('proofFileInput').click();">
+            <div id="proofPlaceholder">
+              <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#ede9fe,#ddd6fe);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+                <i class="bi bi-cloud-arrow-up" style="font-size:1.5rem;color:#7c3aed;"></i>
+              </div>
+              <div style="font-size:0.9rem;font-weight:700;color:#4c1d95;margin-bottom:4px;">Click to upload or drag & drop</div>
+              <div style="font-size:0.78rem;color:#94a3b8;">JPG, PNG, WebP up to 5MB</div>
+            </div>
+            <div id="proofPreview" style="display:none;">
+              <img id="proofPreviewImg" style="max-width:100%;max-height:200px;border-radius:10px;margin-bottom:8px;" alt="Preview">
+              <div style="font-size:0.82rem;color:#7c3aed;font-weight:60;" id="proofFileName">—</div>
+              <button class="tp-btn mt-2" onclick="event.stopPropagation();resetProofUpload();" style="font-size:0.72rem;"><i class="bi bi-x-lg me-1"></i>Remove</button>
+            </div>
+          </div>
+          <input type="file" id="proofFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleProofFile(this)">
+
+          <div id="proofError" class="alert alert-danger d-none mt-3" style="font-size:0.85rem;"></div>
+
+          <div class="d-flex gap-2 justify-content-end mt-4">
+            <button class="tp-btn" onclick="this.closest('.tp-modal-overlay').remove()">Cancel</button>
+            <button class="tp-btn primary" id="proofSubmitBtn" disabled style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;color:#fff;padding:0.6rem 1.5rem;border-radius:10px;font-weight:700;opacity:0.5;">
+              <i class="bi bi-upload me-1"></i>Upload Proof
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    // Store selected file
+    overlay._selectedFile = null;
+
+    window.handleProofFile = function (input) {
+      const file = input.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { toast('File too large (max 5MB)', 'error'); return; }
+      overlay._selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        overlay.querySelector('#proofPlaceholder').style.display = 'none';
+        const preview = overlay.querySelector('#proofPreview');
+        preview.style.display = 'block';
+        overlay.querySelector('#proofPreviewImg').src = e.target.result;
+        overlay.querySelector('#proofFileName').textContent = file.name;
+        const btn = overlay.querySelector('#proofSubmitBtn');
+        btn.disabled = false; btn.style.opacity = '1';
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.resetProofUpload = function () {
+      overlay._selectedFile = null;
+      overlay.querySelector('#proofPlaceholder').style.display = '';
+      overlay.querySelector('#proofPreview').style.display = 'none';
+      overlay.querySelector('#proofFileInput').value = '';
+      const btn = overlay.querySelector('#proofSubmitBtn');
+      btn.disabled = true; btn.style.opacity = '0.5';
+    };
+
+    overlay.querySelector('#proofSubmitBtn').addEventListener('click', async function () {
+      if (!overlay._selectedFile) return;
+      this.disabled = true; this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading...';
+      try {
+        const fd = new FormData();
+        fd.append('completionPhoto', overlay._selectedFile);
+        const r = await fetch(`/api/projects/${projectId}/upload-completion-proof`, {
+          method: 'POST', body: fd,
+        });
+        const data = await r.json();
+        if (r.ok) {
+          toast('Proof of completion uploaded!'); overlay.remove(); load();
+        } else {
+          overlay.querySelector('#proofError').textContent = data.error || 'Upload failed';
+          overlay.querySelector('#proofError').classList.remove('d-none');
+          this.disabled = false; this.innerHTML = '<i class="bi bi-upload me-1"></i>Upload Proof';
+        }
+      } catch (e) {
+        overlay.querySelector('#proofError').textContent = 'Network error';
+        overlay.querySelector('#proofError').classList.remove('d-none');
+        this.disabled = false; this.innerHTML = '<i class="bi bi-upload me-1"></i>Upload Proof';
+      }
+    });
+  };
+
+  load();
+})();
+</script>

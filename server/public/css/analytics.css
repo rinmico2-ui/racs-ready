@@ -1,0 +1,313 @@
+/* ═══════════════════════════════════════════════════════════════
+   Enterprise Chart Drilldown — Analytics Modal Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Modal Chrome ── */
+.cdm-content {
+  border: none;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  max-height: 90vh;
+}
+.cdm-content .modal-content { border: none; }
+
+/* ── Header ── */
+.cdm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.75rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+  color: #fff;
+}
+.cdm-header-left { display: flex; align-items: center; gap: 1rem; }
+.cdm-header-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem;
+}
+.cdm-title { margin: 0; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+.cdm-subtitle { margin: 0; font-size: 0.78rem; opacity: 0.7; font-weight: 400; }
+.cdm-close {
+  background: rgba(255,255,255,0.12);
+  border: none; color: #fff;
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.cdm-close:hover { background: rgba(255,255,255,0.25); transform: scale(1.05); }
+
+/* ── Body: Split Layout ── */
+.cdm-body {
+  display: flex;
+  min-height: 0;
+  max-height: calc(90vh - 80px);
+}
+
+/* ── Left: Chart Panel ── */
+.cdm-chart-panel {
+  flex: 0 0 42%;
+  max-width: 42%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.cdm-chart-wrapper {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+.cdm-chart-wrapper canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ── Summary Bar ── */
+.cdm-summary-bar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+.cdm-stat {
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+.cdm-stat-value { font-size: 1.05rem; font-weight: 700; color: #0f172a; display: block; }
+.cdm-stat-label { font-size: 0.68rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+
+/* ── Right: Detail Panel ── */
+.cdm-detail-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── Filter Bar ── */
+.cdm-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  flex-wrap: wrap;
+}
+.cdm-filter-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.cdm-filter-chips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.cdm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.cdm-chip:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.04);
+}
+.cdm-chip.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.cdm-chip .cdm-chip-count {
+  background: rgba(0,0,0,0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.cdm-chip.active .cdm-chip-count {
+  background: rgba(255,255,255,0.25);
+}
+
+/* ── Detail Table ── */
+.cdm-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+}
+.cdm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.cdm-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 0.7rem;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+.cdm-table tbody tr {
+  transition: background 0.15s;
+}
+.cdm-table tbody tr:hover {
+  background: #f1f5f9;
+}
+.cdm-table tbody td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+.cdm-table .cdm-row-label {
+  font-weight: 600;
+  color: #1e293b;
+}
+.cdm-table .cdm-row-value {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+.cdm-table .cdm-row-sub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+.cdm-table .cdm-row-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e8f0;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.cdm-table .cdm-row-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transition: width 0.4s ease;
+}
+
+/* ── Export Bar ── */
+.cdm-export-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.cdm-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.cdm-export-btn:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.04);
+}
+.cdm-row-count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* ── Clickable chart hint ── */
+.cdm-clickable-hint {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.dash-card:hover .cdm-clickable-hint,
+.kpi-enterprise:hover .cdm-clickable-hint {
+  opacity: 1;
+}
+
+/* ── Chart card cursor ── */
+canvas[data-clickable="true"] {
+  cursor: pointer;
+}
+
+/* ── Responsive ── */
+@media (max-width: 991px) {
+  .cdm-body { flex-direction: column; max-height: none; }
+  .cdm-chart-panel {
+    flex: none;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    max-height: 300px;
+  }
+  .cdm-detail-panel { flex: 1; }
+}
+@media (max-width: 575px) {
+  .cdm-header { padding: 1rem; }
+  .cdm-chart-wrapper { padding: 1rem; min-height: 220px; }
+  .cdm-filter-bar { padding: 0.6rem 0.75rem; }
+  .cdm-table thead th,
+  .cdm-table tbody td { padding: 0.5rem 0.75rem; }
+}
+
+/* ── Drilldown trigger cards (enterprise hover effect) ── */
+.dash-card, .kpi-enterprise {
+  position: relative;
+}
+.dash-card canvas, .kpi-enterprise canvas {
+  cursor: pointer;
+}

@@ -1,0 +1,511 @@
+<div class="admin-dashboard container-fluid py-4 settings-system-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═══════════════════════════════════════════
+       SYSTEM SETTINGS — Premium Light-Blue Theme
+       ═══════════════════════════════════════════ */
+    .settings-system-page {
+      --ss-primary: #0ea5e9;
+      --ss-primary-dark: #0284c7;
+      --ss-primary-deeper: #0369a1;
+      --ss-accent: #38bdf8;
+      --ss-light: #e0f2fe;
+      --ss-pale: #f0f9ff;
+      --ss-text: #0c4a6e;
+      --ss-muted: #94a3b8;
+      --ss-border: #e2e8f0;
+      --ss-radius: 16px;
+      --ss-shadow: 0 4px 6px -1px rgba(14,165,233,0.07), 0 2px 4px -2px rgba(14,165,233,0.04);
+      --ss-shadow-hover: 0 10px 25px -5px rgba(14,165,233,0.12), 0 4px 6px -4px rgba(14,165,233,0.06);
+    }
+
+    /* hero text tweaks */
+    .settings-system-page .dashboard-hero .hero-sub { color: var(--ss-muted); }
+
+    /* ── Cards ── */
+    .settings-system-page .ss-card {
+      background: var(--ss-pale);
+      border: 1px solid var(--ss-border);
+      border-radius: var(--ss-radius);
+      box-shadow: var(--ss-shadow);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .settings-system-page .ss-card:hover {
+      transform: translateY(-2px); box-shadow: var(--ss-shadow-hover);
+    }
+    .settings-system-page .ss-card-head {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .settings-system-page .ss-card-head .ch-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; color: #fff; flex-shrink: 0;
+    }
+    .settings-system-page .ch-icon.sky { background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent)); box-shadow: 0 3px 10px rgba(14,165,233,0.25); }
+    .settings-system-page .ch-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 3px 10px rgba(5,150,105,0.25); }
+    .settings-system-page .ch-icon.purple { background: linear-gradient(135deg, #7c3aed, #a78bfa); box-shadow: 0 3px 10px rgba(124,58,237,0.25); }
+    .settings-system-page .ch-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); box-shadow: 0 3px 10px rgba(217,119,6,0.25); }
+    .settings-system-page .ch-icon.rose { background: linear-gradient(135deg, #e11d48, #fb7185); box-shadow: 0 3px 10px rgba(225,29,72,0.25); }
+    .settings-system-page .ss-card-head h3 {
+      font-size: 0.92rem; font-weight: 700 !important;
+      color: var(--ss-text); margin: 0; font-family: 'Outfit', sans-serif;
+    }
+    .settings-system-page .ss-card-body {
+      padding: 1.25rem; background: #fff;
+    }
+
+    /* ── Form Styling ── */
+    .settings-system-page .form-label {
+      font-size: 0.72rem; font-weight: 600 !important;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--ss-muted); margin-bottom: 0.3rem;
+    }
+    .settings-system-page .form-control,
+    .settings-system-page .form-select {
+      border: 1.5px solid var(--ss-border);
+      border-radius: 10px; font-size: 0.875rem;
+      padding: 0.55rem 0.85rem; color: var(--ss-text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .settings-system-page .form-control:focus,
+    .settings-system-page .form-select:focus {
+      border-color: var(--ss-primary);
+      box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
+    }
+    .settings-system-page textarea.form-control { resize: vertical; }
+
+    /* ── Toggle Items ── */
+    .settings-system-page .toggle-item {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 0.75rem 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .settings-system-page .toggle-item:last-child { border-bottom: none; }
+    .settings-system-page .toggle-item .ti-icon {
+      width: 36px; height: 36px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; flex-shrink: 0;
+      background: var(--ss-light); color: var(--ss-primary);
+    }
+    .settings-system-page .toggle-item h6 {
+      font-size: 0.85rem; font-weight: 600 !important;
+      color: var(--ss-text); margin: 0 0 0.1rem;
+    }
+    .settings-system-page .toggle-item p {
+      font-size: 0.75rem; color: var(--ss-muted); margin: 0;
+    }
+    .settings-system-page .form-switch .form-check-input {
+      width: 2.5rem; height: 1.3rem; cursor: pointer;
+    }
+    .settings-system-page .form-switch .form-check-input:checked {
+      background-color: var(--ss-primary);
+      border-color: var(--ss-primary);
+    }
+
+    /* ── Status Row ── */
+    .settings-system-page .status-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .settings-system-page .status-row:last-child { border-bottom: none; }
+    .settings-system-page .status-row .sr-label {
+      font-size: 0.78rem; font-weight: 600 !important;
+      color: var(--ss-muted); display: flex; align-items: center; gap: 0.4rem;
+    }
+    .settings-system-page .status-row .sr-label i { font-size: 0.85rem; color: var(--ss-primary); }
+    .settings-system-page .status-row .sr-value {
+      font-size: 0.82rem; font-weight: 600 !important; color: var(--ss-text);
+    }
+    .settings-system-page .online-badge {
+      background: rgba(16,185,129,0.12); color: #059669;
+      font-weight: 700 !important; font-size: 0.72rem;
+      padding: 0.2rem 0.65rem; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .settings-system-page .online-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: #10b981; display: inline-block;
+    }
+
+    /* ── Buttons ── */
+    .settings-system-page .btn-ss {
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-weight: 600 !important; font-size: 0.82rem;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: all 0.25s ease; border: none; cursor: pointer;
+      text-decoration: none;
+    }
+    .settings-system-page .btn-ss.primary {
+      background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent));
+      color: #fff; box-shadow: 0 4px 14px rgba(14,165,233,0.3);
+    }
+    .settings-system-page .btn-ss.primary:hover {
+      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(14,165,233,0.35);
+      color: #fff;
+    }
+    .settings-system-page .btn-ss.outline {
+      background: #fff; color: var(--ss-text);
+      border: 1.5px solid var(--ss-border);
+    }
+    .settings-system-page .btn-ss.outline:hover {
+      border-color: var(--ss-primary); color: var(--ss-primary);
+      background: var(--ss-pale); transform: translateY(-1px);
+    }
+    .settings-system-page .btn-ss.danger {
+      background: linear-gradient(135deg, #e11d48, #fb7185);
+      color: #fff; box-shadow: 0 4px 14px rgba(225,29,72,0.25);
+    }
+    .settings-system-page .btn-ss.danger:hover {
+      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(225,29,72,0.35);
+      color: #fff;
+    }
+
+    /* ── Danger Zone ── */
+    .settings-system-page .danger-zone {
+      border: 1.5px solid #fecdd3 !important;
+      background: #fff5f5 !important;
+    }
+    .settings-system-page .danger-zone .ss-card-head {
+      background: #fff1f2;
+      border-bottom-color: #fecdd3;
+    }
+    .settings-system-page .danger-zone .ss-card-body {
+      background: #fff5f5;
+    }
+
+    @media (max-width: 768px) {
+      .settings-system-page .ss-hero { padding: 1.25rem; }
+      .settings-system-page .ss-hero h1 { font-size: 1.15rem; }
+    }
+  </style>
+
+  <!-- ═══ HERO ═══ -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-gear-fill"></i></div>
+        <div>
+          <h1>System Settings</h1>
+          <p>Manage global configuration, security, feature flags, and maintenance mode.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- ═══ LEFT COLUMN ═══ -->
+    <div class="col-lg-8">
+
+      <!-- Business Profile -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon sky"><i class="bi bi-building"></i></div>
+          <h3>Business Profile</h3>
+        </div>
+        <div class="ss-card-body">
+          <form id="businessProfileForm">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Business Name</label>
+                <input type="text" class="form-control" name="businessName" value="KoolTech Cooling Systems">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contact Email</label>
+                <input type="email" class="form-control" name="contactEmail" value="admin@kooltech.com">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Support Phone</label>
+                <input type="text" class="form-control" name="supportPhone" value="+63 912 345 6789">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Tax ID / TIN</label>
+                <input type="text" class="form-control" name="taxId" value="123-456-789-000">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Business Address</label>
+                <textarea class="form-control" name="address" rows="2">123 Tech Avenue, Metro Manila, Philippines</textarea>
+              </div>
+              <div class="col-12 text-end mt-3">
+                <button type="button" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Changes</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- App Configuration -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon purple"><i class="bi bi-sliders"></i></div>
+          <h3>App Configuration</h3>
+        </div>
+        <div class="ss-card-body">
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-person-plus-fill"></i></div>
+              <div>
+                <h6>Allow Customer Registrations</h6>
+                <p>Enable or disable new users signing up from the portal.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-envelope-check-fill"></i></div>
+              <div>
+                <h6>Require Email Verification</h6>
+                <p>Force users to verify their email before booking services.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-shield-lock-fill"></i></div>
+              <div>
+                <h6>Two-Factor Authentication (Admin)</h6>
+                <p>Require 2FA via SMS/Email for all admin accounts.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch">
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-bell-fill"></i></div>
+              <div>
+                <h6>Push Notifications</h6>
+                <p>Allow the system to send real-time push notifications to users.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-clock-history"></i></div>
+              <div>
+                <h6>Auto-Logout Idle Sessions</h6>
+                <p>Automatically log users out after 30 minutes of inactivity.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Security & Access -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon emerald"><i class="bi bi-lock-fill"></i></div>
+          <h3>Security &amp; Access Control</h3>
+        </div>
+        <div class="ss-card-body">
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-braces-asterisk"></i></div>
+              <div>
+                <h6>Enforce Strong Passwords</h6>
+                <p>Require minimum 8 characters with uppercase, number, and symbol.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-ban"></i></div>
+              <div>
+                <h6>Rate Limit Login Attempts</h6>
+                <p>Lock out users after 5 failed attempts for 5 minutes.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
+              <div>
+                <h6>Audit Logging</h6>
+                <p>Record all admin actions for compliance and auditing.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked>
+            </div>
+          </div>
+
+          <div class="toggle-item">
+            <div class="d-flex align-items-center gap-3">
+              <div class="ti-icon"><i class="bi bi-globe"></i></div>
+              <div>
+                <h6>IP Whitelist (Admin Panel)</h6>
+                <p>Restrict admin panel access to specific IP addresses.</p>
+              </div>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch">
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Notification Preferences -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon amber"><i class="bi bi-megaphone-fill"></i></div>
+          <h3>Notification Preferences</h3>
+        </div>
+        <div class="ss-card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Admin Alert Email</label>
+              <input type="email" class="form-control" value="alerts@kooltech.com">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">SMS Alert Number</label>
+              <input type="text" class="form-control" value="+63 917 555 1234">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Digest Frequency</label>
+              <select class="form-select">
+                <option>Real-Time</option>
+                <option selected>Daily Summary</option>
+                <option>Weekly Summary</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Critical Alert Channel</label>
+              <select class="form-select">
+                <option selected>Email + SMS</option>
+                <option>Email Only</option>
+                <option>SMS Only</option>
+              </select>
+            </div>
+            <div class="col-12 text-end mt-3">
+              <button type="button" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Notifications</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ RIGHT COLUMN ═══ -->
+    <div class="col-lg-4">
+
+      <!-- System Health -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon emerald"><i class="bi bi-heart-pulse-fill"></i></div>
+          <h3>System Health</h3>
+        </div>
+        <div class="ss-card-body">
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-database-fill"></i> Database</span>
+            <span class="online-badge">Online</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-hdd-stack-fill"></i> Storage</span>
+            <span class="sr-value">45% (4.5 GB)</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-cloud-check-fill"></i> Last Backup</span>
+            <span class="sr-value">Today, 2:00 AM</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-cpu-fill"></i> Server Load</span>
+            <span class="sr-value">12% CPU</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-memory"></i> Memory Usage</span>
+            <span class="sr-value">1.2 / 4 GB</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-arrow-repeat"></i> Uptime</span>
+            <span class="sr-value">32 days</span>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn-ss outline flex-fill"><i class="bi bi-cloud-download"></i> Export Logs</button>
+            <button class="btn-ss outline flex-fill"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Info -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon sky"><i class="bi bi-info-circle-fill"></i></div>
+          <h3>Platform Info</h3>
+        </div>
+        <div class="ss-card-body">
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-code-slash"></i> Version</span>
+            <span class="sr-value">v2.4.1</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-node-plus-fill"></i> Node.js</span>
+            <span class="sr-value">v18.17.0</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-database"></i> MongoDB</span>
+            <span class="sr-value">v7.0</span>
+          </div>
+          <div class="status-row">
+            <span class="sr-label"><i class="bi bi-calendar-date"></i> Deployed</span>
+            <span class="sr-value">Mar 1, 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Maintenance Mode -->
+      <div class="ss-card danger-zone">
+        <div class="ss-card-head">
+          <div class="ch-icon rose"><i class="bi bi-cone-striped"></i></div>
+          <h3 style="color:#e11d48;">Danger Zone</h3>
+        </div>
+        <div class="ss-card-body text-center">
+          <i class="bi bi-exclamation-triangle" style="font-size:2.5rem; color:#fb7185; display:block; margin-bottom:0.75rem; opacity:0.7;"></i>
+          <h6 style="font-weight:700 !important; color:#0c4a6e; font-size:0.92rem; margin-bottom:0.3rem;">Maintenance Mode</h6>
+          <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:1rem;">Activating maintenance mode will log out all non-admin users and display a maintenance screen.</p>
+          <button class="btn-ss danger w-100"><i class="bi bi-power"></i> Enable Maintenance Mode</button>
+          <div class="mt-3 pt-3" style="border-top:1px solid #fecdd3;">
+            <button class="btn-ss outline w-100" style="color:#e11d48; border-color:#fecdd3;">
+              <i class="bi bi-trash3"></i> Purge All Cache
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

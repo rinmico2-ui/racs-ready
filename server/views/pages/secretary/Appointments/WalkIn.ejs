@@ -1,0 +1,2663 @@
+<div class="admin-dashboard container-fluid py-4 walkin-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .walkin-page .walkin-shell { position: relative; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .walkin-page .booking-layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .walkin-page .booking-stepper {
+      position: sticky;
+      top: 88px;
+      height: fit-content;
+    }
+
+    /* ── Stepper ────────────────────────────────────────── */
+    .walkin-page .stepper-list {
+      margin: 0; padding: 0; list-style: none;
+      display: grid; gap: 6px;
+    }
+    .walkin-page .stepper-step {
+      width: 100%; border: none;
+      background: transparent;
+      border-radius: 12px;
+      text-align: left;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 12px;
+      color: #64748b;
+      font-size: 0.82rem;
+      cursor: pointer;
+      position: relative; z-index: 1;
+      transition: all .25s cubic-bezier(.4,0,.2,1);
+    }
+    .walkin-page .stepper-step:hover { background: #f1f5f9; color: #334155; }
+    .walkin-page .stepper-step.is-active {
+      background: #fff;
+      color: #1e40af;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(37,99,235,.08);
+      font-weight: 600;
+    }
+    .walkin-page .stepper-step.is-completed { color: #1e40af; }
+    .walkin-page .stepper-step.is-completed .stepper-icon {
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff; border-color: transparent;
+      box-shadow: 0 2px 6px rgba(37,99,235,.35);
+    }
+    .walkin-page .stepper-icon {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2px solid #cbd5e1;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.7rem;
+      flex: 0 0 auto;
+      transition: all .25s ease;
+    }
+    .walkin-page .stepper-step.is-active .stepper-icon {
+      border-color: #2563eb; background: #eff6ff; color: #2563eb;
+    }
+    .walkin-page .stepper-text { display: grid; line-height: 1.2; }
+    .walkin-page .stepper-title { font-weight: 600; font-size: 0.82rem; }
+    .walkin-page .stepper-sub { font-size: 0.72rem; color: #94a3b8; }
+
+    /* stepper connector line */
+    @media (min-width: 992px) {
+      .walkin-page .stepper-list > li { position: relative; }
+      .walkin-page .stepper-list > li:not(:last-child)::after {
+        content: ""; position: absolute;
+        top: 42px; bottom: -10px; left: 26px;
+        width: 2px; background: #e2e8f0;
+        z-index: 0; transition: background .3s;
+      }
+      .walkin-page .stepper-list > li.is-completed::after { background: #2563eb; }
+    }
+
+    /* ── Booking Step Panels ────────────────────────────── */
+    .walkin-page .booking-step {
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      transition: box-shadow .3s ease;
+      animation: stepFadeIn .35s ease both;
+    }
+    .walkin-page .booking-step:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,.06);
+    }
+    .walkin-page .booking-step h5 {
+      font-size: 1.05rem; font-weight: 700; color: #1e293b;
+      margin-bottom: .25rem;
+    }
+    .walkin-page .booking-step h5 i { color: #2563eb; }
+    @keyframes stepFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Service Cards (enterprise style — matches services.ejs) ───────── */
+    .walkin-page .service-card {
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      border: 1px solid rgba(13, 110, 253, 0.12) !important;
+      min-height: 280px;
+      background: #ffffff;
+      border-radius: 1.4rem;
+      cursor: pointer;
+    }
+    .walkin-page .service-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 45px rgba(13, 110, 253, 0.12) !important;
+      border-color: rgba(13, 110, 253, 0.24) !important;
+    }
+    .walkin-page .service-card.active {
+      border-color: #0d6efd !important;
+      background: linear-gradient(145deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0.02));
+      box-shadow: 0 15px 35px rgba(13, 110, 253, 0.15) !important;
+    }
+    .walkin-page .service-icon {
+      width: 54px; height: 54px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 16px;
+      background: rgba(13, 110, 253, 0.12);
+      color: #0d6efd;
+      flex-shrink: 0;
+    }
+    .walkin-page .service-card .card-title {
+      font-size: .95rem; font-weight: 600; color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .walkin-page .price-box {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.75rem 1rem; border-radius: 999px;
+      background: rgba(13, 110, 253, 0.08);
+      min-width: 130px;
+      font-weight: 700; font-size: .88rem; color: #0d6efd;
+    }
+    .walkin-page .service-card-chip {
+      padding: 0.45rem 0.8rem; border-radius: 999px;
+      font-size: 0.8rem; letter-spacing: 0.01em;
+    }
+
+    /* ── Suggested Cards ────────────────────────────────── */
+    .walkin-page .suggested-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px; cursor: pointer;
+      transition: all .2s ease;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      padding: 1rem;
+    }
+    .walkin-page .suggested-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,.07);
+    }
+    .walkin-page .suggested-card.active {
+      border-color: #2563eb;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      box-shadow: 0 4px 14px rgba(37,99,235,.12);
+    }
+
+    /* ── Calendar ───────────────────────────────────────── */
+    .walkin-page .calendar-grid {
+      display: grid; grid-template-columns: repeat(7, minmax(0,1fr));
+      gap: 6px;
+    }
+    .walkin-page .calendar-cell {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px; min-height: 52px;
+      background: #fff; font-weight: 600; font-size: .84rem;
+      position: relative; transition: all .15s ease;
+    }
+    .walkin-page .calendar-cell:hover:not(.disabled):not([data-status="booked"]):not([data-status="blocked"]) {
+      border-color: #93c5fd; background: #f0f7ff;
+    }
+    .walkin-page .calendar-cell.is-selected {
+      border-color: #2563eb; background: #eff6ff; color: #1e40af;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+    }
+    .walkin-page .calendar-cell.disabled { opacity: .5; cursor: not-allowed; }
+    .walkin-page .calendar-cell[data-status="booked"] {
+      background: #fef2f2; border-color: #fecaca; color: #b91c1c;
+    }
+    .walkin-page .calendar-cell[data-status="blocked"],
+    .walkin-page .calendar-cell[data-status="public"] {
+      background: #f8fafc; color: #94a3b8;
+    }
+
+    /* ── Time Slots ─────────────────────────────────────── */
+    .walkin-page #timeSlots { display: flex; flex-wrap: wrap; gap: 8px; }
+    .walkin-page #timeSlots .time-slot {
+      flex: 1 1 calc(33.333% - 8px); max-width: calc(33.333% - 8px);
+      border-radius: 10px;
+      border: 1px solid rgba(37,99,235,.1);
+      background: #fff; text-align: left;
+      transition: all .15s ease;
+    }
+    .walkin-page #timeSlots .time-slot:hover { border-color: #93c5fd; background: #f0f7ff; }
+    .walkin-page #timeSlots .time-slot.active {
+      background: #eff6ff; border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    /* ── Map ────────────────────────────────────────────── */
+    .walkin-page .map-wrap {
+      border: 1px solid #e2e8f0;
+      border-radius: 14px; overflow: hidden; background: #fff;
+    }
+    .walkin-page .technician-map { height: 290px; width: 100%; }
+
+    /* ── Payment Tabs ───────────────────────────────────── */
+    .walkin-page .payment-tabs {
+      display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap;
+    }
+    .walkin-page .payment-tab {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 18px; border-radius: 12px;
+      background: #fff; border: 2px solid #e2e8f0;
+      cursor: pointer; font-weight: 500;
+      transition: all .2s ease;
+    }
+    .walkin-page .payment-tab:hover { border-color: #93c5fd; background: #f8fafc; }
+    .walkin-page .payment-tab.active {
+      background: #eff6ff; border-color: #2563eb; color: #1e40af;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.08);
+    }
+
+    /* ── Summary Box ────────────────────────────────────── */
+    .walkin-page .summary-box {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 12px; padding: 14px;
+      font-size: .86rem; color: #334155;
+    }
+
+    /* ── Walkin Actions ─────────────────────────────────── */
+    .walkin-page .walkin-actions {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-top: 1rem; padding-top: 1rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .walkin-page .walkin-actions .btn {
+      border-radius: 10px; font-weight: 600; font-size: .85rem;
+      padding: 10px 24px;
+      transition: all .2s ease;
+    }
+
+    /* ── Form Controls ──────────────────────────────────── */
+    .walkin-page .form-label { font-weight: 600; font-size: .82rem; color: #475569; margin-bottom: 6px; }
+    .walkin-page .form-control,
+    .walkin-page .form-select {
+      border-radius: 10px; border-color: #e2e8f0;
+      padding: 10px 14px; font-size: .88rem;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .walkin-page .form-control:focus,
+    .walkin-page .form-select:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    /* ── Category Toggle Buttons ────────────────────────── */
+    .walkin-page .category-btn {
+      border-radius: 10px; font-weight: 600; font-size: .82rem;
+      padding: 8px 20px;
+      transition: all .2s ease;
+    }
+    .walkin-page .category-btn.active {
+      background: #2563eb; border-color: #2563eb; color: #fff;
+      box-shadow: 0 2px 8px rgba(37,99,235,.25);
+    }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 991.98px) {
+      .walkin-page .booking-layout { grid-template-columns: 1fr; }
+      .walkin-page .booking-stepper {
+        border-right: 0; border-bottom: 1px solid #e2e8f0;
+        padding-right: 0; padding-bottom: 10px; position: static;
+      }
+      .walkin-page .stepper-list {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+      .walkin-page #timeSlots .time-slot { flex: 1 1 100%; max-width: 100%; }
+    }
+  </style>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-person-plus-fill me-2"></i>Create Walk-in Appointment
+        </h1>
+        <p class="hero-sub">
+          Fill in customer details, pick a service, schedule, and review before creating.
+        </p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="/secretary/appointments" class="btn hero-btn"
+          ><i class="bi bi-arrow-left me-1"></i>Back to Appointments</a
+        >
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="walkinAlert" tabindex="-1" aria-labelledby="walkinAlertLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+      <div class="modal-content" style="border: none; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 70px rgba(0,0,0,0.18);">
+        <div id="walkinAlertHeader" class="modal-header border-0 justify-content-center" style="padding: 28px 24px 12px;">
+          <h5 class="modal-title fw-bold" id="walkinAlertLabel" style="font-size: 1.2rem; color: #fff;"></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="position: absolute; top: 14px; right: 14px;"></button>
+        </div>
+        <div class="modal-body text-center" id="walkinAlertBody" style="padding: 0 28px 28px;">
+        </div>
+        <div class="modal-footer border-0 justify-content-center" style="padding: 0 28px 28px;">
+          <button type="button" class="btn btn-light fw-semibold" data-bs-dismiss="modal" style="min-width: 120px; border-radius: 10px; padding: 10px 24px;">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form
+    id="walkinForm"
+    class="walkin-shell booking-container bg-white"
+    style="box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 32px rgba(0,0,0,.04); border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.5rem;">
+    <div class="booking-layout">
+      <aside
+        class="booking-stepper"
+        id="walkinStepper"
+        aria-label="Walk-in booking steps"
+      >
+        <ol class="stepper-list" role="list">
+          <li>
+            <button type="button" class="stepper-step is-active" data-step="0">
+              <span class="stepper-icon">1</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Customer Type</span
+                ><span class="stepper-sub">New or existing</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="1">
+              <span class="stepper-icon">2</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Customer</span
+                ><span class="stepper-sub">Add profile</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="2">
+              <span class="stepper-icon">3</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Service</span
+                ><span class="stepper-sub">Pick work</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="3">
+              <span class="stepper-icon">4</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Technician</span
+                ><span class="stepper-sub">Tech + map</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="4">
+              <span class="stepper-icon">5</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Calendar</span
+                ><span class="stepper-sub">Available slots</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="5">
+              <span class="stepper-icon">6</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Payment</span
+                ><span class="stepper-sub">Choose method</span></span
+              >
+            </button>
+          </li>
+          <li>
+            <button type="button" class="stepper-step" data-step="6">
+              <span class="stepper-icon">7</span
+              ><span class="stepper-text"
+                ><span class="stepper-title">Review</span
+                ><span class="stepper-sub">Create booking</span></span
+              >
+            </button>
+          </li>
+        </ol>
+      </aside>
+
+      <div class="booking-body">
+        <input id="serviceType" type="hidden" value="core" />
+        <input id="serviceId" name="serviceId" type="hidden" />
+
+        <div class="booking-step" data-step="0">
+          <h5>
+            <i class="bi bi-question-circle me-2"></i>Customer Type
+          </h5>
+          <div class="mb-3">
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="customerType"
+                id="custNew"
+                value="new"
+                checked
+              />
+              <label class="form-check-label" for="custNew">New customer</label>
+            </div>
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="customerType"
+                id="custExisting"
+                value="existing"
+              />
+              <label class="form-check-label" for="custExisting"
+                >Existing customer</label
+              >
+            </div>
+          </div>
+
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="1"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="1">
+          <h5>
+            <i class="bi bi-person-vcard me-2"></i>Customer Details
+          </h5>
+          <div id="existingCustomerNote" class="mb-2 text-muted d-none">
+            Existing account detected; only the email is shown.
+          </div>
+          <div id="autoCreateAccountNote" class="mb-2 text-muted">
+            For <strong>new customers</strong> an account will be automatically
+            created when you complete the booking. A temporary password will be
+            generated and emailed along with a secure link to change the
+            password.
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="customerEmail">Email</label
+              ><input
+                id="customerEmail"
+                name="customerEmail"
+                type="email"
+                class="form-control"
+                maxlength="120"
+                required
+              />
+            </div>
+            <div class="col-md-6 existing-only">
+              <label class="form-label" for="firstName">First Name</label
+              ><input
+                id="firstName"
+                name="firstName"
+                class="form-control"
+                required
+                maxlength="80"
+              />
+            </div>
+            <div class="col-md-6 existing-only">
+              <label class="form-label" for="lastName">Last Name</label
+              ><input
+                id="lastName"
+                name="lastName"
+                class="form-control"
+                required
+                maxlength="80"
+              />
+            </div>
+            <div class="col-md-6 existing-only">
+              <label class="form-label" for="customerPhone">Phone Number</label
+              ><input
+                id="customerPhone"
+                name="customerPhone"
+                class="form-control"
+                required
+                maxlength="40"
+              />
+            </div>
+            <div class="col-md-3 existing-only">
+              <label class="form-label" for="addrProvince">Province</label
+              ><select
+                id="addrProvince"
+                name="addrProvince"
+                class="form-select"
+                required
+              >
+                <option value="">Select Province</option>
+              </select>
+            </div>
+            <div class="col-md-4 existing-only">
+              <label class="form-label" for="addrCity">City</label
+              ><select
+                id="addrCity"
+                name="addrCity"
+                class="form-select"
+                disabled
+                required
+              >
+                <option value="">Select City/Municipality</option>
+              </select>
+            </div>
+            <div class="col-md-3 existing-only">
+              <label class="form-label" for="addrBarangay">Barangay</label
+              ><select
+                id="addrBarangay"
+                name="addrBarangay"
+                class="form-select"
+                disabled
+                required
+              >
+                <option value="">Select Barangay</option>
+              </select>
+            </div>
+            <div class="col-md-2 existing-only">
+              <label class="form-label" for="addrPostalCode">Postal Code</label
+              ><input
+                id="addrPostalCode"
+                name="addrPostalCode"
+                class="form-control"
+                maxlength="20"
+              />
+            </div>
+          </div>
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="0"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="2"
+            >
+              Continue to Service
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="2">
+          <h5 class="fw-semibold mb-2"><i class="bi bi-tools me-2"></i>Select Services</h5>
+          <p class="text-muted small mb-3">Choose multiple services. For aircon services, HP rating will be selected per item.</p>
+          <div class="d-flex gap-2 flex-wrap mb-3">
+            <button
+              type="button"
+              class="btn btn-outline-primary category-btn active"
+              data-category="core"
+            >
+              <i class="bi bi-gear-fill me-1"></i>Core Services
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-primary category-btn"
+              data-category="repair"
+            >
+              <i class="bi bi-tools me-1"></i>Repair Services
+            </button>
+          </div>
+          <div id="serviceCards" class="row g-3"></div>
+          <div class="mt-4" id="selectedServicesSummary">
+            <div class="card border-0 bg-light">
+              <div class="card-header bg-light">
+                <h6 class="mb-0 fw-semibold">
+                  <i class="bi bi-cart-check me-2"></i>Selected Services
+                  <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span>
+                </h6>
+              </div>
+              <div class="card-body">
+                <div id="selectedServicesList">
+                  <p class="text-muted mb-0">No services selected yet</p>
+                </div>
+                <div class="mt-3 pt-3 border-top d-none" id="totalPricingSection">
+                  <div class="row align-items-center">
+                    <div class="col-md-6">
+                      <div class="fw-semibold">Total Estimated Price:</div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                      <div class="fs-4 fw-bold text-primary" id="totalEstimatedPrice">₱0</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label" for="issueDescription">Issue / Notes <span class="text-muted fw-normal">(optional)</span></label>
+            <textarea
+              id="issueDescription"
+              name="issueDescription"
+              rows="3"
+              class="form-control"
+              maxlength="600"
+              placeholder="Describe the issue or any special instructions..."
+            ></textarea>
+          </div>
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="1"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="3"
+            >
+              Continue to Technician
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="3">
+          <h5>
+            <i class="bi bi-geo-alt me-2"></i>Technician & Location
+          </h5>
+          <div class="row g-3">
+            <div class="col-lg-5">
+              <label class="form-label" for="technicianId">Technician</label>
+              <select
+                id="technicianId"
+                name="technicianId"
+                class="form-select"
+              ></select>
+
+              <label class="form-label mt-3" for="locationInput"
+                >Address or Coordinates</label
+              >
+              <input
+                id="locationInput"
+                class="form-control"
+                placeholder="e.g. 14.676049,121.043731 or address"
+              />
+              <div id="locationSuggest" class="list-group mt-1 d-none"></div>
+
+              <div class="d-flex gap-2 mt-2">
+                <button
+                  type="button"
+                  id="detectLocationBtn"
+                  class="btn btn-outline-primary btn-sm"
+                >
+                  <i class="bi bi-crosshair me-1"></i>Use Current Location
+                </button>
+                <button
+                  type="button"
+                  id="resolveAddressBtn"
+                  class="btn btn-outline-secondary btn-sm"
+                >
+                  Resolve Address
+                </button>
+              </div>
+              <p class="small mt-2 mb-0" id="locationStatus">
+                Set customer location to compute travel fare and available
+                slots.
+              </p>
+
+              <div
+                class="alert alert-light border mt-3 mb-0 small"
+                id="mapDistanceInfo"
+              >
+                Distance and ETA will appear here after setting location.
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="map-wrap">
+                <div
+                  id="technicianMap"
+                  class="technician-map"
+                  data-technician-lat="14.676049"
+                  data-technician-lng="121.043731"
+                ></div>
+              </div>
+            </div>
+          </div>
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="2"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="4"
+            >
+              Continue to Calendar
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="4">
+          <h5>
+            <i class="bi bi-calendar-check me-2"></i>Calendar & Available Time
+          </h5>
+          <p class="small text-muted mb-2">
+            Only available times are listed. Double booking is blocked in UI and
+            re-checked in backend.
+          </p>
+
+          <!-- AI Suggested Dates Section -->
+          <div id="suggestedWrapper" class="d-none mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h6 class="mb-0">
+                <i class="bi bi-lightbulb me-2"></i>AI-Suggested Dates
+              </h6>
+              <small class="text-muted">Smart recommendations based on availability</small>
+            </div>
+            <div class="row g-3" id="suggestedCards">
+              <!-- Suggested date cards will be inserted here -->
+            </div>
+          </div>
+
+          <div class="calendar-widget border rounded-4 bg-light p-3">
+            <div
+              class="calendar-header d-flex align-items-center justify-content-between mb-2"
+            >
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                data-calendar-nav="prev"
+              >
+                <i class="bi bi-chevron-left"></i>
+              </button>
+              <div class="fw-semibold" data-calendar-label></div>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                data-calendar-nav="next"
+              >
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            </div>
+            <div
+              class="calendar-grid"
+              id="calendarGrid"
+              role="grid"
+              aria-live="polite"
+            ></div>
+          </div>
+
+          <div id="timeSelection" class="mt-3 d-none">
+            <div class="small text-muted mb-1" id="timeRangeInfo"></div>
+            <div class="d-flex flex-wrap gap-2" id="timeSlots"></div>
+          </div>
+          <p class="small text-muted mt-2 mb-0" id="timeNotice"></p>
+
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="3"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="5"
+            >
+              Continue to Payment
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="5">
+          <h5><i class="bi bi-cash-coin me-2"></i>Cash Payment</h5>
+          <div
+            class="payment-tabs"
+            role="tablist"
+            aria-label="Cash payment mode"
+          >
+            <button
+              type="button"
+              class="payment-tab active"
+              data-cash-mode="downpayment"
+            >
+              <i class="bi bi-cash-stack"></i>Downpayment
+            </button>
+            <button type="button" class="payment-tab" data-cash-mode="full">
+              <i class="bi bi-cash"></i>Full Payment
+            </button>
+          </div>
+          <input
+            class="d-none"
+            type="hidden"
+            name="paymentMethod"
+            id="payCod"
+            value="cod"
+          />
+
+          <!-- amount input is shown; reference and mark-as-paid are removed -->
+          <div class="row g-3">
+            <div class="col-md-12" id="cashInfoNotice">
+              <p class="small text-muted">
+                Reference number will be generated automatically. For
+                downpayment mode the booking will be marked
+                <strong>partial</strong>; for full payment the status becomes
+                <strong>paid</strong>.
+              </p>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="downpaymentAmount"
+                >Amount collected now (₱)</label
+              >
+              <input
+                id="downpaymentAmount"
+                name="downpaymentAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                class="form-control"
+              />
+              <div
+                id="paymentAmountHint"
+                class="form-text small text-muted"
+              ></div>
+            </div>
+          </div>
+
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="4"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-next-step="6"
+            >
+              Continue to Review
+            </button>
+          </div>
+        </div>
+
+        <div class="booking-step d-none" data-step="6">
+          <h5><i class="bi bi-receipt me-2"></i>Review & Create</h5>
+          <div class="summary-box mb-3" id="walkinSummary">
+            Complete previous steps to preview totals and schedule.
+          </div>
+          <div class="walkin-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              data-prev-step="5"
+            >
+              Back
+            </button>
+            <button
+              id="saveWalkinBtn"
+              type="submit"
+              class="btn btn-primary btn-sm"
+            >
+              <i class="bi bi-check2-circle me-1"></i>Create Walk-in Appointment
+            </button>
+            <a
+              href="/admin/appointments"
+              class="btn btn-outline-secondary btn-sm"
+              >Cancel</a
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    const state = {
+      coreServices: [],
+      repairServices: [],
+      technicians: [],
+      currentStep: 0, // start at customer type step
+      isNewCustomer: true,
+      selectedServiceId: "",
+      selectedDate: null,
+      selectedStartMinutes: null,
+      paymentMethod: "cod",
+      cashPaymentMode: "downpayment",
+      travelFare: 0,
+      travelTime: 0,
+      farePerKm: 40,
+      customerCoords: null,
+      techCoords: { lat: 14.676049, lng: 121.043731 },
+      calendar: {
+        activeMonth: new Date(
+          new Date().getFullYear(),
+          new Date().getMonth(),
+          1,
+        ),
+        bookedDates: new Set(),
+        blockedDates: new Set(),
+        publicHolidays: new Map(),
+        nonWorkingWeekdays: [],
+        restDates: new Set(),
+      },
+      map: null,
+      markers: { tech: null, customer: null },
+      route: null,
+    };
+
+    const form = document.getElementById("walkinForm");
+    const alertEl = document.getElementById("walkinAlert");
+    let alertModal = null;
+    const serviceTypeEl = document.getElementById("serviceType");
+    const serviceIdEl = document.getElementById("serviceId");
+    const serviceCardsEl = document.getElementById("serviceCards");
+    const techEl = document.getElementById("technicianId");
+    // sync state when customer type radio changes
+    document.getElementById("custNew").addEventListener("change", () => {
+      state.isNewCustomer = true;
+      adjustCustomerDetailsStep();
+    });
+    document.getElementById("custExisting").addEventListener("change", () => {
+      state.isNewCustomer = false;
+      adjustCustomerDetailsStep();
+    });
+    const locationInputEl = document.getElementById("locationInput");
+    const locationSuggestEl = document.getElementById("locationSuggest");
+    const locationStatusEl = document.getElementById("locationStatus");
+    const summaryEl = document.getElementById("walkinSummary");
+    const saveBtn = document.getElementById("saveWalkinBtn");
+    const mapDistanceInfoEl = document.getElementById("mapDistanceInfo");
+    const calendarGridEl = document.getElementById("calendarGrid");
+    const calendarLabelEl = document.querySelector("[data-calendar-label]");
+    const timeSelectionEl = document.getElementById("timeSelection");
+    const timeSlotsEl = document.getElementById("timeSlots");
+    const timeRangeInfoEl = document.getElementById("timeRangeInfo");
+    const timeNoticeEl = document.getElementById("timeNotice");
+
+    function showAlert(type, message) {
+      const titles = { warning: "Attention", danger: "Error", success: "Success", info: "Notice" };
+      const icons = { warning: "exclamation-triangle-fill", danger: "x-circle-fill", success: "check-circle-fill", info: "info-circle-fill" };
+      const colors = { warning: "#f59e0b", danger: "#dc2626", success: "#16a34a", info: "#2563eb" };
+      const color = colors[type] || colors.info;
+      const icon = (type === "success")
+        ? (state.isNewCustomer ? "person-plus-fill" : "person-check-fill")
+        : (icons[type] || icons.info);
+      document.getElementById("walkinAlertLabel").textContent = titles[type] || "Notice";
+      document.getElementById("walkinAlertHeader").style.background = color;
+      document.getElementById("walkinAlertBody").innerHTML =
+        '<div class="text-center"><i class="bi bi-' + icon + '" style="font-size:3.5rem;color:' + color + ';"></i></div>' +
+        '<p class="text-center mb-0 mt-3" style="font-size:1rem;color:#334155;line-height:1.5;">' + message + '</p>';
+      if (!alertModal) alertModal = new bootstrap.Modal(alertEl, { backdrop: true, keyboard: true });
+      alertModal.show();
+    }
+    function hideAlert() {
+      if (alertModal) alertModal.hide();
+    }
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+    function startOfDay(date) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+    function startOfMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+    function addMonths(date, amount) {
+      const c = new Date(date);
+      c.setMonth(c.getMonth() + amount);
+      return startOfMonth(c);
+    }
+    function addDays(date, amount) {
+      const c = new Date(date);
+      c.setDate(c.getDate() + amount);
+      return c;
+    }
+    function formatDateKey(date) {
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    }
+    function isSameDate(a, b) {
+      return (
+        a &&
+        b &&
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate()
+      );
+    }
+    function minutesToLabel(m) {
+      const h = Math.floor(m / 60);
+      const mm = m % 60;
+      const ap = h >= 12 ? "PM" : "AM";
+      const h12 = ((h + 11) % 12) + 1;
+      return `${pad2(h12)}:${pad2(mm)} ${ap}`;
+    }
+    function minutesToHHMM(m) {
+      return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
+    }
+
+    function setSelectByText(selectEl, text) {
+      if (!selectEl || !text) return false;
+      const opt = Array.from(selectEl.options).find(
+        (o) => o.textContent.trim().toLowerCase() === String(text).trim().toLowerCase()
+      );
+      if (opt) {
+        selectEl.value = opt.value;
+        selectEl.dispatchEvent(new Event("change"));
+        return true;
+      }
+      return false;
+    }
+
+    function currentServiceList() {
+      return serviceTypeEl.value === "repair"
+        ? state.repairServices
+        : state.coreServices;
+    }
+    function currentService() {
+      return currentServiceList().find(
+        (s) => String(s._id) === String(state.selectedServiceId),
+      );
+    }
+
+    function goToStep(step) {
+      state.currentStep = Number(step);
+      document.querySelectorAll(".booking-step[data-step]").forEach((el) => {
+        const isActive =
+          Number(el.getAttribute("data-step")) === state.currentStep;
+        el.classList.toggle("d-none", !isActive);
+      });
+      document.querySelectorAll(".stepper-step[data-step]").forEach((el) => {
+        const stepNum = Number(el.getAttribute("data-step"));
+        const isActive = stepNum === state.currentStep;
+        const isCompleted = stepNum < state.currentStep;
+        
+        el.classList.toggle("is-active", isActive);
+        el.classList.toggle("is-completed", isCompleted);
+        const li = el.closest("li");
+        if (li) li.classList.toggle("is-completed", isCompleted);
+      });
+      if (state.currentStep === 0) {
+        // coming back to type selection, ensure customer inputs editable
+        ["firstName", "lastName", "customerPhone", "customerEmail"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.disabled = false;
+        });
+        // For address selects: enable province, keep city/barangay as-is (PSGC manages them)
+        const provEl = document.getElementById("addrProvince");
+        if (provEl) provEl.disabled = false;
+      }
+      if (state.currentStep === 1) {
+        adjustCustomerDetailsStep();
+      }
+      if (state.currentStep === 3) initMap();
+      if (state.currentStep === 5) {
+        renderCalendar();
+        if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
+      }
+      updateSummary();
+    }
+
+    // show or hide fields on the customer details step depending on new/existing
+    function adjustCustomerDetailsStep() {
+      const show = state.isNewCustomer;
+      // hide name/phone/address for existing users
+      document.querySelectorAll(".existing-only").forEach((el) => {
+        el.classList.toggle("d-none", !show);
+      });
+      // email field should always be editable here; we disable it only after an
+      // existing user has been looked up (handled elsewhere if desired)
+      const note = document.getElementById("existingCustomerNote");
+      if (note) note.classList.toggle("d-none", show);
+    }
+
+    function validateStep(step) {
+      if (step === 0) {
+        // must pick new or existing (radio always has a value)
+        // no validation needed here
+      }
+      if (step === 1) {
+        const email = document.getElementById("customerEmail").value.trim();
+        const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+        if (!email || !re.test(email))
+          return showWarn("Valid customer email is required.");
+        if (state.isNewCustomer) {
+          const first = document.getElementById("firstName").value.trim();
+          const last = document.getElementById("lastName").value.trim();
+          const phone = document.getElementById("customerPhone").value.trim();
+          const city = document.getElementById("addrCity").value.trim();
+          if (!first || !last || !phone || !city)
+            return showWarn("First/last name, phone and city are required.");
+        }
+      }
+      if (step === 2 && !state.selectedServiceId)
+        return showWarn("Please select one service card.");
+      if (step === 3) {
+        if (!techEl.value) return showWarn("Please select a technician.");
+        if (!state.customerCoords)
+          return showWarn(
+            "Please set customer location on map (address, coordinates, or current location).",
+          );
+      }
+      if (step === 4) {
+        if (!state.selectedDate || state.selectedStartMinutes == null)
+          return showWarn("Please choose a date and available time slot.");
+      }
+      if (step === 5) {
+        const amount = Number(
+          document.getElementById("downpaymentAmount").value,
+        );
+        if (!Number.isFinite(amount) || amount <= 0)
+          return showWarn("Please enter a valid amount collected now.");
+      }
+      hideAlert();
+      return true;
+    }
+
+    function showWarn(message) {
+      showAlert("warning", message);
+      return false;
+    }
+
+    function showSuccess(message) {
+      showAlert("success", message);
+      return true;
+    }
+
+    function renderServiceCards() {
+      const list = currentServiceList();
+      const serviceType = serviceTypeEl.value || "core";
+      if (!list.length) {
+        serviceCardsEl.innerHTML =
+          '<div class="col-12 text-center py-4"><i class="bi bi-inbox fs-3 text-muted d-block mb-2"></i><span class="text-muted small">No active services in this category.</span></div>';
+        state.selectedServiceId = "";
+        serviceIdEl.value = "";
+        updateSummary();
+        return;
+      }
+
+      if (!list.some((s) => String(s._id) === String(state.selectedServiceId)))
+        state.selectedServiceId = String(list[0]._id);
+
+      serviceCardsEl.innerHTML = list
+        .map((s) => {
+          const selected = String(s._id) === String(state.selectedServiceId);
+          const duration = Number(s.durationMinutes || s.estimatedDurationMinutes || s.duration || 60);
+          const basePrice = Number(s.basePrice || s.price || 0);
+          const priceRange = s.priceRange;
+          const isAircon = s.isAirconService && s.hpPricing && s.hpPricing.length > 0;
+
+          let priceDisplay = '';
+          if (isAircon) {
+            const minP = Math.min(...s.hpPricing.map(h => h.price));
+            const maxP = Math.max(...s.hpPricing.map(h => h.price));
+            priceDisplay = '\u20B1' + minP.toLocaleString() + ' - \u20B1' + maxP.toLocaleString();
+          } else if (priceRange) {
+            priceDisplay = '\u20B1' + Number(priceRange.min).toLocaleString() + ' - \u20B1' + Number(priceRange.max).toLocaleString();
+          } else if (basePrice > 0) {
+            priceDisplay = '\u20B1' + basePrice.toLocaleString();
+          } else {
+            priceDisplay = 'Price on quote';
+          }
+
+          const icon = s.icon || (serviceType === "repair" ? "bi bi-tools" : "bi bi-gear-fill");
+          const typeBadge = isAircon
+            ? '<span class="badge bg-info text-dark service-card-chip">HP-based</span>'
+            : serviceType === "repair"
+              ? '<span class="badge bg-secondary text-white service-card-chip">Repair</span>'
+              : '<span class="badge bg-primary service-card-chip">Service</span>';
+          const durationLabel = duration + ' min';
+          return `
+        <div class="col-md-6 col-lg-4">
+          <article class="card service-card h-100 border-0 shadow-sm ${selected ? "active" : ""}" data-service-id="${s._id}" data-service-type="${serviceType}">
+            <div class="card-body p-4 d-flex flex-column h-100">
+              <div class="d-flex align-items-start gap-3 mb-4">
+                <div class="service-icon shadow-sm">
+                  <i class="${icon} fs-4 text-primary"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="service-card-header d-flex flex-column gap-2">
+                    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                      <div>
+                        <h6 class="card-title fw-semibold mb-1 text-dark">${s.name || "Unnamed Service"}</h6>
+                        <div class="small text-muted">Tap Add to Booking for details and pricing options.</div>
+                      </div>
+                      <div class="price-box rounded-pill px-3 py-2 fw-bold text-primary">
+                        ${priceDisplay}
+                      </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center service-card-meta">
+                      ${typeBadge}
+                      <span class="badge bg-light text-muted service-card-chip">${durationLabel}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-auto pt-2">
+                <button class="btn btn-primary btn-sm w-100 add-service-btn"
+                        data-service-id="${s._id}"
+                        data-service-type="${serviceType}"
+                        data-service-name="${s.name || ""}"
+                        data-is-aircon="${isAircon}">
+                  <i class="bi bi-plus-circle me-2"></i>Add to Booking
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>`;
+        })
+        .join("");
+
+      serviceIdEl.value = state.selectedServiceId;
+      updateSummary();
+    }
+
+    function renderTechnicians() {
+      techEl.innerHTML =
+        '<option value="">Select technician</option>' +
+        state.technicians
+          .map(
+            (t) =>
+              `<option value="${t._id}">${t.name || "Unnamed"}${t.phone ? " • " + t.phone : ""}</option>`,
+          )
+          .join("");
+    }
+
+    async function loadFarePerKm() {
+      try {
+        const r = await fetch("/api/services/fare-per-km", {
+          cache: "no-store",
+        });
+        if (!r.ok) {
+          console.warn("loadFarePerKm: server returned", r.status);
+        }
+        const j = await r.json();
+        state.farePerKm = Number(j.farePerKm) || 40;
+      } catch (e) {
+        console.warn("loadFarePerKm failed", e && e.message);
+        state.farePerKm = 40;
+      }
+    }
+
+    async function loadOptions() {
+      const r = await fetch("/api/appointments/walk-in-options", {
+        credentials: "same-origin",
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Failed to load walk-in options");
+
+      state.coreServices = d.coreServices || [];
+      state.repairServices = d.repairServices || [];
+      state.technicians = d.technicians || [];
+
+      if (!state.coreServices.length && !state.repairServices.length)
+        throw new Error("No active services found.");
+      if (!state.technicians.length)
+        throw new Error("No active technicians found.");
+
+      renderServiceCards();
+      renderTechnicians();
+      updateSummary();
+    }
+
+    function paymentMethodFromUI() {
+      return "cod";
+    }
+
+    function getEstimatedTotal() {
+      const svc = currentService();
+      const feeBase = Number((svc && svc.basePrice) || 0);
+      return Number((feeBase + Number(state.travelFare || 0)).toFixed(2));
+    }
+
+    function syncCashAmountInput() {
+      const amountEl = document.getElementById("downpaymentAmount");
+      const hintEl = document.getElementById("paymentAmountHint");
+      if (!amountEl) return;
+      const total = getEstimatedTotal();
+      if (state.cashPaymentMode === "full") {
+        amountEl.value = total.toFixed(2);
+        amountEl.readOnly = true;
+        if (hintEl)
+          hintEl.textContent =
+            "Full payment mode: amount equals estimated total.";
+      } else {
+        amountEl.readOnly = false;
+        if (!amountEl.value) amountEl.value = "";
+        if (hintEl)
+          hintEl.textContent = "Enter the downpayment amount collected now.";
+      }
+    }
+
+    function updateSummary() {
+      const svc = currentService();
+      const techLabel = techEl.options[techEl.selectedIndex]
+        ? techEl.options[techEl.selectedIndex].text
+        : "—";
+      const feeBase = Number((svc && svc.basePrice) || 0);
+      const total = feeBase + Number(state.travelFare || 0);
+
+      let scheduleText = "—";
+      if (state.selectedDate && state.selectedStartMinutes != null) {
+        const s = state.selectedStartMinutes;
+        const duration = Number(
+          (svc && (svc.durationMinutes || svc.estimatedDurationMinutes)) || 60,
+        );
+        scheduleText = `${formatDateKey(state.selectedDate)} ${minutesToLabel(s)} – ${minutesToLabel(s + duration)}`;
+      }
+
+      summaryEl.innerHTML = `
+      <div class="mb-1"><strong>Service:</strong> ${(svc && svc.name) || "—"}</div>
+      <div class="mb-1"><strong>Technician:</strong> ${techLabel}</div>
+      <div class="mb-1"><strong>Schedule:</strong> ${scheduleText}</div>
+      <div class="mb-1"><strong>Travel Fare:</strong> ₱${Number(state.travelFare || 0).toFixed(2)}</div>
+      <div class="mb-1"><strong>Estimated Total:</strong> ₱${total.toFixed(2)}</div>
+      <div><strong>Payment Method:</strong> CASH (${state.cashPaymentMode === "full" ? "FULL" : "DOWNPAYMENT"})</div>
+    `;
+
+      syncCashAmountInput();
+    }
+
+    function initMap() {
+      const el = document.getElementById("technicianMap");
+      if (!el || !window.L) return;
+      if (state.map) {
+        setTimeout(() => state.map && state.map.invalidateSize(), 120);
+        return;
+      }
+
+      state.map = L.map(el).setView(
+        [state.techCoords.lat, state.techCoords.lng],
+        13,
+      );
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      }).addTo(state.map);
+
+      state.markers.tech = L.marker([
+        state.techCoords.lat,
+        state.techCoords.lng,
+      ])
+        .addTo(state.map)
+        .bindPopup("Technician");
+
+      state.map.on("click", (e) => {
+        setCustomerCoords(
+          { lat: e.latlng.lat, lng: e.latlng.lng },
+          "Pinned customer location from map click.",
+        );
+        locationInputEl.value = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+      });
+
+      setTimeout(() => state.map && state.map.invalidateSize(), 180);
+    }
+
+    function setLocationStatus(text, type) {
+      locationStatusEl.className = `small mt-2 mb-0 text-${type || "muted"}`;
+      locationStatusEl.textContent = text;
+    }
+
+    function setCustomerCoords(coords, message) {
+      state.customerCoords = coords;
+      if (state.map && window.L) {
+        if (!state.markers.customer) {
+          state.markers.customer = L.marker([coords.lat, coords.lng])
+            .addTo(state.map)
+            .bindPopup("Customer");
+        } else {
+          state.markers.customer.setLatLng([coords.lat, coords.lng]);
+        }
+        updateRouteAndFare();
+        const bounds = L.latLngBounds([
+          state.markers.tech.getLatLng(),
+          state.markers.customer.getLatLng(),
+        ]);
+        state.map.fitBounds(bounds, { padding: [70, 70] });
+      }
+      setLocationStatus(message || "Customer location set.", "success");
+      updateSummary();
+    }
+
+    async function updateRouteAndFare() {
+      if (!state.markers.tech || !state.markers.customer) return;
+      const t = state.markers.tech.getLatLng();
+      const c = state.markers.customer.getLatLng();
+      const coords = `${t.lng},${t.lat};${c.lng},${c.lat}`;
+
+      try {
+        const r = await fetch(
+          `/api/services/osrm-route?coords=${encodeURIComponent(coords)}`,
+          { cache: "no-store" },
+        );
+        if (!r.ok) throw new Error("route");
+        const j = await r.json();
+        const route = (j.routes && j.routes[0]) || null;
+        if (
+          !route ||
+          !route.geometry ||
+          !Array.isArray(route.geometry.coordinates)
+        )
+          throw new Error("route");
+
+        const points = route.geometry.coordinates.map((p) => [p[1], p[0]]);
+        if (state.route) state.route.setLatLngs(points);
+        else
+          state.route = L.polyline(points, {
+            color: "purple",
+            weight: 4,
+          }).addTo(state.map);
+
+        const km = Number(route.distance || 0) / 1000;
+        const etaMins = Math.round(Number(route.duration || 0) / 60);
+        state.travelFare = Number((km * state.farePerKm).toFixed(2));
+        state.travelTime = etaMins > 0 ? etaMins : 0;
+        mapDistanceInfoEl.textContent = `Road distance: ${km.toFixed(1)} km • ETA: ~${etaMins} min • Fare: ₱${state.travelFare.toFixed(2)}`;
+        updateSummary();
+        if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
+        return;
+      } catch (e) {}
+
+      const R = 6371;
+      const dLat = ((c.lat - t.lat) * Math.PI) / 180;
+      const dLon = ((c.lng - t.lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((t.lat * Math.PI) / 180) *
+          Math.cos((c.lat * Math.PI) / 180) *
+          Math.sin(dLon / 2) ** 2;
+      const km = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+
+      if (state.route)
+        state.route.setLatLngs([
+          [t.lat, t.lng],
+          [c.lat, c.lng],
+        ]);
+      else
+        state.route = L.polyline(
+          [
+            [t.lat, t.lng],
+            [c.lat, c.lng],
+          ],
+          { color: "purple", weight: 4 },
+        ).addTo(state.map);
+
+      state.travelFare = Number((km * state.farePerKm).toFixed(2));
+      state.travelTime = 0;
+      mapDistanceInfoEl.textContent = `Distance (approx): ${km.toFixed(1)} km • Fare: ₱${state.travelFare.toFixed(2)}`;
+      updateSummary();
+      if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
+    }
+
+    async function fetchTechLocation() {
+      if (!techEl.value) return;
+      try {
+        const r = await fetch(
+          `/api/services/technician-location?id=${encodeURIComponent(techEl.value)}`,
+          { cache: "no-store" },
+        );
+        const j = await r.json();
+        if (
+          r.ok &&
+          Number.isFinite(Number(j.lat)) &&
+          Number.isFinite(Number(j.lng))
+        ) {
+          state.techCoords = { lat: Number(j.lat), lng: Number(j.lng) };
+          if (state.markers.tech)
+            state.markers.tech.setLatLng([
+              state.techCoords.lat,
+              state.techCoords.lng,
+            ]);
+          if (state.customerCoords) updateRouteAndFare();
+        }
+      } catch (e) {}
+    }
+
+    async function loadTechnicianSchedule() {
+      if (!techEl.value) return;
+      try {
+        const r = await fetch(
+          `/api/services/technician-schedule/${encodeURIComponent(techEl.value)}`,
+          { cache: "no-store" },
+        );
+        const j = await r.json();
+        state.calendar.nonWorkingWeekdays = Array.isArray(j.nonWorkingWeekdays)
+          ? j.nonWorkingWeekdays
+          : [];
+        state.calendar.restDates = new Set(
+          Array.isArray(j.restDates) ? j.restDates : [],
+        );
+      } catch (e) {
+        state.calendar.nonWorkingWeekdays = [];
+        state.calendar.restDates = new Set();
+      }
+    }
+
+    async function loadServiceCalendarMonth() {
+      if (!state.selectedServiceId) return;
+      const start = startOfMonth(state.calendar.activeMonth);
+      const end = addMonths(start, 1);
+      const params = new URLSearchParams({
+        start: formatDateKey(start),
+        end: formatDateKey(end),
+      });
+      if (techEl.value) params.set("technicianId", techEl.value);
+
+      try {
+        const r = await fetch(
+          `/api/services/${encodeURIComponent(state.selectedServiceId)}/calendar?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        const j = await r.json();
+        state.calendar.bookedDates = new Set(j.bookedDates || []);
+        state.calendar.blockedDates = new Set(j.blockedDates || []);
+        state.calendar.publicHolidays = new Map(
+          (j.publicHolidays || []).map((h) => [h.date, h.name || ""]),
+        );
+      } catch (e) {
+        state.calendar.bookedDates = new Set();
+        state.calendar.blockedDates = new Set();
+        state.calendar.publicHolidays = new Map();
+      }
+    }
+
+    function resolveDateStatus(date) {
+      const key = formatDateKey(date);
+      const now = new Date();
+      const today = startOfDay(now);
+      const totalCurrentMinutes = now.getHours() * 60 + now.getMinutes();
+      const workingDayEndMinutes = 19 * 60; // 7 PM (includes overtime)
+      
+      // Block dates before today
+      if (date < today) return "blocked";
+      
+      // Block current date if past working hours (5 PM)
+      if (isSameDate(date, today) && totalCurrentMinutes > workingDayEndMinutes) {
+        return "blocked";
+      }
+      
+      // Block technician rest dates
+      if (state.calendar.restDates.has(key)) return "blocked";
+      
+      // Block technician non-working weekdays
+      if (state.calendar.nonWorkingWeekdays.includes(date.getDay()))
+        return "blocked";
+      
+      // Block booked dates
+      if (state.calendar.bookedDates.has(key)) return "booked";
+      
+      // Block public holidays
+      if (state.calendar.publicHolidays.has(key)) return "public";
+      
+      // Block explicitly blocked dates
+      if (state.calendar.blockedDates.has(key)) return "blocked";
+      
+      return "available";
+    }
+
+    async function renderCalendar() {
+      if (!calendarGridEl) return;
+      await loadServiceCalendarMonth();
+
+      const month = state.calendar.activeMonth;
+      calendarLabelEl.textContent = new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        year: "numeric",
+      }).format(month);
+
+      calendarGridEl.innerHTML = "";
+      const year = month.getFullYear();
+      const m = month.getMonth();
+      const lead = new Date(year, m, 1).getDay();
+      for (let i = 0; i < lead; i++) {
+        const filler = document.createElement("div");
+        filler.className = "calendar-cell disabled";
+        calendarGridEl.appendChild(filler);
+      }
+
+      const days = new Date(year, m + 1, 0).getDate();
+      for (let day = 1; day <= days; day++) {
+        const date = new Date(year, m, day);
+        const status = resolveDateStatus(date);
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "calendar-cell";
+        cell.dataset.status = status;
+        cell.textContent = String(day).padStart(2, "0");
+        if (status !== "available") {
+          cell.classList.add("disabled");
+          cell.disabled = true;
+        } else {
+          cell.addEventListener("click", async () => {
+            state.selectedDate = startOfDay(date);
+            state.selectedStartMinutes = null;
+            await renderCalendar();
+            await renderTimeSlotsForDate(state.selectedDate);
+            updateSummary();
+          });
+        }
+        if (state.selectedDate && isSameDate(state.selectedDate, date))
+          cell.classList.add("is-selected");
+        calendarGridEl.appendChild(cell);
+      }
+    }
+
+    async function renderTimeSlotsForDate(date) {
+      if (!date) return;
+      const dateKey = formatDateKey(date);
+
+      timeSelectionEl.classList.remove("d-none");
+      timeSlotsEl.innerHTML = "";
+      timeNoticeEl.textContent = "Loading available slots...";
+
+      const params = new URLSearchParams({
+        date: dateKey,
+        serviceId: state.selectedServiceId,
+      });
+      if (techEl.value) params.set("technicianId", techEl.value);
+      if (
+        Number.isFinite(Number(state.travelTime)) &&
+        Number(state.travelTime) > 0
+      )
+        params.set("travelTime", String(state.travelTime));
+
+      try {
+        const r = await fetch(
+          `/api/services/availability?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        const j = await r.json();
+        const slots = j.slots || [];
+
+        if (!slots.length) {
+          timeNoticeEl.textContent = "No available slots for this date.";
+          timeRangeInfoEl.textContent = "";
+          return;
+        }
+
+        timeNoticeEl.textContent = "";
+        const available = slots.filter((s) => s.status === "available");
+        if (available.length) {
+          timeRangeInfoEl.textContent = `Available between ${minutesToLabel(available[0].startMinutes)} and ${minutesToLabel(available[available.length - 1].endMinutes)}`;
+        } else {
+          timeRangeInfoEl.textContent = "No available times";
+        }
+
+        // Enhanced past-time blocking with buffer
+        const now = new Date();
+        const today = startOfDay(now);
+        const currentHour = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const totalCurrentMinutes = currentHour * 60 + currentMinutes;
+        const bufferMinutes = 30; // 30-minute buffer
+        const isToday = isSameDate(date, today);
+
+        slots.forEach((slot) => {
+          // Check if this time slot is in the past for today
+          let isPastTime = false;
+          if (isToday && slot.status === "available") {
+            // If the slot start time is earlier than current time plus buffer, mark as past
+            if (slot.startMinutes <= (totalCurrentMinutes + bufferMinutes)) {
+              isPastTime = true;
+            }
+          }
+
+          // Skip past time slots completely - don't render them at all
+          if (isPastTime) {
+            return; // Skip this iteration, don't create the button
+          }
+
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "time-slot btn btn-sm d-flex flex-column align-items-start gap-0 px-3 py-2";
+          btn.dataset.start = String(slot.startMinutes);
+
+          const line1 = document.createElement("span");
+          line1.className = "fw-semibold";
+          line1.textContent =
+            slot.label ||
+            `${minutesToLabel(slot.startMinutes)} - ${minutesToLabel(slot.endMinutes)}`;
+          btn.appendChild(line1);
+
+          if (slot.detail) {
+            const line2 = document.createElement("span");
+            line2.className = "small text-muted";
+            line2.style.fontSize = ".72rem";
+            line2.textContent = slot.detail;
+            btn.appendChild(line2);
+          }
+
+          if (slot.status !== "available") {
+            btn.disabled = true;
+            btn.classList.add("disabled");
+            if (slot.status === "booked") {
+              btn.title = "Already reserved";
+            } else if (slot.status === "blocked") {
+              btn.title = "Not working";
+            }
+          } else {
+            btn.addEventListener("click", () => {
+              timeSlotsEl
+                .querySelectorAll(".time-slot")
+                .forEach((n) => n.classList.remove("active"));
+              btn.classList.add("active");
+              state.selectedStartMinutes = Number(slot.startMinutes);
+              updateSummary();
+            });
+          }
+
+          if (
+            state.selectedStartMinutes != null &&
+            Number(state.selectedStartMinutes) === Number(slot.startMinutes)
+          )
+            btn.classList.add("active");
+          timeSlotsEl.appendChild(btn);
+        });
+      } catch (e) {
+        timeNoticeEl.textContent = "Failed to load availability.";
+        timeRangeInfoEl.textContent = "";
+      }
+    }
+
+    async function buildSuggestedDates() {
+      const results = [];
+      const candidates = [];
+      
+      // Get service duration once for use throughout the function
+      const service = currentService();
+      const serviceDuration = service ? (service.durationMinutes || service.estimatedDurationMinutes || 60) : 60;
+
+      // Generate candidate dates for the next 30 days
+      let cursor = addDays(new Date(), 1);
+      let guard = 0;
+
+      while (candidates.length < 15 && guard < 60) {
+        const status = resolveDateStatus(cursor);
+        if (status === "available") {
+          candidates.push({
+            date: startOfDay(cursor),
+            displayDate: friendlyDateFormatter.format(cursor),
+            dayOfWeek: cursor.getDay(),
+            daysFromToday: Math.floor((cursor - new Date()) / (1000 * 60 * 60 * 24))
+          });
+        }
+        cursor = addDays(cursor, 1);
+        guard += 1;
+      }
+
+      // Score candidates based on AI-like factors
+      const scoredCandidates = candidates.map(candidate => {
+        let score = 0;
+
+        // Factor 1: Time quality (40%) - prefer weekdays, avoid weekends
+        const dayOfWeek = candidate.dayOfWeek;
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          score += 0.4; // Weekdays are preferred
+        } else {
+          score += 0.1; // Weekends are less preferred
+        }
+
+        // Factor 2: Distance from today (25%) - prefer sooner dates but not too soon
+        const daysFromToday = candidate.daysFromToday;
+        if (daysFromToday >= 2 && daysFromToday <= 14) {
+          score += 0.25; // Sweet spot
+        } else if (daysFromToday >= 15 && daysFromToday <= 21) {
+          score += 0.15; // Still good but less ideal
+        } else {
+          score += 0.05; // Too soon or too far
+        }
+
+        // Factor 3: Service time compatibility (25%) - prefer times that work well with service duration
+        if (serviceDuration <= 120) {
+          score += 0.25; // Short services are flexible
+        } else if (serviceDuration <= 240) {
+          score += 0.20; // Medium services
+        } else {
+          score += 0.15; // Long services need more planning
+        }
+
+        // Factor 4: Random variation (10%) - to provide variety
+        score += Math.random() * 0.1;
+
+        return {
+          ...candidate,
+          score: Math.min(score, 1.0)
+        };
+      });
+
+      // Sort by score and take top 3
+      scoredCandidates.sort((a, b) => b.score - a.score);
+      const topCandidates = scoredCandidates.slice(0, 3);
+
+      // Build final suggestions with time slots and confidence levels
+      const timeSlots = ["09:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"];
+
+      topCandidates.forEach((candidate, index) => {
+        const confidence = calculateConfidence(candidate.score);
+        const timeLabel = timeSlots[index % timeSlots.length];
+
+        // Generate realistic availability windows
+        const availableRanges = generateAvailabilityWindows(timeLabel, serviceDuration);
+
+        results.push({
+          date: candidate.date,
+          displayDate: candidate.displayDate,
+          timeLabel,
+          timeStart: parseAMPMToMinutes(timeLabel),
+          score: candidate.score,
+          confidence,
+          availableRanges,
+          technicianId: techEl.value || null
+        });
+      });
+
+      return results;
+    }
+
+    function calculateConfidence(score) {
+      if (score >= 0.8) {
+        return { level: "Excellent", color: "#10b981", icon: "" };
+      } else if (score >= 0.6) {
+        return { level: "Very Good", color: "#3b82f6", icon: "" };
+      } else if (score >= 0.4) {
+        return { level: "Good", color: "#10b981", icon: "" };
+      } else {
+        return { level: "Fair", color: "#f59e0b", icon: "" };
+      }
+    }
+
+    function generateAvailabilityWindows(baseTime, serviceDuration) {
+      const baseMinutes = parseAMPMToMinutes(baseTime);
+      const windows = [];
+
+      // Create 2-3 availability windows around the base time
+      const windowCount = Math.floor(Math.random() * 2) + 2; // 2-3 windows
+
+      for (let i = 0; i < windowCount; i++) {
+        const offset = (i - 1) * 120; // Spread windows 2 hours apart
+        const start = baseMinutes + offset;
+        const end = start + 180; // 3-hour windows
+
+        // Ensure windows are within business hours (8 AM - 6 PM)
+        if (start >= 480 && start <= 1080 && end <= 1260) {
+          windows.push({ start, end });
+        }
+      }
+
+      return windows.sort((a, b) => a.start - b.start);
+    }
+
+    function parseAMPMToMinutes(label) {
+      // expected formats: '08:00 AM' or '8:00 AM'
+      const parts = label.trim().split(/\s+/);
+      if (parts.length < 2) return 0;
+      const [timePart, ampm] = parts;
+      const [hh, mm] = timePart.split(":").map((n) => parseInt(n, 10));
+      let hours = hh % 12;
+      if (ampm.toUpperCase() === "PM") hours += 12;
+      return hours * 60 + (mm || 0);
+    }
+
+    function minutesTo12HourLabel(totalMinutes) {
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const ampm = h >= 12 ? "PM" : "AM";
+      const hour12 = ((h + 11) % 12) + 1;
+      return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    }
+
+    // Helper function to add days to a date
+    function addDays(date, days) {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
+    }
+
+    // Helper function to check if two dates are the same day
+    function isSameDate(date1, date2) {
+      return date1.getFullYear() === date2.getFullYear() &&
+             date1.getMonth() === date2.getMonth() &&
+             date1.getDate() === date2.getDate();
+    }
+
+    // Helper function to start of day
+    function startOfDay(date) {
+      const result = new Date(date);
+      result.setHours(0, 0, 0, 0);
+      return result;
+    }
+
+    // Friendly date formatter
+    const friendlyDateFormatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric'
+    });
+
+    function renderSuggestedDates() {
+      // Check if we have the necessary elements
+      const suggestedWrapper = document.getElementById('suggestedWrapper');
+      const suggestedCards = document.getElementById('suggestedCards');
+
+      if (!suggestedWrapper || !suggestedCards) {
+        return;
+      }
+
+      if (!state.selectedServiceId) {
+        suggestedWrapper.classList.add("d-none");
+        suggestedCards.innerHTML = "";
+        return;
+      }
+
+      const suggestions = buildSuggestedDates();
+      suggestedCards.innerHTML = "";
+
+      if (!suggestions.length) {
+        suggestedWrapper.classList.remove("d-none");
+        suggestedCards.innerHTML =
+          '<div class="col-12"><div class="alert alert-warning">No suggested dates available right now. Please use the calendar.</div></div>';
+        return;
+      }
+
+      suggestions.forEach((entry, index) => {
+        const column = document.createElement("div");
+        column.className = "col-md-4";
+
+        const confidence = entry.confidence;
+        const isProfessional = entry.technicianId && techEl.value;
+
+        column.innerHTML = `
+          <article class="suggested-card h-100" role="button" tabindex="0">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="badge" style="background-color: ${confidence.color}20; color: ${confidence.color}">
+                ${confidence.icon} AI ${isProfessional ? 'Tech' : 'Smart'} #${index + 1}
+              </span>
+              <small class="text-muted">${confidence.level}</small>
+            </div>
+            <h6 class="mb-1">${entry.displayDate}</h6>
+            <p class="mb-1 small fw-semibold">${entry.timeLabel}</p>
+            <p class="mb-0 small text-muted">
+              ${currentService() ? (currentService().durationMinutes || currentService().estimatedDurationMinutes || 60) : 60} mins · ${entry.availableRanges.length} windows
+              ${isProfessional ? `· Tech ${entry.technicianId.slice(-4)}` : ''}
+            </p>
+            ${entry.availableRanges.length > 0 ? `
+            <div class="mt-2">
+              <small class="text-muted">Available: ${entry.availableRanges.map(r => 
+                `${minutesTo12HourLabel(r.start)}-${minutesTo12HourLabel(r.end)}` 
+              ).join(', ')}</small>
+            </div>
+            ` : ''}
+            ${isProfessional ? `
+            <div class="mt-1">
+              <small class="text-success"> Optimized for selected technician</small>
+            </div>
+            ` : ''}
+            <div class="mt-2">
+              <small class="text-info"> AI-scored ${(entry.score * 100).toFixed(0)}%</small>
+            </div>
+          </article>
+        `;
+
+        const card = column.querySelector(".suggested-card");
+        card.addEventListener("click", () => handleSuggestionSelection(entry, card));
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleSuggestionSelection(entry, card);
+          }
+        });
+
+        suggestedCards.appendChild(column);
+      });
+
+      suggestedWrapper.classList.remove("d-none");
+    }
+
+    function handleSuggestionSelection(entry, card) {
+      state.selectedDate = startOfDay(entry.date);
+      state.selectedStartMinutes = entry.timeStart;
+
+      // Remove active class from all suggestion cards
+      document.querySelectorAll(".suggested-card").forEach(node => node.classList.remove("active"));
+      card.classList.add("active");
+
+      // Update calendar and time slots
+      renderCalendar();
+      renderTimeSlotsForDate(state.selectedDate);
+      updateSummary();
+
+      // Scroll to calendar section
+      const calendarSection = document.querySelector('.booking-step:has(#calendarGrid)');
+      if (calendarSection) {
+        calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    async function resolveAddressOrCoordinates() {
+      const raw = String(locationInputEl.value || "").trim();
+      if (!raw) return;
+
+      const coord = raw.match(
+        /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/
+      );
+      if (coord) {
+        const lat = Number(coord[1]);
+        const lng = Number(coord[2]);
+        if (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          Math.abs(lat) <= 90 &&
+          Math.abs(lng) <= 180
+        ) {
+          setCustomerCoords({ lat, lng }, "Coordinates pinned on map.");
+          return;
+        }
+      }
+
+      setLocationStatus("Resolving address...", "info");
+      try {
+        const r = await fetch(
+          `/api/services/geocode?q=${encodeURIComponent(raw)}`,
+        );
+        const j = await r.json();
+        const lat = Number(j.lat);
+        const lng = Number(j.lon);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setCustomerCoords(
+            { lat, lng },
+            "Address resolved and pinned on map.",
+          );
+        } else {
+          setLocationStatus(
+            "Could not resolve address. Use coordinates or current location.",
+            "danger",
+          );
+        }
+      } catch (e) {
+        setLocationStatus(
+          "Could not resolve address. Use coordinates or current location.",
+          "danger",
+        );
+      }
+    }
+
+    async function suggestAddresses(q) {
+      try {
+        const r = await fetch(
+          `/api/services/geocode-suggest?q=${encodeURIComponent(q)}`,
+        );
+        const j = await r.json();
+        return (j.suggestions || []).slice(0, 5);
+      } catch (e) {
+        return [];
+      }
+    }
+
+    document
+      .getElementById("resolveAddressBtn")
+      .addEventListener("click", resolveAddressOrCoordinates);
+    document
+      .getElementById("detectLocationBtn")
+      .addEventListener("click", () => {
+        if (!navigator.geolocation)
+          return setLocationStatus("Geolocation not supported.", "danger");
+        setLocationStatus("Detecting location...", "info");
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const coords = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            };
+            locationInputEl.value = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+            setCustomerCoords(coords, "Current location pinned on map.");
+          },
+          () => setLocationStatus("Unable to detect location.", "danger"),
+          { enableHighAccuracy: true, timeout: 12000 },
+        );
+      });
+
+    let suggestTimer = null;
+    locationInputEl.addEventListener("input", () => {
+      clearTimeout(suggestTimer);
+      const q = String(locationInputEl.value || "").trim();
+      if (!q || q.length < 3) {
+        locationSuggestEl.classList.add("d-none");
+        locationSuggestEl.innerHTML = "";
+        return;
+      }
+      suggestTimer = setTimeout(async () => {
+        const items = await suggestAddresses(q);
+        locationSuggestEl.innerHTML = "";
+        if (!items.length) return locationSuggestEl.classList.add("d-none");
+        items.forEach((it) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "list-group-item list-group-item-action";
+          btn.textContent = it.display_name;
+          btn.addEventListener("click", () => {
+            locationInputEl.value = it.display_name;
+            locationSuggestEl.classList.add("d-none");
+            const lat = Number(it.lat);
+            const lng = Number(it.lon);
+            if (Number.isFinite(lat) && Number.isFinite(lng))
+              setCustomerCoords(
+                { lat, lng },
+                "Address suggestion pinned on map.",
+              );
+          });
+          locationSuggestEl.appendChild(btn);
+        });
+        locationSuggestEl.classList.remove("d-none");
+      }, 260);
+    });
+
+    locationInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        resolveAddressOrCoordinates();
+      }
+    });
+
+    document.querySelectorAll("[data-calendar-nav]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        state.calendar.activeMonth = addMonths(
+          state.calendar.activeMonth,
+          btn.dataset.calendarNav === "prev" ? -1 : 1,
+        );
+        await renderCalendar();
+      });
+    });
+
+    document.querySelectorAll(".category-btn").forEach((btn) => {
+      btn.addEventListener("click", async function () {
+        document
+          .querySelectorAll(".category-btn")
+          .forEach((item) => item.classList.remove("active"));
+        this.classList.add("active");
+        serviceTypeEl.value = this.getAttribute("data-category") || "core";
+        state.selectedServiceId = "";
+        state.selectedDate = null;
+        state.selectedStartMinutes = null;
+        renderServiceCards();
+        await renderCalendar();
+      });
+    });
+
+    serviceCardsEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".add-service-btn[data-service-id]");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      state.selectedServiceId = btn.getAttribute("data-service-id") || "";
+      serviceIdEl.value = state.selectedServiceId;
+      state.selectedDate = null;
+      state.selectedStartMinutes = null;
+      renderServiceCards();
+      await renderCalendar();
+      renderSuggestedDates();
+    });
+
+    serviceCardsEl.addEventListener("keydown", async (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const btn = e.target.closest(".add-service-btn[data-service-id]");
+      if (!btn) return;
+      e.preventDefault();
+      state.selectedServiceId = btn.getAttribute("data-service-id") || "";
+      serviceIdEl.value = state.selectedServiceId;
+      state.selectedDate = null;
+      state.selectedStartMinutes = null;
+      renderServiceCards();
+      await renderCalendar();
+      renderSuggestedDates();
+    });
+
+    techEl.addEventListener("change", async () => {
+      state.selectedDate = null;
+      state.selectedStartMinutes = null;
+      await loadTechnicianSchedule();
+      await fetchTechLocation();
+      await renderCalendar();
+      renderSuggestedDates(); // Update suggested dates when technician changes
+      updateSummary();
+    });
+
+    document.querySelectorAll(".payment-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document
+          .querySelectorAll(".payment-tab")
+          .forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const mode = tab.getAttribute("data-cash-mode") || "downpayment";
+        state.cashPaymentMode = mode === "full" ? "full" : "downpayment";
+        state.paymentMethod = "cod";
+        document.getElementById("payCod").value = "cod";
+        syncCashAmountInput();
+        updateSummary();
+      });
+    });
+
+    // Customer type selection event listeners
+    document.querySelectorAll('input[name="customerType"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        state.isNewCustomer = document.getElementById('custNew').checked;
+        
+        // Clear customer fields when switching type
+        if (state.isNewCustomer) {
+          // Switching to new customer - clear and enable fields
+          ['firstName', 'lastName', 'customerPhone', 'customerEmail'].forEach(id => {
+            const field = document.getElementById(id);
+            field.value = '';
+            field.disabled = false;
+          });
+          // For address selects: enable province, let PSGC handler cascade city/barangay
+          const provinceEl = document.getElementById('addrProvince');
+          const cityEl = document.getElementById('addrCity');
+          const barangayEl = document.getElementById('addrBarangay');
+          const postalEl = document.getElementById('addrPostalCode');
+          if (provinceEl) { provinceEl.value = ''; provinceEl.disabled = false; }
+          if (cityEl) { cityEl.value = ''; cityEl.disabled = true; }
+          if (barangayEl) { barangayEl.value = ''; barangayEl.disabled = true; }
+          if (postalEl) { postalEl.value = ''; postalEl.disabled = false; }
+          showSuccess('Switched to new customer mode. All fields are now editable.');
+        } else {
+          // Switching to existing customer - clear and enable only email initially
+          ['firstName', 'lastName', 'customerPhone', 'addrProvince', 'addrCity', 'addrBarangay', 'addrPostalCode'].forEach(id => {
+            const field = document.getElementById(id);
+            field.value = '';
+            field.disabled = true;
+          });
+          document.getElementById('customerEmail').disabled = false;
+          document.getElementById('customerEmail').value = '';
+          showSuccess('Switched to existing customer mode. Enter email to load customer details.');
+        }
+        
+        adjustCustomerDetailsStep();
+      });
+    });
+
+    document.querySelectorAll("[data-next-step]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const target = Number(btn.getAttribute("data-next-step"));
+        if (!validateStep(state.currentStep)) return;
+        // moving from customer type selection to details
+        if (state.currentStep === 0 && target === 1) {
+          // just record choice and prepare the details step
+          state.isNewCustomer = document.getElementById("custNew").checked;
+          adjustCustomerDetailsStep();
+        }
+        // before advancing from customer details step, handle new/existing email logic
+        if (state.currentStep === 1 && target === 2) {
+          const email = document.getElementById("customerEmail").value.trim();
+          const isNew = document.getElementById("custNew").checked;
+          if (!email) return showWarn("Email is required.");
+          
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            return showWarn("Please enter a valid email address.");
+          }
+          
+          try {
+            const resp = await fetch(
+              `/api/users?email=${encodeURIComponent(email)}`,
+            );
+            if (resp.ok) {
+              const json = await resp.json();
+              document.getElementById("customerEmail").value = email;
+              
+              if (json.user) {
+                // Email already exists in database
+                if (isNew) {
+                  // User selected "New Customer" but email exists
+                  if (!confirm(`Email "${email}" already exists in our system. Would you like to use the existing customer account instead?`)) {
+                    return; // User wants to keep new customer selection
+                  }
+                  // Auto-switch to existing customer
+                  document.getElementById("custExisting").checked = true;
+                  document.getElementById("custNew").checked = false;
+                  state.isNewCustomer = false;
+                } else if (!isNew) {
+                  // User selected "Existing Customer" and email exists - proceed
+                  state.isNewCustomer = false;
+                }
+                
+                // Populate existing customer data
+                const u = json.user;
+                document.getElementById("firstName").value = u.firstName || "";
+                document.getElementById("lastName").value = u.lastName || "";
+                document.getElementById("customerPhone").value = u.phone || "";
+                if (u.address) {
+                  setSelectByText(document.getElementById("addrProvince"), u.address.province);
+                  setTimeout(() => {
+                    setSelectByText(document.getElementById("addrCity"), u.address.city);
+                    setTimeout(() => {
+                      setSelectByText(document.getElementById("addrBarangay"), u.address.barangay);
+                    }, 300);
+                  }, 300);
+                  document.getElementById("addrPostalCode").value =
+                    u.address.postalCode || "";
+                }
+                [
+                  "firstName",
+                  "lastName",
+                  "customerPhone",
+                  "addrProvince",
+                  "addrCity",
+                  "addrBarangay",
+                  "addrPostalCode",
+                ].forEach((id) => {
+                  document.getElementById(id).disabled = true;
+                });
+                
+                showSuccess("Existing customer account found and loaded.");
+              } else {
+                // Email is unique in database
+                if (!isNew) {
+                  // User selected "Existing Customer" but email doesn't exist
+                  if (!confirm(`No account found for email "${email}". Would you like to create a new customer account instead?`)) {
+                    return; // User wants to try different email
+                  }
+                  // Auto-switch to new customer
+                  document.getElementById("custNew").checked = true;
+                  document.getElementById("custExisting").checked = false;
+                  state.isNewCustomer = true;
+                } else if (isNew) {
+                  // User selected "New Customer" and email is unique - proceed
+                  state.isNewCustomer = true;
+                }
+                
+                // Enable fields for new customer (province only for address; city/barangay cascade via PSGC)
+                ["firstName", "lastName", "customerPhone", "addrProvince", "addrPostalCode", "customerEmail"].forEach((id) => {
+                  document.getElementById(id).disabled = false;
+                });
+
+                showSuccess("Email is available for new customer account.");
+              }
+              adjustCustomerDetailsStep();
+            } else {
+              showWarn("Failed to verify email. Please try again.");
+              return;
+            }
+          } catch (e) {
+            console.warn("check email step1 failed", e);
+            showWarn("Network error while verifying email. Please try again.");
+            return;
+          }
+        }
+        if (target === 4) {
+          await loadTechnicianSchedule();
+          await renderCalendar();
+          renderSuggestedDates(); // Show suggested dates when entering calendar step
+        }
+        goToStep(target);
+      });
+    });
+
+    document.querySelectorAll("[data-prev-step]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        goToStep(Number(btn.getAttribute("data-prev-step")));
+        hideAlert();
+      });
+    });
+
+    document.querySelectorAll(".stepper-step[data-step]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const target = Number(btn.getAttribute("data-step"));
+        if (target > state.currentStep && !validateStep(state.currentStep))
+          return;
+        // if moving forward from step0 via stepper, apply same type selection logic
+        if (state.currentStep === 0 && target === 1) {
+          // just moving from selection to details; nothing to validate here
+          state.isNewCustomer = document.getElementById("custNew").checked;
+          adjustCustomerDetailsStep();
+        }
+        // if moving from details step via stepper, enforce email/existence check
+        if (state.currentStep === 1 && target === 2) {
+          const email = document.getElementById("customerEmail").value.trim();
+          const isNew = document.getElementById("custNew").checked;
+          if (!email) return showWarn("Email is required.");
+          
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            return showWarn("Please enter a valid email address.");
+          }
+          
+          try {
+            const resp = await fetch(
+              `/api/users?email=${encodeURIComponent(email)}`,
+            );
+            if (resp.ok) {
+              const json = await resp.json();
+              
+              if (json.user) {
+                // Email already exists in database
+                if (isNew) {
+                  // User selected "New Customer" but email exists
+                  if (!confirm(`Email "${email}" already exists in our system. Would you like to use the existing customer account instead?`)) {
+                    return; // User wants to keep new customer selection
+                  }
+                  // Auto-switch to existing customer
+                  document.getElementById("custExisting").checked = true;
+                  document.getElementById("custNew").checked = false;
+                  state.isNewCustomer = false;
+                } else if (!isNew) {
+                  // User selected "Existing Customer" and email exists - proceed
+                  state.isNewCustomer = false;
+                }
+                
+                // Populate existing customer data
+                const u = json.user;
+                document.getElementById("firstName").value = u.firstName || "";
+                document.getElementById("lastName").value = u.lastName || "";
+                document.getElementById("customerPhone").value = u.phone || "";
+                if (u.address) {
+                  setSelectByText(document.getElementById("addrProvince"), u.address.province);
+                  setTimeout(() => {
+                    setSelectByText(document.getElementById("addrCity"), u.address.city);
+                    setTimeout(() => {
+                      setSelectByText(document.getElementById("addrBarangay"), u.address.barangay);
+                    }, 300);
+                  }, 300);
+                  document.getElementById("addrPostalCode").value =
+                    u.address.postalCode || "";
+                }
+                [
+                  "firstName",
+                  "lastName",
+                  "customerPhone",
+                  "addrProvince",
+                  "addrCity",
+                  "addrBarangay",
+                  "addrPostalCode",
+                ].forEach((id) => {
+                  document.getElementById(id).disabled = true;
+                });
+                
+                showSuccess("Existing customer account found and loaded.");
+              } else {
+                // Email is unique in database
+                if (!isNew) {
+                  // User selected "Existing Customer" but email doesn't exist
+                  if (!confirm(`No account found for email "${email}". Would you like to create a new customer account instead?`)) {
+                    return; // User wants to try different email
+                  }
+                  // Auto-switch to new customer
+                  document.getElementById("custNew").checked = true;
+                  document.getElementById("custExisting").checked = false;
+                  state.isNewCustomer = true;
+                } else if (isNew) {
+                  // User selected "New Customer" and email is unique - proceed
+                  state.isNewCustomer = true;
+                }
+                
+                // Enable fields for new customer (province only for address; city/barangay cascade via PSGC)
+                ["firstName", "lastName", "customerPhone", "addrProvince", "addrPostalCode", "customerEmail"].forEach((id) => {
+                  document.getElementById(id).disabled = false;
+                });
+
+                showSuccess("Email is available for new customer account.");
+              }
+              adjustCustomerDetailsStep();
+            } else {
+              showWarn("Failed to verify email. Please try again.");
+              return;
+            }
+          } catch (e) {
+            console.warn("check email stepper failed", e);
+            showWarn("Network error while verifying email. Please try again.");
+            return;
+          }
+        }
+      });
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      for (const s of [1, 2, 3, 4, 5]) {
+        if (!validateStep(s)) {
+          goToStep(s);
+          return;
+        }
+      }
+
+      const svc = currentService();
+      const customerEmailFieldValue = document.getElementById("customerEmail").value.trim();
+      console.log("[FRONTEND] Submitting with email:", customerEmailFieldValue, "isNewCustomer:", state.isNewCustomer);
+      
+      const payload = {
+        firstName: document.getElementById("firstName").value.trim(),
+        lastName: document.getElementById("lastName").value.trim(),
+        customerPhone: document.getElementById("customerPhone").value.trim(),
+        customerEmail: customerEmailFieldValue,
+        isNewCustomer: state.isNewCustomer,
+        address: {
+          province: document.getElementById("addrProvince").value.trim(),
+          city: document.getElementById("addrCity").value.trim(),
+          barangay: document.getElementById("addrBarangay").value.trim(),
+          postalCode: document.getElementById("addrPostalCode").value.trim(),
+        },
+        customerLocation: state.customerCoords
+          ? {
+              lat: state.customerCoords.lat,
+              lng: state.customerCoords.lng,
+              address:
+                locationInputEl.value.trim() ||
+                document.getElementById("addrCity").value.trim(),
+            }
+          : undefined,
+        serviceId: state.selectedServiceId,
+        technicianId: techEl.value,
+        date: formatDateKey(state.selectedDate),
+        startTime: minutesToHHMM(state.selectedStartMinutes),
+        issueDescription: document
+          .getElementById("issueDescription")
+          .value.trim(),
+        paymentMethod: "cod",
+        cashPaymentMode: state.cashPaymentMode,
+
+        downpaymentAmount: Number(
+          document.getElementById("downpaymentAmount").value,
+        ),
+        travelFare: state.travelFare,
+        travelTime: state.travelTime,
+        estimatedFee: Number(
+          (
+            Number((svc && svc.basePrice) || 0) + Number(state.travelFare || 0)
+          ).toFixed(2),
+        ),
+      };
+      // auto-generate reference if not provided
+      // always auto‑generate a reference (field removed from UI)
+      payload.paymentReference = `OR-${Date.now()}`;
+
+      saveBtn.disabled = true;
+      saveBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-1"></span>Creating…';
+
+      try {
+        const r = await fetch("/api/appointments/walk-in", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (!r.ok)
+          throw new Error(d.error || "Failed to create walk-in appointment");
+
+        console.log("walk-in response customer", d.customer);
+        const ref =
+          (d.appointment && d.appointment.bookingReference) || "(no reference)";
+        let accountMsg = "";
+        let bookingMsg = "";
+        
+        if (d.customerAccountCreated && d.customer) {
+          accountMsg = ` A new customer account was auto-created for <strong>${d.customer.email}</strong>. An auto-generated password and secure password reset link have been emailed to the customer.`;
+          bookingMsg = ` Booking confirmation and appointment details have been sent to the customer's email.`;
+        } else if (!d.customerAccountCreated && d.customer) {
+          bookingMsg = ` Booking confirmation and appointment details have been sent to the existing customer's email at <strong>${d.customer.email}</strong>.`;
+        }
+        
+        alertEl.innerHTML =
+          `Walk-in appointment created successfully. Reference: <strong>${ref}</strong>.${accountMsg}${bookingMsg}`;
+        alertEl.className = "alert alert-success";
+        alertEl.classList.remove("d-none");
+
+        form.reset();
+        state.paymentMethod = "cod";
+        state.cashPaymentMode = "downpayment";
+        state.selectedDate = null;
+        state.selectedStartMinutes = null;
+        state.travelFare = 0;
+        state.travelTime = 0;
+        state.customerCoords = null;
+        if (state.markers.customer && state.map) {
+          state.map.removeLayer(state.markers.customer);
+          state.markers.customer = null;
+        }
+        if (state.route && state.map) {
+          state.map.removeLayer(state.route);
+          state.route = null;
+        }
+        document
+          .querySelectorAll(".payment-tab")
+          .forEach((t) =>
+            t.classList.toggle(
+              "active",
+              t.getAttribute("data-cash-mode") === "downpayment",
+            ),
+          );
+        document.getElementById("payCod").value = "cod";
+        serviceTypeEl.value = "core";
+        document
+          .querySelectorAll(".category-btn")
+          .forEach((item) =>
+            item.classList.toggle(
+              "active",
+              item.getAttribute("data-category") === "core",
+            ),
+          );
+        state.selectedServiceId = "";
+        locationInputEl.value = "";
+        mapDistanceInfoEl.textContent =
+          "Distance and ETA will appear here after setting location.";
+        setLocationStatus(
+          "Set customer location to compute travel fare and available slots.",
+          "muted",
+        );
+        await renderCalendar();
+        renderServiceCards();
+        renderTechnicians();
+        syncCashAmountInput();
+        goToStep(0);
+        updateSummary();
+      } catch (err) {
+        showAlert("danger", err.message || "Create failed");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML =
+          '<i class="bi bi-check2-circle me-1"></i>Create Walk-in Appointment';
+      }
+    });
+
+    (async function init() {
+      try {
+        await loadFarePerKm();
+        await loadOptions();
+        await renderCalendar();
+        syncCashAmountInput();
+        goToStep(0);
+      } catch (err) {
+        showAlert(
+          "danger",
+          err.message || "Failed to initialize walk-in page.",
+        );
+      }
+    })();
+  })();
+</script>

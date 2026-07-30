@@ -1,0 +1,33 @@
+/* Minimal styles for the FullCalendar fallback stub */
+.fc-fallback-container{ padding:8px 12px; display:block; }
+.fc-empty{ color:#666; padding:8px; }
+.fc-day{ border-left:4px solid #007bff; margin:8px 0; padding:6px 10px; background:#f8f9fa; border-radius:4px; }
+.fc-day-label{ font-weight:600; margin-bottom:6px; }
+.fc-event{ padding:6px 8px; background:#dc3545; color:#fff; border-radius:3px; margin:4px 0; cursor:pointer; display:inline-block; }
+
+/* grid styles for week view fallback */
+.fc-grid{ display:flex; gap:8px; padding:8px; }
+.fc-col{ flex:1; min-width:120px; border-radius:6px; padding:8px; box-sizing:border-box; background:#fff; border:1px solid #e9ecef; }
+.fc-col-label{ font-weight:700; margin-bottom:6px; }
+.fc-col-events{ margin-top:6px; }
+.fc-event-badge{ display:block; padding:4px 6px; margin:4px 0; background:rgba(0,0,0,0.08); border-radius:3px; }
+.fc-legend{ padding:8px 12px; font-size:0.95em; color:#333; text-align:center; margin-top:8px; }
+.fc-header{ display:flex; justify-content:space-between; align-items:center; }
+.leg{ display:inline-block; width:14px; height:14px; vertical-align:middle; margin-right:6px; border-radius:3px; }
+.leg-work{ background:#28a745; }
+.leg-book{ background:#dc3545; }
+.leg-non{ background:#6c757d; }
+
+/* Month grid */
+.fc-month-grid{ padding:8px; }
+.fc-month-header{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; }
+.fc-month-header-cell{ font-weight:700; text-align:center; padding:6px 4px; }
+.fc-month-week{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; }
+.fc-month-cell{ min-height:72px; border-radius:6px; padding:6px; box-sizing:border-box; background:#fff; border:1px solid #e9ecef; position:relative; }
+.fc-day-number{ position:absolute; top:6px; left:8px; font-weight:600; font-size:0.85em; }
+.fc-cell-badges{ margin-top:22px; display:flex; gap:6px; flex-wrap:wrap; }
+.fc-cell-badges .fc-event-badge{ display:inline-block; padding:4px 6px; margin:2px; background:rgba(0,0,0,0.06); color:inherit; border-radius:3px; font-size:12px; font-weight:600; opacity:0.95; }
+
+/* dim days outside current month and make background badges subtle */
+.fc-month-cell-outside{ opacity:0.45; filter:grayscale(0.1); }
+.fc-has-bg .fc-day-number{ font-weight:700; color:inherit; }

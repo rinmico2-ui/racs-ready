@@ -1,0 +1,73 @@
+<section class="py-5" style="min-height:80vh;background:linear-gradient(135deg,#fff1f2 0%,#ffe4e6 50%,#fff1f2 100%);">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="card border-0 shadow-lg rounded-4 overflow-hidden text-center">
+          <!-- Red gradient header -->
+          <div class="py-5 px-4" style="background:linear-gradient(135deg,#dc2626,#b91c1c);">
+            <div style="font-size:3.5rem;margin-bottom:.5rem;">&#10060;</div>
+            <h2 class="text-white fw-bold mb-1">Payment Unsuccessful</h2>
+            <p class="text-white mb-0" style="opacity:.85;font-size:.95rem;">Your GCash payment could not be completed.</p>
+          </div>
+
+          <div class="card-body px-4 py-4">
+            <!-- Booking reference badge -->
+            <% if (bookingRef) { %>
+            <div class="mb-4">
+              <div class="text-muted small mb-1">Booking Reference</div>
+              <div class="d-inline-block px-4 py-2 rounded-3 fw-bold"
+                   style="background:#fff1f2;border:1.5px solid #fca5a5;color:#b91c1c;font-size:1.1rem;letter-spacing:2px;">
+                <%= bookingRef %>
+              </div>
+            </div>
+            <% } %>
+
+            <!-- Info box -->
+            <div class="rounded-3 p-3 mb-4 text-start" style="background:#fff1f2;border:1px solid #fecaca;">
+              <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-danger mt-1"></i>
+                <div>
+                  <div class="fw-semibold small mb-1">Payment was not completed</div>
+                  <p class="mb-0 small text-muted">
+                    This can happen if the payment was cancelled, timed out, or your GCash account had insufficient balance.
+                    <strong>Your booking is still on hold.</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- What you can do -->
+            <div class="text-start mb-4">
+              <div class="fw-semibold mb-2 small text-muted text-uppercase" style="letter-spacing:.5px;">What you can do</div>
+              <ul class="ps-3 mb-0 small text-muted" style="line-height:2;">
+                <li>Try booking again and select <strong>GCash</strong> as payment.</li>
+                <li>Make sure your GCash account has sufficient balance.</li>
+                <li>Use <strong>Cash</strong> payment instead and pay a downpayment to reserve your slot.</li>
+                <li>Contact our support team with your booking reference above.</li>
+              </ul>
+            </div>
+
+            <!-- CTA buttons -->
+            <div class="d-grid gap-2">
+              <a href="/services" class="btn btn-primary btn-lg fw-semibold">
+                <i class="bi bi-arrow-clockwise me-2"></i>Try Booking Again
+              </a>
+              <a href="/book-history" class="btn btn-outline-secondary">
+                <i class="bi bi-calendar2-week me-2"></i>View My Bookings
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trust badges -->
+        <div class="text-center mt-4">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3"
+               style="background:rgba(255,255,255,.7);backdrop-filter:blur(6px);font-size:.8rem;color:#6c757d;">
+            <i class="bi bi-shield-fill text-secondary"></i>
+            <span>Your payment data is protected &bull; Powered by PayMongo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

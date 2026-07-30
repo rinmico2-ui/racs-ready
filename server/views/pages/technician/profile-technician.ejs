@@ -1,0 +1,133 @@
+<div class="admin-dashboard container-fluid px-0 py-4 profile-technician-page">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title">
+          <i class="bi bi-person-circle me-2"></i>Technician Profile
+        </h1>
+        <p class="hero-sub small">
+          Account details for <%= user && user.email ? user.email : 'Technician' %>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row gx-0">
+    <div class="col-12 mb-4">
+      <div class="card shadow-lg bg-white w-100">
+        <div class="card-body p-4">
+          <h6 class="mb-3">Account Details</h6>
+          <form class="row gx-3 gy-2" id="technicianProfileForm">
+            <div class="col-md-6">
+              <label class="form-label small">First Name</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input
+                  name="firstName"
+                  type="text"
+                  class="form-control"
+                  value="<%= user.firstName || '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Last Name</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input
+                  name="lastName"
+                  type="text"
+                  class="form-control"
+                  value="<%= user.lastName || '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Email</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                <input
+                  name="email"
+                  type="email"
+                  class="form-control"
+                  value="<%= user.email || '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Phone</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                <input
+                  name="phone"
+                  type="tel"
+                  class="form-control"
+                  value="<%= user.phone || '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Role</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
+                <input
+                  type="text"
+                  class="form-control"
+                  value="Technician"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Customer Rating</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-star"></i></span>
+                <input
+                  type="text"
+                  class="form-control"
+                  value="<%= typeof techProfile !== 'undefined' && techProfile.rating ? techProfile.rating.toFixed(1) + ' / 5.0' : 'Unrated' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Employed Since</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
+                <input
+                  type="text"
+                  class="form-control"
+                  value="<%= user && user.createdAt ? new Date(user.createdAt).toLocaleString() : '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Last Login</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-clock"></i></span>
+                <input
+                  type="text"
+                  class="form-control"
+                  value="<%= user && user.lastLogin ? new Date(user.lastLogin).toLocaleString() : '' %>"
+                  readonly
+                />
+              </div>
+            </div>
+          </form>
+          <div class="mt-4 d-flex gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="/technician">
+              Back to dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

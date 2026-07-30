@@ -1,0 +1,532 @@
+/* ===== COLOR SYSTEM ===== */
+:root {
+  --blue-dark: #1a3d5d;
+  --blue-mid: #60c4ff;
+  --blue-ice: #c3f0ff;
+  --blue-soft: #e0f7ff;
+  --white-soft: rgba(255, 255, 255, 0.95);
+}
+
+/* ===== SERVICES POSTER SECTION ===== */
+.services-poster {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: clamp(3rem, 6vw, 6rem);
+  box-sizing: border-box;
+
+  background-image: url("/images/servicesbg/sect4.avif");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+/* Overlay for contrast */
+.services-poster::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 22, 33, 0.4); /* subtle dark overlay */
+}
+
+/* LEFT DETAILS PANEL */
+.poster-panel {
+  position: relative;
+  z-index: 2; /* above overlay */
+  max-width: 550px;
+  padding: clamp(2rem, 4vw, 3.5rem);
+  border-radius: 20px;
+
+  /* make panel mostly solid so text pops off background */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+
+  color: var(--blue-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Accent stripe */
+.poster-panel::before {
+  content: "";
+  position: absolute;
+  top: 32px;
+  left: 0;
+  width: 6px;
+  height: 70px;
+  background: linear-gradient( 
+    180deg,
+    var(--blue-ice),
+    var(--blue-mid)
+  );
+  box-shadow: 0 0 18px rgba(195, 240, 255, 0.8);
+  border-radius: 0 6px 6px 0;
+}
+
+/* TYPOGRAPHY */
+.poster-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--blue-dark);
+}
+
+.poster-subtitle {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--blue-dark);
+}
+
+.poster-desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--blue-mid);
+}
+
+/* SERVICES LIST */
+.poster-services {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.6rem;
+}
+
+.poster-services li {
+  position: relative;
+  padding-left: 1.6rem;
+  color: var(--blue-dark);
+  font-size: 0.95rem;
+}
+
+/* Icy bullet */
+.poster-services li::before {
+  content: "❄";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--blue-ice);
+  font-size: 0.9rem;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .services-poster {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 3rem 2rem;
+  }
+
+  .poster-panel {
+    max-width: 100%;
+  }
+
+  .poster-services {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ===== Repair Services Section ===== */
+.repair-services {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 5rem 2rem;
+  overflow: hidden;
+}
+
+
+/* Background Image with Overlay */
+.repair-bg {
+  position: absolute;
+  inset: 0;
+  background-image: url('/images/background/ok.png');
+  background-size: cover;
+  background-position: center;
+  z-index: 1;
+}
+
+.repair-card {
+  background: rgba(48, 96, 252, 0.877); /* icy light blue */
+  backdrop-filter: blur(15px);
+  border-radius: 20px;
+  border: 1px solid rgba(79, 209, 255, 0.3); /* subtle blue border */
+  box-shadow: 0 10px 30px rgba(79, 209, 255, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border 0.3s ease;
+  cursor: pointer;
+}
+
+.repair-card:hover {
+  transform: translateY(-10px) scale(1.03);
+  box-shadow: 0 25px 50px rgba(79, 209, 255, 0.5), 0 0 15px rgba(79, 209, 255, 0.4) inset;
+  border: 1px solid rgba(79, 209, 255, 0.6);
+}
+.repair-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: linear-gradient(120deg, rgba(79,209,255,0.2), rgba(255,255,255,0.1), rgba(79,209,255,0.2));
+  transform: rotate(45deg) translateX(-100%);
+  transition: transform 2s ease-in-out;
+  pointer-events: none;
+}
+
+.repair-card:hover::before {
+  transform: rotate(45deg) translateX(100%);
+}
+
+
+.repair-icon i {
+  color: #4fd1ff; /* icy light blue */
+}
+
+.section-title {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 700;
+  color: #0e3a5a; /* deep blue for strong contrast */
+}
+
+.section-subtitle {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #0e3a5a; /* soft light blue for subtitle */
+}
+
+/* Make content above overlay */
+.z-2 {
+  position: relative;
+  z-index: 2;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .repair-card {
+    padding: 2rem 1.5rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ENTERPRISE SERVICE CARDS — Core Service & Repair Request
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Enterprise Service Card */
+.ent-service-card {
+  background: #ffffff;
+  border: 1px solid var(--ent-slate-200, #e2e8f0);
+  border-radius: 16px;
+  padding: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
+  box-shadow: 0 4px 24px rgba(15,23,42,0.06);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.ent-service-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--ent-primary, #2563eb), var(--ent-primary-light, #3b82f6));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ent-service-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 40px rgba(37,99,235,0.12);
+  border-color: var(--ent-primary-200, #bfdbfe);
+}
+
+.ent-service-card:hover::before {
+  opacity: 1;
+}
+
+.ent-service-card.selected {
+  border-color: var(--ent-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+.ent-service-card.selected::before {
+  opacity: 1;
+}
+
+/* Enterprise Service Card Icon */
+.ent-service-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.ent-service-card:hover .ent-service-icon {
+  transform: scale(1.1);
+}
+
+/* Enterprise Service Card Title */
+.ent-service-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ent-slate-800, #1e293b);
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+/* Enterprise Service Card Description */
+.ent-service-desc {
+  font-size: 0.88rem;
+  color: var(--ent-slate-500, #64748b);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+/* Enterprise Service Card Price */
+.ent-service-price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--ent-primary, #2563eb);
+}
+
+.ent-service-price .price-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ent-slate-400, #94a3b8);
+}
+
+/* Enterprise Service Card Badge */
+.ent-service-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, var(--ent-success, #059669), var(--ent-success-light, #10b981));
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Enterprise Quantity Selector */
+.ent-quantity-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.ent-quantity-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--ent-slate-200, #e2e8f0);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--ent-slate-600, #475569);
+}
+
+.ent-quantity-btn:hover {
+  border-color: var(--ent-primary, #2563eb);
+  color: var(--ent-primary, #2563eb);
+  background: var(--ent-primary-50, #eff6ff);
+}
+
+.ent-quantity-value {
+  width: 40px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ent-slate-800, #1e293b);
+}
+
+/* Enterprise Selected Services Summary */
+.ent-selected-summary {
+  background: var(--ent-slate-50, #f8fafc);
+  border: 1px solid var(--ent-slate-200, #e2e8f0);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.ent-selected-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--ent-slate-100, #f1f5f9);
+}
+
+.ent-selected-item:last-child {
+  border-bottom: none;
+}
+
+/* Enterprise HP Selection Cards */
+.ent-hp-card {
+  background: #ffffff;
+  border: 2px solid var(--ent-slate-200, #e2e8f0);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.ent-hp-card:hover {
+  border-color: var(--ent-primary-200, #bfdbfe);
+  background: var(--ent-primary-50, #eff6ff);
+}
+
+.ent-hp-card.selected {
+  border-color: var(--ent-primary, #2563eb);
+  background: var(--ent-primary-50, #eff6ff);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+/* Enterprise Aircon Type Cards */
+.ent-aircon-card {
+  background: #ffffff;
+  border: 2px solid var(--ent-slate-200, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.ent-aircon-card:hover {
+  border-color: var(--ent-primary-200, #bfdbfe);
+  transform: translateY(-2px);
+}
+
+.ent-aircon-card.selected {
+  border-color: var(--ent-primary, #2563eb);
+  background: var(--ent-primary-50, #eff6ff);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+/* Enterprise Symptom Chips */
+.ent-symptom-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--ent-slate-200, #e2e8f0);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ent-slate-600, #475569);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0.25rem;
+}
+
+.ent-symptom-chip:hover {
+  border-color: var(--ent-primary-200, #bfdbfe);
+  background: var(--ent-primary-50, #eff6ff);
+  color: var(--ent-primary, #2563eb);
+}
+
+.ent-symptom-chip.active {
+  background: var(--ent-primary, #2563eb);
+  border-color: var(--ent-primary, #2563eb);
+  color: #ffffff;
+}
+
+/* Enterprise Photo Upload Zone */
+.ent-photo-upload {
+  border: 2px dashed var(--ent-slate-300, #cbd5e1);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--ent-slate-50, #f8fafc);
+}
+
+.ent-photo-upload:hover {
+  border-color: var(--ent-primary, #2563eb);
+  background: var(--ent-primary-50, #eff6ff);
+}
+
+.ent-photo-upload.dragover {
+  border-color: var(--ent-primary, #2563eb);
+  background: var(--ent-primary-50, #eff6ff);
+  transform: scale(1.02);
+}
+
+/* Enterprise Photo Preview Grid */
+.ent-photo-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.ent-photo-preview-item {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--ent-slate-200, #e2e8f0);
+}
+
+.ent-photo-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ent-photo-preview-item .remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ent-danger, #dc2626);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ent-photo-preview-item:hover .remove-btn {
+  opacity: 1;
+}

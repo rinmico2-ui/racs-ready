@@ -1,0 +1,421 @@
+<div class="admin-dashboard container-fluid py-4 appointments-calendar">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
+
+  <style>
+    .appointments-calendar {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.45;
+      --cal-radius: 14px;
+      --cal-border: rgba(0,0,0,0.06);
+      --cal-muted: #6b7280;
+      --cal-title: #0f172a;
+      --cal-bg: #f8fafc;
+      --blue-600: #2563eb;
+      --blue-700: #1d4ed8;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-500: #64748b;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+    }
+
+    .appointments-calendar .fc-event.pending    { background: #f59e0b !important; color:#fff !important; }
+    .appointments-calendar .fc-event.confirmed   { background: #2563eb !important; color:#fff !important; }
+    .appointments-calendar .fc-event.approved    { background: #2563eb !important; color:#fff !important; }
+    .appointments-calendar .fc-event.scheduled   { background: #8b5cf6 !important; color:#fff !important; }
+    .appointments-calendar .fc-event.completed   { background: #16a34a !important; color:#fff !important; }
+    .appointments-calendar .fc-event.cancelled   { background: #dc2626 !important; color:#fff !important; }
+    .appointments-calendar .fc-event.rejected    { background: #dc2626 !important; color:#fff !important; }
+    .appointments-calendar .fc-event { border: none !important; border-radius: 7px !important; }
+    .appointments-calendar .fc-event:hover { filter: brightness(0.92); }
+
+    .appointments-calendar .calendar-spinner {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 44px; height: 44px; border: 3.5px solid rgba(0,0,0,0.08); border-top-color: var(--blue-600);
+      border-radius: 50%; animation: spin 0.8s linear infinite; display: none; z-index: 10;
+    }
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    .appointments-calendar .page-shell { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 1200px) { .appointments-calendar .page-shell { grid-template-columns: minmax(0, 1fr) 380px; } }
+
+    .appointments-calendar .cal-card,
+    .appointments-calendar .list-card {
+      background: #fff; border: 1px solid var(--slate-200); border-radius: var(--cal-radius);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02);
+      overflow: hidden; transition: box-shadow 0.2s ease;
+    }
+    .appointments-calendar .cal-card:hover,
+    .appointments-calendar .list-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03); }
+
+    .appointments-calendar .cal-body { padding: 20px; background: #fff; position: relative; }
+    .appointments-calendar #secretaryAppointmentsCalendar { min-height: 620px; background: #fff; border-radius: 12px; padding: 4px; width: 100%; }
+
+    /* ── Filter Bar ────────────────────────────────────────────── */
+    .cal-filter-bar {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      padding: 14px 20px; background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .cal-filter-bar .filter-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate-400); margin-right: 4px; white-space: nowrap; }
+    .cal-filter-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px 5px 8px;
+      border-radius: 20px; font-size: 0.73rem; font-weight: 600; color: var(--slate-600);
+      background: #fff; border: 1px solid var(--slate-200); cursor: pointer;
+      transition: all 0.15s ease; white-space: nowrap; user-select: none;
+    }
+    .cal-filter-chip:hover { background: var(--slate-100); border-color: var(--slate-300); }
+    .cal-filter-chip.active { background: var(--blue-600); color: #fff; border-color: var(--blue-600); }
+    .cal-filter-chip.active:hover { background: var(--blue-700); border-color: var(--blue-700); }
+    .cal-filter-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; opacity: 0.9; }
+    .cal-filter-chip.active .chip-dot { background: rgba(255,255,255,0.9) !important; }
+    .cal-filter-chip .chip-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; border-radius: 9px; font-size: 0.65rem; font-weight: 700; background: var(--slate-100); color: var(--slate-500); padding: 0 5px; margin-left: 2px; }
+    .cal-filter-chip.active .chip-count { background: rgba(255,255,255,0.25); color: #fff; }
+    .cal-filter-divider { width: 1px; height: 22px; background: var(--slate-200); margin: 0 4px; }
+    .cal-clear-filters { font-size: 0.72rem; font-weight: 600; color: var(--slate-500); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
+    .cal-clear-filters:hover { background: var(--slate-100); color: var(--slate-700); }
+
+    .cal-hours-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+      border-radius: 8px; font-size: 0.72rem; font-weight: 600; margin-left: auto;
+      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+      border: 1px solid #bbf7d0; color: #166534; white-space: nowrap;
+    }
+    .cal-hours-badge i { font-size: 0.85rem; }
+    .cal-hours-badge.off-hours { background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%); border-color: #fde68a; color: #92400e; }
+
+    /* ── Event Content ─────────────────────────────────────────── */
+    #secretaryAppointmentsCalendar .event-content-wrapper { display: flex; flex-direction: column; gap: 1px; padding: 0; line-height: 1.2; }
+    #secretaryAppointmentsCalendar .event-time { font-weight: 600; margin-right: 6px; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.5); font-size: 0.85rem; }
+    #secretaryAppointmentsCalendar .event-customer { font-weight: 600; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.5); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+    #secretaryAppointmentsCalendar .event-service { font-weight: 400; color: rgba(255,255,255,0.9); text-shadow: 0 0 2px rgba(0,0,0,0.5); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+
+    /* ═══ FullCalendar — Enterprise ═══════════════════════════════ */
+    #secretaryAppointmentsCalendar, #secretaryAppointmentsCalendar .fc, #secretaryAppointmentsCalendar .fc * { font-family: "Inter", system-ui, sans-serif !important; }
+    #secretaryAppointmentsCalendar .fc { font-size: 0.9rem; width: 100%; }
+
+    #secretaryAppointmentsCalendar .fc-toolbar { display: flex !important; align-items: center !important; justify-content: space-between !important; flex-wrap: wrap !important; background: #fff !important; border-radius: 12px !important; padding: 12px 16px !important; margin-bottom: 16px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.03) !important; }
+    #secretaryAppointmentsCalendar .fc-toolbar-title { font-size: 1.15rem !important; font-weight: 700 !important; color: var(--slate-800) !important; letter-spacing: -0.015em !important; }
+
+    #secretaryAppointmentsCalendar .fc-prev-button, #secretaryAppointmentsCalendar .fc-next-button { background-color: #fff !important; border: 1px solid var(--slate-200) !important; color: var(--slate-600) !important; border-radius: 8px !important; width: 34px !important; height: 34px !important; padding: 0 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-size: 0.85rem !important; margin-right: 4px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; transition: all 0.15s ease !important; }
+    #secretaryAppointmentsCalendar .fc-prev-button:hover, #secretaryAppointmentsCalendar .fc-next-button:hover { background-color: var(--slate-100) !important; border-color: var(--slate-300) !important; color: var(--slate-800) !important; }
+
+    #secretaryAppointmentsCalendar .fc-today-button { background-color: #fff !important; border: 1px solid var(--slate-200) !important; color: var(--slate-600) !important; border-radius: 8px !important; font-size: 0.78rem !important; font-weight: 600 !important; padding: 6px 14px !important; margin: 0 !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; transition: all 0.15s ease !important; }
+    #secretaryAppointmentsCalendar .fc-today-button:hover { background-color: var(--slate-100) !important; border-color: var(--slate-300) !important; color: var(--slate-800) !important; }
+    #secretaryAppointmentsCalendar .fc-today-button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; }
+
+    #secretaryAppointmentsCalendar .fc-button-group { border: 1px solid var(--slate-200) !important; border-radius: 8px !important; overflow: hidden !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; }
+    #secretaryAppointmentsCalendar .fc-button-group .fc-button { background-color: #fff !important; border: none !important; border-right: 1px solid var(--slate-200) !important; color: var(--slate-500) !important; border-radius: 0 !important; font-size: 0.76rem !important; font-weight: 600 !important; padding: 6px 16px !important; margin: 0 !important; box-shadow: none !important; outline: none !important; transition: all 0.15s ease !important; }
+    #secretaryAppointmentsCalendar .fc-button-group .fc-button:last-child { border-right: none !important; }
+    #secretaryAppointmentsCalendar .fc-button-group .fc-button:hover { background-color: var(--slate-100) !important; color: var(--slate-700) !important; }
+    #secretaryAppointmentsCalendar .fc-button-group .fc-button-active { background-color: var(--blue-600) !important; color: #fff !important; font-weight: 700 !important; }
+    #secretaryAppointmentsCalendar .fc-button-group .fc-button-active:hover { background-color: var(--blue-700) !important; color: #fff !important; }
+
+    #secretaryAppointmentsCalendar .fc-col-header-cell { background: linear-gradient(180deg, var(--slate-50) 0%, var(--slate-100) 100%) !important; font-weight: 700 !important; font-size: 0.76rem !important; color: var(--slate-600) !important; padding: 11px 0 !important; border-bottom: 2px solid var(--slate-200) !important; text-transform: uppercase; letter-spacing: 0.06em; }
+    #secretaryAppointmentsCalendar .fc-col-header-cell a, #secretaryAppointmentsCalendar .fc-col-header-cell a:hover { color: var(--slate-700) !important; text-decoration: none !important; }
+
+    #secretaryAppointmentsCalendar .fc-daygrid-day-top { display: flex !important; flex-direction: row-reverse !important; padding: 8px 10px 2px 10px !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day-number { font-size: 0.82rem !important; font-weight: 500 !important; color: var(--slate-500) !important; width: 28px !important; height: 28px !important; display: flex !important; align-items: center !important; justify-content: center !important; border-radius: 8px !important; transition: all 0.15s ease !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day-number a { color: inherit !important; text-decoration: none !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day:hover .fc-daygrid-day-number { background: var(--slate-100) !important; color: var(--slate-800) !important; }
+
+    #secretaryAppointmentsCalendar .fc-day-today { background: rgba(37,99,235,0.04) !important; }
+    #secretaryAppointmentsCalendar .fc-day-today .fc-daygrid-day-number { background: var(--blue-600) !important; color: #fff !important; font-weight: 700 !important; box-shadow: 0 2px 8px rgba(37,99,235,0.3) !important; }
+
+    #secretaryAppointmentsCalendar .fc-scrollgrid { border: 1px solid var(--slate-200) !important; border-radius: 12px; overflow: hidden; width: 100%; }
+    #secretaryAppointmentsCalendar .fc-scrollgrid td, #secretaryAppointmentsCalendar .fc-scrollgrid th { border-color: var(--slate-100) !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day { border: 1px solid var(--slate-100) !important; transition: background 0.15s ease !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day:hover { background: var(--slate-50) !important; }
+
+    #secretaryAppointmentsCalendar .fc-daygrid-event { border-radius: 6px !important; font-size: 0.76rem !important; font-weight: 600 !important; padding: 3px 8px !important; margin: 2px 4px !important; overflow: hidden !important; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.15s ease !important; min-height: auto !important; line-height: 1.4 !important; border-left: 3px solid currentColor !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-event:hover { transform: translateY(-1px) !important; box-shadow: 0 3px 8px rgba(0,0,0,0.12) !important; }
+    #secretaryAppointmentsCalendar .fc-daygrid-day-events { padding: 0 2px 4px 2px !important; }
+
+    #secretaryAppointmentsCalendar .fc-timegrid-slot { height: 72px !important; min-height: 72px !important; position: relative !important; background: transparent !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-slot-minor { border-top: none !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-body { background: var(--slate-50) !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-axis, #secretaryAppointmentsCalendar .fc-timegrid-slot-label { width: 68px !important; min-width: 68px !important; background: #fff !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-slot-label-cushion { font-size: 0.78rem !important; font-weight: 500 !important; color: var(--slate-500) !important; padding: 0 12px 0 0 !important; text-transform: lowercase; }
+    #secretaryAppointmentsCalendar .fc-timegrid-col { border-right: 1px solid var(--slate-200) !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-col:last-child { border-right: none !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-slot { border-bottom: 1px solid var(--slate-100) !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-slot-minor { border-bottom: 1px dashed var(--slate-100) !important; }
+
+    #secretaryAppointmentsCalendar .fc-timegrid-event-harness { overflow: hidden !important; width: 100% !important; padding: 0 !important; margin: 0 !important; position: relative !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-event { box-sizing: border-box !important; border-radius: 7px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important; font-size: 0.82rem !important; padding: 6px 8px !important; display: flex !important; flex-direction: column !important; justify-content: flex-start !important; align-items: flex-start !important; text-align: left !important; white-space: normal !important; word-break: normal !important; overflow-wrap: break-word !important; overflow: hidden !important; height: 100% !important; margin: 0 !important; line-height: 1.35; border-left: 3px solid currentColor !important; width: 100% !important; min-width: 0 !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; }
+    #secretaryAppointmentsCalendar .fc-timegrid-event .fc-event-time { font-size: 0.82rem !important; font-weight: 600; display: none !important; margin-bottom: 2px; line-height: 1.2; }
+    #secretaryAppointmentsCalendar .fc-timegrid-event .fc-event-title { font-weight: 500; font-size: 0.82rem !important; line-height: 1.2; display: none !important; }
+
+    #secretaryAppointmentsCalendar .fc-list-event { border-bottom: 1px solid var(--slate-100) !important; }
+    #secretaryAppointmentsCalendar .fc-list-event:hover td { background: var(--slate-50) !important; }
+    #secretaryAppointmentsCalendar .fc-list-event-dot { border-radius: 50% !important; width: 8px !important; height: 8px !important; border: none !important; }
+    #secretaryAppointmentsCalendar .fc-list-day-text, #secretaryAppointmentsCalendar .fc-list-day-link { font-size: 0.82rem !important; font-weight: 600 !important; color: var(--slate-700) !important; }
+
+    #secretaryAppointmentsCalendar .fc-now-indicator { height: 2px !important; background-color: #dc2626 !important; left: 0 !important; right: 0 !important; width: 100% !important; z-index: 3 !important; }
+    #secretaryAppointmentsCalendar .fc-scroller::-webkit-scrollbar { display: none !important; }
+    #secretaryAppointmentsCalendar .fc-scroller { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+    #secretaryAppointmentsCalendar .fc-day-today.fc-timegrid-col { background-color: rgba(37,99,235,0.03) !important; }
+    #secretaryAppointmentsCalendar .fc-col-header-cell.fc-day-today { background: rgba(37,99,235,0.04) !important; border-bottom: 2px solid var(--blue-600) !important; }
+    #secretaryAppointmentsCalendar .fc-col-header-cell.fc-day-today a { color: var(--blue-600) !important; font-weight: 700 !important; text-decoration: none !important; }
+
+    .slide-in { animation: slideIn 0.3s ease forwards; }
+    @keyframes slideIn { from { transform: translateX(20px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+    /* ═══ Sidebar List ════════════════════════════════════════════ */
+    .list-card { display: flex; flex-direction: column; }
+    .list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+    .list-head h5 { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--slate-800); }
+    .list-head small { color: var(--slate-500); font-size: 0.78rem; }
+    .list-count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 8px; background: var(--blue-600); color: #fff; font-size: 0.78rem; font-weight: 700; padding: 0 8px; }
+    .list-body { padding: 12px; max-height: 700px; overflow-y: auto; background: #fff; }
+
+    .appt-item { background: #fff; border: 1px solid var(--slate-200); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: all 0.2s ease; border-left-width: 4px; border-left-style: solid; border-left-color: transparent; cursor: pointer; }
+    .appt-item:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(15,23,42,0.07); border-color: var(--slate-300); }
+    .appt-item:last-child { margin-bottom: 0; }
+    .appt-item.pending    { border-left-color: #f59e0b; }
+    .appt-item.confirmed  { border-left-color: #2563eb; }
+    .appt-item.approved   { border-left-color: #2563eb; }
+    .appt-item.scheduled  { border-left-color: #8b5cf6; }
+    .appt-item.completed  { border-left-color: #16a34a; }
+    .appt-item.cancelled  { border-left-color: #dc2626; }
+    .appt-item.rejected   { border-left-color: #dc2626; }
+
+    .appt-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; padding: 10px 0 8px 0; border-bottom: 1px solid var(--slate-100); }
+    .appt-time.pill { font-size: 0.76rem; font-weight: 700; padding: 4px 10px; min-width: 72px; border-radius: 6px; white-space: nowrap; text-align: center; }
+    .appt-name { font-size: 0.92rem; font-weight: 700; color: var(--slate-800); line-height: 1.3; }
+    .appt-sub { color: var(--slate-500); font-size: 0.82rem; margin-top: 2px; }
+    .appt-grid { display: grid; grid-template-columns: 88px 1fr; gap: 5px 8px; font-size: 0.8rem; margin-top: 8px; }
+    .appt-grid .k { color: var(--slate-500); font-weight: 600; }
+    .appt-grid .v { color: var(--slate-700); }
+    .appt-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+    .empty-state { border: 1px dashed var(--slate-300); border-radius: 12px; padding: 20px; text-align: center; color: var(--slate-500); background: var(--slate-50); font-size: 0.88rem; }
+    .empty-state i { font-size: 1.6rem; color: var(--slate-300); display: block; margin-bottom: 8px; }
+
+    @media (max-width: 767px) { .cal-filter-bar { padding: 10px 14px; gap: 6px; } .cal-filter-chip { padding: 4px 10px 4px 6px; font-size: 0.7rem; } .cal-filter-divider { display: none; } }
+  </style>
+
+  <div class="dashboard-hero mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="page-title mb-1"><i class="bi bi-calendar4-week me-2"></i>Appointments Calendar</h1>
+        <p class="hero-sub mb-0">View and manage all scheduled appointments across your team.</p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <span class="text-muted" style="font-size:0.78rem;" id="calendarRangeLabel"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-shell">
+    <section class="cal-card">
+      <div class="cal-filter-bar" id="calFilterBar"><span class="filter-label">Filter</span></div>
+      <div class="cal-body">
+        <div id="calendarSpinner" class="calendar-spinner" role="status" aria-label="Loading appointments"></div>
+        <div id="secretaryAppointmentsCalendar"></div>
+      </div>
+    </section>
+
+    <aside class="list-card">
+      <div class="list-head">
+        <div><h5 id="selectedDateLabel">Selected Date</h5><small id="selectedDateSub">Appointments for this day</small></div>
+        <span id="selectedDateCount" class="list-count">0</span>
+      </div>
+      <div id="selectedDateList" class="list-body"></div>
+    </aside>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (!window.FullCalendar || !window.FullCalendar.Calendar) {
+        const host = document.getElementById("secretaryAppointmentsCalendar");
+        if (host) host.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Calendar library failed to load.</div>';
+        return;
+      }
+
+      const byId = (id) => document.getElementById(id);
+      const dom = {
+        calendarEl: byId("secretaryAppointmentsCalendar"),
+        calendarRangeLabel: byId("calendarRangeLabel"),
+        selectedDateLabel: byId("selectedDateLabel"),
+        selectedDateSub: byId("selectedDateSub"),
+        selectedDateCount: byId("selectedDateCount"),
+        selectedDateList: byId("selectedDateList"),
+        calendarSpinner: byId("calendarSpinner"),
+        filterBar: byId("calFilterBar"),
+      };
+
+      const state = { appointments: [], allAppointments: [], selectedDateKey: toDateKey(new Date()), activeFilters: new Set(), schedules: {}, workingDaysMap: {}, currentViewType: "dayGridMonth" };
+
+      const STATUS_DEFS = [
+        { key: "pending",   label: "Pending",   color: "#f59e0b" },
+        { key: "confirmed", label: "Confirmed",  color: "#2563eb" },
+        { key: "approved",  label: "Approved",   color: "#2563eb" },
+        { key: "scheduled", label: "Scheduled",  color: "#8b5cf6" },
+        { key: "completed", label: "Completed",  color: "#16a34a" },
+        { key: "cancelled", label: "Cancelled",  color: "#dc2626" },
+        { key: "rejected",  label: "Rejected",   color: "#dc2626" },
+      ];
+
+      function getColor(status) { const s = String(status || "pending").toLowerCase(); const f = STATUS_DEFS.find(d => d.key === s); return f ? f.color : "#94a3b8"; }
+      function toDateKey(input) { const d = new Date(input); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+      function toPrettyDate(input) { return new Date(input).toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" }); }
+      function statusBadge(status) { const s = String(status || "pending").toLowerCase(); if (s === "confirmed" || s === "approved") return "success"; if (s === "completed") return "primary"; if (s === "cancelled" || s === "rejected") return "danger"; return "warning"; }
+      function serviceName(a) { return (a.service && typeof a.service === "string" && a.service) || (a.service && a.service.name) || (a.serviceId && a.serviceId.name) || (a.serviceId && a.serviceId.title) || a.serviceType || "Service"; }
+      function customerName(a) { return a.customerName || (a.customer && a.customer.name) || (a.customer && `${a.customer.firstName || ""} ${a.customer.lastName || ""}`.trim()) || a.customer || "Customer"; }
+      function technicianName(a) { return a.technicianName || (a.technician && a.technician.name) || (a.technicianId && a.technicianId.name) || "Unassigned"; }
+      function timeLabel(a) { const raw = a.startTime; const parsed = Number(raw); if (Number.isFinite(parsed)) { const h = Math.floor(parsed / 60); const m = parsed % 60; const dt = new Date(); dt.setHours(h, m, 0, 0); return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } if (raw && /^\d{1,2}:\d{2}/.test(String(raw))) { const dt = new Date(`1970-01-01T${String(raw).slice(0, 5)}:00`); if (!Number.isNaN(dt.getTime())) return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } return raw || "Time not set"; }
+      function eventStart(a) { const base = new Date(a.bookingDate || a.date || a.start || new Date()); const startNum = Number(a.startTime); if (Number.isFinite(startNum)) { const dt = new Date(base); dt.setHours(0,0,0,0); dt.setMinutes(startNum); return dt; } if (a.startTime && /^\d{1,2}:\d{2}/.test(String(a.startTime))) { const [hh, mm] = String(a.startTime).slice(0, 5).split(":").map(x => Number(x)); if (Number.isFinite(hh) && Number.isFinite(mm)) { const dt = new Date(base); dt.setHours(hh, mm, 0, 0); return dt; } } return base; }
+      function updateRangeLabel(viewTitle) { if (dom.calendarRangeLabel) dom.calendarRangeLabel.textContent = viewTitle; }
+
+      /* ── Working Hours ─────────────────────────────────────────── */
+      function minutesToTimeStr(minutes) { const h = Math.floor(minutes / 60); const m = minutes % 60; return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:00`; }
+
+      async function fetchTechnicianSchedules() {
+        try {
+          const res = await fetch("/api/admin/technician-schedules", { credentials: "same-origin", cache: "no-store" });
+          if (!res.ok) return {};
+          const json = await res.json();
+          const schedules = json.schedules || json || [];
+          const map = {};
+          (Array.isArray(schedules) ? schedules : []).forEach(s => { const tid = s.technicianId?._id || s.technicianId; if (tid) map[String(tid)] = s; });
+          return map;
+        } catch (e) { console.error("Failed to fetch schedules:", e); return {}; }
+      }
+
+      function computeWorkingDaysMap(schedules) {
+        const dayMap = {};
+        Object.values(schedules).forEach(schedule => {
+          (schedule.workingDays || []).forEach(wd => {
+            if (!dayMap[wd.dayOfWeek]) dayMap[wd.dayOfWeek] = [];
+            dayMap[wd.dayOfWeek].push({ techId: String(schedule.technicianId?._id || schedule.technicianId || ""), startMinutes: wd.startMinutes || 480, endMinutes: wd.endMinutes || 1020 });
+          });
+        });
+        return dayMap;
+      }
+
+      function getWorkingHoursForDate(dateStr) {
+        const d = new Date(dateStr + "T12:00:00"); const dayOfWeek = d.getDay();
+        const entries = state.workingDaysMap[dayOfWeek] || [];
+        if (entries.length === 0) return null;
+        let earliest = 9999, latest = 0;
+        entries.forEach(e => { if (e.startMinutes < earliest) earliest = e.startMinutes; if (e.endMinutes > latest) latest = e.endMinutes; });
+        return { startMinutes: earliest, endMinutes: latest, startStr: minutesToTimeStr(earliest), endStr: minutesToTimeStr(latest), techCount: entries.length };
+      }
+
+      function updateTimeGridHours(viewType, focusDate) {
+        if (viewType !== "timeGridWeek" && viewType !== "timeGridDay") return;
+        let minStart = 9999, maxEnd = 0;
+        if (viewType === "timeGridDay") {
+          const hours = getWorkingHoursForDate(toDateKey(focusDate));
+          if (hours) { minStart = hours.startMinutes; maxEnd = hours.endMinutes; }
+        } else {
+          const sow = new Date(focusDate); sow.setDate(sow.getDate() - sow.getDay());
+          for (let i = 0; i < 7; i++) { const d = new Date(sow); d.setDate(d.getDate() + i); const hours = getWorkingHoursForDate(toDateKey(d)); if (hours) { if (hours.startMinutes < minStart) minStart = hours.startMinutes; if (hours.endMinutes > maxEnd) maxEnd = hours.endMinutes; } }
+        }
+        if (minStart < 9999) minStart = Math.max(0, minStart - 30); else minStart = 420;
+        if (maxEnd > 0) maxEnd = Math.min(1440, maxEnd + 30); else maxEnd = 1110;
+        calendar.setOption("slotMinTime", minutesToTimeStr(minStart));
+        calendar.setOption("slotMaxTime", minutesToTimeStr(maxEnd));
+      }
+
+      /* ── Filter Bar ────────────────────────────────────────────── */
+      function buildFilterBar() {
+        if (!dom.filterBar) return;
+        const counts = {};
+        state.allAppointments.forEach(a => { const s = String(a.status || "pending").toLowerCase(); counts[s] = (counts[s] || 0) + 1; });
+        let html = '<span class="filter-label">Filter</span>';
+        STATUS_DEFS.forEach(def => { const count = counts[def.key] || 0; html += `<button class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`; });
+        if (state.activeFilters.size > 0) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Clear</button>`;
+
+        if (state.currentViewType === "timeGridWeek" || state.currentViewType === "timeGridDay") {
+          const focusDate = calendar.getDate ? calendar.getDate() : new Date();
+          const hours = getWorkingHoursForDate(toDateKey(focusDate));
+          if (hours) { const st = minutesToTimeStr(hours.startMinutes).slice(0,5); const et = minutesToTimeStr(hours.endMinutes).slice(0,5); html += `<div class="cal-hours-badge"><i class="bi bi-clock-history"></i>Hours: ${st} \u2013 ${et} (${hours.techCount} tech${hours.techCount !== 1 ? 's' : ''})</div>`; }
+          else { html += `<div class="cal-hours-badge off-hours"><i class="bi bi-pause-circle"></i>Non-working day</div>`; }
+        }
+        dom.filterBar.innerHTML = html;
+        dom.filterBar.querySelectorAll('.cal-filter-chip').forEach(chip => { chip.addEventListener('click', () => { const s = chip.dataset.status; if (state.activeFilters.has(s)) state.activeFilters.delete(s); else state.activeFilters.add(s); applyFilters(); buildFilterBar(); }); });
+        const clearBtn = dom.filterBar.querySelector('#calClearFilters');
+        if (clearBtn) clearBtn.addEventListener('click', () => { state.activeFilters.clear(); applyFilters(); buildFilterBar(); });
+      }
+
+      function applyFilters() {
+        state.appointments = state.activeFilters.size === 0 ? [...state.allAppointments] : state.allAppointments.filter(a => state.activeFilters.has(String(a.status || "pending").toLowerCase()));
+        calendar.removeAllEvents();
+        calendar.addEventSource(state.appointments.map(a => ({ id: String(a._id || a.id || ""), title: `${customerName(a)} \u2022 ${serviceName(a)}`, start: eventStart(a), color: getColor(a.status), classNames: [String(a.status || "pending").toLowerCase()], extendedProps: { raw: a } })));
+        renderDateList();
+      }
+
+      function renderDateList() {
+        const dayItems = state.appointments.filter(a => toDateKey(a.bookingDate || a.date || a.start || new Date()) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
+        dom.selectedDateLabel.textContent = toPrettyDate(state.selectedDateKey);
+        dom.selectedDateSub.textContent = "Appointments for selected date";
+        dom.selectedDateCount.textContent = String(dayItems.length);
+        if (!dayItems.length) { dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i>No appointments for this date.</div>'; return; }
+        dom.selectedDateList.innerHTML = dayItems.map(a => {
+          const id = a._id || a.id || ""; const s = String(a.status || "pending").toLowerCase();
+          return `<article class="appt-item ${s}" data-id="${id}"><div class="appt-header"><div><div class="appt-name">${customerName(a)}</div><div class="appt-sub">${serviceName(a)}</div></div><div class="appt-time pill" style="background:${getColor(s)};color:#fff;">${timeLabel(a)}</div></div><div class="appt-grid"><div class="k">Technician</div><div class="v">${technicianName(a)}</div><div class="k">Status</div><div class="v"><span class="badge bg-${statusBadge(a.status)}">${(a.status || "pending").replace(/_/g, " ")}</span></div><div class="k">Reference</div><div class="v">${a.bookingReference || "\u2014"}</div></div><div class="appt-actions"><a class="btn btn-sm btn-outline-secondary" href="/admin/appointments?sel=${encodeURIComponent(id)}">Open Details</a></div></article>`;
+        }).join("");
+        dom.selectedDateList.querySelectorAll('.appt-item').forEach(el => { el.addEventListener('click', ev => { const itemId = el.getAttribute('data-id'); if (!itemId) return; if (ev.ctrlKey || ev.metaKey) window.open(`/admin/appointments?sel=${encodeURIComponent(itemId)}`, '_blank'); else location.href = `/admin/appointments?sel=${encodeURIComponent(itemId)}`; }); });
+      }
+
+      async function fetchAppointmentsForRange(start, end) {
+        const params = new URLSearchParams({ limit: "1000", start, end });
+        const res = await fetch(`/api/appointments?${params.toString()}`, { credentials: "same-origin", cache: "no-store" });
+        if (!res.ok) throw new Error(`appointments fetch failed: ${res.status}`);
+        const json = await res.json(); return json.items || json.appointments || [];
+      }
+
+      const initView = window.innerWidth < 600 ? "listWeek" : "dayGridMonth";
+      const calendar = new FullCalendar.Calendar(dom.calendarEl, {
+        initialView: initView,
+        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek" },
+        buttonText: { today: "Today", month: "Month", week: "Week", day: "Day", list: "List" },
+        height: "auto", slotMinTime: "06:00:00", slotMaxTime: "20:00:00", slotDuration: "01:00:00",
+        slotLabelInterval: "01:00", slotLabelFormat: { hour: "numeric", minute: "2-digit", hour12: true, meridiem: "short" },
+        allDaySlot: false, dayMaxEvents: 4, moreLinkContent: args => `+${args.num} more`,
+        eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
+        dateClick(info) { state.selectedDateKey = toDateKey(info.date); renderDateList(); },
+        eventClick(info) { state.selectedDateKey = toDateKey(info.event.start || new Date()); renderDateList(); const id = info.event.id; if (id && (info.jsEvent.ctrlKey || info.jsEvent.metaKey)) window.open(`/admin/appointments?sel=${encodeURIComponent(id)}`, '_blank'); },
+        eventContent(arg) { const raw = arg.event.extendedProps.raw; if (!raw) return { html: `<span class="event-time">${arg.timeText}</span>` }; return { html: `<div class="event-content-wrapper"><div class="event-time">${timeLabel(raw)}</div><div class="event-customer">${customerName(raw)}</div><div class="event-service">${serviceName(raw)}</div></div>` }; },
+        viewDidMount(info) { state.currentViewType = info.view.type; updateTimeGridHours(info.view.type, info.view.currentStart); buildFilterBar(); },
+        async datesSet(arg) {
+          if (window._debounceDatesSet) clearTimeout(window._debounceDatesSet);
+          window._debounceDatesSet = setTimeout(async () => {
+            updateRangeLabel(arg.view.title); state.currentViewType = arg.view.type;
+            const isTimegrid = arg.view.type === "timeGridWeek" || arg.view.type === "timeGridDay";
+            calendar.setOption("height", isTimegrid ? "calc(100vh - 220px)" : "auto");
+            if (isTimegrid) updateTimeGridHours(arg.view.type, arg.view.currentStart);
+            const start = toDateKey(arg.start); const endDate = new Date(arg.end.getTime() - 1); const end = toDateKey(endDate);
+            if (dom.calendarSpinner) dom.calendarSpinner.style.display = "block";
+            try {
+              const [appts, schedules] = await Promise.all([ fetchAppointmentsForRange(start, end), Object.keys(state.schedules).length === 0 ? fetchTechnicianSchedules() : Promise.resolve(state.schedules) ]);
+              state.schedules = schedules; state.workingDaysMap = computeWorkingDaysMap(schedules);
+              state.allAppointments = appts; state.appointments = [...appts];
+              calendar.removeAllEvents();
+              calendar.addEventSource(appts.map(a => ({ id: String(a._id || a.id || ""), title: `${customerName(a)} \u2022 ${serviceName(a)}`, start: eventStart(a), color: getColor(a.status), classNames: [String(a.status || "pending").toLowerCase()], extendedProps: { raw: a } })));
+              buildFilterBar(); renderDateList();
+            } catch (err) { console.error(err); dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load.</div>'; dom.selectedDateCount.textContent = "0"; }
+            finally { if (dom.calendarSpinner) dom.calendarSpinner.style.display = "none"; }
+          }, 150);
+        },
+      });
+
+      calendar.render();
+      function updateNavButtons() { const p = dom.calendarEl.querySelector(".fc-prev-button"); const n = dom.calendarEl.querySelector(".fc-next-button"); if (p) { p.setAttribute("tabindex", "0"); p.setAttribute("aria-label", "Previous"); } if (n) { n.setAttribute("tabindex", "0"); n.setAttribute("aria-label", "Next"); } }
+      calendar.on("viewDidMount", updateNavButtons); updateNavButtons();
+      window.addEventListener("resize", () => { const nv = window.innerWidth < 600 ? "listWeek" : "dayGridMonth"; if (calendar.view && calendar.view.type !== nv) calendar.changeView(nv); setTimeout(() => calendar.updateSize(), 100); });
+      const ro = new ResizeObserver(() => calendar.updateSize()); ro.observe(dom.calendarEl);
+      const ps = document.querySelector(".page-shell"); if (ps) ro.observe(ps);
+      const md = document.querySelector(".admin-dashboard"); if (md) ro.observe(md);
+      { const orig = renderDateList; renderDateList = function() { orig(); const l = dom.selectedDateList; if (l) { l.classList.add("slide-in"); setTimeout(() => l.classList.remove("slide-in"), 400); } }; }
+    });
+  </script>
+</div>

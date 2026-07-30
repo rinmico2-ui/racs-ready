@@ -1,0 +1,199 @@
+<div class="admin-dashboard container-fluid py-4 payments-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-hourglass-split"></i></div>
+        <div>
+          <h1>Pending Payments</h1>
+          <p>Review unsettled or unverified transactions requiring admin action</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- original header removed -->
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Awaiting Verification</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statVerify">52</span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7">Pending</div>
+            <small class="text-muted">Needs review</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-hourglass-split text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Overdue &gt; 24h</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statOverdue">11</span>
+            </div>
+            <div class="badge bg-danger-subtle text-danger fs-7">Overdue</div>
+            <small class="text-muted">Past deadline</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <i class="bi bi-exclamation-triangle-fill text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Manual Review</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statManual">23</span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7">Review</div>
+            <small class="text-muted">Requires attention</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-person-badge text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Search</label
+          >
+          <input
+            type="text"
+            class="form-control bg-light"
+            placeholder="Customer, invoice, or transaction ID"
+          />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Queue Type</label
+          >
+          <select class="form-select">
+            <option>All</option>
+            <option>Verification Pending</option>
+            <option>Proof Required</option>
+            <option>Disputed</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"
+            >Method</label
+          >
+          <select class="form-select">
+            <option>All</option>
+            <option>GCash</option>
+            <option>Cash on Site</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-light border w-100">
+            <i class="bi bi-funnel me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom">
+      <h6 class="mb-0 fw-bold">Verification Queue</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Transaction</th>
+            <th>Customer</th>
+            <th>Invoice</th>
+            <th>Amount</th>
+            <th>Method</th>
+            <th>Submitted</th>
+            <th>Priority</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">TXN-240219-023</div>
+              <div class="small text-muted">Proof uploaded</div>
+            </td>
+            <td>
+              <div class="fw-semibold">Robert Lim</div>
+              <div class="small text-muted">robert.lim@gmail.com</div>
+            </td>
+            <td class="small text-muted">INV-99371</td>
+            <td class="fw-bold">₱ 8,900.00</td>
+            <td>
+              <span
+                class="badge bg-info-subtle text-info border border-info-subtle"
+                >GCash</span
+              >
+            </td>
+            <td class="small text-muted">Feb 19, 2026 09:11 AM</td>
+            <td>
+              <span
+                class="badge bg-danger-subtle text-danger border border-danger-subtle"
+                >High</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-success">Approve</button>
+                <button class="btn btn-outline-danger">Reject</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">TXN-240219-028</div>
+              <div class="small text-muted">Awaiting reference check</div>
+            </td>
+            <td>
+              <div class="fw-semibold">Summit Tower Office</div>
+              <div class="small text-muted">finance@summittower.ph</div>
+            </td>
+            <td class="small text-muted">INV-99385</td>
+            <td class="fw-bold">₱ 24,500.00</td>
+            <td>
+              <span
+                class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                >Bank</span
+              >
+            </td>
+            <td class="small text-muted">Feb 19, 2026 11:33 AM</td>
+            <td>
+              <span
+                class="badge bg-warning-subtle text-warning border border-warning-subtle"
+                >Medium</span
+              >
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-sm btn-outline-primary">
+                Open Review
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

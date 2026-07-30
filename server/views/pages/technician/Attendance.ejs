@@ -1,0 +1,767 @@
+<div class="technician-page">
+  <div class="container-fluid px-4 py-4">
+
+    <!-- Hero -->
+    <div class="td-hero mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-7">
+          <h1 class="td-hero-title"><i class="bi bi-person-check me-2"></i>Attendance</h1>
+          <p class="td-hero-sub">Scan QR to check in, track your work hours.</p>
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+          <div class="td-hero-actions">
+            <span class="td-date-badge"><i class="bi bi-calendar3 me-1"></i><span id="todayDate">—</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+
+      <!-- ═══ LEFT COLUMN: Status + QR ═══ -->
+      <div class="col-lg-5">
+
+        <!-- Current Attendance Card -->
+        <div class="att-status-card" id="statusCard">
+          <div class="att-status-header">
+            <div class="att-status-icon" id="statusIcon">
+              <i class="bi bi-qr-code"></i>
+            </div>
+            <div>
+              <div class="att-status-title" id="statusTitle">Scan QR to Check In</div>
+              <div class="att-status-sub" id="statusSub">Point your camera at the admin's QR code</div>
+            </div>
+          </div>
+
+          <div class="att-status-details">
+            <div class="att-detail-row">
+              <span class="att-detail-label">Date</span>
+              <span class="att-detail-value" id="detailDate">—</span>
+            </div>
+            <div class="att-detail-row">
+              <span class="att-detail-label">Status</span>
+              <span class="att-detail-value" id="detailStatus">—</span>
+            </div>
+            <div class="att-detail-row">
+              <span class="att-detail-label">Check-In</span>
+              <span class="att-detail-value" id="detailCheckIn">—</span>
+            </div>
+            <div class="att-detail-row">
+              <span class="att-detail-label">Check-Out</span>
+              <span class="att-detail-value" id="detailCheckOut">—</span>
+            </div>
+            <div class="att-detail-row" id="totalHoursRow" style="display:none;">
+              <span class="att-detail-label">Total Hours</span>
+              <span class="att-detail-value fw-bold text-primary" id="detailTotalHours">—</span>
+            </div>
+          </div>
+
+          <!-- Check Out Button (shown after check-in) -->
+          <div class="att-checkout-wrap" id="checkoutWrap" style="display:none;">
+            <button class="att-checkout-btn" id="checkoutBtn" onclick="handleCheckOut()">
+              <i class="bi bi-box-arrow-right"></i>
+              <span>Check Out</span>
+            </button>
+            <p class="att-checkout-hint">Your availability will be set to Offline</p>
+          </div>
+        </div>
+
+        <!-- Live Timer (shown after check-in) -->
+        <div class="att-timer-card" id="timerCard" style="display:none;">
+          <div class="att-timer-icon"><i class="bi bi-stopwatch"></i></div>
+          <div class="att-timer-content">
+            <div class="att-timer-value" id="timerValue">00:00:00</div>
+            <div class="att-timer-label">Hours Worked Today</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ═══ RIGHT COLUMN: QR Scanner ═══ -->
+      <div class="col-lg-7">
+
+        <!-- QR Code Check-In -->
+        <div class="att-panel">
+          <div class="att-panel-header">
+            <h6 class="att-panel-title"><i class="bi bi-qr-code me-2 text-success"></i>QR Code Check-In</h6>
+            <span class="badge bg-success" id="scanStatusBadge">Ready</span>
+          </div>
+          <div class="att-panel-body text-center">
+            <!-- On Leave Banner -->
+            <div id="bannerOnLeave" style="display:none;">
+              <div class="att-leave-banner">
+                <i class="bi bi-calendar-x"></i>
+                <h6 id="leaveTitle">On Leave</h6>
+                <p class="text-muted small">QR scanning is disabled today.</p>
+              </div>
+            </div>
+            <!-- Scanner -->
+            <div id="scannerSection">
+              <p class="text-muted small mb-3">Scan the admin's daily QR code to check in for today.</p>
+              <div id="scannerPlaceholder" class="att-scanner-box">
+                <i class="bi bi-camera-video"></i>
+                <p>Camera preview</p>
+              </div>
+              <div id="reader" style="display:none;border-radius:12px;overflow:hidden;"></div>
+              <div class="mt-3 d-flex justify-content-center gap-2">
+                <button id="btnStartScanner" class="att-sm-btn green" onclick="startScanner()">
+                  <i class="bi bi-qr-code-scan"></i> Scan QR
+                </button>
+                <button id="btnStopScanner" class="att-sm-btn red" onclick="stopScanner()" style="display:none;">
+                  <i class="bi bi-stop-circle"></i> Stop
+                </button>
+              </div>
+              <div class="mt-3">
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Check-in time determines if you're Present or Late</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today's Timeline -->
+        <div class="att-panel mt-3">
+          <div class="att-panel-header">
+            <h6 class="att-panel-title"><i class="bi bi-clock-history me-2 text-primary"></i>Today's Timeline</h6>
+          </div>
+          <div class="att-panel-body" id="timelineContainer">
+            <div class="att-empty-timeline">
+              <i class="bi bi-clock"></i>
+              <p>No activity recorded yet</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ ATTENDANCE HISTORY ═══ -->
+    <div class="att-panel mt-4">
+      <div class="att-panel-header">
+        <h6 class="att-panel-title"><i class="bi bi-table me-2 text-purple"></i>Attendance History</h6>
+        <span class="badge bg-secondary" id="historyCount">0 records</span>
+      </div>
+      <div class="att-panel-body p-0" id="historyContainer">
+        <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+      </div>
+    </div>
+
+    <!-- ═══ LEAVE REQUESTS ═══ -->
+    <div class="att-panel mt-3">
+      <div class="att-panel-header">
+        <h6 class="att-panel-title"><i class="bi bi-calendar-x me-2 text-warning"></i>Leave Requests</h6>
+        <button class="btn btn-sm btn-warning fw-semibold" onclick="openLeaveModal()">
+          <i class="bi bi-plus-lg me-1"></i>Request Leave
+        </button>
+      </div>
+      <div class="att-panel-body" id="leaveContainer">
+        <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Leave Request Modal -->
+<div class="modal fade" id="leaveModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold"><i class="bi bi-calendar-x me-2 text-warning"></i>Request Leave</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="leaveForm" onsubmit="submitLeave(event)">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold">Start Date *</label>
+              <input type="date" class="form-control" id="leaveStart" required min="">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold">End Date</label>
+              <input type="date" class="form-control" id="leaveEnd" min="">
+              <small class="text-muted">Leave blank for single day</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Reason</label>
+              <textarea class="form-control" id="leaveReason" rows="3" maxlength="500" placeholder="Optional reason..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning btn-sm">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- html5-qrcode -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<style>
+  /* Status Card */
+  .att-status-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.04);
+  }
+  .att-status-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+  .att-status-icon {
+    width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; background: #f1f5f9; color: #94a3b8; transition: all 0.3s; flex-shrink: 0;
+  }
+  .att-status-icon.checked-in { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+  .att-status-icon.late { background: linear-gradient(135deg, #fff7ed, #fed7aa); color: #ea580c; }
+  .att-status-icon.checked-out { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; }
+  .att-status-icon.on-leave { background: linear-gradient(135deg, #f3e8ff, #e9d5ff); color: #7c3aed; }
+  .att-status-title { font-size: 1.1rem; font-weight: 800; color: #0f172a; }
+  .att-status-sub { font-size: 0.82rem; color: #64748b; }
+
+  .att-status-details { border-top: 1px solid #f1f5f9; padding-top: 16px; }
+  .att-detail-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 10px 0;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .att-detail-row:last-child { border-bottom: none; }
+  .att-detail-label { color: #64748b; font-size: 0.85rem; }
+  .att-detail-value { color: #1e293b; font-weight: 600; font-size: 0.9rem; }
+
+  .att-checkout-wrap { margin-top: 20px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; }
+  .att-checkout-btn {
+    width: 100%; padding: 14px 24px; border-radius: 12px; border: none; font-size: 1rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.25s;
+    background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff;
+    box-shadow: 0 6px 20px rgba(220,38,38,0.3);
+  }
+  .att-checkout-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(220,38,38,0.4); }
+  .att-checkout-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+  .att-checkout-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 8px; }
+
+  /* Timer Card */
+  .att-timer-card {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; border-radius: 14px;
+    padding: 20px; display: flex; align-items: center; gap: 16px; margin-top: 12px;
+  }
+  .att-timer-icon { font-size: 1.5rem; color: #3b82f6; }
+  .att-timer-value { font-size: 2rem; font-weight: 800; color: #1e40af; font-variant-numeric: tabular-nums; }
+  .att-timer-label { font-size: 0.78rem; color: #3b82f6; font-weight: 600; }
+
+  /* Panel */
+  .att-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+  .att-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid #f1f5f9; background: #fafbfc;
+  }
+  .att-panel-title { font-size: 0.88rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .att-panel-body { padding: 16px 20px; }
+
+  /* Scanner */
+  .att-scanner-box {
+    width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; border: 2px dashed #e2e8f0;
+    border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #f8fafc; gap: 6px;
+  }
+  .att-scanner-box i { font-size: 2rem; color: #94a3b8; }
+  .att-scanner-box p { color: #94a3b8; font-size: 0.82rem; margin: 0; }
+
+  .att-sm-btn {
+    padding: 10px 20px; border-radius: 10px; border: none; font-size: 0.85rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;
+  }
+  .att-sm-btn.green { background: #dcfce7; color: #16a34a; }
+  .att-sm-btn.green:hover { background: #bbf7d0; }
+  .att-sm-btn.red { background: #fee2e2; color: #dc2626; }
+  .att-sm-btn.red:hover { background: #fecaca; }
+
+  /* Timeline */
+  .att-timeline { padding-left: 24px; border-left: 2px solid #e2e8f0; }
+  .att-timeline-item { position: relative; padding: 10px 0 10px 20px; }
+  .att-timeline-item::before {
+    content: ''; position: absolute; left: -29px; top: 14px; width: 12px; height: 12px;
+    border-radius: 50%; background: #3b82f6; border: 2px solid #fff; box-shadow: 0 0 0 2px #e2e8f0;
+  }
+  .att-timeline-item.check-in::before { background: #22c55e; }
+  .att-timeline-item.check-out::before { background: #6366f1; }
+  .att-timeline-time { font-size: 0.72rem; color: #94a3b8; font-weight: 600; }
+  .att-timeline-label { font-size: 0.85rem; color: #1e293b; font-weight: 600; }
+  .att-timeline-detail { font-size: 0.78rem; color: #64748b; }
+  .att-empty-timeline { text-align: center; padding: 24px; color: #94a3b8; }
+  .att-empty-timeline i { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+  .att-leave-banner { text-align: center; padding: 20px; }
+  .att-leave-banner i { font-size: 2.5rem; color: #7c3aed; }
+  .att-leave-banner h6 { margin-top: 8px; font-weight: 700; }
+
+  /* History Table */
+  .att-history-table { width: 100%; border-collapse: collapse; }
+  .att-history-table th {
+    background: #fafbfc; color: #64748b; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: left;
+  }
+  .att-history-table td { padding: 12px 16px; font-size: 0.85rem; color: #334155; border-bottom: 1px solid #f1f5f9; }
+  .att-history-table tr:hover td { background: #fafbfc; }
+
+  .td-date-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 5px 14px; border-radius: 20px;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+    font-size: 0.82rem; font-weight: 600; color: #fff;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 991px) {
+    .td-hero { padding: 1.25rem; }
+    .td-hero-title { font-size: 1.25rem; }
+    .td-hero-sub { font-size: 0.85rem; }
+    .att-status-card { padding: 1.25rem; }
+    .att-status-header { gap: 12px; margin-bottom: 1rem; }
+    .att-status-icon { width: 48px; height: 48px; font-size: 1.3rem; }
+    .att-status-title { font-size: 1rem; }
+    .att-status-sub { font-size: 0.78rem; }
+    .att-detail-row { padding: 0.75rem 0; }
+    .att-detail-label { font-size: 0.8rem; }
+    .att-detail-value { font-size: 0.85rem; }
+    .att-timer-card { padding: 1rem; }
+    .att-timer-value { font-size: 1.5rem; }
+    .att-timer-label { font-size: 0.72rem; }
+    .att-panel-header { padding: 1rem 1.25rem; }
+    .att-panel-title { font-size: 0.82rem; }
+    .att-panel-body { padding: 1rem 1.25rem; }
+    .att-scanner-box { max-width: 250px; }
+    .att-sm-btn { padding: 0.625rem 1rem; font-size: 0.78rem; }
+  }
+
+  @media (max-width: 767px) {
+    .container-fluid { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .td-hero { padding: 1rem; border-radius: 12px; }
+    .td-hero-title { font-size: 1.1rem; }
+    .td-hero-sub { font-size: 0.8rem; }
+    .td-hero-actions { width: 100%; justify-content: flex-start; }
+    .td-date-badge { font-size: 0.75rem; padding: 4px 12px; }
+    .att-status-card { padding: 1rem; border-radius: 12px; }
+    .att-status-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .att-status-icon { width: 44px; height: 44px; font-size: 1.2rem; }
+    .att-status-title { font-size: 0.95rem; }
+    .att-status-sub { font-size: 0.75rem; }
+    .att-status-details { padding-top: 0.875rem; }
+    .att-detail-row { padding: 0.625rem 0; }
+    .att-detail-label { font-size: 0.75rem; }
+    .att-detail-value { font-size: 0.8rem; }
+    .att-checkout-btn { padding: 0.875rem 1.25rem; font-size: 0.9rem; }
+    .att-checkout-hint { font-size: 0.7rem; }
+    .att-timer-card { padding: 0.875rem; border-radius: 10px; }
+    .att-timer-icon { font-size: 1.3rem; }
+    .att-timer-value { font-size: 1.4rem; }
+    .att-timer-label { font-size: 0.68rem; }
+    .att-panel { border-radius: 12px; }
+    .att-panel-header { padding: 0.875rem 1rem; }
+    .att-panel-title { font-size: 0.78rem; }
+    .att-panel-body { padding: 0.875rem 1rem; }
+    .att-scanner-box { max-width: 200px; aspect-ratio: 1; }
+    .att-scanner-box i { font-size: 1.5rem; }
+    .att-scanner-box p { font-size: 0.75rem; }
+    .att-sm-btn { padding: 0.5rem 0.875rem; font-size: 0.72rem; }
+    .att-timeline { padding-left: 1.25rem; }
+    .att-timeline-item { padding: 0.625rem 0 0.625rem 0.75rem; }
+    .att-timeline-item::before { left: -20px; top: 10px; width: 10px; height: 10px; }
+    .att-timeline-time { font-size: 0.68rem; }
+    .att-timeline-label { font-size: 0.8rem; }
+    .att-timeline-detail { font-size: 0.72rem; }
+    .att-history-table th { padding: 0.625rem 0.75rem; font-size: 0.65rem; }
+    .att-history-table td { padding: 0.625rem 0.75rem; font-size: 0.78rem; }
+  }
+
+  @media (max-width: 480px) {
+    .td-hero-title { font-size: 1rem; }
+    .td-hero-sub { font-size: 0.75rem; }
+    .att-status-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+    .att-status-title { font-size: 0.9rem; }
+    .att-status-sub { font-size: 0.72rem; }
+    .att-detail-row { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+    .att-detail-value { text-align: left; }
+    .att-timer-value { font-size: 1.25rem; }
+    .att-scanner-box { max-width: 180px; }
+    .att-sm-btn { width: 100%; justify-content: center; }
+    .att-timeline { padding-left: 1rem; }
+    .att-timeline-item::before { left: -16px; width: 8px; height: 8px; }
+    .att-history-table { font-size: 0.72rem; }
+    .att-history-table th, .att-history-table td { padding: 0.5rem; }
+  }
+</style>
+
+<script>
+(function() {
+  let html5Qrcode = null;
+  let timerInterval = null;
+  let checkInTime = null;
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  document.getElementById('leaveStart').min = new Date().toISOString().split('T')[0];
+  document.getElementById('leaveEnd').min = new Date().toISOString().split('T')[0];
+
+  // ── Load Status ───────────────────────────────────────────────────────
+  async function loadStatus() {
+    try {
+      const res = await fetch('/api/technician/attendance/status');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      const status = data.attendanceStatus || 'Not Checked In';
+      const record = data.record;
+      const isCheckedIn = ['Present', 'Late'].includes(status) && record && !record.checkOutTime;
+      const isCheckedOut = status === 'Checked Out' || (record && record.checkOutTime);
+      const isOnLeave = data.isOnLeave;
+
+      // Update status icon
+      const iconEl = document.getElementById('statusIcon');
+      iconEl.className = 'att-status-icon';
+      if (isOnLeave) {
+        iconEl.classList.add('on-leave');
+        iconEl.innerHTML = '<i class="bi bi-calendar-x"></i>';
+        document.getElementById('statusTitle').textContent = data.leaveType || 'On Leave';
+        document.getElementById('statusSub').textContent = 'QR scanning is disabled today';
+      } else if (isCheckedIn) {
+        iconEl.classList.add(status === 'Late' ? 'late' : 'checked-in');
+        iconEl.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+        document.getElementById('statusTitle').textContent = status === 'Late' ? 'Checked In (Late)' : 'Checked In';
+        document.getElementById('statusSub').textContent = 'You are on the clock';
+      } else if (isCheckedOut) {
+        iconEl.classList.add('checked-out');
+        iconEl.innerHTML = '<i class="bi bi-patch-check-fill"></i>';
+        document.getElementById('statusTitle').textContent = 'Checked Out';
+        document.getElementById('statusSub').textContent = 'Your work day has ended';
+      } else {
+        iconEl.innerHTML = '<i class="bi bi-qr-code"></i>';
+        document.getElementById('statusTitle').textContent = 'Scan QR to Check In';
+        document.getElementById('statusSub').textContent = 'Point your camera at the admin\'s QR code';
+      }
+
+      // Detail card
+      document.getElementById('detailStatus').innerHTML = isOnLeave
+        ? '<span class="badge bg-purple" style="background:#7c3aed;">On Leave</span>'
+        : isCheckedIn
+          ? `<span class="badge ${status === 'Late' ? 'bg-warning text-dark' : 'bg-success'}">${status}</span>`
+          : isCheckedOut
+            ? '<span class="badge bg-indigo" style="background:#4f46e5;">Checked Out</span>'
+            : '<span class="badge bg-secondary">Not Checked In</span>';
+
+      document.getElementById('detailCheckIn').textContent = record && record.checkInTime
+        ? new Date(record.checkInTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+        : '--';
+
+      document.getElementById('detailCheckOut').textContent = record && record.checkOutTime
+        ? new Date(record.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+        : '--';
+
+      // Total hours
+      if (record && record.checkInTime && record.checkOutTime) {
+        const total = (new Date(record.checkOutTime) - new Date(record.checkInTime)) / 3600000;
+        document.getElementById('detailTotalHours').textContent = total.toFixed(1) + ' hours';
+        document.getElementById('totalHoursRow').style.display = '';
+      } else {
+        document.getElementById('totalHoursRow').style.display = 'none';
+      }
+
+      // Checkout button
+      document.getElementById('checkoutWrap').style.display = isCheckedIn ? '' : 'none';
+
+      // On leave banner or already checked in
+      if (isOnLeave) {
+        document.getElementById('bannerOnLeave').style.display = '';
+        document.getElementById('scannerSection').style.display = 'none';
+        document.getElementById('leaveTitle').textContent = data.leaveType || 'On Leave';
+      } else if (isCheckedIn || isCheckedOut) {
+        document.getElementById('bannerOnLeave').style.display = 'none';
+        document.getElementById('scannerSection').style.display = 'none';
+      } else {
+        document.getElementById('bannerOnLeave').style.display = 'none';
+        document.getElementById('scannerSection').style.display = '';
+      }
+
+      // Timer
+      if (isCheckedIn && record && record.checkInTime) {
+        checkInTime = new Date(record.checkInTime);
+        startTimer();
+        document.getElementById('timerCard').style.display = '';
+      } else {
+        stopTimer();
+        document.getElementById('timerCard').style.display = 'none';
+      }
+
+      // Timeline
+      renderTimeline(record);
+    } catch(e) {
+      console.error('Status load error:', e);
+    }
+  }
+
+  // ── Timer ─────────────────────────────────────────────────────────────
+  function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(() => {
+      if (!checkInTime) return;
+      const now = new Date();
+      const diff = now - checkInTime;
+      const hrs = Math.floor(diff / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      document.getElementById('timerValue').textContent =
+        String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  // ── Timeline ──────────────────────────────────────────────────────────
+  function renderTimeline(record) {
+    const container = document.getElementById('timelineContainer');
+    if (!record || (!record.checkInTime && !record.checkOutTime)) {
+      container.innerHTML = '<div class="att-empty-timeline"><i class="bi bi-clock"></i><p>No activity recorded yet</p></div>';
+      return;
+    }
+
+    let items = [];
+    if (record.checkInTime) {
+      const t = new Date(record.checkInTime);
+      items.push(`
+        <div class="att-timeline-item check-in">
+          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="att-timeline-label"><i class="bi bi-box-arrow-in-right text-success me-1"></i>Check-In</div>
+          <div class="att-timeline-detail">${record.method === 'qr_scan' ? 'QR Code' : 'Button'} | ${record.status}</div>
+        </div>`);
+    }
+    if (record.checkOutTime) {
+      const t = new Date(record.checkOutTime);
+      items.push(`
+        <div class="att-timeline-item check-out">
+          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="att-timeline-label"><i class="bi bi-box-arrow-right text-indigo me-1"></i>Check-Out</div>
+          <div class="att-timeline-detail">Work day ended</div>
+        </div>`);
+    }
+
+    container.innerHTML = items.length > 0
+      ? '<div class="att-timeline">' + items.join('') + '</div>'
+      : '<div class="att-empty-timeline"><i class="bi bi-clock"></i><p>No activity recorded yet</p></div>';
+  }
+
+  // ── Check Out ─────────────────────────────────────────────────────────
+  window.handleCheckOut = async function() {
+    if (!confirm('Are you sure you want to check out? Your availability will be set to Offline.')) return;
+
+    const btn = document.getElementById('checkoutBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking Out...';
+
+    try {
+      const res = await fetch('/api/technician/attendance/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Check-out failed', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
+        return;
+      }
+
+      const hours = data.hoursWorked ? ` (${data.hoursWorked}h)` : '';
+      showToast('Checked out successfully!' + hours, 'success');
+      stopTimer();
+      checkInTime = null;
+      loadStatus();
+    } catch(e) {
+      showToast('Network error', 'danger');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
+    }
+  };
+
+  // ── QR Scanner ────────────────────────────────────────────────────────
+  window.startScanner = function() {
+    document.getElementById('scannerPlaceholder').style.display = 'none';
+    document.getElementById('reader').style.display = 'block';
+    document.getElementById('btnStartScanner').style.display = 'none';
+    document.getElementById('btnStopScanner').style.display = 'inline-flex';
+    document.getElementById('scanStatusBadge').textContent = 'Scanning...';
+    document.getElementById('scanStatusBadge').className = 'badge bg-warning text-dark';
+
+    html5Qrcode = new Html5Qrcode('reader');
+    html5Qrcode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (decodedText) => {
+        try {
+          const payload = JSON.parse(decodedText);
+          processQRScan(payload.token || decodedText);
+        } catch(e) {
+          processQRScan(decodedText);
+        }
+      },
+      () => {}
+    ).catch(err => {
+      showToast('Camera access denied', 'warning');
+      stopScanner();
+    });
+  };
+
+  window.stopScanner = function() {
+    if (html5Qrcode) {
+      html5Qrcode.stop().then(() => { html5Qrcode.clear(); html5Qrcode = null; }).catch(() => {});
+    }
+    document.getElementById('scannerPlaceholder').style.display = 'flex';
+    document.getElementById('reader').style.display = 'none';
+    document.getElementById('btnStartScanner').style.display = 'inline-flex';
+    document.getElementById('btnStopScanner').style.display = 'none';
+    document.getElementById('scanStatusBadge').textContent = 'Ready';
+    document.getElementById('scanStatusBadge').className = 'badge bg-success';
+  };
+
+  async function processQRScan(token) {
+    stopScanner();
+    document.getElementById('scanStatusBadge').textContent = 'Verifying...';
+    document.getElementById('scanStatusBadge').className = 'badge bg-info';
+
+    try {
+      const res = await fetch('/api/technician/attendance/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Scan failed');
+      showToast('Check-in verified! Status: ' + (data.attendanceStatus || 'Present'), 'success');
+      loadStatus();
+    } catch(e) {
+      showToast(e.message, 'danger');
+      document.getElementById('scanStatusBadge').textContent = 'Ready';
+      document.getElementById('scanStatusBadge').className = 'badge bg-success';
+    }
+  }
+
+  // ── Load History ──────────────────────────────────────────────────────
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/technician/attendance/history');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const container = document.getElementById('historyContainer');
+      document.getElementById('historyCount').textContent = data.count + ' records';
+
+      if (!data.records || data.records.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted">No attendance records found.</div>';
+        return;
+      }
+
+      container.innerHTML = `<table class="att-history-table">
+        <thead><tr><th>Date</th><th>Check-In</th><th>Check-Out</th><th>Hours</th><th>Status</th></tr></thead>
+        <tbody>${data.records.map(r => {
+          const date = new Date(r.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+          const cin = r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '--';
+          const cout = r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '--';
+          let hours = '--';
+          if (r.checkInTime && r.checkOutTime) {
+            hours = ((new Date(r.checkOutTime) - new Date(r.checkInTime)) / 3600000).toFixed(1) + 'h';
+          }
+          const badgeClass = r.status === 'Present' ? 'bg-success' : r.status === 'Late' ? 'bg-warning text-dark' : 'bg-secondary';
+          return `<tr>
+            <td><strong>${date}</strong></td>
+            <td>${cin}</td>
+            <td>${cout}</td>
+            <td><span class="fw-semibold">${hours}</span></td>
+            <td><span class="badge ${badgeClass}">${r.status}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    } catch(e) {
+      document.getElementById('historyContainer').innerHTML = '<div class="text-center text-danger py-4">Failed to load history</div>';
+    }
+  }
+
+  // ── Load Leave Requests ───────────────────────────────────────────────
+  async function loadLeaves() {
+    try {
+      const res = await fetch('/api/technician/leave-requests');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const container = document.getElementById('leaveContainer');
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center small mb-0">No leave requests yet.</p>';
+        return;
+      }
+
+      container.innerHTML = data.items.slice(0, 5).map(l => {
+        const s = new Date(l.startDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        const e = new Date(l.endDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        const range = s === e ? s : s + ' – ' + e;
+        const badge = l.status === 'approved' ? 'bg-success' : l.status === 'rejected' ? 'bg-danger' : 'bg-warning text-dark';
+        return `<div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+          <div>
+            <div class="fw-semibold small">${range}</div>
+            ${l.reason ? '<div class="text-muted" style="font-size:0.78rem;">' + l.reason + '</div>' : ''}
+          </div>
+          <span class="badge ${badge}">${l.status}</span>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      document.getElementById('leaveContainer').innerHTML = '<p class="text-danger small text-center">Failed to load</p>';
+    }
+  }
+
+  // ── Leave Modal ───────────────────────────────────────────────────────
+  window.openLeaveModal = function() {
+    document.getElementById('leaveForm').reset();
+    new bootstrap.Modal(document.getElementById('leaveModal')).show();
+  };
+
+  window.submitLeave = async function(e) {
+    e.preventDefault();
+    const start = document.getElementById('leaveStart').value;
+    const end = document.getElementById('leaveEnd').value || start;
+    const reason = document.getElementById('leaveReason').value;
+
+    try {
+      const res = await fetch('/api/technician/leave-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate: start, endDate: end, reason })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
+      showToast('Leave request submitted!', 'success');
+      loadLeaves();
+    } catch(e) {
+      showToast(e.message, 'danger');
+    }
+  };
+
+  // ── Toast ─────────────────────────────────────────────────────────────
+  function showToast(msg, type) {
+    var container = document.getElementById('globalToastContainer');
+    if (!container) return;
+    var id = 'toast_' + Date.now();
+    var bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-primary';
+    var html = '<div id="' + id + '" class="toast align-items-center text-white ' + bgClass + ' border-0 show" role="alert">' +
+      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+    container.insertAdjacentHTML('beforeend', html);
+    setTimeout(function() { var el = document.getElementById(id); if (el) el.remove(); }, 4000);
+  }
+
+  // ── Init Load ─────────────────────────────────────────────────────────
+  loadStatus();
+  loadHistory();
+  loadLeaves();
+
+  // Refresh status every 30s
+  setInterval(loadStatus, 30000);
+})();
+</script>

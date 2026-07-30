@@ -1,0 +1,265 @@
+<div class="technician-page">
+  <div class="container-fluid px-4 py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+      <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Service Reports</h4>
+        <small class="text-muted">Job completion reports and documentation</small>
+      </div>
+    </div>
+
+    <!-- Status Tabs -->
+    <ul class="nav nav-tabs mb-4" id="reportTabs">
+      <li class="nav-item">
+        <button class="nav-link active" data-filter="all">
+          <i class="bi bi-list-ul me-1"></i>All <span class="badge bg-secondary ms-1" id="rptCountAll">0</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-filter="draft">
+          <i class="bi bi-pencil me-1"></i>Draft <span class="badge bg-secondary ms-1" id="rptCountDraft">0</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-filter="submitted">
+          <i class="bi bi-send me-1"></i>Submitted <span class="badge bg-info text-dark ms-1" id="rptCountSubmitted">0</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-filter="approved">
+          <i class="bi bi-check-circle me-1"></i>Approved <span class="badge bg-success ms-1" id="rptCountApproved">0</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-filter="revision_requested">
+          <i class="bi bi-arrow-return-left me-1"></i>Revision <span class="badge bg-danger ms-1" id="rptCountRevision">0</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Reports List -->
+    <div id="reportsContainer">
+      <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
+    </div>
+
+    <div class="d-flex justify-content-center mt-3" id="rptPagination"></div>
+  </div>
+</div>
+
+<!-- Report Detail/Edit Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold"><i class="bi bi-file-text me-2"></i>Service Report</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="reportBody"></div>
+      <div class="modal-footer" id="reportFooter"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .nav-tabs .nav-link { font-size: 0.85rem; font-weight: 600; color: #64748b; border: none; padding: 10px 16px; border-bottom: 2px solid transparent; }
+  .nav-tabs .nav-link.active { color: #3b82f6; border-bottom-color: #3b82f6; background: transparent; }
+  .report-card {
+    background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .report-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 16px rgba(15,23,42,0.05); }
+  .report-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .report-card h6 { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin: 0; }
+  .report-card p { font-size: 0.78rem; color: #64748b; margin: 2px 0 0; }
+  .report-card-meta { display: flex; gap: 16px; margin-top: 10px; font-size: 0.78rem; color: #475569; }
+  .report-card-meta i { color: #94a3b8; }
+</style>
+
+<script>
+(function() {
+  let currentFilter = 'all';
+  const statusColors = { draft: 'bg-secondary', submitted: 'bg-info text-dark', approved: 'bg-success', revision_requested: 'bg-danger' };
+  const statusLabels = { draft: 'Draft', submitted: 'Submitted', approved: 'Approved', revision_requested: 'Revision Requested' };
+
+  function renderReportCard(r) {
+    const date = r.bookingDate ? new Date(r.bookingDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const created = r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '';
+    return `
+      <div class="report-card" onclick="openReport('${r._id}')">
+        <div class="report-card-header">
+          <div>
+            <h6>${r.customerName || 'Customer'} - ${r.serviceName || 'Service'}</h6>
+            <p>${r.serviceType || ''} ${date ? '| ' + date : ''}</p>
+          </div>
+          <span class="badge ${statusColors[r.status] || 'bg-secondary'}">${statusLabels[r.status] || r.status}</span>
+        </div>
+        <div class="report-card-meta">
+          <span><i class="bi bi-calendar me-1"></i>${created}</span>
+          ${r.laborHours ? '<span><i class="bi bi-clock me-1"></i>' + r.laborHours + 'h</span>' : ''}
+          ${r.totalCost ? '<span><i class="bi bi-cash me-1"></i>₱' + Number(r.totalCost).toLocaleString() + '</span>' : ''}
+          ${r.followUpRequired ? '<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>Follow-up</span>' : ''}
+        </div>
+      </div>`;
+  }
+
+  async function loadReports(filter, page) {
+    try {
+      let url = `/api/technician/reports?page=${page || 1}&limit=15`;
+      if (filter && filter !== 'all') url += `&status=${filter}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const container = document.getElementById('reportsContainer');
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-file-earmark" style="font-size:2.5rem;"></i><p class="mt-2">No reports found</p></div>';
+      } else {
+        container.innerHTML = data.items.map(renderReportCard).join('');
+      }
+
+      // Fetch counts
+      const [all, draft, submitted, approved, revision] = await Promise.all([
+        fetch('/api/technician/reports?limit=1').then(r => r.json()),
+        fetch('/api/technician/reports?status=draft&limit=1').then(r => r.json()),
+        fetch('/api/technician/reports?status=submitted&limit=1').then(r => r.json()),
+        fetch('/api/technician/reports?status=approved&limit=1').then(r => r.json()),
+        fetch('/api/technician/reports?status=revision_requested&limit=1').then(r => r.json()),
+      ]);
+      document.getElementById('rptCountAll').textContent = all.total || 0;
+      document.getElementById('rptCountDraft').textContent = draft.total || 0;
+      document.getElementById('rptCountSubmitted').textContent = submitted.total || 0;
+      document.getElementById('rptCountApproved').textContent = approved.total || 0;
+      document.getElementById('rptCountRevision').textContent = revision.total || 0;
+
+      // Pagination
+      if (data.pages > 1) {
+        let pg = '<ul class="pagination pagination-sm">';
+        for (let i = 1; i <= data.pages; i++) {
+          pg += `<li class="page-item ${i === data.page ? 'active' : ''}"><button class="page-link" onclick="goRptPage(${i})">${i}</button></li>`;
+        }
+        pg += '</ul>';
+        document.getElementById('rptPagination').innerHTML = pg;
+      } else {
+        document.getElementById('rptPagination').innerHTML = '';
+      }
+    } catch(e) {
+      document.getElementById('reportsContainer').innerHTML = '<div class="alert alert-danger">Failed to load reports</div>';
+    }
+  }
+
+  document.querySelectorAll('#reportTabs .nav-link').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#reportTabs .nav-link').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentFilter = this.dataset.filter;
+      loadReports(currentFilter, 1);
+    });
+  });
+
+  window.goRptPage = function(p) { loadReports(currentFilter, p); };
+
+  window.openReport = async function(id) {
+    try {
+      const res = await fetch(`/api/technician/reports/${id}`);
+      if (!res.ok) throw new Error();
+      const { report: r } = await res.json();
+      const body = document.getElementById('reportBody');
+      const footer = document.getElementById('reportFooter');
+      const isEditable = ['draft', 'revision_requested'].includes(r.status);
+
+      body.innerHTML = `
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label fw-semibold" style="font-size:0.75rem;">Customer</label><p class="mb-0">${r.customerName || 'N/A'}</p></div>
+          <div class="col-md-6"><label class="form-label fw-semibold" style="font-size:0.75rem;">Service</label><p class="mb-0">${r.serviceName || 'N/A'} (${r.serviceType || ''})</p></div>
+          <div class="col-md-6"><label class="form-label fw-semibold" style="font-size:0.75rem;">Booking Date</label><p class="mb-0">${r.bookingDate ? new Date(r.bookingDate).toLocaleDateString('en-PH') : 'N/A'}</p></div>
+          <div class="col-md-6"><label class="form-label fw-semibold" style="font-size:0.75rem;">Status</label><p class="mb-0"><span class="badge ${statusColors[r.status]}">${statusLabels[r.status]}</span></p></div>
+        </div>
+        <hr>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Findings</label>
+          <textarea class="form-control" id="rptFindings" rows="3" ${isEditable ? '' : 'disabled'}>${r.findings || ''}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Recommendations</label>
+          <textarea class="form-control" id="rptRecommendations" rows="3" ${isEditable ? '' : 'disabled'}>${r.recommendations || ''}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Actions Taken</label>
+          <textarea class="form-control" id="rptActions" rows="3" ${isEditable ? '' : 'disabled'}>${r.actionsTaken || ''}</textarea>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label fw-semibold">Labor Hours</label><input type="number" class="form-control" id="rptLabor" step="0.5" min="0" value="${r.laborHours || 0}" ${isEditable ? '' : 'disabled'}></div>
+          <div class="col-md-4"><label class="form-label fw-semibold">Parts Cost (₱)</label><input type="number" class="form-control" id="rptPartsCost" step="0.01" min="0" value="${r.partsCost || 0}" ${isEditable ? '' : 'disabled'}></div>
+          <div class="col-md-4"><label class="form-label fw-semibold">Total Cost (₱)</label><input type="number" class="form-control" id="rptTotalCost" step="0.01" min="0" value="${r.totalCost || 0}" ${isEditable ? '' : 'disabled'}></div>
+        </div>
+        <div class="mt-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="rptFollowUp" ${r.followUpRequired ? 'checked' : ''} ${isEditable ? '' : 'disabled'}>
+            <label class="form-check-label fw-semibold">Follow-up Required</label>
+          </div>
+        </div>
+        ${r.revisionNotes ? `<div class="alert alert-warning mt-3 mb-0"><strong>Revision Notes:</strong> ${r.revisionNotes}</div>` : ''}
+        ${r.status === 'submitted' ? '<div class="alert alert-info mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>This report is pending admin review.</div>' : ''}
+        ${r.status === 'approved' ? '<div class="alert alert-success mt-3 mb-0"><i class="bi bi-check-circle me-1"></i>This report has been approved.</div>' : ''}`;
+
+      footer.innerHTML = '';
+      if (isEditable) {
+        footer.innerHTML = `
+          <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="saveReport('${r._id}')">Save Draft</button>
+          <button class="btn btn-success btn-sm" onclick="submitReport('${r._id}')">Submit Report</button>`;
+      } else {
+        footer.innerHTML = '<button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>';
+      }
+
+      new bootstrap.Modal(document.getElementById('reportModal')).show();
+    } catch(e) { showToast('Failed to load report', 'danger'); }
+  };
+
+  window.saveReport = async function(id) {
+    const body = {
+      findings: document.getElementById('rptFindings').value,
+      recommendations: document.getElementById('rptRecommendations').value,
+      actionsTaken: document.getElementById('rptActions').value,
+      laborHours: parseFloat(document.getElementById('rptLabor').value) || 0,
+      partsCost: parseFloat(document.getElementById('rptPartsCost').value) || 0,
+      totalCost: parseFloat(document.getElementById('rptTotalCost').value) || 0,
+      followUpRequired: document.getElementById('rptFollowUp').checked,
+    };
+    try {
+      const res = await fetch(`/api/technician/reports/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) { showToast('Report saved!', 'success'); bootstrap.Modal.getInstance(document.getElementById('reportModal')).hide(); loadReports(currentFilter, 1); }
+      else showToast(data.error || 'Failed', 'danger');
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  window.submitReport = async function(id) {
+    if (!confirm('Submit this report for admin review?')) return;
+    // Save first, then submit
+    await saveReport(id);
+    try {
+      const res = await fetch(`/api/technician/reports/${id}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (res.ok) { showToast('Report submitted!', 'success'); bootstrap.Modal.getInstance(document.getElementById('reportModal')).hide(); loadReports(currentFilter, 1); }
+      else showToast(data.error || 'Failed', 'danger');
+    } catch(e) { showToast('Network error', 'danger'); }
+  };
+
+  function showToast(msg, type) {
+    var container = document.getElementById('globalToastContainer');
+    if (!container) return;
+    var id = 'toast_' + Date.now();
+    var bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-primary';
+    var html = '<div id="' + id + '" class="toast align-items-center text-white ' + bgClass + ' border-0 show" role="alert">' +
+      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+    container.insertAdjacentHTML('beforeend', html);
+    setTimeout(function() { var el = document.getElementById(id); if (el) el.remove(); }, 4000);
+  }
+
+  loadReports('all', 1);
+})();
+</script>

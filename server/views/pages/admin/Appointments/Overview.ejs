@@ -1,0 +1,456 @@
+<div class="main-content">
+  <div class="container-fluid py-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-pie-chart-fill"></i></div>
+          <div>
+            <h1>Appointment Management</h1>
+            <p>Full booking lifecycle pipeline — from request to completion</p>
+          </div>
+        </div>
+        <div class="au-hero-actions">
+          <input type="date" class="form-control form-control-sm" id="filterDate" style="width: 160px;" onchange="loadOverview()">
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadOverview()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FLOW PIPELINE ═══ -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-diagram-3 me-2 text-primary"></i>Booking Pipeline</h6>
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap" id="pipeline">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ KPI CARDS ═══ -->
+    <div class="row g-3 mb-4" id="kpiCards">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #f59e0b;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="text-muted small">Today's Bookings</div>
+                <h3 class="fw-bold mb-0" id="kpiToday">-</h3>
+              </div>
+              <div class="d-flex align-items-center justify-content-center rounded-circle" style="width:48px;height:48px;background:#fef3c7;">
+                <i class="bi bi-calendar-week text-warning"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #3b82f6;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="text-muted small">Pending Review</div>
+                <h3 class="fw-bold mb-0" id="kpiPending">-</h3>
+              </div>
+              <div class="d-flex align-items-center justify-content-center rounded-circle" style="width:48px;height:48px;background:#dbeafe;">
+                <i class="bi bi-hourglass-split text-primary"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #22c55e;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="text-muted small">Active Jobs</div>
+                <h3 class="fw-bold mb-0" id="kpiActive">-</h3>
+              </div>
+              <div class="d-flex align-items-center justify-content-center rounded-circle" style="width:48px;height:48px;background:#dcfce7;">
+                <i class="bi bi-play-circle text-success"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #8b5cf6;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="text-muted small">Revenue (Today)</div>
+                <h3 class="fw-bold mb-0" id="kpiRevenue">-</h3>
+              </div>
+              <div class="d-flex align-items-center justify-content-center rounded-circle" style="width:48px;height:48px;background:#ede9fe;">
+                <i class="bi bi-currency-dollar text-purple" style="color:#8b5cf6;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ RECENT BOOKINGS TABLE ═══ -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-list-ul me-2"></i>Recent Bookings</h6>
+        <div class="d-flex gap-2">
+          <select class="form-select form-select-sm" id="statusFilter" style="width:160px;" onchange="loadRecent()">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="awaiting_assignment">Awaiting Assignment</option>
+            <option value="assigned">Assigned</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="on-the-way">On The Way</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="expired">Expired</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Reference</th>
+                <th>Customer</th>
+                <th>Service</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Technician</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recentTable">
+              <tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+        <small class="text-muted" id="paginationInfo">Showing 0 of 0</small>
+        <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:480px;margin:auto;">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon bg-info-subtle"><i class="bi bi-info-circle text-info"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0" id="detailTitle">Booking Details</h6>
+            <small class="text-muted">Complete booking information</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" id="detailBody"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ═══ Enterprise Modal ═══ */
+  .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+  .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; }
+  .ent-modal-header-danger { background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%); }
+  .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .ent-modal-body { padding: 24px; }
+  .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+  .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .ent-detail-card-wide { grid-column: span 2; }
+  .ent-detail-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ent-detail-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+  .ent-detail-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+  .ent-detail-sub { font-size: 0.8rem; color: #64748b; }
+  @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+
+  /* Pipeline */
+  .pipeline-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    flex: 1;
+    min-width: 90px;
+  }
+  .pipeline-stage::after {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 55%;
+    width: 90%;
+    height: 2px;
+    background: #e2e8f0;
+    z-index: 0;
+  }
+  .pipeline-stage:last-child::after { display: none; }
+  .pipeline-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    z-index: 1;
+    transition: all 0.3s;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .pipeline-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #64748b;
+    text-align: center;
+  }
+  .pipeline-count {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #1e293b;
+  }
+  .pipeline-active .pipeline-icon { transform: scale(1.15); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+
+  /* Status badges */
+  .st-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+  .st-pending { background: #fef3c7; color: #92400e; }
+  .st-payment_verified { background: #dbeafe; color: #1e40af; }
+  .st-awaiting_assignment { background: #ede9fe; color: #5b21b6; }
+  .st-assigned { background: #e0e7ff; color: #3730a3; }
+  .st-confirmed { background: #d1fae5; color: #065f46; }
+  .st-on-the-way { background: #cffafe; color: #155e75; }
+  .st-arrived { background: #fef3c7; color: #92400e; }
+  .st-in-progress { background: #dbeafe; color: #1e40af; }
+  .st-completed { background: #d1fae5; color: #065f46; }
+  .st-rejected { background: #fee2e2; color: #991b1b; }
+  .st-cancelled { background: #f1f5f9; color: #64748b; }
+  .st-expired { background: #fffbeb; color: #92400e; }
+</style>
+
+<script>
+  const PIPELINE_STAGES = [
+    { key: 'pending', label: 'Pending Review', icon: 'bi-hourglass-split', color: '#f59e0b', bg: '#fef3c7' },
+    { key: 'awaiting_assignment', label: 'In Queue', icon: 'bi-clipboard-check', color: '#8b5cf6', bg: '#ede9fe' },
+    { key: 'assigned', label: 'Assigned', icon: 'bi-person-check', color: '#6366f1', bg: '#e0e7ff' },
+    { key: 'confirmed', label: 'Confirmed', icon: 'bi-check2-circle', color: '#10b981', bg: '#d1fae5' },
+    { key: 'on-the-way', label: 'On The Way', icon: 'bi-geo-alt', color: '#06b6d4', bg: '#cffafe' },
+    { key: 'in-progress', label: 'In Progress', icon: 'bi-tools', color: '#2563eb', bg: '#dbeafe' },
+    { key: 'completed', label: 'Completed', icon: 'bi-trophy', color: '#059669', bg: '#d1fae5' },
+    { key: 'expired', label: 'Expired', icon: 'bi-clock-history', color: '#d97706', bg: '#fef3c7' },
+  ];
+
+  const STATUS_CLASSES = {
+    'pending': 'st-pending', 'payment_verified': 'st-payment_verified', 'awaiting_assignment': 'st-awaiting_assignment',
+    'assigned': 'st-assigned', 'confirmed': 'st-confirmed', 'on-the-way': 'st-on-the-way',
+    'arrived': 'st-arrived', 'in-progress': 'st-in-progress', 'completed': 'st-completed',
+    'rejected': 'st-rejected', 'cancelled': 'st-cancelled', 'expired': 'st-expired',
+  };
+
+  let currentPage = 1, totalPages = 1;
+  const LIMIT = 15;
+
+  async function loadOverview() {
+    try {
+      const date = document.getElementById('filterDate')?.value || '';
+      const [statsRes, recentRes] = await Promise.all([
+        fetch('/api/admin/appointments/flow-stats'),
+        fetch(`/api/admin/appointments/list?page=1&limit=${LIMIT}&date=${date}`)
+      ]);
+      const stats = await statsRes.json();
+      const recent = await recentRes.json();
+
+      renderPipeline(stats.stages);
+      renderKPIs(stats);
+      renderTable(recent.bookings);
+      renderPagination(recent.pagination);
+    } catch (e) { console.error('Overview load error:', e); }
+  }
+
+  async function loadRecent(page = 1) {
+    try {
+      const status = document.getElementById('statusFilter')?.value || '';
+      const date = document.getElementById('filterDate')?.value || '';
+      const res = await fetch(`/api/admin/appointments/list?page=${page}&limit=${LIMIT}&status=${status}&date=${date}`);
+      const data = await res.json();
+      renderTable(data.bookings);
+      renderPagination(data.pagination);
+      currentPage = data.pagination.page;
+    } catch (e) { console.error(e); }
+  }
+
+  function renderPipeline(stages) {
+    const el = document.getElementById('pipeline');
+    el.innerHTML = PIPELINE_STAGES.map((s, i) => {
+      const count = stages[s.key]?.count || 0;
+      const hasCount = count > 0;
+      return `
+        <div class="pipeline-stage ${hasCount ? 'pipeline-active' : ''}">
+          <div class="pipeline-icon" style="background:${s.bg};color:${s.color};">
+            <i class="bi ${s.icon}"></i>
+          </div>
+          <div class="pipeline-label">${s.label}</div>
+          <div class="pipeline-count">${count}</div>
+        </div>
+        ${i < PIPELINE_STAGES.length - 1 ? '' : ''}
+      `;
+    }).join('<div style="flex:0 0 20px;text-align:center;color:#cbd5e1;font-size:1.2rem;margin-top:14px;"><i class="bi bi-chevron-right"></i></div>');
+  }
+
+  function renderKPIs(stats) {
+    const s = stats.stages || {};
+    document.getElementById('kpiToday').textContent = stats.summary?.todayBookings || 0;
+    document.getElementById('kpiPending').textContent = s.PENDING_REVIEW?.count || 0;
+    document.getElementById('kpiActive').textContent = s.ACTIVE_JOBS?.count || 0;
+    document.getElementById('kpiRevenue').textContent = '₱' + (stats.summary?.todayRevenue || 0).toLocaleString();
+  }
+
+  function renderTable(bookings) {
+    const tbody = document.getElementById('recentTable');
+    if (!bookings?.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:2.5rem;"></i><div class="mt-2">No bookings found</div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = bookings.map(b => {
+      const date = new Date(b.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const stClass = STATUS_CLASSES[b.status] || 'st-pending';
+      const statusLabel = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return `<tr>
+        <td><code class="small">${b.bookingReference || b.workOrderNumber || 'N/A'}</code></td>
+        <td><div class="fw-semibold small">${b.customer?.name || 'N/A'}</div><div class="text-muted" style="font-size:0.68rem;">${b.customer?.phone || ''}</div></td>
+        <td class="small">${b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</td>
+        <td class="small">${date}</td>
+        <td class="fw-semibold">₱${(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</td>
+        <td><span class="st-badge ${stClass}">${statusLabel}</span></td>
+        <td class="small">${b.technician?.name || '<span class="text-muted">—</span>'}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-info" onclick="viewDetail('${b._id}')" title="View"><i class="bi bi-eye"></i></button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(p) {
+    document.getElementById('paginationInfo').textContent = `Showing ${((p.page-1)*p.limit)+1}-${Math.min(p.page*p.limit,p.total)} of ${p.total}`;
+    const pag = document.getElementById('pagination');
+    if (p.pages <= 1) { pag.innerHTML = ''; return; }
+    let html = `<li class="page-item ${p.page===1?'disabled':''}"><a class="page-link" href="#" onclick="loadRecent(${p.page-1});return false;">&laquo;</a></li>`;
+    for (let i = 1; i <= p.pages; i++) {
+      html += `<li class="page-item ${i===p.page?'active':''}"><a class="page-link" href="#" onclick="loadRecent(${i});return false;">${i}</a></li>`;
+    }
+    html += `<li class="page-item ${p.page===p.pages?'disabled':''}"><a class="page-link" href="#" onclick="loadRecent(${p.page+1});return false;">&raquo;</a></li>`;
+    pag.innerHTML = html;
+  }
+
+  async function viewDetail(id) {
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`);
+      const data = await res.json();
+      const b = data.booking;
+      const date = new Date(b.bookingDate).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+      const stLabel = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+      document.getElementById('detailTitle').textContent = `Booking ${b.bookingReference || b.workOrderNumber || '#' + b._id.toString().slice(-8).toUpperCase()}`;
+      document.getElementById('detailBody').innerHTML = `
+        <div class="ent-detail-grid">
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Customer</span>
+              <span class="ent-detail-value">${b.customer?.name || 'N/A'}</span>
+              <span class="ent-detail-sub">${b.customer?.email || ''}</span>
+              <span class="ent-detail-sub">${b.customer?.phone || ''}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-tools text-success"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Service</span>
+              <span class="ent-detail-value">${b.service?.name || (b.services?.map(s=>s.name).join(', ')) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</span>
+              <span class="ent-detail-sub">${date}</span>
+              <span class="ent-detail-sub">${b.startTime || ''} - ${b.endTime || ''}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-person-badge text-info"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Technician</span>
+              <span class="ent-detail-value">${b.technician?.name || 'Unassigned'}</span>
+              <span class="ent-detail-sub">${b.technician?.phone || '—'}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Payment</span>
+              <span class="ent-detail-value fw-bold">₱${(b.totalPrice||b.estimatedFee||0).toLocaleString()}</span>
+              <span class="ent-detail-sub">${(b.paymentMethod||'cod').toUpperCase()} &middot; ${b.paymentStatus||'pending'}</span>
+            </div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon bg-dark-subtle"><i class="bi bi-flag-fill text-dark"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Status</span>
+              <span class="ent-detail-value"><span class="badge bg-${b.status === 'completed' ? 'success' : b.status === 'in-progress' ? 'primary' : 'secondary'}">${stLabel}</span></span>
+            </div>
+          </div>
+          <div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Service Location</span>
+              <span class="ent-detail-value">${b.location?.address || 'N/A'}</span>
+            </div>
+          </div>
+          ${b.assignmentId && data.assignment ? `<div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-purple-subtle" style="background:#ede9fe;"><i class="bi bi-diagram-3" style="color:#8b5cf6;"></i></div>
+            <div class="ent-detail-card-content">
+              <span class="ent-detail-label">Assignment Pipeline</span>
+              <div class="d-flex gap-2 flex-wrap mt-1">${['assignedAt','acceptedAt','enRouteAt','arrivedAt','startedAt','completedAt'].map(f => {
+                const label = f.replace('At','').replace(/([A-Z])/g,' $1').trim();
+                const val = data.assignment[f];
+                return val ? `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>${label} ${new Date(val).toLocaleTimeString()}</span>` : `<span class="badge bg-light text-muted">${label}</span>`;
+              }).join('')}</div>
+            </div>
+          </div>` : ''}
+        </div>`;
+      new bootstrap.Modal(document.getElementById('detailModal')).show();
+    } catch (e) { console.error(e); showNotification({ type: 'error', title: 'Error', message: 'Failed to load booking details.', duration: 4000 }); }
+  }
+
+  // Enterprise notification system
+  function showNotification({ type = 'info', title = '', message = '', duration = 3000 }) {
+    const colors = {
+      success: { bg: '#f0fdf4', border: '#22c55e', icon: 'bi-check-circle-fill', iconColor: '#16a34a' },
+      error: { bg: '#fef2f2', border: '#ef4444', icon: 'bi-x-circle-fill', iconColor: '#dc2626' },
+      warning: { bg: '#fffbeb', border: '#f59e0b', icon: 'bi-exclamation-triangle-fill', iconColor: '#d97706' },
+      info: { bg: '#eff6ff', border: '#3b82f6', icon: 'bi-info-circle-fill', iconColor: '#2563eb' }
+    };
+    const c = colors[type] || colors.info;
+    const el = document.createElement('div');
+    el.style.cssText = `position:fixed;top:20px;right:20px;z-index:99999;min-width:340px;max-width:420px;background:${c.bg};border:1px solid ${c.border};border-left:4px solid ${c.border};border-radius:12px;padding:16px 20px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:12px;animation:slideInRight 0.3s ease;`;
+    el.innerHTML = `<i class="bi ${c.icon}" style="font-size:1.3rem;color:${c.iconColor};margin-top:2px;"></i><div style="flex:1;"><div style="font-weight:700;font-size:0.9rem;color:#1e293b;margin-bottom:2px;">${title}</div><div style="font-size:0.82rem;color:#64748b;">${message}</div></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;">&times;</button>`;
+    document.body.appendChild(el);
+    if (!document.getElementById('notif-styles')) {
+      const style = document.createElement('style'); style.id = 'notif-styles';
+      style.textContent = '@keyframes slideInRight{from{transform:translateX(100%);opacity:0;}to{transform:translateX(0);opacity:1;}}';
+      document.head.appendChild(style);
+    }
+    setTimeout(() => { el.style.transition='all 0.3s ease'; el.style.opacity='0'; el.style.transform='translateX(100%)'; setTimeout(()=>el.remove(),300); }, duration);
+  }
+
+  // Init
+  loadOverview();
+</script>

@@ -1,0 +1,956 @@
+<div class="admin-dashboard container-fluid py-4 settings-scheduling-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .settings-scheduling-page {
+      --ss-primary: #2563eb;
+      --ss-primary-dark: #1d4ed8;
+      --ss-primary-deeper: #1e40af;
+      --ss-accent: #60a5fa;
+      --ss-light: #eff6ff;
+      --ss-pale: #f8fafc;
+      --ss-text: #0f172a;
+      --ss-muted: #94a3b8;
+      --ss-border: #e2e8f0;
+      --ss-radius: 16px;
+      --ss-shadow: 0 4px 6px -1px rgba(37,99,235,0.07), 0 2px 4px -2px rgba(37,99,235,0.04);
+      --ss-shadow-hover: 0 10px 25px -5px rgba(37,99,235,0.12), 0 4px 6px -4px rgba(37,99,235,0.06);
+      --ok: #16a34a;
+    }
+    .settings-scheduling-page .dashboard-hero .hero-sub { color: var(--ss-muted); }
+
+    /* Cards */
+    .settings-scheduling-page .ss-card {
+      background: var(--ss-pale);
+      border: 1px solid var(--ss-border);
+      border-radius: var(--ss-radius);
+      box-shadow: var(--ss-shadow);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .settings-scheduling-page .ss-card:hover {
+      transform: translateY(-2px); box-shadow: var(--ss-shadow-hover);
+    }
+    .settings-scheduling-page .ss-card-head {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--ss-border);
+      background: #fff;
+    }
+    .settings-scheduling-page .ss-card-head .ch-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; color: #fff; flex-shrink: 0;
+    }
+    .settings-scheduling-page .ch-icon.blue { background: linear-gradient(135deg, #2563eb, #60a5fa); box-shadow: 0 3px 10px rgba(37,99,235,0.25); }
+    .settings-scheduling-page .ch-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); box-shadow: 0 3px 10px rgba(217,119,6,0.25); }
+    .settings-scheduling-page .ch-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 3px 10px rgba(5,150,105,0.25); }
+    .settings-scheduling-page .ch-icon.rose { background: linear-gradient(135deg, #e11d48, #fb7185); box-shadow: 0 3px 10px rgba(225,29,72,0.25); }
+    .settings-scheduling-page .ch-icon.purple { background: linear-gradient(135deg, #7c3aed, #a78bfa); box-shadow: 0 3px 10px rgba(124,58,237,0.25); }
+    .settings-scheduling-page .ss-card-head h3 {
+      font-size: 0.92rem; font-weight: 700 !important;
+      color: var(--ss-text); margin: 0;
+    }
+    .settings-scheduling-page .ss-card-head .sub {
+      font-size: 0.72rem; color: var(--ss-muted); margin: 0;
+    }
+    .settings-scheduling-page .ss-card-body {
+      padding: 1.25rem; background: #fff;
+    }
+
+    /* Form */
+    .settings-scheduling-page .form-label {
+      font-size: 0.72rem; font-weight: 600 !important;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--ss-muted); margin-bottom: 0.3rem;
+    }
+    .settings-scheduling-page .form-control,
+    .settings-scheduling-page .form-select {
+      border: 1.5px solid var(--ss-border);
+      border-radius: 10px; font-size: 0.875rem;
+      padding: 0.55rem 0.85rem; color: var(--ss-text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .settings-scheduling-page .form-control:focus,
+    .settings-scheduling-page .form-select:focus {
+      border-color: var(--ss-primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+
+    /* Working Days Table */
+    .settings-scheduling-page .wd-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    .settings-scheduling-page .wd-table thead th {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--ss-muted);
+      background: var(--ss-pale); border-bottom: 1px solid var(--ss-border);
+      padding: 0.65rem 0.75rem;
+    }
+    .settings-scheduling-page .wd-table tbody td {
+      padding: 0.6rem 0.75rem; border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .settings-scheduling-page .wd-table tbody tr:last-child td { border-bottom: none; }
+    .settings-scheduling-page .wd-table tbody tr:hover { background: #fafbfd; }
+    .settings-scheduling-page .day-name { font-weight: 600; color: var(--ss-text); font-size: 0.85rem; }
+
+    /* Toggle */
+    .settings-scheduling-page .toggle-wrap {
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .settings-scheduling-page .toggle-switch {
+      position: relative; display: inline-block; width: 40px; height: 22px; margin: 0;
+    }
+    .settings-scheduling-page .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .settings-scheduling-page .toggle-slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: #cbd5e1; border-radius: 999px; transition: 0.22s ease;
+      box-shadow: inset 0 0 0 1px rgba(15,23,42,0.08);
+    }
+    .settings-scheduling-page .toggle-slider::before {
+      content: ""; position: absolute; height: 16px; width: 16px;
+      left: 3px; top: 3px; border-radius: 50%; background: white;
+      transition: 0.22s ease; box-shadow: 0 2px 6px rgba(2,6,23,0.25);
+    }
+    .settings-scheduling-page .toggle-switch input:checked + .toggle-slider { background: var(--ok); }
+    .settings-scheduling-page .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .settings-scheduling-page .toggle-label { font-size: 0.72rem; font-weight: 600; min-width: 28px; }
+    .settings-scheduling-page .toggle-label.on { color: #166534; }
+    .settings-scheduling-page .toggle-label.off { color: #94a3b8; }
+
+    /* Time inputs */
+    .settings-scheduling-page .time-input {
+      width: 110px; padding: 0.35rem 0.6rem; font-size: 0.82rem;
+    }
+    .settings-scheduling-page .time-input:disabled {
+      background: #f1f5f9 !important; color: #94a3b8;
+    }
+
+    /* Buttons */
+    .settings-scheduling-page .btn-ss {
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-weight: 600 !important; font-size: 0.82rem;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: all 0.25s ease; border: none; cursor: pointer;
+    }
+    .settings-scheduling-page .btn-ss.primary {
+      background: linear-gradient(135deg, var(--ss-primary), var(--ss-accent));
+      color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+    }
+    .settings-scheduling-page .btn-ss.primary:hover {
+      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.35); color: #fff;
+    }
+    .settings-scheduling-page .btn-ss.outline {
+      background: #fff; color: var(--ss-text);
+      border: 1.5px solid var(--ss-border);
+    }
+    .settings-scheduling-page .btn-ss.outline:hover {
+      border-color: var(--ss-primary); color: var(--ss-primary);
+      background: var(--ss-light); transform: translateY(-1px);
+    }
+
+    /* Status row */
+    .settings-scheduling-page .status-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.55rem 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .settings-scheduling-page .status-row:last-child { border-bottom: none; }
+    .settings-scheduling-page .status-row .sr-label {
+      font-size: 0.78rem; font-weight: 600 !important; color: var(--ss-muted);
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .settings-scheduling-page .status-row .sr-label i { font-size: 0.85rem; color: var(--ss-primary); }
+    .settings-scheduling-page .status-row .sr-value {
+      font-size: 0.82rem; font-weight: 600 !important; color: var(--ss-text);
+    }
+
+    /* Online badge */
+    .settings-scheduling-page .online-badge {
+      background: rgba(16,185,129,0.12); color: #059669;
+      font-weight: 700 !important; font-size: 0.72rem;
+      padding: 0.2rem 0.65rem; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .settings-scheduling-page .online-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: #10b981; display: inline-block;
+    }
+
+    /* Non-working days */
+    .settings-scheduling-page .nwd-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.55rem 0.75rem; border-bottom: 1px solid #f1f5f9;
+      transition: background 0.15s;
+    }
+    .settings-scheduling-page .nwd-item:last-child { border-bottom: none; }
+    .settings-scheduling-page .nwd-item:hover { background: #fafbfd; }
+    .settings-scheduling-page .nwd-date { font-weight: 600; font-size: 0.85rem; color: var(--ss-text); }
+    .settings-scheduling-page .nwd-reason { font-size: 0.75rem; color: var(--ss-muted); }
+    .settings-scheduling-page .nwd-empty {
+      text-align: center; padding: 2rem; color: var(--ss-muted); font-size: 0.85rem;
+    }
+    .settings-scheduling-page .nwd-empty i { font-size: 2rem; display: block; margin-bottom: 0.5rem; opacity: 0.5; }
+
+    /* Preview calendar */
+    .settings-scheduling-page .preview-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+    }
+    .settings-scheduling-page .preview-day {
+      aspect-ratio: 1; border-radius: 4px; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 600; transition: transform 0.15s;
+    }
+    .settings-scheduling-page .preview-day:hover { transform: scale(1.15); z-index: 1; }
+    .settings-scheduling-page .preview-day.working { background: #dcfce7; color: #166534; }
+    .settings-scheduling-page .preview-day.rest { background: #f1f5f9; color: #94a3b8; }
+    .settings-scheduling-page .preview-day.holiday { background: #fee2e2; color: #991b1b; }
+    .settings-scheduling-page .preview-day.today { outline: 2px solid var(--ss-primary); outline-offset: -1px; }
+    .settings-scheduling-page .preview-legend {
+      display: flex; gap: 12px; margin-top: 10px; font-size: 0.72rem; color: var(--ss-muted);
+    }
+    .settings-scheduling-page .preview-legend span { display: flex; align-items: center; gap: 4px; }
+    .settings-scheduling-page .preview-legend .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+    /* Tips card */
+    .settings-scheduling-page .tip-item {
+      display: flex; gap: 0.65rem; padding: 0.6rem 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .settings-scheduling-page .tip-item:last-child { border-bottom: none; }
+    .settings-scheduling-page .tip-item i { color: var(--ss-primary); font-size: 0.9rem; margin-top: 2px; flex-shrink: 0; }
+    .settings-scheduling-page .tip-item p { font-size: 0.78rem; color: var(--ss-muted); margin: 0; line-height: 1.45; }
+    .settings-scheduling-page .tip-item strong { color: var(--ss-text); }
+
+    /* Toast */
+    .settings-scheduling-page .ss-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.85rem;
+      font-weight: 600; color: #fff; display: none;
+      animation: toastIn 0.35s cubic-bezier(0.25,1,0.5,1);
+    }
+    .settings-scheduling-page .ss-toast.success { background: linear-gradient(135deg, #059669, #10b981); }
+    .settings-scheduling-page .ss-toast.error { background: linear-gradient(135deg, #e11d48, #fb7185); }
+    @keyframes toastIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    @media (max-width: 768px) {
+      .settings-scheduling-page .wd-table { font-size: 0.8rem; }
+      .settings-scheduling-page .time-input { width: 90px; }
+    }
+  </style>
+
+  <!-- Hero -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-calendar3"></i></div>
+        <div>
+          <h1>Scheduling Settings</h1>
+          <p>Configure technician working hours, holidays, and booking policies for optimal service coverage.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- ═══ LEFT COLUMN ═══ -->
+    <div class="col-lg-8">
+
+      <!-- Working Hours -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon blue"><i class="bi bi-clock-fill"></i></div>
+          <div>
+            <h3>Technician Working Hours</h3>
+            <p class="sub">Set default working days and hours for all technicians</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <label class="form-label mb-0">Technician</label>
+              <select id="schedTechSelect" class="form-select form-select-sm" style="width:240px;"></select>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="wd-table">
+              <thead>
+                <tr>
+                  <th style="width:130px;">Day</th>
+                  <th style="width:90px;">Status</th>
+                  <th style="width:130px;">Start Time</th>
+                  <th style="width:130px;">End Time</th>
+                </tr>
+              </thead>
+              <tbody id="workingDaysBody"></tbody>
+            </table>
+          </div>
+          <div class="d-flex gap-2 justify-content-end mt-3">
+            <button id="previewScheduleBtn" class="btn-ss outline"><i class="bi bi-calendar-week"></i> Preview Year</button>
+            <button id="saveScheduleBtn" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Schedule</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-Working Days -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon amber"><i class="bi bi-calendar-x-fill"></i></div>
+          <div>
+            <h3>Non-Working Days</h3>
+            <p class="sub">Holidays and exception dates — technicians will not receive bookings on these days</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div id="nonWorkingList">
+            <div class="nwd-empty"><i class="bi bi-calendar-check"></i>No non-working days configured</div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button id="addNonWorkingBtn" class="btn-ss outline"><i class="bi bi-plus-lg"></i> Add Holiday</button>
+            <button id="syncHolidaysBtn" class="btn-ss primary"><i class="bi bi-arrow-repeat"></i> Sync Public Holidays</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Booking Policy -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon purple"><i class="bi bi-shield-check"></i></div>
+          <div>
+            <h3>Booking Policy</h3>
+            <p class="sub">Minimum advance notice required for customer bookings</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label">Minimum Advance Notice (hours)</label>
+              <input type="number" id="minAdvanceHours" class="form-control" min="0" max="168" step="1" placeholder="12" />
+              <div class="form-text">Customers must book at least this many hours before the scheduled service time. This gives administrators time to review bookings, verify payments, and assign technicians.</div>
+            </div>
+            <div class="col-md-4">
+              <button id="saveBookingPolicyBtn" class="btn-ss primary w-100"><i class="bi bi-floppy"></i> Save Policy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inspection Duration -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon emerald"><i class="bi bi-search"></i></div>
+          <div>
+            <h3>Repair Inspection Duration</h3>
+            <p class="sub">Duration reserved for repair inspection appointments</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label">Inspection Duration (minutes)</label>
+              <input type="number" id="inspectionDurationMinutes" class="form-control" min="30" max="240" step="15" placeholder="90" />
+              <div class="form-text">When customers book a repair, they are scheduling an inspection only. This duration reserves technician capacity for the on-site inspection. The actual repair is scheduled separately after diagnosis.</div>
+            </div>
+            <div class="col-md-4">
+              <button id="saveInspectionDurationBtn" class="btn-ss primary w-100"><i class="bi bi-floppy"></i> Save Duration</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ RIGHT COLUMN ═══ -->
+    <div class="col-lg-4">
+
+      <!-- Schedule Preview -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon emerald"><i class="bi bi-calendar2-month-fill"></i></div>
+          <h3>Schedule Preview</h3>
+        </div>
+        <div class="ss-card-body">
+          <div id="schedulePreview">
+            <div class="nwd-empty"><i class="bi bi-calendar3"></i>Select a technician and click <strong>Preview Year</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Large Project Threshold -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon rose"><i class="bi bi-building"></i></div>
+          <div>
+            <h3>Large Project Detection</h3>
+            <p class="sub">Auto-convert oversized bookings to managed projects</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label">Large Project Threshold (hours)</label>
+              <input type="number" id="largeProjectThresholdHours" class="form-control" min="1" max="999" step="1" placeholder="8" />
+              <div class="form-text">When total estimated service hours exceed this threshold, the booking automatically becomes a Project Booking. Projects are manually scheduled by the admin with team assignments and work orders.</div>
+            </div>
+            <div class="col-md-4">
+              <button id="saveProjectThresholdBtn" class="btn-ss primary w-100"><i class="bi bi-floppy"></i> Save</button>
+            </div>
+          </div>
+          <div class="mt-3 p-3" style="background:var(--ss-light);border-radius:10px;">
+            <div style="font-size:0.78rem;font-weight:600;color:var(--ss-text);margin-bottom:8px;">Example Scenario</div>
+            <div style="font-size:0.74rem;color:var(--ss-muted);line-height:1.6;">
+              <strong>52 aircon units</strong> × <strong>1.5 hrs each</strong> = <strong>78 hours total</strong><br>
+              With threshold of <strong>8 hours</strong>, this is automatically detected as a <strong>Large Project</strong>.<br>
+              Customer selects preferred start date → Admin creates project team → Work orders are divided across technicians.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Tips -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon blue"><i class="bi bi-lightbulb-fill"></i></div>
+          <h3>Quick Tips</h3>
+        </div>
+        <div class="ss-card-body">
+          <div class="tip-item">
+            <i class="bi bi-check-circle-fill"></i>
+            <p><strong>Apply to ALL</strong> — Use the technician dropdown to overwrite every technician's schedule at once.</p>
+          </div>
+          <div class="tip-item">
+            <i class="bi bi-info-circle-fill"></i>
+            <p><strong>Booking Policy</strong> — Setting 12 hours ensures admin has overnight buffer to review morning bookings.</p>
+          </div>
+          <div class="tip-item">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <p><strong>Non-Working Days</strong> — Holidays block all technicians. Individual rest days are set per-technician in their schedule.</p>
+          </div>
+          <div class="tip-item">
+            <i class="bi bi-arrow-repeat"></i>
+            <p><strong>Changes propagate</strong> — Saving a schedule immediately affects booking availability for future dates.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="ssToast" class="ss-toast"></div>
+</div>
+
+<script>
+(function() {
+  const qs = (s) => document.querySelector(s);
+  const qsa = (s) => Array.from(document.querySelectorAll(s));
+  const weekdays = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+  function toast(msg, type) {
+    const t = document.getElementById('ssToast');
+    t.textContent = msg;
+    t.className = 'ss-toast ' + (type || 'success');
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 3000);
+  }
+
+  function minutesToTime(m) {
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function timeToMinutes(t) {
+    const p = String(t).split(":");
+    return parseInt(p[0] || 0, 10) * 60 + parseInt(p[1] || 0, 10);
+  }
+
+  // ── Load Technicians ──
+  async function loadTechnicians() {
+    try {
+      const r = await fetch("/api/admin/technicians");
+      const sel = qs("#schedTechSelect");
+      sel.innerHTML = '<option value="">-- Select Technician --</option><option value="ALL">Apply to ALL Technicians</option>';
+      if (r.ok) {
+        const j = await r.json();
+        (j.technicians || []).forEach(t => {
+          const o = document.createElement("option");
+          o.value = t._id;
+          o.textContent = t.name || t.userEmail || t._id;
+          sel.appendChild(o);
+        });
+      }
+    } catch (e) { console.warn(e); }
+  }
+
+  // ── Render Working Days ──
+  function renderWorkingRows(schedule) {
+    const tbody = qs("#workingDaysBody");
+    tbody.innerHTML = "";
+    for (let i = 0; i < 7; i++) {
+      const found = schedule && (schedule.workingDays || []).find(w => Number(w.dayOfWeek) === i);
+      const enabled = !!found;
+      const rule = found || { startMinutes: 480, endMinutes: 1020 };
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span class="day-name">${weekdays[i]}</span></td>
+        <td>
+          <div class="toggle-wrap">
+            <label class="toggle-switch"><input type="checkbox" class="day-toggle" data-day="${i}" ${enabled ? "checked" : ""}><span class="toggle-slider"></span></label>
+            <span class="toggle-label ${enabled ? 'on' : 'off'}">${enabled ? 'On' : 'Off'}</span>
+          </div>
+        </td>
+        <td><input type="time" class="form-control form-control-sm time-input start-time" data-day="${i}" value="${minutesToTime(rule.startMinutes)}"></td>
+        <td><input type="time" class="form-control form-control-sm time-input end-time" data-day="${i}" value="${minutesToTime(rule.endMinutes)}"></td>`;
+      tbody.appendChild(tr);
+    }
+    bindToggles();
+    try { renderRestDates && renderRestDates(schedule); } catch(e) {}
+  }
+
+  function bindToggles() {
+    qsa("#workingDaysBody tr").forEach(r => {
+      const toggle = r.querySelector(".day-toggle");
+      const sInput = r.querySelector(".start-time");
+      const eInput = r.querySelector(".end-time");
+      const label = r.querySelector(".toggle-label");
+      const update = () => {
+        const on = toggle.checked;
+        sInput.disabled = !on; eInput.disabled = !on;
+        label.textContent = on ? "On" : "Off";
+        label.className = "toggle-label " + (on ? "on" : "off");
+      };
+      toggle.addEventListener("change", update);
+      update();
+    });
+  }
+
+  // ── Tech Select ──
+  qs("#schedTechSelect").addEventListener("change", async function() {
+    const id = this.value;
+    if (!id || id === "ALL") { renderWorkingRows(null); return; }
+    try {
+      const r = await fetch("/api/admin/technician-schedules/" + encodeURIComponent(id));
+      if (r.ok) { const j = await r.json(); renderWorkingRows(j.schedule || null); }
+      else renderWorkingRows(null);
+    } catch(e) { renderWorkingRows(null); }
+  });
+
+  // ── Preview ──
+  qs("#previewScheduleBtn").addEventListener("click", function() {
+    const rows = qsa("#workingDaysBody tr");
+    const workingDays = [];
+    rows.forEach(r => {
+      const day = Number(r.querySelector("input[type=checkbox]").getAttribute("data-day"));
+      if (r.querySelector("input[type=checkbox]").checked) {
+        workingDays.push({
+          dayOfWeek: day,
+          startMinutes: timeToMinutes(r.querySelector(".start-time").value),
+          endMinutes: timeToMinutes(r.querySelector(".end-time").value),
+        });
+      }
+    });
+    renderPreview(workingDays);
+  });
+
+  function renderPreview(workingDays) {
+    const container = qs("#schedulePreview");
+    const now = new Date(); now.setHours(0,0,0,0);
+    const months = [];
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    for (let m = 0; m < 6; m++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+      const month = { name: monthNames[d.getMonth()] + " " + d.getFullYear(), days: [] };
+      const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const startDow = d.getDay();
+      for (let pad = 0; pad < startDow; pad++) month.days.push({ pad: true });
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(d.getFullYear(), d.getMonth(), day);
+        const dow = date.getDay();
+        const isWorking = workingDays.find(w => w.dayOfWeek === dow);
+        const isToday = date.toDateString() === now.toDateString();
+        month.days.push({ day, working: !!isWorking, today: isToday });
+      }
+      months.push(month);
+    }
+    let html = '<div class="row g-3">';
+    months.forEach(m => {
+      html += `<div class="col-sm-6 col-lg-4">
+        <div style="font-size:0.78rem;font-weight:700;color:var(--ss-text);margin-bottom:6px;">${m.name}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:0.6rem;text-align:center;margin-bottom:4px;">
+          ${["S","M","T","W","T","F","S"].map(d => `<div style="font-weight:700;color:var(--ss-muted);padding:2px 0;">${d}</div>`).join('')}
+        </div>
+        <div class="preview-grid">`;
+      m.days.forEach(d => {
+        if (d.pad) { html += '<div></div>'; return; }
+        const cls = d.today ? 'today ' : (d.working ? 'working' : 'rest');
+        html += `<div class="preview-day ${cls}">${d.day}</div>`;
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+    html += '<div class="preview-legend mt-3"><span><span class="dot" style="background:#dcfce7;"></span>Working</span><span><span class="dot" style="background:#f1f5f9;"></span>Rest</span><span><span class="dot" style="background:transparent;border:2px solid var(--ss-primary);"></span>Today</span></div>';
+    container.innerHTML = html;
+  }
+
+  // ── Booking Policy ──
+  async function loadBookingPolicy() {
+    try {
+      const r = await fetch("/api/schedule/booking-policy", { credentials: "same-origin" });
+      if (!r.ok) return;
+      const data = await r.json();
+      const input = document.getElementById("minAdvanceHours");
+      if (input && data.minAdvanceNoticeMinutes != null) {
+        input.value = Math.round(data.minAdvanceNoticeMinutes / 60);
+      }
+    } catch(e) { console.warn("Failed to load booking policy", e); }
+  }
+
+  async function saveBookingPolicy() {
+    const input = document.getElementById("minAdvanceHours");
+    const btn = document.getElementById("saveBookingPolicyBtn");
+    if (!input || !btn) return;
+    const hours = parseInt(input.value, 10);
+    if (isNaN(hours) || hours < 0 || hours > 168) {
+      toast("Please enter a valid number of hours (0–168).", "error");
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const r = await fetch("/api/admin/settings/booking-policy", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minAdvanceNoticeMinutes: hours * 60 }),
+      });
+      if (r.ok) {
+        toast("Booking policy saved successfully!");
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Policy'; }, 1500);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to save.", "error");
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Policy';
+      }
+    } catch(e) {
+      toast("Failed to save booking policy.", "error");
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Policy';
+    } finally { btn.disabled = false; }
+  }
+
+  document.getElementById("saveBookingPolicyBtn")?.addEventListener("click", saveBookingPolicy);
+
+  // ── Inspection Duration ──
+  async function loadInspectionDuration() {
+    try {
+      const r = await fetch("/api/schedule/booking-policy", { credentials: "same-origin" });
+      if (!r.ok) return;
+      const data = await r.json();
+      const input = document.getElementById("inspectionDurationMinutes");
+      if (input && data.inspectionDurationMinutes != null) {
+        input.value = data.inspectionDurationMinutes;
+      }
+    } catch(e) { console.warn("Failed to load inspection duration", e); }
+  }
+
+  async function saveInspectionDuration() {
+    const input = document.getElementById("inspectionDurationMinutes");
+    const btn = document.getElementById("saveInspectionDurationBtn");
+    if (!input || !btn) return;
+    const minutes = parseInt(input.value, 10);
+    if (isNaN(minutes) || minutes < 30 || minutes > 240) {
+      toast("Please enter a valid duration (30-240 minutes).", "error");
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const r = await fetch("/api/admin/settings/inspection-duration", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inspectionDurationMinutes: minutes }),
+      });
+      if (r.ok) {
+        toast("Inspection duration saved successfully!");
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Duration'; }, 1500);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to save.", "error");
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Duration';
+      }
+    } catch(e) {
+      toast("Failed to save inspection duration.", "error");
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Duration';
+    } finally { btn.disabled = false; }
+  }
+
+  document.getElementById("saveInspectionDurationBtn")?.addEventListener("click", saveInspectionDuration);
+
+  // ── Large Project Threshold ──
+  async function loadProjectThreshold() {
+    try {
+      const r = await fetch("/api/scheduling/config", { credentials: "same-origin" });
+      if (!r.ok) return;
+      const data = await r.json();
+      const input = document.getElementById("largeProjectThresholdHours");
+      if (input && data.largeProjectThresholdHours != null) {
+        input.value = data.largeProjectThresholdHours;
+      }
+    } catch(e) { console.warn("Failed to load project threshold", e); }
+  }
+
+  async function saveProjectThreshold() {
+    const input = document.getElementById("largeProjectThresholdHours");
+    const btn = document.getElementById("saveProjectThresholdBtn");
+    if (!input || !btn) return;
+    const hours = parseInt(input.value, 10);
+    if (isNaN(hours) || hours < 1) {
+      toast("Please enter a valid number of hours (minimum 1).", "error");
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const r = await fetch("/api/scheduling/config", {
+        method: "PUT", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ largeProjectThresholdHours: hours }),
+      });
+      if (r.ok) {
+        toast("Large project threshold saved successfully!");
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save'; }, 1500);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to save.", "error");
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save';
+      }
+    } catch(e) {
+      toast("Failed to save project threshold.", "error");
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save';
+    } finally { btn.disabled = false; }
+  }
+
+  document.getElementById("saveProjectThresholdBtn")?.addEventListener("click", saveProjectThreshold);
+
+  // ── Save Schedule ──
+  let currentSchedule = null;
+  async function saveSchedule() {
+    const techId = qs("#schedTechSelect").value;
+    if (!techId) {
+      toast("Please select a technician first.", "error");
+      return;
+    }
+    const btn = qs("#saveScheduleBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    const rows = qsa("#workingDaysBody tr");
+    const workingDays = [];
+    rows.forEach(r => {
+      const toggle = r.querySelector(".day-toggle");
+      const day = Number(toggle.getAttribute("data-day"));
+      if (toggle.checked) {
+        workingDays.push({
+          dayOfWeek: day,
+          startMinutes: timeToMinutes(r.querySelector(".start-time").value),
+          endMinutes: timeToMinutes(r.querySelector(".end-time").value),
+        });
+      }
+    });
+
+    const restDates = currentSchedule ? currentSchedule.restDates : [];
+
+    try {
+      const r = await fetch("/api/admin/technician-schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ technicianId: techId, workingDays, restDates }),
+      });
+      if (r.ok) {
+        toast("Schedule saved successfully!");
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Schedule'; }, 1500);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to save schedule.", "error");
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Schedule';
+      }
+    } catch(e) {
+      toast("Failed to save schedule.", "error");
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Schedule';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  qs("#saveScheduleBtn")?.addEventListener("click", saveSchedule);
+
+  // ── Tech Select override to store currentSchedule ──
+  qs("#schedTechSelect").addEventListener("change", async function() {
+    const id = this.value;
+    if (!id || id === "ALL") { renderWorkingRows(null); currentSchedule = null; return; }
+    try {
+      const r = await fetch("/api/admin/technician-schedules/" + encodeURIComponent(id));
+      if (r.ok) {
+        const j = await r.json();
+        currentSchedule = j.schedule || null;
+        renderWorkingRows(currentSchedule);
+      }
+      else { renderWorkingRows(null); currentSchedule = null; }
+    } catch(e) { renderWorkingRows(null); currentSchedule = null; }
+  });
+
+  // ── Non-Working Days / Holiday Management ──
+  let allDayoffs = [];
+  let showAllHolidays = false;
+
+  async function loadNonWorkingDays() {
+    try {
+      const r = await fetch("/api/admin/dayoffs");
+      if (!r.ok) throw new Error("Fetch failed");
+      const j = await r.json();
+      allDayoffs = j.dayoffs || [];
+      renderNonWorkingDaysList();
+    } catch(e) {
+      qs("#nonWorkingList").innerHTML = '<div class="nwd-empty text-danger"><i class="bi bi-exclamation-triangle-fill"></i>Failed to load holidays</div>';
+    }
+  }
+
+  function renderNonWorkingDaysList() {
+    const list = qs("#nonWorkingList");
+    if (!allDayoffs.length) {
+      list.innerHTML = '<div class="nwd-empty"><i class="bi bi-calendar-check"></i>No non-working days configured</div>';
+      return;
+    }
+
+    const displayList = showAllHolidays ? allDayoffs : allDayoffs.slice(0, 5);
+
+    let html = displayList.map(d => {
+      const dateStr = new Date(d.date).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      const noteStr = d.note || d.reason || 'No details';
+      return `
+        <div class="nwd-item d-flex align-items-center justify-content-between py-2 border-bottom">
+          <div class="d-flex align-items-center">
+            <span class="nwd-date fw-bold" style="font-size:0.875rem; color:#1e293b;">${dateStr}</span>
+            <span class="nwd-reason ms-2 text-muted" style="font-size:0.75rem;">(${noteStr})</span>
+          </div>
+          <button class="btn btn-sm btn-link text-danger p-0 delete-nwd-btn" data-id="${d._id}">
+            <i class="bi bi-trash3-fill"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    if (allDayoffs.length > 5) {
+      const label = showAllHolidays ? "Show Less" : `Show All (${allDayoffs.length})`;
+      const icon = showAllHolidays ? "bi-chevron-up" : "bi-chevron-down";
+      html += `
+        <div class="text-center mt-2">
+          <button id="toggleHolidaysBtn" class="btn btn-sm btn-link text-decoration-none fw-semibold p-1" style="font-size:0.8rem; color:var(--ss-primary);">
+            <i class="bi ${icon} me-1"></i>${label}
+          </button>
+        </div>
+      `;
+    }
+
+    list.innerHTML = html;
+
+    // Bind toggle event
+    const toggleBtn = qs("#toggleHolidaysBtn");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        showAllHolidays = !showAllHolidays;
+        renderNonWorkingDaysList();
+      });
+    }
+
+    // Bind deletes
+    qsa(".delete-nwd-btn").forEach(btn => {
+      btn.addEventListener("click", async function() {
+        const id = this.getAttribute("data-id");
+        if (!confirm("Are you sure you want to delete this holiday/exception date?")) return;
+        try {
+          const dr = await fetch("/api/admin/dayoffs/" + id, { method: "DELETE" });
+          if (dr.ok) {
+            toast("Holiday deleted successfully");
+            loadNonWorkingDays();
+          } else {
+            const err = await dr.json().catch(() => ({}));
+            toast(err.error || "Failed to delete", "error");
+          }
+        } catch(e) {
+          toast("Failed to delete holiday", "error");
+        }
+      });
+    });
+  }
+
+  async function addNonWorkingDay() {
+    const date = prompt("Enter the date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    if (!date) return;
+    const note = prompt("Enter holiday description/note:", "Public Holiday");
+    if (!note) return;
+
+    try {
+      const r = await fetch("/api/admin/dayoffs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, note })
+      });
+      if (r.ok) {
+        toast("Holiday added successfully");
+        loadNonWorkingDays();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to add holiday", "error");
+      }
+    } catch(e) {
+      toast("Failed to add holiday", "error");
+    }
+  }
+
+  async function syncHolidays() {
+    const year = prompt("Enter year to sync:", new Date().getFullYear());
+    if (!year) return;
+    const country = prompt("Enter 2-letter country code:", "PH");
+    if (!country) return;
+
+    const btn = qs("#syncHolidaysBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
+
+    try {
+      const r = await fetch("/api/admin/dayoffs/sync-holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: Number(year), country })
+      });
+      if (r.ok) {
+        const j = await r.json();
+        toast(`Synced! Added ${j.addedCount} new holidays.`);
+        loadNonWorkingDays();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to sync holidays", "error");
+      }
+    } catch(e) {
+      toast("Failed to sync holidays", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Public Holidays';
+    }
+  }
+
+  qs("#addNonWorkingBtn")?.addEventListener("click", addNonWorkingDay);
+  qs("#syncHolidaysBtn")?.addEventListener("click", syncHolidays);
+
+  // ── Init ──
+  loadTechnicians();
+  loadBookingPolicy();
+  loadInspectionDuration();
+  loadProjectThreshold();
+  loadNonWorkingDays();
+  renderWorkingRows(null);
+})();
+</script>
+

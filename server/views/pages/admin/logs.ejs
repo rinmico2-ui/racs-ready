@@ -1,0 +1,519 @@
+<div class="admin-dashboard container-fluid py-4 logs-page">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═════════════════════════════════════════
+       SYSTEM LOGS — Premium Light-Blue Theme
+       ═════════════════════════════════════════ */
+    .logs-page {
+      --lg-primary: #0ea5e9;
+      --lg-accent: #38bdf8;
+      --lg-light: #e0f2fe;
+      --lg-pale: #f0f9ff;
+      --lg-text: #0c4a6e;
+      --lg-muted: #94a3b8;
+      --lg-border: #e2e8f0;
+      --lg-radius: 16px;
+      --lg-shadow: 0 4px 6px -1px rgba(14,165,233,0.07), 0 2px 4px -2px rgba(14,165,233,0.04);
+    }
+
+    /* ── Hero tweaks ── */
+    .logs-page .dashboard-hero .hero-sub { color: var(--lg-muted); }
+
+    /* ── KPI Stats Row ── */
+    .logs-page .log-stat {
+      background: #fff;
+      border: 1px solid var(--lg-border);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      display: flex; align-items: center; gap: 0.7rem;
+      box-shadow: var(--lg-shadow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .logs-page .log-stat:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(14,165,233,0.1);
+    }
+    .logs-page .log-stat .ls-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: #fff; flex-shrink: 0;
+    }
+    .logs-page .log-stat .ls-icon.sky { background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent)); }
+    .logs-page .log-stat .ls-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
+    .logs-page .log-stat .ls-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .logs-page .log-stat .ls-icon.rose { background: linear-gradient(135deg, #e11d48, #fb7185); }
+    .logs-page .log-stat .ls-label {
+      font-size: 0.68rem; font-weight: 600 !important;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--lg-muted); margin-bottom: 0.05rem;
+    }
+    .logs-page .log-stat .ls-value {
+      font-size: 1.15rem; font-weight: 700 !important;
+      color: var(--lg-text); font-family: 'Outfit', sans-serif;
+      line-height: 1;
+    }
+
+    /* ── Filter Bar ── */
+    .logs-page .filter-bar {
+      background: #fff;
+      border: 1px solid var(--lg-border);
+      border-radius: 14px;
+      padding: 0.85rem 1.25rem;
+      display: flex; align-items: center;
+      gap: 0.75rem; flex-wrap: wrap;
+      box-shadow: var(--lg-shadow);
+      margin-bottom: 1rem;
+    }
+    .logs-page .filter-bar .fb-group {
+      display: flex; align-items: center;
+      background: var(--lg-pale);
+      border: 1.5px solid var(--lg-border);
+      border-radius: 10px; padding: 0 0.5rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .logs-page .filter-bar .fb-group:focus-within {
+      border-color: var(--lg-primary);
+      box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+      background: #fff;
+    }
+    .logs-page .filter-bar .fb-group i {
+      color: var(--lg-muted); font-size: 0.85rem; margin-right: 0.25rem;
+    }
+    .logs-page .filter-bar .fb-group input,
+    .logs-page .filter-bar .fb-group select {
+      border: none; background: transparent;
+      font-size: 0.82rem; color: var(--lg-text);
+      padding: 0.4rem 0.35rem; outline: none;
+      font-weight: 500 !important;
+    }
+    .logs-page .filter-bar .fb-group select { cursor: pointer; }
+    .logs-page .filter-bar .fb-group input::placeholder { color: var(--lg-muted); }
+    .logs-page .fb-spacer { flex: 1; }
+    .logs-page .btn-filter {
+      padding: 0.45rem 1rem; border-radius: 9px;
+      font-weight: 600 !important; font-size: 0.78rem;
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      border: none; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+    }
+    .logs-page .btn-filter.primary {
+      background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+      color: #fff; box-shadow: 0 3px 10px rgba(14,165,233,0.25);
+    }
+    .logs-page .btn-filter.primary:hover {
+      transform: translateY(-1px); box-shadow: 0 5px 16px rgba(14,165,233,0.3);
+    }
+    .logs-page .btn-filter.outline {
+      background: #fff; color: var(--lg-text);
+      border: 1.5px solid var(--lg-border);
+    }
+    .logs-page .btn-filter.outline:hover {
+      border-color: var(--lg-primary); color: var(--lg-primary);
+      background: var(--lg-pale);
+    }
+
+    /* ── Table Card ── */
+    .logs-page .table-card {
+      background: #fff;
+      border: 1px solid var(--lg-border);
+      border-radius: var(--lg-radius);
+      box-shadow: var(--lg-shadow);
+      overflow: hidden;
+    }
+    .logs-page .table-card .tc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #f1f5f9;
+      flex-wrap: wrap; gap: 0.5rem;
+    }
+    .logs-page .table-card .tc-head .tc-title {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.92rem; font-weight: 700 !important;
+      color: var(--lg-text); font-family: 'Outfit', sans-serif;
+    }
+    .logs-page .table-card .tc-head .tc-title .tc-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      box-shadow: 0 3px 8px rgba(14,165,233,0.2);
+    }
+    .logs-page .tc-count {
+      background: var(--lg-light); color: var(--lg-primary);
+      font-size: 0.72rem; font-weight: 700 !important;
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+    }
+
+    /* ── Table ── */
+    .logs-page .logs-table {
+      width: 100%; border-collapse: collapse;
+    }
+    .logs-page .logs-table thead th {
+      background: var(--lg-pale);
+      color: var(--lg-muted);
+      font-size: 0.7rem; font-weight: 700 !important;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 0.7rem 1rem;
+      border-bottom: 1.5px solid var(--lg-border);
+      white-space: nowrap;
+    }
+    .logs-page .logs-table tbody td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid #f8fafc;
+      font-size: 0.82rem; color: var(--lg-text);
+      vertical-align: middle;
+    }
+    .logs-page .logs-table tbody tr {
+      transition: background 0.15s ease;
+    }
+    .logs-page .logs-table tbody tr:hover {
+      background: var(--lg-pale);
+    }
+    .logs-page .logs-table tbody tr:last-child td { border-bottom: none; }
+    .logs-page .logs-table .actor-cell {
+      font-weight: 600 !important; color: var(--lg-text);
+      max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .logs-page .logs-table .date-cell {
+      white-space: nowrap;
+    }
+    .logs-page .logs-table .date-cell .time-sub {
+      font-size: 0.7rem; color: var(--lg-muted); display: block;
+    }
+    .logs-page .logs-table .detail-cell {
+      max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; font-size: 0.75rem; color: var(--lg-muted);
+    }
+
+    /* ── Action Badges ── */
+    .logs-page .action-badge {
+      font-size: 0.7rem; font-weight: 700 !important;
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      white-space: nowrap;
+    }
+    .logs-page .action-badge.login { background: rgba(16,185,129,0.12); color: #059669; }
+    .logs-page .action-badge.logout { background: rgba(245,158,11,0.12); color: #d97706; }
+    .logs-page .action-badge.create { background: rgba(14,165,233,0.12); color: #0284c7; }
+    .logs-page .action-badge.update { background: rgba(124,58,237,0.12); color: #7c3aed; }
+    .logs-page .action-badge.delete { background: rgba(225,29,72,0.12); color: #e11d48; }
+    .logs-page .action-badge.default { background: rgba(100,116,139,0.1); color: #64748b; }
+
+    /* ── Pagination ── */
+    .logs-page .table-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid #f1f5f9;
+      flex-wrap: wrap; gap: 0.5rem;
+    }
+    .logs-page .table-footer .range-text {
+      font-size: 0.78rem; color: var(--lg-muted); font-weight: 500 !important;
+    }
+    .logs-page .pag-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; border: 1.5px solid var(--lg-border);
+      background: #fff; color: var(--lg-text); cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .logs-page .pag-btn:hover:not(.disabled) {
+      border-color: var(--lg-primary); color: var(--lg-primary);
+      background: var(--lg-pale);
+    }
+    .logs-page .pag-btn.disabled {
+      opacity: 0.4; cursor: default; pointer-events: none;
+    }
+    .logs-page .pag-indicator {
+      font-size: 0.78rem; font-weight: 600 !important;
+      color: var(--lg-text); padding: 0 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .logs-page .lg-hero { padding: 1.25rem; }
+      .logs-page .lg-hero h1 { font-size: 1.15rem; }
+      .logs-page .filter-bar { flex-direction: column; }
+      .logs-page .filter-bar .fb-group { width: 100%; }
+      .logs-page .table-footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+
+  <!-- ═══ HERO ═══ -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
+        <div>
+          <h1>System Logs</h1>
+          <p>Audit trail — monitor all activity across the system in real time.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KPI STATS ═══ -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="log-stat">
+        <div class="ls-icon sky"><i class="bi bi-journal-text"></i></div>
+        <div>
+          <div class="ls-label">Total Logs</div>
+          <div class="ls-value" id="stat-total">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="log-stat">
+        <div class="ls-icon emerald"><i class="bi bi-box-arrow-in-right"></i></div>
+        <div>
+          <div class="ls-label">Logins</div>
+          <div class="ls-value" id="stat-logins">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="log-stat">
+        <div class="ls-icon amber"><i class="bi bi-box-arrow-right"></i></div>
+        <div>
+          <div class="ls-label">Logouts</div>
+          <div class="ls-value" id="stat-logouts">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="log-stat">
+        <div class="ls-icon rose"><i class="bi bi-pencil-square"></i></div>
+        <div>
+          <div class="ls-label">Actions</div>
+          <div class="ls-value" id="stat-actions">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FILTER BAR ═══ -->
+  <div class="filter-bar">
+    <div class="fb-group" style="min-width:200px; flex:1;">
+      <i class="bi bi-search"></i>
+      <input id="logs-filter" type="text" placeholder="Search actor, action, or details...">
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-funnel"></i>
+      <select id="logs-action-filter">
+        <option value="">All Actions</option>
+        <option value="login">Login</option>
+        <option value="logout">Logout</option>
+        <option value="create">Create</option>
+        <option value="update">Update</option>
+        <option value="upsert">Upsert</option>
+        <option value="delete">Delete</option>
+      </select>
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-calendar3"></i>
+      <select id="logs-date-filter">
+        <option value="">All Time</option>
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+      </select>
+    </div>
+    <div class="fb-spacer"></div>
+    <button class="btn-filter outline" onclick="resetFilters()"><i class="bi bi-x-circle"></i> Clear</button>
+    <button class="btn-filter primary" onclick="applyFilter()"><i class="bi bi-funnel-fill"></i> Apply</button>
+  </div>
+
+  <!-- ═══ TABLE CARD ═══ -->
+  <div class="table-card">
+    <div class="tc-head">
+      <div class="tc-title">
+        <div class="tc-icon"><i class="bi bi-list-ul"></i></div>
+        System Activity
+      </div>
+      <span class="tc-count">Latest <span id="logs-count">0</span></span>
+    </div>
+    <div class="table-responsive">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Date / Time</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="logs-table-body">
+          <tr><td colspan="5" style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.85rem;">
+            <i class="bi bi-arrow-repeat" style="font-size:1.2rem; display:block; margin-bottom:0.5rem; animation: spin 1s linear infinite;"></i>
+            Loading logs...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <div class="range-text" id="logs-range">—</div>
+      <div class="d-flex align-items-center gap-2">
+        <button class="pag-btn" id="pag-prev" onclick="prevPage()"><i class="bi bi-chevron-left"></i></button>
+        <span class="pag-indicator" id="pag-indicator">1 of 1</span>
+        <button class="pag-btn" id="pag-next" onclick="nextPage()"><i class="bi bi-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <script>
+    const PAGE_SIZE = 15;
+    let allLogs = [];
+    let filteredLogs = [];
+    let currentPage = 1;
+
+    function getActionClass(action) {
+      const a = (action || '').toLowerCase();
+      if (a === 'login') return 'login';
+      if (a === 'logout') return 'logout';
+      if (a.includes('create')) return 'create';
+      if (a.includes('upsert') || a.includes('update')) return 'update';
+      if (a.includes('delete') || a.includes('cancel') || a.includes('fail')) return 'delete';
+      return 'default';
+    }
+
+    function renderPage(page) {
+      const start = (page - 1) * PAGE_SIZE;
+      const slice = filteredLogs.slice(start, start + PAGE_SIZE);
+      const body = document.getElementById("logs-table-body");
+
+      if (slice.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.85rem;"><i class="bi bi-inbox" style="font-size:1.5rem; display:block; margin-bottom:0.5rem;"></i>No logs found.</td></tr>';
+      } else {
+        body.innerHTML = slice.map((l, idx) => {
+          const d = new Date(l.createdAt || Date.now());
+          const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+          const timeStr = d.toLocaleTimeString();
+          let actor = l.actorEmail || l.actorName || 'system';
+          if (actor.length > 30) actor = actor.substring(0, 30) + '...';
+          const details = (() => {
+            if (!l.details) return '';
+            if (l.details.reason) return l.details.reason;
+            if (typeof l.details === 'string') return l.details;
+            return Object.entries(l.details).map(([k,v]) => typeof v === 'object' ? `${k}=${JSON.stringify(v)}` : `${k}=${v}`).join(' ');
+          })();
+          const cls = getActionClass(l.action);
+          const num = start + idx + 1;
+          return `<tr>
+            <td style="color:#94a3b8; font-size:0.75rem;">${num}</td>
+            <td class="date-cell">${dateStr}<span class="time-sub">${timeStr}</span></td>
+            <td class="actor-cell" title="${actor}">${actor}</td>
+            <td><span class="action-badge ${cls}">${l.action || 'Unknown'}</span></td>
+            <td class="detail-cell" title="${details}">${details}</td>
+          </tr>`;
+        }).join('');
+      }
+
+      // Range
+      const total = filteredLogs.length;
+      const from = total === 0 ? 0 : start + 1;
+      const to = Math.min(start + PAGE_SIZE, total);
+      document.getElementById('logs-range').textContent = `Showing ${from}–${to} of ${total} entries`;
+
+      // Pagination
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      document.getElementById('pag-indicator').textContent = `${page} of ${pages}`;
+      document.getElementById('pag-prev').classList.toggle('disabled', page <= 1);
+      document.getElementById('pag-next').classList.toggle('disabled', page >= pages);
+    }
+
+    function updateStats() {
+      const total = filteredLogs.length;
+      const logins = filteredLogs.filter(l => (l.action || '').toLowerCase() === 'login').length;
+      const logouts = filteredLogs.filter(l => (l.action || '').toLowerCase() === 'logout').length;
+      const actions = total - logins - logouts;
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-logins').textContent = logins;
+      document.getElementById('stat-logouts').textContent = logouts;
+      document.getElementById('stat-actions').textContent = actions;
+      document.getElementById('logs-count').textContent = total;
+    }
+
+    function applyFilter() {
+      const text = (document.getElementById("logs-filter").value || "").toLowerCase();
+      const actionF = (document.getElementById("logs-action-filter").value || "").toLowerCase();
+      const dateF = document.getElementById("logs-date-filter").value;
+      const now = new Date();
+
+      filteredLogs = allLogs.filter(l => {
+        // Text filter
+        if (text) {
+          const match = (l.actorEmail || '').toLowerCase().includes(text)
+            || (l.action || '').toLowerCase().includes(text)
+            || (JSON.stringify(l.details || '') || '').toLowerCase().includes(text);
+          if (!match) return false;
+        }
+        // Action filter
+        if (actionF) {
+          const a = (l.action || '').toLowerCase();
+          if (actionF === 'create' && !a.includes('create')) return false;
+          else if (actionF === 'update' && !(a.includes('update') || a.includes('upsert'))) return false;
+          else if (actionF === 'upsert' && !a.includes('upsert')) return false;
+          else if (actionF === 'delete' && !a.includes('delete')) return false;
+          else if (actionF === 'login' && a !== 'login') return false;
+          else if (actionF === 'logout' && a !== 'logout') return false;
+        }
+        // Date filter
+        if (dateF) {
+          const logDate = new Date(l.createdAt);
+          if (dateF === 'today') {
+            if (logDate.toDateString() !== now.toDateString()) return false;
+          } else if (dateF === 'week') {
+            const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+            if (logDate < weekAgo) return false;
+          } else if (dateF === 'month') {
+            const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+            if (logDate < monthAgo) return false;
+          }
+        }
+        return true;
+      });
+
+      currentPage = 1;
+      updateStats();
+      renderPage(currentPage);
+    }
+
+    function resetFilters() {
+      document.getElementById("logs-filter").value = '';
+      document.getElementById("logs-action-filter").value = '';
+      document.getElementById("logs-date-filter").value = '';
+      applyFilter();
+    }
+
+    function prevPage() {
+      if (currentPage > 1) { currentPage--; renderPage(currentPage); }
+    }
+    function nextPage() {
+      const pages = Math.ceil(filteredLogs.length / PAGE_SIZE);
+      if (currentPage < pages) { currentPage++; renderPage(currentPage); }
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch("/api/admin/logs?limit=200");
+        const json = res.ok ? await res.json() : { logs: [] };
+        allLogs = json.logs || [];
+        applyFilter();
+      } catch (e) {
+        document.getElementById("logs-table-body").innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#e11d48; font-size:0.85rem;"><i class="bi bi-exclamation-triangle" style="font-size:1.2rem; display:block; margin-bottom:0.5rem;"></i>Failed to load logs.</td></tr>';
+        console.error(e);
+      }
+    }
+
+    // Live filter on text input
+    document.getElementById("logs-filter").addEventListener("input", () => applyFilter());
+    document.getElementById("logs-action-filter").addEventListener("change", () => applyFilter());
+    document.getElementById("logs-date-filter").addEventListener("change", () => applyFilter());
+
+    loadLogs();
+  </script>
+</div>

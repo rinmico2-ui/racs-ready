@@ -1,0 +1,1102 @@
+<div class="admin-dashboard container-fluid py-4 core-services-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
+
+    .core-services-page {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 26%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 22%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+    }
+    .core-services-page .au-hero h1,
+    .core-services-page .kpi-value,
+    .core-services-page .modal-title,
+    .core-services-page .core-service-title {
+      letter-spacing: -0.01em;
+    }
+    .core-services-page .font-monospace,
+    .core-services-page .core-code-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    }
+
+    .core-services-page .form-label {
+      color: #64748b !important;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+    }
+    .core-services-page .form-control,
+    .core-services-page .form-select,
+    .core-services-page .input-group-text {
+      border-color: #cfd8e3;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .core-services-page .form-control,
+    .core-services-page .form-select {
+      border-radius: 10px;
+      min-height: 40px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+    .core-services-page .input-group-text {
+      border-radius: 10px;
+      color: #64748b;
+      padding-inline: 0.8rem;
+    }
+    .core-services-page .input-group .form-control {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+    .core-services-page .input-group .input-group-text {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    .core-services-page .form-control::placeholder,
+    .core-services-page .form-select,
+    .core-services-page textarea::placeholder {
+      color: #94a3b8;
+      opacity: 1;
+    }
+    .core-services-page .form-control:focus,
+    .core-services-page .form-select:focus {
+      border-color: #2563eb;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      color: #0f172a;
+    }
+    .core-services-page .core-field-wrap:focus-within .core-field-icon {
+      color: #2563eb;
+    }
+
+    .core-services-page .btn {
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .core-services-page .new-core-service {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+    }
+    .core-services-page .new-core-service:hover {
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .core-services-page .btn.btn-light.border {
+      background: #ffffff;
+      border-color: #d7e0ea !important;
+      color: #334155;
+    }
+    .core-services-page .btn.btn-light.border:hover {
+      background: #f8fafc;
+      border-color: #b7c5d6 !important;
+      color: #0f172a;
+    }
+    .core-services-page .card {
+      border-radius: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+    }
+    .core-services-page .card-header {
+      background: #f8fafc;
+    }
+    .core-services-page .core-filter-card .card-body {
+      padding: 1rem 1rem 1.1rem;
+    }
+    .core-services-page .core-filter-card .form-label {
+      margin-bottom: 0.4rem;
+    }
+    .core-services-page .core-filter-card .input-group,
+    .core-services-page .core-filter-card .form-select {
+      border-radius: 10px;
+    }
+    .core-services-page .core-filter-card .input-group-text {
+      background: #eff6ff;
+      color: #2563eb;
+      border-color: #cfd8e3;
+    }
+    .core-services-page .core-filter-card .form-control,
+    .core-services-page .core-filter-card .form-select {
+      background: #ffffff;
+    }
+    .core-services-page .core-filter-btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+    }
+    .core-services-page .core-filter-btn:hover {
+      color: #fff;
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      transform: translateY(-1px);
+    }
+
+    .core-services-page .core-service-modal .modal-dialog {
+      max-width: min(1120px, calc(100vw - 1.5rem));
+    }
+    .core-services-page .core-modal-shell {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      box-shadow: 0 30px 50px rgba(15, 23, 42, 0.2);
+    }
+    .core-services-page .core-modal-header {
+      padding: 1rem 1.25rem;
+      background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+      border-bottom: 1px solid #dbe4ef;
+    }
+    .core-services-page .core-modal-body {
+      padding: 1rem 1.25rem;
+      max-height: calc(100vh - 220px);
+      overflow-y: auto;
+      background: #ffffff;
+    }
+    .core-services-page .core-modal-footer {
+      padding: 0.85rem 1.25rem 1rem;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      border-top: 1px solid #dbe4ef;
+    }
+    .core-services-page .core-cancel-btn {
+      background: #ffffff;
+      color: #475569;
+      border: 1px solid #d6dee8;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+    }
+    .core-services-page .core-cancel-btn:hover {
+      background: #f8fafc;
+      color: #0f172a;
+      border-color: #b7c5d6;
+    }
+    .core-services-page .core-save-btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 0;
+      color: #fff;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24);
+    }
+    .core-services-page .core-save-btn:hover {
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      color: #fff;
+    }
+    .core-services-page .core-section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .core-services-page .core-section-title i {
+      color: #2563eb;
+    }
+    .core-services-page .core-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin-bottom: 0.35rem;
+    }
+    .core-services-page .core-input {
+      min-height: 40px;
+    }
+    .core-services-page .core-input-icon {
+      padding-left: 2.3rem;
+    }
+    .core-services-page .core-field-wrap {
+      position: relative;
+    }
+    .core-services-page .core-field-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      font-size: 0.9rem;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .core-services-page .core-field-wrap textarea + .core-field-icon,
+    .core-services-page .core-field-wrap .core-field-icon.top {
+      top: 0.82rem;
+      transform: none;
+    }
+    .core-services-page textarea.core-input {
+      min-height: 88px;
+      resize: vertical;
+    }
+    .core-services-page .core-aircon-toggle-card {
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc !important;
+    }
+    .core-services-page .core-hp-panel {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+    .core-services-page .core-hp-panel .card-header {
+      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+      border-bottom: 1px solid rgba(37, 99, 235, 0.12);
+    }
+    .core-services-page .core-hp-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .core-services-page .core-hp-panel-title i {
+      color: #2563eb;
+    }
+    .core-services-page .core-hp-subtext {
+      font-size: 0.76rem;
+      color: #64748b;
+      margin-top: 0.2rem;
+    }
+    .core-services-page .aircon-type-card .card-header {
+      padding: 0.65rem 0.8rem;
+      background: #ffffff;
+    }
+    .core-services-page .aircon-type-card .card-body {
+      padding: 0.85rem;
+    }
+    .core-services-page .core-type-head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+    .core-services-page .core-type-head .form-select,
+    .core-services-page .core-type-head .form-control {
+      min-height: 38px;
+      background: #f8fafc;
+      border-color: #d5dee9;
+      font-weight: 600;
+    }
+    .core-services-page .core-type-head .form-select {
+      min-width: 210px;
+    }
+    .core-services-page .core-type-head .form-control {
+      flex: 1 1 260px;
+    }
+    .core-services-page .core-type-remove {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid rgba(239, 68, 68, 0.14);
+      background: #fff5f5;
+      color: #dc2626;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .core-services-page .core-type-remove:hover {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .core-services-page .core-type-description {
+      width: 100%;
+      margin-top: 0.25rem;
+      background: #fff;
+      border: 1px solid #d5dee9;
+      border-radius: 10px;
+      min-height: 40px;
+    }
+    .core-services-page .core-hp-section {
+      margin-top: 0.9rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed #d5dee9;
+    }
+    .core-services-page .core-hp-section-label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .core-services-page .core-hp-section-label i {
+      color: #2563eb;
+    }
+    .core-services-page .core-add-hp {
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      color: #1d4ed8;
+      font-weight: 700;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.08);
+    }
+    .core-services-page .core-add-hp:hover {
+      background: #eff6ff;
+      border-color: rgba(37, 99, 235, 0.3);
+      color: #1e40af;
+    }
+    .core-services-page .core-hp-row {
+      border: 1px solid #dbe4ef;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 0.75rem;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+    }
+    .core-services-page .core-hp-row .form-control,
+    .core-services-page .core-hp-row .input-group-text {
+      min-height: 36px;
+      border-color: #d5dee9;
+      background: #f8fafc;
+      font-size: 0.9rem;
+    }
+    .core-services-page .core-hp-row .input-group-text {
+      color: #64748b;
+      font-weight: 700;
+    }
+    .core-services-page .core-hp-label {
+      font-size: 0.69rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .core-services-page .core-hp-label i {
+      color: #2563eb;
+    }
+    .core-services-page .core-type-select {
+      min-width: 156px;
+      max-width: 100%;
+    }
+    .core-services-page .core-aircon-grid-row {
+      margin-left: 0;
+      margin-right: 0;
+      border-radius: 8px;
+    }
+    .core-services-page .core-table-card {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06);
+    }
+    .core-services-page .core-table thead th {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+      padding-top: 0.85rem;
+      padding-bottom: 0.85rem;
+    }
+    .core-services-page .core-table thead th i {
+      color: #2563eb;
+      margin-right: 0.35rem;
+    }
+    .core-services-page .core-table tbody td {
+      vertical-align: top;
+      padding-top: 0.9rem;
+      padding-bottom: 0.9rem;
+    }
+    .core-services-page .core-service-cell {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+    }
+    .core-services-page .core-service-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #dbeafe;
+      color: #1d4ed8;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .core-services-page .core-service-title {
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.15;
+      margin-bottom: 0.2rem;
+    }
+    .core-services-page .core-service-sub {
+      font-size: 0.76rem;
+      color: #64748b;
+      line-height: 1.35;
+      max-width: 360px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .core-services-page .core-code-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.26rem 0.55rem;
+      border-radius: 999px;
+      background: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #334155;
+      font-size: 0.72rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+    }
+    .core-services-page .core-count-badge {
+      min-width: 2.2rem;
+      text-align: center;
+      padding: 0.3rem 0.55rem;
+      font-size: 0.74rem;
+    }
+    .core-services-page .core-booking-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.58rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+    .core-services-page .core-edit-btn {
+      border-radius: 10px;
+      font-weight: 600;
+      min-width: 88px;
+    }
+    .core-services-page .core-empty-state {
+      padding: 2rem 1rem;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+    .core-services-page .core-empty-state i {
+      font-size: 1.5rem;
+      color: #94a3b8;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    .core-services-page .form-check-input:checked {
+      background-color: #10b981;
+      border-color: #10b981;
+    }
+    .core-services-page .form-check-input:focus {
+      box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.2);
+    }
+
+    /* ── Enterprise KPI Card Styles (matching Appointments page) ── */
+    .core-services-page .dash-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .core-services-page .dash-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .core-services-page .kpi-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    .core-services-page .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
+    .core-services-page .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .core-services-page .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .core-services-page .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .core-services-page .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .core-services-page .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .core-services-page .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .core-services-page .fs-7 { font-size: 0.75rem; }
+    @media (max-width: 767px) {
+      .core-services-page .core-modal-body {
+        max-height: calc(100vh - 170px);
+        padding: 0.9rem;
+      }
+      .core-services-page .core-modal-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .core-services-page .core-modal-footer .btn {
+        width: 100%;
+      }
+      .core-services-page .core-service-sub {
+        max-width: none;
+      }
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-gear-fill"></i></div>
+        <div>
+          <h1>Core Services Catalog</h1>
+          <p>Configure standard service packages, rates, and service-level policies</p>
+        </div>
+      </div>
+      <div class="au-hero-actions">
+        <div class="btn-group">
+          <button class="btn btn-light btn-sm fw-semibold new-core-service">
+            <i class="bi bi-plus-lg me-1"></i>New Core Service
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- original header removed -->
+
+  <% // compute some simple stats from the list %>
+  <% const totalCount = coreServices ? coreServices.length : 0; %>
+  <% const activeCount = coreServices ? coreServices.filter(s=>s.active).length : 0; %>
+  <% const reviewCount = totalCount - activeCount; %>
+  <% const avgTime = coreServices && coreServices.length ? (coreServices.reduce((sum,s)=>sum + (s.durationMinutes||0),0) / coreServices.length) : 0; %>
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Core Services</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statTotalCore"><%= totalCount %></span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7">All services</div>
+            <small class="text-muted">Registered catalog items</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-clipboard-data text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Services</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statActive"><%= activeCount %></span>
+            </div>
+            <div class="badge bg-success-subtle text-success fs-7">Live</div>
+            <small class="text-muted">Available for booking</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-check-circle text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Needs Review</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statReview"><%= reviewCount %></span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7">Pending</div>
+            <small class="text-muted">Inactive or draft</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-pencil-square text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Avg Completion Time</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="statAvgTimeCore"><%= fmtDuration(Math.round(avgTime)) %></span>
+            </div>
+            <div class="badge bg-secondary-subtle text-secondary fs-7">Avg</div>
+            <small class="text-muted">Across all services</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+            <i class="bi bi-clock text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4 core-filter-card">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-search me-1 text-primary"></i>Search Service</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0"
+              ><i class="bi bi-search text-muted"></i
+            ></span>
+            <input
+              type="text"
+              class="form-control border-start-0 bg-light"
+              placeholder="Service name, code, or category"
+            />
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-tags me-1 text-primary"></i>Category</label>
+          <select class="form-select">
+            <option>All Categories</option>
+            <option>Cleaning</option>
+            <option>Installation</option>
+            <option>Maintenance</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-check2-circle me-1 text-primary"></i>Status</label>
+          <select class="form-select">
+            <option>All</option>
+            <option>Active</option>
+            <option>Draft</option>
+            <option>Archived</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn core-filter-btn w-100">
+            <i class="bi bi-funnel-fill me-2"></i>Filter
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% /* helpers */ %>
+  <% function fmtPrice(p) {
+    if (p == null) return '';
+    return '₱ ' + Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } %>
+  <% function fmtDuration(mins) {
+    if (!mins && mins !== 0) return '';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    let out = '';
+    if (h) out += h + 'h';
+    if (m) out += (out ? ' ' : '') + m + 'm';
+    return out || '0m';
+  } %>
+  <% function badgeClass(cat) {
+    // simple generic badge style – categories can be customized as needed
+    return 'badge bg-secondary-subtle text-secondary border border-secondary-subtle';
+  } %>
+
+  <div class="card border-0 shadow-sm mb-4 core-table-card">
+    <div
+      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
+    >
+      <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Core Service Definitions</h6>
+      <span class="text-muted small">Updated with category structure</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0 core-table">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4"><i class="bi bi-box-seam"></i>Service</th>
+            <th><i class="bi bi-upc-scan"></i>Code</th>
+            <th><i class="bi bi-tags"></i>Category/Type</th>
+            <th class="text-center"><i class="bi bi-list-check"></i>Features</th>
+            <th class="text-center"><i class="bi bi-basket2"></i>Inclusions</th>
+            <th><i class="bi bi-journal-check"></i>Bookings</th>
+            <th><i class="bi bi-check2-circle"></i>Status</th>
+            <th class="text-end pe-4"><i class="bi bi-gear"></i>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (coreServices && coreServices.length) { %>
+            <% coreServices.forEach(function(svc) { %>
+              <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
+                <td class="ps-4">
+                  <div class="core-service-cell">
+                    <span class="core-service-icon"><i class="bi bi-tools"></i></span>
+                    <div>
+                      <div class="core-service-title"><%= svc.name %></div>
+                      <div class="core-service-sub"><%= svc.description || 'No description provided.' %></div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="core-code-badge"><i class="bi bi-hash"></i><%= svc.slug || svc._id %></span>
+                </td>
+                <td>
+                  <span class="<%= badgeClass(svc.category) %> mb-1 d-inline-block"><%= svc.category || '-' %></span>
+                  <% if (svc.isAirconService) { %>
+                    <br><span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-snow me-1"></i>Aircon</span>
+                  <% } %>
+                </td>
+                <td class="text-center"><span class="badge bg-light text-dark border core-count-badge"><%= (svc.features && svc.features.length) || 0 %></span></td>
+                <td class="text-center"><span class="badge bg-light text-dark border core-count-badge"><%= (svc.includedItems && svc.includedItems.length) || 0 %></span></td>
+                <td><span class="core-booking-badge"><i class="bi bi-graph-up-arrow"></i><%= svc.bookingCount || 0 %></span></td>
+                <td>
+                  <span class="badge <%= svc.active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' %>"><%= svc.active ? 'Active' : 'Inactive' %></span>
+                </td>
+                <td class="text-end pe-4">
+                  <button class="btn btn-sm btn-light border edit-core-service core-edit-btn"><i class="bi bi-pencil-square me-1"></i>Edit</button>
+                </td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr>
+              <td colspan="8" class="text-center core-empty-state">
+                <i class="bi bi-inboxes"></i>
+                <div>No core services defined.</div>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- modal to create/edit core service -->
+<div class="modal fade core-service-modal" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <form id="coreServiceForm" class="modal-content border-0 shadow core-modal-shell">
+      <div class="modal-header bg-light border-bottom-0 pb-3 core-modal-header">
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="coreServiceModalLabel"><i class="bi bi-gear-fill text-primary"></i><span>Core Service</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-4 core-modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6 class="core-section-title"><i class="bi bi-card-text"></i>Basic Info</h6>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-card-heading me-1"></i>Service Name</label>
+              <div class="core-field-wrap">
+                <input type="text" name="name" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. Standard Cleaning" />
+                <i class="bi bi-tools core-field-icon"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-hash me-1"></i>Slug / Code</label>
+              <div class="core-field-wrap">
+                <input type="text" name="slug" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. std-cleaning" />
+                <i class="bi bi-upc-scan core-field-icon"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-tag me-1"></i>Category</label>
+              <div class="core-field-wrap">
+                <input type="text" name="category" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. Cleaning" />
+                <i class="bi bi-tags core-field-icon"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-file-text me-1"></i>Description</label>
+              <div class="core-field-wrap">
+                <textarea name="description" class="form-control bg-light core-input core-input-icon" rows="4" placeholder="Describe the core service..."></textarea>
+                <i class="bi bi-chat-square-text core-field-icon top"></i>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="core-section-title"><i class="bi bi-cash-coin"></i>Pricing & Details</h6>
+            
+            <div class="card border-0 bg-light mb-3 core-aircon-toggle-card">
+              <div class="card-body p-3">
+                <div class="form-check form-switch mb-2">
+                  <input type="checkbox" name="isAirconService" class="form-check-input" id="isAirconServiceCheckCore" />
+                  <label class="form-check-label fw-bold ms-2 text-dark" for="isAirconServiceCheckCore">Is Aircon Service?</label>
+                </div>
+                <div class="text-muted small lh-sm">
+                  Enables aircon specific workflows like HP pricing categories.
+                </div>
+              </div>
+            </div>
+
+            <h6 class="core-section-title"><i class="bi bi-journal-richtext"></i>Service Contents</h6>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-list-stars me-1"></i>Features (Comma separated)</label>
+              <div class="core-field-wrap">
+                <textarea name="features" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Feature 1, Feature 2..."></textarea>
+                <i class="bi bi-list-check core-field-icon top"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-box2-heart me-1"></i>Included Items (Comma separated)</label>
+              <div class="core-field-wrap">
+                <textarea name="includedItems" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Item 1, Item 2..."></textarea>
+                <i class="bi bi-basket2 core-field-icon top"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label core-label"><i class="bi bi-x-octagon me-1"></i>Exclusions (Comma separated)</label>
+              <div class="core-field-wrap">
+                <textarea name="exclusions" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Exclusion 1, Exclusion 2..."></textarea>
+                <i class="bi bi-slash-circle core-field-icon top"></i>
+              </div>
+            </div>
+
+            <div class="form-check form-switch mt-4">
+              <input type="checkbox" name="active" class="form-check-input bg-success border-success" id="activeCheck" checked />
+              <label class="form-check-label fw-bold ms-2" for="activeCheck">Active in Catalog</label>
+            </div>
+          </div>
+          
+          <!-- AIRCON TYPES CONFIGURATION (Dynamic) -->
+          <div class="col-12 d-none" id="airconConfigSection">
+            <div class="card core-hp-panel">
+              <div class="card-header d-flex justify-content-between align-items-center py-3">
+                <div>
+                  <div class="core-hp-panel-title"><i class="bi bi-snow"></i>Aircon Types & HP Matrix</div>
+                  <div class="core-hp-subtext">Define each aircon type, then add structured HP pricing tiers below.</div>
+                </div>
+                <button type="button" class="btn btn-sm core-add-hp fw-bold" id="btnAddAirconType"><i class="bi bi-plus-lg me-1"></i>Add Type</button>
+              </div>
+              <div class="card-body bg-light" id="airconTypesContainer">
+                <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
+                  <i class="bi bi-layers fs-4 d-block mb-2 text-primary"></i>
+                  No aircon types configured. Click "Add Type" to start defining HP prices.
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      <div class="modal-footer border-top-0 pt-0 pb-4 px-4 core-modal-footer">
+        <button type="button" class="btn core-cancel-btn px-4" data-bs-dismiss="modal"><i class="bi bi-x-lg me-2"></i>Cancel</button>
+        <button type="submit" class="btn core-save-btn px-4"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // make sure modal is moved to document.body and above other elements
+    const modalEl = document.getElementById('coreServiceModal');
+    if (modalEl && modalEl.parentElement !== document.body) {
+      document.body.appendChild(modalEl);
+    }
+    const css = document.createElement('style');
+    css.textContent = ".modal { z-index: 2050 !important; } .modal-backdrop { z-index: 2040 !important; }";
+    document.head.appendChild(css);
+
+    // re-use the previously obtained modalEl (already declared above)
+    if (!modalEl) return;
+    if (!window.bootstrap || !bootstrap.Modal) {
+      console.error('Bootstrap JS not available');
+    }
+    const modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
+    const form = document.getElementById('coreServiceForm');
+    let editingId = null;
+    let currentAirconTypes = [];
+
+    const isAirconToggle = document.getElementById('isAirconServiceCheckCore');
+    const airconSection = document.getElementById('airconConfigSection');
+    const airconContainer = document.getElementById('airconTypesContainer');
+    const msgEmpty = document.getElementById('noAirconTypesMsg');
+    
+    isAirconToggle.addEventListener('change', () => {
+      if (isAirconToggle.checked) {
+        airconSection.classList.remove('d-none');
+      } else {
+        airconSection.classList.add('d-none');
+      }
+    });
+
+    document.getElementById('btnAddAirconType').addEventListener('click', () => {
+      currentAirconTypes.push({
+        type: 'split',
+        name: 'Split Type',
+        description: '',
+        hpPricing: []
+      });
+      renderMatrix();
+    });
+
+    function renderMatrix() {
+      if(currentAirconTypes.length === 0) {
+        msgEmpty.style.display = 'block';
+        Array.from(airconContainer.querySelectorAll('.aircon-type-card')).forEach(e => e.remove());
+        return;
+      }
+      msgEmpty.style.display = 'none';
+      Array.from(airconContainer.querySelectorAll('.aircon-type-card')).forEach(e => e.remove());
+
+      currentAirconTypes.forEach((ac, i) => {
+        const card = document.createElement('div');
+        card.className = 'card border-0 shadow-sm mb-3 aircon-type-card';
+        
+        let hpRows = '';
+        ac.hpPricing.forEach((hpObj, j) => {
+          hpRows += `
+            <div class="row g-2 align-items-end mb-2 core-hp-row core-aircon-grid-row">
+              <div class="col-12 col-md-2">
+                <label class="core-hp-label"><i class="bi bi-speedometer2"></i>Capacity</label>
+                <input type="number" step="0.1" class="form-control form-control-sm" placeholder="1.0" value="${hpObj.hp||''}" oninput="updateHP(${i}, ${j}, 'hp', this.value)">
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="core-hp-label"><i class="bi bi-cash-coin"></i>Selling Price</label>
+                <div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" step="0.01" class="form-control" placeholder="0.00" value="${hpObj.price||''}" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div>
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="core-hp-label"><i class="bi bi-stopwatch"></i>Duration</label>
+                <div class="input-group input-group-sm"><input type="number" class="form-control" placeholder="Mins" value="${hpObj.durationMinutes||''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div>
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="core-hp-label"><i class="bi bi-chat-text"></i>Notes</label>
+                <input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)">
+              </div>
+              <div class="col-12 col-md-1 text-end">
+                <button type="button" class="core-type-remove" onclick="removeHP(${i}, ${j})" aria-label="Remove HP tier"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>`;
+        });
+
+        card.innerHTML = `
+          <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
+            <div class="core-type-head">
+              <select class="form-select form-select-sm fw-bold core-type-select" onchange="updateAC(${i}, 'type', this.value)">
+                <option value="split" ${ac.type==='split'?'selected':''}>Split Type</option>
+                <option value="window" ${ac.type==='window'?'selected':''}>Window Type</option>
+                <option value="floor_mounted" ${ac.type==='floor_mounted'?'selected':''}>Floor Mounted</option>
+                <option value="split_suspended" ${ac.type==='split_suspended'?'selected':''}>Split Suspended</option>
+                <option value="cassette" ${ac.type==='cassette'?'selected':''}>Cassette</option>
+                <option value="central" ${ac.type==='central'?'selected':''}>Central</option>
+              </select>
+              <input type="text" class="form-control form-control-sm" placeholder="Display Name" value="${ac.name||''}" oninput="updateAC(${i}, 'name', this.value)">
+            </div>
+            <button type="button" class="core-type-remove" onclick="removeAC(${i})" aria-label="Remove aircon type"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="card-body p-3 bg-light">
+            <div class="mb-3">
+              <label class="core-hp-label"><i class="bi bi-file-earmark-text"></i>Type Description</label>
+              <input type="text" class="form-control form-control-sm core-type-description" placeholder="Short description of this type..." value="${ac.description||''}" oninput="updateAC(${i}, 'description', this.value)">
+            </div>
+            <div class="core-hp-section px-0 px-md-2">
+              <div class="core-hp-section-label mb-2"><i class="bi bi-layers"></i>HP Pricing Tiers</div>
+              ${hpRows}
+              <button type="button" class="btn btn-sm core-add-hp w-100 mt-1" onclick="addHP(${i})"><i class="bi bi-plus-circle me-1"></i>Add HP Tier</button>
+            </div>
+          </div>
+        `;
+        airconContainer.appendChild(card);
+      });
+    }
+
+    window.updateAC = (i, field, val) => { currentAirconTypes[i][field] = val; };
+    window.removeAC = (i) => { currentAirconTypes.splice(i, 1); renderMatrix(); };
+    window.addHP = (i) => { currentAirconTypes[i].hpPricing.push({hp: '', price: '', durationMinutes: '', description: ''}); renderMatrix(); };
+    window.updateHP = (i, j, field, val) => { currentAirconTypes[i].hpPricing[j][field] = val; };
+    window.removeHP = (i, j) => { currentAirconTypes[i].hpPricing.splice(j, 1); renderMatrix(); };
+
+    function openForm(data) {
+      if (data) {
+        editingId = data._id;
+        modalEl.querySelector('.modal-title').innerText = 'Edit Core Service';
+        form.name.value = data.name || '';
+        form.slug.value = data.slug || '';
+        form.category.value = data.category || '';
+        form.description.value = data.description || '';
+        form.features.value = (data.features || []).join(', ');
+        form.includedItems.value = (data.includedItems || []).join(', ');
+        form.exclusions.value = (data.exclusions || []).join(', ');
+        form.isAirconService.checked = !!data.isAirconService;
+        form.active.checked = !!data.active;
+        currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
+      } else {
+        editingId = null;
+        modalEl.querySelector('.modal-title').innerText = 'New Core Service';
+        form.reset();
+        form.active.checked = true;
+        currentAirconTypes = [];
+      }
+      isAirconToggle.dispatchEvent(new Event('change'));
+      renderMatrix();
+      modal.show();
+    }
+
+    document.querySelector('.new-core-service').addEventListener('click', function() {
+      openForm();
+    });
+
+    document.body.addEventListener('click', function(e) {
+      if (e.target.closest('.edit-core-service')) {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        const svc = JSON.parse(decodeURIComponent(tr.dataset.svc || '{}'));
+        openForm(svc);
+      }
+    });
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const cleanAirconTypes = currentAirconTypes.map(ac => ({
+        type: ac.type,
+        name: ac.name,
+        description: ac.description,
+        hpPricing: ac.hpPricing.filter(hp => hp.hp !== '' && hp.price !== '').map(hp => ({
+          hp: parseFloat(hp.hp),
+          price: parseFloat(hp.price),
+          durationMinutes: hp.durationMinutes ? parseInt(hp.durationMinutes) : undefined,
+          description: hp.description
+        }))
+      }));
+
+      const payload = {
+        name: form.name.value.trim(),
+        slug: form.slug.value.trim(),
+        category: form.category.value.trim(),
+        description: form.description.value.trim(),
+        features: form.features.value.split(',').map(s => s.trim()).filter(Boolean),
+        includedItems: form.includedItems.value.split(',').map(s => s.trim()).filter(Boolean),
+        exclusions: form.exclusions.value.split(',').map(s => s.trim()).filter(Boolean),
+        isAirconService: form.isAirconService.checked,
+        airconTypes: cleanAirconTypes,
+        active: form.active.checked,
+      };
+      let url = '/api/admin/core-services';
+      let method = 'POST';
+      if (editingId) {
+        url += '/' + editingId;
+        method = 'PATCH';
+      }
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) {
+          location.reload();
+        } else {
+          const j = await r.json();
+          alert(j.error || 'Save failed');
+        }
+      } catch (err) {
+        alert('Save failed');
+      }
+    });
+  })();
+</script>

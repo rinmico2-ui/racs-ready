@@ -1,0 +1,279 @@
+<div class="admin-dashboard container-fluid py-4">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-bar-chart-line"></i></div>
+        <div>
+          <h1>Stock Movement History</h1>
+          <p>Audit trail of all inventory transactions (In, Out, Adjustments)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Stock In (Today)</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiStockIn">0</span>
+            </div>
+            <div class="badge bg-success-subtle text-success fs-7" id="kpiStockInCount">Inflow</div>
+            <small class="text-muted">Units received</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-plus-circle-fill text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Stock Out (Today)</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiStockOut">0</span>
+            </div>
+            <div class="badge bg-primary-subtle text-primary fs-7" id="kpiStockOutCount">Outflow</div>
+            <small class="text-muted">Units dispatched</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-box-arrow-up-right text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Adjustments (Today)</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiAdjCount">0</span>
+            </div>
+            <div class="badge bg-warning-subtle text-warning fs-7">Adjusted</div>
+            <small class="text-muted">Manual corrections</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-exclamation-triangle-fill text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Transactions</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiTotal">0</span>
+            </div>
+            <div class="badge bg-secondary-subtle text-secondary fs-7">All</div>
+            <small class="text-muted">Today's movements</small>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+            <i class="bi bi-people-fill text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">Transaction Type</label>
+          <select class="form-select" id="filterType" style="border-radius:10px;">
+            <option value="">All Types</option>
+            <option value="stock_in">Stock In</option>
+            <option value="stock_out">Stock Out</option>
+            <option value="job_usage">Job Usage</option>
+            <option value="adjustment">Adjustment</option>
+            <option value="return">Return</option>
+            <option value="damage">Damage</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">From Date</label>
+          <input type="date" class="form-control" id="filterFrom" style="border-radius:10px;">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-uppercase text-muted fw-bold">To Date</label>
+          <input type="date" class="form-control" id="filterTo" style="border-radius:10px;">
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+          <button class="btn btn-primary flex-fill fw-semibold" onclick="loadHistory()" style="border-radius:10px;">
+            <i class="bi bi-search me-1"></i>Filter
+          </button>
+          <button class="btn btn-light border" onclick="resetFilters()" style="border-radius:10px;">
+            <i class="bi bi-arrow-repeat"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Table -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 fw-bold">Recent Transactions</h6>
+      <span class="text-muted small fw-normal" id="totalRecords">Loading...</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Date & Time</th>
+            <th>Item Details</th>
+            <th>Type</th>
+            <th>Qty Change</th>
+            <th>Before → After</th>
+            <th>Reason / Notes</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="7" class="text-center py-5 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let currentPage = 1;
+  const perPage = 25;
+
+  const TYPE_META = {
+    stock_in:   { label: 'Stock In',      cls: 'bg-success-subtle text-success', icon: 'bi-arrow-down-circle' },
+    stock_out:  { label: 'Stock Out',     cls: 'bg-danger-subtle text-danger',   icon: 'bi-arrow-up-circle' },
+    job_usage:  { label: 'Job Usage',     cls: 'bg-info-subtle text-info',       icon: 'bi-tools' },
+    adjustment: { label: 'Adjustment',    cls: 'bg-warning-subtle text-warning', icon: 'bi-exclamation-circle' },
+    return:     { label: 'Return',        cls: 'bg-primary-subtle text-primary', icon: 'bi-arrow-return-left' },
+    damage:     { label: 'Damage',        cls: 'bg-dark-subtle text-dark',       icon: 'bi-x-octagon' },
+  };
+
+  window.loadHistory = async function(page) {
+    currentPage = page || 1;
+    const type = document.getElementById('filterType').value;
+    const from = document.getElementById('filterFrom').value;
+    const to = document.getElementById('filterTo').value;
+
+    const params = new URLSearchParams({ page: currentPage, limit: perPage });
+    if (type) params.set('type', type);
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+
+    try {
+      const resp = await fetch(`/api/admin/stock-adjustments?${params}`, { credentials: 'same-origin' });
+      const data = await resp.json();
+      renderTable(data.adjustments || []);
+      renderPagination(data.pagination);
+      updateKPIs(data.kpi, data.pagination?.total || 0);
+    } catch (e) {
+      document.getElementById('historyBody').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load data</td></tr>';
+    }
+  };
+
+  function renderTable(items) {
+    const tbody = document.getElementById('historyBody');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted">No transactions found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.map(a => {
+      const tool = a.toolId || {};
+      const meta = TYPE_META[a.type] || { label: a.type, cls: 'bg-secondary-subtle text-secondary', icon: 'bi-circle' };
+      const date = new Date(a.createdAt);
+      const dateStr = date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+      const deltaStr = a.delta > 0 ? `+${a.delta}` : `${a.delta}`;
+      const deltaCls = a.delta > 0 ? 'text-success' : 'text-danger';
+      const userName = a.adjustedBy?.name || 'System';
+      const initials = userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      const ref = a.referenceId?.workOrderNumber || a.notes || '—';
+
+      return `<tr>
+        <td class="ps-4">
+          <div class="fw-bold text-dark">${dateStr}</div>
+          <div class="text-muted text-micro">${timeStr}</div>
+        </td>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="p-1 border rounded bg-light me-2"><i class="bi bi-box-seam text-secondary"></i></div>
+            <div>
+              <div class="fw-bold text-dark">${esc(tool.itemName || 'Unknown')}</div>
+              <div class="text-muted text-micro font-monospace">${esc(tool.barcode || '')} ${tool.category ? '· ' + esc(tool.category) : ''}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="badge ${meta.cls} border rounded-pill"><i class="bi ${meta.icon} me-1"></i>${meta.label}</span></td>
+        <td><span class="fw-bold ${deltaCls}">${deltaStr} ${esc(tool.unit || 'pcs')}</span></td>
+        <td class="text-muted text-micro">${a.quantityBefore} → ${a.quantityAfter}</td>
+        <td>
+          <div class="text-dark text-micro">${esc(ref)}</div>
+          ${a.reason ? `<div class="text-muted text-micro">${esc(a.reason)}</div>` : ''}
+        </td>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="avatar-sm rounded-circle bg-secondary text-white text-micro d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;">${initials}</div>
+            <span class="text-muted text-micro">${esc(userName)}</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(p) {
+    if (!p || p.pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+    let html = '';
+    html += `<li class="page-item ${p.page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page - 1});return false;">Prev</a></li>`;
+    for (let i = 1; i <= p.pages; i++) {
+      if (p.pages > 7 && i > 3 && i < p.pages - 2 && Math.abs(i - p.page) > 1) {
+        if (i === 4 || i === p.pages - 3) html += '<li class="page-item disabled"><a class="page-link">…</a></li>';
+        continue;
+      }
+      html += `<li class="page-item ${i === p.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadHistory(${i});return false;">${i}</a></li>`;
+    }
+    html += `<li class="page-item ${p.page >= p.pages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page + 1});return false;">Next</a></li>`;
+    document.getElementById('pagination').innerHTML = html;
+  }
+
+  function updateKPIs(kpi, total) {
+    document.getElementById('kpiStockIn').textContent = (kpi?.todayIn || 0).toLocaleString();
+    document.getElementById('kpiStockInCount').innerHTML = `<span class="text-muted">${kpi?.todayInCount || 0} transactions</span>`;
+    document.getElementById('kpiStockOut').textContent = (kpi?.todayOut || 0).toLocaleString();
+    document.getElementById('kpiStockOutCount').innerHTML = `<span class="text-muted">${kpi?.todayOutCount || 0} transactions</span>`;
+    document.getElementById('kpiAdjCount').textContent = (kpi?.todayAdjCount || 0).toLocaleString();
+    document.getElementById('kpiTotal').textContent = total.toLocaleString();
+    document.getElementById('totalRecords').textContent = `${total} total records`;
+  }
+
+  window.resetFilters = function() {
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
+    loadHistory(1);
+  };
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  loadHistory(1);
+})();
+</script>

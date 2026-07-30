@@ -1,0 +1,352 @@
+<div class="admin-dashboard container-fluid px-0 py-4">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    .tracker-wrap { width: 100%; margin: 0 auto; padding: 0 16px; }
+    .tracker-hero {
+      background: linear-gradient(120deg, #4361ee 0%, #3a0ca3 100%);
+      border-radius:14px; padding:24px 28px; color:#fff;
+      box-shadow:0 8px 32px rgba(67,97,238,.18);
+      position:relative; overflow:hidden; margin-bottom:20px;
+    }
+    .tracker-hero::after {
+      content:""; position:absolute; width:180px; height:180px; border-radius:50%;
+      background:rgba(255,255,255,.05); bottom:-50px; right:-40px;
+    }
+    .tracker-hero h1 { font-size:1.35rem; font-weight:800; margin:0; color:#fff; }
+    .tracker-hero p  { font-size:.82rem; color:rgba(255,255,255,.75); margin:4px 0 0; }
+
+    .tracker-status-card {
+      background:#fff; border-radius:14px;
+      box-shadow:0 2px 12px rgba(0,0,0,.07);
+      padding:18px 22px; margin-bottom:16px;
+      display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    }
+    .pulse-dot {
+      width:14px; height:14px; border-radius:50%;
+      background:#9ba3af; flex-shrink:0; transition:background .3s;
+    }
+    .pulse-dot.active {
+      background:#2ec4b6;
+      animation:pulse-ring 1.6s ease-out infinite;
+    }
+    .pulse-dot.error { background:#e63946; }
+    @keyframes pulse-ring {
+      0%   { box-shadow:0 0 0 0 rgba(46,196,182,.7); }
+      70%  { box-shadow:0 0 0 10px rgba(46,196,182,0); }
+      100% { box-shadow:0 0 0 0 rgba(46,196,182,0); }
+    }
+    .status-text { font-size:.85rem; font-weight:600; color:#374151; flex:1 1 160px; }
+    .status-meta { display:flex; gap:18px; flex-wrap:wrap; }
+    .status-meta-item .label { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#9ba3af; font-weight:600; }
+    .status-meta-item .value { font-size:.88rem; font-weight:700; color:#212529; margin-top:2px; }
+
+    .tracker-map-wrap { background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,.07); overflow:hidden; }
+    #trackerMap { height:440px; width:100%; }
+
+    .tracker-toggle-btn {
+      border-radius:10px; padding:.42rem 1rem; font-size:.82rem; font-weight:700;
+      border:none; cursor:pointer; transition:background .2s;
+    }
+    .tracker-toggle-btn.stop  { background:#e63946; color:#fff; }
+    .tracker-toggle-btn.stop:hover  { background:#c1121f; }
+    .tracker-toggle-btn.start { background:#2ec4b6; color:#fff; }
+    .tracker-toggle-btn.start:hover { background:#14a99f; }
+    @media(max-width:576px){ #trackerMap{height:300px;} }
+
+    /* Secure-context warning */
+    .insecure-banner {
+      background:#fff3cd; border:1px solid #ffc107; border-radius:12px;
+      padding:18px 22px; margin-bottom:16px; display:flex; gap:14px; align-items:flex-start;
+    }
+    .insecure-banner i { font-size:1.3rem; color:#e67e00; flex-shrink:0; margin-top:2px; }
+    .insecure-banner h5 { font-size:.9rem; font-weight:700; margin:0 0 4px; color:#7d4e00; }
+    .insecure-banner p  { font-size:.8rem; margin:0; color:#6b4500; line-height:1.5; }
+    .insecure-banner code { background:rgba(0,0,0,.07); padding:1px 5px; border-radius:4px; }
+  </style>
+
+  <div class="tracker-wrap">
+    <div class="tracker-hero">
+      <h1><i class="bi bi-broadcast me-2"></i>Live Location Tracker</h1>
+      <p>Your GPS position is broadcast automatically to the dispatcher in real-time.</p>
+    </div>
+
+    <!-- Shown only when page is loaded over plain HTTP from another device -->
+    <div class="insecure-banner d-none" id="insecureBanner">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div>
+        <h5>GPS tracking requires a secure connection (HTTPS)</h5>
+        <p>
+          You are accessing this page over <strong>plain HTTP</strong> from another device.
+          Browsers block the Geolocation API on non-HTTPS pages.<br>
+          To use the tracker from another device, either:
+        </p>
+        <ul style="font-size:.8rem;color:#6b4500;margin:6px 0 0;padding-left:18px;">
+          <li>Open <code id="localhostUrl">http://localhost/technician/tracker</code> <strong>directly on the host machine</strong></li>
+          <li>Or expose the server over HTTPS (e.g. <a href="https://ngrok.com" target="_blank">ngrok</a>: <code id="ngrokCmd">ngrok http &lt;port&gt;</code>) and open the <code>https://…</code> URL</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tracker-status-card">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <span class="status-text" id="statusText">Starting tracker…</span>
+      <div class="status-meta">
+        <div class="status-meta-item">
+          <div class="label">Latitude</div>
+          <div class="value" id="metaLat">—</div>
+        </div>
+        <div class="status-meta-item">
+          <div class="label">Longitude</div>
+          <div class="value" id="metaLng">—</div>
+        </div>
+        <div class="status-meta-item">
+          <div class="label">Accuracy</div>
+          <div class="value" id="metaAcc">—</div>
+        </div>
+        <div class="status-meta-item">
+          <div class="label">Last update</div>
+          <div class="value" id="metaTime">—</div>
+        </div>
+        <div class="status-meta-item">
+          <div class="label">Sent</div>
+          <div class="value" id="metaCount">0</div>
+        </div>
+      </div>
+      <button id="toggleBtn" class="tracker-toggle-btn stop ms-auto">
+        <i class="bi bi-stop-circle me-1"></i>Stop
+      </button>
+    </div>
+
+    <div class="tracker-map-wrap">
+      <div id="trackerMap"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet + Socket.IO -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+  (function () {
+    const dot        = document.getElementById("pulseDot");
+    const statusText = document.getElementById("statusText");
+    const metaLat    = document.getElementById("metaLat");
+    const metaLng    = document.getElementById("metaLng");
+    const metaAcc    = document.getElementById("metaAcc");
+    const metaTime   = document.getElementById("metaTime");
+    const metaCount  = document.getElementById("metaCount");
+    const toggleBtn  = document.getElementById("toggleBtn");
+
+    let watchId   = null;
+    let map       = null;
+    let marker    = null;
+    let circle    = null;
+    let sendCount = 0;
+    let tracking  = false;
+
+    // ── Socket.IO ─────────────────────────────────────────────────────
+    const socket = io({ path: "/socket.io" });
+    let techId = null;
+    let activeBookingId = null;
+    let activeCustomerId = null;
+
+    // Fetch the logged-in technician's ID and active en-route booking
+    (async function initSocketContext() {
+      try {
+        const meRes = await fetch("/api/auth/verify", { credentials: "include" });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          techId = me.user?.technicianId || me.user?._id || me.technicianId || null;
+          if (techId) {
+            socket.emit("tech:join", techId);
+            console.log("[tracker] joined tech room:", techId);
+          }
+        }
+      } catch (_) {}
+      try {
+        const bkRes = await fetch("/api/technician/assignments?status=en_route&limit=1", { credentials: "include" });
+        if (bkRes.ok) {
+          const bkData = await bkRes.json();
+          const assignments = bkData.assignments || bkData.data || bkData || [];
+          const active = Array.isArray(assignments) ? assignments[0] : null;
+          if (active) {
+            activeBookingId = active.bookingId || active._id || null;
+            activeCustomerId = active.customerId || active.customer?._id || null;
+          }
+        }
+      } catch (_) {}
+    })();
+
+    // ── Map ──────────────────────────────────────────────────
+    function initMap(lat, lng) {
+      if (map) return;
+      map = L.map("trackerMap", { zoomControl: true }).setView([lat, lng], 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
+    }
+
+    function updateMap(lat, lng, acc) {
+      if (!map) initMap(lat, lng);
+      const pos = [lat, lng];
+      const icon = L.divIcon({
+        className: "",
+        html: '<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));animation:techPulse 2s ease-in-out infinite;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">' +
+          '<defs><linearGradient id="trk1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cacff"/><stop offset="100%" stop-color="#1a6ddb"/></linearGradient>' +
+          '<linearGradient id="trk2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a6ddb"/><stop offset="100%" stop-color="#0f4a9e"/></linearGradient></defs>' +
+          '<ellipse cx="20" cy="36" rx="8" ry="2.5" fill="rgba(0,0,0,.18)"/>' +
+          '<path d="M20 2 L34 32 L20 26 Z" fill="url(#trk2)"/>' +
+          '<path d="M20 2 L6 32 L20 26 Z" fill="url(#trk1)"/>' +
+          '<path d="M20 2 L6 32 L20 26 L34 32 Z" stroke="#fff" stroke-width="1.2" fill="none" stroke-linejoin="round"/>' +
+          '<path d="M12 14 L20 4 L21 14 Z" fill="rgba(255,255,255,.3)"/>' +
+          '</svg></div>' +
+          '<style>@keyframes techPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}</style>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+      if (!marker) {
+        marker = L.marker(pos, { icon }).addTo(map).bindPopup("<b>Your location</b>");
+      } else {
+        marker.setLatLng(pos).setIcon(icon);
+      }
+      if (acc && acc < 5000) {
+        if (!circle) {
+          circle = L.circle(pos, {
+            radius: acc, color: "#4361ee", fillColor: "#4361ee",
+            fillOpacity: .08, weight: 1.5,
+          }).addTo(map);
+        } else {
+          circle.setLatLng(pos).setRadius(acc);
+        }
+      }
+      map.panTo(pos, { animate: true, duration: 0.6 });
+    }
+
+    // ── API + Socket.IO ────────────────────────────────────────
+    let _lastAcc = Infinity;
+    async function sendLocation(lat, lng, acc) {
+      _lastAcc = acc;
+      // Emit via Socket.IO for real-time delivery to customers
+      if (socket && socket.connected && techId) {
+        socket.emit("gps:update", {
+          techId,
+          lat,
+          lng,
+          accuracy: acc,
+          bookingId: activeBookingId,
+          customerId: activeCustomerId,
+        });
+      }
+      // Also save via REST as backup
+      try {
+        const res = await fetch("/api/auth/technician/location", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat, lng, accuracy: acc }),
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            setStatus("error", "Not authenticated — please log in as a technician.");
+            stopTracking();
+          }
+          return;
+        }
+        sendCount++;
+        metaCount.textContent = sendCount;
+      } catch (e) {
+        console.warn("sendLocation error", e);
+      }
+    }
+
+    // ── Geo callbacks ────────────────────────────────────────
+    function onPosition(pos) {
+      const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+      setStatus("active", "Tracking active — broadcasting your location");
+      metaLat.textContent  = lat.toFixed(6);
+      metaLng.textContent  = lng.toFixed(6);
+      metaAcc.textContent  = acc < 1000 ? `±${Math.round(acc)} m` : `±${(acc/1000).toFixed(1)} km`;
+      metaTime.textContent = new Date().toLocaleTimeString();
+      updateMap(lat, lng, acc);
+      sendLocation(lat, lng, acc);
+    }
+
+    function onError(err) {
+      switch (err.code) {
+        case err.PERMISSION_DENIED:
+          setStatus("error", "Location access denied — enable GPS permission and refresh.");
+          stopTracking(); break;
+        case err.POSITION_UNAVAILABLE:
+          setStatus("error", "Position unavailable — retrying…"); break;
+        case err.TIMEOUT:
+          setStatus("idle", "Waiting for GPS fix…"); break;
+        default:
+          setStatus("error", "Geolocation error: " + err.message);
+      }
+    }
+
+    // ── Control ──────────────────────────────────────────────
+    function startTracking() {
+      if (!navigator.geolocation) {
+        setStatus("error", "Geolocation is not supported by this browser.");
+        return;
+      }
+      tracking = true;
+      toggleBtn.innerHTML = '<i class="bi bi-stop-circle me-1"></i>Stop';
+      toggleBtn.className = "tracker-toggle-btn stop ms-auto";
+      setStatus("idle", "Acquiring GPS fix…");
+      watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 20000,
+      });
+    }
+
+    function stopTracking() {
+      tracking = false;
+      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      setStatus("idle", "Tracking paused.");
+      toggleBtn.innerHTML = '<i class="bi bi-play-circle me-1"></i>Resume';
+      toggleBtn.className = "tracker-toggle-btn start ms-auto";
+    }
+
+    function setStatus(state, msg) {
+      statusText.textContent = msg;
+      dot.className = "pulse-dot" +
+        (state === "active" ? " active" : state === "error" ? " error" : "");
+    }
+
+    toggleBtn.addEventListener("click", () => tracking ? stopTracking() : startTracking());
+
+    // ── Secure-context check ─────────────────────────────────
+    // Geolocation is blocked by browsers on plain HTTP from any origin
+    // other than localhost. Detect this early and show a helpful banner.
+    const isSecure = window.isSecureContext;
+    const isLocalhost = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(location.hostname);
+
+    if (!isSecure && !isLocalhost) {
+      const banner = document.getElementById("insecureBanner");
+      if (banner) {
+        banner.classList.remove("d-none");
+        const currentPort = location.port ? ":" + location.port : "";
+        const urlEl = document.getElementById("localhostUrl");
+        if (urlEl) urlEl.textContent = `http://localhost${currentPort}/technician/tracker`;
+        const ngrokEl = document.getElementById("ngrokCmd");
+        if (ngrokEl) ngrokEl.textContent = `ngrok http ${location.port || "5000"}`;
+      }
+      setStatus("error", "GPS blocked: secure HTTPS connection is required.");
+      toggleBtn.disabled = true;
+      toggleBtn.style.opacity = "0.45";
+      toggleBtn.style.pointerEvents = "none";
+      return;
+    }
+
+    // Auto-start (secure contexts only)
+    startTracking();
+  })();
+  </script>
+</div>
