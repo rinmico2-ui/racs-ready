@@ -15,6 +15,22 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 dotenv.config();
 
+// ── Fail-fast: require critical secrets before anything else boots ──────────
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is required. Exiting.");
+  process.exit(1);
+}
+if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
+  console.error("FATAL: SESSION_SECRET (or JWT_SECRET) environment variable is required. Exiting.");
+  process.exit(1);
+}
+
+// Build allowed CORS origins from env vars
+const ALLOWED_ORIGINS = [
+  process.env.APP_URL,
+  process.env.APP_BASE_URL,
+].filter(Boolean);
+
 const app = express();
 
 // Database connection
@@ -71,17 +87,20 @@ app.use((req, res, next) => {
     "Content-Security-Policy",
     "default-src 'self'; " +
     // allow leaflet from unpkg if any page still references it, and other CDNs
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; " +
-    "img-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://api.qrserver.com; " +
-    "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
+    "img-src 'self' data: blob: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://api.qrserver.com; " +
+    "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
     "font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "frame-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net;",
   );
   next();
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+}));
 
 // request logging middleware (small overhead)
 app.use((req, res, next) => {
@@ -108,13 +127,16 @@ app.use(cookieParser());
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const SESSION_TTL = Number(process.env.SESSION_TTL_MS) || 30 * 60 * 1000; // ms
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || process.env.JWT_SECRET || "dev-session-secret";
+const SESSION_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET;
 
 // create a named session store so we can clear it in development on startup
 const sessionStore = MongoStore.create({
   mongoUrl: MONGODB_URI,
   ttl: Math.floor(SESSION_TTL / 1000),
+});
+// Suppress "Unable to find the session to touch" warnings from stale cookies
+sessionStore.on("error", (err) => {
+  logger.warn("MongoStore session error: %s", err && err.message);
 });
 
 app.use(
@@ -297,13 +319,13 @@ app.use("/api/chat", chatRoutes);
 const holidayRoutes = require("./routes/holidayRoutes");
 app.use("/api/holidays", holidayRoutes);
 
-// PayMongo webhook (public)
-const paymongoRoutes = require("./routes/paymongoRoutes");
-app.use("/api/paymongo", paymongoRoutes);
+// Online gateway processing is intentionally disabled. Payments are recorded
+// manually by technicians and verified through the admin remittance workflow.
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(`[DEBUG_ERR] ${err.stack}`);
+  if (res.headersSent) return next(err);
   res.status(500).json({ error: err.message });
 });
 
@@ -383,7 +405,7 @@ server = app.listen(PORT, () => {
 // ── Socket.io Setup for Live Tracking ────────────────────────────────────────
 const { Server } = require("socket.io");
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"] },
   path: "/socket.io",
 });
 
