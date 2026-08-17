@@ -27,6 +27,7 @@ function createTransporter() {
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_PORT === 465, // true for 465, false for other ports
+    family: 4, // force IPv4 — Render does not support outbound IPv6
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS,

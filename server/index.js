@@ -161,6 +161,10 @@ const sessionStore = MongoStore.create({
   mongoUrl: MONGODB_URI,
   ttl: Math.floor(SESSION_TTL / 1000),
 });
+// Suppress "Unable to find the session to touch" warnings from stale cookies
+sessionStore.on("error", (err) => {
+  logger.warn("MongoStore session error: %s", err && err.message);
+});
 
 app.use(
   session({
@@ -406,6 +410,7 @@ app.use("/api/holidays", holidayRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(`[ERROR] ${err.stack}`);
+  if (res.headersSent) return next(err);
   const isProd = process.env.NODE_ENV === "production";
   res.status(500).json({
     error: isProd ? "Internal server error" : err.message,
