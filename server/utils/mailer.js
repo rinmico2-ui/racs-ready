@@ -1,5 +1,9 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns");
 const logger = require("./logger").create("mailer");
+
+// Force IPv4 resolution globally (Render does not support outbound IPv6)
+try { dns.setDefaultResultOrder("ipv4first"); } catch (_) {}
 
 // Read SMTP config from env
 const SMTP_HOST = process.env.SMTP_HOST || "";
@@ -10,10 +14,12 @@ const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const FROM = process.env.FROM_EMAIL || "mxwllmallari@gmail.com";
 
-let transporter;
+let transporter = null;
+let lastVerifyFailed = false;
 
 function createTransporter() {
-  if (transporter) return transporter;
+  if (transporter && !lastVerifyFailed) return transporter;
+  lastVerifyFailed = false;
 
   // If no SMTP credentials present, keep transporter undefined and let callers handle fallback
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
@@ -28,6 +34,8 @@ function createTransporter() {
     port: SMTP_PORT,
     secure: SMTP_PORT === 465, // true for 465, false for other ports
     family: 4, // force IPv4 — Render does not support outbound IPv6
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS,
@@ -41,6 +49,8 @@ function createTransporter() {
       logger.info("SMTP connection verified");
     })
     .catch((err) => {
+      lastVerifyFailed = true;
+      transporter = null;
       logger.warn("SMTP verification failed %s", err && err.message);
     });
 

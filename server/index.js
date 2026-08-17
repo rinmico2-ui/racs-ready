@@ -125,6 +125,13 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
+// Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
+app.set('trust proxy', 1);
+
+// Force IPv4 for outbound connections (fixes ENETUNREACH on Render)
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
