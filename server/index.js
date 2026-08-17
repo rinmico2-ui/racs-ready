@@ -129,7 +129,6 @@ app.use(cookieParser());
 app.set('trust proxy', 1);
 
 // Force IPv4 for outbound connections (fixes ENETUNREACH on Render)
-const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────
