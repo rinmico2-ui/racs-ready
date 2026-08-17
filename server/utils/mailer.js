@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const dns = require("dns");
+const net = require("net");
 const logger = require("./logger").create("mailer");
 
 // Force IPv4 resolution globally (Render does not support outbound IPv6)
@@ -17,48 +18,56 @@ const FROM = process.env.FROM_EMAIL || "mxwllmallari@gmail.com";
 let transporter = null;
 let lastVerifyFailed = false;
 
-function createTransporter() {
+// Resolve hostname to an IPv4 address explicitly (bypasses IPv6 on Render)
+function resolveIPv4(host) {
+  return new Promise((resolve, reject) => {
+    dns.resolve4(host, (err, addresses) => {
+      if (err || !addresses.length) return resolve(host); // fallback to hostname
+      resolve(addresses[0]);
+    });
+  });
+}
+
+async function createTransporter() {
   if (transporter && !lastVerifyFailed) return transporter;
   lastVerifyFailed = false;
 
-  // If no SMTP credentials present, keep transporter undefined and let callers handle fallback
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    logger.warn(
-      "SMTP credentials not fully configured; emails will not be sent.",
-    );
+    logger.warn("SMTP credentials not fully configured; emails will not be sent.");
     return null;
   }
 
+  // Resolve to IPv4 to avoid ENETUNREACH on Render
+  const ipv4Host = await resolveIPv4(SMTP_HOST);
+  logger.info("Resolved %s -> %s", SMTP_HOST, ipv4Host);
+
   transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
+    host: ipv4Host,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465, // true for 465, false for other ports
-    family: 4, // force IPv4 — Render does not support outbound IPv6
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
+    secure: SMTP_PORT === 465,
+    tls: { rejectUnauthorized: false, ciphers: "SSLv3" },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
     auth: {
       user: SMTP_USER,
       pass: SMTP_PASS,
     },
   });
 
-  // optionally verify connection on startup
-  transporter
-    .verify()
-    .then(() => {
-      logger.info("SMTP connection verified");
-    })
-    .catch((err) => {
-      lastVerifyFailed = true;
-      transporter = null;
-      logger.warn("SMTP verification failed %s", err && err.message);
-    });
+  try {
+    await transporter.verify();
+    logger.info("SMTP connection verified to %s:%s", ipv4Host, SMTP_PORT);
+  } catch (err) {
+    lastVerifyFailed = true;
+    transporter = null;
+    logger.warn("SMTP verification failed %s", err && err.message);
+  }
 
   return transporter;
 }
 
 async function sendMail({ to, subject, html, text }) {
-  const t = createTransporter();
+  const t = await createTransporter();
   
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
   
@@ -69,9 +78,16 @@ async function sendMail({ to, subject, html, text }) {
     return false;
   }
 
-  const info = await t.sendMail({ from: FROM, to, subject, html, text });
-  console.log("[MAILER] Email sent successfully:", info.messageId);
-  return info;
+  try {
+    const info = await t.sendMail({ from: FROM, to, subject, html, text });
+    console.log("[MAILER] Email sent successfully:", info.messageId);
+    return info;
+  } catch (err) {
+    lastVerifyFailed = true;
+    transporter = null;
+    console.log("[MAILER] Send failed, will retry next request:", err.message);
+    throw err;
+  }
 }
 
 // ─── Booking Confirmation Email (to customer) ───────────────────────────────
