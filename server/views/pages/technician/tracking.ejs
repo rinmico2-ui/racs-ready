@@ -1,20 +1,45 @@
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+<!-- Leaflet CSS already loaded by technician layout -->
 
 <div class="technician-page">
   <div class="container-fluid px-0 py-4">
 
     <!-- Header -->
-    <div class="px-4 mb-3">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <h4 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2"></i>Live Tracking</h4>
-          <small class="text-muted">Real-time technician and customer locations</small>
-        </div>
-        <div class="d-flex gap-2 align-items-center">
-          <span class="badge bg-success" id="techOnlineCount">0 online</span>
-          <span class="badge bg-primary" id="customerCount" style="background:#6366f1 !important;">0 customers</span>
-          <button class="btn btn-sm btn-outline-primary" onclick="centerOnMe()"><i class="bi bi-crosshair me-1"></i>My Location</button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullscreen()"><i class="bi bi-fullscreen"></i></button>
+    <div class="px-4 mb-4">
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-radius: 20px; padding: 28px 36px; color: #fff; position: relative; overflow: hidden;">
+        <div style="position:absolute;top:-60%;right:-20%;width:500px;height:500px;background:radial-gradient(circle,rgba(59,130,246,0.15) 0%,transparent 70%);pointer-events:none;"></div>
+        <div style="position:absolute;bottom:-40%;left:-10%;width:400px;height:400px;background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%);pointer-events:none;"></div>
+        <div style="position: relative; z-index: 1;">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width: 56px; height: 56px; border-radius: 16px; background: rgba(255,255,255,0.12); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+                <i class="bi bi-geo-alt-fill"></i>
+              </div>
+              <div>
+                <h1 style="font-size: 1.4rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; font-family: 'Outfit','Inter',sans-serif;">Live Tracking</h1>
+                <p style="color: rgba(255,255,255,0.65); margin: 4px 0 0; font-size: 0.85rem; font-weight: 400;">Real-time field operations & customer locations</p>
+              </div>
+            </div>
+            <div class="d-flex gap-3 align-items-center flex-wrap">
+              <div style="display: flex; gap: 24px;">
+                <div style="text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 800; line-height: 1;" id="techOnlineCountVal">0</div>
+                  <div style="font-size: 0.68rem; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; font-weight: 500;">Technicians</div>
+                </div>
+                <div style="text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 800; line-height: 1;" id="customerCountVal">0</div>
+                  <div style="font-size: 0.68rem; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; font-weight: 500;">Customers</div>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm" onclick="centerOnMe()" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; font-weight: 600; padding: 6px 12px;">
+                  <i class="bi bi-crosshair me-1"></i>My Location
+                </button>
+                <button class="btn btn-sm" onclick="toggleFullscreen()" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; font-weight: 600; padding: 6px 12px;">
+                  <i class="bi bi-fullscreen"></i>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -61,12 +86,13 @@
         <button class="btn btn-sm btn-link" onclick="toggleTechList()"><i class="bi bi-x-lg"></i></button>
       </div>
       <!-- Search + Filter Bar (Customer tab only) -->
-      <div id="customerFilterBar" class="px-3 pt-3 pb-2" style="display:none;">
-        <div class="input-group input-group-sm mb-2" style="border-radius:8px;overflow:hidden;">
+      <div id="customerFilterBar" class="px-3 pt-3 pb-3" style="display:none;border-bottom:1px solid #f1f5f9;">
+        <div class="input-group input-group-sm mb-3" style="border-radius:8px;overflow:hidden;">
           <span class="input-group-text" style="background:#f1f5f9;border:none;"><i class="bi bi-search"></i></span>
-          <input type="text" id="custSearchInput" class="form-control" placeholder="Search customer name..." style="font-size:0.78rem;border:none;background:#f1f5f9;">
+          <input type="text" id="custSearchInput" class="form-control" placeholder="Search customer name, service, or address..." style="font-size:0.78rem;border:none;background:#f1f5f9;">
         </div>
-        <div class="d-flex flex-wrap gap-1" id="custFilterBtns">
+        <div style="font-size:0.65rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Filter by Status</div>
+        <div class="d-flex flex-wrap gap-2" id="custFilterBtns">
           <button class="btn btn-sm cust-filter-btn active" data-filter="all" onclick="filterCustomers('all')">All</button>
           <button class="btn btn-sm cust-filter-btn" data-filter="confirmed" onclick="filterCustomers('confirmed')">
             <span class="filter-dot" style="background:#8b5cf6;"></span>Accepted
@@ -156,7 +182,7 @@
   @keyframes lateSlideOut { to { opacity:0; transform:translateY(-20px); } }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+<!-- Leaflet JS already loaded by technician layout -->
 <script src="/socket.io/socket.io.js"></script>
 <script>
 (function() {
@@ -206,35 +232,27 @@
     }
   });
 
-  const techIcon = L.divIcon({
-    className: 'custom-tech-icon',
-    html: '<div style="background:#3b82f6;width:30px;height:30px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><i class="bi bi-person-fill" style="color:#fff;font-size:14px;"></i></div>',
-    iconSize: [30, 30], iconAnchor: [15, 15]
-  });
+  function makePinIcon(color, pulsing) {
+    const pulse = pulsing ? 'animation:pulse 2s infinite;' : '';
+    return L.divIcon({
+      className: '',
+      html: '<div style="filter:drop-shadow(0 3px 5px rgba(0,0,0,.45));' + pulse + '">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">' +
+        '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="' + color + '"/>' +
+        '<circle cx="14" cy="14" r="5" fill="#fff"/>' +
+        '</svg></div>',
+      iconSize: [28, 40],
+      iconAnchor: [14, 40],
+      popupAnchor: [0, -36]
+    });
+  }
 
-  const customerIcon = L.divIcon({
-    className: 'custom-customer-icon',
-    html: '<div style="background:#8b5cf6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(139,92,246,0.4);display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
-    iconSize: [28, 28], iconAnchor: [14, 14]
-  });
-
-  const customerActiveIcon = L.divIcon({
-    className: 'custom-customer-active-icon',
-    html: '<div style="background:#10b981;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(16,185,129,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
-    iconSize: [28, 28], iconAnchor: [14, 14]
-  });
-
-  const customerEnRouteIcon = L.divIcon({
-    className: 'custom-customer-enroute-icon',
-    html: '<div style="background:#3b82f6;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
-    iconSize: [28, 28], iconAnchor: [14, 14]
-  });
-
-  const customerArrivedIcon = L.divIcon({
-    className: 'custom-customer-arrived-icon',
-    html: '<div style="background:#f59e0b;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(245,158,11,0.4);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-house-door-fill" style="color:#fff;font-size:12px;"></i></div>',
-    iconSize: [28, 28], iconAnchor: [14, 14]
-  });
+  const techIcon = makePinIcon('#3b82f6');
+  const customerIcon = makePinIcon('#8b5cf6');
+  const customerActiveIcon = makePinIcon('#10b981', true);
+  const customerEnRouteIcon = makePinIcon('#3b82f6', true);
+  const customerArrivedIcon = makePinIcon('#f59e0b', true);
+  const myLocationIcon = makePinIcon('#ef4444', true);
 
   function getCustomerIcon(status) {
     switch(status) {
@@ -331,19 +349,25 @@
   function initMap() {
     map = L.map('trackingMap', { zoomControl: false }).setView([14.5995, 120.9842], 12);
     L.control.zoom({ position: 'topright' }).addTo(map);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+
+    const standardLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
-    }).addTo(map);
+    });
+    const hybridBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 18
+    });
+    const hybridLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '&copy; Esri', maxZoom: 18
+    });
+    const hybridGroup = L.layerGroup([hybridBase, hybridLabels]);
+    hybridGroup.addTo(map);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         const { latitude: lat, longitude: lng } = pos.coords;
         map.setView([lat, lng], 14);
-        myMarker = L.marker([lat, lng], { icon: L.divIcon({
-          className: 'my-location-icon',
-          html: '<div style="background:#ef4444;width:32px;height:32px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(239,68,68,0.5);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;"><i class="bi bi-crosshair" style="color:#fff;font-size:16px;"></i></div>',
-          iconSize: [32, 32], iconAnchor: [16, 16]
-        }) }).addTo(map).bindPopup('Your Location');
+        myMarker = L.marker([lat, lng], { icon: myLocationIcon }).addTo(map).bindPopup('Your Location');
       }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
     }
   }
@@ -354,7 +378,7 @@
       if (!res.ok) throw new Error();
       const { technicians } = await res.json();
 
-      document.getElementById('techOnlineCount').textContent = technicians.length + ' online';
+      document.getElementById('techOnlineCountVal').textContent = technicians.length;
 
       const seen = new Set();
       technicians.forEach(t => {
@@ -423,7 +447,7 @@
       }
       badge.textContent = count;
     });
-    document.getElementById('customerCount').textContent = allCustomers.length + ' customers';
+    document.getElementById('customerCountVal').textContent = allCustomers.length;
   }
 
   function getFilteredCustomers() {

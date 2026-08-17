@@ -53,7 +53,7 @@
       color: #1d4ed8; text-transform: uppercase; margin-bottom: 0.25rem;
       display: inline-flex; align-items: center; gap: 0.35rem;
     }
-    .pd-hero h2 { font-size: 1.5rem; font-weight: 800; margin: 0 0 0.5rem; color: #0f172a; letter-spacing: -0.02em; }
+    .pd-hero h2 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; color: #0f172a; letter-spacing: -0.02em; }
     .pd-hero .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem 1.25rem; margin-top: 0.5rem; }
     .pd-hero .meta-grid .mk { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.07em; color: #64748b; font-weight: 600; margin-bottom: 0.15rem; }
     .pd-hero .meta-grid .mv { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
@@ -82,7 +82,7 @@
     /* ══ SERVICE DETAILS ══ */
     .sd-section { padding: 0.625rem 0; border-bottom: 1px solid #f1f5f9; }
     .sd-section:last-child { border-bottom: none; }
-    .sd-section-title { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #1d4ed8; margin-bottom: 0.5rem; }
+    .sd-section-title { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #1d4ed8; margin-bottom: 0.5rem; }
     .sd-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0.5rem 1.25rem; }
     .sd-item.sd-full { grid-column: 1 / -1; }
     .sd-k { font-size: 0.67rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -104,7 +104,7 @@
       background: #eff6ff; color: #1d4ed8;
     }
     .stat-tile .st-body { min-width: 0; }
-    .stat-tile .num { font-size: 1.45rem; font-weight: 800; color: #0f172a; line-height: 1; letter-spacing: -0.02em; }
+    .stat-tile .num { font-size: 1.45rem; font-weight: 600; color: #0f172a; line-height: 1; letter-spacing: -0.02em; }
     .stat-tile .lbl { font-size: 0.64rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem; }
     .stat-tile.accent .st-icon { background: #1d4ed8; color: #fff; }
     .stat-tile.accent .num { color: #1d4ed8; }
@@ -123,7 +123,7 @@
     .pd-stage-dot {
       width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.72rem; font-weight: 800; background: #f1f5f9; color: #94a3b8;
+      font-size: 0.72rem; font-weight: 600; background: #f1f5f9; color: #94a3b8;
       border: 2px solid #e2e8f0; transition: all 0.2s;
     }
     .pd-stage-label { font-size: 0.72rem; font-weight: 600; color: #94a3b8; white-space: nowrap; }
@@ -154,7 +154,7 @@
     .pwz-num {
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; border-radius: 50%;
-      background: #e2e8f0; color: #475569; font-size: 0.7rem; font-weight: 800;
+      background: #e2e8f0; color: #475569; font-size: 0.7rem; font-weight: 600;
     }
     .pwz-step.done .pwz-num { background: #16a34a; color: #fff; }
     .pwz-step.current .pwz-num { background: rgba(255,255,255,0.25); color: #fff; }
@@ -176,7 +176,7 @@
     .studio-card .sc-num {
       width: 22px; height: 22px; border-radius: 6px;
       background: #1d4ed8; color: #fff;
-      font-size: 0.72rem; font-weight: 800;
+      font-size: 0.72rem; font-weight: 600;
       display: inline-flex; align-items: center; justify-content: center;
     }
     .studio-card .sc-sub { font-size: 0.72rem; color: #64748b; margin-bottom: 0.6rem; }
@@ -192,6 +192,66 @@
     .sc-gen .pd-btn { width: auto; }
     .sc-preview-day { font-size: 0.72rem; padding: 0.2rem 0.45rem; border-radius: 6px; background: #f8fafc; border: 1px solid #f1f5f9; margin-bottom: 0.25rem; display: flex; justify-content: space-between; }
     .sc-preview-day .short { color: #dc2626; font-weight: 700; }
+    .resource-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.5rem; margin:.75rem 0; }
+    .resource-summary > div { border:1px solid #e2e8f0; border-radius:10px; padding:.55rem .6rem; background:#fff; display:flex; flex-direction:column; }
+    .resource-summary b { display:flex; align-items:center; gap:.35rem; font-size:.68rem; color:#64748b; font-weight:700; }
+    .resource-summary span { font-size:.95rem; font-weight:800; color:#0f172a; margin-top:.15rem; }
+    .resource-group-title { margin-top:1rem; margin-bottom:.5rem; padding-bottom:.35rem; border-bottom:2px solid #e2e8f0; font-size:.72rem; font-weight:800; color:#334155; text-transform:uppercase; letter-spacing:.04em; display:flex; align-items:center; gap:.5rem; }
+    .resource-status { font-size:.62rem; font-weight:800; padding:.25rem .55rem; border-radius:999px; white-space:nowrap; display:inline-flex; align-items:center; gap:.3rem; }
+    .resource-status.available,.resource-status.confirmed { color:#15803d;background:#dcfce7; }
+    .resource-status.optional { color:#6d28d9;background:#ede9fe; }
+    .resource-status.partially_available { color:#b45309;background:#fef3c7; }
+    .resource-status.procurement_required,.resource-status.equipment_conflict { color:#b91c1c;background:#fee2e2; }
+    .resource-review-grid { display:grid; grid-template-columns:minmax(0,1.4fr) 110px 100px minmax(120px,1fr); gap:.65rem; align-items:flex-start; padding:.65rem .75rem; margin-bottom:.55rem; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 1px 3px rgba(15,23,42,.04); font-size:.72rem; }
+    .resource-review-grid > div { min-width:0; }
+    .resource-review-grid b { color:#0f172a; font-weight:700; }
+    .resource-review-grid .text-muted { color:#64748b; font-size:.68rem; line-height:1.4; }
+    .resource-row-actions { display:flex; align-items:flex-start; gap:.35rem; flex-wrap:wrap; justify-content:flex-end; }
+    .resource-row-actions .pd-btn { font-size:.65rem; padding:.25rem .45rem; }
+    .resource-edit-btn { border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:6px; padding:.2rem .45rem; font-size:.65rem; font-weight:700; cursor:pointer; }
+    .resource-edit-btn:hover { background:#dbeafe; border-color:#60a5fa; }
+    @media(max-width:900px){.resource-summary{grid-template-columns:repeat(3,1fr)}.resource-review-grid{grid-template-columns:1fr;}.resource-row-actions{justify-content:flex-start;}}
+    @media(max-width:520px){.resource-summary{grid-template-columns:1fr}}
+
+    /* Planning Studio dialogs are self-contained on the admin page. These
+       classes previously existed only in the technician partial, which made
+       the resource reviewer render as ordinary page content here. */
+    .pw-modal-overlay {
+      position: fixed; inset: 0; z-index: 10050;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.25rem; background: rgba(15, 23, 42, .58);
+      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+      animation: adminModalFade .16s ease-out;
+    }
+    .pw-modal {
+      position: relative; width: min(1050px, 96vw); max-height: min(90vh, 900px);
+      overflow-y: auto; overscroll-behavior: contain;
+      background: #fff; border: 1px solid rgba(148,163,184,.35);
+      border-radius: 16px; padding: 1.25rem;
+      box-shadow: 0 24px 70px rgba(15,23,42,.3);
+      animation: adminModalRise .18s ease-out;
+    }
+    .pw-modal-close {
+      flex: 0 0 auto; width: 34px; height: 34px; display:inline-flex;
+      align-items:center; justify-content:center; border:1px solid #e2e8f0;
+      border-radius:9px; color:#64748b; background:#fff; cursor:pointer;
+    }
+    .pw-modal-close:hover { color:#0f172a; background:#f1f5f9; }
+    .pw-btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:.35rem;
+      min-height:34px; padding:.42rem .75rem; border:1px solid #cbd5e1;
+      border-radius:8px; background:#fff; color:#334155; font-size:.75rem;
+      font-weight:700; cursor:pointer;
+    }
+    .pw-btn:hover { background:#f8fafc; border-color:#94a3b8; }
+    .pw-btn.primary { color:#fff; background:#1d4ed8; border-color:#1d4ed8; }
+    .pw-btn.primary:hover { background:#1e40af; border-color:#1e40af; }
+    @keyframes adminModalFade { from { opacity:0; } to { opacity:1; } }
+    @keyframes adminModalRise { from { opacity:0; transform:translateY(10px) scale(.99); } to { opacity:1; transform:none; } }
+    @media(max-width:700px){
+      .pw-modal-overlay { padding:.5rem; align-items:flex-end; }
+      .pw-modal { width:100%; max-height:94vh; border-radius:16px 16px 8px 8px; padding:1rem; }
+    }
 
     /* ══ WORK ORDERS ══ */
     .wo-card {
@@ -252,7 +312,7 @@
     .cap-pill { font-size: 0.67rem; font-weight: 700; padding: 0.22rem 0.55rem; border-radius: 5px; background: #ecfdf5; color: #15803d; }
 
     /* ══ TIMELINE ══ */
-    .tl-day { font-size: 0.67rem; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.07em; margin: 0.75rem 0 0.35rem; }
+    .tl-day { font-size: 0.67rem; font-weight: 600; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.07em; margin: 0.75rem 0 0.35rem; }
     .tl-row { display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0; border-bottom: 1px solid #f8fafc; font-size: 0.82rem; }
     .tl-dot { width: 8px; height: 8px; border-radius: 50%; background: #1d4ed8; flex-shrink: 0; }
 
@@ -294,7 +354,7 @@
     @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
 
     /* ══ RESOURCES ══ */
-    .res-group-title { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin: 0.5rem 0 0.45rem; display: flex; align-items: center; gap: 0.35rem; }
+    .res-group-title { font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin: 0.5rem 0 0.45rem; display: flex; align-items: center; gap: 0.35rem; }
     .res-type-chip { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.12rem 0.45rem; border-radius: 4px; }
     .res-type-part { background: #f3e8ff; color: #6d28d9; }
     .res-type-equipment { background: #e0f2fe; color: #0369a1; }
@@ -332,7 +392,7 @@
     .pl-step::before { content: ''; position: absolute; top: 14px; left: -50%; width: 100%; height: 2px; background: #e2e8f0; z-index: 0; }
     .pl-step:first-child::before { display: none; }
     .pl-step.done::before { background: #1d4ed8; }
-    .pl-dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; background: #f1f5f9; color: #94a3b8; z-index: 1; border: 2px solid #e2e8f0; transition: all 0.2s; }
+    .pl-dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; background: #f1f5f9; color: #94a3b8; z-index: 1; border: 2px solid #e2e8f0; transition: all 0.2s; }
     .pl-label { font-size: 0.62rem; font-weight: 600; margin-top: 0.35rem; color: #94a3b8; line-height: 1.2; }
     .pl-step.done .pl-dot { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
     .pl-step.done .pl-label { color: #1d4ed8; }
@@ -356,7 +416,7 @@
     .sw-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; }
     .sw-body { display: flex; gap: 0.875rem; padding: 1rem 1.25rem; overflow: auto; }
     .sw-left { width: 260px; min-width: 260px; display: flex; flex-direction: column; }
-    .sw-left-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.45rem; }
+    .sw-left-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.45rem; }
     .sw-hint { font-weight: 600; text-transform: none; letter-spacing: 0; color: #94a3b8; }
     .sw-wo { width: 100%; text-align: left; border: 1.5px solid #e2e8f0; background: #fff; border-radius: 9px; padding: 0.5rem 0.65rem; margin-bottom: 0.4rem; cursor: pointer; transition: all 0.14s; }
     .sw-wo:hover { border-color: #bfdbfe; }
@@ -420,7 +480,7 @@
     @media (max-width:575px) { .sh-grid { grid-template-columns:repeat(2,1fr); } }
     .sh-item { display:flex; flex-direction:column; padding:0.4rem 0.5rem; background:#f8fafc; border-radius:6px; }
     .sh-item .shk { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#94a3b8; }
-    .sh-item .shv { font-size:0.95rem; font-weight:800; color:#0f172a; margin-top:0.1rem; line-height:1; }
+    .sh-item .shv { font-size:0.95rem; font-weight:600; color:#0f172a; margin-top:0.1rem; line-height:1; }
 
     /* ══ RECOMMENDED ACTIONS ══ */
     .rec-action {
@@ -624,37 +684,39 @@
     const teamStatusArr = p.teamStatus || [];
     const allAssignedTechs = p.assignedTechnicians || [];
     const allTeamAccepted = !teamDone || allAssignedTechs.length === 0 || allAssignedTechs.every(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return ts && ts.status === 'acknowledged';
     });
     const teamDeclined = teamDone && allAssignedTechs.some(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return ts && ts.status === 'declined';
     });
     const pendingTechs = teamDone && !allTeamAccepted ? allAssignedTechs.filter(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return !ts || ts.status !== 'acknowledged';
     }) : [];
     const waitingForTeam = teamDone && !allTeamAccepted;
 
-    const resDone = (materials.length || window.__materialsCount || 0) > 0;
-    const schedDone = workOrders.length > 0 && workOrders.every(wo => wo.scheduledDate);
+    const plannedResources = p.planningDraft?.resources || [];
+    const resDone = plannedResources.some(r => ['planned','required','confirmed'].includes(r.recommendationState)) &&
+      plannedResources.every(r => ['planned','required','confirmed','optional','rejected'].includes(r.recommendationState)) &&
+      !(p.planningDraft?.readiness?.blockers || []).length;
+    const schedDone = p.schedulePlan?.status === 'ready' && !(p.schedulePlan?.conflicts || []).some(c => c.blocking);
     const woDone = workOrders.length > 0;
     let covered = 0, total = 0, unassignedWos = 0;
     workOrders.forEach(wo => {
       total += (wo.unitCount || 0);
       const techs = (wo.assignedTechnicians || []).filter(t => t && (t._id || t.id));
       if (techs.length === 0) { unassignedWos++; return; }
-      const wc = techs.reduce((s, t) => s + (t.assignedUnits || 0), 0);
-      covered += wc > 0 ? wc : (wo.unitCount || 0);
+      covered += (wo.unitCount || 0);
     });
     const coverDone = workOrders.length > 0 && unassignedWos === 0 && covered >= total;
     const steps = [
       { n: 1, label: 'Assign Team', done: teamDone, act: 'showTeamModal' },
-      { n: 2, label: 'Reserve Resources', done: resDone, act: 'showMaterialModal', requiresAccept: true },
-      { n: 3, label: 'Generate Work Orders', done: woDone, act: 'showWorkOrderModal', requiresAccept: true },
-      { n: 4, label: 'Generate Schedule', done: schedDone, act: 'showScheduleWizard', requiresAccept: true },
-      { n: 5, label: `Cover Units (${covered}/${total})`, done: coverDone, act: 'showWorkOrderModal', requiresAccept: true },
+      { n: 2, label: 'Plan Resources', done: resDone, act: plannedResources.length ? 'studioReviewResourcePlan' : 'studioSuggestResources' },
+      { n: 3, label: 'Generate Draft Work Orders', done: woDone, act: 'studioGenerateWorkOrders' },
+      { n: 4, label: 'Plan Schedule', done: schedDone, act: 'showEnterpriseScheduleModal' },
+      { n: 5, label: `Review Batch Coverage (${covered}/${total})`, done: coverDone, act: 'showWorkOrderModal' },
       { n: 6, label: 'Mark Ready', done: allDone, act: 'markReady', requiresAccept: true },
     ];
     let activeSet = false;
@@ -663,7 +725,8 @@
       const state = s.done ? 'done' : (activeSet ? 'todo' : (activeSet = true, 'current'));
       const isLocked = (s.n === 6 && !allDone && !activeSet) || blockedByTeam;
       const finalState = isLocked ? 'locked' : state;
-      const isDisabled = (state === 'todo' && !s.done) || isLocked;
+      const previewStep = waitingForTeam && s.n >= 2 && s.n <= 5;
+      const isDisabled = ((state === 'todo' && !s.done) && !previewStep) || isLocked;
       const title = blockedByTeam ? 'Waiting for team members to accept the assignment' : (isLocked ? 'Complete all previous steps first' : '');
       const icon = s.done ? '<i class="bi bi-check-lg"></i>' : (blockedByTeam ? '<i class="bi bi-person-fill-lock"></i>' : (isLocked ? '<i class="bi bi-lock"></i>' : s.n));
       const labelSuffix = blockedByTeam ? ' <small style="color:#d97706;">(awaiting acceptance)</small>' : '';
@@ -680,18 +743,18 @@
       teamBanner = `<div class="pwz-cover-note" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0;"><i class="bi bi-check-circle-fill"></i> All team members have accepted the assignment</div>`;
     } else if (teamDeclined) {
       const declinedNames = allAssignedTechs.filter(t => {
-        const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+        const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
         return ts && ts.status === 'declined';
       }).map(t => t.name || 'a technician').join(', ');
       teamBanner = `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> ${declinedNames} declined the assignment. Use "Assign Team" to replace them before proceeding.</div>`;
     } else if (waitingForTeam) {
       const names = pendingTechs.map(t => t.name || 'a technician').join(', ');
-      teamBanner = `<div class="pwz-cover-note" style="color:#92400e;background:#fffbeb;border-color:#fde68a;"><i class="bi bi-hourglass-split"></i> Waiting for ${names} to accept the project assignment. Steps 2–6 will unlock once all confirm.</div>`;
+      teamBanner = `<div class="pwz-cover-note" style="color:#92400e;background:#fffbeb;border-color:#fde68a;"><i class="bi bi-hourglass-split"></i> Waiting for ${names} to accept the project assignment. Planning may continue, but Step 6 stays locked until all accept.</div>`;
     }
 
     const coverNote = unassignedWos > 0
-      ? `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> ${unassignedWos} work order(s) have no technician assigned — units are not covered.</div>`
-      : (covered < total ? `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> Only ${covered} of ${total} units assigned to technicians.</div>` : '');
+      ? `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> ${unassignedWos} work order(s) are not linked to the project team.</div>`
+      : (covered < total ? `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> Only ${covered} of ${total} units are included in work-order batches.</div>` : '');
 
     // Count only steps 1-5 for progress (step 6 is the final gate)
     const completedCount = steps.filter(s => s.done).length;
@@ -724,18 +787,17 @@
       total += (wo.unitCount || 0);
       const techs = (wo.assignedTechnicians || []).filter(t => t && (t._id || t.id));
       if (techs.length === 0) { unassignedWos++; return; }
-      const wc = techs.reduce((s, t) => s + (t.assignedUnits || 0), 0);
-      covered += wc > 0 ? wc : (wo.unitCount || 0);
+      covered += (wo.unitCount || 0);
     });
     const coverDone = workOrders.length > 0 && unassignedWos === 0 && covered >= total;
     const items = [
       { label: 'Review customer request', done: true },
       { label: 'Assign technicians', done: (p.assignedTechnicians?.length || p.totalAssignedTechnicians || 0) > 0, act: 'showTeamModal' },
-      { label: 'Reserve equipment & materials', done: (window.__materialsCount || 0) > 0, act: 'showMaterialModal' },
+      { label: 'Review equipment & materials plan', done: (p.planningDraft?.resources || []).some(r => ['planned','required','confirmed'].includes(r.recommendationState)) && !(p.planningDraft?.readiness?.blockers || []).length, act: 'studioReviewResourcePlan' },
       ...(p.isLargeScale ? [{ label: 'Lead checks limited/exclusive equipment (optional)', done: equipment.some(mm => mm.scope === 'assigned'), act: 'scrollToResources' }] : []),
       { label: 'Generate work orders', done: (workOrders.length || 0) > 0, act: 'showWorkOrderModal' },
-      { label: `Cover all units (${covered}/${total} assigned)`, done: coverDone, act: 'showWorkOrderModal' },
-      { label: 'Confirm schedule', done: workOrders.length > 0 && workOrders.every(wo => wo.scheduledDate), act: 'showScheduleWizard' },
+      { label: `Cover all units with batches (${covered}/${total})`, done: coverDone, act: 'showWorkOrderModal' },
+      { label: 'Review Step 4 schedule', done: p.schedulePlan?.status === 'ready' || p.schedulePlan?.status === 'confirmed', act: 'showEnterpriseScheduleModal' },
       { label: 'Notify customer', done: false, act: null },
     ];
     return items.map(it => `
@@ -745,6 +807,19 @@
         ${it.act && !it.done && !locked ? `<button class="pd-btn plan-act" onclick="${it.act}()"><i class="bi bi-plus-lg"></i> Do</button>` : ''}
         ${it.done ? '<span class="plan-act" style="color:#059669;font-size:0.7rem;font-weight:700;">DONE</span>' : (it.act && !it.done && locked ? '<span class="plan-act" style="color:#94a3b8;font-size:0.68rem;font-weight:600;">Accept to enable</span>' : '')}
       </div>`).join('');
+  }
+
+  function schedulePreviewHtml(project, workOrders, assignmentRows) {
+    const plan = project?.schedulePlan || {};
+    const rows = assignmentRows || (plan.dailySummary || []).flatMap(day => day.allocations || []);
+    if (!rows.length) return '<div class="text-muted" style="font-size:0.8rem;">Configure and generate Step 4 to create Work Order dates and daily technician allocations.</div>';
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    const dayKey = value => { const d=new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+    const orders = Object.fromEntries((workOrders || []).map(order => [String(order._id), order]));
+    const technicians = Object.fromEntries((project?.assignedTechnicians || []).map(tech => [String(tech._id), tech.name || 'Technician']));
+    const grouped = {};
+    rows.forEach(row => { const key=dayKey(row.date); (grouped[key] ||= []).push(row); });
+    return Object.keys(grouped).sort().map(date => `<div class="sc-preview-day" style="display:block;"><div style="font-weight:800;margin-bottom:.3rem;">${new Date(date+'T00:00:00').toLocaleDateString('en-PH',{weekday:'long',month:'short',day:'numeric',year:'numeric'})}</div>${grouped[date].sort((a,b)=>String(a.startTime||'').localeCompare(String(b.startTime||''))).map(row=>{const order=orders[String(row.workOrderId)]||{};return `<div class="d-flex justify-content-between" style="gap:1rem;padding:.2rem 0;"><span><b>${safe(order.workOrderNumber||order.title||'Work Order')}</b> · ${safe(technicians[String(row.technicianId)]||'Technician')}</span><span>${safe(row.startTime||'')}–${safe(row.endTime||'')} · ${Number(row.targetUnits||0)} unit(s)</span></div>`;}).join('')}</div>`).join('');
   }
 
   // ── Planning Studio: 5 auto-generate cards (no manual date dragging) ──
@@ -757,55 +832,119 @@
     const teamStatusArr = p.teamStatus || [];
     const allAssignedTechs = team;
     const allTeamAccepted = team.length === 0 || allAssignedTechs.length === 0 || allAssignedTechs.every(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return ts && ts.status === 'acknowledged';
     });
     const waitingForTeam = team.length > 0 && !allTeamAccepted;
     const woCount = workOrders.length;
+    const activeWorkOrders = workOrders.filter(order => order.status !== 'cancelled');
+    const workOrderUnits = activeWorkOrders.reduce((sum, order) => sum + Number(order.unitCount || 0), 0);
+    const expectedUnits = Number(p.totalUnits || p.quantity || 0);
+    const unitKeys = activeWorkOrders.flatMap(order => (order.units || []).map(unit => unit.unitKey)).filter(Boolean);
+    const duplicateUnitCount = unitKeys.length - new Set(unitKeys).size;
+    const uncoveredUnitCount = Math.max(0, expectedUnits - Math.min(expectedUnits, workOrderUnits - duplicateUnitCount));
+    const workOrderCoverage = expectedUnits ? Math.min(100, Math.round(((expectedUnits - uncoveredUnitCount) / expectedUnits) * 100)) : 0;
+    const estimatedWoDays = Math.max(1, Math.ceil(activeWorkOrders.reduce((sum, order) => sum + Number(order.estimatedHours || 0), 0) / (Math.max(1, team.length) * 6.5)));
     const matCount = materials.length;
     const teamReady = team.length > 0;
     const woReady = woCount > 0;
-    const matReady = matCount > 0;
+    const plannedResources = p.planningDraft?.resources || [];
+    const acceptedResources = plannedResources.filter(item => ['planned','required','confirmed'].includes(item.recommendationState));
+    const matReady = acceptedResources.length > 0;
+    const schedulePlan = p.schedulePlan || {};
+    const scheduleReady = schedulePlan.status === 'ready' && !(schedulePlan.conflicts || []).some(c => c.blocking);
+    const scheduleDays = (schedulePlan.dailySummary || []).length;
+    const scheduleConflicts = (schedulePlan.conflicts || []).filter(c => c.blocking).length;
+    const pendingAcceptanceNames = allAssignedTechs.filter(t => { const row=teamStatusArr.find(s=>String(s._id||s.technicianId||'')===String(t._id||t.id||'')); return !row||row.status!=='acknowledged'; }).map(t=>t.name||'Technician');
+    const finalGateIssues = [
+      ...(!teamReady ? ['Assign a project team'] : []),
+      ...(pendingAcceptanceNames.length ? [`Waiting for acceptance: ${pendingAcceptanceNames.join(', ')}`] : []),
+      ...(!matReady ? ['Review and approve the Step 2 resource plan'] : []),
+      ...((p.planningDraft?.readiness?.blockers || []).map(blocker=>`Resource: ${blocker}`)),
+      ...(!woReady ? ['Generate valid draft Work Orders'] : []),
+      ...(uncoveredUnitCount || duplicateUnitCount ? [`Resolve unit coverage (${uncoveredUnitCount} uncovered, ${duplicateUnitCount} duplicate)`] : []),
+      ...(!scheduleReady ? ['Generate a conflict-free Step 4 schedule'] : []),
+    ];
+    const resourcePlanLocked = Boolean(p.planningDraft?.baselineLocked);
+    const safeStudio = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    const legacyPlannedResourceRows = plannedResources.map(item => {
+      const shortage = Number(item.available || 0) < Number(item.quantity || 1);
+      const typeLabel = item.type === 'consumable' ? 'Consumable' : item.type === 'part' ? 'Repair Part' : 'Equipment';
+      return `<div class="studio-row"><span><b>${safeStudio(item.itemName)}</b> ×${Number(item.quantity) || 1} ${safeStudio(item.unit || 'pcs')}<small class="d-block text-muted">${typeLabel}${item.reason ? ' · ' + safeStudio(item.reason) : ''}</small></span><span style="font-size:0.66rem;font-weight:700;color:${shortage ? '#b45309' : '#15803d'};">${shortage ? `PROCURE · ${Number(item.available || 0)} available` : 'AVAILABLE'}</span></div>`;
+    }).join('');
+    const typeNames = { equipment:'Equipment', consumable:'Consumables', part:'Repair Parts' };
+    const activePlanned = plannedResources.filter(item => item.recommendationState !== 'rejected');
+    const groupSummary = ['equipment','consumable','part'].map(type => {
+      const rows = activePlanned.filter(item => item.type === type);
+      const ok = rows.filter(item => ['available','confirmed'].includes(item.readinessStatus)).length;
+      const issues = rows.filter(item => ['partially_available','procurement_required','equipment_conflict'].includes(item.readinessStatus)).length;
+      return `<div><b>${typeNames[type]}</b><span>${rows.length} planned &middot; ${ok} available${issues ? ` &middot; ${issues} issue(s)` : ''}</span></div>`;
+    }).join('');
+    const plannedResourceRows = ['equipment','consumable','part'].map(type => {
+      const rows = activePlanned.filter(item => item.type === type);
+      if (!rows.length) return '';
+      return `<div class="resource-group-title">${typeNames[type]}</div>${rows.slice(0,4).map(item => `<div class="studio-row"><span><b>${safeStudio(item.itemName)}</b> &times;${Number(item.quantity) || 1} ${safeStudio(item.unit || 'pcs')}<small class="d-block text-muted">${safeStudio((item.requirementRule || 'fixed').replace(/_/g,' '))} &middot; ${safeStudio(item.source || 'ai')}${item.affectedWorkOrders?.length ? ` &middot; ${item.affectedWorkOrders.length} WO(s)` : ''}</small></span><span class="resource-row-actions"><span class="resource-status ${safeStudio(item.readinessStatus || 'optional')}">${safeStudio((item.readinessStatus || 'optional').replace(/_/g,' ').toUpperCase())}</span>${resourcePlanLocked ? '' : `<button type="button" class="resource-edit-btn" onclick="studioReviewResourcePlan({resourceId:'${safeStudio(item._id)}'})"><i class="bi bi-pencil-square"></i> Edit</button>`}</span></div>`).join('')}${rows.length > 4 ? `<button type="button" class="resource-edit-btn mt-1" onclick="studioReviewResourcePlan()">View and edit ${rows.length-4} more</button>` : ''}`;
+    }).join('');
 
     const teamBanner = waitingForTeam
-      ? `<div style="grid-column:1/-1;margin-bottom:0.25rem;padding:0.4rem 0.75rem;border-radius:8px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;font-size:0.78rem;"><i class="bi bi-hourglass-split"></i> <strong>Awaiting Team Acceptance</strong> — ${allAssignedTechs.filter(t => { const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString()); return !ts || ts.status !== 'acknowledged'; }).map(t => t.name || 'a tech').join(', ')} haven't accepted yet. Planning tools below are locked until all confirm.</div>`
+      ? `<div style="grid-column:1/-1;margin-bottom:0.25rem;padding:0.6rem 0.75rem;border-radius:8px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;font-size:0.78rem;"><i class="bi bi-hourglass-split"></i> <strong>Awaiting Team Acceptance</strong> — ${allAssignedTechs.filter(t => { const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || '')); return !ts || ts.status !== 'acknowledged'; }).map(t => t.name || 'a tech').join(', ')} haven't accepted yet.<br><span style="margin-left:1.2rem;">Planning can be prepared now. Final confirmation and physical reservation require all assigned team members to accept.</span></div>`
       : '';
     return `
     <div class="studio-grid">${teamBanner}
       <div class="studio-card full">
         <h4><span class="sc-num">1</span> Team</h4>
-        <div class="sc-sub">Assign lead and members. Acceptance required before planning tools unlock.</div>
+        <div class="sc-sub">Required team acceptance is needed before the project plan can be finalized. Planning can be prepared while assignments are pending.</div>
         ${teamReady ? teamCardBodyHtml(p, workOrders) : '<div class="studio-row mb-2"><span class="text-muted">No team assigned yet</span></div>'}
         <div class="sc-gen mt-2"><button class="pd-btn primary" onclick="showTeamModal()"><i class="bi bi-people"></i> ${teamReady ? 'Edit Team' : 'Assign Team'}</button></div>
       </div>
 
       <div class="studio-card">
         <h4><span class="sc-num">2</span> Resources</h4>
-        <div class="sc-sub">AI suggests equipment & materials — confirm to reserve.</div>
-        ${waitingForTeam ? '<div class="studio-row mt-1"><span style="color:#d97706;font-size:0.72rem;"><i class="bi bi-lock"></i> Locked</span></div>' : ''}
-        <div id="studioResStatus">${matReady ? `<span class="studio-pill ok"><i class="bi bi-check-lg"></i> ${matCount} reserved</span>` : '<span class="studio-pill">None</span>'}</div>
+        <div class="sc-sub">AI suggests equipment and materials. Review and adjust the plan before reservation.</div>
+        ${waitingForTeam ? '<div class="studio-row mt-1"><span class="studio-pill"><i class="bi bi-eye"></i> Planning Preview</span></div>' : ''}
+        <div id="studioResStatus">${plannedResources.length ? `<span class="studio-pill ${p.planningDraft?.readiness?.status === 'ready' ? 'ok' : ''}"><i class="bi bi-clipboard"></i> ${plannedResources.length} planned &middot; ${safeStudio((p.planningDraft?.readiness?.status || 'not checked').replace(/_/g,' '))}</span>` : '<span class="studio-pill">None planned</span>'}</div>
+        ${plannedResources.length ? `<div class="resource-summary">${groupSummary}</div>` : ''}
+        ${plannedResourceRows ? `<div class="mt-2">${plannedResourceRows}</div>` : '<div class="studio-row mt-2"><span class="text-muted">Click AI Suggest to calculate equipment, consumables, and likely repair parts.</span></div>'}
         <div class="sc-gen mt-2">
-          <button class="pd-btn" onclick="studioSuggestResources()" ${waitingForTeam ? 'disabled' : ''}><i class="bi bi-magic"></i> AI Suggest</button>
-          <button class="pd-btn primary" onclick="showMaterialModal()" ${waitingForTeam ? 'disabled' : ''}><i class="bi bi-plus-lg"></i> Reserve</button>
+          <button class="pd-btn" onclick="studioSuggestResources()"><i class="bi bi-magic"></i> AI Suggest</button>
+          <button class="pd-btn primary" onclick="studioReviewResourcePlan()"><i class="bi bi-clipboard-check"></i> Review Resources</button>
+          ${resourcePlanLocked ? '' : '<button class="pd-btn success" onclick="studioReviewResourcePlan({mode:\'add\'})"><i class="bi bi-plus-lg"></i> Add Resource</button>'}
         </div>
       </div>
 
       <div class="studio-card">
         <h4><span class="sc-num">3</span> Work Orders</h4>
-        <div class="sc-sub">Auto-calculate based on team capacity.</div>
-        ${waitingForTeam ? '<div class="studio-row mt-1"><span style="color:#d97706;font-size:0.72rem;"><i class="bi bi-lock"></i> Locked</span></div>' : ''}
-        <div id="studioWoStatus">${woReady ? `<span class="studio-pill ok"><i class="bi bi-check-lg"></i> ${woCount} WO(s)</span>` : '<span class="studio-pill">Not generated</span>'}</div>
-        <div class="sc-gen mt-2"><button class="pd-btn primary" onclick="studioGenerateWorkOrders()" ${waitingForTeam ? 'disabled' : ''}><i class="bi bi-list-check"></i> Generate Work Orders</button></div>
+        <div class="sc-sub">Draft execution packages based on unit scope, service workflow, location, duration, team capacity, and site constraints.</div>
+        ${waitingForTeam ? '<div class="studio-row mt-1"><span class="studio-pill"><i class="bi bi-pencil"></i> Draft mode</span></div>' : ''}
+        <div id="studioWoStatus">${woReady ? `<span class="studio-pill ${waitingForTeam ? '' : 'ok'}"><i class="bi bi-${waitingForTeam ? 'pencil' : 'check-lg'}"></i> ${woCount} ${waitingForTeam ? 'draft' : 'confirmed'} WO(s)</span>` : '<span class="studio-pill">Not generated</span>'}</div>
+        ${woReady ? `<div class="resource-summary"><div><b>Unit Coverage</b><span>${workOrderUnits}/${expectedUnits} units (${workOrderCoverage}%)</span></div><div><b>Conflicts</b><span>${duplicateUnitCount} duplicate &middot; ${uncoveredUnitCount} uncovered</span></div><div><b>Capacity Forecast</b><span>${team.length} technician(s) &middot; ${estimatedWoDays} day(s)</span></div></div>` : ''}
+        <div class="sc-gen mt-2"><button class="pd-btn primary" onclick="studioGenerateWorkOrders()"><i class="bi bi-list-check"></i> ${woReady ? 'Regenerate Draft Work Orders' : 'Generate Draft Work Orders'}</button>${woReady ? '<button class="pd-btn" onclick="checkWorkOrderReadiness()"><i class="bi bi-shield-check"></i> Check Readiness</button>' : ''}</div>
       </div>
 
       <div class="studio-card">
         <h4><span class="sc-num">4</span> Scheduling</h4>
-        <div class="sc-sub">Auto-distributes units across working days based on technician capacity and existing bookings.</div>
-        ${waitingForTeam ? '<div class="studio-row mt-1"><span style="color:#d97706;font-size:0.72rem;"><i class="bi bi-lock"></i> Locked</span></div>' : ''}
-        <div id="studioSchedStatus"></div>
+        <div class="sc-sub">Calculates when each Step 3 Work Order runs. Generated dates are copied onto the Work Orders for execution; they are not a second schedule.</div>
+        ${waitingForTeam ? '<div class="studio-row mt-1"><span class="studio-pill"><i class="bi bi-eye"></i> Planning is allowed; release still waits for acceptance</span></div>' : ''}
+        <div id="studioSchedStatus"><span class="studio-pill ${scheduleReady ? 'ok' : ''}"><i class="bi bi-calendar3"></i> ${safeStudio((schedulePlan.status || 'not generated').replace(/_/g,' '))}</span>${scheduleDays ? ` <span class="studio-pill">${scheduleDays} work day(s)</span>` : ''}${scheduleConflicts ? ` <span class="studio-pill" style="color:#b91c1c;background:#fef2f2;">${scheduleConflicts} blocking conflict(s)</span>` : ''}</div>
+        ${schedulePlan.startDate ? `<div class="resource-summary mt-2"><div><b>Project Start</b><span>${new Date(schedulePlan.startDate).toLocaleDateString('en-PH')}</span></div><div><b>Estimated End</b><span>${schedulePlan.estimatedEndDate ? new Date(schedulePlan.estimatedEndDate).toLocaleDateString('en-PH') : 'Calculating'}</span></div><div><b>Duration</b><span>${scheduleDays} working day(s)${schedulePlan.bufferDays ? ` + ${schedulePlan.bufferDays} buffer` : ''}</span></div><div><b>Work Orders / Units</b><span>${woCount} / ${expectedUnits}</span></div><div><b>Team</b><span>${team.length} technician(s)</span></div><div><b>Schedule Quality</b><span>${Number(schedulePlan.qualityScore || 0)}%</span></div></div>` : ''}
         <div class="sc-gen mt-2">
-          <button class="pd-btn primary" onclick="studioGenerateSchedule()" ${waitingForTeam ? 'disabled' : ''}><i class="bi bi-calendar2-check"></i> Generate Schedule</button>
+          <button class="pd-btn" onclick="showEnterpriseScheduleModal()"><i class="bi bi-sliders"></i> ${schedulePlan.startDate ? 'Configure / View' : 'Configure'}</button>
+          <button class="pd-btn primary" onclick="studioGenerateSchedule(this)"><i class="bi bi-calendar2-check"></i> ${scheduleDays ? 'Regenerate' : 'Generate Schedule'}</button>
+          ${scheduleDays ? '<button class="pd-btn" onclick="studioCheckScheduleReadiness(this)"><i class="bi bi-shield-check"></i> Check Readiness</button>' : ''}
         </div>
+      </div>
+      <div class="studio-card">
+        <h4><span class="sc-num">5</span> Final Planning Review</h4>
+        <div class="sc-sub">Review staffing, resource readiness, procurement, work orders, unit coverage, and schedule.</div>
+        <div class="sc-kv"><div><b>Team:</b> ${allTeamAccepted ? 'Confirmed' : 'Pending'}</div><div><b>Resources:</b> ${safeStudio((p.planningDraft?.readiness?.status || 'not checked').replace(/_/g,' '))}</div><div><b>Work orders:</b> ${woCount}</div><div><b>Schedule:</b> ${safeStudio((schedulePlan.status || 'pending').replace(/_/g,' '))}</div></div>
+        ${schedulePlan.startDate ? `<div class="studio-row mt-2"><span><b>${new Date(schedulePlan.startDate).toLocaleDateString('en-PH')}–${schedulePlan.estimatedEndDate ? new Date(schedulePlan.estimatedEndDate).toLocaleDateString('en-PH') : 'TBD'}</b><small class="d-block text-muted">${scheduleConflicts ? `${scheduleConflicts} blocking scheduling conflict(s)` : 'No technician or equipment conflicts'}</small></span><span class="studio-pill ${scheduleReady ? 'ok' : ''}">${scheduleReady ? 'READY FOR FINAL REVIEW' : 'REVIEW REQUIRED'}</span></div>` : ''}
+        ${(p.planningDraft?.readiness?.blockers || []).length ? `<div class="pwz-cover-note warn"><i class="bi bi-exclamation-triangle-fill"></i> Cannot finalize: ${(p.planningDraft.readiness.blockers || []).map(safeStudio).join('; ')}</div>` : (waitingForTeam ? '<span class="studio-pill"><i class="bi bi-lock"></i> Final confirmation waits for team acceptance</span>' : `<span class="studio-pill ${allDone ? 'ok' : ''}">${allDone ? 'Ready to confirm' : 'Complete remaining planning items'}</span>`)}
+      </div>
+      <div class="studio-card">
+        <h4><span class="sc-num">6</span> Confirm Project Plan</h4>
+        <div class="sc-sub">Commit the plan, reserve assets, and release work to the team.</div>
+        ${finalGateIssues.length ? `<div class="pwz-cover-note warn mt-2"><i class="bi bi-lock-fill"></i> <b>Step 6 is waiting for:</b> ${finalGateIssues.map(safeStudio).join('; ')}</div>` : '<div class="pwz-cover-note mt-2" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0;"><i class="bi bi-check-circle-fill"></i> All final confirmation gates passed.</div>'}
+        <div class="sc-gen mt-2"><button class="pd-btn success" onclick="markReady(this)" ${waitingForTeam || !allDone ? 'disabled' : ''}><i class="bi bi-check2-circle"></i> Confirm Project Plan</button></div>
       </div>
     </div>`;
   }
@@ -874,7 +1013,7 @@
           <div class="res-sub">${mm.notes ? mm.notes + ' · ' : ''}${mm.status || 'reserved'}${isFromInventory ? ' · <span style="color:#065f46;">From stock</span>' : ''}</div>
         </div>
         <div class="d-flex flex-column align-items-end gap-1">
-          <span class="res-qty" style="font-size:0.85rem;font-weight:800;">×${mm.quantity} <span style="font-size:0.72rem;font-weight:600;color:#94a3b8;">${mm.unit || 'pcs'}</span></span>
+          <span class="res-qty" style="font-size:0.85rem;font-weight:600;">×${mm.quantity} <span style="font-size:0.72rem;font-weight:600;color:#94a3b8;">${mm.unit || 'pcs'}</span></span>
           ${assignControl}
           ${pickup}
         </div>
@@ -1027,7 +1166,7 @@
     const leadId = (p.leadTechnicianId || '').toString();
     const lead = p.assignedTechnicians.find(t => (t._id || '').toString() === leadId) || p.assignedTechnicians[0];
     const teamStatusArr = p.teamStatus || [];
-    const techAcceptStatus = (techId) => { const ts = teamStatusArr.find(s => s._id && s._id.toString() === String(techId)); return ts ? ts.status : 'notified'; };
+    const techAcceptStatus = (techId) => { const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(techId)); return ts ? ts.status : 'notified'; };
     const statusBadge = (status) => {
       const c = { acknowledged: '#16a34a', declined: '#dc2626', notified: '#f59e0b' };
       const l = { acknowledged: 'Accepted', declined: 'Declined', notified: 'Pending' };
@@ -1037,43 +1176,18 @@
     const accepted = teamStatusArr.filter(s => s.status === 'acknowledged').length;
     const declined = teamStatusArr.filter(s => s.status === 'declined').length;
     const pending = p.assignedTechnicians.length - accepted - declined;
-    const hpu = p.estimatedDurationPerUnit || 1;
-    const dailyHrs = p.preferredWorkingHours?.end ? Math.max(1, parseInt(p.preferredWorkingHours.end) - parseInt(p.preferredWorkingHours.start)) : 8;
-    const todayKey = new Date().toDateString();
-    const todayWos = workOrders.filter(w => w.scheduledDate && new Date(w.scheduledDate).toDateString() === todayKey);
-    const techCap = (techId) => {
-      const tid = (techId || '').toString();
-      const a = todayWos.reduce((s, w) => s + (w.assignedTechnicians || []).filter(at => (at._id || at.id || '').toString() === tid).reduce((s2, t2) => s2 + (t2.assignedUnits || 0), 0), 0);
-      const cap = Math.floor(dailyHrs / hpu);
-      const rem = Math.max(0, cap - a);
-      return { capacity: cap, assigned: a, remaining: rem, pct: cap > 0 ? Math.round((a / cap) * 100) : 0 };
-    };
-    const leadC = techCap(lead._id);
     return `
       <div class="team-lead">
         <div class="tech-avatar">${(lead.name||'?').charAt(0).toUpperCase()}</div>
         <div style="flex:1;"><div style="font-size:0.82rem;font-weight:700;">${lead.name||'Lead'}</div><div class="wo-mini">Lead</div></div>
         ${statusBadge(techAcceptStatus(lead._id))}
       </div>
-      <div class="tc-bar"><div class="tc-bar-fill" style="width:${leadC.pct}%;background:${leadC.remaining > 0 ? '#16a34a' : '#d97706'};"></div></div>
-      <div class="tc-stats mb-2">
-        <span><strong>Capacity:</strong> ${leadC.capacity}/day</span>
-        <span><strong>Assigned:</strong> ${leadC.assigned}</span>
-        <span style="color:${leadC.remaining > 0 ? '#16a34a' : '#dc2626'};"><strong>Free:</strong> ${leadC.remaining}</span>
-      </div>
       ${p.assignedTechnicians.slice(1).map(t => {
-        const tc = techCap(t._id);
         return `
         <div class="tech-row">
           <div class="tech-avatar" style="width:28px;height:28px;font-size:0.7rem;">${(t.name||'?').charAt(0).toUpperCase()}</div>
           <div style="flex:1;font-size:0.78rem;font-weight:600;">${t.name||'Member'}</div>
           ${statusBadge(techAcceptStatus(t._id))}
-        </div>
-        <div class="tc-bar" style="margin-left:2.1rem;"><div class="tc-bar-fill" style="width:${tc.pct}%;background:${tc.remaining > 0 ? '#16a34a' : '#d97706'};"></div></div>
-        <div class="tc-stats" style="margin-left:2.1rem;font-size:0.65rem;">
-          <span>Cap: ${tc.capacity}/d</span>
-          <span>Now: ${tc.assigned}</span>
-          <span style="color:${tc.remaining > 0 ? '#16a34a' : '#dc2626'};">Free: ${tc.remaining}</span>
         </div>`;
       }).join('')}
       <div class="mt-2 d-flex gap-2 flex-wrap" style="font-size:0.7rem;">
@@ -1590,19 +1704,22 @@
     const teamStatusArr = p.teamStatus || [];
     const allAssignedTechs = p.assignedTechnicians || [];
     const allTeamAccepted = !teamDone || allAssignedTechs.length === 0 || allAssignedTechs.every(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return ts && ts.status === 'acknowledged';
     });
-    const resDone = (materials.length || window.__materialsCount || 0) > 0;
-    const schedDone = workOrders.length > 0 && workOrders.every(wo => wo.scheduledDate);
+    const planningResources = p.planningDraft?.resources || [];
+    const reviewedResources = planningResources.filter(r => ['planned','required','confirmed','optional','rejected'].includes(r.recommendationState));
+    const requiredResources = planningResources.filter(r => ['planned','required','confirmed'].includes(r.recommendationState));
+    const readinessBlockers = p.planningDraft?.readiness?.blockers || [];
+    const resDone = requiredResources.length > 0 && reviewedResources.length === planningResources.length && readinessBlockers.length === 0;
+    const schedDone = p.schedulePlan?.status === 'ready' && !(p.schedulePlan?.conflicts || []).some(c => c.blocking);
     const woDone = workOrders.length > 0;
     let covered = 0, total = 0, unassignedWos = 0;
     workOrders.forEach(wo => {
       total += (wo.unitCount || 0);
       const techs = (wo.assignedTechnicians || []).filter(t => t && (t._id || t.id));
       if (techs.length === 0) { unassignedWos++; return; }
-      const wc = techs.reduce((s, t) => s + (t.assignedUnits || 0), 0);
-      covered += wc > 0 ? wc : (wo.unitCount || 0);
+      covered += (wo.unitCount || 0);
     });
     const coverDone = workOrders.length > 0 && unassignedWos === 0 && covered >= total;
     const planningAllDone = allTeamAccepted && teamDone && resDone && schedDone && woDone && coverDone;
@@ -1684,13 +1801,13 @@
               <div>${planningAllDone
                 ? 'Every prerequisite is satisfied. Click "Mark Project Ready" to notify technicians and begin work order execution.'
                 : (teamDone && !allTeamAccepted
-                  ? 'Team members must accept before planning can proceed.'
+                  ? 'Planning previews are available now. Team acceptance is required only for final confirmation and resource reservation.'
                   : 'Follow steps 1–6 in order. Each step unlocks the next.')}</div>
             </div>
           </div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
             ${!planningAllDone ? `<span style="font-size:0.72rem;font-weight:600;color:${teamDone && !allTeamAccepted ? '#d97706' : '#b45309'};background:${teamDone && !allTeamAccepted ? '#fef3c7' : '#fef3c7'};padding:0.3rem 0.65rem;border-radius:6px;"><i class="bi ${teamDone && !allTeamAccepted ? 'bi-hourglass-split' : 'bi-info-circle'}"></i> ${teamDone && !allTeamAccepted ? 'Waiting for team acceptance' : 'Complete all steps above first'}</span>` : ''}
-            <button class="pd-btn ${planningAllDone ? 'success' : 'primary'}" onclick="markReady(this)" ${!planningAllDone ? 'disabled' : ''} title="${!planningAllDone ? (teamDone && !allTeamAccepted ? 'Waiting for team acceptance' : 'Complete all planning steps first') : 'Mark project as ready'}"><i class="bi bi-flag"></i> Mark Project Ready</button>
+            <button class="pd-btn ${planningAllDone ? 'success' : 'primary'}" onclick="markReady(this)" ${!planningAllDone ? 'disabled' : ''} title="${!planningAllDone ? (teamDone && !allTeamAccepted ? 'Waiting for team acceptance' : 'Complete all planning steps first') : 'Confirm project plan'}"><i class="bi bi-flag"></i> Confirm Project Plan</button>
           </div>
         </div>
         ${planningStepsHtml(p, workOrders, materials, planningAllDone)}` : ''}
@@ -1866,7 +1983,7 @@
           <button class="pd-btn" style="font-size:0.72rem;" onclick="studioLoadPreview()"><i class="bi bi-eye"></i> Refresh</button>
         </div>
         <div class="pd-body">
-          <div id="studioPreview"><div class="text-muted" style="font-size:0.8rem;">Generate a schedule to see daily assignments per technician.</div></div>
+          <div id="studioPreview">${schedulePreviewHtml(p, workOrders)}</div>
         </div>
       </div>
 
@@ -1874,7 +1991,7 @@
       <div class="pd-card" data-stage="planning ready active completed">
         <div class="pd-head d-flex justify-content-between">
           <h3><i class="bi bi-list-check me-2" style="color:#4f46e5;"></i>Work Orders (${workOrders.length})</h3>
-          ${planningOnly ? '' : `<button class="pd-btn" onclick="showWorkOrderModal()" style="font-size:0.72rem;"><i class="bi bi-plus-lg"></i> Add</button>`}
+          ${planningOnly ? '' : `<div class="d-flex gap-2"><button class="pd-btn" onclick="mergeSelectedWorkOrders()" style="font-size:0.72rem;"><i class="bi bi-intersect"></i> Merge Selected</button><button class="pd-btn" onclick="showWorkOrderModal()" style="font-size:0.72rem;"><i class="bi bi-plus-lg"></i> Add Draft</button></div>`}
         </div>
         <div class="pd-body" id="workOrdersContainer">
           ${workOrders.length === 0 ? '<div class="text-center py-4 text-muted" style="font-size:0.85rem;">No work orders yet.</div>' : ''}
@@ -1883,28 +2000,36 @@
     workOrders.slice().sort((a,b) => (a.sortOrder||0)-(b.sortOrder||0)).forEach(wo => {
       const woProgress = wo.unitCount > 0 ? Math.round((wo.completedUnitCount / wo.unitCount) * 100) : 0;
       const techNames = (wo.assignedTechnicians || []).map(t => `<span class="wo-tag"><i class="bi bi-person"></i>${t.name || 'Unknown'}</span>`).join(' ');
+      const isDraftWo = wo.status === 'pending' && wo.planningStatus !== 'released';
+      const resourceGroups = { equipment:[], consumable:[], part:[] };
+      (wo.resourceRequirements || []).forEach(resource => (resourceGroups[resource.type] || resourceGroups.equipment).push(resource));
       html += `
         <div class="wo-card">
           <div class="d-flex justify-content-between align-items-start mb-1">
             <div>
-              <span class="wo-title">${wo.title || wo.section || 'Work Order'}</span>
+              ${isDraftWo ? `<input type="checkbox" class="wo-merge-check me-2" value="${wo._id}" aria-label="Select work order for merge">` : ''}<span class="wo-title">${wo.workOrderNumber || 'WO'} &middot; ${wo.title || wo.section || 'Work Order'}</span>
               ${wo.section ? `<span class="wo-mini ms-2"><i class="bi bi-geo-alt"></i> ${wo.section}</span>` : ''}
             </div>
-            <span class="wo-status ${wo.status}">${wo.status.replace('_',' ')}</span>
+            <span class="wo-status ${wo.status}">${(wo.planningStatus === 'draft' ? 'DRAFT' : wo.planningStatus === 'released' ? wo.status : (wo.planningStatus || wo.status)).replace(/_/g,' ')}</span>
           </div>
           <div class="d-flex justify-content-between wo-mini mb-1">
             <span><i class="bi bi-grid-3x3-gap"></i> ${wo.completedUnitCount || 0}/${wo.unitCount} units · ${wo.estimatedHours || 0}h est.</span>
-            <span>${techNames || '<span class="wo-mini text-muted">Unassigned</span>'}</span>
+            <span>${techNames || '<span class="wo-mini text-muted">Unassigned</span>'}${wo.assignmentProvisional ? '<span class="studio-pill ms-1">Provisional</span>' : ''}</span>
           </div>
-          ${wo.scheduledDate ? `<div class="wo-mini mb-1" style="color:#2563eb;"><i class="bi bi-calendar3"></i> Schedule: ${new Date(wo.scheduledDate).toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric', year:'numeric' })}</div>` : ''}
+          ${(wo.units || []).length ? `<div class="wo-mini mb-1"><b>Units:</b> ${(wo.units || []).map(unit => unit.label || unit.unitKey).join(', ')}</div>` : ''}
+          ${(wo.dependencies || []).length ? `<div class="wo-mini mb-1"><i class="bi bi-diagram-3"></i> Depends on ${(wo.dependencies || []).length} work order(s)</div>` : ''}
+          ${(wo.resourceRequirements || []).length ? `<div class="wo-mini mb-1"><b>Resources:</b> ${Object.entries(resourceGroups).filter(([,rows]) => rows.length).map(([type,rows]) => `${type === 'part' ? 'Parts' : type.charAt(0).toUpperCase()+type.slice(1)}: ${rows.map(resource => `${resource.itemName} &times;${resource.quantity}`).join(', ')}`).join(' &middot; ')}</div>` : '<div class="wo-mini text-muted mb-1">No planned resources linked yet</div>'}
+          ${wo.scheduledDate ? `<div class="wo-mini mb-1" style="color:#2563eb;"><i class="bi bi-calendar3"></i> Step 4 schedule: ${new Date(wo.scheduledDate).toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric', year:'numeric' })}${wo.startTime ? `, ${wo.startTime}` : ''}${wo.scheduledEndDate ? ` → ${new Date(wo.scheduledEndDate).toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric', year:'numeric' })}${wo.endTime ? `, ${wo.endTime}` : ''}` : ''}</div>` : '<div class="wo-mini text-muted mb-1"><i class="bi bi-calendar3"></i> Not scheduled — complete Step 4</div>'}
           <div class="wo-bar"><div style="width:${woProgress}%;"></div></div>
           <div class="wo-daily mt-2" id="woDaily-${wo._id}"></div>
           <div class="d-flex justify-content-between align-items-center">
             <span class="wo-mini">${woProgress}% complete</span>
             <div class="d-flex gap-2">
-              <button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="reassignWorkOrder('${wo._id}')">Reassign</button>
+              <button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="viewWorkOrderDetails('${wo._id}')">Details</button>
               <button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="editWorkOrder('${wo._id}')">Edit</button>
-              <button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="deleteWorkOrder('${wo._id}',this)">Delete</button>
+              ${isDraftWo && wo.unitCount > 1 ? `<button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="splitWorkOrder('${wo._id}',${wo.unitCount})">Split</button>` : ''}
+              ${(wo.units || []).some(unit => !['completed','cancelled'].includes(unit.status)) ? `<button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="moveWorkOrderUnits('${wo._id}')">Move Units</button>` : ''}
+              <button class="pd-btn" style="font-size:0.7rem;padding:0.25rem 0.6rem;" onclick="deleteWorkOrder('${wo._id}',this,${isDraftWo})">${isDraftWo ? 'Delete Draft' : 'Cancel'}</button>
             </div>
           </div>
         </div>`;
@@ -1917,13 +2042,13 @@
       <!-- ══ 7. RESOURCES ══ -->
       <div class="pd-card" data-stage="planning ready active completed">
         <div class="pd-head d-flex justify-content-between">
-          <h3><i class="bi bi-box-seam me-2" style="color:#d97706;"></i>Project Resources (${materials.length})</h3>
-          ${planningOnly ? '' : `<button class="pd-btn" onclick="showMaterialModal()" style="font-size:0.72rem;"><i class="bi bi-plus-lg"></i> Reserve</button>`}
+          <h3><i class="bi bi-box-seam me-2" style="color:#d97706;"></i>${planningOnly ? 'Committed Project Resources' : 'Resource Commit Preview'} (${materials.length})</h3>
+          ${planningOnly ? '' : `<button class="pd-btn" onclick="studioReviewResourcePlan()" style="font-size:0.72rem;"><i class="bi bi-clipboard-check"></i> Review Step 2 Plan</button>`}
         </div>
         <div class="pd-body">
-          ${renderResourceFlow(p, materials)}
+          ${planningOnly ? renderResourceFlow(p, materials) : `<div class="flow-banner mb-3"><span class="flow-step done"><i class="bi bi-check-lg"></i>Plan Reviewed (${requiredResources.length})</span><span class="flow-arrow"><i class="bi bi-chevron-right"></i></span><span class="flow-step current">Step 6 Reserves</span><span class="flow-arrow"><i class="bi bi-chevron-right"></i></span><span class="flow-step todo">Technician Checkout</span></div>`}
           ${materials.length === 0
-            ? '<div class="eq-empty">No resources reserved yet.</div>'
+            ? (planningOnly ? '<div class="eq-empty">No committed resources found.</div>' : '<div class="pwz-cover-note" style="color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe;"><i class="bi bi-info-circle-fill"></i> <b>Zero committed resources is expected before Step 6.</b> The reviewed Step 2 plan is the readiness gate. Confirm Project Plan creates the reservations.</div>')
             : materials.map(mm => renderResourceRow(p, mm)).join('')}
           ${(p.isLargeScale && materials.some(mm => mm.type !== 'part'))
             ? `<div class="res-group-title mt-3"><i class="bi bi-people-fill"></i> Equipment Plan</div>${renderEquipmentPlan(p, materials)}`
@@ -1932,7 +2057,7 @@
       </div>
 
       <!-- ══ 7b. EQUIPMENT CHECKOUT ══ -->
-      <div class="pd-card" data-stage="planning ready active completed">
+      <div class="pd-card" data-stage="ready active completed">
         <div class="pd-head"><h3><i class="bi bi-tools me-2" style="color:#6366f1;"></i>Equipment Checkout</h3></div>
         <div class="pd-body" id="equipmentCheckoutContainer">
           <div class="text-center py-3 text-muted" style="font-size:0.85rem;">Loading equipment...</div>
@@ -2101,28 +2226,28 @@
     if (s === 'in_progress') return 'working';
     if (s === 'en_route') return 'en_route';
     if (s === 'arrived') return 'arrived';
-    if (s === 'completed') return 'completed';
+    if (s === 'completed' || s === 'awaiting_review') return 'completed';
     return 'delayed';
   }
   function liveLabel(s) {
-    return ({ accepted: 'Accepted', en_route: 'En Route', arrived: 'Arrived', in_progress: 'Working', completed: 'Completed', pending: 'Waiting', assigned: 'Assigned' })[s] || s;
+    return ({ accepted: 'Accepted', en_route: 'En Route', arrived: 'Arrived', in_progress: 'Working', partially_completed: 'Working', awaiting_review: 'Awaiting Lead Review', completed: 'Completed', pending: 'Waiting', assigned: 'Assigned' })[s] || s;
   }
 
   function renderLiveStatus(workOrders = []) {
     const container = qs('#liveStatusContainer');
     if (!container) return;
-    const active = workOrders.filter(wo => ['accepted','en_route','arrived','in_progress'].includes(wo.status));
+    const active = workOrders.filter(wo => ['accepted','en_route','arrived','in_progress','partially_completed','awaiting_review'].includes(wo.status));
     qs('#liveCount') && (qs('#liveCount').textContent = `${active.length} active`);
     if (active.length === 0) {
       container.innerHTML = '<div class="text-center py-3 text-muted" style="font-size:0.82rem;">No active work orders.</div>';
       return;
     }
     container.innerHTML = active.map(wo => {
-      const tech = (wo.assignedTechnicians && wo.assignedTechnicians[0]) || {};
+      const crewSize = (wo.assignedTechnicians || []).length;
       return `<div class="live-row">
         <span class="live-dot ${liveDotClass(wo.status)}"></span>
         <div style="flex:1;">
-          <div style="font-size:0.82rem;font-weight:600;">${tech.name || 'Unassigned'}</div>
+          <div style="font-size:0.82rem;font-weight:600;">${crewSize ? `Project Team · ${crewSize}` : 'Team not assigned'}</div>
           <div class="wo-mini">${wo.title || wo.section || 'Work Order'} · ${liveLabel(wo.status)}</div>
         </div>
         <span class="wo-mini">${wo.completedUnitCount || 0}/${wo.unitCount}u</span>
@@ -2338,19 +2463,21 @@
     const teamStatusArr = p.teamStatus || [];
     const allAssignedTechs = p.assignedTechnicians || [];
     const allTeamAccepted = !teamOk || allAssignedTechs.length === 0 || allAssignedTechs.every(t => {
-      const ts = teamStatusArr.find(s => s._id && s._id.toString() === (t._id || '').toString());
+      const ts = teamStatusArr.find(s => String(s._id || s.technicianId || '') === String(t._id || t.id || ''));
       return ts && ts.status === 'acknowledged';
     });
-    const matOk = (materials.length || 0) > 0;
-    const schedOk = workOrders.length > 0 && workOrders.every(wo => wo.scheduledDate);
+    const plannedResources = p.planningDraft?.resources || [];
+    const matOk = plannedResources.some(resource => ['planned','required','confirmed'].includes(resource.recommendationState)) &&
+      plannedResources.every(resource => ['planned','required','confirmed','optional','rejected'].includes(resource.recommendationState)) &&
+      !(p.planningDraft?.readiness?.blockers || []).length;
+    const schedOk = p.schedulePlan?.status === 'ready' && !(p.schedulePlan?.conflicts || []).some(c => c.blocking);
     const woOk = workOrders.length > 0;
     let covered = 0, total = 0, unassignedWos = 0;
     workOrders.forEach(wo => {
       total += (wo.unitCount || 0);
       const techs = (wo.assignedTechnicians || []).filter(t => t && (t._id || t.id));
       if (techs.length === 0) { unassignedWos++; return; }
-      const wc = techs.reduce((s, t) => s + (t.assignedUnits || 0), 0);
-      covered += wc > 0 ? wc : (wo.unitCount || 0);
+      covered += (wo.unitCount || 0);
     });
     const coverOk = workOrders.length > 0 && unassignedWos === 0 && covered >= total;
     if (!allTeamAccepted) {
@@ -2361,7 +2488,7 @@
       toast('Complete all planning steps before marking the project ready', 'error');
       return;
     }
-    if (!confirm('Mark this project as ready? Technicians will receive their work order assignments.')) return;
+    if (!confirm('Confirm this project plan? Required resources will now be reserved, the planning baseline will be locked, and work orders will be released to the accepted team.')) return;
     const action = async () => {
       try {
         const r = await fetch(`/api/projects/${projectId}/status`, {
@@ -2574,47 +2701,11 @@
 
   window.studioGenerateWorkOrders = async function() {
     const p = window.__projectData;
-    if (p && teamAcceptancePending(p)) { toast('All team members must accept the assignment before generating work orders', 'error'); return; }
-    const hasTeam = p && (p.assignedTechnicians?.length || p.totalAssignedTechnicians || 0) > 0;
     try {
-      let body = {};
-      // When team is assigned, auto-calculate optimal split based on capacity
-      if (hasTeam) {
-        // For large-scale projects, default to 1 work order by default
-        body = { mode: 'quantity', count: 1 };
-        if (!confirm('Create a single work order for this project with units distributed across working days? Click OK to proceed, or Cancel for manual options.')) {
-          const mode = prompt("Split work orders by:\n- quantity (N equal parts)\n- building\n- floor\n- manual\nType one (default: quantity):", "quantity") || "quantity";
-          body = { mode };
-          if (mode === 'quantity') {
-            const units = (p.totalUnits || p.quantity) || 0;
-            const suggested = units > 0 ? Math.max(1, Math.ceil(units / 5)) : 4;
-            const n = parseInt(prompt(`How many work orders? (project has ${units} unit(s))`, String(suggested))) || suggested;
-            body.count = n;
-          } else if (mode === 'building' || mode === 'floor') {
-            const raw = prompt("Enter sections as name:units, separated by commas (e.g. A:10,B:10):", "A:10,B:10");
-            body.sections = (raw || "").split(",").map(s => { const [name, units] = s.split(":"); return { name: name.trim(), units: parseInt(units) || 0 }; });
-          } else if (mode === 'manual') {
-            const raw = prompt("Enter work orders as title:units:hours, comma-separated:", "WO1:5:10,WO2:5:10");
-            body.manual = (raw || "").split(",").map(s => { const [title, units, hours] = s.split(":"); return { title: title.trim(), units: parseInt(units) || 0, hours: parseFloat(hours) || 0 }; });
-          }
-        }
-        // body = {} means auto-calculate (server uses capacity-based logic)
-      } else {
-        const mode = prompt("No team assigned yet. Choose split mode:\n- quantity (N equal parts)\n- building\n- floor\n- manual\nType one:", "quantity") || "quantity";
-        body = { mode };
-        if (mode === 'quantity') {
-          const units = (p?.totalUnits || p?.quantity) || 0;
-          const suggested = units > 0 ? Math.max(1, Math.ceil(units / 5)) : 4;
-          const n = parseInt(prompt(`How many work orders? (project has ${units} unit(s))`, String(suggested))) || suggested;
-          body.count = n;
-        } else if (mode === 'building' || mode === 'floor') {
-          const raw = prompt("Enter sections as name:units (e.g. A:10,B:10):", "A:10,B:10");
-          body.sections = (raw || "").split(",").map(s => { const [name, units] = s.split(":"); return { name: name.trim(), units: parseInt(units) || 0 }; });
-        } else if (mode === 'manual') {
-          const raw = prompt("Enter work orders as title:units:hours:", "WO1:5:10,WO2:5:10");
-          body.manual = (raw || "").split(",").map(s => { const [title, units, hours] = s.split(":"); return { title: title.trim(), units: parseInt(units) || 0, hours: parseFloat(hours) || 0 }; });
-        }
-      }
+      const existing = window.__lastWorkOrders || [];
+      const replaceable = existing.filter(order => order.status === 'pending' && order.planningStatus !== 'released').length;
+      if (replaceable && !confirm(`Regenerate ${replaceable} draft work order(s)? Drafts will be replaced. Released, active, completed, and cancelled work orders will not be modified.`)) return;
+      const body = { mode:'intelligent', regenerate:replaceable > 0 };
       const btn = qs('.studio-card:nth-child(3) .sc-gen .pd-btn');
       const action = async () => {
         const d = await studioApi(`/api/projects/${projectId}/generate-work-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -2626,14 +2717,42 @@
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  window.checkWorkOrderReadiness = async function() {
+    try {
+      const data = await studioApi(`/api/projects/${projectId}/work-order-readiness`);
+      const r = data.readiness || {};
+      const details = `${r.assignedUnits || 0}/${r.totalUnits || 0} units covered · ${r.workOrderCount || 0} work orders · ${r.duplicateUnits || 0} duplicate · ${r.uncoveredUnits || 0} uncovered`;
+      if (r.ready) toast(`Work Order Readiness: READY\n${details}`, 'success');
+      else toast(`Work Order Readiness: ACTION REQUIRED\n${details}\n${(r.errors || []).join('\n')}`, 'warning');
+      await loadProject();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
   window.studioSuggestResources = async function() {
     const p = window.__projectData;
-    if (p && teamAcceptancePending(p)) { toast('All team members must accept the assignment before reserving resources', 'error'); return; }
+    const previewOnly = p && teamAcceptancePending(p);
     const btn = qs('.studio-card:nth-child(2) .sc-gen .pd-btn:first-child');
     const action = async () => {
       try {
         const d = await studioApi(`/api/projects/${projectId}/suggest-resources`);
         const items = d.recommendations || [];
+        if (!items.length) { toast('No resource recommendations could be generated for this project', 'warning'); return; }
+        // Step 2 always saves recommendations as a planning draft. Inventory
+        // is committed only by Step 6 after review and readiness validation.
+        const planned = await studioApi(`/api/projects/${projectId}/plan-resources`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+        toast(planned.message || 'AI recommendations added to the resource plan');
+        await loadProject();
+        studioReviewResourcePlan();
+        return;
+        // In planning-preview mode AI Suggest populates the draft immediately,
+        // including out-of-stock items as procurement requirements. Nothing is
+        // physically reserved until the team accepts.
+        if (previewOnly) {
+          const planned = await studioApi(`/api/projects/${projectId}/plan-resources`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+          toast(planned.message || 'Resource plan generated');
+          await loadProject();
+          return;
+        }
         const webBadge = d.webResearchUsed
           ? '<span style="font-size:0.65rem;background:rgba(34,197,94,0.15);color:#16a34a;padding:2px 8px;border-radius:999px;font-weight:600;margin-left:8px;"><i class="bi bi-globe2 me-1" style="font-size:0.6rem;"></i>Web Research</span>'
           : '';
@@ -2644,7 +2763,7 @@
           return `
           <div class="studio-row">
             <label style="font-size:0.78rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
-              <input type="checkbox" class="studio-res-chk" data-i="${i}" ${hasStock ? 'checked' : ''}> <b>${it.itemName}</b> ×${it.quantity} ${it.unit}
+              <input type="checkbox" class="studio-res-chk" data-i="${i}" checked> <b>${it.itemName}</b> ×${it.quantity} ${it.unit}
             </label>
             <span class="wo-mini">${it.type}/${it.scope}</span>
             <span class="${stockClass}" style="font-size:0.65rem;margin-left:0.5rem;font-weight:600;">${stockLabel}</span>
@@ -2658,16 +2777,18 @@
             <div id="studioResList">${html}</div>
             <div class="d-flex gap-2 justify-content-end mt-3">
               <button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Cancel</button>
-              <button class="pw-btn primary" id="studioResSave">Reserve Selected</button>
+              <button class="pw-btn primary" id="studioResSave">${previewOnly ? 'Save Resource Plan' : 'Reserve Selected'}</button>
             </div>
           </div>`;
         document.body.appendChild(overlay);
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
         overlay.querySelector('#studioResSave').addEventListener('click', async () => {
           const chosen = items.filter((_, i) => overlay.querySelector(`.studio-res-chk[data-i="${i}"]`).checked);
+          if (!chosen.length) { toast('Select at least one resource to include in the plan', 'warning'); return; }
           try {
-            const result = await studioApi(`/api/projects/${projectId}/reserve-suggested`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: chosen }) });
+            const result = await studioApi(`/api/projects/${projectId}/${previewOnly ? 'plan-resources' : 'reserve-suggested'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: chosen }) });
             overlay.remove();
+            if (previewOnly) { toast(result.message || 'Resource plan saved without reserving inventory'); await loadProject(); return; }
             if (result.stockWarnings && result.stockWarnings.length > 0) {
               const warnText = result.stockWarnings.map(w => `${w.itemName}: has ${w.available}, need ${w.requested}`).join('\n');
               toast(`Reserved ${result.materials.length} items.\n⚠️ Stock shortages:\n${warnText}`, 'warning');
@@ -2683,38 +2804,288 @@
     else await action();
   };
 
-  window.studioGenerateSchedule = async function() {
-    const p = window.__projectData;
-    if (p && teamAcceptancePending(p)) { toast('All team members must accept the assignment before generating the schedule', 'error'); return; }
-    const btn = qs('.studio-card:nth-child(4) .sc-gen .pd-btn');
+  window.studioGenerateSchedule = async function(button) {
+    const btn = button || qs('.studio-card:nth-child(4) .sc-gen .pd-btn.primary');
     const action = async () => {
       try {
-        const d = await studioApi(`/api/projects/${projectId}/generate-schedule`, { method: 'POST' });
-        if (d.remainingUnits > 0) {
-          toast(`⚠ ${d.message}`, 'error');
-        } else if (d.conflicts && d.conflicts.length) {
-          toast(`Schedule generated — ${d.assignedUnits} units assigned, ${d.conflicts.length} conflict(s)`, 'warn');
-        } else {
-          toast(d.message || `✓ ${d.assignedUnits || 0} units assigned across schedule`, 'success');
-        }
+        const p = window.__projectData || {}, plan = p.schedulePlan || {};
+        const body = { startDate: plan.startDate || p.preferredStartDate, targetEndDate: plan.targetEndDate || p.preferredCompletionDeadline, workingDays: plan.workingDays || p.preferredWorkingDays, startTime: plan.workingHours?.start || p.preferredWorkingHours?.start, endTime: plan.workingHours?.end || p.preferredWorkingHours?.end, bufferDays: plan.bufferDays || 0 };
+        const d = await studioApi(`/api/projects/${projectId}/generate-schedule`, { method: 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        toast(d.message, d.status === 'ready' ? 'success' : 'warning');
         await loadProject();
+        await showEnterpriseScheduleModal();
       } catch (e) { toast(e.message, 'error'); }
     };
     if (btn) await withBtnLoading(btn, 'Generating…', action);
     else await action();
   };
 
+  window.studioPreviewSchedule = async function() {
+    const btn = qs('.studio-card:nth-child(4) .sc-gen .pd-btn');
+    const action = async () => {
+      const result = await studioApi(`/api/projects/${projectId}/schedule-preview`, { method: 'POST' });
+      const preview = result.preview || [];
+      const lines = preview.map(day => `${new Date(day.date).toLocaleDateString('en-PH', { month:'short', day:'numeric' })}: ${day.technicians?.length || 0} technician(s)${day.shortfall ? ` — short ${day.shortfall}` : ''}`).join('\n');
+      toast(preview.length ? `Provisional schedule saved (${preview.length} working days)\n${lines}` : 'No valid schedule window is available yet', preview.length ? 'success' : 'warning');
+      await loadProject();
+    };
+    try { if (btn) await withBtnLoading(btn, 'Previewing…', action); else await action(); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  window.studioCheckScheduleReadiness = async function(button) {
+    const action = async () => {
+      try {
+        const d = await studioApi(`/api/projects/${projectId}/schedule-readiness`, { method:'POST' });
+        const blockers = (d.readiness?.conflicts || []).filter(c => c.blocking);
+        toast(blockers.length ? `${blockers.length} blocking schedule conflict(s) remain.` : `Schedule ready. Quality score: ${d.readiness?.qualityScore || 0}%`, blockers.length ? 'warning' : 'success');
+        await loadProject();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    if (button) await withBtnLoading(button, 'Checking…', action); else await action();
+  };
+
+  window.showEnterpriseScheduleModal = async function() {
+    try {
+      const data = await studioApi(`/api/projects/${projectId}/schedule-plan`);
+      const p = window.__projectData || {}, plan = data.schedulePlan || {};
+      const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+      const localDate = value => { if (!value) return ''; const d=new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+      const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const dayNumber = value => { const names={sun:0,sunday:0,mon:1,monday:1,tue:2,tues:2,tuesday:2,wed:3,wednesday:3,thu:4,thur:4,thurs:4,thursday:4,fri:5,friday:5,sat:6,saturday:6}; const text=String(value??'').trim().toLowerCase(); return Object.prototype.hasOwnProperty.call(names,text)?names[text]:Number(text); };
+      const selectedDays = (plan.workingDays?.length ? plan.workingDays : (p.preferredWorkingDays?.length ? p.preferredWorkingDays : [1,2,3,4,5])).map(dayNumber).filter(Number.isInteger);
+      const assignments = data.assignments || [], orders = data.workOrders || [];
+      const ordersById = Object.fromEntries(orders.map(order => [String(order._id), order]));
+      const techs = p.assignedTechnicians || [];
+      const techName = id => techs.find(t => String(t._id) === String(id))?.name || 'Technician';
+      const dailyByDate = Object.fromEntries((plan.dailySummary || []).map(day => [String(day.date).slice(0,10), day]));
+      const groups = {};
+      assignments.forEach(row => { const key = localDate(row.date); (groups[key] ||= []).push(row); });
+      const timeline = Object.keys(groups).sort().map(date => { const capacity=Object.values(dailyByDate[date]?.technicians||{}).map(t=>`<span class="studio-pill">${safe(t.name)}: ${Math.round(Number(t.assignedMinutes||0)/60*10)/10}h assigned · ${Math.round(Number(t.freeMinutes||0)/60*10)/10}h free</span>`).join(' '); const external=(dailyByDate[date]?.externalEvents||[]).map(event=>`<div class="studio-row" style="background:#fffbeb;"><span><b>${safe(event.startTime)}–${safe(event.endTime)} · ${safe(event.label)}</b><small class="d-block text-muted">${safe(event.technicianName)} · Existing commitment</small></span><span class="studio-pill">BLOCKED TIME</span></div>`).join(''); return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;margin-top:.6rem;"><div style="font-weight:800;color:#0f172a;margin-bottom:.4rem;">${new Date(date+'T00:00:00').toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'})}</div><div class="mb-1">${capacity}</div>${external}${groups[date].map(row => { const order=ordersById[String(row.workOrderId)]||{}; return `<div class="studio-row"><span><b>${safe(row.startTime || '09:00')}–${safe(row.endTime || '17:00')} · ${safe(order.workOrderNumber || order.title || 'Work Order')}</b><small class="d-block text-muted">${safe(techName(row.technicianId))} · ${Number(row.allocatedMinutes || 0)} min · ${Number(row.targetUnits || 0)} unit(s)${row.unitKeys?.length ? ` · ${row.unitKeys.map(safe).join(', ')}` : ''}</small></span><button class="resource-edit-btn" onclick="editWorkOrderSchedule('${safe(row.workOrderId)}')"><i class="bi bi-pencil"></i> Move</button></div>`; }).join('')}</div>`; }).join('');
+      const conflicts = plan.conflicts || [];
+      const conflictHtml = conflicts.length ? conflicts.map(c => `<div class="pwz-cover-note ${c.blocking ? 'warn' : ''}" style="margin-top:.4rem;"><i class="bi bi-${c.blocking ? 'exclamation-triangle-fill' : 'info-circle'}"></i> <b>${safe((c.type || 'schedule').replace(/_/g,' '))}:</b> ${safe(c.message)}${c.workOrderId ? ` <button class="resource-edit-btn" onclick="editWorkOrderSchedule('${safe(c.workOrderId)}')">Resolve</button>` : ''}</div>`).join('') : '<div class="pwz-cover-note" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0;"><i class="bi bi-check-circle-fill"></i> No blocking conflicts detected.</div>';
+      const overlay = document.createElement('div'); overlay.className='pw-modal-overlay';
+      overlay.innerHTML=`<div class="pw-modal" style="max-width:980px;max-height:92vh;overflow:auto;"><div class="d-flex justify-content-between align-items-start"><div><h3 style="margin:0;">Project Schedule</h3><p class="text-muted mb-2">Planning preview only. Inventory and work are committed in Step 6.</p></div><button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Close</button></div>
+      <form id="enterpriseScheduleSettings"><div class="resource-summary" style="grid-template-columns:repeat(4,minmax(0,1fr));"><label><b>Project Start *</b><input class="form-control" type="date" name="startDate" required value="${localDate(plan.startDate || p.preferredStartDate)}"></label><label><b>Target End</b><input class="form-control" type="date" name="targetEndDate" value="${localDate(plan.targetEndDate || p.preferredCompletionDeadline)}"></label><label><b>Work Starts</b><input class="form-control" type="time" name="startTime" value="${safe(plan.workingHours?.start || '09:00')}"></label><label><b>Work Ends</b><input class="form-control" type="time" name="endTime" value="${safe(plan.workingHours?.end || '17:00')}"></label></div><div class="d-flex gap-3 flex-wrap align-items-end mt-2"><div><b style="font-size:.75rem;">Working Days</b><div>${dayLabels.map((label,i)=>`<label style="font-size:.75rem;margin-right:.5rem;"><input type="checkbox" name="workingDays" value="${i}" ${selectedDays.includes(i)?'checked':''}> ${label}</label>`).join('')}</div></div><label><b style="font-size:.75rem;">Buffer Days</b><input class="form-control" style="width:90px;" type="number" min="0" max="10" name="bufferDays" value="${Number(plan.bufferDays||0)}"></label><button class="pd-btn" type="submit"><i class="bi bi-save"></i> Save Settings</button><button class="pd-btn primary" type="button" id="enterpriseGenerate"><i class="bi bi-magic"></i> ${assignments.length?'Regenerate':'Generate'} Schedule</button></div></form>
+      <div class="resource-summary mt-3"><div><b>Status</b><span>${safe((plan.status||'not generated').replace(/_/g,' '))}</span></div><div><b>Estimated End</b><span>${plan.estimatedEndDate?new Date(plan.estimatedEndDate).toLocaleDateString('en-PH'):'—'}</span></div><div><b>Quality</b><span>${Number(plan.qualityScore||0)}%</span></div><div><b>Work Orders / Units</b><span>${orders.length} / ${orders.reduce((s,w)=>s+Number(w.unitCount||0),0)}</span></div></div>
+      <h4 class="mt-3">Conflicts & Actions</h4>${conflictHtml}<h4 class="mt-3">Daily Timeline</h4>${timeline || '<div class="studio-row"><span class="text-muted">Save settings, then generate the schedule.</span></div>'}</div>`;
+      document.body.appendChild(overlay); overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+      const scheduleBody = form => { const fd=new FormData(form); return {startDate:fd.get('startDate'),targetEndDate:fd.get('targetEndDate'),startTime:fd.get('startTime'),endTime:fd.get('endTime'),bufferDays:Number(fd.get('bufferDays')||0),workingDays:fd.getAll('workingDays').map(Number)}; };
+      overlay.querySelector('#enterpriseScheduleSettings').addEventListener('submit',async e=>{e.preventDefault();try{await studioApi(`/api/projects/${projectId}/schedule-settings`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(scheduleBody(e.target))});toast('Schedule settings saved');overlay.remove();await loadProject();await showEnterpriseScheduleModal();}catch(err){toast(err.message,'error');}});
+      overlay.querySelector('#enterpriseGenerate').addEventListener('click',async()=>{const form=overlay.querySelector('#enterpriseScheduleSettings');if(!form.reportValidity())return;const body=scheduleBody(form);if(!body.workingDays.length)return toast('Select at least one working day.','warning');try{await studioApi(`/api/projects/${projectId}/schedule-settings`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await studioApi(`/api/projects/${projectId}/generate-schedule`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast(result.message,result.status==='ready'?'success':'warning');overlay.remove();await loadProject();await showEnterpriseScheduleModal();}catch(err){toast(err.message,'error');}});
+    } catch (e) { toast(e.message,'error'); }
+  };
+
+  window.editWorkOrderSchedule = function(workOrderId) {
+    const order=(window.__lastWorkOrders||[]).find(row=>String(row._id)===String(workOrderId));
+    if (!order) return toast('Work order details are not available. Reload and try again.','error');
+    document.querySelector('.pw-modal-overlay')?.remove();
+    const p=window.__projectData||{}, plan=p.schedulePlan||{}, techs=p.assignedTechnicians||[];
+    const fmt=value=>{if(!value)return'';const d=new Date(value);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+    const selected=new Set((order.assignedTechnicians||[]).map(t=>String(t._id||t)));
+    const overlay=document.createElement('div');overlay.className='pw-modal-overlay';
+    overlay.innerHTML=`<div class="pw-modal" style="max-width:620px;"><h3>Change Work Order Schedule</h3><p class="text-muted">${order.workOrderNumber||order.title||'Work Order'} · The complete project schedule will be recalculated and validated.</p><form id="woScheduleAdjust"><div class="resource-summary" style="grid-template-columns:repeat(2,minmax(0,1fr));"><label><b>Start Date *</b><input class="form-control" name="startDate" type="date" required value="${fmt(order.scheduledDate||plan.startDate)}"></label><label><b>End Date *</b><input class="form-control" name="endDate" type="date" required value="${fmt(order.scheduledEndDate||order.scheduledDate||plan.startDate)}"></label><label><b>Start Time *</b><input class="form-control" name="startTime" type="time" required value="${order.startTime||plan.workingHours?.start||'09:00'}"></label><label><b>End Time *</b><input class="form-control" name="endTime" type="time" required value="${order.endTime||plan.workingHours?.end||'17:00'}"></label></div><div class="mt-3"><b style="font-size:.78rem;">Technician / Team</b>${techs.map(t=>`<label class="studio-row" style="justify-content:flex-start;gap:.5rem;"><input type="checkbox" name="technicians" value="${t._id}" ${selected.has(String(t._id))?'checked':''}> ${t.name||'Technician'}</label>`).join('')}</div><div class="d-flex gap-2 justify-content-end mt-3"><button class="pw-btn" type="button" onclick="this.closest('.pw-modal-overlay').remove();showEnterpriseScheduleModal();">Cancel</button><button class="pw-btn primary" type="submit">Validate & Apply</button></div></form></div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.target);const override={startDate:fd.get('startDate'),endDate:fd.get('endDate'),startTime:fd.get('startTime'),endTime:fd.get('endTime'),assignedTechnicians:fd.getAll('technicians')};if(!override.assignedTechnicians.length)return toast('Select the required technician or team.','warning');if(override.endDate<override.startDate)return toast('End date cannot be before start date.','warning');try{const result=await studioApi(`/api/projects/${projectId}/generate-schedule`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({startDate:plan.startDate,targetEndDate:plan.targetEndDate,workingDays:plan.workingDays,startTime:plan.workingHours?.start,endTime:plan.workingHours?.end,bufferDays:plan.bufferDays||0,workOrderOverrides:{[String(order._id)]:override}})});toast(result.status==='ready'?'Schedule updated and validated.':result.message,result.status==='ready'?'success':'warning');overlay.remove();await loadProject();showEnterpriseScheduleModal();}catch(err){toast(err.message,'error');}});
+  };
+
+  window.studioReservePlan = async function() {
+    const p = window.__projectData;
+    if (p && teamAcceptancePending(p)) { toast('Required team acceptance is needed before physical resources can be reserved', 'error'); return; }
+    const items = p?.planningDraft?.resources || [];
+    if (!items.length) return showMaterialModal();
+    if (!confirm(`Reserve ${items.length} planned resource item(s) from inventory?`)) return;
+    try {
+      const result = await studioApi(`/api/projects/${projectId}/reserve-suggested`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+      toast(result.message || 'Planned resources reserved');
+      await loadProject();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  window.studioReviewResourcePlan = function() {
+    const items = window.__projectData?.planningDraft?.resources || [];
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    if (!items.length) {
+      toast('No resource plan yet. Generate AI suggestions to create one.', 'warning');
+      return studioSuggestResources();
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'pw-modal-overlay';
+    overlay.innerHTML = `<div class="pw-modal">
+      <h5 style="font-size:1rem;font-weight:700;margin-bottom:0.25rem;"><i class="bi bi-clipboard-check me-2" style="color:#6366f1;"></i>Planned Resources</h5>
+      <p style="font-size:0.75rem;color:#64748b;">Planning preview only — no inventory has been reserved.</p>
+      <div>${items.map(item => `<div class="studio-row"><span><b>${safe(item.itemName)}</b> ×${Number(item.quantity) || 1} ${safe(item.unit || 'pcs')}</span><span class="wo-mini">${safe(item.type || 'equipment')} / ${safe(item.scope || 'shared')}</span></div>`).join('')}</div>
+      <div class="d-flex gap-2 justify-content-end mt-3"><button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Close</button><button class="pw-btn primary" id="reviseResourcePlan"><i class="bi bi-magic"></i> Revise Suggestions</button></div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+    overlay.querySelector('#reviseResourcePlan').addEventListener('click', () => { overlay.remove(); studioSuggestResources(); });
+  };
+
+  // Enterprise Step 2 reviewer. This intentionally replaces the compact
+  // preview above while retaining it as a safe fallback for older records.
+  window.studioReviewResourcePlan = async function(options = {}) {
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    try {
+      const data = await studioApi(`/api/projects/${projectId}/resource-plan`);
+      const items = data.resources || [];
+      const readiness = data.readiness || {};
+      const purchases = data.purchases || [];
+      const purchaseFor = item => purchases.find(row => String(row._id) === String(item.purchaseRecordId)) || purchases.find(row => String(row.resourceId) === String(item._id));
+      const isOptional = item => item.recommendationState === 'optional' || (item.type === 'part' && item.source === 'ai' && item.recommendationState === 'recommended');
+      const isShortage = item => !isOptional(item) && Number(item.available||0) < Number(item.quantity||0);
+      const isAvailable = item => !isOptional(item) && !isShortage(item);
+      const availableItems = items.filter(item => item.recommendationState !== 'rejected' && isAvailable(item));
+      const shortageItems = items.filter(item => item.recommendationState !== 'rejected' && isShortage(item));
+      const optionalItems = items.filter(item => item.recommendationState !== 'rejected' && isOptional(item));
+      const bulkEligible = availableItems.filter(item => item.recommendationState === 'recommended');
+      const rowHtml = item => {
+        const purchase = purchaseFor(item), remainingOrder = purchase ? Math.max(0,Number(purchase.orderedQuantity||0)-Number(purchase.receivedQuantity||0)) : 0;
+        const status = isOptional(item) ? 'OPTIONAL' : isShortage(item) ? (purchase?.status === 'partially_received' ? 'PARTIAL' : purchase?.status === 'ordered' ? 'PURCHASED' : 'SHORTAGE') : 'AVAILABLE';
+        return `<div class="resource-review-grid" data-resource-id="${item._id}">
+          <div><b>${safe(item.itemName)}</b><div class="text-muted">${safe(item.reason || (isOptional(item) ? 'AI recommendation · possible repair part' : 'Project requirement'))}</div>${purchase ? `<div class="text-muted">Purchased ${Number(purchase.orderedQuantity||0)} · Received ${Number(purchase.receivedQuantity||0)} · ${safe(purchase.supplier||'Supplier')}</div>` : ''}</div>
+          <div><b>Required ${Number(item.quantity)||1}</b><div class="text-muted">Available ${Number(item.available)||0}${Number(item.shortage||0)>0 ? `<br>Shortage ${Number(item.shortage)}` : ''} ${safe(item.unit||'pcs')}</div></div>
+          <span class="resource-status ${isOptional(item)?'optional':isShortage(item)?'procurement_required':'available'}">${status}</span>
+          <div class="resource-row-actions">
+            ${isShortage(item) && !remainingOrder ? (item.type === 'equipment' ? `<button class="pd-btn res-find-equipment">Find Available Equipment</button><button class="pd-btn primary res-purchase" data-mode="rent">Rent/Acquire</button>` : `<button class="pd-btn primary res-purchase" data-mode="purchase">Procure ${Number(item.shortage||0)}</button>`) : ''}
+            ${purchase && remainingOrder>0 ? `<button class="pd-btn success res-receive">Receive (${remainingOrder} due)</button>` : ''}
+            ${isShortage(item) ? '<button class="pd-btn res-replace">Replace</button>' : ''}
+            <button class="pd-btn res-edit">Edit</button>
+            ${isOptional(item) ? `<button class="pd-btn success res-action" data-action="planned">Include</button><button class="pd-btn res-action" data-action="rejected">Dismiss</button>` : ''}
+          </div></div>`;
+      };
+      const grouped = [{label:'AVAILABLE',rows:availableItems,icon:'check-circle-fill'},{label:'SHORTAGES',rows:shortageItems,icon:'exclamation-triangle-fill'},{label:'OPTIONAL',rows:optionalItems,icon:'circle'}].map(group => {
+        const rows = group.rows;
+        if (!rows.length) return '';
+        return `<div class="resource-group-title"><i class="bi bi-${group.icon}"></i> ${group.label} (${rows.length})</div>${rows.map(rowHtml).join('')}`;
+      }).join('');
+      const rejected = items.filter(item => item.recommendationState === 'rejected').length;
+      const overlay = document.createElement('div');
+      overlay.className = 'pw-modal-overlay';
+      overlay.innerHTML = `<div class="pw-modal" style="max-width:1080px;max-height:92vh;overflow:auto;" role="dialog" aria-modal="true" aria-labelledby="resourcePlanningTitle" tabindex="-1">
+        <div class="d-flex justify-content-between align-items-start gap-3"><div><h5 id="resourcePlanningTitle" style="font-size:1rem;font-weight:800;margin:0;"><i class="bi bi-boxes me-2" style="color:#1d4ed8"></i>Resource Planning & Readiness</h5><p style="font-size:.72rem;color:#64748b;margin:.2rem 0 0;">Planning only. No stock is reserved or deducted until Confirm Project Plan.</p></div><div class="d-flex align-items-center gap-2"><span class="resource-status ${readiness.status === 'ready' ? 'available' : readiness.status === 'blocked' ? 'procurement_required' : 'partially_available'}">${safe(String(readiness.status||'not checked').replace(/_/g,' ').toUpperCase())}</span><button type="button" class="pw-modal-close" aria-label="Close resource planning dialog"><i class="bi bi-x-lg"></i></button></div></div>
+        <div class="resource-summary"><div><b>Total Resources</b><span>${availableItems.length+shortageItems.length+optionalItems.length}</span></div><div><b>✓ Available</b><span>${availableItems.length}</span></div><div><b>⚠ Shortages</b><span>${shortageItems.length}</span></div><div><b>○ Optional</b><span>${optionalItems.length}</span></div><div><b>Direct Material Estimate</b><span>PHP ${Number(readiness.estimatedDirectMaterialCost||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div></div>
+        <div class="d-flex gap-2 flex-wrap mt-2"><button class="pw-btn primary" id="acceptAllAvailable" ${bulkEligible.length?'':'disabled'}><i class="bi bi-check2-all"></i> Accept All Available (${bulkEligible.length})</button>${shortageItems.length?'<button class="pw-btn" id="reviewShortages"><i class="bi bi-exclamation-triangle"></i> Review Shortages</button>':''}<button class="pw-btn" id="resourceAddTop"><i class="bi bi-plus-lg"></i> Add Resource</button><button class="pw-btn" id="resourceReadinessTop"><i class="bi bi-activity"></i> Check Readiness</button></div>
+        ${grouped || '<div class="studio-row mt-2"><span class="text-muted">No resources yet. Add the first planned resource below or use AI Suggest.</span></div>'}
+        ${rejected ? `<div class="text-muted mt-2" style="font-size:.7rem;"><i class="bi bi-archive"></i> ${rejected} rejected recommendation(s) retained in the audit trail.</div>` : ''}
+        <div class="resource-group-title" id="manualResourceHeading">Add Resource Manually</div>
+        <div id="manualResourceForm" style="display:grid;grid-template-columns:2fr 1fr 90px 1.3fr;gap:.45rem;margin-top:.5rem;">
+          <div><input class="form-control form-control-sm" id="resourceSearch" placeholder="Search inventory or enter item name"><select class="form-select form-select-sm mt-1" id="resourceMatches"><option value="">Custom / no catalog match</option></select></div>
+          <select class="form-select form-select-sm" id="resourceType"><option value="equipment">Equipment</option><option value="consumable">Consumable</option><option value="part">Repair Part</option></select>
+          <input class="form-control form-control-sm" id="resourceQty" type="number" min="1" value="1" aria-label="Quantity">
+          <select class="form-select form-select-sm" id="resourceRule"><option value="fixed">Fixed project quantity</option><option value="per_technician">Per technician</option><option value="per_unit">Per unit</option><option value="per_work_order">Per work order</option><option value="shared">Shared</option></select>
+          <input class="form-control form-control-sm" id="resourceReason" style="grid-column:1/4" placeholder="Reason / planning basis">
+          <button class="pw-btn primary" id="resourceAdd"><i class="bi bi-plus-lg"></i> Add Resource</button>
+        </div>
+        ${readiness.blockers?.length ? `<div class="pwz-cover-note warn mt-3"><b>Blocking issues:</b> ${readiness.blockers.map(safe).join('; ')}</div>` : ''}
+        <div class="d-flex gap-2 justify-content-end mt-3"><button class="pw-btn" id="resourceReadiness"><i class="bi bi-activity"></i> Check Resource Readiness</button><button class="pw-btn resource-modal-close">Close</button></div>
+      </div>`;
+      document.body.appendChild(overlay);
+      const priorBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      const closeOnEscape = event => {
+        if (event.key === 'Escape' && overlay.isConnected) closeResourceModal();
+      };
+      const closeResourceModal = () => {
+        document.removeEventListener('keydown', closeOnEscape);
+        document.body.style.overflow = priorBodyOverflow;
+        overlay.remove();
+      };
+      overlay.addEventListener('click', event => { if (event.target === overlay) closeResourceModal(); });
+      overlay.querySelectorAll('.pw-modal-close, .resource-modal-close').forEach(button => button.addEventListener('click', closeResourceModal));
+      document.addEventListener('keydown', closeOnEscape);
+      overlay.querySelector('.pw-modal')?.focus();
+      const reloadReview = async message => { if (message) toast(message); closeResourceModal(); await loadProject(); studioReviewResourcePlan(); };
+      overlay.querySelector('#acceptAllAvailable')?.addEventListener('click', async () => {
+        if (!confirm(`Accept All Available?\n\n${bulkEligible.length} resources have sufficient inventory.\n\nThese resources will be included in the project plan.`)) return;
+        const result = await studioApi(`/api/projects/${projectId}/resources/accept-available`, { method:'POST' });
+        reloadReview(result.message);
+      });
+      overlay.querySelector('#reviewShortages')?.addEventListener('click', () => overlay.querySelector('.resource-status.procurement_required')?.closest('[data-resource-id]')?.scrollIntoView({behavior:'smooth',block:'center'}));
+      overlay.querySelector('#resourceAddTop')?.addEventListener('click', () => { overlay.querySelector('#manualResourceHeading')?.scrollIntoView({behavior:'smooth'}); setTimeout(()=>overlay.querySelector('#resourceSearch')?.focus(),300); });
+      overlay.querySelector('#resourceReadinessTop')?.addEventListener('click', () => overlay.querySelector('#resourceReadiness')?.click());
+      overlay.querySelectorAll('.res-action').forEach(button => button.addEventListener('click', async () => {
+        const row = button.closest('[data-resource-id]');
+        const result = await studioApi(`/api/projects/${projectId}/resources/${row.dataset.resourceId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ recommendationState:button.dataset.action, adjustmentReason:button.dataset.action==='planned'?'Optional recommendation included by admin':'Optional recommendation dismissed by admin' }) });
+        reloadReview(result.message);
+      }));
+      overlay.querySelectorAll('.res-edit').forEach(button => button.addEventListener('click', async () => {
+        const row = button.closest('[data-resource-id]');
+        const current = items.find(item => String(item._id) === row.dataset.resourceId);
+        const quantity = prompt(`Planned quantity for ${current.itemName}:`, current.quantity);
+        if (quantity === null) return;
+        const adjustmentReason = prompt('Reason for quantity adjustment (required for audit):', current.adjustmentReason || '');
+        if (!adjustmentReason?.trim()) return toast('An adjustment reason is required', 'warning');
+        const result = await studioApi(`/api/projects/${projectId}/resources/${row.dataset.resourceId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ quantity:Number(quantity), recommendationState:'planned', adjustmentReason }) });
+        reloadReview(result.message);
+      }));
+      overlay.querySelectorAll('.res-purchase').forEach(button => button.addEventListener('click', async () => {
+        const row = button.closest('[data-resource-id]');
+        const item = items.find(resource => String(resource._id) === String(row.dataset.resourceId));
+        const shortage = Math.max(1,Number(item.shortage||1));
+        const purchaseModal=document.createElement('div');purchaseModal.className='pw-modal-overlay';purchaseModal.style.zIndex='10060';
+        purchaseModal.innerHTML=`<div class="pw-modal" style="max-width:560px;"><h5 style="font-weight:800;">${item.type==='equipment'?'RENT / ACQUIRE EQUIPMENT':'PROCURE RESOURCE'}</h5><p class="text-muted">${safe(item.itemName)} · Inventory changes only when quantities are received.</p><form id="directPurchaseForm"><div class="resource-summary" style="grid-template-columns:repeat(2,minmax(0,1fr));"><label><b>Quantity *</b><input class="form-control" name="quantity" type="number" min="1" required value="${shortage}"></label><label><b>Supplier *</b><input class="form-control" name="supplier" required list="projectSupplierList" value="${safe(item.supplier||'')}"><datalist id="projectSupplierList">${(data.suppliers||[]).map(name=>`<option value="${safe(name)}">`).join('')}</datalist></label><label><b>Unit Purchase Cost</b><input class="form-control" name="unitPurchaseCost" type="number" min="0" step="0.01" value="${Number(item.purchaseCost||0)}"></label><label><b>Expected Delivery *</b><input class="form-control" name="expectedDelivery" type="date" required min="${new Date().toISOString().slice(0,10)}"></label></div><div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="pw-btn purchase-cancel">Cancel</button><button type="submit" class="pw-btn primary">${item.type==='equipment'?'Record Acquisition':'Purchase'}</button></div></form></div>`;
+        document.body.appendChild(purchaseModal);purchaseModal.querySelector('.purchase-cancel').onclick=()=>purchaseModal.remove();purchaseModal.addEventListener('click',e=>{if(e.target===purchaseModal)purchaseModal.remove();});
+        purchaseModal.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.target);try{const result=await studioApi(`/api/projects/${projectId}/resources/${item._id}/purchase`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quantity:Number(fd.get('quantity')),supplier:fd.get('supplier'),unitPurchaseCost:Number(fd.get('unitPurchaseCost')||0),expectedDelivery:fd.get('expectedDelivery'),acquisitionMode:button.dataset.mode||'purchase'})});purchaseModal.remove();reloadReview(result.message);}catch(error){toast(error.message,'error');}});
+      }));
+      overlay.querySelectorAll('.res-receive').forEach(button => button.addEventListener('click', async () => {
+        const row=button.closest('[data-resource-id]'),item=items.find(resource=>String(resource._id)===String(row.dataset.resourceId)),purchase=purchaseFor(item);
+        const due=Math.max(0,Number(purchase?.orderedQuantity||0)-Number(purchase?.receivedQuantity||0));
+        const quantity=prompt(`Quantity received for ${item.itemName} (remaining ${due}):`,due);if(quantity===null)return;
+        const result=await studioApi(`/api/projects/${projectId}/resources/${item._id}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quantity:Number(quantity)})});reloadReview(result.message);
+      }));
+      overlay.querySelectorAll('.res-replace, .res-find-equipment').forEach(button => button.addEventListener('click', () => {
+        const row=button.closest('[data-resource-id]'),item=items.find(resource=>String(resource._id)===String(row.dataset.resourceId));
+        overlay.querySelector('#resourceSearch').value=item.itemName;overlay.querySelector('#manualResourceHeading').scrollIntoView({behavior:'smooth'});setTimeout(()=>overlay.querySelector('#resourceSearch').focus(),300);
+        toast(button.classList.contains('res-find-equipment')?'Search inventory and choose an available compatible asset.':'Search inventory and add a replacement, then dismiss the shortage item.');
+      }));
+      let searchTimer;
+      overlay.querySelector('#resourceSearch').addEventListener('input', event => {
+        clearTimeout(searchTimer); searchTimer = setTimeout(async () => {
+          const query = event.target.value.trim();
+          if (query.length < 2) return;
+          const result = await studioApi(`/api/inventory/tools/search?q=${encodeURIComponent(query)}`);
+          overlay.querySelector('#resourceMatches').innerHTML = '<option value="">Custom / no catalog match</option>' + (result.tools||[]).map(tool => `<option value="${tool._id}" data-type="${safe(tool.type||tool.itemType||'equipment')}" data-unit="${safe(tool.unit||'pcs')}" data-name="${safe(tool.itemName)}">${safe(tool.itemName)} (${tool.availableQuantity||0} available)</option>`).join('');
+        }, 250);
+      });
+      overlay.querySelector('#resourceMatches').addEventListener('change', event => {
+        const option = event.target.selectedOptions[0];
+        if (!option?.value) return;
+        overlay.querySelector('#resourceSearch').value = option.dataset.name;
+        overlay.querySelector('#resourceType').value = option.dataset.type === 'tool' ? 'equipment' : option.dataset.type;
+      });
+      overlay.querySelector('#resourceAdd').addEventListener('click', async () => {
+        const option = overlay.querySelector('#resourceMatches').selectedOptions[0];
+        const payload = { toolId:option?.value||null, itemName:overlay.querySelector('#resourceSearch').value.trim(), type:overlay.querySelector('#resourceType').value, quantity:Number(overlay.querySelector('#resourceQty').value)||1, requirementRule:overlay.querySelector('#resourceRule').value, reason:overlay.querySelector('#resourceReason').value.trim(), unit:option?.dataset.unit||'pcs' };
+        if (!payload.itemName) return toast('Enter or select a resource', 'warning');
+        const result = await studioApi(`/api/projects/${projectId}/resources`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+        reloadReview(result.message);
+      });
+      overlay.querySelector('#resourceReadiness').addEventListener('click', async () => {
+        const result = await studioApi(`/api/projects/${projectId}/resource-readiness`, { method:'POST' });
+        reloadReview(`Resource readiness: ${(result.readiness?.status||'unknown').replace(/_/g,' ')}`);
+      });
+      if (options.resourceId) {
+        const selectedRow = overlay.querySelector(`[data-resource-id="${CSS.escape(String(options.resourceId))}"]`);
+        if (selectedRow) {
+          selectedRow.style.background = '#eff6ff';
+          selectedRow.style.outline = '2px solid #93c5fd';
+          selectedRow.style.borderRadius = '8px';
+          selectedRow.scrollIntoView({ block:'center' });
+          selectedRow.querySelector('.res-edit')?.focus();
+        }
+      } else if (options.mode === 'add') {
+        overlay.querySelector('#manualResourceHeading')?.scrollIntoView({ block:'center' });
+        setTimeout(() => overlay.querySelector('#resourceSearch')?.focus(), 50);
+      }
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
   window.studioLoadPreview = async function() {
     const el = document.getElementById('studioPreview');
     if (!el) return;
     try {
-      const d = await studioApi(`/api/projects/${projectId}/schedule-preview`);
-      if (!d.preview || !d.preview.length) { el.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">No valid working span — set project start/completion.</div>'; return; }
-      el.innerHTML = d.preview.slice(0, 12).map(day => {
-        const techs = (day.technicians || []).map(id => (p.assignedTechnicians || []).find(t => (t._id || '').toString() === String(id))?.name || id);
-        const short = day.shortfall > 0 ? `<span class="short">⚠ ${day.shortfall} short</span>` : '';
-        return `<div class="sc-preview-day"><span><b>${day.date}</b> — ${techs.join(', ') || 'None'}</span>${short}</div>`;
-      }).join('') + (d.preview.length > 12 ? `<div class="text-muted" style="font-size:0.72rem;">+ ${d.preview.length - 12} more days</div>` : '');
+      const d = await studioApi(`/api/projects/${projectId}/schedule-plan`);
+      el.innerHTML = schedulePreviewHtml(window.__projectData || {}, d.workOrders || window.__lastWorkOrders || [], d.assignments || []);
     } catch (e) { el.innerHTML = `<div class="text-danger" style="font-size:0.78rem;">${e.message}</div>`; }
   };
 
@@ -3103,15 +3474,6 @@
 
   window.showWorkOrderModal = async function() {
     const p = window.__projectData;
-    if (p && teamAcceptancePending(p)) { toast('All team members must accept the assignment before editing work orders', 'error'); return; }
-    let techOptions = '<option value="">Unassigned</option>';
-    try {
-      const tr = await fetch(`/api/projects/${projectId}/eligible-technicians`);
-      const td = await tr.json();
-      (td.technicians || []).forEach(t => {
-        techOptions += `<option value="${t._id}">${t.name || t.email || 'Unknown'}</option>`;
-      });
-    } catch (e) {}
 
     const buildField = () => `
       <div class="wo-field mb-3 p-3" style="background:#f8fafc;border-radius:10px;">
@@ -3128,13 +3490,9 @@
             <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Est. Hours</label>
             <input type="number" class="form-control form-control-sm wo-hours" value="8" min="1" style="font-size:0.82rem;">
           </div>
-          <div class="col-md-8 mt-2">
+          <div class="col-md-12 mt-2">
             <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Title</label>
             <input type="text" class="form-control form-control-sm wo-title" placeholder="e.g., Aircon Cleaning - Building A" style="font-size:0.82rem;">
-          </div>
-          <div class="col-md-4 mt-2">
-            <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Assign Technician</label>
-            <select class="form-select form-select-sm wo-tech" style="font-size:0.82rem;">${techOptions}</select>
           </div>
         </div>
         <button class="btn btn-sm btn-link text-danger p-0 mt-2" onclick="this.closest('.wo-field').remove()" style="font-size:0.72rem;">Remove</button>
@@ -3145,8 +3503,8 @@
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
     modal.innerHTML = `
       <div style="background:#fff;border-radius:16px;padding:1.5rem;width:680px;max-width:92vw;max-height:85vh;overflow-y:auto;">
-        <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.35rem;">Create Work Orders</h4>
-        <p style="font-size:0.82rem;color:#64748b;margin-bottom:1rem;">Divide the project into work orders. Optionally assign a technician to each one up front.</p>
+        <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.35rem;">Create Draft Work Orders</h4>
+        <p style="font-size:0.82rem;color:#64748b;margin-bottom:1rem;">Create team-owned work batches from uncovered project units. The lead coordinates individual unit work during execution.</p>
         <div id="workOrderFields">${buildField()}</div>
         <button class="pd-btn mb-3" onclick="addWorkOrderField()"><i class="bi bi-plus-lg"></i> Add Another Work Order</button>
         <div class="d-flex gap-2 justify-content-end">
@@ -3162,15 +3520,12 @@
     modal.querySelector('#saveWorkOrdersBtn').addEventListener('click', async function() {
       const fields = [...modal.querySelectorAll('.wo-field')];
       const workOrders = fields.map(f => {
-        const techId = f.querySelector('.wo-tech')?.value || '';
-        const techName = techId ? (f.querySelector('.wo-tech').selectedOptions[0]?.textContent || '') : '';
         return {
           section: f.querySelector('.wo-section')?.value || '',
           unitCount: parseInt(f.querySelector('.wo-units')?.value) || 1,
           estimatedHours: parseInt(f.querySelector('.wo-hours')?.value) || 8,
           title: f.querySelector('.wo-title')?.value || '',
-          status: techId ? 'assigned' : 'pending',
-          assignedTechnicians: techId ? [{ _id: techId, name: techName }] : [],
+          status: 'pending',
         };
       }).filter(wo => wo.section || wo.title);
 
@@ -3226,7 +3581,7 @@
       <div class="sched-wizard">
         <div class="sw-head">
           <div>
-            <h4 style="font-size:1.02rem;font-weight:800;margin:0;"><i class="bi bi-calendar2-week me-2" style="color:#4f46e5;"></i>Plan Project Schedule</h4>
+            <h4 style="font-size:1.02rem;font-weight:700;margin:0;"><i class="bi bi-calendar2-week me-2" style="color:#4f46e5;"></i>Plan Project Schedule</h4>
             <div style="font-size:0.78rem;color:#64748b;margin-top:0.2rem;">${boundNote}</div>
           </div>
           <button class="pd-btn" onclick="closeModal(this)">Close</button>
@@ -3406,6 +3761,30 @@
     document.getElementById('editWoChecklist').appendChild(d);
   };
 
+  window.viewWorkOrderDetails = async function(id) {
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    try {
+      const data = await studioApi(`/api/work-orders/${id}`);
+      const wo = data.workOrder, project = data.project || {};
+      const team = (wo.assignedTechnicians || []).map(member => safe(member.name || 'Technician')).join(', ') || 'Unassigned';
+      const dependencyMap = new Map((window.__lastWorkOrders || []).map(order => [String(order._id), order.workOrderNumber || order.title]));
+      const overlay = document.createElement('div'); overlay.className = 'pw-modal-overlay';
+      overlay.innerHTML = `<div class="pw-modal" role="dialog" aria-modal="true" style="max-width:900px;">
+        <div class="d-flex justify-content-between"><div><h4 style="font-size:1.05rem;font-weight:800;margin:0;">${safe(wo.workOrderNumber || 'Work Order')} — ${safe(wo.title || '')}</h4><div class="text-muted" style="font-size:.72rem;">${safe(project.customer?.name || 'Project')} · ${safe(String(wo.serviceType || 'core').toUpperCase())} workflow</div></div><button class="pw-modal-close" onclick="this.closest('.pw-modal-overlay').remove()"><i class="bi bi-x-lg"></i></button></div>
+        <div class="resource-summary"><div><b>Status</b><span>${safe((wo.planningStatus === 'released' ? wo.status : wo.planningStatus || wo.status).replace(/_/g,' '))}</span></div><div><b>Scope</b><span>${wo.completedUnitCount||0}/${wo.unitCount||0} units · ${wo.estimatedHours||0}h</span></div><div><b>Priority</b><span>${safe(wo.priority || 'normal')}</span></div></div>
+        <div class="resource-group-title">Overview & Scope</div><div class="studio-row"><span><b>Location</b><small class="d-block text-muted">${safe(wo.location?.label || wo.section || project.location?.address || 'Not set')}</small></span><span><b>Assigned</b><small class="d-block text-muted">${team}${wo.assignmentProvisional ? ' (Provisional)' : ''}</small></span></div>
+        <div class="resource-group-title">Units</div>${(wo.units || []).map(unit => `<div class="studio-row"><span>${safe(unit.label || unit.unitKey)}<small class="d-block text-muted">${safe(unit.brand || '')} ${safe(unit.model || '')}</small></span><span class="resource-status ${unit.status === 'completed' ? 'available' : 'optional'}">${safe((unit.status||'pending').replace(/_/g,' ').toUpperCase())}</span></div>`).join('') || '<div class="text-muted py-2">Legacy quantity-based scope</div>'}
+        <div class="resource-group-title">Schedule</div><div class="studio-row"><span>${wo.scheduledDate ? new Date(wo.scheduledDate).toLocaleDateString('en-PH',{dateStyle:'medium'}) : 'Not scheduled'}</span><span>${safe(wo.startTime || '')}${wo.endTime ? `–${safe(wo.endTime)}` : ''}</span></div>
+        <div class="resource-group-title">Resources</div>${(wo.resourceRequirements || []).map(resource => `<div class="studio-row"><span>${safe(resource.itemName)}<small class="d-block text-muted">${safe(resource.type)}</small></span><b>${Number(resource.quantity)||1} ${safe(resource.unit||'pcs')}</b></div>`).join('') || '<div class="text-muted py-2">No resource links</div>'}
+        <div class="resource-group-title">Dependencies</div><div class="text-muted py-2">${(wo.dependencies || []).map(dep => safe(dependencyMap.get(String(dep)) || String(dep))).join(', ') || 'None'}</div>
+        <div class="resource-group-title">Notes & Documents</div><div class="text-muted py-2">${safe(wo.notes || wo.technicianNotes || 'No notes')}</div>${(wo.documents || []).map(doc => `<a href="${safe(doc.url)}" target="_blank" rel="noopener">${safe(doc.name || 'Document')}</a>`).join(' ') || ''}
+        <div class="resource-group-title">Activity</div>${(wo.activity || []).slice().reverse().map(event => `<div class="studio-row"><span><b>${safe((event.action||'activity').replace(/_/g,' '))}</b><small class="d-block text-muted">${safe(event.actorName || 'System')}${event.reason ? ' · '+safe(event.reason) : ''}</small></span><span class="text-muted">${event.timestamp ? new Date(event.timestamp).toLocaleString('en-PH') : ''}</span></div>`).join('') || '<div class="text-muted py-2">No activity recorded</div>'}
+        <div class="d-flex justify-content-end mt-3"><button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Close</button></div>
+      </div>`;
+      document.body.appendChild(overlay); overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
   window.editWorkOrder = async function(id) {
     try {
       const r = await fetch(`/api/work-orders/${id}`);
@@ -3428,26 +3807,25 @@
             <input type="text" id="editWoSection" class="form-control form-control-sm" value="${wo.section || ''}" style="font-size:0.82rem;">
           </div>
           <div class="row g-2 mb-2">
+            <div class="col-4"><label style="font-size:0.72rem;font-weight:600;color:#64748b;">Service Workflow</label><select id="editWoServiceType" class="form-select form-select-sm"><option value="core" ${wo.serviceType === 'core' ? 'selected' : ''}>Core Service</option><option value="repair" ${wo.serviceType === 'repair' ? 'selected' : ''}>Repair Service</option></select></div>
+            <div class="col-4"><label style="font-size:0.72rem;font-weight:600;color:#64748b;">Estimated Hours</label><input type="number" step="0.5" min="0.5" id="editWoHours" class="form-control form-control-sm" value="${wo.estimatedHours || 1}"></div>
+            <div class="col-4"><label style="font-size:0.72rem;font-weight:600;color:#64748b;">Priority</label><select id="editWoPriority" class="form-select form-select-sm">${['low','normal','high','critical'].map(priority => `<option value="${priority}" ${wo.priority === priority ? 'selected' : ''}>${priority.charAt(0).toUpperCase()+priority.slice(1)}</option>`).join('')}</select></div>
+          </div>
+          <div class="row g-2 mb-2">
             <div class="col-6">
               <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Unit Count</label>
-              <input type="number" id="editWoUnits" class="form-control form-control-sm" value="${wo.unitCount}" min="1" style="font-size:0.82rem;">
+              <input type="number" id="editWoUnits" class="form-control form-control-sm" value="${wo.unitCount}" min="1" ${wo.units?.length ? 'readonly title="Use Split, Merge, or Move Units to change tracked scope"' : ''} style="font-size:0.82rem;">
             </div>
-            <div class="col-6">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Completed Units</label>
-              <input type="number" id="editWoCompleted" class="form-control form-control-sm" value="${wo.completedUnitCount || 0}" min="0" style="font-size:0.82rem;">
-            </div>
-          </div>
-          <div class="mb-2">
-            <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Status</label>
-            <select id="editWoStatus" class="form-select form-select-sm" style="font-size:0.82rem;">
-              ${['pending','assigned','accepted','in_progress','completed','cancelled'].map(s =>
-                `<option value="${s}" ${wo.status === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`
-              ).join('')}
-            </select>
+            <div class="col-6"><label style="font-size:0.72rem;font-weight:600;color:#64748b;">Execution Progress</label><div class="form-control form-control-sm" style="font-size:0.82rem;background:#f8fafc;">${wo.completedUnitCount || 0} / ${wo.unitCount} units · ${(wo.status || 'pending').replace(/_/g,' ')}</div></div>
           </div>
           <div class="mb-2">
             <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Technician Notes</label>
             <textarea id="editWoNotes" class="form-control form-control-sm" rows="2" style="font-size:0.82rem;">${wo.technicianNotes || ''}</textarea>
+          </div>
+          <div class="mb-2">
+            <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Dependencies</label>
+            <select id="editWoDependencies" class="form-select form-select-sm" multiple size="3">${(window.__lastWorkOrders || []).filter(order => String(order._id) !== String(wo._id)).map(order => `<option value="${order._id}" ${(wo.dependencies || []).map(String).includes(String(order._id)) ? 'selected' : ''}>${order.workOrderNumber || 'WO'} — ${order.title || order.section || 'Work Order'}</option>`).join('')}</select>
+            <div class="text-muted" style="font-size:.65rem;">Scheduling honors prerequisites. Circular dependencies are rejected.</div>
           </div>
           <div class="mb-2">
             <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Checklist</label>
@@ -3476,10 +3854,14 @@
           title: modal.querySelector('#editWoTitle').value,
           section: modal.querySelector('#editWoSection').value,
           unitCount: parseInt(modal.querySelector('#editWoUnits').value) || 1,
-          completedUnitCount: parseInt(modal.querySelector('#editWoCompleted').value) || 0,
-          status: modal.querySelector('#editWoStatus').value,
+          estimatedHours: parseFloat(modal.querySelector('#editWoHours').value) || 0.5,
+          serviceType: modal.querySelector('#editWoServiceType').value,
+          workflowType: modal.querySelector('#editWoServiceType').value,
+          priority: modal.querySelector('#editWoPriority').value,
+          dependencies: [...modal.querySelector('#editWoDependencies').selectedOptions].map(option => option.value),
           technicianNotes: modal.querySelector('#editWoNotes').value,
           checklist,
+          changeReason: 'Updated in Planning Studio',
         };
         await withBtnLoading(this, 'Saving…', async () => {
           try {
@@ -3497,12 +3879,47 @@
     } catch(e) { toast('Failed to load work order', 'error'); }
   };
 
-  window.deleteWorkOrder = async function(id, btn) {
-    if (!confirm('Delete this work order?')) return;
+  window.splitWorkOrder = async function(id, unitCount) {
+    const splitAt = parseInt(prompt(`Split after how many units? (1-${Math.max(1, unitCount-1)})`, String(Math.ceil(unitCount/2))));
+    if (!splitAt || splitAt < 1 || splitAt >= unitCount) return toast('Enter a valid split point', 'warning');
+    try {
+      const result = await studioApi(`/api/work-orders/${id}/split`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ splitAt }) });
+      toast(result.message || 'Draft work order split'); await loadProject();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
+  window.mergeSelectedWorkOrders = async function() {
+    const workOrderIds = [...document.querySelectorAll('.wo-merge-check:checked')].map(input => input.value);
+    if (workOrderIds.length < 2) return toast('Select at least two draft work orders to merge', 'warning');
+    if (!confirm(`Merge ${workOrderIds.length} selected draft work orders?`)) return;
+    try {
+      const result = await studioApi(`/api/projects/${projectId}/work-orders/merge`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ workOrderIds }) });
+      toast(result.message || 'Draft work orders merged'); await loadProject();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
+  window.moveWorkOrderUnits = async function(sourceId) {
+    const orders = (window.__lastWorkOrders || []).filter(order => String(order._id) !== String(sourceId) && order.status === 'pending' && order.planningStatus !== 'released');
+    if (!orders.length) return toast('Create another compatible draft work order before moving units', 'warning');
+    const choices = orders.map((order, index) => `${index + 1}. ${order.workOrderNumber || 'WO'} — ${order.title || order.section || 'Work Order'}`).join('\n');
+    const selected = parseInt(prompt(`Move units to which draft?\n${choices}`, '1'));
+    if (!selected || !orders[selected - 1]) return;
+    const count = parseInt(prompt('How many incomplete units should be moved?', '1'));
+    if (!count || count < 1) return;
+    try {
+      const result = await studioApi(`/api/work-orders/${sourceId}/move-units`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ targetWorkOrderId:orders[selected-1]._id, count }) });
+      toast(result.message || 'Units moved'); await loadProject();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+
+  window.deleteWorkOrder = async function(id, btn, isDraft = true) {
+    const reason = isDraft ? '' : prompt('Cancellation reason (required):');
+    if (!isDraft && !reason?.trim()) return;
+    if (isDraft && !confirm('Delete this draft work order? Completed or released work is never affected.')) return;
     const action = async () => {
       try {
-        const r = await fetch(`/api/work-orders/${id}`, { method: 'DELETE' });
-        if (r.ok) { toast('Work order deleted'); loadProject(); }
+        const r = await fetch(`/api/work-orders/${id}${isDraft ? '' : '/cancel'}`, { method: isDraft ? 'DELETE' : 'POST', headers:{'Content-Type':'application/json'}, body:isDraft ? undefined : JSON.stringify({ reason }) });
+        if (r.ok) { toast(isDraft ? 'Draft work order deleted' : 'Work order cancelled'); loadProject(); }
         else { const e = await r.json(); toast(e.error || 'Failed', 'error'); }
       } catch(e) { toast('Failed', 'error'); }
     };

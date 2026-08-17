@@ -30,15 +30,138 @@ const RepairState = {
   gcashProof: null,
   cashNumber: '',
   downpaymentAmount: 0,
+  downpaymentPercentage: 10,
   preferredDate: null,
   preferredTime: '',
   quantity: 1,
   isProject: false,
   projectScheduling: null,
+  serviceItems: [],
   currentStep: 1,
 };
 
 window.RepairState = RepairState;
+
+function renderRepairGcashAccount() {
+  const gcashNumber = (window.adminGcashNumber || '').trim();
+  const numberDisplay = document.getElementById('repairGcashNumber');
+  const cashNumberDisplay = document.getElementById('repairCashGcashNumber');
+  const qrImage = document.getElementById('gcashQrImage');
+  if (numberDisplay) numberDisplay.textContent = gcashNumber || 'Contact the store';
+  if (cashNumberDisplay) cashNumberDisplay.textContent = gcashNumber || 'Contact the store';
+  if (qrImage) {
+    if (gcashNumber) qrImage.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('GCash|' + gcashNumber);
+    else qrImage.removeAttribute('src');
+  }
+}
+renderRepairGcashAccount();
+
+fetch('/api/services/payment-policy')
+  .then(response => response.ok ? response.json() : Promise.reject(new Error('Payment policy unavailable')))
+  .then(data => {
+    const percentage = Number(data.downpaymentPercentage);
+    if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
+      RepairState.downpaymentPercentage = percentage;
+      updateCashDisplay();
+    }
+  })
+  .catch(() => console.warn('Using the default 10% downpayment policy.'));
+
+function currentRepairItem() {
+  return {
+    type: 'repair',
+    unitType: (document.getElementById('unitType')?.value || '').trim(),
+    applianceTypeName: (document.getElementById('unitType')?.value || '').trim(),
+    brand: (document.getElementById('unitBrand')?.value || '').trim(),
+    model: (document.getElementById('unitModel')?.value || '').trim(),
+    problemDescription: (document.getElementById('problemDescription')?.value || '').trim(),
+    repairIssue: (document.getElementById('problemDescription')?.value || '').trim(),
+    quantity: Number(document.getElementById('unitQuantity')?.value || 1),
+  };
+}
+
+function repairItemIsBlank(item) {
+  return !item.unitType && !item.brand && !item.model && !item.problemDescription;
+}
+
+function repairItemIsComplete(item) {
+  return Boolean(item.unitType && item.brand && item.problemDescription.length >= 10);
+}
+
+function repairItemsForSubmission() {
+  return [...RepairState.serviceItems];
+}
+
+function totalRepairUnits() {
+  return repairItemsForSubmission().reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+}
+
+function resetCurrentRepairForm() {
+  ['unitType', 'unitBrand', 'unitModel', 'problemDescription'].forEach(id => {
+    const element = document.getElementById(id); if (element) element.value = '';
+  });
+  const qty = document.getElementById('unitQuantity'); if (qty) qty.value = 1;
+  RepairState.unitType = ''; RepairState.brand = ''; RepairState.model = '';
+  RepairState.problemDescription = ''; RepairState.quantity = 1;
+  document.querySelectorAll('.unit-category-card,.sub-unit-chip,.symptom-chip').forEach(element => element.classList.remove('active'));
+  const subSection = document.getElementById('subUnitSection'); if (subSection) subSection.classList.add('d-none');
+  const chips = document.getElementById('subUnitChips'); if (chips) chips.innerHTML = '';
+}
+
+function renderRepairServiceItems() {
+  const host = document.getElementById('repairServiceItems'); if (!host) return;
+  const esc = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  host.innerHTML = RepairState.serviceItems.length ? RepairState.serviceItems.map((item,index) => `<div class="d-flex justify-content-between gap-3 bg-white border rounded-3 p-3 mb-2"><div><strong>${index+1}. ${esc(item.brand)} ${esc(item.unitType)}</strong><div class="small text-muted">${esc(item.model || 'Model not specified')} · Qty ${item.quantity}</div><div class="small mt-1">${esc(item.problemDescription)}</div></div><div class="d-flex gap-1"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="editRepairItem(${index})">Edit</button><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRepairItem(${index})">Remove</button></div></div>`).join('') : '<div class="small text-muted">The appliance currently in the form will be included automatically.</div>';
+  if (!RepairState.serviceItems.length) {
+    host.innerHTML = '<div class="text-center border border-2 rounded-3 p-4 bg-white"><i class="bi bi-plus-square fs-3 text-muted"></i><div class="fw-semibold mt-2">No repair service added</div><div class="small text-muted">Configure the appliance above, then click Add Repair Service.</div></div>';
+  } else {
+    host.querySelectorAll(':scope > div').forEach((slot, index) => {
+      slot.classList.add('border-primary-subtle');
+      const heading = document.createElement('div');
+      heading.className = 'small fw-bold text-primary text-uppercase mb-1';
+      heading.textContent = `Repair Service ${index + 1}`;
+      slot.firstElementChild?.prepend(heading);
+    });
+  }
+  const continueButton = document.getElementById('continueToLocationBtn');
+  const continueHint = document.getElementById('continueHint');
+  if (continueButton) {
+    const hasItems = RepairState.serviceItems.length > 0;
+    continueButton.disabled = !hasItems;
+    if (continueHint) continueHint.style.display = hasItems ? 'none' : '';
+    if (!hasItems) {
+      continueButton.title = 'Add at least one repair service to continue';
+    } else {
+      continueButton.title = '';
+    }
+  }
+  const count = document.getElementById('repairServiceCount');
+  if (count) count.textContent = `${RepairState.serviceItems.length} service${RepairState.serviceItems.length === 1 ? '' : 's'} added`;
+}
+
+function addCurrentRepairItem() {
+  const item = currentRepairItem();
+  if (!item.unitType || !item.brand || item.problemDescription.length < 10) return showAlert('Complete the unit type, brand, and a problem description of at least 10 characters before adding the repair service.', 'warning');
+  RepairState.serviceItems.push(item); renderRepairServiceItems();
+  resetCurrentRepairForm();
+  showAlert('Repair service added. Configure another appliance or continue to location.', 'success');
+}
+function editRepairItem(index) {
+  const item = RepairState.serviceItems.splice(index, 1)[0]; if (!item) return;
+  const category = Object.keys(unitTypesByCategory).find(key => unitTypesByCategory[key].some(type => type.value === item.unitType));
+  if (category) {
+    selectUnitCategory(category);
+    const chip = [...document.querySelectorAll('.sub-unit-chip')].find(element => element.dataset.value === item.unitType);
+    if (chip) selectSubUnit(item.unitType, chip);
+  } else {
+    document.getElementById('unitType').value = item.unitType; RepairState.unitType = item.unitType;
+  }
+  document.getElementById('unitBrand').value = item.brand; document.getElementById('unitModel').value = item.model || ''; document.getElementById('problemDescription').value = item.problemDescription;
+  const qty = document.getElementById('unitQuantity'); if (qty) qty.value = item.quantity || 1;
+  renderRepairServiceItems();
+}
+function removeRepairItem(index) { RepairState.serviceItems.splice(index, 1); renderRepairServiceItems(); }
+window.addCurrentRepairItem = addCurrentRepairItem; window.editRepairItem = editRepairItem; window.removeRepairItem = removeRepairItem;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Map Variables
@@ -63,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
   setupCharCounter();
   setupCashProofPreview();
   setupQuantityControls();
+  renderRepairServiceItems();
 });
 
 // Quantity stepper for multi-unit repair requests
@@ -87,15 +211,23 @@ function setupQuantityControls() {
 // Unit Category Selection (Enterprise Step 2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const unitTypesByCategory = {
-  aircon: [
+// Build unitTypesByCategory dynamically from server-provided data
+const unitTypesByCategory = {};
+(window._serviceCategories || []).forEach(cat => {
+  unitTypesByCategory[cat.slug] = (cat.unitTypes || []).map(ut => ({
+    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label
+  }));
+});
+// Fallback if no categories loaded from DB
+if (!Object.keys(unitTypesByCategory).length) {
+  unitTypesByCategory.aircon = [
     { value: 'Split Type Aircon', icon: 'bi-window', label: 'Split Type' },
     { value: 'Window Type Aircon', icon: 'bi-window', label: 'Window Type' },
     { value: 'Floor Mounted Aircon', icon: 'bi-arrows-expand', label: 'Floor Mounted' },
     { value: 'Cassette Type Aircon', icon: 'bi-grid-3x3', label: 'Cassette Type' },
     { value: 'Central Aircon', icon: 'bi-buildings', label: 'Central' },
-  ],
-  appliance: [
+  ];
+  unitTypesByCategory.appliance = [
     { value: 'Refrigerator', icon: 'bi-reception-4', label: 'Refrigerator' },
     { value: 'Freezer', icon: 'bi-snow', label: 'Freezer' },
     { value: 'Washing Machine', icon: 'bi-droplet-half', label: 'Washing Machine' },
@@ -105,11 +237,11 @@ const unitTypesByCategory = {
     { value: 'Rice Cooker', icon: 'bi-fire', label: 'Rice Cooker' },
     { value: 'Water Dispenser', icon: 'bi-cup-straw', label: 'Water Dispenser' },
     { value: 'Electric Kettle', icon: 'bi-cup-hot', label: 'Electric Kettle' },
-  ],
-  other: [
+  ];
+  unitTypesByCategory.other = [
     { value: 'Other', icon: 'bi-plus-circle', label: 'Other (specify in problem)' },
-  ],
-};
+  ];
+}
 
 function selectUnitCategory(category) {
   // Update active card
@@ -208,21 +340,11 @@ function updateCharCount() {
 
 function showStep(step) {
   const prevStep = RepairState.currentStep || 1;
-  const isBackward = step < prevStep;
   RepairState.currentStep = step;
 
-  // ── Reset downstream state when navigating backward ──
-  if (isBackward) {
-    if (step <= 2) {
-      RepairState.location = { address: '', lat: null, lng: null };
-      RepairState.distanceKm = 0;
-      RepairState.travelFare = 0;
-      RepairState.preferredDate = null;
-      RepairState.preferredTime = '';
-    } else if (step <= 3) {
-      RepairState.preferredDate = null;
-      RepairState.preferredTime = '';
-    }
+  // Track highest step reached (never decreases)
+  if (!RepairState._maxReachedStep || step > RepairState._maxReachedStep) {
+    RepairState._maxReachedStep = step;
   }
 
   // Sync the ent-stepper if available
@@ -253,7 +375,15 @@ function showStep(step) {
   // If showing step 3, initialize map after DOM settles
   if (step === 3) {
     requestAnimationFrame(() => {
-      setTimeout(initMap, 350);
+      setTimeout(initMap, 300);
+      setTimeout(() => { try { if (map) map.invalidateSize(); } catch(e) {} }, 600);
+      setTimeout(() => { try { if (map) map.invalidateSize(); } catch(e) {} }, 1200);
+      setTimeout(() => { try { if (map) map.invalidateSize(); } catch(e) {} }, 2500);
+      // Restore location input text when navigating back
+      if (RepairState.location.address) {
+        const locInput = document.getElementById('locationInput');
+        if (locInput && !locInput.value) locInput.value = RepairState.location.address;
+      }
     });
   }
 
@@ -273,6 +403,7 @@ function showStep(step) {
   if (step === 6) {
     populateReview();
     prefillCustomerContact();
+    if (RepairState.paymentMethod === 'cod') updateCashDisplay();
   }
 
   // Scroll the target step card into the center of the viewport
@@ -304,7 +435,7 @@ async function initScheduleCalendar() {
 
   // Estimate total work minutes from quantity. Inspection default 90 min/unit;
   // for larger quantities the work spans multiple days → project mode.
-  const qty = Number(document.getElementById('unitQuantity')?.value) || 1;
+  const qty = Math.max(1, totalRepairUnits());
   RepairState.quantity = qty;
   const perUnitMinutes = 90; // inspection/diagnosis baseline per unit
   const totalEstimatedMinutes = perUnitMinutes * qty;
@@ -348,26 +479,50 @@ function validateAndContinue(fromStep) {
     const unitType = document.getElementById('unitType');
     const brand = document.getElementById('unitBrand');
     const problem = document.getElementById('problemDescription');
+    const current = currentRepairItem();
 
-    if (!unitType.value) {
+    if (RepairState.serviceItems.length === 0) {
+      showAlert('Configure the appliance and click Add Repair Service before continuing.', 'warning');
+      return;
+    }
+    if (!repairItemIsBlank(current)) {
+      showAlert('You have appliance details that have not been added. Click Add Repair Service before continuing.', 'warning');
+      return;
+    }
+
+    // "Add Another Appliance" persists the previous form and intentionally
+    // opens a blank form. A blank next form must not block valid saved items.
+    if (repairItemIsBlank(current) && RepairState.serviceItems.length > 0) {
+      const representative = RepairState.serviceItems[0];
+      RepairState.unitType = representative.unitType;
+      RepairState.brand = representative.brand;
+      RepairState.model = representative.model || '';
+      RepairState.problemDescription = representative.problemDescription;
+      RepairState.quantity = representative.quantity || 1;
+      showStep(3);
+      return;
+    }
+
+    if (!current.unitType) {
       showAlert('Please select a unit category and type.', 'warning');
       return;
     }
-    if (!brand.value.trim()) {
+    if (!current.brand) {
       showAlert('Please enter the brand name.', 'warning');
       brand.focus();
       return;
     }
-    if (!problem.value.trim()) {
-      showAlert('Please describe the problem.', 'warning');
+    if (current.problemDescription.length < 10) {
+      showAlert('Please describe the problem in at least 10 characters.', 'warning');
       problem.focus();
       return;
     }
 
-    RepairState.unitType = unitType.value;
-    RepairState.brand = brand.value.trim();
-    RepairState.model = document.getElementById('unitModel').value.trim();
-    RepairState.problemDescription = problem.value.trim();
+    RepairState.unitType = current.unitType;
+    RepairState.brand = current.brand;
+    RepairState.model = current.model;
+    RepairState.problemDescription = current.problemDescription;
+    RepairState.quantity = current.quantity;
 
     showStep(3);
   } else if (fromStep === 3) {
@@ -635,8 +790,16 @@ function initMap() {
   });
 
   // Fix map rendering after container becomes visible
-  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 300);
-  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 800);
+  // Multiple invalidateSize calls to handle slow renders and CSS transitions
+  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 100);
+  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 500);
+  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 1500);
+  setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 3000);
+
+  // Restore customer marker if location was already set (navigating back to step 3)
+  if (RepairState.location.lat && RepairState.location.lng) {
+    setTimeout(() => { setCustomerLocation(RepairState.location.lat, RepairState.location.lng); }, 400);
+  }
 }
 
 function setCustomerLocation(lat, lng) {
@@ -844,11 +1007,11 @@ function prefillCustomerContact() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getTotalInitialFee() {
-  return (RepairState.diagnosticFee || 500) + (RepairState.travelFare || 0);
+  return ((RepairState.diagnosticFee || 500) * Math.max(1, totalRepairUnits())) + (RepairState.travelFare || 0);
 }
 
 function getMinDownpayment() {
-  return Math.ceil((RepairState.diagnosticFee || 500) * 0.2);
+  return Math.round(getTotalInitialFee() * (RepairState.downpaymentPercentage || 10) / 100);
 }
 
 function updateCashDisplay() {
@@ -868,11 +1031,15 @@ function updateCashDisplay() {
   // Update balance
   const balDisplay = document.getElementById('balanceAmountDisplay');
   if (balDisplay) balDisplay.textContent = `\u20B1${balance.toLocaleString()}`;
+  const policyLabel = document.getElementById('repairDownpaymentPolicyLabel');
+  if (policyLabel) policyLabel.textContent = `Downpayment (${RepairState.downpaymentPercentage || 10}% of inspection total)`;
 
   // Update QR code with amount
   const qrImg = document.getElementById('cashQrImage');
   if (qrImg) {
-    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-CASH-DP${dp}`;
+    const gcashNumber = (window.adminGcashNumber || '').trim();
+    if (gcashNumber) qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(`GCash|${gcashNumber}|Amount:${dp}`);
+    else qrImg.removeAttribute('src');
   }
 
   RepairState.downpaymentAmount = dp;
@@ -884,7 +1051,7 @@ window.updateCashDisplay = updateCashDisplay;
 // ═══════════════════════════════════════════════════════════════════════════
 
 function populateReview() {
-  // Sync state from form fields in case user went back and edited without clicking Continue
+  // Sync state from the current form fields (unsaved edits in the form)
   const unitType = document.getElementById('unitType');
   const brand = document.getElementById('unitBrand');
   const model = document.getElementById('unitModel');
@@ -894,10 +1061,48 @@ function populateReview() {
   if (model) RepairState.model = model.value.trim();
   if (problem) RepairState.problemDescription = problem.value.trim();
 
-  document.getElementById('reviewUnitType').textContent = RepairState.unitType || '-';
-  document.getElementById('reviewBrand').textContent = RepairState.brand || '-';
-  document.getElementById('reviewModel').textContent = RepairState.model || 'N/A';
-  document.getElementById('reviewProblem').textContent = RepairState.problemDescription || '-';
+  // Merge the in-progress (unsaved) form into serviceItems if it has valid data
+  const current = currentRepairItem();
+  let allItems = [...RepairState.serviceItems];
+  if (repairItemIsComplete(current)) {
+    // If the current form matches an existing item (was edited), don't double-add
+    const alreadySaved = allItems.some(item =>
+      item.unitType === current.unitType && item.brand === current.brand && item.problemDescription === current.problemDescription
+    );
+    if (!alreadySaved) {
+      allItems = [...allItems, current];
+    }
+  }
+
+  // ── Unit Information ──
+  const esc = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  if (allItems.length > 0) {
+    // Show all items (multi-appliance support)
+    if (allItems.length === 1) {
+      const item = allItems[0];
+      document.getElementById('reviewUnitType').textContent = item.unitType || '-';
+      document.getElementById('reviewBrand').textContent = item.brand || '-';
+      document.getElementById('reviewModel').textContent = item.model || 'N/A';
+      document.getElementById('reviewProblem').textContent = item.problemDescription || '-';
+    } else {
+      // Multiple items: show summary + details
+      const unitTypes = [...new Set(allItems.map(i => i.unitType).filter(Boolean))];
+      const brands = [...new Set(allItems.map(i => i.brand).filter(Boolean))];
+      document.getElementById('reviewUnitType').textContent = unitTypes.join(', ') || '-';
+      document.getElementById('reviewBrand').textContent = brands.join(', ') || '-';
+      document.getElementById('reviewModel').textContent = allItems.length + ' appliances';
+      document.getElementById('reviewProblem').textContent = allItems.map((item, i) =>
+        `${i + 1}. ${esc(item.unitType)} ${esc(item.brand)}: ${esc(item.problemDescription)}`
+      ).join(' | ');
+    }
+  } else {
+    document.getElementById('reviewUnitType').textContent = RepairState.unitType || '-';
+    document.getElementById('reviewBrand').textContent = RepairState.brand || '-';
+    document.getElementById('reviewModel').textContent = RepairState.model || 'N/A';
+    document.getElementById('reviewProblem').textContent = RepairState.problemDescription || '-';
+  }
+
   document.getElementById('reviewAddress').textContent = RepairState.location.address || '-';
   document.getElementById('reviewDistance').textContent = RepairState.distanceKm > 0
     ? `${RepairState.distanceKm.toFixed(1)} km from company location`
@@ -916,19 +1121,23 @@ function populateReview() {
   }
 
   // Calculate fees
-  const diagnosticFee = RepairState.diagnosticFee || 500; // Default diagnostic fee
+  const diagnosticFee = RepairState.diagnosticFee || 500;
   RepairState.diagnosticFee = diagnosticFee;
-  const total = diagnosticFee + RepairState.travelFare;
+  const unitCount = Math.max(1, totalRepairUnits());
+  const diagnosticTotal = diagnosticFee * unitCount;
+  const total = diagnosticTotal + (RepairState.travelFare || 0);
 
-  document.getElementById('reviewDiagnosticFee').textContent = `\u20B1${diagnosticFee.toLocaleString()}`;
-  document.getElementById('reviewTravelFare').textContent = `\u20B1${RepairState.travelFare.toLocaleString()}`;
+  document.getElementById('reviewDiagnosticFee').textContent = unitCount > 1
+    ? `\u20B1${diagnosticTotal.toLocaleString()} (${unitCount} units)`
+    : `\u20B1${diagnosticTotal.toLocaleString()}`;
+  document.getElementById('reviewTravelFare').textContent = `\u20B1${(RepairState.travelFare || 0).toLocaleString()}`;
   document.getElementById('reviewTotalFee').textContent = `\u20B1${total.toLocaleString()}`;
 
   // Downpayment breakdown (cash only)
   const dpSection = document.getElementById('reviewDownpaymentSection');
   if (RepairState.paymentMethod === 'cod') {
     dpSection.classList.remove('d-none');
-    const dp = RepairState.downpaymentAmount || 0;
+    const dp = RepairState.downpaymentAmount || getMinDownpayment();
     const balance = Math.max(0, total - dp);
     document.getElementById('reviewDownpayment').textContent = `\u20B1${dp.toLocaleString()}`;
     document.getElementById('reviewBalance').textContent = `\u20B1${balance.toLocaleString()}`;
@@ -940,8 +1149,13 @@ function populateReview() {
   const paySvcEl = document.getElementById('paymentServicesSummary');
   const payTotalEl = document.getElementById('paymentTotalFee');
   if (paySvcEl) {
-    const parts = [RepairState.unitType, RepairState.brand].filter(Boolean);
-    paySvcEl.textContent = parts.length ? parts.join(' - ') : (RepairState.problemDescription || 'Repair Service');
+    if (allItems.length > 1) {
+      const totalUnits = allItems.reduce((s, i) => s + Math.max(1, Number(i.quantity) || 1), 0);
+      paySvcEl.textContent = `${allItems.length} repair appliances (${totalUnits} units)`;
+    } else {
+      const parts = [RepairState.unitType, RepairState.brand].filter(Boolean);
+      paySvcEl.textContent = parts.length ? parts.join(' - ') : (RepairState.problemDescription || 'Repair Service');
+    }
   }
   if (payTotalEl) payTotalEl.textContent = `\u20B1${total.toLocaleString()}`;
 }
@@ -1017,7 +1231,7 @@ async function submitRepairRequest() {
   const submitBtn = document.getElementById('submitRepairBtn');
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+    submitBtn.innerHTML = 'Submitting request...';
   }
 
   // Show loading modal
@@ -1032,10 +1246,14 @@ async function submitRepairRequest() {
     const formData = new FormData();
 
     // Unit info
-    formData.append('unitType', RepairState.unitType);
-    formData.append('brand', RepairState.brand);
-    formData.append('model', RepairState.model);
-    formData.append('problemDescription', RepairState.problemDescription);
+    const repairItems = repairItemsForSubmission();
+    if (!repairItems.length || repairItems.some(item => !repairItemIsComplete(item))) throw new Error('Every repair appliance must include a unit type, brand, and detailed problem.');
+    const representative = repairItems[0];
+    formData.append('unitType', representative.unitType);
+    formData.append('brand', representative.brand);
+    formData.append('model', representative.model || '');
+    formData.append('problemDescription', representative.problemDescription);
+    formData.append('serviceItems', JSON.stringify(repairItems));
 
     // Location
     formData.append('address', RepairState.location.address || '');
@@ -1055,7 +1273,8 @@ async function submitRepairRequest() {
     formData.append('preferredTime', RepairState.preferredTime || '');
 
     // Quantity (multi-unit) + large-scale project
-    formData.append('quantity', RepairState.quantity || 1);
+    const submittedUnitCount = repairItems.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+    formData.append('quantity', submittedUnitCount);
     if (RepairState.isProject && RepairState.projectScheduling) {
       formData.append('isProject', 'true');
       const ps = RepairState.projectScheduling;
@@ -1064,7 +1283,8 @@ async function submitRepairRequest() {
         preferredWorkingDays: (ps.preferences && ps.preferences.workingDays) || [],
         preferredWorkingHours: ps.preferences ? { start: ps.preferences.preferredWorkingHours || 'morning', end: '' } : { start: 'morning' },
         preferredCompletionDeadline: (ps.preferences && ps.preferences.completionDeadline) ? EnterpriseCalendar.formatDateKey(new Date(ps.preferences.completionDeadline)) : null,
-        estimatedTotalHours: RepairState.quantity ? Math.round((90 * RepairState.quantity / 60) * 10) / 10 : null
+        estimatedTotalHours: Math.round((90 * submittedUnitCount / 60) * 10) / 10,
+        totalUnits: submittedUnitCount,
       };
       formData.append('projectScheduling', JSON.stringify(psPayload));
     }
@@ -1084,7 +1304,7 @@ async function submitRepairRequest() {
       const dpVal = parseFloat(dpInput?.value) || 0;
       const minDp = getMinDownpayment();
       if (dpVal < minDp) {
-        showAlert(`Downpayment of at least \u20B1${minDp.toLocaleString()} (20% of inspection fee) is required for cash bookings.`, 'warning');
+        showAlert(`The required ${RepairState.downpaymentPercentage || 10}% downpayment is \u20B1${minDp.toLocaleString()}.`, 'warning');
         return;
       }
       const cashNum = document.getElementById('cashNumber')?.value?.trim();
@@ -1129,10 +1349,13 @@ async function submitRepairRequest() {
       if (receiptModalEl) {
         document.getElementById('receiptWorkOrder').textContent = result.workOrderNumber || 'WO-XXXXXX';
         document.getElementById('receiptServiceType').textContent = result.serviceName || 'Repair Service';
-        document.getElementById('receiptUnitType').textContent = RepairState.unitType + (RepairState.brand ? ' - ' + RepairState.brand : '');
-        document.getElementById('receiptDiagnosticFee').textContent = '\u20B1' + (RepairState.diagnosticFee || 500).toLocaleString();
+        document.getElementById('receiptUnitType').textContent = repairItems.length > 1
+          ? `${repairItems.length} repair appliances (${submittedUnitCount} units)`
+          : representative.unitType + (representative.brand ? ' - ' + representative.brand : '');
+        const receiptDiagnosticTotal = (RepairState.diagnosticFee || 500) * submittedUnitCount;
+        document.getElementById('receiptDiagnosticFee').textContent = '\u20B1' + receiptDiagnosticTotal.toLocaleString();
         document.getElementById('receiptTravelFare').textContent = '\u20B1' + (RepairState.travelFare || 0).toLocaleString();
-        document.getElementById('receiptTotalFee').textContent = '\u20B1' + ((RepairState.diagnosticFee || 500) + (RepairState.travelFare || 0)).toLocaleString();
+        document.getElementById('receiptTotalFee').textContent = '\u20B1' + (receiptDiagnosticTotal + (RepairState.travelFare || 0)).toLocaleString();
         document.getElementById('receiptDate').textContent = result.createdAt ? new Date(result.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) : new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
         document.getElementById('receiptTime').textContent = RepairState.preferredTime || '—';
         document.getElementById('receiptPayment').textContent = RepairState.paymentMethod === 'gcash' ? 'GCash' : 'Cash';

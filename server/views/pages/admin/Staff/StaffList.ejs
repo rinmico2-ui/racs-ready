@@ -1,48 +1,10 @@
-<div class="admin-dashboard container-fluid py-4 staff-list-page">
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
     /* ═══════════════════════════════════════════════════════════════
        ENTERPRISE STAFF LIST
        ═══════════════════════════════════════════════════════════════ */
 
-    /* ── KPI Enterprise Cards ── */
-    .kpi-enterprise {
-      position: relative;
-      background: #ffffff;
-      border-radius: 16px;
-      padding: 20px 20px 16px;
-      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
-      border: 1px solid rgba(226, 232, 240, 0.6);
-      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .kpi-enterprise:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
-    }
-    .kpi-enterprise::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0;
-      height: 3px; opacity: 0; transition: opacity 0.3s ease;
-    }
-    .kpi-enterprise:hover::before { opacity: 1; }
-    .kpi-enterprise[data-accent="blue"]::before { background: linear-gradient(90deg, #2563eb, #1d4ed8); }
-    .kpi-enterprise[data-accent="green"]::before { background: linear-gradient(90deg, #10b981, #059669); }
-    .kpi-enterprise[data-accent="amber"]::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
-    .kpi-enterprise-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
-    .kpi-enterprise-icon { width:40px;height:40px;min-width:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(0,0,0,0.08);flex-shrink:0; }
-    .kpi-enterprise-icon.blue { background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff; }
-    .kpi-enterprise-icon.green { background:linear-gradient(135deg,#10b981,#059669);color:#fff; }
-    .kpi-enterprise-icon.amber { background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff; }
-    .kpi-enterprise-badge { display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;letter-spacing:0.04em;padding:3px 10px;border-radius:999px;white-space:nowrap; }
-    .kpi-enterprise-badge.blue { background:rgba(59,130,246,0.10);color:#2563eb; }
-    .kpi-enterprise-badge.green { background:rgba(16,185,129,0.10);color:#059669; }
-    .kpi-enterprise-badge.amber { background:rgba(245,158,11,0.10);color:#d97706; }
-    .kpi-enterprise-body { flex:1;display:flex;flex-direction:column;justify-content:space-between; }
-    .kpi-enterprise-label { font-size:0.78rem;font-weight:500;color:#64748b;margin:0 0 2px;line-height:1.3; }
-    .kpi-enterprise-value { font-size:1.6rem;font-weight:700;color:#0f172a;line-height:1.2;letter-spacing:-0.02em; }
 
     /* ── Premium Card ── */
     .staff-premium-card {
@@ -294,6 +256,62 @@
     }
   </style>
 
+  <style>
+    /* Premium Staff List theme */
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+      display: flex;
+      flex-direction: column;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+  </style>
+
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
@@ -311,97 +329,107 @@
   <div class="row">
     <div class="col-12">
 
-      <!-- ── Enterprise KPI Row ── -->
-          <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-            <div style="flex:1 1 180px;min-width:160px;">
-              <div class="kpi-enterprise" data-accent="blue">
-                <div class="kpi-enterprise-top">
-                  <div class="kpi-enterprise-icon blue"><i class="bi bi-people-fill"></i></div>
-                  <span class="kpi-enterprise-badge blue">Staff</span>
+      <!-- KPI cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-lg-4 col-md-6">
+          <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Total Staff</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value mb-0" id="statTotalStaff">--</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                  <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
                 </div>
-                <div class="kpi-enterprise-body">
-                  <p class="kpi-enterprise-label">Total Staff</p>
-                  <div class="kpi-enterprise-value" id="statTotalStaff">--</div>
-                </div>
+                <span class="inv-kpi-sub">All team members</span>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+                <i class="bi bi-people-fill"></i>
               </div>
             </div>
-            <div style="flex:1 1 180px;min-width:160px;">
-              <div class="kpi-enterprise" data-accent="green">
-                <div class="kpi-enterprise-top">
-                  <div class="kpi-enterprise-icon green"><i class="bi bi-tools"></i></div>
-                  <span class="kpi-enterprise-badge green">Techs</span>
-                </div>
-                <div class="kpi-enterprise-body">
-                  <p class="kpi-enterprise-label">Technicians</p>
-                  <div class="kpi-enterprise-value" id="statTech">--</div>
-                </div>
-              </div>
-            </div>
-            <div style="flex:1 1 180px;min-width:160px;">
-              <div class="kpi-enterprise" data-accent="amber">
-                <div class="kpi-enterprise-top">
-                  <div class="kpi-enterprise-icon amber"><i class="bi bi-people"></i></div>
-                  <span class="kpi-enterprise-badge amber">Secrets</span>
-                </div>
-                <div class="kpi-enterprise-body">
-                  <p class="kpi-enterprise-label">Secretaries</p>
-                  <div class="kpi-enterprise-value" id="statSecretary">--</div>
-                </div>
-              </div>
-            </div>
-          </div>
-      <!-- ── Add Staff Button Bar ── -->
-      <div class="staff-form-card mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
-          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;box-shadow:0 4px 12px rgba(59,130,246,0.2);">
-            <i class="bi bi-people-fill"></i>
-          </div>
-          <div>
-            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Staff Management</h6>
-            <p style="margin:0;font-size:0.78rem;color:#94a3b8;">Manage your team members and their roles</p>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="staffSparkTotal"></canvas></div>
           </div>
         </div>
-        <button id="btnOpenAddStaff" class="staff-btn-primary" data-bs-toggle="modal" data-bs-target="#addStaffModal">
-          <i class="bi bi-plus-lg me-1"></i>Add New Staff
+        <div class="col-lg-4 col-md-6">
+          <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Technicians</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value mb-0" id="statTech">--</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                  <span class="badge inv-kpi-pill bg-success-subtle text-success">Techs</span>
+                </div>
+                <span class="inv-kpi-sub">Field technicians</span>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <i class="bi bi-tools"></i>
+              </div>
+            </div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="staffSparkTech"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Secretaries</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value mb-0" id="statSecretary">--</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+                  <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Admin</span>
+                </div>
+                <span class="inv-kpi-sub">Office staff</span>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                <i class="bi bi-people"></i>
+              </div>
+            </div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="staffSparkSec"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <!-- Add Staff Toolbar -->
+      <div class="rp-toolbar">
+        <div class="rp-filter-group" style="flex:1.5;min-width:220px;">
+          <label class="rp-filter-label" for="staffToolbarSearch"><i class="bi bi-search me-1"></i>Find staff</label>
+          <input id="staffToolbarSearch" class="form-control rp-filter-input" placeholder="Search by name or email..." />
+        </div>
+        <button id="btnOpenAddStaff" class="btn btn-primary rp-filter-btn" type="button" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+          <i class="bi bi-plus-lg me-2"></i>Add New Staff
         </button>
       </div>
 
-      <!-- ── Staff Directory Section ── -->
-      <div class="staff-premium-card p-0 overflow-hidden mb-4">
-        <div style="padding:1rem 1.25rem 0.85rem;border-bottom:1px solid rgba(226,232,240,0.7);">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h6 style="margin:0;font-weight:700;font-size:0.92rem;color:#0f172a;">
-              <i class="bi bi-people-fill me-2" style="color:#3b82f6;"></i>Staff Directory
-            </h6>
-            <div class="d-flex align-items-center gap-3" style="font-size:0.78rem;color:#94a3b8;">
-              <span><span class="stat-tech-count" style="font-weight:600;color:#2563eb;">0</span> Technicians</span>
-              <span><span class="stat-sec-count" style="font-weight:600;color:#db2777;">0</span> Secretaries</span>
-            </div>
+      <!-- Staff Filter Toolbar -->
+      <div class="rp-toolbar">
+        <div class="rp-filter-group search">
+          <label class="rp-filter-label" for="staffSearch"><i class="bi bi-search me-1"></i>Search Staff</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input id="staffSearch" class="form-control" placeholder="Search by name or email..." />
           </div>
         </div>
+        <div class="rp-filter-group" style="max-width:180px;">
+          <label class="rp-filter-label" for="staffFilterRole"><i class="bi bi-funnel me-1"></i>Role</label>
+          <select id="staffFilterRole" class="form-select rp-filter-input">
+            <option value="">All Roles</option>
+            <option value="technician">Technician</option>
+            <option value="secretary">Secretary</option>
+          </select>
+        </div>
+        <button id="btn-refresh-staff" class="btn btn-outline-secondary rp-filter-btn" type="button" title="Reload staff list"><i class="bi bi-arrow-clockwise me-2"></i>Refresh</button>
+      </div>
 
-        <div class="p-3">
-          <!-- Filter bar -->
-          <div class="admin-filter-bar" style="margin-bottom:1rem;">
-            <div class="filter-group">
-              <div class="filter-item" style="flex:1;min-width:200px;">
-                <i class="bi bi-search"></i>
-                <input id="staffSearch" class="form-control" placeholder="Search by name or email..." />
-              </div>
-              <div class="filter-item">
-                <i class="bi bi-funnel"></i>
-                <select id="staffFilterRole" class="form-select">
-                  <option value="">All Roles</option>
-                  <option value="technician">Technician</option>
-                  <option value="secretary">Secretary</option>
-                </select>
-              </div>
-            </div>
-            <div class="filter-actions">
-              <button id="btn-refresh-staff" class="btn btn-outline" title="Reload staff list"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-            </div>
+      <!-- Staff Directory Card -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Staff Directory</h6>
+          <div class="text-muted small">
+            <span class="me-3"><span class="stat-tech-count" style="font-weight:600;color:#2563eb;">0</span> Technicians</span>
+            <span><span class="stat-sec-count" style="font-weight:600;color:#db2777;">0</span> Secretaries</span>
           </div>
-
+        </div>
+        <div class="card-body">
           <!-- Staff Cards Grid -->
           <div id="staffCards" class="row g-3"></div>
 
@@ -416,6 +444,7 @@
             </div>
           </div>
         </div>
+        <div class="card-footer bg-white py-3 border-top" id="staffFooter"></div>
       </div>
     </div>
   </div>
@@ -720,6 +749,11 @@
     !function(){var m=document.getElementById('addStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
 
     const el = (id) => document.getElementById(id);
+    let currentPage = 1;
+    const pageSize = 10;
+    let staffData = [];
+    let staffFiltered = [];
+    const staffFooter = document.getElementById("staffFooter");
 
     function stringToHslColor(str, s = 65, l = 52) {
       let hash = 0;
@@ -829,12 +863,10 @@
           return matchesSearch && matchesRole;
         });
 
-        if (el("staffCards"))
-          el("staffCards").innerHTML =
-            filtered.map(renderItem).join("") ||
-            (arr.length
-              ? '<div class="small text-muted">No staff match your search/filter.</div>'
-              : '<div class="small text-muted">No staff found.</div>');
+        staffData = arr;
+        staffFiltered = filtered;
+        currentPage = 1;
+        if (el("staffCards")) renderPage(1, filtered);
 
         // Update summary stats (totals for all staff)
         // prefer counts based on actual User documents when available
@@ -1209,74 +1241,64 @@
         .trim()
         .toLowerCase();
 
-      const container = document.getElementById("staffCards");
-      if (!container) return;
-
-      // Scope queries to card columns
-      const items = Array.from(
-        container.querySelectorAll(
-          ".staff-card-col",
-        ),
-      );
-
-      items.forEach((it) => {
-        let name = "";
-        let email = "";
-        let badgeRole = "";
-
-        if (it.dataset) {
-          name = (it.dataset.name || "").toLowerCase();
-          email = (it.dataset.email || "").toLowerCase();
-          badgeRole = (it.dataset.role || "").toLowerCase();
-        }
-
-        if (!name) {
-          const nameEl = it.querySelector && it.querySelector(".staff-card-name");
-          if (nameEl) name = (nameEl.innerText || "").toLowerCase();
-        }
-        if (!email) {
-          const emailEl = it.querySelector && it.querySelector(".staff-card-email");
-          if (emailEl)
-            email = (emailEl.innerText || "").toLowerCase();
-        }
-        if (!badgeRole) {
-          const roleEl = it.querySelector && it.querySelector(".staff-role-tag");
-          if (roleEl)
-            badgeRole = (
-              (roleEl.dataset && roleEl.dataset.role) ||
-              roleEl.innerText ||
-              ""
-            ).toLowerCase();
-        }
-
-        const hay = (name + " " + email).toLowerCase();
-        const matches =
-          (!search || hay.includes(search)) &&
-          (!role || role === badgeRole);
-
-        it.classList.toggle("d-none", !matches);
+      staffFiltered = staffData.filter((u) => {
+        const n = (
+          ((u.firstName || "") + " " + (u.lastName || "")).trim() ||
+          u.name ||
+          ""
+        ).toLowerCase();
+        const e = (u.email || "").toLowerCase();
+        const r = (u.role || "").toString().toLowerCase();
+        const matchesSearch = !search || n.includes(search) || e.includes(search);
+        const matchesRole = !role || r === role;
+        return matchesSearch && matchesRole;
       });
 
-      const anyVisible = Array.from(
-        container.querySelectorAll(
-          ".staff-card-col",
-        ),
-      ).some(
-        (el) =>
-          !el.classList.contains("d-none") &&
-          el.style.display !== "none",
-      );
-      let noEl = container.querySelector(".staff-no-results");
-      if (!anyVisible) {
-        if (!noEl) {
-          noEl = document.createElement("div");
-          noEl.className = "staff-no-results";
-          noEl.innerText = "No staff match your search/filter.";
-          container.appendChild(noEl);
-        }
-      } else {
-        if (noEl && noEl.remove) noEl.remove();
+      currentPage = 1;
+      renderPage(1, staffFiltered);
+    }
+
+    function renderPage(page, items) {
+      const start = (page - 1) * pageSize;
+      const slice = items.slice(start, start + pageSize);
+      if (!slice.length) {
+        el("staffCards").innerHTML =
+          '<div class="small text-muted">No staff match your search/filter.</div>';
+        staffFooter.innerHTML =
+          '<nav aria-label="Staff pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+        return;
       }
+      el("staffCards").innerHTML = slice.map(renderItem).join("");
+      renderPagination(page, Math.ceil(items.length / pageSize) || 1, items.length);
+    }
+
+    function renderPagination(page, pages, total) {
+      const disabled = total === 0;
+      const nav = `<nav aria-label="Staff pagination">
+  <ul class="inv-pagination justify-content-end mb-0">
+    <li class="page-item ${page <= 1 || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page - 1}">‹ Prev</a>
+    </li>
+    <li class="page-item active">
+      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
+    </li>
+    <li class="page-item ${page >= pages || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page + 1}">Next ›</a>
+    </li>
+  </ul>
+</nav>`;
+      staffFooter.innerHTML = nav;
+      staffFooter.querySelectorAll('.page-link[data-page]').forEach(el => {
+        el.addEventListener('click', e => {
+          e.preventDefault();
+          const target = e.target.closest('.page-link');
+          const newPage = parseInt(target?.dataset.page);
+          if (!target?.closest('.page-item.disabled') && newPage >= 1 && newPage <= pages) {
+            currentPage = newPage;
+            renderPage(currentPage, staffFiltered);
+          }
+        });
+      });
     }
 
     // attach listeners with safe fallbacks (works even if elements are missing / loaded later)

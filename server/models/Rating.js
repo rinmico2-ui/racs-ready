@@ -27,4 +27,7 @@ const ratingSchema = new mongoose.Schema({
   comment: { type: String, default: null },
 }, { timestamps: true });
 
+// Performance indexes
+ratingSchema.index({ targetType: 1, targetId: 1 });
+
 module.exports = mongoose.model("Rating", ratingSchema);

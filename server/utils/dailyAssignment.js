@@ -201,21 +201,24 @@ async function completeDay(workOrderId, technicianId, date, completedUnits) {
   const newCompleted = agg.length ? agg[0].total : completed;
   workOrder.completedUnitCount = Math.min(workOrder.unitCount || 0, newCompleted);
   if (workOrder.completedUnitCount >= (workOrder.unitCount || 0)) {
-    workOrder.status = "completed";
-    if (!workOrder.actualCompletionDate) workOrder.actualCompletionDate = new Date();
+    workOrder.status = "awaiting_review";
+    workOrder.actualCompletionDate = null;
   }
   await workOrder.save();
 
-  // Recalculate remaining days going forward.
-  const plan = await ensureDailyAssignments(workOrderId);
+  const project = await Project.findById(workOrder.projectId).lean().catch(() => null);
+  const enterpriseSchedule = ["ready", "confirmed"].includes(project?.schedulePlan?.status);
+  // Never replace the confirmed Step 4 allocation with the legacy even-split
+  // planner. Legacy projects still receive the historical carry-forward logic.
+  if (!enterpriseSchedule) await ensureDailyAssignments(workOrderId);
 
-  // Determine tomorrow's target (next working day with a pending/in_progress assignment).
   const tomorrow = nextWorkingDay(day);
-  const nextDa = await DailyAssignment.findOne({ workOrderId, technicianId, date: tomorrow }).lean();
+  const nextDa = enterpriseSchedule
+    ? await DailyAssignment.findOne({ workOrderId, technicianId, date: { $gt: day }, status: { $in: ["pending", "in_progress"] } }).sort({ date: 1 }).lean()
+    : await DailyAssignment.findOne({ workOrderId, technicianId, date: tomorrow }).lean();
 
   // Schedule risk: if completed today < today's original target, we are behind
   // relative to an even spread across the remaining project window.
-  const project = await Project.findById(workOrder.projectId).lean().catch(() => null);
   const dueStr = project ? (project.preferredCompletionDeadline || project.plannedCompletionDate) : null;
   let behindSchedule = false;
   let riskNote = "";

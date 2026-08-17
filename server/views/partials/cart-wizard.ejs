@@ -176,17 +176,79 @@
   }
 
   #wizardMap {
-    height: 280px;
+    height: 380px;
     width: 100%;
-    border-radius: 1rem;
     z-index: 1;
-    border: 1.5px solid #e0e7ef;
-    box-shadow: 0 4px 24px rgba(15,23,42,0.07);
-    transition: border-color 0.2s;
+    background: #e8eef7;
+    transition: height 0.25s ease;
   }
-  #wizardMap:hover {
-    border-color: #6366f1;
+  .checkout-map-card {
+    overflow: hidden;
+    border: 1px solid #dbe3ee;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 8px 26px rgba(15,23,42,.07);
+    transition: border-color .2s ease, box-shadow .2s ease;
   }
+  .checkout-map-card:focus-within,
+  .checkout-map-card:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 10px 30px rgba(37,99,235,.1);
+  }
+  .checkout-map-card.map-expanded #wizardMap { height: 540px; }
+  .checkout-map-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .85rem;
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: linear-gradient(180deg,#fff,#f8fafc);
+  }
+  .checkout-map-title { margin: 0; color: #0f172a; font-size: .82rem; font-weight: 800; }
+  .checkout-map-subtitle { margin-top: 2px; color: #64748b; font-size: .67rem; line-height: 1.35; }
+  .checkout-map-actions { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
+  .checkout-map-action {
+    display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
+    min-height: 34px; padding: .35rem .65rem; border: 1px solid #dbe3ee;
+    border-radius: 8px; background: #fff; color: #334155; font-size: .68rem; font-weight: 700;
+  }
+  .checkout-map-action:hover:not(:disabled) { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+  .checkout-map-action:disabled { cursor: not-allowed; opacity: .45; }
+  .checkout-map-stage { position: relative; }
+  .checkout-map-legend {
+    position: absolute; left: 10px; bottom: 24px; z-index: 800;
+    display: flex; flex-direction: column; gap: 5px; padding: 8px 10px;
+    border: 1px solid rgba(203,213,225,.9); border-radius: 9px;
+    background: rgba(255,255,255,.94); color: #334155; font-size: .64rem; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(15,23,42,.12); backdrop-filter: blur(6px);
+  }
+  .checkout-map-legend span { display: flex; align-items: center; gap: 6px; }
+  .map-legend-dot { width: 9px; height: 9px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 2px #dbeafe; }
+  .map-legend-dot.customer { background: #ef4444; box-shadow: 0 0 0 2px #fee2e2; }
+  .map-selection-panel {
+    display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .9rem;
+    padding: .85rem 1rem; border-top: 1px solid #e2e8f0; background: #fff;
+  }
+  .map-selection-address { display: flex; align-items: flex-start; gap: .65rem; min-width: 0; }
+  .map-selection-icon {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px;
+    width: 32px; height: 32px; border-radius: 9px; background: #f1f5f9; color: #64748b;
+  }
+  .map-selection-panel.has-location .map-selection-icon { background: #dcfce7; color: #15803d; }
+  .map-selection-status { color: #b45309; font-size: .66rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .map-selection-panel.has-location .map-selection-status { color: #15803d; }
+  .map-address-preview { max-width: 100%; margin-top: 2px; overflow: hidden; color: #334155; font-size: .72rem; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; }
+  .map-coordinate-card { min-width: 156px; padding-left: .9rem; border-left: 1px solid #e2e8f0; text-align: right; }
+  .map-coordinate-label { color: #94a3b8; font-size: .6rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .map-coordinate-value { margin-top: 3px; color: #334155; font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size: .68rem; font-weight: 700; }
+  .map-coordinate-source { margin-top: 2px; color: #64748b; font-size: .62rem; }
+  .checkout-map-card .leaflet-control-layers,
+  .checkout-map-card .leaflet-bar { border: 0; border-radius: 9px; box-shadow: 0 3px 14px rgba(15,23,42,.16); }
+  .checkout-map-card .leaflet-control-layers-toggle { width: 36px; height: 36px; background-size: 18px 18px; }
+  .checkout-map-card .leaflet-control-zoom a { color: #1e3a8a; }
+  .checkout-map-card .leaflet-popup-content-wrapper { border-radius: 10px; box-shadow: 0 8px 28px rgba(15,23,42,.18); }
+  .checkout-map-card .leaflet-popup-content { margin: 11px 13px; font-size: .72rem; line-height: 1.45; }
 
   /* ── Route Info Panel ───────────────────────────────── */
   .route-info-panel {
@@ -277,7 +339,7 @@
   }
   .map-locating-spinner {
     position: absolute;
-    top: 8px; right: 8px;
+    top: 52px; right: 10px;
     background: rgba(255,255,255,0.9);
     border-radius: 0.5rem;
     padding: 4px 10px;
@@ -332,6 +394,50 @@
     line-height: 1;
   }
 
+  /* Keep the pickup calendar anchored to its input inside the scrollable modal. */
+  .wizard-modal .flatpickr-wrapper {
+    display: block;
+    width: 100%;
+  }
+  .wizard-modal .flatpickr-wrapper .form-control { width: 100%; }
+  .wizard-modal .flatpickr-calendar.static {
+    width: min(330px, 100%) !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: auto !important;
+    top: calc(100% + 6px) !important;
+    z-index: 1080 !important;
+    box-sizing: border-box !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 12px 30px rgba(15,23,42,.14) !important;
+  }
+  .wizard-modal .flatpickr-calendar.inline {
+    position: relative !important;
+    width: min(330px, 100%) !important;
+    max-width: 100% !important;
+    top: auto !important;
+    left: auto !important;
+    margin: 10px 0 0 !important;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-sizing: border-box !important;
+  }
+  .wizard-modal .flatpickr-calendar:is(.static, .inline) .flatpickr-rContainer,
+  .wizard-modal .flatpickr-calendar:is(.static, .inline) .flatpickr-days,
+  .wizard-modal .flatpickr-calendar:is(.static, .inline) .dayContainer {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Override: pickup panel calendar should fill full width */
+  .pickup-panel .flatpickr-calendar.inline {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
   @media (max-width: 576px) {
     .wizard-ps {
       padding: 5px 8px;
@@ -344,6 +450,180 @@
     .wizard-progress {
       padding: 1rem 1rem 0.5rem;
     }
+    #wizardMap { height: 310px; }
+    .checkout-map-card.map-expanded #wizardMap { height: 430px; }
+    .checkout-map-toolbar { align-items: flex-start; flex-direction: column; }
+    .checkout-map-actions { width: 100%; }
+    .checkout-map-action { flex: 1; padding-left: .45rem; padding-right: .45rem; }
+    .checkout-map-action span { display: none; }
+    .map-selection-panel { grid-template-columns: 1fr; }
+    .map-coordinate-card { padding: .7rem 0 0 42px; border-top: 1px solid #f1f5f9; border-left: 0; text-align: left; }
+    .checkout-map-legend { bottom: 20px; }
+  }
+  /* ── Pickup Panel ── */
+  .pickup-panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(15,36,96,0.06);
+    margin-bottom: 1rem;
+  }
+  .pickup-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .pickup-store {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f0f7ff, #e0f2fe);
+    border: 1px solid #bae6fd;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .pickup-store-bg-icon {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 6rem;
+    color: #0284c7;
+    opacity: 0.1;
+    transform: translate(20%, -20%);
+  }
+  .pickup-store-name {
+    position: relative;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0369a1;
+  }
+  .pickup-store-note {
+    position: relative;
+    margin: 0.25rem 0 0;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #0284c7;
+  }
+  .pickup-date-wrap { position: relative; margin-top: 1.25rem; }
+  .pickup-date-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+  }
+  .pickup-date-input {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    font-size: 0.9rem;
+    color: #0f172a;
+    background: #fff;
+    transition: all 0.2s;
+  }
+  .pickup-date-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    outline: none;
+  }
+  .pickup-date-input::placeholder { color: #94a3b8; }
+  .pickup-calendar-wrapper {
+    width: 100%;
+    overflow: visible;
+  }
+  /* Premium inline Flatpickr */
+  .pickup-panel .flatpickr-calendar {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0.75rem 0 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(15,36,96,0.08);
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .pickup-panel .flatpickr-months {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-radius: 1rem 1rem 0 0;
+    padding: 0.4rem 0;
+  }
+  .pickup-panel .flatpickr-month,
+  .pickup-panel .flatpickr-current-month { color: #fff; }
+  .pickup-panel .flatpickr-prev-month,
+  .pickup-panel .flatpickr-next-month { fill: #fff; color: #fff; }
+  .pickup-panel .flatpickr-weekdays { background: #f8fafc; padding: 0.5rem 0.75rem; width: 100% !important; }
+  .pickup-panel .flatpickr-weekdaycontainer {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+  }
+  .pickup-panel .flatpickr-weekday {
+    color: #64748b;
+    font-weight: 700;
+    text-align: center;
+    width: auto !important;
+    margin: 0;
+    padding: 0;
+  }
+  .pickup-panel .flatpickr-days { width: 100% !important; min-width: 0 !important; }
+  .pickup-panel .flatpickr-rContainer {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0.75rem;
+    box-sizing: border-box;
+  }
+  .pickup-panel .dayContainer {
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .pickup-panel .flatpickr-day {
+    border-radius: 50%;
+    color: #334155;
+    font-weight: 600;
+    transition: all 0.2s;
+    width: 100%;
+    max-width: 56px;
+    aspect-ratio: 1;
+    margin: 0;
+    justify-self: center;
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pickup-panel .flatpickr-day:hover {
+    background: #eff6ff;
+    color: #2563eb;
+  }
+  .pickup-panel .flatpickr-day.selected {
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+    font-weight: 700;
+  }
+  .pickup-panel .flatpickr-day.selected:hover {
+    background: #1d4ed8;
+    color: #fff;
+  }
+  .pickup-panel .flatpickr-day.disabled,
+  .pickup-panel .flatpickr-day.flatpickr-disabled {
+    color: #d1d5db !important;
+    background: #f9fafb !important;
+    cursor: not-allowed !important;
+    opacity: 0.5;
+    text-decoration: none !important;
   }
 </style>
 
@@ -431,8 +711,7 @@
               <p class="text-secondary fw-medium small">Provide your delivery or pickup information.</p>
             </div>
             <!-- Delivery fields -->
-            <div id="deliveryFields" style="display: none;" class="p-4 bg-white shadow-sm border rounded-4 mb-3"
-              style="border-color: #f1f5f9;">
+            <div id="deliveryFields" class="p-4 bg-white shadow-sm border rounded-4 mb-3" style="display:none;border-color:#f1f5f9;">
               <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a; font-size:0.88rem;"><i
                   class="bi bi-geo-alt-fill text-primary me-2"></i> Delivery Location & Details</h6>
 
@@ -464,21 +743,50 @@
 
               <!-- 3. Map for location pinning -->
               <div class="mb-3">
-                <label class="form-label d-flex justify-content-between small fw-bold">
-                  <span><i class="bi bi-map me-1 text-indigo" style="color:#6366f1;"></i> Delivery Route Map</span>
-                  <span>
-                    <button type="button" class="btn btn-sm btn-outline-primary border-0 me-2" onclick="locateMe()" style="font-size:0.75rem;padding:2px 8px;" title="Detect my location">
-                      <i class="bi bi-crosshair me-1"></i>Fetch Location
-                    </button>
-                    <span class="text-secondary fw-normal" style="font-size:0.72rem;"><i class="bi bi-info-circle me-1"></i>Drag pin or click map</span>
-                  </span>
-                </label>
+                <div class="checkout-map-card" id="checkoutMapCard">
+                  <div class="checkout-map-toolbar">
+                    <div>
+                      <h6 class="checkout-map-title"><i class="bi bi-map me-2 text-primary"></i>Delivery Route Map</h6>
+                      <div class="checkout-map-subtitle">Search an address, click the map, or drag the red delivery pin for an exact location.</div>
+                    </div>
+                    <div class="checkout-map-actions" aria-label="Map controls">
+                      <button type="button" class="checkout-map-action" onclick="locateMe()" title="Use my current location">
+                        <i class="bi bi-crosshair"></i><span>My Location</span>
+                      </button>
+                      <button type="button" class="checkout-map-action" id="fitRouteBtn" onclick="fitDeliveryRoute()" title="Show the full delivery route" disabled>
+                        <i class="bi bi-arrows-fullscreen"></i><span>Fit Route</span>
+                      </button>
+                      <button type="button" class="checkout-map-action" id="expandMapBtn" onclick="toggleCheckoutMapSize()" title="Expand map">
+                        <i class="bi bi-fullscreen"></i><span>Expand</span>
+                      </button>
+                    </div>
+                  </div>
 
-                <!-- Map container with spinner overlay -->
-                <div class="position-relative">
-                  <div id="wizardMap"></div>
-                  <div class="map-locating-spinner" id="mapLocatingSpinner">
-                    <span class="spinner-border spinner-border-sm" role="status"></span> Calculating route...
+                  <div class="checkout-map-stage">
+                    <div id="wizardMap" role="application" aria-label="Interactive delivery route map"></div>
+                    <div class="map-locating-spinner" id="mapLocatingSpinner">
+                      <span class="spinner-border spinner-border-sm" role="status"></span>
+                      <span id="mapSpinnerLabel">Calculating route...</span>
+                    </div>
+                    <div class="checkout-map-legend" aria-label="Map legend">
+                      <span><i class="map-legend-dot"></i>CALIDRO RACS</span>
+                      <span><i class="map-legend-dot customer"></i>Delivery location</span>
+                    </div>
+                  </div>
+
+                  <div class="map-selection-panel" id="mapSelectionPanel" aria-live="polite">
+                    <div class="map-selection-address">
+                      <span class="map-selection-icon"><i class="bi bi-geo-alt"></i></span>
+                      <div class="min-w-0">
+                        <div class="map-selection-status" id="mapSelectionStatus">Location not pinned</div>
+                        <div class="map-address-preview" id="mapAddressPreview">Choose a search result or select an exact point on the map.</div>
+                      </div>
+                    </div>
+                    <div class="map-coordinate-card">
+                      <div class="map-coordinate-label">Coordinates</div>
+                      <div class="map-coordinate-value" id="mapCoordinateDisplay">Not selected</div>
+                      <div class="map-coordinate-source" id="mapCoordinateSource">Waiting for location</div>
+                    </div>
                   </div>
                 </div>
 
@@ -535,26 +843,20 @@
             </div>
 
             <!-- Pickup fields -->
-            <div id="pickupFields" style="display: none;" class="p-4 bg-white shadow-sm border rounded-4 mb-3"
-              style="border-color: #f1f5f9;">
-              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i
-                  class="bi bi-shop text-success me-2"></i> Pickup Information</h6>
+            <div id="pickupFields" class="pickup-panel" style="display:none;">
+              <h6 class="pickup-title"><i class="bi bi-shop text-success me-2"></i> Pickup Information</h6>
 
-              <div class="p-3 rounded-4 mb-3 position-relative overflow-hidden"
-                style="background: linear-gradient(135deg, #f0f7ff, #e0f2fe); border: 1px solid #bae6fd;">
-                <div class="position-absolute top-0 end-0 opacity-10" style="transform: translate(20%, -20%);"><i
-                    class="bi bi-shop" style="font-size: 6rem; color: #0284c7;"></i></div>
-                <div class="fw-bolder fs-6 position-relative z-index-1" style="color: #0369a1;"><i
-                    class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
-                <p class="mt-1 mb-0 position-relative z-index-1 small fw-medium" style="color: #0284c7;">Our complete
-                  store address and routing link will be provided upon order confirmation.</p>
+              <div class="pickup-store">
+                <i class="bi bi-shop pickup-store-bg-icon"></i>
+                <div class="pickup-store-name"><i class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
+                <p class="pickup-store-note">Our complete store address and routing link will be provided upon order confirmation.</p>
+                <div id="storeHoursInfo" class="mt-2" style="font-size:0.78rem; color:#0369a1; font-weight:600;"></div>
               </div>
 
-              <div class="mb-1">
-                <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i> Preferred
-                  Pickup Date</label>
-                <input type="text" class="form-control form-control-sm rounded-3 py-2 bg-white" id="wizardPickupDate"
-                  placeholder="Select a date...">
+              <div class="pickup-date-wrap">
+                <label class="pickup-date-label"><i class="bi bi-calendar-event me-1 text-success"></i> Preferred Pickup Date</label>
+                <input type="text" class="pickup-date-input" id="wizardPickupDate" placeholder="Select a date...">
+                <div class="pickup-calendar-wrapper"></div>
               </div>
             </div>
           </div>
@@ -575,17 +877,17 @@
           <!-- GCash Details Panel (shown when a GCash method is picked) -->
           <div id="gcashFieldsWizard" class="d-none mt-4 px-md-3">
             <div class="p-4 bg-white shadow-sm border rounded-4" style="border-color: #dcfce7;">
-              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i class="bi bi-phone-fill text-success me-2"></i>GCash Payment Details</h6>
+              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i class="bi bi-phone-fill text-success me-2"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
 
               <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
                 <div class="d-flex align-items-center gap-2 mb-2">
                   <i class="bi bi-phone text-success fs-4"></i>
-                  <span class="fw-semibold">Manual GCash Transfer</span>
+                  <span class="fw-semibold">Send your payment through GCash</span>
                 </div>
                 <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;">
-                  <li>Scan our GCash QR code below in your GCash app.</li>
-                  <li>Send the required payment amount.</li>
-                  <li>Upload your receipt screenshot before confirming the order.</li>
+                  <li>Scan the QR code or use the displayed GCash number.</li>
+                  <li>Send the exact amount shown in the summary.</li>
+                  <li>Upload the successful transaction receipt.</li>
                 </ol>
               </div>
 
@@ -593,7 +895,7 @@
               <div class="text-center mb-3">
                 <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
                 <img id="gcashQrImageWizard" src="" alt="GCash QR Code" class="img-thumbnail" style="max-width:220px;border-radius:12px;" />
-                <div class="form-text">Send to the GCash number shown below.</div>
+                <div class="form-text">GCash number: <strong id="gcashNumberDisplayWizard">Not configured</strong></div>
               </div>
 
               <!-- Receipt Upload -->
@@ -604,21 +906,28 @@
                 <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:160px;border-radius:10px;" />
               </div>
 
-              <!-- Amount Display -->
+              <!-- Payment Summary -->
               <div class="rounded-3 p-3 mb-3" style="background:#f8fdff;border:1px solid #bee3f8;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="text-muted small">Order total</span>
+                  <span class="fw-semibold" id="gcashTotalDisplayWizard">&mdash;</span>
+                </div>
                 <div class="d-flex justify-content-between align-items-center">
-                  <span class="text-muted small">Amount to send via GCash</span>
+                  <span class="text-muted small" id="wizardGcashLabel">Amount due now</span>
                   <span class="fw-bold text-primary fs-5" id="gcashAmountDisplayWizard">&mdash;</span>
                 </div>
-                <div class="text-muted" style="font-size:0.75rem;margin-top:4px;"><i class="bi bi-info-circle me-1"></i>Please send this amount, then upload the receipt screenshot.</div>
+                <div class="d-flex justify-content-between align-items-center mt-1" id="gcashBalanceRowWizard">
+                  <span class="text-muted small">Balance due on delivery/pickup</span>
+                  <span class="fw-semibold text-success" id="gcashBalanceDisplayWizard">&mdash;</span>
+                </div>
               </div>
 
               <div class="alert alert-success border-0" role="alert" style="background:#f0fdf4;border-left:4px solid #16a34a !important;">
                 <div class="d-flex align-items-start gap-2">
                   <i class="bi bi-lock-fill text-success mt-1"></i>
                   <div>
-                    <div class="fw-semibold small">Manual verification required</div>
-                    <small class="text-muted">Your payment proof will be reviewed by admin before final confirmation.</small>
+                    <div class="fw-semibold small">Receipt verification</div>
+                    <small class="text-muted">Your payment remains pending until an admin verifies the uploaded receipt.</small>
                   </div>
                 </div>
               </div>
@@ -714,6 +1023,7 @@
   // Fetch dynamic installation fee & fare per km
   window.airconInstallFee = 1500;
   window._farePerKm = 40;
+  window.downpaymentPercentage = 10;
   fetch('/api/services/fare-per-km')
     .then(r => r.json())
     .then(data => {
@@ -721,6 +1031,17 @@
       if (data.farePerKm !== undefined) window._farePerKm = data.farePerKm;
     })
     .catch(() => console.warn('Failed to fetch pricing config'));
+  fetch('/api/services/payment-policy')
+    .then(r => r.json())
+    .then(data => {
+      const percentage = Number(data.downpaymentPercentage);
+      if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
+        window.downpaymentPercentage = percentage;
+        const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;
+        if (selectedMethod && typeof window.selectPaymentMethods === 'function') window.selectPaymentMethods(selectedMethod);
+      }
+    })
+    .catch(() => console.warn('Using default downpayment policy'));
 
   // Company base location for distance calculation
   window._companyBaseLocation = { configured: false, lat: 14.676049, lng: 121.043731 };
@@ -741,6 +1062,13 @@
     let _routeDistanceKm = 0;
     let _routeDurationMin = 0;
     let _transportFee = 0;
+    let _customerLocationSelected = false;
+    let _lastCustomerLat = null;
+    let _lastCustomerLng = null;
+    let _streetMapLayer = null;
+    let _satelliteMapLayer = null;
+    let _routeRequestId = 0;
+    let _reverseGeocodeRequestId = 0;
 
     const stepTitles = {
       1: '<i class="bi bi-truck me-2"></i>Choose Fulfillment',
@@ -751,6 +1079,30 @@
 
     let CART_ITEMS = cartObj.items || [];
     let SUB_TOTAL = cartObj.totalAmount || 0;
+    let _storeHoursData = null;
+
+    // Fetch store open hours for pickup scheduling
+    async function fetchStoreHours() {
+      try {
+        const r = await fetch('/api/public/company/store-open-hours');
+        if (r.ok) {
+          const data = await r.json();
+          _storeHoursData = data.hours || null;
+          renderStoreHoursInfo();
+        }
+      } catch(e) { console.warn('Failed to fetch store hours'); }
+    }
+
+    function renderStoreHoursInfo() {
+      const el = document.getElementById('storeHoursInfo');
+      if (!el || !_storeHoursData) return;
+      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const openDays = _storeHoursData.filter(h => h.open);
+      if (openDays.length === 0) { el.textContent = 'Store is currently closed for pickup.'; return; }
+      const fmtTime = (m) => { const h = Math.floor(m/60); const min = m%60; const p = h >= 12 ? 'PM' : 'AM'; return (h%12||12) + ':' + String(min).padStart(2,'0') + ' ' + p; };
+      const summary = openDays.map(d => dayNames[d.dayOfWeek] + ' ' + fmtTime(d.startMinutes) + '–' + fmtTime(d.endMinutes)).join(', ');
+      el.innerHTML = '<i class="bi bi-clock me-1"></i>Store Hours: ' + summary;
+    }
 
     window.openCheckoutWizard = function (dynamicCart) {
       if (dynamicCart) {
@@ -796,21 +1148,31 @@
         checkoutCalendar.setDuration(estDuration);
       }
 
+      // Fetch store hours for pickup
+      fetchStoreHours();
+
       // Set min date for date pickers via Flatpickr for pickup
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // Disable today and past dates — only allow tomorrow onwards
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const minPickupDate = new Date(today);
+      minPickupDate.setDate(minPickupDate.getDate() + 1);
 
       const fpConfig = {
-        minDate: tomorrow,
+        minDate: minPickupDate,
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",
-        disableMobile: "true"
+        disableMobile: true,
+        inline: true,
+        monthSelectorType: "static",
+        position: "auto left"
       };
 
       if (!fpDatePickup) {
         fpDatePickup = flatpickr("#wizardPickupDate", fpConfig);
       } else {
+        fpDatePickup.set('minDate', minPickupDate);
         fpDatePickup.clear();
       }
 
@@ -837,7 +1199,10 @@
           const addr = document.getElementById('wizardAddress').value.trim();
           const contact = document.getElementById('wizardContact').value.trim();
           const date = document.getElementById('wizardDate').value;
+          const lat = parseFloat(document.getElementById('wizardLat').value);
+          const lng = parseFloat(document.getElementById('wizardLng').value);
           if (!addr) { Swal.fire('Attention', 'Please enter your delivery address.', 'warning'); return; }
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) { Swal.fire('Pin your delivery location', 'Select an address suggestion, use My Location, or click the exact delivery point on the map.', 'warning'); return; }
           if (!contact) { Swal.fire('Attention', 'Please enter your contact number.', 'warning'); return; }
           if (!date) { Swal.fire('Attention', 'Please select a delivery date.', 'warning'); return; }
         } else {
@@ -947,19 +1312,28 @@
       }
       if (showGcashPanel) {
         const qrImg = document.getElementById('gcashQrImageWizard');
+        const gcashNum = (window.adminGcashNumber || '').trim();
         if (qrImg) {
-          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=FAKE_GCASH_QR_CODE_FOR_TESTING';
+          if (gcashNum) qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent('GCash|' + gcashNum);
+          else qrImg.removeAttribute('src');
         }
+        document.getElementById('gcashNumberDisplayWizard').textContent = gcashNum || 'Contact the store';
         const itemTotal = SUB_TOTAL;
         const installFee = (selectedFulfillment === 'delivery_installation') ? (window.airconInstallFee || 1500) : 0;
-        const grandTotal = itemTotal + installFee;
-        const payAmount = method === 'cod' ? Math.ceil(grandTotal * 0.1) : grandTotal;
+        const grandTotal = itemTotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+        const percentage = window.downpaymentPercentage || 10;
+        const payAmount = method === 'cod' ? Math.round(grandTotal * percentage / 100) : grandTotal;
+        const balance = Math.max(0, grandTotal - payAmount);
         const amountEl = document.getElementById('gcashAmountDisplayWizard');
         if (amountEl) {
           amountEl.textContent = '₱' + payAmount.toLocaleString();
           const labelEl = document.getElementById('wizardGcashLabel');
-          if (labelEl) labelEl.textContent = method === 'cod' ? '10% Downpayment (via GCash)' : 'Full Payment';
+          if (labelEl) labelEl.textContent = method === 'cod' ? `Downpayment due now (${percentage}%)` : 'Full payment due now';
         }
+        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? 'GCash Downpayment' : 'GCash Full Payment';
+        document.getElementById('gcashTotalDisplayWizard').textContent = '₱' + grandTotal.toLocaleString();
+        document.getElementById('gcashBalanceDisplayWizard').textContent = '₱' + balance.toLocaleString();
+        document.getElementById('gcashBalanceRowWizard').style.display = method === 'cod' ? 'flex' : 'none';
       }
     };
 
@@ -1015,13 +1389,13 @@
               <i class="bi bi-truck fs-3"></i>
             </div>
             <div class="fw-bolder fs-6 mb-1 text-dark">Cash on Delivery</div>
-            <div class="small text-muted">Pay 10% downpayment via GCash, remainder in cash on delivery.</div>
+            <div class="small text-muted">Pay ${window.downpaymentPercentage || 10}% via GCash now, then pay the balance on delivery or pickup.</div>
           </div>
         </div>
       `;
 
       if (selectedFulfillment === 'customer_pickup') {
-         // Pickup: Cash On-Site + Downpayment + GCash
+         // Pickup: Cash On-Site + GCash only (no COD — customer is picking up in person)
          html = `
             <div class="col-md-6">
               <div class="payment-method-card" data-method="cash_onsite" onclick="selectPaymentMethods('cash_onsite')" style="${paymentCardStyle}">
@@ -1032,8 +1406,15 @@
                 <div class="small text-muted">Pay full amount at our store during pickup.</div>
               </div>
             </div>
-
-            ${paymentCardsHtml}
+            <div class="col-md-6">
+              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
+                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+                  <i class="bi bi-phone fs-3"></i>
+                </div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">GCash (Full Payment)</div>
+                <div class="small text-muted">Pay full amount via GCash.</div>
+              </div>
+            </div>
          `;
       } else {
          html = `
@@ -1059,7 +1440,9 @@
       var formulaEl = document.getElementById('routeCalcFormula');
       var badgeEl = document.getElementById('routeMethodBadge');
       var spinner = document.getElementById('mapLocatingSpinner');
+      var fitRouteBtn = document.getElementById('fitRouteBtn');
       if (spinner) spinner.classList.remove('show');
+      if (fitRouteBtn) fitRouteBtn.disabled = false;
       if (!panel) return;
       panel.classList.add('has-route');
       if (distEl)  distEl.textContent  = distKm.toFixed(1) + ' km';
@@ -1082,16 +1465,21 @@
     }
 
     function calcTransportFare(custLat, custLng) {
+      var routeRequestId = ++_routeRequestId;
       // Show spinner
       var spinner = document.getElementById('mapLocatingSpinner');
+      var spinnerLabel = document.getElementById('mapSpinnerLabel');
+      if (spinnerLabel) spinnerLabel.textContent = 'Calculating route...';
       if (spinner) spinner.classList.add('show');
       window._companyBaseLocationPromise.then(function(base) {
+        if (routeRequestId !== _routeRequestId) return;
         if (!base || !base.lat || !base.lng) { if (spinner) spinner.classList.remove('show'); return; }
         var farePerKm = window._farePerKm || 40;
         var url = '/api/services/osrm-route?coords=' + encodeURIComponent(base.lng + ',' + base.lat + ';' + custLng + ',' + custLat);
         fetch(url)
           .then(function(r) { return r.json(); })
           .then(function(routeData) {
+            if (routeRequestId !== _routeRequestId) return;
             var isRoad = false;
             if (routeData && routeData.routes && routeData.routes.length > 0) {
               var distKm = routeData.routes[0].distance / 1000;
@@ -1120,6 +1508,7 @@
             updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, isRoad);
           })
           .catch(function() {
+            if (routeRequestId !== _routeRequestId) return;
             var R = 6371;
             var dLat = ((custLat - base.lat) * Math.PI) / 180;
             var dLng = ((custLng - base.lng) * Math.PI) / 180;
@@ -1177,9 +1566,9 @@
       const payLabels = {
         cash_onsite:  '💵 Cash On-Site (Pay upon visit)',
         cash:         '💵 Cash on Delivery (Full amount)',
-        downpayment:  '💰 Downpayment — 10% via GCash, balance on delivery',
+        downpayment:  `💰 Downpayment — ${window.downpaymentPercentage || 10}% via GCash, balance on delivery`,
         gcash_full:   '📱 GCash — Full payment now',
-        cod:          '🚚 Cash on Delivery — 10% down via GCash, balance on delivery'
+        cod:          `🚚 Cash on Delivery — ${window.downpaymentPercentage || 10}% down via GCash, balance on delivery`
       };
       details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
 
@@ -1218,80 +1607,182 @@
       document.getElementById('reviewTotal').textContent = `₱${total.toLocaleString()}`;
     }
 
-    // Same Map Init logic
+    function escapeMapText(value) {
+      return String(value || '').replace(/[&<>"']/g, function(char) {
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[char];
+      });
+    }
+
+    function updateMapSelectionDetails(lat, lng, address, source) {
+      _customerLocationSelected = true;
+      _lastCustomerLat = Number(lat);
+      _lastCustomerLng = Number(lng);
+      document.getElementById('wizardLat').value = _lastCustomerLat.toFixed(7);
+      document.getElementById('wizardLng').value = _lastCustomerLng.toFixed(7);
+
+      var panel = document.getElementById('mapSelectionPanel');
+      var status = document.getElementById('mapSelectionStatus');
+      var addressPreview = document.getElementById('mapAddressPreview');
+      var coordinateDisplay = document.getElementById('mapCoordinateDisplay');
+      var coordinateSource = document.getElementById('mapCoordinateSource');
+      var fitRouteBtn = document.getElementById('fitRouteBtn');
+      if (panel) panel.classList.add('has-location');
+      if (status) status.textContent = 'Delivery pin confirmed';
+      if (addressPreview) addressPreview.textContent = address || 'Resolving the selected street address...';
+      if (coordinateDisplay) coordinateDisplay.textContent = _lastCustomerLat.toFixed(6) + ', ' + _lastCustomerLng.toFixed(6);
+      if (coordinateSource) coordinateSource.textContent = source || 'Map selection';
+      if (fitRouteBtn) fitRouteBtn.disabled = false;
+
+      if (leafletMarker) {
+        leafletMarker.setOpacity(1);
+        var popupAddress = address || 'Selected delivery point';
+        leafletMarker.bindPopup('<strong style="color:#991b1b;">Delivery Location</strong><br>' + escapeMapText(popupAddress) + '<br><small>' + _lastCustomerLat.toFixed(6) + ', ' + _lastCustomerLng.toFixed(6) + '</small>');
+      }
+    }
+
+    function reverseGeocodeDeliveryPoint(lat, lng, source) {
+      var requestId = ++_reverseGeocodeRequestId;
+      var addressInput = document.getElementById('wizardAddress');
+      return fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&zoom=18&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lng))
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (requestId !== _reverseGeocodeRequestId) return '';
+          var resolvedAddress = data && data.display_name ? data.display_name : (Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6));
+          if (addressInput) addressInput.value = resolvedAddress;
+          updateMapSelectionDetails(lat, lng, resolvedAddress, source);
+          return resolvedAddress;
+        })
+        .catch(function() {
+          if (requestId !== _reverseGeocodeRequestId) return '';
+          var coordinateAddress = Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6);
+          if (addressInput) addressInput.value = coordinateAddress;
+          updateMapSelectionDetails(lat, lng, coordinateAddress, source);
+          return coordinateAddress;
+        });
+    }
+
+    function setCustomerMapLocation(lat, lng, options) {
+      options = options || {};
+      lat = Number(lat); lng = Number(lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !leafletMap || !leafletMarker) return;
+      leafletMarker.setLatLng([lat, lng]);
+      if (options.zoom !== false) leafletMap.flyTo([lat, lng], Number(options.zoom) || 16, { duration: .65 });
+      updateMapSelectionDetails(lat, lng, options.address || '', options.source || 'Map selection');
+      calcTransportFare(lat, lng);
+      if (options.reverseGeocode === false) {
+        var addressInput = document.getElementById('wizardAddress');
+        if (addressInput && options.address) addressInput.value = options.address;
+      } else {
+        reverseGeocodeDeliveryPoint(lat, lng, options.source || 'Map selection');
+      }
+    }
+
     function initMap() {
       const mapEl = document.getElementById('wizardMap');
-      if (!mapEl) return;
-      if (leafletMap) { leafletMap.remove(); leafletMap = null; leafletMarker = null; }
-      const defaultLat = 14.5995; const defaultLng = 120.9842;
-      leafletMap = L.map('wizardMap', { zoomControl: false }).setView([defaultLat, defaultLng], 12);
-      L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(leafletMap);
-      const customPinIcon = L.divIcon({ className: 'custom-map-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body"></div>' });
-      leafletMarker = L.marker([defaultLat, defaultLng], { icon: customPinIcon, draggable: true }).addTo(leafletMap);
+      if (!mapEl || typeof L === 'undefined') return;
+      const savedLat = parseFloat(document.getElementById('wizardLat').value);
+      const savedLng = parseFloat(document.getElementById('wizardLng').value);
+      const hasSavedLocation = Number.isFinite(savedLat) && Number.isFinite(savedLng);
+      const defaultBase = window._companyBaseLocation || { lat: 14.676049, lng: 121.043731 };
+      const defaultLat = hasSavedLocation ? savedLat : Number(defaultBase.lat) || 14.676049;
+      const defaultLng = hasSavedLocation ? savedLng : Number(defaultBase.lng) || 121.043731;
+
+      if (leafletMap) leafletMap.remove();
+      leafletMap = null; leafletMarker = null;
+      window._routeLayer = null; window._companyMarker = null;
+
+      leafletMap = L.map('wizardMap', { zoomControl:false, scrollWheelZoom:false, preferCanvas:true }).setView([defaultLat, defaultLng], hasSavedLocation ? 16 : 13);
+      L.control.zoom({ position:'bottomright' }).addTo(leafletMap);
+      L.control.scale({ position:'bottomleft', imperial:false, maxWidth:120 }).addTo(leafletMap);
+
+      _streetMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution:'&copy; OpenStreetMap contributors', maxNativeZoom:19, maxZoom:19
+      }).addTo(leafletMap);
+      const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'Tiles &copy; Esri', maxZoom:19
+      });
+      const satelliteLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution:'Labels &copy; Esri', maxZoom:19
+      });
+      _satelliteMapLayer = L.layerGroup([satelliteImagery, satelliteLabels]);
+      L.control.layers({ 'Detailed streets':_streetMapLayer, 'Satellite + labels':_satelliteMapLayer }, null, { position:'topright', collapsed:true }).addTo(leafletMap);
+
+      const customPinIcon = L.divIcon({ className:'custom-map-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body"></div>' });
+      leafletMarker = L.marker([defaultLat, defaultLng], { icon:customPinIcon, draggable:true, keyboard:true, title:'Delivery location' }).addTo(leafletMap);
+      leafletMarker.setOpacity(hasSavedLocation ? 1 : 0);
+      leafletMarker.bindTooltip('Delivery location', { direction:'top', offset:[0,-34] });
 
       window._companyBaseLocationPromise.then(function(base) {
-        if (!base || !base.lat || !base.lng || !leafletMap) return;
-        const companyIcon = L.divIcon({ className: 'custom-map-pin tech-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></i></div>' });
-        if (window._companyMarker) { window._companyMarker.remove(); }
-        window._companyMarker = L.marker([base.lat, base.lng], { icon: companyIcon, zIndexOffset: -100 }).addTo(leafletMap).bindPopup("<b>Company Location</b><br/>" + (base.address || ""));
+        if (!base || !Number(base.lat) || !Number(base.lng) || !leafletMap) return;
+        const companyIcon = L.divIcon({ className:'custom-map-pin tech-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);"></i></div>' });
+        window._companyMarker = L.marker([Number(base.lat),Number(base.lng)], { icon:companyIcon, zIndexOffset:-100, keyboard:true, title:'CALIDRO RACS' }).addTo(leafletMap);
+        window._companyMarker.bindTooltip('CALIDRO RACS', { direction:'top', offset:[0,-34] });
+        window._companyMarker.bindPopup('<strong style="color:#1d4ed8;">CALIDRO RACS</strong><br>' + escapeMapText(base.address || 'Company location') + '<br><small>Delivery route starting point</small>');
+        if (!_customerLocationSelected && !hasSavedLocation) leafletMap.setView([Number(base.lat),Number(base.lng)], 14);
       });
 
-      // Helper: update calendar with new customer position
-      window.updateCustomerLocation = function(lat, lng) {
-        document.getElementById('wizardLat').value = lat;
-        document.getElementById('wizardLng').value = lng;
-      };
-
-      // Updates
-      leafletMarker.on('dragend', function () {
+      leafletMarker.on('dragend', function() {
         const pos = leafletMarker.getLatLng();
-        updateCustomerLocation(pos.lat, pos.lng);
-        calcTransportFare(pos.lat, pos.lng);
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`)
-          .then(r => r.json()).then(d => { if (d.display_name) document.getElementById('wizardAddress').value = d.display_name; }).catch(() => { });
+        setCustomerMapLocation(pos.lat, pos.lng, { source:'Dragged delivery pin', zoom:false });
+      });
+      leafletMap.on('click', function(e) {
+        setCustomerMapLocation(e.latlng.lat, e.latlng.lng, { source:'Point selected on map', zoom:false });
       });
 
-      leafletMap.on('click', function (e) {
-        leafletMarker.setLatLng(e.latlng);
-        updateCustomerLocation(e.latlng.lat, e.latlng.lng);
-        calcTransportFare(e.latlng.lat, e.latlng.lng);
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
-          .then(r => r.json()).then(d => { if (d.display_name) document.getElementById('wizardAddress').value = d.display_name; }).catch(() => { });
-      });
-
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-          leafletMap.flyTo([lat, lng], 15);
-          leafletMarker.setLatLng([lat, lng]);
-          updateCustomerLocation(lat, lng);
-          calcTransportFare(lat, lng);
-        }, () => { }, { enableHighAccuracy: true });
+      if (hasSavedLocation) {
+        const savedAddress = document.getElementById('wizardAddress').value.trim();
+        updateMapSelectionDetails(savedLat, savedLng, savedAddress, 'Saved checkout location');
+        calcTransportFare(savedLat, savedLng);
       }
-      setTimeout(() => leafletMap.invalidateSize(), 150);
+      setTimeout(function() { if (leafletMap) leafletMap.invalidateSize(); }, 180);
     }
-    window.locateMe = function () {
+
+    window.locateMe = function() {
       if (!leafletMap || !leafletMarker) return;
-      if (navigator.geolocation) {
-        const addrInput = document.getElementById('wizardAddress');
-        if (addrInput) addrInput.value = 'Detecting your location...';
-        navigator.geolocation.getCurrentPosition(function (pos) {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          leafletMap.flyTo([lat, lng], 16);
-          leafletMarker.setLatLng([lat, lng]);
-          updateCustomerLocation(lat, lng);
-          calcTransportFare(lat, lng);
-          if (addrInput) addrInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-            .then(r => r.json()).then(d => { if (d.display_name && addrInput) addrInput.value = d.display_name; }).catch(() => {});
-        }, function () {
-          Swal.fire('Location Error', 'Unable to retrieve your location. Please check your GPS settings.', 'warning');
-        }, { enableHighAccuracy: true });
-      } else {
+      if (!navigator.geolocation) {
         Swal.fire('Not Supported', 'Geolocation is not supported by your browser.', 'warning');
+        return;
       }
+      const spinner = document.getElementById('mapLocatingSpinner');
+      const spinnerLabel = document.getElementById('mapSpinnerLabel');
+      if (spinnerLabel) spinnerLabel.textContent = 'Locating your device...';
+      if (spinner) spinner.classList.add('show');
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        setCustomerMapLocation(pos.coords.latitude, pos.coords.longitude, {
+          source: pos.coords.accuracy ? 'Device GPS · ±' + Math.round(pos.coords.accuracy) + ' m' : 'Device GPS',
+          zoom:17
+        });
+      }, function(error) {
+        if (spinner) spinner.classList.remove('show');
+        var message = error && error.code === 1
+          ? 'Location permission was denied. Allow location access or search for your address instead.'
+          : 'Unable to retrieve your location. Search for your address or select the point on the map.';
+        Swal.fire('Location unavailable', message, 'warning');
+      }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
+    };
+
+    window.fitDeliveryRoute = function() {
+      if (!leafletMap) return;
+      if (window._routeLayer && window._routeLayer.getBounds && window._routeLayer.getBounds().isValid()) {
+        leafletMap.fitBounds(window._routeLayer.getBounds(), { padding:[45,45] });
+        return;
+      }
+      window._companyBaseLocationPromise.then(function(base) {
+        if (_customerLocationSelected && base && Number(base.lat) && Number(base.lng)) {
+          leafletMap.fitBounds([[Number(base.lat),Number(base.lng)],[_lastCustomerLat,_lastCustomerLng]], { padding:[45,45] });
+        } else if (base && Number(base.lat) && Number(base.lng)) {
+          leafletMap.setView([Number(base.lat),Number(base.lng)], 14);
+        }
+      });
+    };
+
+    window.toggleCheckoutMapSize = function() {
+      var card = document.getElementById('checkoutMapCard');
+      var button = document.getElementById('expandMapBtn');
+      if (!card) return;
+      var expanded = card.classList.toggle('map-expanded');
+      if (button) button.innerHTML = expanded ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>' : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
+      setTimeout(function() { if (leafletMap) leafletMap.invalidateSize(); }, 280);
     };
 
     // Address Search
@@ -1303,6 +1794,8 @@
       addrInput.addEventListener('input', function () {
         clearTimeout(addressSearchTimeout);
         const q = this.value.trim();
+        const preview = document.getElementById('mapAddressPreview');
+        if (_customerLocationSelected && preview && q) preview.textContent = q;
         if (q.length < 3) { suggestBox.style.display = 'none'; return; }
         addressSearchTimeout = setTimeout(() => searchAddress(q), 500);
       });
@@ -1312,28 +1805,49 @@
 
     async function searchAddress(q) {
       if (!q) return;
+      if (searchBtn) {
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
+      }
       try {
         const res = await fetch(`/api/services/geocode-suggest?q=${encodeURIComponent(q)}`);
         const data = await res.json();
         if (data.suggestions && data.suggestions.length > 0) {
-          suggestBox.innerHTML = data.suggestions.map(s => `
-          <button class="list-group-item list-group-item-action border-0 py-2 small" onclick="selectSuggestion('${s.lat}', '${s.lon}', '${s.display_name.replace(/'/g, "\\'")}')">
-            <i class="bi bi-geo-alt me-2 text-primary"></i>${s.display_name}
-          </button>
-        `).join('');
+          suggestBox.innerHTML = '';
+          data.suggestions.forEach(function(suggestion) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action border-0 py-2 small text-start d-flex align-items-start gap-2';
+            var icon = document.createElement('i');
+            icon.className = 'bi bi-geo-alt-fill text-primary mt-1';
+            var text = document.createElement('span');
+            text.textContent = suggestion.display_name;
+            button.appendChild(icon);
+            button.appendChild(text);
+            button.addEventListener('click', function() { selectSuggestion(suggestion.lat, suggestion.lon, suggestion.display_name); });
+            suggestBox.appendChild(button);
+          });
           suggestBox.style.display = 'block';
-        } else { suggestBox.style.display = 'none'; }
-      } catch (e) { }
+        } else {
+          suggestBox.innerHTML = '<div class="list-group-item border-0 py-3 small text-secondary"><i class="bi bi-search me-2"></i>No matching address found. Add a municipality or province.</div>';
+          suggestBox.style.display = 'block';
+        }
+      } catch (e) {
+        suggestBox.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the location on the map.</div>';
+        suggestBox.style.display = 'block';
+      } finally {
+        if (searchBtn) {
+          searchBtn.disabled = false;
+          searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+        }
+      }
     }
 
     window.selectSuggestion = function (lat, lon, name) {
       addrInput.value = name;
       suggestBox.style.display = 'none';
       const flat = parseFloat(lat); const flon = parseFloat(lon);
-      document.getElementById('wizardLat').value = flat;
-      document.getElementById('wizardLng').value = flon;
-      if (leafletMap && leafletMarker) { leafletMap.flyTo([flat, flon], 16); leafletMarker.setLatLng([flat, flon]); }
-      calcTransportFare(flat, flon);
+      setCustomerMapLocation(flat, flon, { address:name, source:'Address search result', zoom:16, reverseGeocode:false });
     }
 
     document.addEventListener('click', (e) => { if (suggestBox && !suggestBox.contains(e.target) && e.target !== addrInput) { suggestBox.style.display = 'none'; } });

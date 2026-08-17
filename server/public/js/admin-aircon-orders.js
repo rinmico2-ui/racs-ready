@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ CONSTANTS ═══════════════════════════════════════════════════════════════
   const STATUS_LABELS = {
     pending_payment: "Pending Payment", preparing_unit: "Preparing Unit",
+    ready_for_pickup: "Ready for Pickup",
     technician_assigned: "Technician Assigned", out_for_delivery: "Out for Delivery",
     arrived: "Arrived", installing: "Installing", completed: "Completed", cancelled: "Cancelled"
   };
@@ -28,15 +29,11 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ SPARKLINE HELPERS ═══════════════════════════════════════════════════════
   function spark(ctx, data, color){
     if(!ctx || !window.Chart) return null;
-    var h = ctx.canvas.height || ctx.canvas.offsetHeight || 40;
-    var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, color);
-    g.addColorStop(1, 'rgba(255,255,255,0)');
     return new Chart(ctx, {
       type: 'line',
       data: {
         labels: data.map(function(_,i){ return i+1; }),
-        datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }]
+        datasets: [{ data: data, borderColor: color, backgroundColor: 'transparent', fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -80,6 +77,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (target.includes('overview'))       currentTab = "overview";
       else if (target.includes('payment'))   currentTab = "payment";
       else if (target.includes('assign'))    currentTab = "assign";
+      else if (target.includes('pickup'))    currentTab = "pickup";
       else if (target.includes('waiting'))   currentTab = "waiting";
       else if (target.includes('active'))    currentTab = "active";
       else if (target.includes('completed')) currentTab = "completed";
@@ -93,6 +91,7 @@ document.addEventListener("DOMContentLoaded", function () {
       case "overview":   loadOverview(); break;
       case "payment":    loadPaymentTab(); break;
       case "assign":     loadAssignTab(); break;
+      case "pickup":     loadPickupTab(); break;
       case "waiting":    loadWaitingAcceptTab(); break;
       case "active":     loadActiveTab(); break;
       case "completed":  loadCompletedTab(); break;
@@ -104,13 +103,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById(containerId);
     if (!container) return;
     const gradients = {
-      blue: 'linear-gradient(135deg,#2563eb,#1d4ed8)',
-      amber: 'linear-gradient(135deg,#f59e0b,#d97706)',
-      green: 'linear-gradient(135deg,#10b981,#059669)',
-      purple: 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
-      cyan: 'linear-gradient(135deg,#06b6d4,#0891b2)',
-      red: 'linear-gradient(135deg,#ef4444,#dc2626)',
-      rose: 'linear-gradient(135deg,#f43f5e,#e11d48)'
+      blue: '#2563eb',
+      amber: '#f59e0b',
+      green: '#10b981',
+      purple: '#8b5cf6',
+      cyan: '#06b6d4',
+      red: '#ef4444',
+      rose: '#f43f5e'
     };
     const sparkColors = {
       blue: '#2563eb', amber: '#f59e0b', green: '#10b981',
@@ -185,13 +184,19 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function viewBtn(id) {
-    return `<button class="btn btn-sm btn-outline-secondary ao-action-btn" onclick="window._aoViewOrder('${esc(id)}')"><i class="bi bi-eye me-1"></i>View</button>`;
+    return `<button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoViewOrder('${esc(id)}')"><i class="bi bi-eye me-1"></i>View</button>`;
   }
   function verifyBtn(id) {
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoVerifyPayment('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Verify</button>`;
   }
   function assignBtn(o) {
     return `<button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoAssignTechnician('${esc(o._id)}','${esc(orderRef(o))}','${esc((o.customer&&o.customer.name)||'Customer')}','${esc(o.delivery&&o.delivery.preferredDate||'')}','${esc(o.timeSlot||'')}')"><i class="bi bi-person-badge me-1"></i>Assign</button>`;
+  }
+  function markReadyBtn(id) {
+    return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoMarkReadyForPickup('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Mark Ready</button>`;
+  }
+  function confirmPickupBtn(id) {
+    return `<button class="btn btn-sm btn-dark ao-action-btn" onclick="window._aoConfirmPickup('${esc(id)}')"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
   }
 
   // ═══ PAGINATION ══════════════════════════════════════════════════════════════
@@ -246,12 +251,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
       container.innerHTML = orders.map(o => {
         const hasTech = o.technicianId || (o.technician && o.technician.name);
+        const isPickup = o.fulfillmentType === 'customer_pickup';
         let actions = viewBtn(o._id);
-        if (o.status === 'pending_payment' && o.paymentStatus !== 'paid') {
+        if (o.status === 'pending_payment' && (o.paymentStatus||'pending') === 'pending') {
           actions += verifyBtn(o._id);
         }
-        if ((o.status === 'pending_payment' || o.status === 'preparing_unit' || o.status === 'technician_declined') && !hasTech) {
+        if (!isPickup && (o.status === 'pending_payment' || o.status === 'preparing_unit' || o.status === 'technician_declined') && !hasTech) {
           actions += assignBtn(o);
+        }
+        if (isPickup && o.status === 'preparing_unit') {
+          actions += markReadyBtn(o._id);
+        }
+        if (isPickup && o.status === 'ready_for_pickup') {
+          actions += confirmPickupBtn(o._id);
         }
         return orderCard(o, actions);
       }).join("");
@@ -291,13 +303,17 @@ document.addEventListener("DOMContentLoaded", function () {
         const pStatus = (o.paymentStatus||"pending").toLowerCase();
         const pBadge = `ao-st-payment ${pStatus==="paid"?"paid":pStatus==="failed"?"failed":"pending"}`;
         const hasTech = o.technicianId || (o.technician && o.technician.name);
+        const isPickup = o.fulfillmentType === 'customer_pickup';
 
         let actions = viewBtn(o._id);
-        if (pStatus !== "paid") {
+        if (pStatus === "pending") {
           actions += verifyBtn(o._id);
         }
-        if ((pStatus === "paid" || o.status === "pending_payment") && !hasTech) {
+        if (!isPickup && (pStatus === "paid" || o.status === "pending_payment") && !hasTech) {
           actions += assignBtn(o);
+        }
+        if (isPickup && o.status === 'preparing_unit') {
+          actions += markReadyBtn(o._id);
         }
 
         return orderCard(o, actions) +
@@ -319,7 +335,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const data = await res.json();
       const orders = (data.orders || []).filter(o =>
         (o.status === "pending_payment" || o.status === "preparing_unit" || o.status === "technician_declined") &&
-        !o.technicianId && !(o.technician && o.technician.name)
+        !o.technicianId && !(o.technician && o.technician.name) &&
+        o.fulfillmentType !== "customer_pickup"
       );
 
       setText("aoTabAssignBadge", orders.length);
@@ -335,6 +352,47 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id) + assignBtn(o))).join("");
+    } catch(err) {
+      container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
+    }
+  }
+
+  // ═══ READY FOR PICKUP TAB ═══════════════════════════════════════════════════
+  async function loadPickupTab() {
+    const container = document.getElementById("aoPickupContainer");
+    container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading pickup orders...</p></div>';
+
+    try {
+      const res = await fetch("/api/orders/all?limit=100&fulfillmentType=customer_pickup");
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const orders = (data.orders || []);
+      const pendingPickup = orders.filter(o => o.status === "ready_for_pickup");
+      const preparing = orders.filter(o => o.status === "preparing_unit");
+      const completedPickup = orders.filter(o => o.status === "completed");
+
+      setText("aoTabPickupBadge", pendingPickup.length);
+      renderStats("aoPickupStats", [
+        { icon: "bi-bag-check", color: "green", value: pendingPickup.length, label: "Ready for Pickup", sub: "Awaiting customer" },
+        { icon: "bi-gear", color: "blue", value: preparing.length, label: "Preparing", sub: "Being prepared" },
+        { icon: "bi-check-circle", color: "purple", value: completedPickup.length, label: "Picked Up", sub: "Completed pickups" },
+      ]);
+
+      const allRelevant = [...preparing, ...pendingPickup];
+      if (!allRelevant.length) {
+        container.innerHTML = '<div class="ao-empty"><i class="bi bi-check-circle" style="color:#10b981;"></i><p>No pickup orders to process</p></div>';
+        return;
+      }
+
+      container.innerHTML = allRelevant.map(o => {
+        let actions = viewBtn(o._id);
+        if (o.status === "preparing_unit") {
+          actions += markReadyBtn(o._id);
+        } else if (o.status === "ready_for_pickup") {
+          actions += confirmPickupBtn(o._id);
+        }
+        return orderCard(o, actions);
+      }).join("");
     } catch(err) {
       container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
     }
@@ -371,7 +429,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const techName = o.technician?.name || 'Unknown';
         const techPhone = o.technician?.phone || o.technician?.contact || '—';
         return orderCard(o, `
-          <button class="btn btn-sm btn-outline-secondary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
+          <button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
           <span class="small text-muted ms-2">Assigned to ${esc(techName)} at ${assignedAt}</span>
         `);
       }).join("");
@@ -447,7 +505,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!modal) return;
     modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading order details...</p></div>';
     modalSubtitle.textContent = "Loading...";
-    modalFooter.innerHTML = '<button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Close</button>';
+    modalFooter.innerHTML = '';
+    modalFooter.style.display = 'none';
     modal.show();
 
     try {
@@ -518,6 +577,8 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="pm-card-body">
               <div class="pm-row"><span class="pm-lbl">Method</span><span class="pm-val">${PAYMENT_METHOD_LABELS[o.paymentMethod]||o.paymentMethod||'N/A'}</span></div>
               <div class="pm-row"><span class="pm-lbl">Status</span><span class="pm-val"><span class="badge ${pBadgeClass}">${(o.paymentStatus||'Pending').toUpperCase()}</span></span></div>
+              ${o.downpaymentAmount>0?`<div class="pm-row"><span class="pm-lbl">Downpayment (${Number(o.downpaymentPercentage||10)}%)</span><span class="pm-val">${currency(o.downpaymentAmount)}</span></div>`:''}
+              ${o.balanceAmount>0?`<div class="pm-row"><span class="pm-lbl">Remaining Balance</span><span class="pm-val">${currency(o.balanceAmount)}</span></div>`:''}
               ${o.gcashNumber?`<div class="pm-row"><span class="pm-lbl">GCash Number</span><span class="pm-val">${esc(o.gcashNumber)}</span></div>`:''}
               ${o.gcashProofUrl?`<div class="pm-row"><span class="pm-lbl">Receipt</span><span class="pm-val"><button type="button" class="btn btn-sm btn-outline-primary" onclick="window.openAoImage('${esc(o.gcashProofUrl).replace(/'/g, "\\'")}')"><i class="bi bi-image me-1"></i>View Receipt</button></span></div>`:''}
             </div>
@@ -559,16 +620,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
       modalBody.innerHTML = html;
 
-      let footerBtns = '<button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Close</button>';
-      if (o.status === "pending_payment" && o.paymentStatus !== "paid") {
+      let footerBtns = '';
+      const isPickup = o.fulfillmentType === 'customer_pickup';
+      if (o.status === "pending_payment" && (o.paymentStatus||"pending") === "pending") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoVerifyPayment('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Verify Payment</button>`;
+      }
+      if (isPickup && o.status === "preparing_unit") {
+        footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoMarkReadyForPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Mark Ready for Pickup</button>`;
+      }
+      if (isPickup && o.status === "ready_for_pickup") {
+        footerBtns += `<button type="button" class="btn btn-sm btn-dark fw-bold" onclick="window._aoConfirmPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
       }
       const assignableStatuses = ["pending_payment","preparing_unit"];
       const hasTech = o.technicianId || (o.technician && o.technician.name);
-      if (assignableStatuses.includes(o.status) && !hasTech) {
+      if (!isPickup && assignableStatuses.includes(o.status) && !hasTech) {
         footerBtns += `<button type="button" class="btn btn-sm btn-primary fw-bold" onclick="window._aoAssignTechnician('${esc(o._id)}','${esc(refText)}','${esc((o.customer&&o.customer.name)||'Customer')}','${esc(o.delivery&&o.delivery.preferredDate||'')}','${esc(o.timeSlot||'')}')" style="border-radius:8px;"><i class="bi bi-person-badge me-1"></i>Assign Technician</button>`;
       }
       modalFooter.innerHTML = footerBtns;
+      modalFooter.style.display = footerBtns ? '' : 'none';
     } catch(err) {
       modalBody.innerHTML = '<p class="text-center text-danger py-4">Failed to load order details</p>';
     }
@@ -597,6 +666,60 @@ document.addEventListener("DOMContentLoaded", function () {
       if (modal && orderId) window._aoViewOrder(orderId);
     } catch(err) {
       Swal.fire({title:"Error",text:err.message||"Network error",icon:"error",buttonsStyling:false,customClass:{confirmButton:"btn btn-primary px-4 py-2 rounded-pill fw-bold",popup:"rounded-4"}});
+    }
+  };
+
+  // ═══ MARK READY FOR PICKUP ══════════════════════════════════════════════════
+  window._aoMarkReadyForPickup = async function (orderId) {
+    const result = await Swal.fire({
+      title: "Mark as Ready?",
+      html: `Mark this order as <strong>Ready for Pickup</strong>?<br><small class="text-muted">The customer will be notified that their unit is ready.</small>`,
+      icon: "question", showCancelButton: true, confirmButtonText: "Yes, Mark Ready", cancelButtonText: "Cancel",
+      input: "text", inputPlaceholder: "Note (optional)...",
+      buttonsStyling: false,
+      customClass: { popup: "rounded-4 border-0 shadow-sm", title: "fw-bolder fs-5 text-dark", confirmButton: "btn btn-success px-4 py-2 rounded-pill me-2 fw-bold", cancelButton: "btn btn-light border px-4 py-2 rounded-pill fw-bold" }
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/mark-ready-for-pickup`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: result.value || "Unit ready for customer pickup" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      Swal.fire({ title: "Ready!", text: "Order marked as ready for pickup.", icon: "success", timer: 1500, showConfirmButton: false, customClass: { popup: "rounded-4" } });
+      loadTab(currentTab);
+      if (modal && orderId) window._aoViewOrder(orderId);
+    } catch (err) {
+      Swal.fire({ title: "Error", text: err.message || "Network error", icon: "error", buttonsStyling: false, customClass: { confirmButton: "btn btn-primary px-4 py-2 rounded-pill fw-bold", popup: "rounded-4" } });
+    }
+  };
+
+  // ═══ CONFIRM PICKUP ═════════════════════════════════════════════════════════
+  window._aoConfirmPickup = async function (orderId) {
+    const result = await Swal.fire({
+      title: "Confirm Pickup?",
+      html: `Confirm that the customer has <strong>picked up</strong> their unit?<br><small class="text-muted">This will mark the order as completed.</small>`,
+      icon: "question", showCancelButton: true, confirmButtonText: "Yes, Confirm Pickup", cancelButtonText: "Cancel",
+      input: "text", inputPlaceholder: "Pickup note (optional)...",
+      buttonsStyling: false,
+      customClass: { popup: "rounded-4 border-0 shadow-sm", title: "fw-bolder fs-5 text-dark", confirmButton: "btn btn-dark px-4 py-2 rounded-pill me-2 fw-bold", cancelButton: "btn btn-light border px-4 py-2 rounded-pill fw-bold" }
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/confirm-pickup`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: result.value || "Customer picked up unit" })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      Swal.fire({ title: "Completed!", text: "Order marked as completed.", icon: "success", timer: 1500, showConfirmButton: false, customClass: { popup: "rounded-4" } });
+      loadTab(currentTab);
+      if (modal && orderId) window._aoViewOrder(orderId);
+    } catch (err) {
+      Swal.fire({ title: "Error", text: err.message || "Network error", icon: "error", buttonsStyling: false, customClass: { confirmButton: "btn btn-primary px-4 py-2 rounded-pill fw-bold", popup: "rounded-4" } });
     }
   };
 

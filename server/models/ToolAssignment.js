@@ -27,6 +27,11 @@ const toolAssignmentSchema = new mongoose.Schema(
     // ── Snapshot ─────────────────────────────────────────────────────────────
     toolName: { type: String, trim: true, required: true },
     toolBarcode: { type: String, trim: true, default: "" },
+    itemType: {
+      type: String,
+      enum: ["equipment", "part", "consumable", "tool"],
+      default: "equipment",
+    },
     quantity: { type: Number, default: 1, min: 1 },
 
     // ── Status ───────────────────────────────────────────────────────────────

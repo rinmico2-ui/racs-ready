@@ -79,9 +79,26 @@
           f.style.height=(i/(t-1)*100)+'%';
           if(l)l.textContent=step;
         }
+        function isLocationEntered(){
+          if(typeof RepairState!=='undefined' && RepairState.location && RepairState.location.address && RepairState.location.lat && RepairState.location.lng) return true;
+          var li=document.getElementById('locationInput');
+          if(li && li.value.trim().length>=10) return true;
+          return false;
+        }
         function navigateToStep(step){
+          var currentStep=parseInt(document.getElementById('stepperCurrentStep').textContent || '1');
+          if(step>currentStep && step>3 && !isLocationEntered()){
+            var li=document.getElementById('locationInput');
+            if(li) li.focus();
+            var msg='Please enter and confirm your service location before continuing.';
+            if(typeof showAlert==='function') showAlert(msg,'warning'); else alert(msg);
+            navigateToStep(3);
+            return;
+          }
           var maxStep=1;
-          if(typeof RepairState!=='undefined'&&RepairState.currentStep){
+          if(typeof RepairState!=='undefined' && RepairState._maxReachedStep){
+            maxStep=RepairState._maxReachedStep;
+          }else if(typeof RepairState!=='undefined' && RepairState.currentStep){
             maxStep=RepairState.currentStep;
           }else{
             var all=document.querySelectorAll('.booking-step');
@@ -171,30 +188,43 @@
         </div>
       </div>
       <div class='row g-3' id='unitCategoryGrid'>
-        <div class='col-md-4'>
-          <div class='unit-category-card' data-category='aircon' onclick='selectUnitCategory(this.dataset.category)'>
-            <div class='unit-category-icon blue'><i class='bi bi-snow'></i></div>
-            <div class='unit-category-label'>Air Conditioning</div>
-            <div class='unit-category-count'>5 unit types</div>
-            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+        <% if (typeof serviceCategories !== 'undefined' && serviceCategories.length) { %>
+          <% serviceCategories.forEach(function(cat) { %>
+          <div class='col-md-4'>
+            <div class='unit-category-card' data-category='<%= cat.slug %>' onclick='selectUnitCategory(this.dataset.category)'>
+              <div class='unit-category-icon <%= cat.iconColor %>'><i class='bi <%= cat.icon %>'></i></div>
+              <div class='unit-category-label'><%= cat.name %></div>
+              <div class='unit-category-count'><%= cat.isCustom ? 'Custom description' : cat.unitTypes.length + ' unit types' %></div>
+              <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+            </div>
           </div>
-        </div>
-        <div class='col-md-4'>
-          <div class='unit-category-card' data-category='appliance' onclick='selectUnitCategory(this.dataset.category)'>
-            <div class='unit-category-icon amber'><i class='bi bi-house-gear'></i></div>
-            <div class='unit-category-label'>Home Appliances</div>
-            <div class='unit-category-count'>9 unit types</div>
-            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+          <% }); %>
+        <% } else { %>
+          <div class='col-md-4'>
+            <div class='unit-category-card' data-category='aircon' onclick='selectUnitCategory(this.dataset.category)'>
+              <div class='unit-category-icon blue'><i class='bi bi-snow'></i></div>
+              <div class='unit-category-label'>Air Conditioning</div>
+              <div class='unit-category-count'>5 unit types</div>
+              <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+            </div>
           </div>
-        </div>
-        <div class='col-md-4'>
-          <div class='unit-category-card' data-category='other' onclick='selectUnitCategory(this.dataset.category)'>
-            <div class='unit-category-icon violet'><i class='bi bi-plus-circle'></i></div>
-            <div class='unit-category-label'>Other</div>
-            <div class='unit-category-count'>Custom description</div>
-            <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+          <div class='col-md-4'>
+            <div class='unit-category-card' data-category='appliance' onclick='selectUnitCategory(this.dataset.category)'>
+              <div class='unit-category-icon amber'><i class='bi bi-house-gear'></i></div>
+              <div class='unit-category-label'>Home Appliances</div>
+              <div class='unit-category-count'>9 unit types</div>
+              <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+            </div>
           </div>
-        </div>
+          <div class='col-md-4'>
+            <div class='unit-category-card' data-category='other' onclick='selectUnitCategory(this.dataset.category)'>
+              <div class='unit-category-icon violet'><i class='bi bi-plus-circle'></i></div>
+              <div class='unit-category-label'>Other</div>
+              <div class='unit-category-count'>Custom description</div>
+              <div class='unit-category-check'><i class='bi bi-check-circle-fill'></i></div>
+            </div>
+          </div>
+        <% } %>
       </div>
       <input type='hidden' id='unitType' value='' />
     </section>
@@ -231,7 +261,7 @@
           <label class='form-label' for='unitQuantity'><i class='bi bi-stack me-2 text-primary'></i>Number of Units <span class='text-muted fw-normal'>(optional)</span></label>
           <div class='input-group quantity-stepper'>
             <button class='btn btn-outline-secondary' type='button' id='repairQtyMinus'>−</button>
-            <input type='number' class='form-control text-center' id='unitQuantity' value='1' min='1' max='999' />
+            <input type='number' class='form-control text-center' id='unitQuantity' value='1' min='1' max='40' />
             <button class='btn btn-outline-secondary' type='button' id='repairQtyPlus'>+</button>
           </div>
           <div class='step2-hint'><i class='bi bi-info-circle me-1'></i>Multiple units may be scheduled as a multi-day project.</div>
@@ -259,6 +289,7 @@
       </div>
       <label class='form-label' for='problemDescription'><i class='bi bi-chat-square-text me-2 text-primary'></i>Detailed Issue</label>
       <textarea class='form-control' id='problemDescription' rows='4' required placeholder='Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water...'></textarea>
+      <div class="mt-4 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;"><div class="d-flex justify-content-between align-items-center gap-3 flex-wrap"><div><strong>Repair Service Slots</strong><div class="small text-muted">Add the configured appliance as a service before continuing.</div><span class="badge bg-secondary-subtle text-secondary mt-2" id="repairServiceCount">0 services added</span></div><button type="button" class="btn btn-primary" onclick="addCurrentRepairItem()"><i class="bi bi-plus-circle me-1"></i>Add Repair Service</button></div><div id="repairServiceItems" class="mt-3"></div></div>
       <div class='d-flex justify-content-between align-items-center mt-2'>
         <div class='step2-hint'><i class='bi bi-info-circle me-1'></i>The more details you provide, the better our technician can prepare.</div>
         <div class='step2-hint' id='charCount'>0 / 500</div>
@@ -284,9 +315,12 @@
   </div>
 
   <div class='step2-actions'>
-    <button type='button' class='ent-btn-primary' onclick='validateAndContinue(2)'>
+    <button type='button' class='ent-btn-primary' id='continueToLocationBtn' onclick='validateAndContinue(2)' disabled>
       <i class='bi bi-arrow-right-circle me-2'></i>Continue to Location
     </button>
+    <div id='continueHint' class='small text-muted mt-2' style='display:none;'>
+      <i class='bi bi-info-circle me-1'></i>Add at least one repair service above to continue.
+    </div>
   </div>
 </div>
 <!-- Step 3: Location -->
@@ -595,8 +629,9 @@
                   <div class="text-center mb-3">
                     <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
                     <img id="gcashQrImage"
-                      src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-GCASH-REPAIR"
+                      src=""
                       alt="GCash QR Code" class="img-thumbnail" style="max-width:200px;border-radius:12px;" />
+                    <div class="small text-muted mt-2">GCash number: <strong id="repairGcashNumber">Not configured</strong></div>
                   </div>
                   <div class="mb-3">
                     <label class="form-label text-muted small fw-semibold">Your GCash mobile number <span class="text-danger">*</span></label>
@@ -618,9 +653,9 @@
                         style="width:32px;height:32px;background:#d97706;flex-shrink:0;">
                         <i class="bi bi-cash-stack text-white" style="font-size:0.9rem;"></i>
                       </div>
-                      <span class="fw-bold" style="color:#92400e;">Pay Cash on Completion</span>
+                      <span class="fw-bold" style="color:#92400e;">GCash Downpayment + Cash Balance</span>
                     </div>
-                    <p class="mb-0 small text-muted ps-4">A <strong>downpayment</strong> is required to secure your slot. Pay the balance after repair is done.</p>
+                    <p class="mb-0 small text-muted ps-4">Pay the configured downpayment through GCash to secure the inspection, then settle the remaining inspection balance on-site.</p>
                   </div>
 
                   <!-- Why Downpayment -->
@@ -629,7 +664,7 @@
                       <i class="bi bi-info-circle text-primary mt-1" style="font-size:0.95rem;"></i>
                       <div class="small" style="color:#1e40af;line-height:1.6;">
                         <strong>Why is a downpayment required?</strong><br>
-                        The downpayment covers the <em>diagnostic/inspection fee</em> and <em>travel fare</em> for our technician to visit your location. This confirms your booking and reserves your slot. The remaining balance for parts and labor is paid only after the repair is completed and you're satisfied with the work.
+                        The percentage applies to the diagnostic/inspection fee plus travel fare. Repair parts and labor are quoted separately after diagnosis, so they are not included in this initial payment.
                       </div>
                     </div>
                   </div>
@@ -640,7 +675,7 @@
                     <div class="rounded-3 p-3" style="background:linear-gradient(135deg,rgba(59,130,246,0.06),rgba(6,182,212,0.04));border:1px solid rgba(59,130,246,0.15);">
                       <div class="d-flex justify-content-between align-items-center">
                         <div>
-                          <div class="fw-bold" style="color:#0f172a;font-size:0.95rem;">Downpayment (20% of Inspection)</div>
+                          <div class="fw-bold" style="color:#0f172a;font-size:0.95rem;" id="repairDownpaymentPolicyLabel">Downpayment (10% of inspection total)</div>
                           <small class="text-muted">This amount is collected upfront to confirm your booking.</small>
                         </div>
                         <div class="fs-3 fw-bold text-primary" id="cashDownpaymentDisplay">&#8369;0</div>
@@ -653,8 +688,8 @@
                   <div id="balancePreview" class="rounded-3 p-3 mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0;">
                     <div class="d-flex justify-content-between align-items-center">
                       <div>
-                        <div class="fw-semibold" style="color:#166534;font-size:0.9rem;">Balance After Repair</div>
-                        <small class="text-muted">Pay on-site when repair is completed</small>
+                        <div class="fw-semibold" style="color:#166534;font-size:0.9rem;">Remaining Inspection Balance</div>
+                        <small class="text-muted">Pay on-site during the inspection visit</small>
                       </div>
                       <div class="fw-bold" style="color:#166534;font-size:1.1rem;" id="balanceAmountDisplay">&#8369;0</div>
                     </div>
@@ -664,9 +699,9 @@
                   <div class="text-center mb-3">
                     <label class="form-label text-muted d-block fw-semibold">Scan to Pay Downpayment</label>
                     <img id="cashQrImage"
-                      src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RACSREADY-CASH-DOWNPAYMENT"
+                      src=""
                       alt="Cash Downpayment QR Code" class="img-thumbnail" style="max-width:200px;border-radius:12px;" />
-                    <small class="text-muted d-block mt-2" style="font-size:0.82rem;">Show this QR at the counter or scan via your banking app</small>
+                    <small class="text-muted d-block mt-2" style="font-size:0.82rem;">GCash number: <strong id="repairCashGcashNumber">Not configured</strong></small>
                   </div>
 
                   <!-- Proof of Payment -->
@@ -784,36 +819,36 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0" style="background:transparent;border-radius:20px;box-shadow:none;">
             <div class="modal-body text-center py-0">
-              <div class="racs-lw">
-                <div class="racs-rs">
-                  <div class="racs-sl"><div class="racs-r r1"></div><div class="racs-r r2"></div><div class="racs-r r3"></div><div class="racs-r r4"></div></div>
-                  <div class="racs-vc">
-                    <svg class="racs-vs" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+              <div class="racs-loader">
+                <div class="racs-scene">
+                  <div class="racs-glow"></div>
+                  <div class="racs-carwrap">
+                    <svg viewBox="0 0 320 185" xmlns="http://www.w3.org/2000/svg">
                       <defs>
-                        <linearGradient id="wg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38bdf8"/><stop offset="50%" stop-color="#0284c7"/><stop offset="100%" stop-color="#0f172a"/></linearGradient>
-                        <linearGradient id="vb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="80%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
-                        <linearGradient id="hb" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(250,204,21,0.6)"/><stop offset="100%" stop-color="rgba(250,204,21,0)"/></linearGradient>
-                        <filter id="gl"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        <linearGradient id="racsPaint" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+                        <linearGradient id="racsWin" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#60a5fa"/></linearGradient>
+                        <radialGradient id="racsHead" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="rgba(254,240,138,0)"/></radialGradient>
+                        <filter id="racsShadow"><feGaussianBlur stdDeviation="3"/></filter>
                       </defs>
-                      <path d="M 330 95 L 450 60 L 450 130 Z" fill="url(#hb)" class="racs-bm"/>
-                      <ellipse cx="180" cy="155" rx="140" ry="8" fill="rgba(0,0,0,0.3)" class="racs-sh"/>
-                      <path d="M 30 140 L 30 50 Q 30 30 50 30 L 220 30 Q 250 30 270 45 L 320 80 Q 340 95 340 110 L 340 140 Z" fill="url(#vb)" stroke="#94a3b8" stroke-width="1"/>
-                      <path d="M 320 110 L 345 110 Q 350 110 350 120 L 345 145 L 315 145 Z" fill="#334155"/><rect x="335" y="115" width="8" height="20" rx="2" fill="#0f172a"/>
-                      <path d="M 25 120 L 35 120 L 35 145 L 25 145 Z" fill="#334155"/>
-                      <path d="M 120 40 L 210 40 Q 230 40 245 50 L 285 85 L 285 95 L 120 95 Z" fill="url(#wg)"/><line x1="210" y1="40" x2="210" y2="95" stroke="#1e293b" stroke-width="6"/>
-                      <path d="M 130 45 L 150 45 L 140 90 L 125 90 Z" fill="rgba(255,255,255,0.2)"/><path d="M 230 48 L 245 48 L 265 70 L 250 70 Z" fill="rgba(255,255,255,0.2)"/>
-                      <path d="M 40 100 L 320 100" stroke="#cbd5e1" stroke-width="2"/><path d="M 40 130 L 300 130" stroke="#cbd5e1" stroke-width="1"/>
-                      <path d="M 30 70 Q 100 70 150 140 L 30 140 Z" fill="#1d4ed8" opacity="0.9"/><path d="M 60 70 Q 120 70 170 140 L 50 140 Z" fill="#3b82f6" opacity="0.6"/>
-                      <text x="60" y="115" font-family="'Arial Black',sans-serif" font-size="34" font-weight="900" fill="#fff" letter-spacing="1">RACS</text>
-                      <text x="60" y="130" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#fff" letter-spacing="1">AIRCONDITIONING</text>
-                      <rect x="330" y="90" width="12" height="15" rx="3" fill="#fef08a" filter="url(#gl)"/><rect x="28" y="80" width="4" height="25" rx="1" fill="#ef4444" filter="url(#gl)"/>
-                      <g class="racs-wh" transform="translate(90,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
-                      <g class="racs-wh" transform="translate(280,140)"><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#94a3b8"/><circle cx="0" cy="0" r="12" fill="#e2e8f0"/><circle cx="0" cy="0" r="4" fill="#0f172a"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="4"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="4"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="4"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="4"/></g>
+                      <ellipse cx="160" cy="168" rx="115" ry="5" fill="rgba(0,0,0,0.3)" filter="url(#racsShadow)"/>
+                      <path d="M 40 132 L 40 108 Q 40 88 58 83 L 85 79 Q 92 62 112 59 L 208 59 Q 228 62 235 79 L 262 83 Q 280 88 280 108 L 280 132 L 248 132 Q 238 114 223 114 Q 208 114 198 132 L 122 132 Q 112 114 97 114 Q 82 114 72 132 Z" fill="url(#racsPaint)" stroke="#94a3b8" stroke-width="0.8"/>
+                      <path d="M 90 77 L 205 77 Q 220 77 224 66 L 224 62 L 112 62 Q 98 62 98 72 L 98 77 Z" fill="url(#racsWin)" opacity="0.85"/>
+                      <path d="M 95 75 L 200 75 L 215 66 L 105 66 Z" fill="rgba(255,255,255,0.2)"/>
+                      <rect x="40" y="95" width="7" height="14" rx="3.5" fill="#ef4444"/>
+                      <circle cx="265" cy="100" r="10" fill="url(#racsHead)"/>
+                      <circle cx="265" cy="100" r="6" fill="#fde047"/>
+                      <rect x="145" y="55" width="30" height="5" rx="2.5" fill="#fbbf24"/>
+                      <text x="138" y="108" font-family="Arial Black,sans-serif" font-size="12" font-weight="900" fill="#1e40af" letter-spacing="1">RACS</text>
+                      <g transform="translate(97,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
+                      <g transform="translate(223,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
                     </svg>
                   </div>
-                  <div class="racs-rb"><div class="racs-rm"></div></div>
+                  <div class="racs-track"><div class="racs-track-dash"></div></div>
                 </div>
-                <div class="racs-lt"><h3 class="racs-t">Processing Request...</h3><p class="racs-st">Dispatching your RACS technician...</p></div>
+                <div class="racs-progress"><div class="racs-progress-fill"></div></div>
+                <span class="racs-title">Processing Request...</span>
+                <span class="racs-desc">Dispatching your RACS technician...</span>
+                <div class="racs-pulse"><span></span><span></span><span></span></div>
               </div>
             </div>
           </div>
@@ -821,28 +856,28 @@
       </div>
 
       <style>
-        .racs-lw{background:rgba(15,23,42,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:40px 30px;max-width:500px;margin:0 auto;box-shadow:0 30px 60px -15px rgba(0,0,0,0.6);position:relative;overflow:hidden}
-        .racs-rs{position:relative;height:180px;width:100%;margin-bottom:20px}
-        .racs-vc{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:320px;animation:rv 0.4s cubic-bezier(0.4,0,0.2,1) infinite alternate}
-        @keyframes rv{from{transform:translateX(-50%) translateY(0)}to{transform:translateX(-50%) translateY(-2px)}}
-        .racs-vs{width:100%;height:auto;filter:drop-shadow(0 15px 15px rgba(0,0,0,0.4))}
-        .racs-wh{transform-origin:0 0;animation:ws 0.3s linear infinite}
-        @keyframes ws{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        .racs-bm{animation:bp2 1.5s infinite alternate}
-        @keyframes bp2{from{opacity:0.6}to{opacity:1}}
-        .racs-rb{position:absolute;bottom:0;left:-50%;width:200%;height:8px;background:#334155;border-radius:4px}
-        .racs-rm{width:100%;height:100%;background:repeating-linear-gradient(90deg,transparent,transparent 40px,#94a3b8 40px,#94a3b8 80px);animation:rm 0.4s linear infinite}
-        @keyframes rm{from{transform:translateX(0)}to{transform:translateX(-80px)}}
-        .racs-sl{position:absolute;top:0;left:0;width:100%;height:100%}
-        .racs-r{position:absolute;background:rgba(255,255,255,0.1);height:2px;border-radius:2px;animation:rsl linear infinite}
-        .r1{top:30%;width:60px;right:-60px;animation-duration:0.8s;animation-delay:0.1s}
-        .r2{top:50%;width:100px;right:-100px;animation-duration:0.6s;animation-delay:0.3s}
-        .r3{top:70%;width:40px;right:-40px;animation-duration:0.9s;animation-delay:0.2s}
-        .r4{top:40%;width:80px;right:-80px;animation-duration:0.7s;animation-delay:0.5s}
-        @keyframes rsl{0%{transform:translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(-500px);opacity:0}}
-        .racs-lt{text-align:center}
-        .racs-t{color:#f8fafc;font-size:1.3rem;font-weight:700;margin-bottom:0.4rem}
-        .racs-st{color:#94a3b8;font-size:0.9rem;margin:0}
+        .racs-loader{background:linear-gradient(160deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);border-radius:24px;padding:40px 32px;max-width:480px;margin:0 auto;box-shadow:0 25px 60px -15px rgba(30,58,138,0.5);position:relative;overflow:hidden}
+        .racs-scene{position:relative;height:230px;margin-bottom:28px;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)}
+        .racs-glow{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);width:300px;height:120px;background:radial-gradient(ellipse,rgba(96,165,250,0.2) 0%,transparent 70%);pointer-events:none}
+        .racs-carwrap{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:340px;animation:racsBob 0.6s ease-in-out infinite alternate}
+        @keyframes racsBob{from{transform:translateX(-50%) translateY(0)}to{transform:translateX(-50%) translateY(-4px)}}
+        .racs-carwrap svg{width:100%;height:auto;display:block}
+        .racs-wheel{transform-box:fill-box;transform-origin:center;animation:racsSpin 0.5s linear infinite}
+        @keyframes racsSpin{to{transform:rotate(360deg)}}
+        .racs-track{position:absolute;bottom:0;left:0;width:100%;height:20px}
+        .racs-track-dash{position:absolute;bottom:8px;left:0;width:200%;height:4px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.5) 0,rgba(255,255,255,0.5) 30px,transparent 30px,transparent 60px);animation:racsTrack 0.6s linear infinite}
+        @keyframes racsTrack{from{transform:translateX(0)}to{transform:translateX(-60px)}}
+        .racs-progress{width:100%;height:5px;background:rgba(255,255,255,0.12);border-radius:99px;overflow:hidden;margin-bottom:22px}
+        .racs-progress-fill{height:100%;width:35%;border-radius:99px;background:linear-gradient(90deg,#60a5fa,#93c5fd,#60a5fa);background-size:200% 100%;animation:racsProg 1.5s ease-in-out infinite,racsShimmer 2s linear infinite}
+        @keyframes racsProg{0%{transform:translateX(-100%)}100%{transform:translateX(386%)}}
+        @keyframes racsShimmer{0%{background-position:0% 0}100%{background-position:200% 0}}
+        .racs-title{display:block;text-align:center;font-size:1.2rem;font-weight:700;color:#fff;margin-bottom:8px;letter-spacing:0.3px}
+        .racs-desc{display:block;text-align:center;font-size:0.88rem;color:rgba(255,255,255,0.6);margin-bottom:18px}
+        .racs-pulse{display:flex;justify-content:center;gap:7px}
+        .racs-pulse span{width:8px;height:8px;border-radius:50%;background:#60a5fa;animation:racsPulse 1.4s ease-in-out infinite}
+        .racs-pulse span:nth-child(2){animation-delay:0.2s}
+        .racs-pulse span:nth-child(3){animation-delay:0.4s}
+        @keyframes racsPulse{0%,100%{opacity:0.3;transform:scale(0.7)}50%{opacity:1;transform:scale(1.15)}}
       </style>
 
       <script>
@@ -3440,5 +3475,6 @@
 </style>
 
 <link rel="stylesheet" href="/css/enterprise-calendar.css">
+<script>window._serviceCategories = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>;</script>
 <script src="/js/enterprise-calendar.js"></script>
-<script src="/js/repair-request.js"></script>
+<script src="/js/repair-request.js?v=20260816-whole-peso-downpayment"></script>

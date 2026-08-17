@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const RESERVATION_STATUSES = ["reserved", "fulfilled", "cancelled"];
-const MATERIAL_TYPES = ["part", "equipment", "tool"];
+const MATERIAL_TYPES = ["part", "equipment", "consumable", "tool"];
 
 const projectMaterialSchema = new mongoose.Schema({
   projectId: {

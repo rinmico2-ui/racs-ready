@@ -163,6 +163,11 @@
         if (otpInput) otpInput.focus();
         return;
       }
+      if (!/^\d{6}$/.test(otp)) {
+        window.authUtils.swalError('Invalid code', 'Please enter the 6-digit code.');
+        if (otpInput) otpInput.focus();
+        return;
+      }
       setLoading(true);
       try {
         var resp = await fetch('/api/auth/verify-login-otp', {
@@ -198,6 +203,9 @@
     if (!email) {
       showFieldError(emailInput, 'Email is required');
       hasError = true;
+    } else if (email.length > 254) {
+      showFieldError(emailInput, 'Email cannot exceed 254 characters');
+      hasError = true;
     } else if (!window.authUtils.validateEmail(email)) {
       showFieldError(emailInput, 'Please enter a valid email');
       hasError = true;
@@ -205,8 +213,8 @@
     if (!password) {
       showFieldError(passwordInput, 'Password is required');
       hasError = true;
-    } else if (password.length > 20) {
-      showFieldError(passwordInput, 'Password cannot exceed 20 characters');
+    } else if (password.length > 128) {
+      showFieldError(passwordInput, 'Password cannot exceed 128 characters');
       hasError = true;
     }
     if (!mathCaptcha) {

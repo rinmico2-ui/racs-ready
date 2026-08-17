@@ -1,349 +1,247 @@
-<div class="admin-dashboard container-fluid py-4 walkin-page">
+﻿<div class="admin-dashboard container-fluid py-4 walkin-page">
   <%- include('../../../partials/dashboard-styles') %>
 
   <style>
-    .walkin-page .walkin-shell { position: relative; }
+    :root{--sv-b:#2563eb;--sv-bd:#1d4ed8;--sv-bl:#60a5fa;--sv-bs:rgba(37,99,235,0.08);--sv-g:#10b981;--sv-r:#ef4444;--sv-c:#f59e0b;--sv-f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;--sv-r1:12px;--sv-r2:16px;--sv-sh:0 2px 16px rgba(15,23,42,0.04);--sv-sh2:0 8px 32px rgba(15,23,42,0.06);--sv-e:cubic-bezier(0.16,1,0.3,1)}
+    .walkin-page{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
+    .walkin-page .walkin-shell{position:relative}
 
-    /* ── Layout ─────────────────────────────────────────── */
-    .walkin-page .booking-layout {
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
+    /* Enterprise Hero */
+    .walkin-page .ent-hero{position:relative;overflow:hidden;padding:3.5rem 0 4rem;background:linear-gradient(160deg,#e0f2fe 0%,#f0fdf4 35%,#e0e7ff 70%,#ede9fe 100%);border-bottom:1px solid rgba(37,99,235,0.06);border-radius:20px;margin-bottom:1.5rem}
+    .walkin-page .ent-hero-orb{position:absolute;border-radius:50%;pointer-events:none;filter:blur(60px)}
+    .walkin-page .ent-hero-orb-1{width:400px;height:400px;background:radial-gradient(circle,rgba(37,99,235,0.08) 0%,transparent 70%);top:-120px;right:-60px}
+    .walkin-page .ent-hero-orb-2{width:280px;height:280px;background:radial-gradient(circle,rgba(6,182,212,0.07) 0%,transparent 70%);bottom:-80px;left:20%}
+    .walkin-page .ent-hero-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 18px 7px 16px;border-radius:9999px;font-size:0.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:linear-gradient(135deg,rgba(37,99,235,0.1),rgba(37,99,235,0.04));color:#1d4ed8;border:1px solid rgba(37,99,235,0.12);margin-bottom:1.25rem;box-shadow:0 2px 8px rgba(15,23,42,0.03)}
+    .walkin-page .ent-hero-title{font-size:clamp(2rem,4vw,2.8rem);font-weight:800;color:#0f172a;letter-spacing:-1.5px;line-height:1.1;margin:0 0 0.75rem}
+    .walkin-page .ent-gradient-text{background:linear-gradient(135deg,#2563eb,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .walkin-page .ent-hero-subtitle{font-size:1.05rem;color:#475569;max-width:580px;line-height:1.7;margin:0 0 1.5rem}
+    .walkin-page .ent-trust-badges{display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+    .walkin-page .ent-trust-item{display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;color:#1e293b}
+    .walkin-page .ent-trust-item i{color:#059669;font-size:0.85rem}
+    .walkin-page .ent-trust-divider{width:3px;height:3px;border-radius:50%;background:#cbd5e1}
 
-    /* ── Horizontal Progress Stepper ───────────────────── */
-    .walkin-page .horizontal-stepper {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    }
-    .walkin-page .stepper-list {
-      margin: 0; padding: 0; list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-    .walkin-page .stepper-step {
-      flex: 1;
-      border: none;
-      background: transparent;
-      text-align: center;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      color: #94a3b8;
-      font-size: 0.75rem;
-      cursor: pointer;
-      position: relative;
-      transition: all .25s ease;
-    }
-    .walkin-page .stepper-step:hover { color: #64748b; }
-    .walkin-page .stepper-step.is-active { color: #2563eb; }
-    .walkin-page .stepper-step.is-completed { color: #1e40af; }
-    .walkin-page .stepper-icon {
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 2px solid #e2e8f0;
-      background: #fff;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.85rem;
-      flex-shrink: 0;
-      transition: all .25s ease;
-      position: relative;
-      z-index: 2;
-    }
-    .walkin-page .stepper-step.is-active .stepper-icon {
-      border-color: #2563eb;
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(37,99,235,.3);
-    }
-    .walkin-page .stepper-step.is-completed .stepper-icon {
-      border-color: #2563eb;
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(16,185,129,.3);
-    }
-    .walkin-page .stepper-text {
-      font-weight: 500;
-      font-size: 0.75rem;
-      max-width: 80px;
-      line-height: 1.2;
-    }
-    .walkin-page .stepper-step.is-active .stepper-text {
-      font-weight: 600;
-    }
+    /* Enterprise Stepper (Pill) */
+    .walkin-page .ent-stepper{background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(15,23,42,0.04);position:sticky;top:84px;z-index:40}
+    .walkin-page .ent-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem}
+    .walkin-page .ent-h span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
+    .walkin-page .ent-h span:last-child{font-size:0.72rem;color:#64748b;font-weight:600}
+    .walkin-page .ent-h span:last-child span{color:var(--sv-b)}
+    .walkin-page .ent-tr{display:flex;justify-content:space-between;background:#f1f5f9;border-radius:9999px;padding:3px;gap:2px;overflow-x:auto}
+    .walkin-page .ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap;border:none;background:transparent}
+    .walkin-page .ent-n.active{background:var(--sv-b);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,0.2)}
+    .walkin-page .ent-n.completed{background:#f0fdf4;color:#16a34a}
+    .walkin-page .ent-n:hover{background:#e2e8f0;color:#475569}
+    .walkin-page .ent-n.active:hover{background:var(--sv-b)}
+    .walkin-page .ent-ni{font-size:0.85rem;display:flex}
 
-    /* horizontal connector line */
-    .walkin-page .stepper-list::before {
-      content: "";
-      position: absolute;
-      top: 18px;
-      left: 40px;
-      right: 40px;
-      height: 2px;
-      background: #e2e8f0;
-      z-index: 1;
-    }
-    .walkin-page .stepper-step:not(:last-child)::after {
-      content: "";
-      position: absolute;
-      top: 18px;
-      left: 50%;
-      width: 100%;
-      height: 2px;
-      background: #e2e8f0;
-      z-index: 1;
-    }
-    .walkin-page .stepper-step.is-completed:not(:last-child)::after {
-      background: linear-gradient(90deg, #10b981, #e2e8f0);
-    }
+    /* Enterprise Step Cards */
+    .walkin-page .ent-step-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;margin-bottom:1.5rem;overflow:hidden;box-shadow:0 4px 20px rgba(15,23,42,0.05);animation:stepFadeIn .35s ease both}
+    @keyframes stepFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .walkin-page .ent-step-card:hover{box-shadow:0 8px 32px rgba(15,23,42,0.08);border-color:#cbd5e1}
+    .walkin-page .ent-step-header{display:flex;align-items:center;gap:12px;padding:1.15rem 1.5rem;background:linear-gradient(135deg,#fafbff,#f8fafc);border-bottom:1px solid #eef2f6}
+    .walkin-page .ent-step-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.15rem;color:#fff}
+    .walkin-page .ent-step-icon.step-customer{background:linear-gradient(135deg,#2563eb,#1d4ed8)}
+    .walkin-page .ent-step-icon.step-services{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+    .walkin-page .ent-step-icon.step-location{background:linear-gradient(135deg,#10b981,#059669)}
+    .walkin-page .ent-step-icon.step-calendar{background:linear-gradient(135deg,#f59e0b,#b45309)}
+    .walkin-page .ent-step-icon.step-fee{background:linear-gradient(135deg,#ec4899,#be123c)}
+    .walkin-page .ent-step-icon.step-payment{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+    .walkin-page .ent-step-icon.step-review{background:linear-gradient(135deg,#10b981,#047857)}
+    .walkin-page .ent-step-info h5{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;margin:0 0 3px}
+    .walkin-page .ent-step-info p{font-size:1.1rem;font-weight:700;color:#0f172a;margin:0}
+    .walkin-page .ent-step-body{padding:1.5rem}
 
-    /* ── Booking Step Panels ────────────────────────────── */
-    .walkin-page .booking-step {
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      background: #fff;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-      transition: box-shadow .3s ease;
-      animation: stepFadeIn .35s ease both;
-    }
-    .walkin-page .booking-step:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,.06);
-    }
-    .walkin-page .booking-step h5 {
-      font-size: 1.05rem; font-weight: 700; color: #1e293b;
-      margin-bottom: .25rem;
-    }
-    .walkin-page .booking-step h5 i { color: #2563eb; }
-    @keyframes stepFadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+    /* Enterprise Buttons */
+    .walkin-page .ent-btn-primary{display:inline-flex;align-items:center;gap:8px;padding:0.65rem 1.5rem;border-radius:12px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.25s var(--sv-e);text-decoration:none;border:none;background:linear-gradient(135deg,var(--sv-b),var(--sv-bd));color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.2)}
+    .walkin-page .ent-btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,0.3);color:#fff}
+    .walkin-page .ent-btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+    .walkin-page .ent-btn-outline{display:inline-flex;align-items:center;gap:8px;padding:0.65rem 1.5rem;border-radius:12px;font-weight:700;font-size:0.88rem;cursor:pointer;transition:all 0.25s var(--sv-e);text-decoration:none;border:1.5px solid #cbd5e1;background:transparent;color:#475569}
+    .walkin-page .ent-btn-outline:hover{border-color:var(--sv-b);color:var(--sv-b);background:rgba(37,99,235,0.04)}
 
-    /* ── Service Cards (enterprise style — matches services.ejs) ───────── */
-    .walkin-page .service-card {
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-      border: 1px solid rgba(13, 110, 253, 0.12) !important;
-      min-height: 280px;
-      background: #ffffff;
-      border-radius: 1.4rem;
-      cursor: pointer;
-    }
-    .walkin-page .service-card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 18px 45px rgba(13, 110, 253, 0.12) !important;
-      border-color: rgba(13, 110, 253, 0.24) !important;
-    }
-    .walkin-page .service-card.active {
-      border-color: #0d6efd !important;
-      background: linear-gradient(145deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0.02));
-      box-shadow: 0 15px 35px rgba(13, 110, 253, 0.15) !important;
-    }
-    .walkin-page .service-icon {
-      width: 54px; height: 54px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 16px;
-      background: rgba(13, 110, 253, 0.12);
-      color: #0d6efd;
-      flex-shrink: 0;
-    }
-    .walkin-page .service-card .card-title {
-      font-size: .95rem; font-weight: 600; color: #1e293b;
-      margin-bottom: 4px;
-    }
-    .walkin-page .price-box {
-      display: inline-flex; align-items: center; justify-content: center;
-      padding: 0.75rem 1rem; border-radius: 999px;
-      background: rgba(13, 110, 253, 0.08);
-      min-width: 130px;
-      font-weight: 700; font-size: .88rem; color: #0d6efd;
-    }
-    .walkin-page .service-card-chip {
-      padding: 0.45rem 0.8rem; border-radius: 999px;
-      font-size: 0.8rem; letter-spacing: 0.01em;
-    }
+    /* Enterprise Service Section */
+    .walkin-page .ent-svc-section{background:linear-gradient(135deg,#fafbff 0%,#f8fafc 100%);border:1px solid rgba(148,163,184,0.12);border-radius:16px;padding:1.25rem;margin-bottom:1rem}
+    .walkin-page .ent-svc-section-header{display:flex;align-items:center;gap:12px;padding-bottom:1rem;margin-bottom:1rem;border-bottom:1px solid rgba(148,163,184,0.1)}
+    .walkin-page .ent-svc-section-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(139,92,246,0.04));border:1px solid rgba(139,92,246,0.1);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#7c3aed;flex-shrink:0}
+    .walkin-page .ent-svc-section-title{font-size:0.92rem;font-weight:700;color:#0f172a;margin:0;letter-spacing:-0.2px}
+    .walkin-page .ent-svc-section-sub{font-size:0.78rem;color:#64748b;margin:2px 0 0}
 
-    /* ── Suggested Cards ────────────────────────────────── */
-    .walkin-page .suggested-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 12px; cursor: pointer;
-      transition: all .2s ease;
-      background: #fff;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-      padding: 1rem;
-    }
-    .walkin-page .suggested-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 20px rgba(0,0,0,.07);
-    }
-    .walkin-page .suggested-card.active {
-      border-color: #2563eb;
-      background: linear-gradient(135deg, #eff6ff, #dbeafe);
-      box-shadow: 0 4px 14px rgba(37,99,235,.12);
-    }
+    /* Layout */
+    .walkin-page .booking-layout{display:flex;flex-direction:column;gap:1.5rem}
 
-    /* ── Calendar ───────────────────────────────────────── */
-    .walkin-page .calendar-grid {
-      display: grid; grid-template-columns: repeat(7, minmax(0,1fr));
-      gap: 6px;
-    }
-    .walkin-page .calendar-cell {
-      border: 1px solid #e2e8f0;
-      border-radius: 10px; min-height: 52px;
-      background: #fff; font-weight: 600; font-size: .84rem;
-      position: relative; transition: all .15s ease;
-    }
-    .walkin-page .calendar-cell:hover:not(.disabled):not([data-status="booked"]):not([data-status="blocked"]) {
-      border-color: #93c5fd; background: #f0f7ff;
-    }
-    .walkin-page .calendar-cell.is-selected {
-      border-color: #2563eb; background: #eff6ff; color: #1e40af;
-      box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-    }
-    .walkin-page .calendar-cell.disabled { opacity: .5; cursor: not-allowed; }
-    .walkin-page .calendar-cell[data-status="booked"] {
-      background: #fef2f2; border-color: #fecaca; color: #b91c1c;
-    }
-    .walkin-page .calendar-cell[data-status="blocked"],
-    .walkin-page .calendar-cell[data-status="public"] {
-      background: #f8fafc; color: #94a3b8;
-    }
+    /* Service Cards */
+    .walkin-page .service-card{transition:transform 0.2s ease,box-shadow 0.2s ease,border-color 0.2s ease;border:1px solid rgba(13,110,253,0.12)!important;min-height:280px;background:#fff;border-radius:1.4rem;cursor:pointer}
+    .walkin-page .service-card:hover{transform:translateY(-6px);box-shadow:0 18px 45px rgba(13,110,253,0.12)!important;border-color:rgba(13,110,253,0.24)!important}
+    .walkin-page .service-card.active{border-color:#0d6efd!important;background:linear-gradient(145deg,rgba(13,110,253,0.08),rgba(13,110,253,0.02));box-shadow:0 15px 35px rgba(13,110,253,0.15)!important}
+    .walkin-page .service-icon{width:54px;height:54px;display:flex;align-items:center;justify-content:center;border-radius:16px;background:rgba(13,110,253,0.12);color:#0d6efd;flex-shrink:0}
+    .walkin-page .service-card .card-title{font-size:.95rem;font-weight:600;color:#1e293b;margin-bottom:4px}
+    .walkin-page .price-box{display:inline-flex;align-items:center;justify-content:center;padding:0.75rem 1rem;border-radius:999px;background:rgba(13,110,253,0.08);min-width:130px;font-weight:700;font-size:.88rem;color:#0d6efd}
+    .walkin-page .service-card-chip{padding:0.45rem 0.8rem;border-radius:999px;font-size:0.8rem;letter-spacing:0.01em}
+    .walkin-page .add-service-btn{border-radius:10px;font-weight:600;font-size:0.82rem;padding:8px 16px;transition:all 0.2s}
 
-    /* ── Time Slots ─────────────────────────────────────── */
-    .walkin-page #timeSlots { display: flex; flex-wrap: wrap; gap: 8px; }
-    .walkin-page #timeSlots .time-slot {
-      flex: 1 1 calc(33.333% - 8px); max-width: calc(33.333% - 8px);
-      border-radius: 10px;
-      border: 1px solid rgba(37,99,235,.1);
-      background: #fff; text-align: left;
-      transition: all .15s ease;
-    }
-    .walkin-page #timeSlots .time-slot:hover { border-color: #93c5fd; background: #f0f7ff; }
-    .walkin-page #timeSlots .time-slot.active {
-      background: #eff6ff; border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
-    }
+    /* Calendar */
+    .walkin-page .calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+    .walkin-page .calendar-cell{border:1px solid #e2e8f0;border-radius:10px;min-height:52px;background:#fff;font-weight:600;font-size:.84rem;position:relative;transition:all .15s ease}
+    .walkin-page .calendar-cell:hover:not(.disabled):not([data-status=booked]):not([data-status=blocked]){border-color:#93c5fd;background:#f0f7ff}
+    .walkin-page .calendar-cell.is-selected{border-color:#2563eb;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 6px 24px rgba(37,99,235,0.3)}
+    .walkin-page .calendar-cell.disabled{opacity:.5;cursor:not-allowed}
+    .walkin-page .calendar-cell[data-status=booked]{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+    .walkin-page .calendar-cell[data-status=blocked],.walkin-page .calendar-cell[data-status=public]{background:#f8fafc;color:#94a3b8}
 
-    /* ── Map ────────────────────────────────────────────── */
-    .walkin-page .map-wrap {
-      border: 1px solid #e2e8f0;
-      border-radius: 14px; overflow: hidden; background: #fff;
-    }
-    .walkin-page .technician-map { height: 290px; width: 100%; }
+    /* Time Slots */
+    .walkin-page #timeSlots{display:block}
+    .walkin-page #timeSlots .time-slot{flex:1 1 calc(33.333% - 8px);max-width:calc(33.333% - 8px);border-radius:10px;border:1px solid rgba(37,99,235,.1);background:#fff;text-align:left;transition:all .15s ease}
+    .walkin-page #timeSlots .time-slot:hover{border-color:#93c5fd;background:#f0f7ff}
+    .walkin-page #timeSlots .time-slot.active{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:#2563eb;color:#fff;box-shadow:0 4px 16px rgba(37,99,235,0.25)}
 
-    /* ── Payment Tabs ───────────────────────────────────── */
-    .walkin-page .payment-tabs {
-      display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap;
-    }
-    .walkin-page .payment-tab {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 12px 18px; border-radius: 12px;
-      background: #fff; border: 2px solid #e2e8f0;
-      cursor: pointer; font-weight: 500;
-      transition: all .2s ease;
-    }
-    .walkin-page .payment-tab:hover { border-color: #93c5fd; background: #f8fafc; }
-    .walkin-page .payment-tab.active {
-      background: #eff6ff; border-color: #2563eb; color: #1e40af;
-      box-shadow: 0 0 0 3px rgba(37,99,235,.08);
-    }
+    /* Map */
+    .walkin-page .map-wrap{border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;background:#fff}
+    .walkin-page .technician-map{height:340px;width:100%;border-radius:14px}
 
-    /* ── Summary Box ────────────────────────────────────── */
-    .walkin-page .summary-box {
-      background: #f8fafc; border: 1px solid #e2e8f0;
-      border-radius: 12px; padding: 14px;
-      font-size: .86rem; color: #334155;
-    }
+    /* Enterprise Payment Tabs */
+    .walkin-page .ent-payment-tabs{display:flex;gap:10px;max-width:600px;margin:0 auto 1.5rem}
+    .walkin-page .ent-payment-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:0.75rem 1rem;border-radius:12px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-weight:600;font-size:0.85rem;cursor:pointer;transition:all 0.25s var(--sv-e)}
+    .walkin-page .ent-payment-tab:hover{border-color:#94a3b8}
+    .walkin-page .ent-payment-tab.active{border-color:var(--sv-b);background:rgba(37,99,235,0.04);color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
+    .walkin-page .ent-payment-tab i{font-size:1.1rem}
 
-    /* ── Walkin Actions ─────────────────────────────────── */
-    .walkin-page .walkin-actions {
-      display: flex; flex-wrap: wrap; gap: 10px;
-      margin-top: 1rem; padding-top: 1rem;
-      border-top: 1px solid #f1f5f9;
-    }
-    .walkin-page .walkin-actions .btn {
-      border-radius: 10px; font-weight: 600; font-size: .85rem;
-      padding: 10px 24px;
-      transition: all .2s ease;
-    }
+    /* RV Card (Fee/Review) */
+    .walkin-page .rv-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 4px 20px rgba(15,23,42,0.05);overflow:hidden;margin-bottom:1.25rem}
+    .walkin-page .rv-card-body{padding:1.35rem}
+    .walkin-page .rv-section-title{display:flex;align-items:center;gap:0.6rem;font-size:0.95rem;font-weight:700;color:#0f172a;margin-bottom:1.1rem}
+    .walkin-page .rv-section-title i{color:#2563eb;font-size:1.1rem}
+    .walkin-page .rv-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:1rem}
+    .walkin-page .rv-row{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;font-size:0.88rem}
+    .walkin-page .rv-row:not(:last-child){border-bottom:1px solid #eef2f7}
+    .walkin-page .rv-total .rv-row{font-size:1rem;font-weight:700;border-bottom:none;padding:0.35rem 0}
 
-    /* ── Form Controls ──────────────────────────────────── */
-    .walkin-page .form-label { font-weight: 600; font-size: .82rem; color: #475569; margin-bottom: 6px; }
-    .walkin-page .form-control,
-    .walkin-page .form-select {
-      border-radius: 10px; border-color: #e2e8f0;
-      padding: 10px 14px; font-size: .88rem;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .walkin-page .form-control:focus,
-    .walkin-page .form-select:focus {
-      border-color: #93c5fd;
-      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
-    }
+    /* Summary Box */
+    .walkin-page .summary-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;font-size:.86rem;color:#334155}
 
-    /* ── Nav Tabs (service categories) ──────────────────── */
-    .walkin-page .nav-tabs { border-bottom: 2px solid #e2e8f0; gap: 4px; }
-    .walkin-page .nav-tabs .nav-link {
-      border: none; border-radius: 10px 10px 0 0;
-      padding: 10px 20px; font-weight: 600; font-size: .84rem;
-      color: #64748b; background: transparent;
-      transition: all .2s ease;
-    }
-    .walkin-page .nav-tabs .nav-link:hover { color: #2563eb; background: #f1f5f9; }
-    .walkin-page .nav-tabs .nav-link.active {
-      color: #1e40af; background: #fff;
-      border-bottom: 2px solid #2563eb; margin-bottom: -2px;
-    }
+    /* Walkin Actions */
+    .walkin-page .walkin-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9}
 
-    /* ── Responsive ─────────────────────────────────────── */
-    @media (max-width: 768px) {
-      .walkin-page .stepper-list {
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-      .walkin-page .stepper-step {
-        min-width: 60px;
-      }
-      .walkin-page .stepper-text {
-        font-size: 0.65rem;
-        max-width: 60px;
-      }
-      .walkin-page .stepper-icon {
-        width: 32px; height: 32px; font-size: 0.75rem;
-      }
-      .walkin-page .stepper-list::before {
-        display: none;
-      }
-      .walkin-page .stepper-step::after {
-        display: none;
-      }
-      .walkin-page #timeSlots .time-slot { flex: 1 1 100%; max-width: 100%; }
+    /* Form Controls */
+    .walkin-page .form-label{font-weight:600;font-size:.82rem;color:#475569;margin-bottom:6px}
+    .walkin-page .form-control,.walkin-page .form-select{border-radius:10px;border-color:#e2e8f0;padding:10px 14px;font-size:.88rem;transition:border-color .2s,box-shadow .2s}
+    .walkin-page .form-control:focus,.walkin-page .form-select:focus{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .walkin-page .customer-lookup-status{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;font-size:.8rem;line-height:1.45;background:#f8fafc;border:1px solid #e2e8f0;color:#64748b}
+    .walkin-page .customer-lookup-status.is-success{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+    .walkin-page .customer-lookup-status.is-warning{background:#fffbeb;border-color:#fde68a;color:#92400e}
+    .walkin-page .customer-lookup-status.is-loading{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+    .walkin-page .customer-lookup-status .spin{animation:walkinSpin .8s linear infinite}
+    @keyframes walkinSpin{to{transform:rotate(360deg)}}
+    .walkin-page .customer-detail-field.is-locked .form-control,.walkin-page .customer-detail-field.is-locked .form-select{background:#f8fafc;color:#475569}
+
+    /* Nav Tabs */
+    .walkin-page .nav-tabs{border-bottom:2px solid #e2e8f0;gap:4px}
+    .walkin-page .nav-tabs .nav-link{border:none;border-radius:10px 10px 0 0;padding:10px 20px;font-weight:600;font-size:.84rem;color:#64748b;background:transparent;transition:all .2s ease}
+    .walkin-page .nav-tabs .nav-link:hover{color:#2563eb;background:#f1f5f9}
+    .walkin-page .nav-tabs .nav-link.active{color:#1e40af;background:#fff;border-bottom:2px solid #2563eb;margin-bottom:-2px}
+
+    /* Configure Service Modal — Enterprise */
+    .walkin-page .cfg-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.25rem 1.5rem;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%);color:#fff;position:relative}
+    .walkin-page .cfg-header::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:14px;background:radial-gradient(120% 100% at 50% 0,rgba(37,99,235,0.25),transparent 70%)}
+    .walkin-page .cfg-ico{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.25);font-size:1.25rem;flex-shrink:0}
+    .walkin-page .cfg-close{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,0.14);color:#fff;font-size:0.85rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+    .walkin-page .cfg-close:hover{background:rgba(255,255,255,0.28);transform:rotate(90deg)}
+    .walkin-page .cfg-wizard{display:flex;align-items:center;gap:0.5rem;padding:1rem 1.75rem 0.25rem}
+    .walkin-page .cfg-step{display:flex;align-items:center;gap:0.6rem}
+    .walkin-page .cfg-dot{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#f1f5f9;color:#94a3b8;border:2px solid #e2e8f0;transition:all .3s var(--sv-e)}
+    .walkin-page .cfg-step.is-active .cfg-dot{background:#eff6ff;color:#2563eb;border-color:#2563eb;box-shadow:0 0 0 5px rgba(37,99,235,0.12)}
+    .walkin-page .cfg-step.is-done .cfg-dot{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-color:#059669}
+    .walkin-page .cfg-step-t{font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748b}
+    .walkin-page .cfg-step.is-active .cfg-step-t{color:#2563eb}
+    .walkin-page .cfg-step-s{font-size:0.86rem;font-weight:700;color:#0f172a}
+    .walkin-page .cfg-line{flex:1;height:3px;background:#e2e8f0;border-radius:99px;margin:0 0.4rem;transition:background .3s}
+    .walkin-page .cfg-step.is-done + .cfg-line{background:linear-gradient(90deg,#10b981,#059669)}
+    .walkin-page .cfg-note{border-radius:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.14);padding:0.8rem 1rem;color:#1e3a8a;font-size:0.85rem}
+    .walkin-page .cfg-fl{display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:0.3rem}
+    .walkin-page .cfg-fl-sub{font-size:0.74rem;color:#94a3b8;font-weight:500}
+    .walkin-page .cfg-f{width:100%;border:1.5px solid #e2e8f0;border-radius:12px;padding:0.6rem 0.8rem;font-size:0.85rem;resize:vertical;font-family:inherit;color:#0f172a;background:#fff}
+    .walkin-page .cfg-f:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.1)}
+    .walkin-page .cfg-qty-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.9rem 1rem;background:#f8fafc;border:1px solid #eef2f7;border-radius:14px}
+    .walkin-page .cfg-stepper{display:inline-flex;align-items:center;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden}
+    .walkin-page .cfg-stepper button{width:40px;height:40px;border:none;background:#fff;color:#475569;font-size:1.05rem;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+    .walkin-page .cfg-stepper button:hover{background:#eff6ff;color:#2563eb}
+    .walkin-page .cfg-stepper input{width:56px;height:40px;border:none;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a;background:#fff;border-left:1px solid #eef2f7;border-right:1px solid #eef2f7}
+    .walkin-page .cfg-price{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.9rem 1.1rem;border-radius:14px;background:#fff;border:1px solid #dbeafe}
+    .walkin-page .cfg-price-inline{position:static;box-shadow:none;margin:0}
+    .walkin-page .cfg-price-l{font-weight:700;color:#1e3a8a;font-size:0.9rem}
+    .walkin-page .cfg-price-sub{display:block;font-size:0.7rem;color:#64748b;font-weight:500}
+    .walkin-page .cfg-price-v{font-weight:800;color:#2563eb;font-size:1.35rem;letter-spacing:-0.02em}
+    .walkin-page .cfg-footer{background:#f8fafc;border-top:1px solid #eef2f7!important;padding:1rem 1.5rem 1.25rem!important;display:flex!important;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:0.75rem 1rem}
+    .walkin-page .cfg-btn-ghost{padding:0.65rem 1.3rem;border-radius:12px;border:1.5px solid #cbd5e1;background:#fff;color:#475569;font-weight:700;font-size:0.9rem;cursor:pointer;transition:all .2s}
+    .walkin-page .cfg-btn-ghost:hover{background:#f1f5f9;color:#1e293b}
+    .walkin-page .cfg-btn-primary{padding:0.65rem 1.5rem;border-radius:12px;border:none;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:700;font-size:0.9rem;box-shadow:0 6px 20px rgba(37,99,235,0.28);cursor:pointer;transition:all .2s;margin-left:auto;flex:0 0 auto;white-space:nowrap}
+    .walkin-page .cfg-btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(37,99,235,0.34)}
+    .walkin-page .cfg-btn-primary:disabled{opacity:0.55;cursor:not-allowed;transform:none;box-shadow:none}
+
+    /* Aircon type & HP cards in modal */
+    .walkin-page #serviceConfigModal .cfg-step.is-done .cfg-dot{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-color:#059669}
+    .walkin-page #serviceConfigModal .cfg-step.is-done + .cfg-line{background:linear-gradient(90deg,#10b981,#059669)}
+    .walkin-page #serviceConfigModal .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+    .walkin-page #serviceConfigModal .aircon-type-card:hover{border-color:#3b82f6!important;background:rgba(59,130,246,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
+    .walkin-page #serviceConfigModal .aircon-type-card.selected{border-color:#2563eb!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 8px 24px rgba(37,99,235,0.18)!important}
+    .walkin-page #serviceConfigModal .aircon-type-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+    .walkin-page #serviceConfigModal .aircon-type-card .bi{color:#2563eb!important}
+    .walkin-page #serviceConfigModal .hp-option-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+    .walkin-page #serviceConfigModal .hp-option-card:hover{transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
+    .walkin-page #serviceConfigModal .hp-option-card.selected{border-color:#3b82f6!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 4px 20px rgba(59,130,246,0.15)!important}
+    .walkin-page #serviceConfigModal .hp-option-card .hp-checkbox{width:1.25rem;height:1.25rem;margin-right:1rem;accent-color:#3b82f6;cursor:pointer;flex-shrink:0}
+    .walkin-page #serviceConfigModal .hp-option-card .hp-quantity-control{opacity:.5;pointer-events:none;transition:opacity .2s}
+    .walkin-page #serviceConfigModal .hp-option-card.selected .hp-quantity-control{opacity:1;pointer-events:auto}
+    .walkin-page #serviceConfigModal .hp-option-card .hp-qty-input{width:56px;height:40px;border:none;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a;background:#f8fafc;border-left:1px solid #eef2f7;border-right:1px solid #eef2f7}
+    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-primary{background:linear-gradient(135deg,#3b82f6,#2563eb)!important;color:#fff!important}
+    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-info.bg-opacity-10{background-color:#e0f2fe!important;color:#0369a1!important}
+    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-success.bg-opacity-10{background-color:#dcfce7!important;color:#15803d!important}
+
+    /* Repair category cards */
+    .walkin-page #serviceConfigModal .repair-category-card{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:1.1rem;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a;text-align:center;box-shadow:0 1px 3px rgba(15,23,42,0.05);position:relative;overflow:hidden;width:100%}
+    .walkin-page #serviceConfigModal .repair-category-card:hover{border-color:#3b82f6;background:rgba(59,130,246,0.03);transform:translateY(-3px);box-shadow:0 10px 26px rgba(37,99,235,0.14)}
+    .walkin-page #serviceConfigModal .repair-category-card.selected{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);box-shadow:0 8px 24px rgba(37,99,235,0.18)}
+    .walkin-page #serviceConfigModal .repair-category-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+
+    /* Symptom chips */
+    .walkin-page #serviceConfigModal .symptom-chip{padding:0.45rem 0.9rem;border-radius:999px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
+    .walkin-page #serviceConfigModal .symptom-chip:hover{border-color:#93c5fd;background:#f0f7ff}
+    .walkin-page #serviceConfigModal .symptom-chip.active{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;box-shadow:0 4px 14px rgba(37,99,235,0.15)}
+
+    /* Unit type chips */
+    .walkin-page #serviceConfigModal .unit-type-chip{padding:0.5rem 1rem;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
+    .walkin-page #serviceConfigModal .unit-type-chip:hover{border-color:#93c5fd;background:#f0f7ff}
+    .walkin-page #serviceConfigModal .unit-type-chip.active{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;box-shadow:0 4px 14px rgba(37,99,235,0.15)}
+
+    /* Responsive */
+    @media(max-width:768px){
+      .walkin-page .ent-hero{padding:2.5rem 0 3rem}
+      .walkin-page .ent-stepper{position:relative;top:0}
+      .walkin-page .ent-tr{overflow-x:auto;padding:4px}
+      .walkin-page .ent-n{padding:5px 8px;font-size:0.65rem;white-space:nowrap}
+      .walkin-page #timeSlots .time-slot{flex:1 1 100%;max-width:100%}
+      .walkin-page .ent-step-body{padding:1rem}
     }
   </style>
 
-  <div class="au-hero mb-4">
-    <div class="au-hero-inner">
-      <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-person-plus-fill"></i></div>
-        <div>
-          <h1>Create Walk-in Appointment</h1>
-          <p>Fill in customer details, pick a service, schedule, and review before creating.</p>
+  <section class="ent-hero">
+    <div class="ent-hero-orb ent-hero-orb-1"></div>
+    <div class="ent-hero-orb ent-hero-orb-2"></div>
+    <div class="container" style="position:relative;z-index:1;">
+      <div class="text-center">
+        <div class="ent-hero-badge">
+          <i class="bi bi-lightning-charge-fill"></i> Admin Walk-in Booking
+        </div>
+        <h1 class="ent-hero-title">Create <span class="ent-gradient-text">Walk-in Appointment</span></h1>
+        <p class="ent-hero-subtitle mx-auto">Fill in customer details, pick a service, schedule, and review before creating.</p>
+        <div class="ent-trust-badges">
+          <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Multi-service support</span>
+          <span class="ent-trust-divider"></span>
+          <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Auto account creation</span>
+          <span class="ent-trust-divider"></span>
+          <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Smart scheduling</span>
         </div>
       </div>
-      <div class="au-hero-actions" style="display:none;">
-        <a href="/admin/appointments" class="btn btn-light btn-sm fw-semibold">
-          <i class="bi bi-arrow-left me-1"></i>Back to Appointments
-        </a>
-      </div>
     </div>
-  </div>
+  </section>
 
   <div class="modal fade" id="walkinAlert" tabindex="-1" aria-labelledby="walkinAlertLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
@@ -361,67 +259,210 @@
     </div>
   </div>
 
+  <div class="modal fade" id="serviceConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-width:720px!important;">
+      <div class="modal-content border-0" id="serviceConfigContent" style="border-radius:22px;overflow:hidden;box-shadow:0 30px 90px rgba(15,23,42,0.22);background:#fff;border:1px solid #eef2f7;">
+        <!-- Enterprise Header -->
+        <div class="cfg-header">
+          <div class="d-flex align-items-center gap-3">
+            <div class="cfg-ico"><i class="bi bi-box-seam-fill"></i></div>
+            <div>
+              <h5 class="fw-bold mb-0" id="serviceConfigTitle" style="color:#0f172a;font-size:1.15rem;letter-spacing:-0.01em;">Configure service</h5>
+              <p class="mb-0" id="serviceConfigSubtitle" style="font-size:0.78rem;color:#475569;">Unit details are saved with the work order.</p>
+            </div>
+          </div>
+          <button type="button" class="cfg-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <!-- Wizard Stepper (for aircon core services) -->
+        <div class="cfg-wizard d-none" id="coreAirconWizard">
+          <div class="cfg-step is-active" id="cfgStep1">
+            <div class="cfg-dot"><i class="bi bi-1-circle-fill"></i></div>
+            <div class="cfg-step-tx"><div class="cfg-step-t">Step 1</div><div class="cfg-step-s">Aircon Type</div></div>
+          </div>
+          <div class="cfg-line"></div>
+          <div class="cfg-step" id="cfgStep2">
+            <div class="cfg-dot"><i class="bi bi-2-circle"></i></div>
+            <div class="cfg-step-tx"><div class="cfg-step-t">Step 2</div><div class="cfg-step-s">HP Rating</div></div>
+          </div>
+        </div>
+
+        <div class="modal-body" style="padding:1.25rem 1.75rem 0.75rem;max-height:calc(100vh - 220px);overflow-y:auto;">
+          <input type="hidden" id="configServiceId"><input type="hidden" id="configServiceType">
+
+          <!-- Core service name -->
+          <div class="core-config mb-3">
+            <span class="fw-bold d-block" id="coreConfigServiceName" style="color:#0f172a;font-size:1.05rem;">Core Service</span>
+            <div id="coreConfigDescription" class="text-muted small mt-1" style="line-height:1.5;"></div>
+          </div>
+
+          <!-- Core brand -->
+          <div class="core-config mb-3" id="coreBrandSection">
+            <label class="cfg-fl" for="coreBrand"><i class="bi bi-upc-scan me-1 text-primary"></i>Brand Name <span class="text-danger">*</span></label>
+            <select class="cfg-f" id="coreBrand"><option value="">Select brand…</option></select>
+            <input type="text" class="cfg-f mt-2 d-none" id="coreBrandCustom" maxlength="100" placeholder="Type brand name">
+          </div>
+
+          <!-- Core aircon types -->
+          <div class="core-config mb-3" id="coreAirconTypesSection">
+            <label class="cfg-fl">Step 1: Select Aircon Type</label>
+            <span class="cfg-fl-sub">Choose the type of aircon unit. Prices vary by type and HP rating.</span>
+            <div class="row g-3 mt-2" id="coreAirconTypes"></div>
+          </div>
+
+          <!-- Core HP options -->
+          <div class="core-config d-none mb-3" id="coreHpSection">
+            <label class="cfg-fl">Step 2: Select HP Rating</label>
+            <span class="cfg-fl-sub">Choose the horsepower rating for the units.</span>
+            <div class="row g-3 mt-2" id="coreHpOptions"></div>
+          </div>
+
+          <!-- Quantity (non-aircon core only) -->
+          <div class="core-config mb-3 cfg-qty-row" id="configQuantitySection">
+            <div>
+              <label class="cfg-fl">Quantity</label>
+              <span class="cfg-fl-sub">How many units?</span>
+            </div>
+            <div class="cfg-stepper">
+              <button type="button" id="configQtyMinus"><i class="bi bi-dash"></i></button>
+              <input type="number" id="configQuantity" min="1" max="40" value="1" readonly>
+              <button type="button" id="configQtyPlus"><i class="bi bi-plus"></i></button>
+            </div>
+          </div>
+
+          <!-- Repair: Service Category -->
+          <div class="repair-config d-none mb-3">
+            <label class="cfg-fl">1 · Service Category</label>
+            <span class="cfg-fl-sub">Select the type of equipment that needs repair.</span>
+            <div class="row g-2 mt-2" id="walkinRepairCategories">
+              <div class="col-md-4"><button type="button" class="repair-category-card repair-category" data-category="aircon"><i class="bi bi-snow d-block fs-4 mb-1"></i><strong>Air Conditioning</strong><small class="d-block mt-1">5 unit types</small></button></div>
+              <div class="col-md-4"><button type="button" class="repair-category-card repair-category" data-category="appliance"><i class="bi bi-house-gear d-block fs-4 mb-1"></i><strong>Home Appliances</strong><small class="d-block mt-1">9 unit types</small></button></div>
+              <div class="col-md-4"><button type="button" class="repair-category-card repair-category" data-category="other"><i class="bi bi-plus-circle d-block fs-4 mb-1"></i><strong>Other</strong><small class="d-block mt-1">Custom description</small></button></div>
+            </div>
+          </div>
+
+          <!-- Repair: Unit Type -->
+          <div class="repair-config d-none mb-3">
+            <label class="cfg-fl">2 · Specific Unit Type <span class="text-danger">*</span></label>
+            <div id="walkinUnitTypes" class="d-flex flex-wrap gap-2 mt-2"><span class="small text-muted">Select a category first.</span></div>
+          </div>
+
+          <!-- Repair: Brand & Model -->
+          <div class="repair-config d-none mb-3">
+            <label class="cfg-fl">3 · Unit Specifications</label>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="cfg-fl">Brand <span class="text-danger">*</span></label>
+                <input id="configBrand" maxlength="100" class="cfg-f" placeholder="e.g. Carrier, Samsung, LG">
+              </div>
+              <div class="col-md-6">
+                <label class="cfg-fl">Model Number <span class="text-muted fw-normal">(optional)</span></label>
+                <input id="configModel" maxlength="100" class="cfg-f" placeholder="e.g. 42KDPV48">
+              </div>
+            </div>
+          </div>
+
+          <!-- Repair: Problem Description -->
+          <div class="repair-config d-none mb-3">
+            <label class="cfg-fl">4 · Problem Description</label>
+            <span class="cfg-fl-sub">Tap the symptoms, then add details.</span>
+            <div id="walkinSymptomChips" class="d-flex flex-wrap gap-2 mt-2 mb-3">
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Cooling">Not Cooling</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Strange Noise">Strange Noise</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Leaking Water">Leaking Water</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Turning On">Not Turning On</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Bad Smell">Bad Smell</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Error Code">Error Code</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Overheating">Overheating</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Electrical Issue">Electrical Issue</button>
+            </div>
+            <label class="cfg-fl">Detailed Issue <span class="text-danger">*</span></label>
+            <textarea id="configProblem" rows="4" maxlength="500" class="cfg-f" placeholder="Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water..."></textarea>
+            <div class="d-flex justify-content-between form-text"><span>The more details you provide, the better our technician can prepare.</span><span id="walkinRepairCharCount">0 / 500</span></div>
+          </div>
+
+          <!-- Repair: Photo Evidence -->
+          <div class="repair-config d-none mb-3">
+            <label class="cfg-fl">5 · Photo Evidence</label>
+            <span class="cfg-fl-sub">Optional images help us assess the issue before arrival.</span>
+            <input id="configRepairPhotos" type="file" class="cfg-f mt-2" multiple accept="image/jpeg,image/png,image/webp">
+            <div class="form-text">Maximum 5 images, 5 MB each.</div>
+            <div id="configRepairPhotoPreview" class="d-flex flex-wrap gap-2 mt-2"></div>
+          </div>
+        </div>
+
+        <!-- Enterprise Footer -->
+        <div class="modal-footer border-0 gap-2 cfg-footer">
+          <button type="button" class="cfg-btn-ghost" data-bs-dismiss="modal">Cancel</button>
+          <div class="cfg-price cfg-price-inline">
+            <div>
+              <span class="cfg-price-l" id="priceLabel">Estimated Price</span>
+              <span class="cfg-price-sub" id="priceSub">Includes service &amp; travel</span>
+            </div>
+            <span class="cfg-price-v" id="coreEstimatedPrice">₱0</span>
+          </div>
+          <button type="button" class="cfg-btn-primary" id="saveConfiguredService"><i class="bi bi-check-lg me-2"></i>Add to Booking</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <form
     id="walkinForm"
-    class="walkin-shell booking-container bg-white"
-    style="box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 32px rgba(0,0,0,.04); border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.5rem;">
+    class="walkin-shell"
+    style="max-width:1100px;margin:0 auto;">
     <div class="booking-layout">
-      <!-- Horizontal Progress Stepper -->
-      <div class="horizontal-stepper" id="walkinStepper" aria-label="Walk-in booking steps">
-        <ol class="stepper-list" role="list" style="position: relative;">
-          <li>
-            <button type="button" class="stepper-step is-active" data-step="0">
-              <span class="stepper-icon">1</span>
-              <span class="stepper-text">Customer</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="1">
-              <span class="stepper-icon">2</span>
-              <span class="stepper-text">Services</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="2">
-              <span class="stepper-icon">3</span>
-              <span class="stepper-text">Location</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="3">
-              <span class="stepper-icon">4</span>
-              <span class="stepper-text">Calendar</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="4">
-              <span class="stepper-icon">5</span>
-              <span class="stepper-text">Fee</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="5">
-              <span class="stepper-icon">6</span>
-              <span class="stepper-text">Payment</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="stepper-step" data-step="6">
-              <span class="stepper-icon">7</span>
-              <span class="stepper-text">Review</span>
-            </button>
-          </li>
-        </ol>
+      <!-- Enterprise Pill Stepper -->
+      <div class="ent-stepper" id="walkinStepper" aria-label="Walk-in booking steps">
+        <div class="ent-h">
+          <span>Booking Progress</span>
+          <span>Step <span id="entStepCurrent">1</span> of 7</span>
+        </div>
+        <div class="ent-tr">
+          <button type="button" class="ent-n active" data-step="0">
+            <span class="ent-ni"><i class="bi bi-person-vcard"></i></span>
+            Customer
+          </button>
+          <button type="button" class="ent-n" data-step="1">
+            <span class="ent-ni"><i class="bi bi-tools"></i></span>
+            Services
+          </button>
+          <button type="button" class="ent-n" data-step="2">
+            <span class="ent-ni"><i class="bi bi-geo-alt"></i></span>
+            Location
+          </button>
+          <button type="button" class="ent-n" data-step="3">
+            <span class="ent-ni"><i class="bi bi-calendar-check"></i></span>
+            Calendar
+          </button>
+          <button type="button" class="ent-n" data-step="4">
+            <span class="ent-ni"><i class="bi bi-receipt"></i></span>
+            Fee
+          </button>
+          <button type="button" class="ent-n" data-step="5">
+            <span class="ent-ni"><i class="bi bi-cash-coin"></i></span>
+            Payment
+          </button>
+          <button type="button" class="ent-n" data-step="6">
+            <span class="ent-ni"><i class="bi bi-check2-circle"></i></span>
+            Review
+          </button>
+        </div>
       </div>
 
       <div class="booking-body">
         <input id="serviceType" type="hidden" value="core" />
         <input id="serviceId" name="serviceId" type="hidden" />
 
-        <div class="booking-step" data-step="0">
-          <h5>
-            <i class="bi bi-person-vcard me-2"></i>Customer
-          </h5>
+        <div class="booking-step ent-step-card" data-step="0">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-customer"><i class="bi bi-person-vcard"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 1</h5>
+              <p>Customer Details</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Customer Type</label>
             <div class="d-flex gap-3">
@@ -436,61 +477,75 @@
             </div>
           </div>
           <div id="existingCustomerNote" class="mb-2 text-muted d-none">
-            Existing account detected; only the email is shown.
+            Existing account detected. No additional customer details are required.
           </div>
           <div id="autoCreateAccountNote" class="mb-2 text-muted">
             For <strong>new customers</strong> an account will be automatically
             created when you complete the booking.
           </div>
           <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-12">
               <label class="form-label" for="customerEmail">Email</label>
-              <input id="customerEmail" name="customerEmail" type="email" class="form-control" maxlength="120" required />
+              <div class="input-group">
+                <input id="customerEmail" name="customerEmail" type="email" class="form-control" maxlength="120" autocomplete="email" required />
+                <button type="button" class="btn btn-outline-primary" id="checkCustomerBtn"><i class="bi bi-search me-1"></i>Check Account</button>
+              </div>
+              <div id="customerLookupStatus" class="customer-lookup-status mt-2" role="status" aria-live="polite">
+                <i class="bi bi-info-circle"></i><span>Enter the customer's email to check for an existing account.</span>
+              </div>
             </div>
-            <div class="col-md-6 existing-only">
+            <div class="col-md-6 customer-detail-field">
               <label class="form-label" for="firstName">First Name</label>
               <input id="firstName" name="firstName" class="form-control" required maxlength="80" />
             </div>
-            <div class="col-md-6 existing-only">
+            <div class="col-md-6 customer-detail-field">
               <label class="form-label" for="lastName">Last Name</label>
               <input id="lastName" name="lastName" class="form-control" required maxlength="80" />
             </div>
-            <div class="col-md-6 existing-only">
+            <div class="col-md-6 customer-detail-field">
               <label class="form-label" for="customerPhone">Phone Number</label>
               <input id="customerPhone" name="customerPhone" class="form-control" required maxlength="40" />
             </div>
-            <div class="col-md-3 existing-only">
+            <div class="col-md-3 customer-detail-field">
               <label class="form-label" for="addrProvince">Province</label>
               <select id="addrProvince" name="addrProvince" class="form-select" required>
                 <option value="">Select Province</option>
               </select>
             </div>
-            <div class="col-md-4 existing-only">
+            <div class="col-md-4 customer-detail-field">
               <label class="form-label" for="addrCity">City</label>
               <select id="addrCity" name="addrCity" class="form-select" disabled required>
                 <option value="">Select City/Municipality</option>
               </select>
             </div>
-            <div class="col-md-3 existing-only">
+            <div class="col-md-3 customer-detail-field">
               <label class="form-label" for="addrBarangay">Barangay</label>
               <select id="addrBarangay" name="addrBarangay" class="form-select" disabled required>
                 <option value="">Select Barangay</option>
               </select>
             </div>
-            <div class="col-md-2 existing-only">
+            <div class="col-md-2 customer-detail-field">
               <label class="form-label" for="addrPostalCode">Postal Code</label>
               <input id="addrPostalCode" name="addrPostalCode" class="form-control" maxlength="20" />
             </div>
           </div>
           <div class="walkin-actions">
-            <button type="button" class="btn btn-primary btn-sm" data-next-step="1">
-              Continue to Services
+            <button type="button" class="ent-btn-primary" data-next-step="1">
+              <i class="bi bi-arrow-right"></i>Continue to Services
             </button>
+          </div>
           </div>
         </div>
 
-        <div class="booking-step d-none" data-step="1">
-          <h5 class="fw-semibold mb-2"><i class="bi bi-tools me-2"></i>Select Services</h5>
+        <div class="booking-step d-none ent-step-card" data-step="1">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-services"><i class="bi bi-tools"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 2</h5>
+              <p>Select Services</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
           <p class="text-muted small mb-3">Choose multiple services. For aircon services, HP rating will be selected per item.</p>
 
           <!-- Service Categories Tabs -->
@@ -513,32 +568,30 @@
               <div class="row g-3" id="coreServiceCards"></div>
             </div>
             <div class="tab-pane fade" id="repair-services" role="tabpanel" aria-labelledby="repair-tab">
-              <div class="row g-3" id="repairServiceCards"></div>
+              <div id="repairInlineConfigurator"></div>
+              <div class="d-none" id="repairServiceCards"></div>
             </div>
           </div>
 
           <!-- Selected Services Summary -->
-          <div class="mt-4" id="selectedServicesSummary">
-            <div class="card border-0 bg-light">
-              <div class="card-header bg-light">
-                <h6 class="mb-0 fw-semibold">
-                  <i class="bi bi-cart-check me-2"></i>Selected Services
-                  <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span>
-                </h6>
+          <div class="ent-svc-section mt-4" id="selectedServicesSummary">
+            <div class="ent-svc-section-header">
+              <div class="ent-svc-section-icon"><i class="bi bi-cart-check"></i></div>
+              <div>
+                <h6 class="ent-svc-section-title">Selected Services <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span></h6>
+                <p class="ent-svc-section-sub">Review your selected services and pricing</p>
               </div>
-              <div class="card-body">
-                <div id="selectedServicesList">
-                  <p class="text-muted mb-0">No services selected yet</p>
+            </div>
+            <div id="selectedServicesList">
+              <p class="text-muted mb-0">No services selected yet</p>
+            </div>
+            <div class="mt-3 pt-3 border-top d-none" id="totalPricingSection">
+              <div class="row align-items-center">
+                <div class="col-md-6">
+                  <div class="fw-semibold">Total Estimated Price:</div>
                 </div>
-                <div class="mt-3 pt-3 border-top d-none" id="totalPricingSection">
-                  <div class="row align-items-center">
-                    <div class="col-md-6">
-                      <div class="fw-semibold">Total Estimated Price:</div>
-                    </div>
-                    <div class="col-md-6 text-end">
-                      <div class="fs-4 fw-bold text-primary" id="totalEstimatedPrice">₱0</div>
-                    </div>
-                  </div>
+                <div class="col-md-6 text-end">
+                  <div class="fs-4 fw-bold text-primary" id="totalEstimatedPrice">₱0</div>
                 </div>
               </div>
             </div>
@@ -551,15 +604,21 @@
           </div>
 
           <div class="walkin-actions">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-prev-step="0">Back</button>
-            <button type="button" class="btn btn-primary btn-sm" data-next-step="2">Continue to Location</button>
+            <button type="button" class="ent-btn-outline" data-prev-step="0"><i class="bi bi-arrow-left"></i>Back</button>
+            <button type="button" class="ent-btn-primary" data-next-step="2">Continue to Location<i class="bi bi-arrow-right"></i></button>
+          </div>
           </div>
         </div>
 
-        <div class="booking-step d-none" data-step="2">
-          <h5>
-            <i class="bi bi-geo-alt me-2"></i>Technician & Location
-          </h5>
+        <div class="booking-step d-none ent-step-card" data-step="2">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-location"><i class="bi bi-geo-alt"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 3</h5>
+              <p>Technician & Location</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
           <div class="row g-3">
             <div class="col-lg-5">
               <label class="form-label" for="technicianId">Technician</label>
@@ -619,112 +678,66 @@
             </div>
           </div>
           <div class="walkin-actions">
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              data-prev-step="1"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              data-next-step="3"
-            >
-              Continue to Calendar
-            </button>
+            <button type="button" class="ent-btn-outline" data-prev-step="1"><i class="bi bi-arrow-left"></i>Back</button>
+            <button type="button" class="ent-btn-primary" data-next-step="3">Continue to Calendar<i class="bi bi-arrow-right"></i></button>
+          </div>
           </div>
         </div>
 
-        <div class="booking-step d-none" data-step="3">
-          <h5>
-            <i class="bi bi-calendar-check me-2"></i>Calendar & Available Time
-          </h5>
+        <div class="booking-step d-none ent-step-card" data-step="3">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-calendar"><i class="bi bi-calendar-check"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 4</h5>
+              <p>Calendar & Available Time</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
           <p class="small text-muted mb-2">
             Only available times are listed. Double booking is blocked in UI and
             re-checked in backend.
           </p>
 
-          <!-- AI Suggested Dates Section -->
-          <div id="suggestedWrapper" class="d-none mb-4">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-              <h6 class="mb-0">
-                <i class="bi bi-lightbulb me-2"></i>AI-Suggested Dates
-              </h6>
-              <small class="text-muted">Smart recommendations based on availability</small>
-            </div>
-            <div class="row g-3" id="suggestedCards">
-              <!-- Suggested date cards will be inserted here -->
-            </div>
-          </div>
-
-          <div class="calendar-widget border rounded-4 bg-light p-3">
-            <div
-              class="calendar-header d-flex align-items-center justify-content-between mb-2"
-            >
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                data-calendar-nav="prev"
-              >
-                <i class="bi bi-chevron-left"></i>
-              </button>
-              <div class="fw-semibold" data-calendar-label></div>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                data-calendar-nav="next"
-              >
-                <i class="bi bi-chevron-right"></i>
-              </button>
-            </div>
-            <div
-              class="calendar-grid"
-              id="calendarGrid"
-              role="grid"
-              aria-live="polite"
-            ></div>
+          <div class="calendar-widget">
+            <div id="calendarGrid" role="grid" aria-live="polite"></div>
           </div>
 
           <div id="timeSelection" class="mt-3 d-none">
             <div class="small text-muted mb-1" id="timeRangeInfo"></div>
-            <div class="d-flex flex-wrap gap-2" id="timeSlots"></div>
+            <div id="timeSlots"></div>
           </div>
+          <div id="projectPrefs" class="mt-3 d-none"></div>
           <p class="small text-muted mt-2 mb-0" id="timeNotice"></p>
 
           <div class="walkin-actions">
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              data-prev-step="2"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              data-next-step="4"
-            >
-              Continue to Fee
-            </button>
+            <button type="button" class="ent-btn-outline" data-prev-step="2"><i class="bi bi-arrow-left"></i>Back</button>
+            <button type="button" class="ent-btn-primary" data-next-step="4">Continue to Fee<i class="bi bi-arrow-right"></i></button>
+          </div>
           </div>
         </div>
 
-        <div class="booking-step d-none" data-step="5">
-          <h5><i class="bi bi-cash-coin me-2"></i>Cash Payment</h5>
+        <div class="booking-step d-none ent-step-card" data-step="5">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-payment"><i class="bi bi-cash-coin"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 6</h5>
+              <p>Cash Payment</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
           <div
-            class="payment-tabs"
+            class="ent-payment-tabs"
             role="tablist"
             aria-label="Cash payment mode"
           >
             <button
               type="button"
-              class="payment-tab active"
+              class="ent-payment-tab payment-tab active"
               data-cash-mode="downpayment"
             >
               <i class="bi bi-cash-stack"></i>Downpayment
             </button>
-            <button type="button" class="payment-tab" data-cash-mode="full">
+            <button type="button" class="ent-payment-tab payment-tab" data-cash-mode="full">
               <i class="bi bi-cash"></i>Full Payment
             </button>
           </div>
@@ -766,41 +779,37 @@
           </div>
 
           <div class="walkin-actions">
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              data-prev-step="4"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              data-next-step="6"
-            >
-              Continue to Review
-            </button>
+            <button type="button" class="ent-btn-outline" data-prev-step="4"><i class="bi bi-arrow-left"></i>Back</button>
+            <button type="button" class="ent-btn-primary" data-next-step="6">Continue to Review<i class="bi bi-arrow-right"></i></button>
+          </div>
           </div>
         </div>
 
         <!-- Step 4: Total Fee Breakdown -->
-        <div class="booking-step d-none" data-step="4">
-          <h5><i class="bi bi-receipt me-2"></i>Total Fee Breakdown</h5>
-          <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="mb-3">
-                <div class="d-flex justify-content-between mb-2">
+        <div class="booking-step d-none ent-step-card" data-step="4">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-fee"><i class="bi bi-receipt"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 5</h5>
+              <p>Total Fee Breakdown</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
+          <div class="rv-card">
+            <div class="rv-card-body">
+              <div class="rv-section-title"><i class="bi bi-receipt"></i>Fee Summary</div>
+              <div class="rv-box">
+                <div class="rv-row">
                   <span class="text-muted">Services Total:</span>
                   <span class="fw-semibold" id="servicesTotalDisplay">₱0</span>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
+                <div class="rv-row">
                   <span class="text-muted">Travel Fare:</span>
                   <span class="fw-semibold" id="travelFareDisplay">₱0</span>
                 </div>
-                <hr>
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="fs-5 fw-bold">Total Amount:</span>
-                  <span class="fs-3 fw-bold text-primary" id="totalFeeDisplay">₱0</span>
+                <div class="rv-row rv-total" style="border-top:2px solid #e2e8f0;margin-top:0.5rem;padding-top:0.75rem">
+                  <span class="fw-bold">Total Amount:</span>
+                  <span class="fs-4 fw-bold text-primary" id="totalFeeDisplay">₱0</span>
                 </div>
               </div>
               <div id="feeServiceDetails" class="mt-3 small text-muted"></div>
@@ -811,36 +820,36 @@
             </div>
           </div>
           <div class="walkin-actions">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-prev-step="3">Back</button>
-            <button type="button" class="btn btn-primary btn-sm" data-next-step="5">Continue to Payment</button>
+            <button type="button" class="ent-btn-outline" data-prev-step="3"><i class="bi bi-arrow-left"></i>Back</button>
+            <button type="button" class="ent-btn-primary" data-next-step="5">Continue to Payment<i class="bi bi-arrow-right"></i></button>
+          </div>
           </div>
         </div>
 
-        <div class="booking-step d-none" data-step="6">
-          <h5><i class="bi bi-receipt me-2"></i>Review & Create</h5>
-          <div class="summary-box mb-3" id="walkinSummary">
-            Complete previous steps to preview totals and schedule.
+        <div class="booking-step d-none ent-step-card" data-step="6">
+          <div class="ent-step-header">
+            <div class="ent-step-icon step-review"><i class="bi bi-check2-circle"></i></div>
+            <div class="ent-step-info">
+              <h5>Step 7</h5>
+              <p>Review & Create</p>
+            </div>
+          </div>
+          <div class="ent-step-body">
+          <div class="rv-card">
+            <div class="rv-card-body">
+              <div class="rv-section-title"><i class="bi bi-clipboard-check"></i>Booking Summary</div>
+              <div class="summary-box mb-3" id="walkinSummary">
+                Complete previous steps to preview totals and schedule.
+              </div>
+            </div>
           </div>
           <div class="walkin-actions">
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              data-prev-step="5"
-            >
-              Back
+            <button type="button" class="ent-btn-outline" data-prev-step="5"><i class="bi bi-arrow-left"></i>Back</button>
+            <button id="saveWalkinBtn" type="submit" class="ent-btn-primary">
+              <i class="bi bi-check2-circle"></i>Create Walk-in Appointment
             </button>
-            <button
-              id="saveWalkinBtn"
-              type="submit"
-              class="btn btn-primary btn-sm"
-            >
-              <i class="bi bi-check2-circle me-1"></i>Create Walk-in Appointment
-            </button>
-            <a
-              href="/admin/appointments"
-              class="btn btn-outline-secondary btn-sm"
-              >Cancel</a
-            >
+            <a href="<%= typeof user !== 'undefined' && user && user.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>" class="ent-btn-outline">Cancel</a>
+          </div>
           </div>
         </div>
       </div>
@@ -848,6 +857,8 @@
   </form>
 </div>
 
+<link rel="stylesheet" id="ent-calendar-styles" href="/css/enterprise-calendar.css?v=20260814-walkin">
+<script src="/js/enterprise-calendar.js?v=20260814-walkin"></script>
 <script>
   (function () {
     const state = {
@@ -855,8 +866,14 @@
       repairServices: [],
       technicians: [],
       currentStep: 0, // start at customer type step
+      maxReachedStep: 0,
       isNewCustomer: true,
+      customerLookupEmail: "",
+      customerAccountFound: false,
+      enterpriseCalendarSignature: "",
+      projectScheduling: null,
       selectedServiceId: "",
+      selectedServices: [],
       selectedDate: null,
       selectedStartMinutes: null,
       paymentMethod: "cod",
@@ -888,17 +905,8 @@
     let alertModal = null;
     const serviceTypeEl = document.getElementById("serviceType");
     const serviceIdEl = document.getElementById("serviceId");
-    const serviceCardsEl = document.getElementById("serviceCards") || document.getElementById("coreServiceCards");
+    const serviceCardsEl = document.getElementById("serviceCards");
     const techEl = document.getElementById("technicianId");
-    // sync state when customer type radio changes
-    document.getElementById("custNew").addEventListener("change", () => {
-      state.isNewCustomer = true;
-      adjustCustomerDetailsStep();
-    });
-    document.getElementById("custExisting").addEventListener("change", () => {
-      state.isNewCustomer = false;
-      adjustCustomerDetailsStep();
-    });
     const locationInputEl = document.getElementById("locationInput");
     const locationSuggestEl = document.getElementById("locationSuggest");
     const locationStatusEl = document.getElementById("locationStatus");
@@ -992,28 +1000,51 @@
         : state.coreServices;
     }
     function currentService() {
-      return currentServiceList().find(
+      return state.selectedServices[0] || currentServiceList().find(
         (s) => String(s._id) === String(state.selectedServiceId),
       );
     }
 
+    function totalBookedUnits() { return state.selectedServices.reduce((sum, item) => sum + Number(item.quantity || 1), 0); }
+    function servicesSubtotal() { return state.selectedServices.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0); }
+    function bookingDuration() { return Math.max(60, state.selectedServices.reduce((sum, item) => sum + Number(item.duration || 60), 0)); }
+
+    function renderSelectedServices() {
+      const host = document.getElementById("selectedServicesList");
+      const count = document.getElementById("selectedServiceCount");
+      const pricing = document.getElementById("totalPricingSection");
+      const total = document.getElementById("totalEstimatedPrice");
+      if (count) count.textContent = totalBookedUnits();
+      if (!host) return;
+      if (!state.selectedServices.length) {
+        host.innerHTML = '<p class="text-muted mb-0">No services selected yet</p>';
+        if (pricing) pricing.classList.add("d-none");
+        return;
+      }
+      host.innerHTML = state.selectedServices.map((item, index) => `<div class="d-flex justify-content-between align-items-start gap-3 py-3 ${index ? 'border-top' : ''}"><div><div class="fw-semibold">${item.name}</div><div class="small text-muted">${item.type === 'repair' ? 'Repair inspection' : 'Core service'} · ${item.quantity} unit${item.quantity > 1 ? 's' : ''}${item.airconTypeName ? ' · ' + item.airconTypeName : ''}${item.hpDescription ? ' · ' + item.hpDescription : ''}${item.brand ? ' · ' + item.brand : ''}${item.model ? ' ' + item.model : ''}</div>${item.problemDescription ? `<div class="small mt-1">${String(item.problemDescription).replace(/</g,'&lt;')}</div>` : ''}</div><div class="text-end flex-shrink-0"><div class="fw-bold text-primary">₱${Number(item.totalPrice).toLocaleString()}</div><button type="button" class="btn btn-link btn-sm text-danger p-0 remove-service" data-index="${index}"><i class="bi bi-x-circle me-1"></i>Remove</button></div></div>`).join('');
+      if (pricing) pricing.classList.remove("d-none");
+      if (total) total.textContent = '₱' + servicesSubtotal().toLocaleString();
+      state.selectedServiceId = state.selectedServices[0].serviceId;
+      serviceIdEl.value = state.selectedServiceId;
+    }
+
     function goToStep(step) {
       state.currentStep = Number(step);
+      state.maxReachedStep = Math.max(state.maxReachedStep, state.currentStep);
       document.querySelectorAll(".booking-step[data-step]").forEach((el) => {
         const isActive =
           Number(el.getAttribute("data-step")) === state.currentStep;
         el.classList.toggle("d-none", !isActive);
       });
-      document.querySelectorAll(".stepper-step[data-step]").forEach((el) => {
+      document.querySelectorAll(".ent-n[data-step]").forEach((el) => {
         const stepNum = Number(el.getAttribute("data-step"));
         const isActive = stepNum === state.currentStep;
         const isCompleted = stepNum < state.currentStep;
-        
-        el.classList.toggle("is-active", isActive);
-        el.classList.toggle("is-completed", isCompleted);
-        const li = el.closest("li");
-        if (li) li.classList.toggle("is-completed", isCompleted);
+        el.classList.toggle("active", isActive);
+        el.classList.toggle("completed", isCompleted);
       });
+      const stepCounter = document.getElementById("entStepCurrent");
+      if (stepCounter) stepCounter.textContent = String(state.currentStep + 1);
       if (state.currentStep === 0) {
         // coming back to customer details, ensure inputs editable
         ["firstName", "lastName", "customerPhone", "customerEmail"].forEach((id) => {
@@ -1033,17 +1064,66 @@
       updateSummary();
     }
 
-    // show or hide fields on the customer details step depending on new/existing
-    function adjustCustomerDetailsStep() {
-      const show = state.isNewCustomer;
-      // hide name/phone/address for existing users
-      document.querySelectorAll(".existing-only").forEach((el) => {
-        el.classList.toggle("d-none", !show);
+    function setCustomerLookupStatus(message, type = "info", spinning = false) {
+      const status = document.getElementById("customerLookupStatus");
+      if (!status) return;
+      status.className = `customer-lookup-status mt-2${type === "success" ? " is-success" : type === "warning" ? " is-warning" : spinning ? " is-loading" : ""}`;
+      status.innerHTML = `<i class="bi bi-${spinning ? "arrow-repeat spin" : type === "success" ? "check-circle-fill" : type === "warning" ? "exclamation-triangle-fill" : "info-circle"}"></i><span>${message}</span>`;
+    }
+
+    function setCustomerDetailsLocked(locked) {
+      ["firstName", "lastName", "customerPhone", "addrProvince", "addrPostalCode"].forEach((id) => {
+        const field = document.getElementById(id);
+        if (field) field.disabled = Boolean(locked);
       });
-      // email field should always be editable here; we disable it only after an
-      // existing user has been looked up (handled elsewhere if desired)
+      const province = document.getElementById("addrProvince");
+      const city = document.getElementById("addrCity");
+      const barangay = document.getElementById("addrBarangay");
+      if (city) city.disabled = Boolean(locked) || !province?.value;
+      if (barangay) barangay.disabled = Boolean(locked) || !city?.value;
+      document.querySelectorAll(".customer-detail-field").forEach((el) => el.classList.toggle("is-locked", Boolean(locked)));
+    }
+
+    function clearCustomerDetails() {
+      ["firstName", "lastName", "customerPhone", "addrProvince", "addrCity", "addrBarangay", "addrPostalCode"].forEach((id) => {
+        const field = document.getElementById(id);
+        if (field) field.value = "";
+      });
+    }
+
+    function waitForSelectText(selectEl, text, timeout = 2500) {
+      return new Promise((resolve) => {
+        if (!selectEl || !text) return resolve(false);
+        const started = Date.now();
+        const trySelect = () => {
+          if (setSelectByText(selectEl, text)) return resolve(true);
+          if (Date.now() - started >= timeout) return resolve(false);
+          setTimeout(trySelect, 100);
+        };
+        trySelect();
+      });
+    }
+
+    async function populateCustomerAddress(address) {
+      if (!address) return;
+      setCustomerDetailsLocked(false);
+      await waitForSelectText(document.getElementById("addrProvince"), address.province);
+      await waitForSelectText(document.getElementById("addrCity"), address.city);
+      await waitForSelectText(document.getElementById("addrBarangay"), address.barangay);
+      document.getElementById("addrPostalCode").value = address.postalCode || "";
+    }
+
+    // Keep all customer details visible. Existing accounts are loaded read-only;
+    // new accounts remain editable so staff can complete registration.
+    function adjustCustomerDetailsStep() {
       const note = document.getElementById("existingCustomerNote");
-      if (note) note.classList.toggle("d-none", show);
+      const createNote = document.getElementById("autoCreateAccountNote");
+      if (note) note.classList.toggle("d-none", !state.customerAccountFound);
+      if (createNote) createNote.classList.toggle("d-none", !state.isNewCustomer);
+      document.querySelectorAll(".customer-detail-field").forEach((el) => {
+        el.classList.toggle("d-none", !state.isNewCustomer);
+      });
+      setCustomerDetailsLocked(state.customerAccountFound || !state.isNewCustomer);
     }
 
     // Reusable async email check: validates email, looks up DB, populates or enables fields.
@@ -1058,20 +1138,29 @@
         showWarn("Please enter a valid email address.");
         return false;
       }
+      if (state.customerLookupEmail === email.toLowerCase()) return true;
 
       try {
+        const checkButton = document.getElementById("checkCustomerBtn");
+        if (checkButton) checkButton.disabled = true;
+        setCustomerLookupStatus("Checking the customer database…", "info", true);
         const resp = await fetch(
           `/api/users?email=${encodeURIComponent(email)}`,
+          { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } },
         );
         if (resp.ok) {
           const json = await resp.json();
           document.getElementById("customerEmail").value = email;
 
+          if (!json.user && json.emailAvailable === false) {
+            state.customerLookupEmail = "";
+            state.customerAccountFound = false;
+            setCustomerLookupStatus("This email belongs to a staff account and cannot be used for a customer booking.", "warning");
+            return false;
+          }
+
           if (json.user) {
             if (isNew) {
-              if (!confirm(`Email "${email}" already exists in our system. Would you like to use the existing customer account instead?`)) {
-                return false;
-              }
               document.getElementById("custExisting").checked = true;
               document.getElementById("custNew").checked = false;
               state.isNewCustomer = false;
@@ -1083,27 +1172,13 @@
             document.getElementById("firstName").value = u.firstName || "";
             document.getElementById("lastName").value = u.lastName || "";
             document.getElementById("customerPhone").value = u.phone || "";
-            if (u.address) {
-              setSelectByText(document.getElementById("addrProvince"), u.address.province);
-              setTimeout(() => {
-                setSelectByText(document.getElementById("addrCity"), u.address.city);
-                setTimeout(() => {
-                  setSelectByText(document.getElementById("addrBarangay"), u.address.barangay);
-                }, 300);
-              }, 300);
-              document.getElementById("addrPostalCode").value =
-                u.address.postalCode || "";
-            }
-            ["firstName", "lastName", "customerPhone", "addrProvince", "addrCity", "addrBarangay", "addrPostalCode"].forEach((id) => {
-              document.getElementById(id).disabled = true;
-            });
-
-            showSuccess("Existing customer account found and loaded.");
+            await populateCustomerAddress(u.address);
+            state.customerAccountFound = true;
+            state.customerLookupEmail = email.toLowerCase();
+            adjustCustomerDetailsStep();
+            setCustomerLookupStatus("Existing customer found. Saved details were loaded for verification.", "success");
           } else {
             if (!isNew) {
-              if (!confirm(`No account found for email "${email}". Would you like to create a new customer account instead?`)) {
-                return false;
-              }
               document.getElementById("custNew").checked = true;
               document.getElementById("custExisting").checked = false;
               state.isNewCustomer = true;
@@ -1111,13 +1186,13 @@
               state.isNewCustomer = true;
             }
 
-            ["firstName", "lastName", "customerPhone", "addrProvince", "addrPostalCode", "customerEmail"].forEach((id) => {
-              document.getElementById(id).disabled = false;
-            });
-
-            showSuccess("Email is available for new customer account.");
+            state.customerAccountFound = false;
+            state.customerLookupEmail = email.toLowerCase();
+            setCustomerDetailsLocked(false);
+            adjustCustomerDetailsStep();
+            setCustomerLookupStatus("No existing account found. Complete the details below to create one with this booking.", "warning");
+            if (!isNew) return false;
           }
-          adjustCustomerDetailsStep();
           return true;
         } else {
           showWarn("Failed to verify email. Please try again.");
@@ -1127,6 +1202,9 @@
         console.warn("check email failed", e);
         showWarn("Network error while verifying email. Please try again.");
         return false;
+      } finally {
+        const checkButton = document.getElementById("checkCustomerBtn");
+        if (checkButton) checkButton.disabled = false;
       }
     }
 
@@ -1137,6 +1215,8 @@
         const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
         if (!email || !re.test(email))
           return showWarn("Valid customer email is required.");
+        if (state.customerLookupEmail !== email.toLowerCase())
+          return showWarn("Check the customer email before continuing.");
         if (state.isNewCustomer) {
           const first = document.getElementById("firstName").value.trim();
           const last = document.getElementById("lastName").value.trim();
@@ -1146,8 +1226,8 @@
             return showWarn("First/last name, phone and city are required.");
         }
       }
-      if (step === 1 && !state.selectedServiceId)
-        return showWarn("Please select one service card.");
+      if (step === 1 && !state.selectedServices.length)
+        return showWarn("Please add at least one Core or Repair service.");
       if (step === 2) {
         if (!techEl.value) return showWarn("Please select a technician.");
         if (!state.customerCoords)
@@ -1156,7 +1236,7 @@
           );
       }
       if (step === 3) {
-        if (!state.selectedDate || state.selectedStartMinutes == null)
+        if (!state.selectedDate || (!state.projectScheduling && state.selectedStartMinutes == null))
           return showWarn("Please choose a date and available time slot.");
       }
       if (step === 5) {
@@ -1165,6 +1245,8 @@
         );
         if (!Number.isFinite(amount) || amount <= 0)
           return showWarn("Please enter a valid amount collected now.");
+        if (amount > getEstimatedTotal())
+          return showWarn("The amount collected cannot exceed the estimated total.");
       }
       hideAlert();
       return true;
@@ -1193,7 +1275,7 @@
         }
         container.innerHTML = services
           .map((s) => {
-            const selected = String(s._id) === String(state.selectedServiceId);
+            const selected = state.selectedServices.some(item => String(item.serviceId) === String(s._id));
             const duration = Number(s.durationMinutes || s.estimatedDurationMinutes || s.duration || 60);
             const basePrice = Number(s.basePrice || s.price || 0);
             const priceRange = s.priceRange;
@@ -1264,16 +1346,7 @@
       renderListInto(coreCardsEl, state.coreServices || [], "core");
       renderListInto(repairCardsEl, state.repairServices || [], "repair");
 
-      const allServices = [...(state.coreServices || []), ...(state.repairServices || [])];
-      if (allServices.length && !allServices.some((s) => String(s._id) === String(state.selectedServiceId))) {
-        state.selectedServiceId = String(allServices[0]._id);
-      }
-
-      if (!allServices.length) {
-        state.selectedServiceId = "";
-      }
-
-      serviceIdEl.value = state.selectedServiceId;
+      renderSelectedServices();
       updateSummary();
     }
 
@@ -1321,6 +1394,7 @@
         throw new Error("No active technicians found.");
 
       renderServiceCards();
+      mountInlineRepairConfigurator();
       renderTechnicians();
       updateSummary();
     }
@@ -1330,9 +1404,7 @@
     }
 
     function getEstimatedTotal() {
-      const svc = currentService();
-      const feeBase = Number((svc && svc.basePrice) || 0);
-      return Number((feeBase + Number(state.travelFare || 0)).toFixed(2));
+      return Number((servicesSubtotal() + Number(state.travelFare || 0)).toFixed(2));
     }
 
     function syncCashAmountInput() {
@@ -1359,26 +1431,48 @@
       const techLabel = techEl.options[techEl.selectedIndex]
         ? techEl.options[techEl.selectedIndex].text
         : "—";
-      const feeBase = Number((svc && svc.basePrice) || 0);
+      const feeBase = servicesSubtotal();
       const total = feeBase + Number(state.travelFare || 0);
+      const customerName = `${document.getElementById("firstName").value.trim()} ${document.getElementById("lastName").value.trim()}`.trim() || "—";
+      const customerEmail = document.getElementById("customerEmail").value.trim() || "—";
 
       let scheduleText = "—";
       if (state.selectedDate && state.selectedStartMinutes != null) {
         const s = state.selectedStartMinutes;
-        const duration = Number(
-          (svc && (svc.durationMinutes || svc.estimatedDurationMinutes)) || 60,
-        );
+        const duration = bookingDuration();
         scheduleText = `${formatDateKey(state.selectedDate)} ${minutesToLabel(s)} – ${minutesToLabel(s + duration)}`;
+      }
+      if (state.projectScheduling && state.selectedDate) {
+        const projectEnd = state.projectScheduling.endDate
+          ? formatDateKey(new Date(state.projectScheduling.endDate))
+          : "operations review";
+        scheduleText = `${formatDateKey(state.selectedDate)} – ${projectEnd} (project preference)`;
       }
 
       summaryEl.innerHTML = `
-      <div class="mb-1"><strong>Service:</strong> ${(svc && svc.name) || "—"}</div>
-      <div class="mb-1"><strong>Technician:</strong> ${techLabel}</div>
-      <div class="mb-1"><strong>Schedule:</strong> ${scheduleText}</div>
-      <div class="mb-1"><strong>Travel Fare:</strong> ₱${Number(state.travelFare || 0).toFixed(2)}</div>
-      <div class="mb-1"><strong>Estimated Total:</strong> ₱${total.toFixed(2)}</div>
-      <div><strong>Payment Method:</strong> CASH (${state.cashPaymentMode === "full" ? "FULL" : "DOWNPAYMENT"})</div>
-    `;
+      <div class="rv-box">
+        <div class="rv-row"><span class="text-muted">Customer:</span> <span class="fw-semibold">${customerName}</span></div>
+        <div class="rv-row"><span class="text-muted">Account:</span> <span class="fw-semibold">${customerEmail} · ${state.customerAccountFound ? "Existing" : "New account"}</span></div>
+        <div class="rv-row"><span class="text-muted">Services:</span> <span class="fw-semibold">${state.selectedServices.length ? state.selectedServices.map(item => `${item.name} ×${item.quantity}`).join(', ') : "—"}</span></div>
+        <div class="rv-row"><span class="text-muted">Technician:</span> <span class="fw-semibold">${techLabel}</span></div>
+        <div class="rv-row"><span class="text-muted">Schedule:</span> <span class="fw-semibold">${scheduleText}</span></div>
+        <div class="rv-row"><span class="text-muted">Travel Fare:</span> <span class="fw-semibold">₱${Number(state.travelFare || 0).toFixed(2)}</span></div>
+        <div class="rv-row rv-total" style="border-top:2px solid #e2e8f0;margin-top:0.5rem;padding-top:0.75rem"><span class="fw-bold">Estimated Total:</span> <span class="fw-bold text-primary">₱${total.toFixed(2)}</span></div>
+        <div class="rv-row"><span class="text-muted">Payment Method:</span> <span class="fw-semibold">CASH (${state.cashPaymentMode === "full" ? "FULL" : "DOWNPAYMENT"})</span></div>
+      </div>`;
+
+      const servicesTotalDisplay = document.getElementById("servicesTotalDisplay");
+      const travelFareDisplay = document.getElementById("travelFareDisplay");
+      const totalFeeDisplay = document.getElementById("totalFeeDisplay");
+      const feeServiceDetails = document.getElementById("feeServiceDetails");
+      const repairNote = document.getElementById("repairNote");
+      if (servicesTotalDisplay) servicesTotalDisplay.textContent = `₱${feeBase.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (travelFareDisplay) travelFareDisplay.textContent = `₱${Number(state.travelFare || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (totalFeeDisplay) totalFeeDisplay.textContent = `₱${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (feeServiceDetails) feeServiceDetails.innerHTML = state.selectedServices.length
+        ? state.selectedServices.map(item => `<div class="d-flex justify-content-between gap-3 py-1"><span>${item.name} × ${item.quantity}</span><strong>₱${Number(item.totalPrice || 0).toLocaleString()}</strong></div>`).join("")
+        : '<span>No services selected.</span>';
+      if (repairNote) repairNote.classList.toggle("d-none", !state.selectedServices.some(item => item.type === "repair"));
 
       syncCashAmountInput();
     }
@@ -1678,6 +1772,7 @@
       const params = new URLSearchParams({
         date: dateKey,
         serviceId: state.selectedServiceId,
+        durationMinutes: String(bookingDuration()),
       });
       if (techEl.value) params.set("technicianId", techEl.value);
       if (
@@ -1785,13 +1880,84 @@
       }
     }
 
+    // Walk-ins use the same enterprise calendar and capacity APIs as the
+    // customer booking page. The selected technician is passed only to the
+    // time-slot request so the chosen start time is valid for that technician.
+    async function renderCalendar() {
+      if (!calendarGridEl) return;
+      if (!state.selectedServices.length) {
+        calendarGridEl.innerHTML = '<div class="alert alert-info mb-0">Select at least one service to load availability.</div>';
+        timeSelectionEl.classList.add("d-none");
+        return;
+      }
+      if (!techEl.value) {
+        calendarGridEl.innerHTML = '<div class="alert alert-info mb-0">Select a technician before choosing a schedule.</div>';
+        timeSelectionEl.classList.add("d-none");
+        return;
+      }
+      if (!window.EnterpriseCalendar) {
+        calendarGridEl.innerHTML = '<div class="alert alert-danger mb-0">The booking calendar could not be loaded. Refresh the page and try again.</div>';
+        return;
+      }
+
+      const totalUnits = Math.max(1, totalBookedUnits());
+      const totalDuration = bookingDuration();
+      const perUnitDuration = Math.max(1, totalDuration / totalUnits);
+      const signature = [state.selectedServiceId, totalUnits, totalDuration, techEl.value].join(":");
+
+      if (state.enterpriseCalendarSignature === signature) {
+        window.EnterpriseCalendar.render();
+        return;
+      }
+
+      state.enterpriseCalendarSignature = signature;
+      state.selectedDate = null;
+      state.selectedStartMinutes = null;
+      state.projectScheduling = null;
+      timeSelectionEl.classList.add("d-none");
+      timeRangeInfoEl.textContent = "";
+      timeNoticeEl.textContent = "";
+      calendarGridEl.innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary" role="status"></span><div class="small text-muted mt-2">Retrieving available dates…</div></div>';
+
+      await window.EnterpriseCalendar.init({
+        serviceId: state.selectedServiceId,
+        technicianId: techEl.value,
+        duration: perUnitDuration,
+        quantity: totalUnits,
+        totalEstimatedMinutes: totalDuration,
+        mode: totalUnits >= 8 ? "project" : "appointment",
+        resetSelection: true,
+        onSelect(selection) {
+          if (!selection || !selection.date) return;
+          state.selectedDate = startOfDay(new Date(selection.date));
+          if (selection.slot) {
+            state.projectScheduling = null;
+            state.selectedStartMinutes = Number(selection.slot.startMinutes);
+            timeRangeInfoEl.textContent = `Selected ${formatDateKey(state.selectedDate)} at ${selection.slot.label}`;
+            timeNoticeEl.textContent = "This slot will be checked again when the walk-in appointment is created.";
+          } else {
+            state.projectScheduling = selection;
+            state.selectedStartMinutes = null;
+            const endLabel = selection.endDate ? formatDateKey(new Date(selection.endDate)) : "the selected end date";
+            timeRangeInfoEl.textContent = `Project preference: ${formatDateKey(state.selectedDate)} to ${endLabel}`;
+            timeNoticeEl.textContent = "Operations will confirm the final multi-day project schedule.";
+          }
+          updateSummary();
+        },
+      });
+    }
+
+    async function renderTimeSlotsForDate() {
+      // EnterpriseCalendar owns slot loading and rendering after a date click.
+      if (window.EnterpriseCalendar) window.EnterpriseCalendar.render();
+    }
+
     async function buildSuggestedDates() {
       const results = [];
       const candidates = [];
       
       // Get service duration once for use throughout the function
-      const service = currentService();
-      const serviceDuration = service ? (service.durationMinutes || service.estimatedDurationMinutes || 60) : 60;
+      const serviceDuration = bookingDuration();
 
       // Generate candidate dates for the next 30 days
       let cursor = addDays(new Date(), 1);
@@ -2202,6 +2368,7 @@
         this.classList.add("active");
         serviceTypeEl.value = this.getAttribute("data-category") || "core";
         state.selectedServiceId = "";
+        state.selectedServices = [];
         state.selectedDate = null;
         state.selectedStartMinutes = null;
         renderServiceCards();
@@ -2219,7 +2386,6 @@
         state.selectedStartMinutes = null;
         renderServiceCards();
         await renderCalendar();
-        renderSuggestedDates(); // Update suggested dates when service changes
       });
 
       serviceCardsEl.addEventListener("keydown", async (e) => {
@@ -2233,34 +2399,388 @@
         state.selectedStartMinutes = null;
         renderServiceCards();
         await renderCalendar();
-        renderSuggestedDates(); // Update suggested dates when service changes
       });
     }
 
     // Also attach handlers for tabbed service card containers (admin layout)
     const coreCardsEl = document.getElementById("coreServiceCards");
     const repairCardsEl = document.getElementById("repairServiceCards");
+    const repairUnitTypes = {
+      aircon: ["Split Type", "Window Type", "Cassette Type", "Floor Standing", "Portable Aircon"],
+      appliance: ["Refrigerator", "Washing Machine", "Television", "Microwave Oven", "Electric Fan", "Water Dispenser", "Rice Cooker", "Vacuum Cleaner", "Small Appliance"],
+      other: ["Other / Custom Equipment"]
+    };
+    let configuredRepairCategory = "";
+    let configuredRepairUnitType = "";
+    let configuredRepairPhotos = [];
+    let configuredCoreAirconType = null;
+    let configuredCoreHp = null;
+
+    function updateCoreConfigurationPrice() {
+      const service = state.coreServices.find(item => String(item._id) === document.getElementById("configServiceId").value);
+      const isAircon = Boolean(service?.isAirconService && ((service?.airconTypes || []).length || (service?.hpPricing || []).length));
+      const quantity = Math.max(1, Number(document.getElementById("configQuantity").value) || 1);
+      const unitPrice = Number(isAircon ? configuredCoreHp?.price : service?.basePrice || 0);
+      document.getElementById("coreEstimatedPrice").textContent = `₱${(unitPrice * quantity).toLocaleString()}`;
+    }
+
+    function setupHpCard(card, hpOption, airconType) {
+      const checkbox = card.querySelector('.hp-checkbox');
+      const minus = card.querySelector('.hp-qty-minus');
+      const plus = card.querySelector('.hp-qty-plus');
+      const input = card.querySelector('.hp-qty-input');
+      if (!checkbox) return;
+
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.hp-quantity-control') || e.target === checkbox) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          document.querySelectorAll('#coreHpOptions .hp-option-card').forEach(other => {
+            if (other !== card) {
+              other.classList.remove('selected');
+              const cb = other.querySelector('.hp-checkbox');
+              const oInput = other.querySelector('.hp-qty-input');
+              const oMinus = other.querySelector('.hp-qty-minus');
+              const oPlus = other.querySelector('.hp-qty-plus');
+              if (cb) cb.checked = false;
+              if (oInput) { oInput.value = 1; oInput.disabled = true; }
+              if (oMinus) oMinus.disabled = true;
+              if (oPlus) oPlus.disabled = true;
+            }
+          });
+          card.classList.add('selected');
+          input.disabled = false;
+          minus.disabled = false;
+          plus.disabled = false;
+          document.getElementById('configQuantity').value = input.value;
+          configuredCoreHp = { hp: Number(hpOption.hp), price: Number(hpOption.price), durationMinutes: Number(hpOption.durationMinutes || 60) };
+          const step2 = document.getElementById("cfgStep2");
+          if (step2) step2.classList.add("is-done");
+        } else {
+          card.classList.remove('selected');
+          input.disabled = true;
+          minus.disabled = true;
+          plus.disabled = true;
+          input.value = 1;
+          configuredCoreHp = null;
+          document.getElementById('configQuantity').value = 1;
+          const step2 = document.getElementById("cfgStep2");
+          if (step2) step2.classList.remove("is-done");
+        }
+        updateCoreConfigurationPrice();
+      });
+
+      minus.addEventListener('click', () => {
+        const val = Math.max(1, Number(input.value) - 1);
+        input.value = val;
+        document.getElementById('configQuantity').value = val;
+        updateCoreConfigurationPrice();
+      });
+
+      plus.addEventListener('click', () => {
+        const val = Math.min(40, Number(input.value) + 1);
+        input.value = val;
+        document.getElementById('configQuantity').value = val;
+        updateCoreConfigurationPrice();
+      });
+    }
+
+    function renderCoreHpOptions(type) {
+      configuredCoreHp = null;
+      const section = document.getElementById("coreHpSection");
+      const host = document.getElementById("coreHpOptions");
+      section.classList.remove("d-none");
+      host.innerHTML = "";
+      const options = type?.hpPricing || [];
+      if (!options.length) {
+        host.innerHTML = '<div class="col-12 text-muted small">No HP pricing is configured for this aircon type.</div>';
+        return;
+      }
+      options.forEach(option => {
+        const col = document.createElement('div');
+        col.className = 'col-12';
+        const card = document.createElement('div');
+        card.className = 'card hp-option-card border-2 bg-white shadow-sm';
+        card.dataset.hp = option.hp;
+        card.dataset.price = option.price;
+        card.dataset.durationMinutes = option.durationMinutes || 60;
+        card.dataset.description = option.description || '';
+        card.style.cssText = 'border-radius:12px!important;transition:all .3s cubic-bezier(0.4,0,0.2,1)!important;border-color:#e5e7eb!important;cursor:pointer!important;position:relative!important;overflow:hidden!important;';
+        card.innerHTML = `
+          <div class="card-body p-4">
+            <div class="row align-items-center">
+              <div class="col-md-6">
+                <div class="d-flex align-items-start">
+                  <input class="hp-checkbox" type="checkbox" value="${option.hp}" data-price="${option.price}" style="width:1.25rem;height:1.25rem;margin-right:1rem;accent-color:#3b82f6;cursor:pointer;flex-shrink:0;">
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center mb-2 flex-wrap gap-2">
+                      <span class="badge bg-primary rounded-pill px-3 py-2">${option.hp} HP</span>
+                      <div class="text-primary fw-bold fs-5">₱${Number(option.price || 0).toLocaleString()}</div>
+                    </div>
+                    <div class="text-muted small"><i class="bi bi-clock me-1"></i>${option.durationMinutes || 60} minutes</div>
+                    ${option.description ? `<div class="text-muted small mt-1">${option.description}</div>` : ''}
+                    <div class="mt-2"><span class="badge bg-info bg-opacity-10 text-info">${type.name || type.type}</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6 mt-3 mt-md-0">
+                <div class="hp-quantity-control text-center text-md-start">
+                  <label class="form-label fw-semibold text-dark mb-2" style="font-size:.85rem;">Quantity:</label>
+                  <div class="cfg-stepper d-inline-flex">
+                    <button class="hp-qty-minus" type="button" disabled style="border-radius:8px 0 0 8px;"><i class="bi bi-dash"></i></button>
+                    <input type="number" class="hp-qty-input" value="1" min="1" max="40" readonly disabled style="background:#f8fafc;">
+                    <button class="hp-qty-plus" type="button" disabled style="border-radius:0 8px 8px 0;"><i class="bi bi-plus"></i></button>
+                  </div>
+                  <div class="text-muted small mt-2 text-center text-md-start"><span class="hp-qty-price">₱${Number(option.price || 0).toLocaleString()}</span> per unit</div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        col.appendChild(card);
+        host.appendChild(col);
+        setupHpCard(card, option, type);
+      });
+
+      const step1 = document.getElementById("cfgStep1");
+      const step2 = document.getElementById("cfgStep2");
+      if (step1 && step2) {
+        step1.classList.remove("is-active");
+        step1.classList.add("is-done");
+        step2.classList.add("is-active");
+        step2.classList.remove("is-done");
+      }
+
+      setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      updateCoreConfigurationPrice();
+    }
+
+    function renderCoreConfigurator(service) {
+      configuredCoreAirconType = null; configuredCoreHp = null;
+      const typeIcons = {
+        split: 'bi-columns-gap',
+        window: 'bi-window',
+        floor_mounted: 'bi-box',
+        floor_standing: 'bi-door-closed',
+        split_suspended: 'bi-arrow-down-circle',
+        cassette: 'bi-grid-3x3',
+        central: 'bi-building'
+      };
+      const typeDescriptions = {
+        split: 'Wall-mounted indoor + outdoor units',
+        window: 'Self-contained window units',
+        floor_mounted: 'Floor-standing units',
+        floor_standing: 'Freestanding floor-standing units',
+        split_suspended: 'Ceiling-suspended units',
+        cassette: 'Ceiling cassette for commercial',
+        central: 'Centralized ducted system'
+      };
+
+      document.getElementById("coreConfigServiceName").textContent = service.name || "Core Service";
+      const descEl = document.getElementById("coreConfigDescription");
+      descEl.textContent = service.description || "";
+      descEl.classList.toggle("d-none", !service.description);
+
+      const wizard = document.getElementById("coreAirconWizard");
+      const brandSection = document.getElementById("coreBrandSection");
+      const isAircon = Boolean(service.isAirconService && ((service.airconTypes || []).length || (service.hpPricing || []).length));
+      wizard.classList.toggle("d-none", !isAircon);
+      brandSection.classList.toggle("d-none", !isAircon);
+      document.getElementById("coreHpSection").classList.add("d-none");
+      document.getElementById("coreAirconTypes").innerHTML = "";
+      document.getElementById("coreHpOptions").innerHTML = "";
+
+      const qtySection = document.getElementById("configQuantitySection");
+      if (qtySection) qtySection.classList.toggle("d-none", isAircon);
+
+      const step1 = document.getElementById("cfgStep1");
+      const step2 = document.getElementById("cfgStep2");
+      if (step1 && step2) {
+        step1.classList.add("is-active");
+        step1.classList.remove("is-done");
+        step2.classList.remove("is-active");
+        step2.classList.remove("is-done");
+      }
+
+      if (isAircon) {
+        const types = (service.airconTypes || []).length ? service.airconTypes : [{ type: "aircon", name: "Air Conditioning", hpPricing: service.hpPricing || [] }];
+        document.getElementById("coreAirconTypes").dataset.types = JSON.stringify(types);
+        document.getElementById("coreAirconTypes").innerHTML = types.map((type, index) => {
+          const minPrice = Math.min(...(type.hpPricing || []).map(hp => hp.price || 0));
+          const maxPrice = Math.max(...(type.hpPricing || []).map(hp => hp.price || 0));
+          const hpCount = (type.hpPricing || []).length;
+          const icon = typeIcons[type.type] || 'bi-fan';
+          const desc = typeDescriptions[type.type] || type.description || '';
+          return `<div class="col-6 col-md-4"><button type="button" class="aircon-type-card core-aircon-type w-100 h-100" data-index="${index}"><i class="bi ${icon} d-block fs-2 mb-2 text-primary"></i><strong class="d-block mb-1">${type.name || type.type}</strong><span class="d-block text-muted small mb-2" style="font-size:0.75rem;">${desc}</span><div class="d-flex justify-content-center align-items-center gap-2 mb-2"><span class="badge bg-success bg-opacity-10 text-success">₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}</span></div><div class="text-muted" style="font-size:0.7rem;">${hpCount} HP options available</div></button></div>`;
+        }).join('');
+        const brand = document.getElementById("coreBrand");
+        brand.innerHTML = '<option value="">Select brand…</option>' + (service.brands || []).map(value => `<option value="${value}">${value}</option>`).join('') + '<option value="__custom">Other / Custom</option>';
+      }
+
+      document.getElementById("configQuantity").value = 1;
+      updateCoreConfigurationPrice();
+    }
+
+    function configureService(service, type, inline = false) {
+      if (!service) return;
+      document.getElementById("configServiceId").value = service._id;
+      document.getElementById("configServiceType").value = type;
+      document.getElementById("serviceConfigTitle").textContent = type === "repair" ? "Repair Service Configuration" : "Configure Service";
+      document.getElementById("configQuantity").value = 1;
+      document.getElementById("configBrand").value = "";
+      document.getElementById("configModel").value = "";
+      document.getElementById("configProblem").value = "";
+      document.getElementById("walkinRepairCharCount").textContent = "0 / 500";
+      document.getElementById("configRepairPhotos").value = "";
+      document.getElementById("configRepairPhotoPreview").innerHTML = "";
+      document.getElementById("serviceConfigSubtitle").textContent = type === "repair" ? "Configure your repair request step by step. Our technician will be prepared with the right tools and parts." : "Select aircon type & HP rating";
+      configuredRepairCategory = ""; configuredRepairUnitType = ""; configuredRepairPhotos = [];
+      document.querySelectorAll(".repair-category,.repair-symptom,.repair-unit-type").forEach(el => el.classList.remove("selected", "active"));
+      document.getElementById("walkinUnitTypes").innerHTML = '<span class="small text-muted">Select a category first.</span>';
+      document.querySelectorAll(".repair-config").forEach(el => el.classList.toggle("d-none", type !== "repair"));
+      document.querySelectorAll(".core-config").forEach(el => el.classList.toggle("d-none", type !== "core"));
+      if (type === "core") renderCoreConfigurator(service);
+
+      const modal = document.getElementById("serviceConfigModal");
+      const content = document.getElementById("serviceConfigContent");
+      const close = content.querySelector(".cfg-close");
+      const cancel = content.querySelector(".modal-footer .cfg-btn-ghost");
+      const save = document.getElementById("saveConfiguredService");
+      if (inline) {
+        document.getElementById("repairInlineConfigurator").appendChild(content);
+        content.classList.add("border");
+        close.classList.add("d-none");
+        cancel.classList.add("d-none");
+        save.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add Repair Service';
+      } else {
+        modal.querySelector(".modal-dialog").appendChild(content);
+        content.classList.remove("border");
+        close.classList.remove("d-none");
+        cancel.classList.remove("d-none");
+        save.innerHTML = '<i class="bi bi-check-lg me-2"></i>Add to Booking';
+        bootstrap.Modal.getOrCreateInstance(modal).show();
+      }
+    }
+
+    function mountInlineRepairConfigurator() {
+      const service = state.repairServices[0];
+      if (service) configureService(service, "repair", true);
+      else document.getElementById("repairInlineConfigurator").innerHTML = '<div class="alert alert-info">No active repair service configuration is available.</div>';
+    }
+
+    function selectRepairCategory(category) {
+      configuredRepairCategory = category;
+      configuredRepairUnitType = "";
+      document.querySelectorAll(".repair-category").forEach(button => button.classList.toggle("selected", button.dataset.category === category));
+      const host = document.getElementById("walkinUnitTypes");
+      host.innerHTML = category === "other"
+        ? '<input type="text" id="customRepairUnitType" maxlength="100" class="cfg-f" placeholder="Describe the equipment type">'
+        : (repairUnitTypes[category] || []).map(type => `<button type="button" class="unit-type-chip repair-unit-type" data-unit-type="${type}">${type}</button>`).join("");
+    }
     function handleServiceCardClick(e) {
       const btn = e.target.closest(".add-service-btn[data-service-id]");
       if (!btn) return;
       e.preventDefault();
       e.stopPropagation();
-      state.selectedServiceId = btn.getAttribute("data-service-id") || "";
-      serviceIdEl.value = state.selectedServiceId;
-      state.selectedDate = null;
-      state.selectedStartMinutes = null;
-      renderServiceCards();
+      const id = btn.getAttribute("data-service-id") || "";
+      const type = btn.getAttribute("data-service-type") || "core";
+      const catalog = type === "repair" ? state.repairServices : state.coreServices;
+      const service = catalog.find(item => String(item._id) === String(id));
+      if (!service) return;
+      configureService(service, type, false);
     }
     if (coreCardsEl) coreCardsEl.addEventListener("click", handleServiceCardClick);
     if (repairCardsEl) repairCardsEl.addEventListener("click", handleServiceCardClick);
+    document.getElementById("repair-tab").addEventListener("shown.bs.tab", mountInlineRepairConfigurator);
+
+    document.getElementById("walkinRepairCategories").addEventListener("click", e => { const button = e.target.closest(".repair-category"); if (button) selectRepairCategory(button.dataset.category); });
+    document.getElementById("coreAirconTypes").addEventListener("click", e => {
+      const button = e.target.closest(".core-aircon-type"); if (!button) return;
+      const types = JSON.parse(document.getElementById("coreAirconTypes").dataset.types || "[]");
+      configuredCoreAirconType = types[Number(button.dataset.index)];
+      document.querySelectorAll(".core-aircon-type").forEach(el => el.classList.toggle("selected", el === button));
+      renderCoreHpOptions(configuredCoreAirconType);
+    });
+    document.getElementById("coreBrand").addEventListener("change", () => {
+      const custom = document.getElementById("coreBrandCustom");
+      if (document.getElementById("coreBrand").value === "__custom") {
+        custom.classList.remove("d-none");
+        custom.focus();
+      } else {
+        custom.classList.add("d-none");
+        custom.value = "";
+      }
+    });
+    document.getElementById("configQuantity").addEventListener("input", updateCoreConfigurationPrice);
+    document.getElementById("configQtyMinus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.max(1, Number(input.value) - 1); updateCoreConfigurationPrice(); });
+    document.getElementById("configQtyPlus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.min(40, Number(input.value) + 1); updateCoreConfigurationPrice(); });
+    document.getElementById("walkinUnitTypes").addEventListener("click", e => { const button = e.target.closest(".repair-unit-type"); if (!button) return;      configuredRepairUnitType = button.dataset.unitType; document.querySelectorAll(".repair-unit-type").forEach(el => el.classList.toggle("active", el === button)); });
+    document.getElementById("walkinUnitTypes").addEventListener("input", e => { if (e.target.id === "customRepairUnitType") configuredRepairUnitType = e.target.value.trim(); });
+    document.getElementById("walkinSymptomChips").addEventListener("click", e => { const button = e.target.closest(".repair-symptom"); if (button) button.classList.toggle("active"); });
+    document.getElementById("configProblem").addEventListener("input", e => { document.getElementById("walkinRepairCharCount").textContent = `${e.target.value.length} / 500`; });
+    document.getElementById("configRepairPhotos").addEventListener("change", e => {
+      const files = Array.from(e.target.files || []).slice(0, 5);
+      const invalid = files.find(file => file.size > 5 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type));
+      if (invalid) { e.target.value = ""; return showWarn("Photos must be JPG, PNG, or WebP and no larger than 5 MB each."); }
+      const preview = document.getElementById("configRepairPhotoPreview"); preview.innerHTML = "";
+      files.forEach(file => { const img = document.createElement("img"); img.src = URL.createObjectURL(file); img.style.cssText = "width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0"; preview.appendChild(img); });
+    });
+
+    document.getElementById("saveConfiguredService").addEventListener("click", async () => {
+      const id = document.getElementById("configServiceId").value;
+      const type = document.getElementById("configServiceType").value;
+      const quantity = Math.max(1, Number(document.getElementById("configQuantity").value) || 1);
+      if (totalBookedUnits() + quantity > 40) return showWarn("The maximum is 40 units per booking.");
+      const catalog = type === "repair" ? state.repairServices : state.coreServices;
+      const service = catalog.find(item => String(item._id) === String(id));
+      const problemDescription = document.getElementById("configProblem").value.trim();
+      if (type === "repair" && !configuredRepairCategory) return showWarn("Select a repair service category.");
+      if (type === "repair" && !configuredRepairUnitType) return showWarn("Select the specific unit type.");
+      if (type === "repair" && !document.getElementById("configBrand").value.trim()) return showWarn("Brand is required for repair services.");
+      if (type === "repair" && problemDescription.length < 10) return showWarn("Enter a repair problem description of at least 10 characters.");
+      const isCoreAircon = type === "core" && service?.isAirconService && ((service.airconTypes || []).length || (service.hpPricing || []).length);
+      if (isCoreAircon && !configuredCoreAirconType) return showWarn("Select the aircon type.");
+      if (isCoreAircon && !configuredCoreHp) return showWarn("Select the HP rating.");
+      const coreBrandSelect = document.getElementById("coreBrand");
+      const coreBrand = coreBrandSelect.value === "__custom" ? document.getElementById("coreBrandCustom").value.trim() : coreBrandSelect.value;
+      if (isCoreAircon && !coreBrand) return showWarn("Select or enter the aircon brand.");
+      if (type === "repair" && document.getElementById("configRepairPhotos").files.length) {
+        const uploadData = new FormData(); Array.from(document.getElementById("configRepairPhotos").files).slice(0, 5).forEach(file => uploadData.append("photos", file));
+        const uploadResponse = await fetch("/api/appointments/walk-in/upload-repair-photos", { method: "POST", credentials: "same-origin", body: uploadData });
+        const uploaded = await uploadResponse.json(); if (!uploadResponse.ok) return showWarn(uploaded.error || "Repair photos could not be uploaded."); configuredRepairPhotos = uploaded.urls || [];
+      }
+      const unitPrice = Number(type === "core" && configuredCoreHp ? configuredCoreHp.price : service?.basePrice || 0);
+      state.selectedServices.push({ serviceId: id, name: type === "repair" ? `${configuredRepairUnitType} Repair` : (service?.name || "Service"), type, quantity, unitPrice, totalPrice: unitPrice * quantity,
+        duration: Number(configuredCoreHp?.durationMinutes || service?.durationMinutes || service?.estimatedDurationMinutes || 60) * quantity,
+        model: document.getElementById("configModel").value.trim(),
+        hp: configuredCoreHp?.hp, hpDescription: configuredCoreHp ? `${configuredCoreHp.hp} HP` : "",
+        airconType: configuredCoreAirconType?.type, airconTypeName: configuredCoreAirconType?.name,
+        brand: type === "core" ? coreBrand : document.getElementById("configBrand").value.trim(),
+        unitCategory: configuredRepairCategory, applianceType: type === "core" ? configuredCoreAirconType?.type : configuredRepairUnitType, applianceTypeName: type === "core" ? configuredCoreAirconType?.name : configuredRepairUnitType,
+        symptoms: Array.from(document.querySelectorAll(".repair-symptom.active")).map(button => button.dataset.symptom), photos: configuredRepairPhotos, problemDescription });
+      state.selectedDate = null; state.selectedStartMinutes = null;
+      bootstrap.Modal.getInstance(document.getElementById("serviceConfigModal"))?.hide();
+      renderServiceCards();
+      if (type === "repair") mountInlineRepairConfigurator();
+    });
+
+    document.getElementById("selectedServicesList").addEventListener("click", e => {
+      const remove = e.target.closest(".remove-service");
+      if (!remove) return;
+      state.selectedServices.splice(Number(remove.dataset.index), 1);
+      state.selectedDate = null; state.selectedStartMinutes = null;
+      renderServiceCards();
+    });
 
     techEl.addEventListener("change", async () => {
       state.selectedDate = null;
       state.selectedStartMinutes = null;
-      await loadTechnicianSchedule();
+      state.enterpriseCalendarSignature = "";
       await fetchTechLocation();
       await renderCalendar();
-      renderSuggestedDates(); // Update suggested dates when technician changes
       updateSummary();
     });
 
@@ -2279,41 +2799,28 @@
       });
     });
 
+    document.getElementById("checkCustomerBtn").addEventListener("click", checkCustomerEmail);
+    document.getElementById("customerEmail").addEventListener("input", () => {
+      const email = document.getElementById("customerEmail").value.trim().toLowerCase();
+      if (email === state.customerLookupEmail) return;
+      state.customerLookupEmail = "";
+      state.customerAccountFound = false;
+      if (document.getElementById("custExisting").checked) clearCustomerDetails();
+      adjustCustomerDetailsStep();
+      setCustomerLookupStatus("Email changed. Check the account again before continuing.", "info");
+    });
+
     // Customer type selection event listeners
     document.querySelectorAll('input[name="customerType"]').forEach(radio => {
       radio.addEventListener('change', () => {
         state.isNewCustomer = document.getElementById('custNew').checked;
-        
-        // Clear customer fields when switching type
-        if (state.isNewCustomer) {
-          // Switching to new customer - clear and enable fields
-          ['firstName', 'lastName', 'customerPhone', 'customerEmail'].forEach(id => {
-            const field = document.getElementById(id);
-            field.value = '';
-            field.disabled = false;
-          });
-          // For address selects: enable province, let PSGC handler cascade city/barangay
-          const provinceEl = document.getElementById('addrProvince');
-          const cityEl = document.getElementById('addrCity');
-          const barangayEl = document.getElementById('addrBarangay');
-          const postalEl = document.getElementById('addrPostalCode');
-          if (provinceEl) { provinceEl.value = ''; provinceEl.disabled = false; }
-          if (cityEl) { cityEl.value = ''; cityEl.disabled = true; }
-          if (barangayEl) { barangayEl.value = ''; barangayEl.disabled = true; }
-          if (postalEl) { postalEl.value = ''; postalEl.disabled = false; }
-          showSuccess('Switched to new customer mode. All fields are now editable.');
-        } else {
-          // Switching to existing customer - clear and enable only email initially
-          ['firstName', 'lastName', 'customerPhone', 'addrProvince', 'addrCity', 'addrBarangay', 'addrPostalCode'].forEach(id => {
-            const field = document.getElementById(id);
-            field.value = '';
-            field.disabled = true;
-          });
-          document.getElementById('customerEmail').disabled = false;
-          document.getElementById('customerEmail').value = '';
-          showSuccess('Switched to existing customer mode. Enter email to load customer details.');
-        }
-        
+        state.customerLookupEmail = '';
+        state.customerAccountFound = false;
+        clearCustomerDetails();
+        setCustomerDetailsLocked(!state.isNewCustomer);
+        setCustomerLookupStatus(state.isNewCustomer
+          ? 'Check the email first, then complete the details for the new account.'
+          : 'Enter an email and select Check Account to load the customer.', 'info');
         adjustCustomerDetailsStep();
       });
     });
@@ -2326,11 +2833,10 @@
           state.isNewCustomer = document.getElementById("custNew").checked;
           adjustCustomerDetailsStep();
           if (!(await checkCustomerEmail())) return;
+          if (!validateStep(0)) return;
         }
         if (target === 3) {
-          await loadTechnicianSchedule();
           await renderCalendar();
-          renderSuggestedDates();
         }
         goToStep(target);
       });
@@ -2343,9 +2849,13 @@
       });
     });
 
-    document.querySelectorAll(".stepper-step[data-step]").forEach((btn) => {
+    document.querySelectorAll(".ent-n[data-step]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const target = Number(btn.getAttribute("data-step"));
+        if (target > state.maxReachedStep) {
+          showWarn("Complete the current step before moving ahead.");
+          return;
+        }
         if (target > state.currentStep && !validateStep(state.currentStep))
           return;
         if (state.currentStep === 0 && target >= 1) {
@@ -2354,17 +2864,24 @@
           if (!(await checkCustomerEmail())) return;
         }
         if (target === 3) {
-          await loadTechnicianSchedule();
           await renderCalendar();
-          renderSuggestedDates();
         }
         goToStep(target);
       });
     });
 
+    form.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && state.currentStep !== 6) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       hideAlert();
+
+      if (state.currentStep !== 6) return;
 
       for (const s of [1, 2, 3, 4, 5]) {
         if (!validateStep(s)) {
@@ -2399,9 +2916,11 @@
             }
           : undefined,
         serviceId: state.selectedServiceId,
+        services: state.selectedServices,
         technicianId: techEl.value,
         date: formatDateKey(state.selectedDate),
-        startTime: minutesToHHMM(state.selectedStartMinutes),
+        startTime: state.projectScheduling ? "08:00" : minutesToHHMM(state.selectedStartMinutes),
+        projectScheduling: state.projectScheduling,
         issueDescription: document
           .getElementById("issueDescription")
           .value.trim(),
@@ -2415,7 +2934,7 @@
         travelTime: state.travelTime,
         estimatedFee: Number(
           (
-            Number((svc && svc.basePrice) || 0) + Number(state.travelFare || 0)
+            servicesSubtotal() + Number(state.travelFare || 0)
           ).toFixed(2),
         ),
       };
@@ -2451,10 +2970,7 @@
           bookingMsg = ` Booking confirmation and appointment details have been sent to the existing customer's email at <strong>${d.customer.email}</strong>.`;
         }
         
-        alertEl.innerHTML =
-          `Walk-in appointment created successfully. Reference: <strong>${ref}</strong>.${accountMsg}${bookingMsg}`;
-        alertEl.className = "alert alert-success";
-        alertEl.classList.remove("d-none");
+        showAlert("success", `Walk-in appointment created successfully. Reference: <strong>${ref}</strong>.${accountMsg}${bookingMsg}`);
 
         form.reset();
         state.paymentMethod = "cod";
@@ -2464,6 +2980,13 @@
         state.travelFare = 0;
         state.travelTime = 0;
         state.customerCoords = null;
+        state.isNewCustomer = true;
+        state.customerLookupEmail = "";
+        state.customerAccountFound = false;
+        state.maxReachedStep = 0;
+        state.selectedServices = [];
+        state.enterpriseCalendarSignature = "";
+        state.projectScheduling = null;
         if (state.markers.customer && state.map) {
           state.map.removeLayer(state.markers.customer);
           state.markers.customer = null;
@@ -2491,6 +3014,7 @@
             ),
           );
         state.selectedServiceId = "";
+        setCustomerLookupStatus("Enter the customer's email to check for an existing account.", "info");
         locationInputEl.value = "";
         mapDistanceInfoEl.textContent =
           "Distance and ETA will appear here after setting location.";

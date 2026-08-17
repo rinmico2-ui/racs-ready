@@ -10,7 +10,7 @@ router.post(
   "/register",
   [
     body("email")
-      .isLength({ max: 50 })
+      .isLength({ max: 30 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -21,13 +21,13 @@ router.post(
         all_lowercase: true,
       }),
     body("password")
-      .isLength({ min: 8, max: 20 })
+      .isLength({ min: 8, max: 30 })
       .withMessage("Invalid input")
       .matches(
         /^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]+$/,
       )
       .withMessage(
-        "Password must be 8–20 chars, include exactly one uppercase, and each of !,@,#,$ may appear at most once",
+        "Password must be 8–30 chars, include exactly one uppercase, and each of !,@,#,$ may appear at most once",
       ),
     body("mathCaptcha")
       .matches(/^\d+$/)
@@ -82,9 +82,9 @@ router.post(
   "/login",
   [
     body("email")
-      .isLength({ max: 50 })
-      .withMessage("Invalid input")
       .trim()
+      .isLength({ min: 3, max: 254 })
+      .withMessage("Invalid input")
       .isEmail()
       .withMessage("Invalid email format")
       .normalizeEmail({
@@ -93,14 +93,9 @@ router.post(
         all_lowercase: true,
       }),
     body("password")
-      .isLength({ min: 8, max: 20 })
-      .withMessage("Invalid input")
-      .matches(
-        /^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]+$/,
-      )
-      .withMessage(
-        "Password must be 8–20 chars, include exactly one uppercase, and each of !,@,#,$ may appear at most once",
-      ),
+      .isString()
+      .isLength({ min: 1, max: 128 })
+      .withMessage("Invalid input"),
     body("mathCaptcha")
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 3 })
@@ -121,7 +116,7 @@ router.post(
   "/verify-login-otp",
   [
     body("email")
-      .isLength({ max: 50 })
+      .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -145,7 +140,7 @@ router.post(
   "/resend-login-otp",
   [
     body("email")
-      .isLength({ max: 50 })
+      .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -164,7 +159,7 @@ router.post(
   "/forgot-password",
   [
     body("email")
-      .isLength({ max: 50 })
+      .isLength({ max: 30 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -198,7 +193,7 @@ router.post(
       .isLength({ min: 10, max: 256 })
       .withMessage("Invalid input"),
     body("email")
-      .isLength({ max: 50 })
+      .isLength({ max: 30 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -208,7 +203,7 @@ router.post(
         gmail_remove_subaddress: false,
         all_lowercase: true,
       }),
-    body("password").isLength({ min: 8, max: 20 }).withMessage("Invalid input"),
+    body("password").isLength({ min: 8, max: 30 }).withMessage("Invalid input"),
     body("mathCaptcha")
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 3 })
@@ -321,89 +316,91 @@ router.post(
 // Verify token
 router.get("/verify", authController.verify);
 
-// Dev login route for automated browser testing
-router.get("/dev-login", async (req, res) => {
-   try {
-     const Technician = require("../models/Technician");
-     const User = require("../models/User");
-     const Project = require("../models/Project");
+// Dev login route — ONLY available in non-production environments
+if (process.env.NODE_ENV !== "production") {
+  router.get("/dev-login", async (req, res) => {
+    try {
+      const Technician = require("../models/Technician");
+      const User = require("../models/User");
+      const Project = require("../models/Project");
 
-     // Pick the most useful technician for UAT: prefer the lead of a
-     // large-scale project (so the Projects tab has data), then one with
-     // bookings, then simply the first technician.
-     let tech = null;
-     const leadProj = await Project.findOne({ isLargeScale: true, leadTechnicianId: { $exists: true } })
-       .sort({ updatedAt: -1 })
-       .lean()
-       .catch(() => null);
-     if (leadProj && leadProj.leadTechnicianId) {
-       tech = await Technician.findById(leadProj.leadTechnicianId).lean().catch(() => null);
-     }
-     if (!tech) {
-       const Assignment = require("../models/Assignment");
-       const withAssign = await Assignment.findOne({}).lean().catch(() => null);
-       if (withAssign) tech = await Technician.findById(withAssign.technicianId).lean().catch(() => null);
-     }
-     if (!tech) tech = await Technician.findOne({}).lean();
+      // Pick the most useful technician for UAT: prefer the lead of a
+      // large-scale project (so the Projects tab has data), then one with
+      // bookings, then simply the first technician.
+      let tech = null;
+      const leadProj = await Project.findOne({ isLargeScale: true, leadTechnicianId: { $exists: true } })
+        .sort({ updatedAt: -1 })
+        .lean()
+        .catch(() => null);
+      if (leadProj && leadProj.leadTechnicianId) {
+        tech = await Technician.findById(leadProj.leadTechnicianId).lean().catch(() => null);
+      }
+      if (!tech) {
+        const Assignment = require("../models/Assignment");
+        const withAssign = await Assignment.findOne({}).lean().catch(() => null);
+        if (withAssign) tech = await Technician.findById(withAssign.technicianId).lean().catch(() => null);
+      }
+      if (!tech) tech = await Technician.findOne({}).lean();
 
-     if (!tech) return res.send("Dev login failed: no technician found");
-     const user = await User.findById(tech.user);
-     if (!user) return res.send("Dev login failed: technician has no user");
+      if (!tech) return res.send("Dev login failed: no technician found");
+      const user = await User.findById(tech.user);
+      if (!user) return res.send("Dev login failed: technician has no user");
 
-     // DEV ONLY: ensure the chosen technician has at least one standard booking
-     // so the "My Work" tab isn't empty during UAT. Skips if they already have one.
-     try {
-       const Assignment = require("../models/Assignment");
-       const BookingService = require("../models/BookingService");
-       const existing = await Assignment.countDocuments({ technicianId: tech._id });
-       if (existing === 0) {
-         const booking = await BookingService.create({
-           customerName: "Sample Customer",
-           serviceName: "Aircon Cleaning",
-           address: "123 Demo Street, Quezon City",
-           bookingDate: new Date(),
-           startTime: "09:00",
-           endTime: "11:00",
-           status: "pending_acceptance",
-           paymentStatus: "unpaid",
-           totalPrice: 1500,
-           estimatedFee: 1500,
-           serviceType: "cleaning",
-         });
-         await Assignment.create({
-           bookingId: booking._id,
-           technicianId: tech._id,
-           customerName: booking.customerName,
-           serviceName: booking.serviceName,
-           address: booking.address,
-           bookingDate: booking.bookingDate,
-           startTime: booking.startTime,
-           endTime: booking.endTime,
-           status: "pending_acceptance",
-           serviceType: "cleaning",
-           slaDeadline: new Date(Date.now() + 7 * 864e5),
-         });
-       }
-     } catch (_) {}
+      // DEV ONLY: ensure the chosen technician has at least one standard booking
+      // so the "My Work" tab isn't empty during UAT. Skips if they already have one.
+      try {
+        const Assignment = require("../models/Assignment");
+        const BookingService = require("../models/BookingService");
+        const existing = await Assignment.countDocuments({ technicianId: tech._id });
+        if (existing === 0) {
+          const booking = await BookingService.create({
+            customerName: "Sample Customer",
+            serviceName: "Aircon Cleaning",
+            address: "123 Demo Street, Quezon City",
+            bookingDate: new Date(),
+            startTime: "09:00",
+            endTime: "11:00",
+            status: "pending_acceptance",
+            paymentStatus: "unpaid",
+            totalPrice: 1500,
+            estimatedFee: 1500,
+            serviceType: "cleaning",
+          });
+          await Assignment.create({
+            bookingId: booking._id,
+            technicianId: tech._id,
+            customerName: booking.customerName,
+            serviceName: booking.serviceName,
+            address: booking.address,
+            bookingDate: booking.bookingDate,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            status: "pending_acceptance",
+            serviceType: "cleaning",
+            slaDeadline: new Date(Date.now() + 7 * 864e5),
+          });
+        }
+      } catch (_) {}
 
-     // Simulate login by signing a JWT token cookie (similar to what authController does)
-     const jwt = require("jsonwebtoken");
-     const token = jwt.sign(
-       { id: user._id, role: user.role },
-       process.env.JWT_SECRET || 'fallback_secret',
-       { expiresIn: "7d" }
-     );
-     res.cookie("auth_token", token, {
-       httpOnly: true,
-       secure: process.env.NODE_ENV === "production",
-       sameSite: "strict",
-       maxAge: 7 * 24 * 60 * 60 * 1000,
-     });
-     res.redirect("/technician");
-   } catch (err) {
-     res.send("Dev login failed: " + err.message);
-   }
- });
+      // Simulate login by signing a JWT token cookie (similar to what authController does)
+      const jwt = require("jsonwebtoken");
+      const token = jwt.sign(
+        { id: user._id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      res.cookie("auth_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      res.redirect("/technician");
+    } catch (err) {
+      res.send("Dev login failed: " + err.message);
+    }
+  });
+}
 
 // Mount secure session-based endpoints (optional, non-breaking)
 router.use("/secure", secureAuthRoutes);

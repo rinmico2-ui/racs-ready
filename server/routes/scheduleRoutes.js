@@ -20,8 +20,8 @@ const {
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
 
 // ── Company-wide working hours (internal constants) ───────────────────────────
-const COMPANY_START_MINUTES = 480; // 8:00 AM
-const COMPANY_END_MINUTES = 1140;  // 7:00 PM (includes overtime)
+const COMPANY_START_MINUTES = 480; // 8:00 AM (fallback default)
+const COMPANY_END_MINUTES = 1140;  // 7:00 PM (fallback default, includes overtime)
 
 // Default working days for technicians without a schedule (Mon–Fri 8–5)
 const DEFAULT_WORKING_DAYS = [
@@ -151,7 +151,7 @@ router.get('/available-dates', async (req, res) => {
       technicianId: { $in: techIds.length > 0 ? techIds : [new mongoose.Types.ObjectId()] },
       bookingDate: { $gte: today, $lte: windowEnd },
       status: { $in: activeBookingStatuses },
-    }).select('technicianId bookingDate startTime serviceDurationMinutes travelTime').lean();
+    }).select('technicianId bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
 
     // Build lookup: Map<"YYYY-MM-DD", Map<"technicianId", Array<{start,end}>>>
     const bookingMap = new Map();
@@ -168,7 +168,10 @@ router.get('/available-dates', async (req, res) => {
       const bStart = timeStrToMinutes(b.startTime);
       const bServiceDuration = Number(b.serviceDurationMinutes) || serviceDuration;
       const bTravelTime = Number(b.travelTime) || travelTime;
-      const bEnd = bStart + bServiceDuration + bTravelTime + bufferTime;
+      const explicitEnd = timeStrToMinutes(b.endTime);
+      const bEnd = Number.isFinite(explicitEnd) && explicitEnd > bStart
+        ? explicitEnd
+        : bStart + bServiceDuration + bTravelTime + bufferTime;
 
       techBookings.get(techKey).push({ start: bStart, end: bEnd });
     });
@@ -181,7 +184,7 @@ router.get('/available-dates', async (req, res) => {
       ],
       bookingDate: { $gte: today, $lte: windowEnd },
       status: { $in: activeBookingStatuses },
-    }).select('bookingDate startTime serviceDurationMinutes travelTime').lean();
+    }).select('bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
 
     // Build per-date lookup for unassigned bookings
     const unassignedBookingMap = new Map();
@@ -192,7 +195,10 @@ router.get('/available-dates', async (req, res) => {
       const bStart = timeStrToMinutes(b.startTime);
       const bServiceDuration = Number(b.serviceDurationMinutes) || serviceDuration;
       const bTravelTime = Number(b.travelTime) || travelTime;
-      const bEnd = bStart + bServiceDuration + bTravelTime + bufferTime;
+      const explicitEnd = timeStrToMinutes(b.endTime);
+      const bEnd = Number.isFinite(explicitEnd) && explicitEnd > bStart
+        ? explicitEnd
+        : bStart + bServiceDuration + bTravelTime + bufferTime;
       unassignedBookingMap.get(dateKey).push({ start: bStart, end: bEnd });
     });
 
@@ -293,23 +299,22 @@ router.get('/available-dates', async (req, res) => {
         hasAnyWorkingTech = true;
 
         // Combine assigned bookings + unassigned bookings — both consume
-        // capacity from every tech's pool (unassigned will be assigned later).
+        // Unassigned jobs are subtracted once from the shared pool below.
         const techBookings = dayBookings.get(techId) || [];
-        const allIntervals = [...techBookings];
-        for (const ub of dayUnassigned) {
-          if (ub.end > COMPANY_START_MINUTES && ub.start < COMPANY_END_MINUTES) {
-            allIntervals.push(ub);
-          }
-        }
 
         dayWorkingTechs.push({
           id: techId,
-          startMinutes: workingDay.startMinutes,
-          intervals: allIntervals,
+          startMinutes: workingDay.startMinutes ?? COMPANY_START_MINUTES,
+          endMinutes: workingDay.endMinutes ?? COMPANY_END_MINUTES,
+          intervals: techBookings,
         });
       }
 
       if (!hasAnyWorkingTech) { debugSkipNoTech++; continue; }
+
+      // Derive working-hours bounds from the admin-configured tech schedules
+      const dayStartMin = Math.min(...dayWorkingTechs.map(t => t.startMinutes));
+      const dayEndMin   = Math.max(...dayWorkingTechs.map(t => t.endMinutes));
 
       // ── Project-reserved techs (occupied all day by commercial projects) ──
       const dayProjectReserved = projectResMap.get(dateKey) || 0;
@@ -323,22 +328,25 @@ router.get('/available-dates', async (req, res) => {
       let dayTotalCapacity = 0;
       let dayTotalAvailable = 0;
 
-      for (let s = COMPANY_START_MINUTES; s + capacityPerSlot <= COMPANY_END_MINUTES; s += DAY_SLOT_INTERVAL) {
+      for (let s = dayStartMin; s < dayEndMin; s += DAY_SLOT_INTERVAL) {
         const slotEnd = s + capacityPerSlot;
 
         // Today: skip windows before advance-notice cutoff
         if (i === 0 && s < earliestAllowedMinutes) continue;
 
-        // Count how many working techs are free for this entire window
+        // Count how many working techs are free for this start time
+        // (only check start time — jobs may extend into overtime)
         let freeTechs = 0;
         for (const t of dayWorkingTechs) {
-          if (t.startMinutes > s) continue;
+          if (s < t.startMinutes) continue;
           const hasConflict = t.intervals.some(b => s < b.end && slotEnd > b.start);
           if (!hasConflict) freeTechs++;
         }
 
-        // Subtract project-reserved techs (they're occupied all day)
-        freeTechs = Math.max(0, freeTechs - dayProjectReserved);
+        const overlappingUnassigned = dayUnassigned.filter(
+          b => s < b.end && slotEnd > b.start
+        ).length;
+        freeTechs = Math.max(0, freeTechs - overlappingUnassigned - dayProjectReserved);
 
         dayTotalCapacity++;
         if (freeTechs > 0) dayTotalAvailable++;
@@ -346,7 +354,7 @@ router.get('/available-dates', async (req, res) => {
 
       // Today: skip the day entirely if advance notice blocks all windows
       if (i === 0) {
-        if (earliestAllowedMinutes >= COMPANY_END_MINUTES) {
+        if (earliestAllowedMinutes >= dayEndMin) {
           debugSkipAdvance++; continue;
         }
         if (dayTotalAvailable === 0) { debugSkipAdvance++; continue; }
@@ -612,6 +620,40 @@ router.get('/booking-policy', async (req, res) => {
 });
 
 /**
+ * GET /api/schedule/working-hours
+ *
+ * Returns the company-wide working-hours window derived from the
+ * admin-configured per-technician schedules.
+ */
+router.get('/working-hours', async (req, res) => {
+  try {
+    const TechnicianSchedule = require('../models/TechnicianSchedule');
+    const Technician = require('../models/Technician');
+
+    const techs = await Technician.find({ isActive: true }).select('_id').lean();
+    const techIds = techs.map(t => t._id);
+    const schedules = await TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean();
+
+    const allStarts = [];
+    const allEnds = [];
+    for (const s of schedules) {
+      for (const wd of (s.workingDays || [])) {
+        if (Number.isFinite(wd.startMinutes)) allStarts.push(wd.startMinutes);
+        if (Number.isFinite(wd.endMinutes))   allEnds.push(wd.endMinutes);
+      }
+    }
+
+    const startMinutes = allStarts.length ? Math.min(...allStarts) : COMPANY_START_MINUTES;
+    const endMinutes   = allEnds.length   ? Math.max(...allEnds)   : COMPANY_END_MINUTES;
+
+    res.json({ startMinutes, endMinutes });
+  } catch (error) {
+    console.error('❌ Error getting working hours:', error);
+    res.json({ startMinutes: COMPANY_START_MINUTES, endMinutes: COMPANY_END_MINUTES });
+  }
+});
+
+/**
  * GET /api/schedule/holidays-and-nonworking
  * Get public holidays and non-working days
  */
@@ -837,6 +879,13 @@ router.get('/time-slots', async (req, res) => {
       workableTechs.push({ id: techId, workingDay });
     }
 
+    // Derive company-wide working-hours bounds from the workable technicians'
+    // admin-configured schedules instead of using hardcoded constants.
+    const techStarts = workableTechs.map(t => t.workingDay.startMinutes).filter(Number.isFinite);
+    const techEnds   = workableTechs.map(t => t.workingDay.endMinutes).filter(Number.isFinite);
+    const DAY_START  = techStarts.length ? Math.min(...techStarts) : COMPANY_START_MINUTES;
+    const DAY_END    = techEnds.length   ? Math.max(...techEnds)   : COMPANY_END_MINUTES;
+
     // ── Existing bookings for the day (assigned + unassigned) ─────────────
     const dayStartUn = new Date(selectedDate);
     dayStartUn.setHours(0, 0, 0, 0);
@@ -879,6 +928,7 @@ router.get('/time-slots', async (req, res) => {
     // Build a list of occupied intervals per technician so we can check each
     // candidate start time against every tech's actual bookings.
     const techBookedIntervals = new Map(); // techId -> [{start, end}]
+    const unassignedBookedIntervals = []; // each interval consumes one pooled technician
 
     for (const b of dayBookings) {
       const s = timeStrToMinutes(b.startTime);
@@ -893,11 +943,8 @@ router.get('/time-slots', async (req, res) => {
         if (!techBookedIntervals.has(key)) techBookedIntervals.set(key, []);
         techBookedIntervals.get(key).push({ start: s, end: e });
       } else {
-        // Unassigned bookings consume one slot from every tech's pool
-        for (const tech of workableTechs) {
-          if (!techBookedIntervals.has(tech.id)) techBookedIntervals.set(tech.id, []);
-          techBookedIntervals.get(tech.id).push({ start: s, end: e });
-        }
+        // Reserve one company-capacity unit; a technician is assigned later.
+        unassignedBookedIntervals.push({ start: s, end: e });
       }
     }
 
@@ -915,15 +962,19 @@ router.get('/time-slots', async (req, res) => {
     function countFreeTechs(slotStart, slotEnd) {
       let free = 0;
       for (const tech of workableTechs) {
-        // Must fit within company working hours (includes overtime)
-        if (slotStart < COMPANY_START_MINUTES || slotEnd > COMPANY_END_MINUTES) continue;
+        // Must start within this technician's configured working hours
+        if (slotStart < tech.workingDay.startMinutes) continue;
         // Check if any existing booking overlaps this slot
         const booked = techBookedIntervals.get(tech.id) || [];
         const hasOverlap = booked.some(b => slotStart < b.end && slotEnd > b.start);
         if (!hasOverlap) free++;
       }
-      // Subtract project-reserved techs (they're occupied all day)
-      free = Math.max(0, free - projectReservedTechs);
+      const overlappingUnassigned = unassignedBookedIntervals.filter(
+        b => slotStart < b.end && slotEnd > b.start
+      ).length;
+      // Unassigned bookings consume one pooled technician each. Projects are
+      // accounted for separately by the project reservation engine.
+      free = Math.max(0, free - overlappingUnassigned - projectReservedTechs);
       return free;
     }
 
@@ -937,14 +988,14 @@ router.get('/time-slots', async (req, res) => {
     const cutoff = currentMinutes + 30;
 
     // ── Dynamic 30-minute interval slots ──────────────────────────────────
-    // Generate a potential start time every 30 minutes from company open to
-    // close. For each, check: (a) the full booking fits before closing, and
-    // (b) at least one technician has no overlapping bookings for the entire
-    // duration (service + travel + buffer). Only show slots that pass both.
+    // Generate a potential start time every 30 minutes within the
+    // admin-configured working hours (DAY_START → DAY_END). Jobs may extend
+    // past DAY_END into overtime. For each slot, check that at least one
+    // technician has no overlapping bookings for the entire duration.
     const SLOT_INTERVAL = 30; // minutes between potential start times
 
     const timeSlots = [];
-    for (let slotStart = COMPANY_START_MINUTES; slotStart + capacityPerSlot <= COMPANY_END_MINUTES; slotStart += SLOT_INTERVAL) {
+    for (let slotStart = DAY_START; slotStart < DAY_END; slotStart += SLOT_INTERVAL) {
       const slotEnd = slotStart + capacityPerSlot;
 
       // Skip slots in the past or before advance-notice cutoff
@@ -976,7 +1027,7 @@ router.get('/time-slots', async (req, res) => {
       mode: 'capacity',
       totalTechnicians: workableTechs.length,
       minAdvanceNoticeMinutes: minAdvanceMinutes,
-      workingHours: { start: COMPANY_START_MINUTES, end: COMPANY_END_MINUTES },
+      workingHours: { start: DAY_START, end: DAY_END },
     });
 
   } catch (error) {

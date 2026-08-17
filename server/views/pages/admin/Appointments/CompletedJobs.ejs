@@ -128,11 +128,15 @@
 
   function renderStats(stats) {
     const stages = stats.stages || {};
-    document.getElementById('statTotal').textContent = stages.COMPLETED?.count || 0;
+    const completedCount = stages.COMPLETED ? stages.COMPLETED.count || 0 : 0;
+    const repairCompletedCount = stages.REPAIR_COMPLETED ? stages.REPAIR_COMPLETED.count || 0 : 0;
+    const totalCompletedCount = completedCount + repairCompletedCount;
+    document.getElementById('statTotal').textContent = totalCompletedCount;
     document.getElementById('statToday').textContent = stats.summary?.todayBookings || 0;
     const rev = stats.summary?.totalRevenue || 0;
     document.getElementById('statRevenue').textContent = '₱' + Number(rev).toLocaleString();
-    document.getElementById('statAvg').textContent = '—';
+    const avgRating = stats.summary?.avgRating;
+    document.getElementById('statAvg').textContent = avgRating != null ? avgRating.toFixed(1) + ' ★' : '—';
   }
 
   function renderJobs(bookings) {
@@ -141,39 +145,58 @@
       container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:3rem;"></i><div class="mt-2 fw-semibold">No completed jobs</div><div class="small">Completed jobs will appear here</div></div>`;
       return;
     }
-    container.innerHTML = bookings.map(b => {
-      const date = new Date(b.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      const completedDate = b.updatedAt ? new Date(b.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-      return `<div class="col-md-6 col-xl-4">
-        <div class="job-card">
-          <div class="job-card-header bg-white">
-            <code class="small">${b.bookingReference || b.workOrderNumber || 'N/A'}</code>
-            <span class="job-completed" style="padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;text-transform:uppercase;">Completed</span>
-          </div>
-          <div class="job-card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <div>
-                <div class="fw-semibold small">${b.customer?.name || 'N/A'}</div>
-                <div class="text-muted" style="font-size:0.7rem;">${b.customer?.phone || ''}</div>
-              </div>
-              <div class="text-end">
-                <div class="fw-bold text-success">₱${(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</div>
-                <div class="text-muted" style="font-size:0.65rem;">${(b.paymentMethod || 'cod').toUpperCase()}</div>
-              </div>
-            </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="small text-muted"><i class="bi bi-tools me-1"></i>${b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A')}</div>
-              <div class="small text-muted"><i class="bi bi-calendar me-1"></i>${date}</div>
-            </div>
-            ${b.technician?.name ? `<div class="mt-2 small"><i class="bi bi-person me-1 text-success"></i><span class="fw-semibold">${b.technician.name}</span></div>` : ''}
-            ${completedDate ? `<div class="mt-1 small text-muted"><i class="bi bi-check2 me-1"></i>Completed ${completedDate}</div>` : ''}
-            <div class="mt-3">
-              <button class="btn btn-sm btn-outline-success w-100" onclick="viewDetail('${b._id}')"><i class="bi bi-eye me-1"></i>View Details</button>
-            </div>
-          </div>
+    container.innerHTML = `<div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead style="background:#f8fafc;">
+              <tr>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Reference</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Customer</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Service</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Technician</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Date</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:right;">Amount</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Status</th>
+                <th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bookings.map(b => {
+                const date = new Date(b.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const serviceName = b.service?.name || (b.services?.[0]?.name) || (b.serviceModel === 'RepairService' || b.serviceType === 'repair' ? 'Repair Service' : 'N/A');
+                return `<tr style="border-bottom:1px solid #f1f5f9;">
+                  <td style="padding:12px 16px;"><code style="font-size:0.78rem;background:#f1f5f9;padding:3px 8px;border-radius:6px;">${b.bookingReference || b.workOrderNumber || 'N/A'}</code></td>
+                  <td style="padding:12px 16px;">
+                    <div style="font-weight:600;font-size:0.85rem;color:#1e293b;">${b.customer?.name || 'N/A'}</div>
+                    <div style="font-size:0.72rem;color:#64748b;">${b.customer?.phone || ''}</div>
+                  </td>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:0.82rem;color:#334155;">${serviceName}</div>
+                  </td>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:0.82rem;color:#334155;">${b.technician?.name || 'Unassigned'}</div>
+                  </td>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:0.82rem;color:#334155;">${date}</div>
+                  </td>
+                  <td style="padding:12px 16px;text-align:right;">
+                    <div style="font-weight:700;font-size:0.88rem;color:#059669;">₱${(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</div>
+                    <div style="font-size:0.68rem;color:#64748b;">${(b.paymentMethod || 'cod').toUpperCase()}</div>
+                  </td>
+                  <td style="padding:12px 16px;text-align:center;">
+                    <span style="background:#dcfce7;color:#166534;padding:4px 10px;border-radius:20px;font-size:0.7rem;font-weight:600;">Completed</span>
+                  </td>
+                  <td style="padding:12px 16px;text-align:center;">
+                    <button class="btn btn-sm btn-outline-success" onclick="viewDetail('${b._id}')" style="border-radius:8px;font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
         </div>
-      </div>`;
-    }).join('');
+      </div>
+    </div>`;
   }
 
   function renderPagination(pag) {
@@ -195,6 +218,10 @@
       const b = data.booking;
       const date = new Date(b.bookingDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const completedAt = b.updatedAt ? new Date(b.updatedAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : '—';
+      const f = data.financialSummary || {};
+      const o = data.operationalSummary || {};
+      const money = value => '₱' + Number(value || 0).toLocaleString();
+      const resourceRows = items => (items || []).length ? items.map(item => `<li>${item.name} — ${item.quantity || 1} ${item.unit || 'unit'}${item.cost != null ? ` (${money(item.cost)})` : ''}</li>`).join('') : '<li>None recorded</li>';
       document.getElementById('detailTitle').textContent = `Job ${b.bookingReference || b.workOrderNumber || '#' + b._id.toString().slice(-8).toUpperCase()}`;
       document.getElementById('detailBody').innerHTML = `
         <div class="ent-detail-grid">
@@ -253,7 +280,39 @@
               <span class="ent-detail-value"><span class="badge bg-success">Completed</span></span>
             </div>
           </div>
-        </div>`;
+        </div>
+        ${Array.isArray(b.services) && b.services.length > 0 ? `
+        <div class="ent-detail-card ent-detail-card-wide" style="margin-top:1rem;">
+          <div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-box-seam text-info"></i></div>
+          <div class="ent-detail-card-content" style="width:100%;">
+            <span class="ent-detail-label">Unit Details (${b.services.length} item${b.services.length>1?'s':''})</span>
+            ${b.services.map(function(s,i){
+              var t=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'—';
+              var bnd=s.brand||'—';
+              var q=Number(s.quantity)||1;
+              var h=s.hpDescription||(s.hp?s.hp+' HP':'—');
+              var sn=s.name||('Service '+(i+1));
+              var model=s.model||'—';
+              var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+              var stBadge=s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+              return '<div style="padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+                '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+                  '<div style="font-weight:600;font-size:0.82rem;color:#1e293b;">'+sn+'</div>'+
+                  '<span style="'+stBadge+'padding:3px 8px;border-radius:6px;font-size:0.65rem;font-weight:600;">'+(s.type||'core').toUpperCase()+'</span>'+
+                '</div>'+
+                '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px;">'+
+                  '<div><span style="font-size:0.65rem;color:#64748b;">Type</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+t+'</div></div>'+
+                  '<div><span style="font-size:0.65rem;color:#64748b;">Brand</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+bnd+'</div></div>'+
+                  '<div><span style="font-size:0.65rem;color:#64748b;">Model</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+model+'</div></div>'+
+                  '<div><span style="font-size:0.65rem;color:#64748b;">HP / Qty</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+h+' / '+q+'</div></div>'+
+                '</div>'+
+                (issue?'<div style="margin-top:6px;"><span style="font-size:0.65rem;color:#64748b;">Problem</span><div style="font-size:0.75rem;color:#475569;line-height:1.4;">'+issue+'</div></div>':'')+
+              '</div>';
+            }).join('')}
+          </div>
+        </div>` : ''}
+        <section class="mt-4"><h6 class="fw-bold mb-2"><i class="bi bi-calculator text-success me-2"></i>Financial Summary</h6><div class="ent-detail-grid"><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Revenue</span><span class="ent-detail-value">${money(f.revenue)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Labor Cost</span><span class="ent-detail-value">${money(f.laborCost)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Repair Parts Cost</span><span class="ent-detail-value">${money(f.repairPartsCost)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Consumables Cost</span><span class="ent-detail-value">${money(f.consumablesCost)}</span></div></div><div class="ent-detail-card ent-detail-card-wide" style="border-left:4px solid ${Number(f.grossProfit||0)>=0?'#10b981':'#ef4444'}"><div class="ent-detail-card-content"><span class="ent-detail-label">Gross Profit</span><span class="ent-detail-value" style="color:${Number(f.grossProfit||0)>=0?'#059669':'#dc2626'}">${money(f.grossProfit)} · ${Number(f.grossProfitMargin||0).toFixed(1)}%</span></div></div></div></section>
+        <section class="mt-4"><h6 class="fw-bold mb-2"><i class="bi bi-clipboard-data text-primary me-2"></i>Operational Summary</h6><div class="ent-detail-card ent-detail-card-wide mb-2"><div class="ent-detail-card-content"><span class="ent-detail-label">Assigned Technician & Duration</span><span class="ent-detail-value">${o.assignedTechnician || 'Unassigned'} · ${Number(o.serviceDurationHours||0).toFixed(1)} hours</span></div></div><div class="ent-detail-grid"><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Consumables Used</span><ul class="mb-0 ps-3 ent-detail-sub">${resourceRows(o.consumablesUsed)}</ul></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Repair Parts Used</span><ul class="mb-0 ps-3 ent-detail-sub">${resourceRows(o.repairPartsUsed)}</ul></div></div><div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-content"><span class="ent-detail-label">Equipment Used (cost excluded)</span><ul class="mb-0 ps-3 ent-detail-sub">${(o.equipmentUsed||[]).length ? o.equipmentUsed.map(item=>`<li>${item.name} — ${item.technician} · ${item.checkoutStatus} / ${item.returnStatus}</li>`).join('') : '<li>None recorded</li>'}</ul></div></div></div></section>`;
       new bootstrap.Modal(document.getElementById('detailModal')).show();
     } catch (e) {
       showNotification({ type: 'error', title: 'Error', message: 'Failed to load job details.', duration: 4000 });

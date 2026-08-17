@@ -1,4 +1,4 @@
-<div class="admin-dashboard container-fluid py-4 logs-page">
+<div class="admin-dashboard container-fluid py-4 logs-page inventory-premium">
   <%- include('../../partials/dashboard-styles') %>
 
   <style>
@@ -20,39 +20,7 @@
     /* ── Hero tweaks ── */
     .logs-page .dashboard-hero .hero-sub { color: var(--lg-muted); }
 
-    /* ── KPI Stats Row ── */
-    .logs-page .log-stat {
-      background: #fff;
-      border: 1px solid var(--lg-border);
-      border-radius: 12px;
-      padding: 0.9rem 1rem;
-      display: flex; align-items: center; gap: 0.7rem;
-      box-shadow: var(--lg-shadow);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .logs-page .log-stat:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(14,165,233,0.1);
-    }
-    .logs-page .log-stat .ls-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.1rem; color: #fff; flex-shrink: 0;
-    }
-    .logs-page .log-stat .ls-icon.sky { background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent)); }
-    .logs-page .log-stat .ls-icon.emerald { background: linear-gradient(135deg, #059669, #10b981); }
-    .logs-page .log-stat .ls-icon.amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
-    .logs-page .log-stat .ls-icon.rose { background: linear-gradient(135deg, #e11d48, #fb7185); }
-    .logs-page .log-stat .ls-label {
-      font-size: 0.68rem; font-weight: 600 !important;
-      text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--lg-muted); margin-bottom: 0.05rem;
-    }
-    .logs-page .log-stat .ls-value {
-      font-size: 1.15rem; font-weight: 700 !important;
-      color: var(--lg-text); font-family: 'Outfit', sans-serif;
-      line-height: 1;
-    }
+    /* ── KPI Stats Row (uses .inventory-premium styles) ── */
 
     /* ── Filter Bar ── */
     .logs-page .filter-bar {
@@ -253,39 +221,75 @@
   <!-- ═══ KPI STATS ═══ -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-      <div class="log-stat">
-        <div class="ls-icon sky"><i class="bi bi-journal-text"></i></div>
-        <div>
-          <div class="ls-label">Total Logs</div>
-          <div class="ls-value" id="stat-total">—</div>
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Total Logs</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="stat-total">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+            </div>
+            <span class="inv-kpi-sub">All log entries</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, var(--lg-primary), var(--lg-accent));">
+            <i class="bi bi-journal-text"></i>
+          </div>
         </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkTotal"></canvas></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="log-stat">
-        <div class="ls-icon emerald"><i class="bi bi-box-arrow-in-right"></i></div>
-        <div>
-          <div class="ls-label">Logins</div>
-          <div class="ls-value" id="stat-logins">—</div>
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Logins</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="stat-logins">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+            </div>
+            <span class="inv-kpi-sub">Successful sign-ins</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #059669, #10b981);">
+            <i class="bi bi-box-arrow-in-right"></i>
+          </div>
         </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkLogins"></canvas></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="log-stat">
-        <div class="ls-icon amber"><i class="bi bi-box-arrow-right"></i></div>
-        <div>
-          <div class="ls-label">Logouts</div>
-          <div class="ls-value" id="stat-logouts">—</div>
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Logouts</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="stat-logouts">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+            </div>
+            <span class="inv-kpi-sub">Session exits</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #d97706, #f59e0b);">
+            <i class="bi bi-box-arrow-right"></i>
+          </div>
         </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkLogouts"></canvas></div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="log-stat">
-        <div class="ls-icon rose"><i class="bi bi-pencil-square"></i></div>
-        <div>
-          <div class="ls-label">Actions</div>
-          <div class="ls-value" id="stat-actions">—</div>
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Actions</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="stat-actions">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+            </div>
+            <span class="inv-kpi-sub">Create, update, delete</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #e11d48, #fb7185);">
+            <i class="bi bi-pencil-square"></i>
+          </div>
         </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkActions"></canvas></div>
       </div>
     </div>
   </div>
@@ -497,12 +501,39 @@
       if (currentPage < pages) { currentPage++; renderPage(currentPage); }
     }
 
+    function drawLogsSparks() {
+      if (typeof Chart === 'undefined') return;
+      const colors = { total: '#2563eb', logins: '#10b981', logouts: '#f59e0b', actions: '#ef4444' };
+      const data = { total: [4,6,5,7,6,8,7], logins: [2,3,4,3,5,4,3], logouts: [1,2,2,3,3,4,3], actions: [3,4,5,4,6,5,4] };
+      const ids = { total: 'sparkTotal', logins: 'sparkLogins', logouts: 'sparkLogouts', actions: 'sparkActions' };
+      Object.keys(ids).forEach(function(key){
+        var canvas = document.getElementById(ids[key]); if (!canvas) return;
+        if (canvas.dataset.rendered) return;
+        var ctx = canvas.getContext('2d');
+        var grad = ctx.createLinearGradient(0, 0, 0, 40);
+        grad.addColorStop(0, colors[key]);
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        new Chart(canvas, {
+          type: 'line',
+          data: { labels: [1,2,3,4,5,6,7], datasets: [{ data: data[key], borderColor: colors[key], backgroundColor: grad, fill: true, tension: 0.35, pointRadius: 0 }] },
+          options: { responsive: true, maintainAspectRatio: false, animation: { duration: 800 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, elements: { point: { radius: 0 } }, scales: { x: { display: false }, y: { display: false } } }
+        });
+        canvas.dataset.rendered = '1';
+      });
+    }
+
+    function ensureLogsSparks() {
+      if (typeof Chart !== 'undefined') { drawLogsSparks(); }
+      else { setTimeout(ensureLogsSparks, 100); }
+    }
+
     async function loadLogs() {
       try {
         const res = await fetch("/api/admin/logs?limit=200");
         const json = res.ok ? await res.json() : { logs: [] };
         allLogs = json.logs || [];
         applyFilter();
+        setTimeout(ensureLogsSparks, 0);
       } catch (e) {
         document.getElementById("logs-table-body").innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#e11d48; font-size:0.85rem;"><i class="bi bi-exclamation-triangle" style="font-size:1.2rem; display:block; margin-bottom:0.5rem;"></i>Failed to load logs.</td></tr>';
         console.error(e);

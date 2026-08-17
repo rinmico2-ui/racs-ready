@@ -1,88 +1,101 @@
 <div class="pos-container">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body.pos-body { background: #0f172a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; height: 100vh; }
+    body.pos-body { background: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; height: 100vh; color: #0f172a; }
 
     .pos-layout { display: grid; grid-template-columns: 1fr 400px; height: 100vh; overflow: hidden; }
 
     /* ── Left: Product Grid ── */
-    .pos-products { display: flex; flex-direction: column; background: #1e293b; overflow: hidden; }
-    .pos-header { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: #0f172a; border-bottom: 1px solid #334155; flex-shrink: 0; }
-    .pos-header h5 { color: #f8fafc; font-weight: 700; font-size: 1rem; margin: 0; white-space: nowrap; }
-    .pos-header h5 i { color: #3b82f6; margin-right: 8px; }
+    .pos-products { display: flex; flex-direction: column; background: #f8fafc; overflow: hidden; }
+    .pos-header { display: flex; align-items: center; padding: 18px 36px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-bottom: none; border-radius: 0; flex-shrink: 0; position: relative; overflow: hidden; }
+    .pos-header::before { content:''; position:absolute; top:-60%; right:-20%; width:400px; height:400px; background:radial-gradient(circle,rgba(59,130,246,0.15) 0%,transparent 70%); pointer-events:none; }
+    .pos-header::after { content:''; position:absolute; bottom:-40%; left:-10%; width:300px; height:300px; background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%); pointer-events:none; }
+    .pos-header-left { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
+    .pos-header-icon { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); width: 56px; height: 56px; border-radius: 16px; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .pos-header-title { display: flex; flex-direction: column; gap: 3px; }
+    .pos-header h5 { color: #fff; font-weight: 700; font-size: 1.4rem; margin: 0; white-space: nowrap; font-family: "Outfit", "Inter", sans-serif; letter-spacing: -0.02em; line-height: 1.2; }
+    .pos-header-title small { font-size: 0.85rem; color: rgba(255,255,255,0.65); font-weight: 400; line-height: 1.4; }
+
+    .pos-search-bar { display: flex; align-items: center; gap: 12px; padding: 14px 36px; background: #ffffff; border-bottom: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 
     .pos-search-box { flex: 1; position: relative; }
-    .pos-search-box input { width: 100%; padding: 10px 14px 10px 40px; border-radius: 10px; border: 1.5px solid #334155; background: #1e293b; color: #f8fafc; font-size: 0.9rem; outline: none; transition: border 0.2s; }
+    .pos-search-box input { width: 100%; height: 44px; padding: 10px 14px 10px 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #ffffff; color: #0f172a; font-size: 0.9rem; outline: none; transition: border 0.2s; }
     .pos-search-box input:focus { border-color: #3b82f6; }
     .pos-search-box input::placeholder { color: #64748b; }
-    .pos-search-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.9rem; }
+    .pos-search-box i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.9rem; }
 
-    .pos-barcode-box { position: relative; width: 200px; }
-    .pos-barcode-box input { width: 100%; padding: 10px 14px 10px 40px; border-radius: 10px; border: 1.5px solid #334155; background: #1e293b; color: #f8fafc; font-size: 0.9rem; font-family: monospace; outline: none; transition: border 0.2s; }
+    .pos-barcode-box { position: relative; width: 260px; }
+    .pos-barcode-box input { width: 100%; height: 44px; padding: 10px 14px 10px 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #ffffff; color: #0f172a; font-size: 0.9rem; font-family: monospace; outline: none; transition: border 0.2s; }
     .pos-barcode-box input:focus { border-color: #22c55e; }
     .pos-barcode-box input::placeholder { color: #64748b; }
-    .pos-barcode-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #22c55e; font-size: 0.9rem; }
+    .pos-barcode-box i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #22c55e; font-size: 0.9rem; }
 
-    .pos-categories { display: flex; gap: 6px; padding: 12px 20px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid #334155; }
+    .pos-categories { display: flex; gap: 8px; padding: 16px 20px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid #e2e8f0; }
     .pos-categories::-webkit-scrollbar { height: 3px; }
-    .pos-categories::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-    .pos-cat-btn { padding: 6px 14px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; border: 1.5px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+    .pos-categories::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+    .pos-cat-btn { padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; border: 1.5px solid #e2e8f0; background: #ffffff; color: #64748b; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
     .pos-cat-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-    .pos-cat-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .pos-cat-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; box-shadow: 0 4px 10px rgba(59,130,246,0.25); }
 
     .pos-grid { flex: 1; overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; align-content: start; }
     .pos-grid::-webkit-scrollbar { width: 6px; }
-    .pos-grid::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    .pos-grid::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
 
-    .pos-item { background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; position: relative; }
+    .pos-item { background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; position: relative; }
     .pos-item:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(59,130,246,0.15); }
     .pos-item.oos { opacity: 0.4; pointer-events: none; }
-    .pos-item-name { font-weight: 700; font-size: 0.85rem; color: #f8fafc; line-height: 1.3; }
+    .pos-item-img { width: 100%; height: 100px; object-fit: contain; border-radius: 8px; background: #f1f5f9; margin-bottom: 8px; }
+    .pos-item-name { font-weight: 700; font-size: 0.85rem; color: #0f172a; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .pos-item-cat { font-size: 0.68rem; color: #64748b; }
-    .pos-item-price { font-size: 1.1rem; font-weight: 800; color: #22c55e; }
+    .pos-item-price { font-size: 1.1rem; font-weight: 600; color: #22c55e; }
     .pos-item-stock { font-size: 0.7rem; color: #94a3b8; }
     .pos-item-stock strong { color: #f59e0b; }
     .pos-item-barcode { font-size: 0.7rem; color: #64748b; font-family: monospace; margin: 4px 0; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
 
-    .pos-tabs { display: flex; gap: 4px; padding: 0 16px 8px; }
-    .pos-tab { flex: 1; padding: 8px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #94a3b8; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .pos-tab:hover { border-color: #3b82f6; color: #e2e8f0; }
-    .pos-tab.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .pos-tabs { display: flex; gap: 10px; padding: 14px 20px; background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+    .pos-tab { flex: 1; padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .pos-tab:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-tab.active { background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 60%, #2563eb 100%); border: 1px solid transparent; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
 
-    .pos-aircon-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden; }
-    .pos-aircon-card:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
-    .pos-aircon-card.oos { opacity: 0.4; cursor: not-allowed; }
-    .pos-aircon-img { width: 100%; height: 80px; object-fit: contain; border-radius: 8px; background: #0f172a; margin-bottom: 8px; }
-    .pos-aircon-name { font-size: 0.8rem; font-weight: 700; color: #f1f5f9; line-height: 1.2; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .pos-aircon-brand { font-size: 0.7rem; color: #94a3b8; margin-bottom: 4px; }
-    .pos-aircon-specs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
-    .pos-aircon-badge { font-size: 0.6rem; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
-    .pos-aircon-badge.inv { background: #22c55e20; color: #22c55e; }
-    .pos-aircon-badge.non { background: #f59e0b20; color: #f59e0b; }
-    .pos-aircon-badge.type { background: #3b82f620; color: #3b82f6; }
-    .pos-aircon-price { font-size: 1rem; font-weight: 800; color: #22c55e; }
+    .pos-aircon-card { background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; position: relative; }
+    .pos-aircon-card:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(59,130,246,0.15); }
+    .pos-aircon-card.oos { opacity: 0.4; pointer-events: none; }
+    .pos-aircon-img { width: 100%; height: 100px; object-fit: contain; border-radius: 8px; background: #f1f5f9; margin-bottom: 8px; }
+    .pos-aircon-name { font-weight: 700; font-size: 0.85rem; color: #0f172a; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .pos-aircon-cat { font-size: 0.68rem; color: #64748b; }
+    .pos-aircon-price { font-size: 1.1rem; font-weight: 600; color: #22c55e; }
     .pos-aircon-stock { font-size: 0.7rem; color: #94a3b8; }
+    .pos-aircon-stock strong { color: #f59e0b; }
+    .pos-aircon-barcode { font-size: 0.7rem; color: #64748b; font-family: monospace; margin: 4px 0; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
 
     .pos-empty { text-align: center; padding: 60px 20px; color: #64748b; grid-column: 1 / -1; }
-    .pos-empty i { font-size: 3rem; color: #334155; display: block; margin-bottom: 12px; }
+    .pos-empty i { font-size: 3rem; color: #94a3b8; display: block; margin-bottom: 12px; }
 
     /* ── Right: Cart Panel ── */
-    .pos-cart { display: flex; flex-direction: column; background: #f8fafc; border-left: 1px solid #e2e8f0; overflow: hidden; }
-    .pos-cart-header { padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-    .pos-cart-header h6 { font-weight: 700; font-size: 0.9rem; color: #0f172a; margin: 0; }
-    .pos-cart-count { background: #3b82f6; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+    .pos-cart { display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid #e2e8f0; border-radius: 20px 0 0 20px; overflow: hidden; box-shadow: -10px 0 30px rgba(15,36,96,0.06); }
+    .pos-cart-header { padding: 20px 36px; background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 60%, #2563eb 100%); border-bottom: 1px solid rgba(255,255,255,0.1); border-radius: 0; display: flex; align-items: center; flex-shrink: 0; }
+    .pos-cart-header-left { display: flex; align-items: center; gap: 16px; }
+    .pos-cart-header-icon { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); width: 48px; height: 48px; border-radius: 14px; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .pos-cart-header-title { display: flex; flex-direction: column; gap: 3px; }
+    .pos-cart-header h6 { font-weight: 600; font-size: 1.15rem; color: #fff; margin: 0; font-family: "Outfit", "Inter", sans-serif; letter-spacing: -0.02em; }
+    .pos-cart-header-title small { font-size: 0.8rem; color: rgba(255,255,255,0.65); font-weight: 400; }
+    .pos-cart-count { background: #fff; color: #2563eb; font-size: 0.8rem; font-weight: 700; padding: 3px 9px; border-radius: 10px; }
+    .pos-cart-meta { padding: 10px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+    .pos-cart-meta-label { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #0f172a; }
+    .pos-cart-meta-label i { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+    .pos-cart-meta .pos-cart-count { background: #2563eb; color: #fff; }
 
-    .pos-customer-bar { padding: 12px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-    .pos-customer-bar input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; background: #f8fafc; outline: none; transition: border 0.2s; }
+    .pos-customer-bar { margin: 12px 20px; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; flex-shrink: 0; }
+    .pos-customer-bar input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; background: #ffffff; outline: none; transition: border 0.2s; }
     .pos-customer-bar input:focus { border-color: #3b82f6; }
 
     .pos-cart-items { flex: 1; overflow-y: auto; padding: 12px 20px; }
     .pos-cart-items::-webkit-scrollbar { width: 4px; }
     .pos-cart-items::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-    .pos-cart-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .pos-cart-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #f1f5f9; border-radius: 8px; transition: background 0.15s; }
+    .pos-cart-item:hover { background: #f8fafc; }
     .pos-cart-item:last-child { border-bottom: none; }
     .pos-cart-item-info { flex: 1; min-width: 0; }
     .pos-cart-item-name { font-weight: 600; font-size: 0.82rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -100,36 +113,36 @@
     .pos-cart-empty p { font-size: 0.82rem; }
 
     /* ── Cart Summary ── */
-    .pos-cart-summary { background: #fff; border-top: 2px solid #e2e8f0; padding: 16px 20px; flex-shrink: 0; }
+    .pos-cart-summary { background: #f8fafc; border-top: 2px solid #e2e8f0; padding: 16px 20px; flex-shrink: 0; }
     .pos-summary-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .pos-summary-row .label { font-size: 0.8rem; color: #64748b; }
     .pos-summary-row .value { font-weight: 600; font-size: 0.85rem; color: #0f172a; }
     .pos-summary-row.discount .value { color: #ef4444; }
     .pos-summary-row.total { margin-top: 10px; padding-top: 10px; border-top: 2px dashed #e2e8f0; }
     .pos-summary-row.total .label { font-weight: 700; font-size: 0.9rem; color: #0f172a; }
-    .pos-summary-row.total .value { font-size: 1.3rem; font-weight: 800; color: #0f172a; }
+    .pos-summary-row.total .value { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
 
     .pos-discount-row { display: flex; gap: 8px; margin-bottom: 10px; }
-    .pos-discount-row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; outline: none; }
+    .pos-discount-row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; background: #ffffff; outline: none; }
     .pos-discount-row input:focus { border-color: #3b82f6; }
 
     /* ── Payment Section ── */
-    .pos-payment { padding: 14px 20px; background: #fff; border-top: 1px solid #e2e8f0; flex-shrink: 0; }
+    .pos-payment { padding: 16px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; flex-shrink: 0; }
     .pos-payment-methods { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
     .pos-pay-btn { padding: 7px 14px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
     .pos-pay-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-    .pos-pay-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .pos-pay-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
 
     .pos-amount-input { display: flex; gap: 8px; margin-bottom: 12px; }
     .pos-amount-input label { font-size: 0.75rem; color: #64748b; font-weight: 600; align-self: center; }
-    .pos-amount-input input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 1rem; font-weight: 700; outline: none; text-align: right; }
+    .pos-amount-input input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 1rem; font-weight: 700; outline: none; text-align: right; background: #ffffff; }
     .pos-amount-input input:focus { border-color: #3b82f6; }
 
     .pos-change-row { display: flex; justify-content: space-between; padding: 8px 12px; background: #f0fdf4; border-radius: 8px; margin-bottom: 12px; }
     .pos-change-row .label { font-size: 0.78rem; color: #16a34a; font-weight: 600; }
-    .pos-change-row .value { font-size: 1rem; font-weight: 800; color: #16a34a; }
+    .pos-change-row .value { font-size: 1rem; font-weight: 600; color: #16a34a; }
 
-    .pos-checkout-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .pos-checkout-btn { width: 100%; padding: 16px; border: none; border-radius: 12px; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(34,197,94,0.25); }
     .pos-checkout-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
     .pos-checkout-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
@@ -151,9 +164,37 @@
     .pos-receipt-close { background: #e2e8f0; color: #475569; }
     .pos-receipt-close:hover { background: #cbd5e1; }
 
+    /* ── POS Toast/Modal ── */
+    .pos-toast-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
+    .pos-toast-overlay.show { display: flex; }
+    .pos-toast-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: pos-toast-in 0.2s ease; }
+    @keyframes pos-toast-in { from { opacity: 0; transform: translateY(-20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .pos-toast-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .pos-toast-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .pos-toast-close:hover { background: rgba(255,255,255,0.15); }
+    .pos-toast-body { padding: 24px; text-align: center; }
+    .pos-toast-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .pos-toast-icon.success { background: #dcfce7; color: #16a34a; }
+    .pos-toast-icon.error { background: #fee2e2; color: #ef4444; }
+    .pos-toast-icon.warning { background: #fef3c7; color: #f59e0b; }
+    .pos-toast-icon.info { background: #dbeafe; color: #3b82f6; }
+    .pos-toast-message { font-size: 0.95rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .pos-toast-ok { padding: 10px 36px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .pos-toast-ok:hover { background: #cbd5e1; }
+
     /* ── Sales History ── */
-    .pos-history-toggle { background: none; border: 1.5px solid #334155; color: #94a3b8; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+    .pos-history-toggle { background: #ffffff; border: 1.5px solid #e2e8f0; color: #0f172a; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; font-size: 1.1rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
     .pos-history-toggle:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-history-modal { display: flex; flex-direction: column; max-height: 85vh; overflow: hidden; }
+    .pos-history-controls { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 10px; background: #fff; }
+    .pos-history-controls input, .pos-history-controls select { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #0f172a; font-size: 0.85rem; outline: none; }
+    .pos-history-controls input:focus, .pos-history-controls select:focus { border-color: #3b82f6; }
+    .pos-history-list { flex: 1; overflow-y: auto; padding: 16px 24px; min-height: 0; }
+    .pos-history-pagination { padding: 12px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 6px; align-items: center; background: #fff; }
+    .pos-history-page { padding: 6px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #f1f5f9; color: #0f172a; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .pos-history-page:hover:not(:disabled) { background: #e2e8f0; border-color: #3b82f6; color: #3b82f6; }
+    .pos-history-page.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .pos-history-page:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Responsive ── */
     @media print {
@@ -162,13 +203,56 @@
       .pos-receipt { position: absolute; left: 0; top: 0; width: 100%; border-radius: 0; box-shadow: none; }
       .pos-receipt-actions { display: none !important; }
     }
+  /* ── Enterprise Cart Panel ── */
+    .pos-cart { border-radius: 0; box-shadow: none; border-left: 1px solid #e2e8f0; overflow-y: auto; }
+    .pos-cart-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-bottom: none; position: relative; overflow: hidden; }
+    .pos-cart-header-icon { width: 56px; height: 56px; border-radius: 16px; font-size: 1.5rem; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .pos-cart-header h6 { font-size: 1.4rem; font-weight: 700; }
+    .pos-cart-header-title small { color: rgba(255,255,255,0.65); font-size: 0.85rem; }
+    .pos-cart-meta { padding: 12px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .pos-cart-meta-label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+    .pos-cart-meta .pos-cart-count { background: #0f172a; color: #fff; padding: 4px 10px; border-radius: 20px; }
+    .pos-customer-bar { margin: 10px 20px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+    .pos-customer-label { font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .pos-customer-bar input { background: #fff; }
+    .pos-cart-items { padding: 0 24px; overflow-y: visible; flex: 0 0 auto; }
+    .pos-cart-item { justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px dashed #e2e8f0; border-radius: 0; transition: none; background: transparent; }
+    .pos-cart-item:hover { background: transparent; }
+    .pos-cart-item-name { font-weight: 600; font-size: 0.85rem; }
+    .pos-cart-item-price { font-size: 0.75rem; color: #64748b; }
+    .pos-cart-item-qty button { width: 24px; height: 24px; border-radius: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 0.85rem; }
+    .pos-cart-item-qty button:hover { background: #e2e8f0; border-color: #cbd5e1; color: #0f172a; }
+    .pos-cart-item-total { font-weight: 700; font-size: 0.9rem; color: #0f172a; min-width: 70px; text-align: right; }
+    .pos-cart-item-remove { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.85rem; }
+    .pos-cart-empty { padding: 60px 24px; }
+    .pos-grid, .pos-cart-items { min-height: 0; }
+    .pos-cart-summary { background: #fff; border-top: 2px dashed #cbd5e1; padding: 14px 24px; }
+    .pos-summary-row .label { color: #64748b; }
+    .pos-summary-row .value { color: #0f172a; }
+    .pos-summary-row.total .label { font-size: 0.95rem; }
+    .pos-summary-row.total .value { font-size: 1.7rem; font-weight: 700; }
+    .pos-discount-row input { background: #fff; }
+    .pos-payment { padding: 14px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+    .pos-payment-title { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .pos-pay-btn { padding: 9px 16px; font-size: 0.8rem; }
+    .pos-amount-input label { font-size: 0.8rem; color: #475569; }
+    .pos-change-row { padding: 10px 14px; border-radius: 10px; }
+    .pos-checkout-btn { box-shadow: 0 4px 18px rgba(34,197,94,0.3); }
   </style>
 
   <div class="pos-layout">
     <!-- Left: Products -->
     <div class="pos-products">
       <div class="pos-header">
-        <h5><i class="bi bi-shop"></i>POS</h5>
+        <div class="pos-header-left">
+          <div class="pos-header-icon"><i class="bi bi-shop"></i></div>
+          <div class="pos-header-title">
+            <h5>Point of Sale</h5>
+            <small>Scan, search, and process sales in one place.</small>
+          </div>
+        </div>
+      </div>
+      <div class="pos-search-bar">
         <div class="pos-search-box">
           <i class="bi bi-search"></i>
           <input type="text" id="posSearch" placeholder="Search parts, tools..." autocomplete="off">
@@ -198,21 +282,31 @@
     <!-- Right: Cart -->
     <div class="pos-cart">
       <div class="pos-cart-header">
-        <h6><i class="bi bi-cart3 me-1"></i>Current Sale</h6>
+        <div class="pos-cart-header-left">
+          <div class="pos-cart-header-icon"><i class="bi bi-receipt"></i></div>
+          <div class="pos-cart-header-title">
+            <h6>Checkout</h6>
+            <small>Review order and payment</small>
+          </div>
+        </div>
+      </div>
+      <div class="pos-cart-meta">
+        <span class="pos-cart-meta-label"><i class="bi bi-bag"></i>Cart Items</span>
         <span class="pos-cart-count" id="cartCount">0</span>
       </div>
       <div class="pos-customer-bar">
-        <input type="text" id="customerName" placeholder="Customer name (optional)" style="margin-bottom:6px;">
+        <div class="pos-customer-label"><i class="bi bi-person"></i>Customer (optional)</div>
+        <input type="text" id="customerName" placeholder="Customer name" style="margin-bottom:6px;">
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input type="text" id="customerPhone" placeholder="Phone (optional)" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
-          <input type="text" id="customerTin" placeholder="TIN (optional)" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
+          <input type="text" id="customerPhone" placeholder="Phone" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
+          <input type="text" id="customerTin" placeholder="TIN" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
         </div>
-        <input type="text" id="customerAddress" placeholder="Address (optional)" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
+        <input type="text" id="customerAddress" placeholder="Address" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
       </div>
       <div class="pos-cart-items" id="cartItems">
         <div class="pos-cart-empty">
           <i class="bi bi-cart-x"></i>
-          <p>No items in cart</p>
+          <p>Your cart is empty</p>
         </div>
       </div>
       <div class="pos-cart-summary" id="cartSummary" style="display:none;">
@@ -224,6 +318,7 @@
         <div class="pos-summary-row total"><span class="label">TOTAL</span><span class="value" id="summaryTotal">₱0.00</span></div>
       </div>
       <div class="pos-payment" id="posPayment" style="display:none;">
+        <div class="pos-payment-title"><i class="bi bi-credit-card"></i>Payment Method</div>
         <div class="pos-payment-methods">
           <button class="pos-pay-btn active" data-method="cash" onclick="selectPayment('cash')"><i class="bi bi-cash"></i>Cash</button>
           <button class="pos-pay-btn" data-method="gcash" onclick="selectPayment('gcash')"><i class="bi bi-phone"></i>GCash</button>
@@ -239,27 +334,32 @@
           <span class="value" id="changeValue">₱0.00</span>
         </div>
         <button class="pos-checkout-btn" id="checkoutBtn" onclick="processCheckout()" disabled>
-          <i class="bi bi-check-circle"></i>Complete Sale
+          <i class="bi bi-check-circle"></i>Complete Transaction
         </button>
       </div>
     </div>
   </div>
 
   <!-- Receipt Overlay -->
-  <div class="pos-receipt-overlay" id="receiptOverlay">
+  <div class="pos-receipt-overlay" id="receiptOverlay" style="z-index:10000;">
     <div class="pos-receipt" id="receiptContent"></div>
   </div>
 
   <!-- Sales History Overlay -->
   <div class="pos-receipt-overlay" id="historyOverlay" onclick="if(event.target===this)toggleSalesHistory()">
-    <div style="background:#fff;border-radius:16px;width:700px;max-height:85vh;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
+    <div class="pos-history-modal" style="background:#fff;border-radius:16px;width:700px;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
       <div style="padding:20px 24px;background:linear-gradient(135deg,#0f172a,#1e40af);color:#fff;display:flex;justify-content:space-between;align-items:center;">
         <h5 style="margin:0;font-weight:700;"><i class="bi bi-clock-history me-2"></i>Sales History</h5>
         <button onclick="toggleSalesHistory()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;"><i class="bi bi-x-lg"></i></button>
       </div>
-      <div style="padding:20px 24px;overflow-y:auto;max-height:calc(85vh - 80px);" id="historyList">
+      <div class="pos-history-controls">
+        <input type="text" id="historySearch" placeholder="Search invoice / customer...">
+        <select id="historyCategory"><option value="">All Categories</option></select>
+      </div>
+      <div class="pos-history-list" id="historyList">
         <p class="text-muted text-center">Loading...</p>
       </div>
+      <div class="pos-history-pagination" id="historyPagination"></div>
     </div>
   </div>
 
@@ -273,6 +373,10 @@ let cart = [];
 let selectedPayment = "cash";
 let allTools = [];
 let currentCategory = "";
+let historyPage = 1;
+let historyTotalPages = 1;
+const historyLimit = 10;
+let historySales = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -280,6 +384,8 @@ document.addEventListener("DOMContentLoaded", () => {
   loadTools();
 
   document.getElementById("posSearch").addEventListener("input", debounce(() => { if (currentTab === "tools") loadTools(); else loadAircons(); }, 300));
+  document.getElementById("historySearch").addEventListener("input", debounce(() => { historyPage = 1; loadSalesHistory(); }, 300));
+  document.getElementById("historyCategory").addEventListener("change", () => { historyPage = 1; loadSalesHistory(); });
 
   // Barcode scanner: buffer characters, fire on terminator (Enter/Tab) or timeout
   let barcodeBuffer = "";
@@ -330,6 +436,14 @@ async function loadCategories() {
       html += `<button class="pos-cat-btn" onclick="filterCategory('${c.replace(/'/g, "\\'")}', this)">${escapeHtml(c)}</button>`;
     });
     container.innerHTML = html;
+
+    const historyCategory = document.getElementById("historyCategory");
+    if (historyCategory) {
+      historyCategory.innerHTML = '<option value="">All Categories</option>';
+      (data.categories || []).forEach(c => {
+        historyCategory.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+      });
+    }
   } catch (e) { console.error("Categories load error:", e); }
 }
 
@@ -425,14 +539,10 @@ function renderAircons() {
     const oos = a.available <= 0;
     html += `
       <div class="pos-aircon-card${oos ? " oos" : ""}" data-aircon-idx="${idx}">
-        ${a.imageUrl ? `<img class="pos-aircon-img" src="${escapeHtml(a.imageUrl)}" alt="" onerror="this.style.display='none'">` : `<div class="pos-aircon-img" style="display:flex;align-items:center;justify-content:center;color:#334155;font-size:2rem;"><i class="bi bi-snow"></i></div>`}
-        <div class="pos-aircon-name" title="${escapeHtml(a.itemName)}">${escapeHtml(a.modelLine)}</div>
-        <div class="pos-aircon-brand">${escapeHtml(a.brand || "")}</div>
-        <div class="pos-aircon-specs">
-          <span class="pos-aircon-badge type">${escapeHtml((a.capacity || "") + (a.capacityUnit || "HP"))}</span>
-          ${a.inverter !== undefined ? `<span class="pos-aircon-badge ${a.inverter ? 'inv' : 'non'}">${a.inverter ? 'Inverter' : 'Non-Inverter'}</span>` : ""}
-          ${a.btu ? `<span class="pos-aircon-badge type">${a.btu} BTU</span>` : ""}
-        </div>
+        ${a.imageUrl ? `<img class="pos-aircon-img" src="${escapeHtml(a.imageUrl)}" alt="" onerror="this.style.display='none'">` : `<div class="pos-aircon-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:2rem;"><i class="bi bi-snow"></i></div>`}
+        <div class="pos-aircon-name">${escapeHtml(a.itemName || a.modelLine)}</div>
+        <div class="pos-aircon-cat">${escapeHtml(a.brand || "")}</div>
+        <div class="pos-aircon-barcode"><i class="bi bi-snow"></i> ${escapeHtml((a.capacity || "") + (a.capacityUnit || "HP"))} ${a.inverter !== undefined ? (a.inverter ? "Inverter" : "Non-Inverter") : ""} ${a.btu ? a.btu + " BTU" : ""}</div>
         <div class="pos-aircon-price">₱${Number(a.sellingPrice || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
         <div class="pos-aircon-stock">${oos ? "Out of stock" : `<strong>${a.available}</strong> unit(s) available`}</div>
       </div>`;
@@ -478,6 +588,7 @@ function renderTools() {
     const oos = t.available <= 0;
     html += `
       <div class="pos-item${oos ? " oos" : ""}" data-tool-idx="${idx}">
+        ${t.imageUrl ? `<img class="pos-item-img" src="${escapeHtml(t.imageUrl)}" alt="" onerror="this.style.display='none'">` : `<div class="pos-item-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:2rem;"><i class="bi bi-box-seam"></i></div>`}
         <div class="pos-item-name">${escapeHtml(t.itemName)}</div>
         <div class="pos-item-cat">${escapeHtml(t.category || "")}</div>
         ${t.serialNumber ? `<div class="pos-item-barcode"><i class="bi bi-qr-code"></i> SN: ${escapeHtml(t.serialNumber)}</div>` : ""}
@@ -560,7 +671,7 @@ function renderCart() {
       <div class="pos-cart-item">
         <div class="pos-cart-item-info">
           <div class="pos-cart-item-name">${escapeHtml(item.itemName)}</div>
-          <div class="pos-cart-item-price">₱${item.unitPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })} × ${item.quantity}</div>
+          <div class="pos-cart-item-price">₱${item.unitPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })} / ${item.unit || "pcs"}</div>
         </div>
         <div class="pos-cart-item-qty">
           <button onclick="updateQty(${idx}, -1)">−</button>
@@ -714,7 +825,7 @@ function showReceipt(sale) {
       ${sale.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;color:#ef4444;">
         <span>Discount</span><span style="font-weight:600;">-₱${Number(sale.discount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
       </div>` : ""}
-      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;margin-top:10px;padding-top:10px;border-top:2px solid #0f172a;">
+      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:600;margin-top:10px;padding-top:10px;border-top:2px solid #0f172a;">
         <span>TOTAL</span><span>₱${Number(sale.totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-top:8px;">
@@ -753,23 +864,34 @@ async function toggleSalesHistory() {
 
 async function loadSalesHistory() {
   const el = document.getElementById("historyList");
+  const pagination = document.getElementById("historyPagination");
   el.innerHTML = '<p class="text-muted text-center">Loading...</p>';
   try {
-    const res = await fetch("/api/pos/sales?limit=50");
+    const q = document.getElementById("historySearch")?.value.trim() || "";
+    const category = document.getElementById("historyCategory")?.value || "";
+    const params = new URLSearchParams({ page: historyPage, limit: historyLimit });
+    if (q) params.set("q", q);
+    if (category) params.set("category", category);
+    const res = await fetch(`/api/pos/sales?${params}`);
     const data = await res.json();
-    if (!data.sales?.length) { el.innerHTML = '<p class="text-muted text-center">No sales yet</p>'; return; }
+    historyTotalPages = data.pages || 1;
+    historySales = data.sales || [];
+    if (!data.sales?.length) { el.innerHTML = '<p class="text-muted text-center">No sales found</p>'; pagination.innerHTML = ''; return; }
 
     let html = `<div style="margin-bottom:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
       <div style="background:#f0fdf4;padding:12px;border-radius:10px;text-align:center;">
-        <div style="font-size:1.2rem;font-weight:800;color:#16a34a;">₱${Number(data.todayStats?.revenue || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <i class="bi bi-cash-stack" style="display:block;font-size:1.3rem;color:#16a34a;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#16a34a;">₱${Number(data.todayStats?.revenue || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
         <div style="font-size:0.7rem;color:#64748b;">Today's Revenue</div>
       </div>
       <div style="background:#eff6ff;padding:12px;border-radius:10px;text-align:center;">
-        <div style="font-size:1.2rem;font-weight:800;color:#3b82f6;">${data.todayStats?.count || 0}</div>
+        <i class="bi bi-receipt" style="display:block;font-size:1.3rem;color:#3b82f6;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#3b82f6;">${data.todayStats?.count || 0}</div>
         <div style="font-size:0.7rem;color:#64748b;">Today's Sales</div>
       </div>
       <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center;">
-        <div style="font-size:1.2rem;font-weight:800;color:#b45309;">₱${Number(data.todayStats?.profit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <i class="bi bi-graph-up-arrow" style="display:block;font-size:1.3rem;color:#b45309;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#b45309;">₱${Number(data.todayStats?.profit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
         <div style="font-size:0.7rem;color:#64748b;">Today's Profit</div>
       </div>
     </div>`;
@@ -787,20 +909,85 @@ async function loadSalesHistory() {
           </div>
           <div style="text-align:right;">
             <div style="font-weight:700;font-size:0.95rem;color:#0f172a;">₱${Number(s.totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
-            ${statusBadge}
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:4px;">
+              ${statusBadge}
+              <button style="padding:4px 10px;border-radius:6px;border:none;background:#3b82f6;color:#fff;font-size:0.72rem;font-weight:600;cursor:pointer;" onclick="showHistoryReceipt('${s.invoiceNumber}')">Receipt</button>
+            </div>
           </div>
         </div>`;
     });
     el.innerHTML = html;
+    renderHistoryPagination(data.page, data.pages, data.total);
   } catch (e) { el.innerHTML = '<p class="text-danger text-center">Failed to load history</p>'; }
+}
+
+function renderHistoryPagination(page, pages, total) {
+  const el = document.getElementById("historyPagination");
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const start = Math.floor((page - 1) / 10) * 10 + 1;
+  const end = Math.min(start + 9, pages);
+  let html = `<button class="pos-history-page" ${page === 1 ? 'disabled' : ''} onclick="changeHistoryPage(${page - 1})">Prev</button>`;
+  for (let i = start; i <= end; i++) {
+    html += `<button class="pos-history-page ${i === page ? 'active' : ''}" onclick="changeHistoryPage(${i})">${i}</button>`;
+  }
+  html += `<button class="pos-history-page" ${page >= pages ? 'disabled' : ''} onclick="changeHistoryPage(${page + 1})">Next</button>`;
+  el.innerHTML = html;
+}
+
+function changeHistoryPage(p) {
+  if (p < 1 || p > historyTotalPages) return;
+  historyPage = p;
+  loadSalesHistory();
+}
+
+function showHistoryReceipt(invoice) {
+  const s = historySales.find(x => x.invoiceNumber === invoice);
+  if (s) showReceipt(s);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function escapeHtml(str) { return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+let posToastTimer;
+function createPosToastModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'posToastModal';
+  overlay.className = 'pos-toast-overlay';
+  overlay.innerHTML = `
+    <div class="pos-toast-modal">
+      <div class="pos-toast-header">
+        <span class="pos-toast-title">Success</span>
+        <button class="pos-toast-close" onclick="closePosToast()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="pos-toast-body">
+        <div class="pos-toast-icon success"><i class="bi bi-check-circle-fill"></i></div>
+        <p class="pos-toast-message"></p>
+        <button class="pos-toast-ok" onclick="closePosToast()">OK</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closePosToast(); });
+  document.body.appendChild(overlay);
+  return overlay;
+}
 function showToast(msg, type = "info") {
-  if (typeof Swal !== "undefined") {
-    Swal.fire({ toast: true, position: "top-end", icon: type, title: msg, showConfirmButton: false, timer: 2000 });
-  }
+  let overlay = document.getElementById('posToastModal');
+  if (!overlay) overlay = createPosToastModal();
+  const titleMap = { success: 'Success', error: 'Error', warning: 'Warning', info: 'Info' };
+  const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+  const typeClass = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+  const t = titleMap[type] ? type : 'info';
+  overlay.querySelector('.pos-toast-title').textContent = titleMap[t];
+  overlay.querySelector('.pos-toast-icon').className = `pos-toast-icon ${typeClass[t]}`;
+  overlay.querySelector('.pos-toast-icon i').className = `bi ${iconMap[t]}`;
+  overlay.querySelector('.pos-toast-message').textContent = msg;
+  overlay.classList.add('show');
+  if (posToastTimer) clearTimeout(posToastTimer);
+  posToastTimer = setTimeout(() => closePosToast(), 2500);
+}
+function closePosToast() {
+  const overlay = document.getElementById('posToastModal');
+  if (overlay) overlay.classList.remove('show');
+  if (posToastTimer) clearTimeout(posToastTimer);
 }
 </script>

@@ -40,5 +40,29 @@ router.get("/location", async (req, res, next) => {
   }
 });
 
+const DEFAULT_STORE_HOURS = [
+  { dayOfWeek: 0, open: false, startMinutes: 0, endMinutes: 0 },
+  { dayOfWeek: 1, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 2, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 3, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 4, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 5, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 6, open: true,  startMinutes: 480, endMinutes: 1080 },
+];
+
+/**
+ * GET /api/public/store-open-hours
+ * Returns the store's open hours for customer pickup scheduling.
+ */
+router.get("/store-open-hours", async (req, res, next) => {
+  try {
+    const doc = await SiteSetting.findOne({ key: "storeOpenHours" }).lean();
+    const hours = (doc && Array.isArray(doc.value)) ? doc.value : DEFAULT_STORE_HOURS;
+    return res.json({ hours });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 

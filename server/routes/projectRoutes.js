@@ -7,13 +7,21 @@ const router = express.Router();
 const auth = require("../middleware/authenticate");
 const Project = require("../models/Project");
 const WorkOrder = require("../models/WorkOrder");
+const DailyAssignment = require("../models/DailyAssignment");
 const ProjectMaterial = require("../models/ProjectMaterial");
+const Tool = require("../models/Tool");
 const BookingService = require("../models/BookingService");
 const Technician = require("../models/Technician");
 const Assignment = require("../models/Assignment");
 const Payment = require("../models/Payment");
 const Expense = require("../models/Expense");
 const ProjectIssue = require("../models/ProjectIssue");
+const PartsRequest = require("../models/PartsRequest");
+const ProjectResourcePurchase = require("../models/ProjectResourcePurchase");
+const StockAdjustment = require("../models/StockAdjustment");
+const { evaluateProjectResources, cleanType, VALID_RULES, VALID_STATES } = require("../utils/projectResourcePlanning");
+const { projectUnits, validateWorkOrderPlan, resourcesForWorkOrder, hasCycle } = require("../utils/projectWorkOrderPlanning");
+const { generateProjectSchedule, validateProjectSchedule, normalizeWorkingDays } = require("../utils/enterpriseProjectScheduling");
 const User = require("../models/User");
 const { createNotification } = require("../utils/notify");
 const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
@@ -25,9 +33,134 @@ const {
   invalidateProjectThresholdCache,
 } = schedulingEngine;
 const { buildAllocationCalendar, getTechnicianScheduleConflicts } = require("../utils/projectAllocation");
-const { ensureDailyAssignments, completeDay } = require("../utils/dailyAssignment");
+const { ensureDailyAssignments, completeDay, nextWorkingDay } = require("../utils/dailyAssignment");
 const { BookingStatus } = require("../models/BookingStatus");
 const audit = require("../utils/audit");
+const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
+
+async function syncPlannedResourcesToWorkOrders(project) {
+  const snapshot = typeof project.toObject === "function" ? project.toObject() : project;
+  const orders = await WorkOrder.find({ projectId: snapshot._id, status: { $ne: "cancelled" } });
+  for (const order of orders) {
+    order.resourceRequirements = resourcesForWorkOrder(snapshot, order.toObject());
+    await order.save();
+  }
+}
+
+function scheduleDayKey(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+// Step 4 is the scheduling authority. This guarded repair handles projects
+// previously overwritten by the retired legacy 2-units/day generator.
+async function reconcileCommittedSchedule(project) {
+  if (project?.schedulePlan?.status !== "confirmed") return { repaired: false };
+  const baseline = (project.schedulePlan.dailySummary || []).flatMap(day => day.allocations || []);
+  if (!baseline.length) return { repaired: false };
+  const current = await DailyAssignment.find({ projectId: project._id, status: { $ne: "skipped" } }).lean();
+  const signature = row => `${String(row.workOrderId)}|${String(row.technicianId)}|${scheduleDayKey(row.date)}|${row.startTime || ""}|${row.endTime || ""}|${Number(row.targetUnits || 0)}`;
+  const currentSignatures = new Set(current.map(signature));
+  const drifted = current.length !== baseline.length || baseline.some(row => !currentSignatures.has(signature(row)));
+  if (!drifted) return { repaired: false };
+  if (current.some(row => Number(row.completedUnits || 0) > 0)) return { repaired: false, skipped: "execution_progress_exists" };
+
+  await DailyAssignment.deleteMany({ projectId: project._id });
+  await DailyAssignment.insertMany(baseline.map(row => ({
+    projectId: project._id, workOrderId: row.workOrderId, technicianId: row.technicianId,
+    date: row.date, startTime: row.startTime, endTime: row.endTime,
+    allocatedMinutes: Number(row.allocatedMinutes || 0), targetUnits: Number(row.targetUnits || 0),
+    completedUnits: 0, unitKeys: row.unitKeys || [], generatedBy: "system", planningOnly: false, status: "pending",
+  })));
+  const orders = await WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } });
+  for (const order of orders) {
+    const rows = baseline.filter(row => String(row.workOrderId) === String(order._id)).sort((a,b) => new Date(a.date)-new Date(b.date) || String(a.startTime||"").localeCompare(String(b.startTime||"")));
+    if (!rows.length) continue;
+    order.scheduledDate = rows[0].date; order.scheduledEndDate = rows[rows.length-1].date;
+    order.startTime = rows[0].startTime; order.endTime = rows[rows.length-1].endTime;
+    await order.save();
+  }
+  return { repaired: true, assignments: baseline.length };
+}
+
+// Older aggregate submissions updated completedUnitCount without updating the
+// tracked unit rows. Repair that mismatch so the unit checklist is truthful.
+async function reconcileTrackedUnitProgress(workOrders) {
+  const updates = [];
+  for (const order of workOrders || []) {
+    if (!(order.units || []).length) continue;
+    const target = Math.max(0, Math.min(Number(order.completedUnitCount || 0), order.units.length));
+    const currentlyComplete = order.units.filter(unit => unit.status === "completed").length;
+    if (currentlyComplete >= target) continue;
+    let needed = target - currentlyComplete;
+    for (const unit of order.units) {
+      if (needed <= 0) break;
+      if (["completed", "cancelled"].includes(unit.status)) continue;
+      unit.status = "completed";
+      unit.completedAt = unit.completedAt || order.actualCompletionDate || order.updatedAt || null;
+      needed -= 1;
+    }
+    updates.push({
+      updateOne: { filter: { _id: order._id }, update: { $set: { units: order.units } } },
+    });
+  }
+  if (updates.length) await WorkOrder.bulkWrite(updates);
+  return workOrders;
+}
+
+async function rebalanceFutureUnitTargets(workOrder) {
+  const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
+  const rows = await DailyAssignment.find({
+    workOrderId: workOrder._id,
+    date: { $gte: tomorrow },
+    status: { $ne: "completed" },
+  }).sort({ date: 1, startTime: 1, createdAt: 1 });
+  if (!rows.length) return;
+
+  let remaining = Math.max(0, Number(workOrder.unitCount || 0) - Number(workOrder.completedUnitCount || 0));
+  for (const row of rows) {
+    const planned = Math.max(0, Number(row.targetUnits || 0));
+    const nextTarget = Math.min(planned, remaining);
+    const nextStatus = nextTarget > 0 ? (row.status === "in_progress" ? "in_progress" : "pending") : "skipped";
+    const changed = Number(row.targetUnits || 0) !== nextTarget || row.status !== nextStatus;
+    row.targetUnits = nextTarget;
+    row.status = nextStatus;
+    remaining -= nextTarget;
+    if (changed) await row.save();
+  }
+  // If an older schedule did not contain enough future capacity, preserve the
+  // remaining target on the earliest continuation row instead of losing it.
+  if (remaining > 0 && rows.length) {
+    rows[0].targetUnits += remaining;
+    rows[0].status = "pending";
+    await rows[0].save();
+  }
+}
+
+async function ensureDailyAssignmentsIfLegacy(workOrderId) {
+  const order = await WorkOrder.findById(workOrderId).select("projectId").lean();
+  if (!order) return null;
+  const project = await Project.findById(order.projectId).select("schedulePlan.status").lean();
+  if (["ready", "confirmed"].includes(project?.schedulePlan?.status)) return null;
+  return ensureDailyAssignments(workOrderId);
+}
+
+async function releaseUnblockedWorkOrders(projectId) {
+  const project = await Project.findById(projectId).select("status").lean();
+  if (!project || !["ready", "in_progress"].includes(project.status)) return [];
+  const pending = await WorkOrder.find({ projectId, status: "pending", planningStatus: { $ne: "released" } });
+  const released = [];
+  for (const order of pending) {
+    const blockers = order.dependencies?.length
+      ? await WorkOrder.countDocuments({ _id: { $in: order.dependencies }, status: { $ne: "completed" } })
+      : 0;
+    if (blockers) continue;
+    order.status = "assigned"; order.planningStatus = "released"; order.assignmentProvisional = false;
+    order.activity.push({ action: "work_order_released", actorName: "System", details: { dependenciesSatisfied: true } });
+    await order.save(); released.push(order);
+  }
+  return released;
+}
 
 router.get("/projects/dashboard", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
@@ -125,6 +258,17 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
 
     const booking = await BookingService.findById(project.bookingId).lean();
 
+    // Recalculate team-, scope-, work-order-, and date-dependent requirements
+    // whenever the Planning Studio reloads.
+    if (project.planningDraft?.resources?.length && !project.planningDraft?.baselineLocked) {
+      const evaluated = await evaluateProjectResources(project, project.planningDraft.resources);
+      project.planningDraft.resources = evaluated.resources;
+      project.planningDraft.readiness = evaluated.readiness;
+      await Project.updateOne({ _id: id, "planningDraft.baselineLocked": { $ne: true } }, {
+        $set: { "planningDraft.resources": evaluated.resources, "planningDraft.readiness": evaluated.readiness, "planningDraft.updatedAt": new Date() },
+      }).catch(() => {});
+    }
+
     res.json({ project, workOrders, materials, booking });
   } catch (error) {
     console.error("Error fetching project:", error);
@@ -161,7 +305,12 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
-
+    if (project.isLargeScale && ["accepted", "planning", "ready", "in_progress"].includes(status) && !project.verifiedAt) {
+      return res.status(409).json({ error: "Verify this large-scale project before moving it into planning." });
+    }
+    if (status === "in_progress") {
+      return res.status(409).json({ error: "Only the assigned lead technician can start a Ready project." });
+    }
     project.status = status;
     if (adminNotes !== undefined) project.adminNotes = adminNotes;
     if (status === "in_progress" && !project.actualStartDate) {
@@ -202,28 +351,37 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
         missing.push("team member acceptance — " + unaccepted.map(t => t.name || 'a tech').join(', ') + " have not accepted");
       }
       if (!hasSchedule) missing.push("set a project schedule");
-      if ((project.totalWorkOrders || 0) === 0) missing.push("generate work orders");
-      // Unit coverage: every work order's quantity must be assigned to a
-      // technician so the project's total units are fully covered.
+      const workOrderCount = await WorkOrder.countDocuments({ projectId: project._id });
+      if (workOrderCount === 0) missing.push("generate work orders");
+      const bookingForPlan = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
+      const planningOrders = await WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } });
+      for (const order of planningOrders) {
+        order.resourceRequirements = resourcesForWorkOrder(project.toObject(), order.toObject());
+        await order.save();
+      }
+      const workOrderReadiness = await validateWorkOrderPlan(project.toObject(), bookingForPlan);
+      if (!workOrderReadiness.ready) missing.push(...workOrderReadiness.errors);
+      if (!project.schedulePlan || project.schedulePlan.status !== "ready") missing.push("generate a conflict-free project schedule");
+      else {
+        const scheduleValidation = await validateProjectSchedule(project.toObject());
+        if (!scheduleValidation.valid) missing.push(...scheduleValidation.conflicts.filter(row => row.blocking).map(row => row.message));
+      }
+      // Batch coverage: every work order must belong to the assigned crew.
+      // Units are claimed at execution time, not pre-assigned per technician.
       const cov = await WorkOrder.computeCoveredUnits(project._id);
-      if (cov.unassignedWos > 0) missing.push("assign technicians to every work order");
-      else if (cov.covered < cov.total) missing.push(`cover all ${cov.total} units (only ${cov.covered} assigned)`);
-      
-      // Stock validation: check reserved resources are actually available
-      const reservedMaterials = await ProjectMaterial.find({ projectId: project._id }).lean();
-      const outOfStock = [];
-      for (const mat of reservedMaterials) {
-        if (mat.toolId) {
-          const tool = await Tool.findById(mat.toolId).lean();
-          if (tool && (tool.quantity || 0) < (mat.quantity || 0)) {
-            outOfStock.push({ itemName: mat.itemName, available: tool.quantity || 0, reserved: mat.quantity || 0 });
-          }
-        }
-      }
-      if (outOfStock.length > 0) {
-        const stockItems = outOfStock.map(s => `"${s.itemName}" (has ${s.available}, need ${s.reserved})`).join(", ");
-        missing.push(`resolve stock shortages: ${stockItems}`);
-      }
+      if (cov.unassignedWos > 0) missing.push("assign the project team to every work order");
+      else if (cov.covered < cov.total) missing.push(`cover all ${cov.total} units with work-order batches`);
+
+      // Recalculate the draft against the accepted team, current work orders,
+      // schedule dates, inventory reservations, and equipment assignments.
+      const evaluatedPlan = await evaluateProjectResources(project.toObject(), project.planningDraft?.resources || []);
+      project.planningDraft.resources = evaluatedPlan.resources;
+      project.planningDraft.readiness = evaluatedPlan.readiness;
+      const activeResources = evaluatedPlan.resources.filter(resource => !["rejected", "optional"].includes(resource.recommendationState));
+      const unreviewed = evaluatedPlan.resources.filter(resource => resource.recommendationState === "recommended");
+      if (!activeResources.length) missing.push("review and accept at least one planned resource");
+      if (unreviewed.length) missing.push(`review ${unreviewed.length} AI resource recommendation(s)`);
+      if (evaluatedPlan.readiness.blockers.length) missing.push(...evaluatedPlan.readiness.blockers);
       
       if (missing.length) {
         return res.status(409).json({
@@ -232,18 +390,63 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
           coverage: cov,
         });
       }
+
+      // Step 6 is the only resource commit point. Approved requirements are
+      // converted to the existing reservation ledger exactly once.
+      const existingReservations = await ProjectMaterial.find({ projectId: project._id, status: { $in: ["reserved", "fulfilled"] } }).lean();
+      const reservedKeys = new Set(existingReservations.map(row => `${String(row.sourceId || "")}:${row.itemName.toLowerCase()}:${row.type}`));
+      const touchedToolIds = new Set();
+      for (const resource of activeResources) {
+        const key = `${String(resource.toolId || "")}:${resource.itemName.toLowerCase()}:${resource.type}`;
+        if (reservedKeys.has(key)) continue;
+        await ProjectMaterial.create({
+          projectId: project._id, type: cleanType(resource.type),
+          scope: resource.type === "equipment" && resource.scope === "assigned" ? "assigned" : "shared",
+          itemName: resource.itemName, quantity: resource.quantity, unit: resource.unit || "pcs",
+          unitPrice: resource.type === "equipment" ? 0 : Number(resource.purchaseCost || 0),
+          status: "reserved", notes: `Approved planning baseline: ${resource.reason || "project requirement"}`,
+          source: resource.toolId ? "inventory" : "other", sourceId: resource.toolId || null,
+        });
+        if (resource.toolId) touchedToolIds.add(String(resource.toolId));
+      }
+      for (const toolId of touchedToolIds) await Tool.recomputeReserved(toolId);
+      for (const resource of project.planningDraft.resources) {
+        if (!["rejected", "optional"].includes(resource.recommendationState)) {
+          resource.recommendationState = "confirmed";
+          resource.readinessStatus = "confirmed";
+        }
+      }
+      project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+      project.planningDraft.resourceHistory.push({ action: "planning_baseline_confirmed", after: { resourceCount: activeResources.length }, changedAt: new Date(), changedBy: req.user._id });
+      project.planningDraft.baselineLocked = true;
+      project.planningDraft.confirmedAt = new Date();
+      project.planningDraft.confirmedBy = req.user._id;
+      project.schedulePlan.status = "confirmed";
+      project.schedulePlan.confirmedAt = new Date();
+      project.scheduleLocked = true;
+      await DailyAssignment.updateMany({ projectId: project._id, planningOnly: true }, { $set: { planningOnly: false, status: "pending" } });
     }
 
     // Hand the work to the team: once the project is Ready (or Active) the
     // auto-generated work orders are released to the assigned technicians so
     // they appear in the lead's "Large-Scale Projects" tab on My Work.
     if ((status === "ready" || status === "in_progress")) {
-      await WorkOrder.updateMany(
-        { projectId: project._id, status: "pending" },
-        { $set: { status: "assigned" } }
-      );
+      // Only dependency-free packages are released immediately. Dependant
+      // packages remain scheduled drafts until their prerequisites complete.
+      await WorkOrder.updateMany({ projectId: project._id, status: "pending", dependencies: { $not: { $size: 0 } } }, { $set: { assignmentProvisional: false } });
     }
     await project.save();
+    if (status === "ready" || status === "in_progress") await releaseUnblockedWorkOrders(project._id);
+
+    if (status === "ready") {
+      const io = req.app.get("io");
+      await createNotification({
+        type: "project_plan_confirmed", title: "Project Plan Confirmed",
+        message: `The plan for ${project.customer?.name || "a large-scale project"} is confirmed and work orders are released.`,
+        role: "technician", referenceId: project._id, referenceModel: "Project",
+        link: "/technician/assignments", io,
+      }).catch(() => {});
+    }
 
     if (project.bookingId) {
       const bookingStatusMap = {
@@ -305,6 +508,10 @@ router.post("/projects/:id/verify", auth.requireRole(["admin", "secretary"]), as
 
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ error: "Project not found" });
+
+    if (!project.isLargeScale || Number(project.totalUnits || 0) < schedulingEngine.LARGE_SCALE_MIN_UNITS) {
+      return res.status(409).json({ error: "Only bookings with 8 to 40 units use the large-scale project verification flow." });
+    }
 
     if (project.status !== "pending_project_scheduling") {
       return res.status(400).json({
@@ -407,16 +614,29 @@ router.put("/projects/:id/submit-inspection", auth.authenticate, auth.requireRol
           };
         }
 
-        // Update group quotation
+        // Update group quotation (only repair parts and consumables are billable)
         if (ugi.quotation) {
-          const groupParts = Array.isArray(ugi.quotation.parts) ? ugi.quotation.parts.map(p => ({
-            name: p.name || '',
-            cost: Number(p.cost) || 0,
-            quantity: Number(p.quantity) || 1,
-            toolId: p.toolId || null,
-            currentStock: 0,
-            stockStatus: 'pending_check',
-          })) : [];
+          const rawParts = Array.isArray(ugi.quotation.parts) ? ugi.quotation.parts : [];
+          const toolIds = rawParts
+            .filter(p => p.toolId && mongoose.Types.ObjectId.isValid(p.toolId))
+            .map(p => p.toolId);
+          const tools = toolIds.length ? await Tool.find({ _id: { $in: toolIds } }).select('type').lean() : [];
+          const typeMap = new Map(tools.map(t => [String(t._id), t.type === 'tool' ? 'equipment' : (t.type || 'part')]));
+          const groupParts = rawParts
+            .filter(p => {
+              if (!p.toolId) return true; // manual line items stay
+              const t = typeMap.get(String(p.toolId));
+              return t !== 'equipment';
+            })
+            .map(p => ({
+              name: p.name || '',
+              cost: Number(p.cost) || 0,
+              quantity: Number(p.quantity) || 1,
+              toolId: p.toolId || null,
+              itemType: p.toolId ? (typeMap.get(String(p.toolId)) || 'part') : 'part',
+              currentStock: 0,
+              stockStatus: 'pending_check',
+            }));
           group.quotation = {
             parts: groupParts,
             laborCost: Number(ugi.quotation.laborCost) || 0,
@@ -687,6 +907,12 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
+    if (project.isLargeScale && !project.verifiedAt) {
+      return res.status(409).json({ error: "Verify the large-scale project before assigning its delivery team." });
+    }
+    if (!["accepted", "planning", "ready"].includes(project.status)) {
+      return res.status(409).json({ error: `A team cannot be assigned while the project is "${project.status}".` });
+    }
 
     const technicians = await Technician.find({
       _id: { $in: technicianIds },
@@ -788,27 +1014,41 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
     }
     // ── Initialize team acceptance roster ─────────────────────────────────────
     // When the admin assigns a team, pre-populate teamStatus so the admin can
-    // track which technicians have accepted/declined.  The lead is auto-accepted
-    // (planning steps unlock immediately for the admin); other members start as
-    // "notified" and must manually accept before planning proceeds.
-    const leadIdStr = project.leadTechnicianId ? project.leadTechnicianId.toString() : null;
+    // track which technicians have accepted/declined. Every crew member,
+    // including the lead, explicitly accepts participation before Step 6.
     project.teamStatus = assigned.map((t) => ({
       _id: t._id,
       name: t.name || "Technician",
-      status: t._id.toString() === leadIdStr ? "acknowledged" : "notified",
+      status: "notified",
       notifiedAt: new Date(),
-      acknowledgedAt: t._id.toString() === leadIdStr ? new Date() : undefined,
+      acknowledgedAt: undefined,
     }));
+
+    // A project team is the work-order assignee. Keep every unreleased batch
+    // in sync when the roster changes instead of forcing per-WO assignment.
+    const workOrderTeam = assigned.map(t => ({
+      _id: t._id, name: t.name, phone: t.phone, assignedUnits: 0,
+    }));
+    await WorkOrder.updateMany(
+      { projectId: project._id, status: { $nin: ["completed", "cancelled"] } },
+      { $set: {
+        assignedTechnicians: workOrderTeam,
+        suggestedTechnicians: workOrderTeam,
+        requiredTechnicianCount: Math.max(1, Math.min(assigned.length || 1, Number(project.dailyRequiredTechnicians || assigned.length || 1))),
+        assignmentProvisional: project.status !== "ready",
+      } }
+    );
 
     // Large-scale projects must be verified/accepted before planning.
     if (project.status === "pending_project_scheduling" && !project.isLargeScale) {
       project.status = "planning";
     }
-    // Lock the planned span once the team is assigned and a start date exists.
+    // Team assignment does not lock planning. The schedule is locked only by
+    // Step 6, after readiness checks and explicit plan confirmation.
     if (assigned.length > 0 && (project.plannedStartDate || project.preferredStartDate)) {
       project.plannedStartDate = project.plannedStartDate || project.preferredStartDate;
-      project.scheduleLocked = true;
     }
+    if (project.schedulePlan?.status !== "confirmed") project.scheduleLocked = false;
 
     // ── Daily allocation check ───────────────────────────────────────────────
     // Build the schedule AROUND existing commitments. If the assigned team
@@ -1084,6 +1324,25 @@ router.get("/projects/:id/schedule-preview", auth.requireRole(["admin", "secreta
   }
 });
 
+router.post("/projects/:id/schedule-preview", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const avail = await projectScheduler.buildDailyAvailability(project.toObject());
+    const preview = avail ? Object.values(avail.matrix).map(row => ({ date: row.date, technicians: row.available, shortfall: row.shortfall || 0, conflicts: row.conflicts || [] })) : [];
+    project.planningDraft = project.planningDraft || {};
+    project.planningDraft.schedulePreview = preview;
+    project.planningDraft.updatedAt = new Date();
+    project.planningDraft.updatedBy = req.user._id;
+    await project.save();
+    res.json({ preview, workingDays: preview.length, message: "Provisional schedule saved for planning review." });
+  } catch (error) {
+    console.error("Error saving schedule preview:", error);
+    res.status(500).json({ error: error.message || "Failed to save schedule preview" });
+  }
+});
+
 /**
  * POST /api/projects/:id/generate-schedule
  * One-click auto-schedule: assigns available technicians to each working day
@@ -1093,12 +1352,112 @@ router.post("/projects/:id/generate-schedule", auth.requireRole(["admin", "secre
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
-    const result = await projectScheduler.generateSchedule(id);
-    res.json(result);
+    const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.schedulePlan?.status === "confirmed") return res.status(409).json({ error: "The confirmed project schedule is locked." });
+    const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
+    const readiness = await validateWorkOrderPlan(project.toObject(), booking);
+    if (!readiness.ready) return res.status(409).json({ error: `Work Orders are not ready: ${readiness.errors.join("; ")}`, readiness });
+    const scheduleOptions = { ...(req.body || {}) };
+    if (req.body?.workOrderOverrides) scheduleOptions.workOrderOverrides = { ...(project.schedulePlan?.manualOverrides || {}), ...req.body.workOrderOverrides };
+    const result = await generateProjectSchedule(project.toObject(), scheduleOptions);
+    if (req.body?.workOrderOverrides && result.status === "blocked") {
+      const adjustedIds = new Set(Object.keys(req.body.workOrderOverrides));
+      const adjustmentConflicts = result.conflicts.filter(row => row.blocking && (!row.workOrderId || adjustedIds.has(String(row.workOrderId))));
+      if (adjustmentConflicts.length) return res.status(409).json({ error: `Cannot apply the manual adjustment: ${adjustmentConflicts.map(row => row.message).join("; ")}`, conflicts: result.conflicts });
+    }
+    await DailyAssignment.deleteMany({ projectId: project._id, generatedBy: "system", status: { $in: ["pending", "in_progress"] } });
+    if (result.allocations.length) await DailyAssignment.insertMany(result.allocations);
+    const orders = await WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } });
+    for (const order of orders) {
+      const rows = result.allocations.filter(row => String(row.workOrderId) === String(order._id)).sort((a,b)=>new Date(a.date)-new Date(b.date));
+      order.assignedTechnicians = (project.assignedTechnicians || []).map(member => ({
+        _id: member._id, name: member.name, phone: member.phone, assignedUnits: 0,
+      }));
+      order.scheduledDate = rows[0]?.date || null;
+      order.scheduledEndDate = rows[rows.length-1]?.date || null;
+      order.startTime = rows[0]?.startTime || null;
+      order.endTime = rows[rows.length-1]?.endTime || null;
+      order.planningStatus = rows.length ? "scheduled" : "draft";
+      order.scheduleConflicts = result.conflicts.filter(conflict => String(conflict.workOrderId || "") === String(order._id));
+      order.activity.push({ action: "schedule_generated", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { days: [...new Set(rows.map(row=>dayKeyForRoute(row.date)))], status: result.status } });
+      await order.save();
+    }
+    project.plannedStartDate = result.startDate;
+    project.plannedCompletionDate = result.estimatedEndDate;
+    project.schedulePlan = {
+      status: result.status, startDate: result.startDate, estimatedEndDate: result.estimatedEndDate,
+      targetEndDate: req.body?.targetEndDate || project.preferredCompletionDeadline || null,
+      executionEndDate: result.executionEndDate, workingDays: result.workingDays,
+      workingHours: result.workingHours, bufferDays: result.bufferDays,
+      qualityScore: result.qualityScore, conflicts: result.conflicts,
+      dailySummary: result.dailySummary, generatedAt: new Date(), generatedBy: req.user._id,
+      manualOverrides: scheduleOptions.workOrderOverrides || {},
+    };
+    project.scheduleLocked = false;
+    await project.save();
+    await audit.logEvent({ actor:req.user._id,target:project._id,action:"project.schedule_generated",module:"projects",req,details:{referenceModel:"Project",referenceId:project._id,status:result.status,qualityScore:result.qualityScore,conflicts:result.conflicts.length} });
+    res.json({ ...result, message: result.status === "ready" ? `Schedule ready across ${result.dailySummary.length} working day(s).` : `Schedule generated with ${result.conflicts.length} blocking conflict(s).` });
   } catch (error) {
     console.error("Error generating schedule:", error);
     res.status(500).json({ error: error.message || "Failed to generate schedule" });
   }
+});
+
+function dayKeyForRoute(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+}
+
+router.put("/projects/:id/schedule-settings", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.schedulePlan?.status === "confirmed") return res.status(409).json({ error: "The confirmed schedule is locked." });
+    const startDate = req.body.startDate ? new Date(req.body.startDate) : project.preferredStartDate;
+    if (!startDate || Number.isNaN(startDate.getTime())) return res.status(400).json({ error: "Valid project start date is required." });
+    const targetEndDate = req.body.targetEndDate ? new Date(req.body.targetEndDate) : null;
+    if (targetEndDate && targetEndDate < startDate) return res.status(400).json({ error: "Target end date cannot be before project start." });
+    const workingDays = normalizeWorkingDays(req.body.workingDays, []);
+    if (!workingDays.length) return res.status(400).json({ error: "Select at least one working day." });
+    project.preferredStartDate = startDate; project.preferredCompletionDeadline = targetEndDate;
+    project.preferredWorkingDays = workingDays.map(String);
+    project.preferredWorkingHours = { start:req.body.startTime || "09:00", end:req.body.endTime || "17:00" };
+    project.schedulePlan = { ...(project.schedulePlan?.toObject?.() || project.schedulePlan || {}), status:"not_generated", startDate, targetEndDate, workingDays, workingHours:project.preferredWorkingHours, bufferDays:Math.max(0,Math.min(10,Number(req.body.bufferDays)||0)), conflicts:[], dailySummary:[], qualityScore:0, manualOverrides:{} };
+    await project.save();
+    res.json({ schedulePlan:project.schedulePlan,message:"Scheduling parameters saved. Generate a new preview to calculate the end date." });
+  } catch(error){res.status(500).json({error:error.message||"Failed to save schedule settings"});}
+});
+
+router.get("/projects/:id/schedule-plan", auth.requireRole(["admin", "secretary"]), async (req,res)=>{
+  try{
+    const project=await Project.findById(req.params.id).lean();if(!project)return res.status(404).json({error:"Project not found"});
+    const assignments=await DailyAssignment.find({projectId:project._id}).sort({date:1,startTime:1}).lean();
+    const orders=await WorkOrder.find({projectId:project._id,status:{$ne:"cancelled"}}).sort({sortOrder:1}).lean();
+    res.json({schedulePlan:project.schedulePlan||{},assignments,workOrders:orders});
+  }catch(error){res.status(500).json({error:"Failed to load schedule plan"});}
+});
+
+router.post("/projects/:id/schedule-readiness", auth.requireRole(["admin", "secretary"]), async(req,res)=>{
+  try{const project=await Project.findById(req.params.id);if(!project)return res.status(404).json({error:"Project not found"});const result=await validateProjectSchedule(project.toObject());project.schedulePlan.status=result.status;project.schedulePlan.qualityScore=result.qualityScore;project.schedulePlan.conflicts=result.conflicts;project.schedulePlan.dailySummary=result.dailySummary;await project.save();res.json({readiness:result});}catch(error){res.status(500).json({error:error.message||"Failed to validate schedule"});}
+});
+
+router.put("/work-orders/:id/schedule", auth.requireRole(["admin", "secretary"]), async(req,res)=>{
+  try{
+    const order=await WorkOrder.findById(req.params.id);if(!order)return res.status(404).json({error:"Work order not found"});
+    const project=await Project.findById(order.projectId);if(project.schedulePlan?.status==="confirmed")return res.status(409).json({error:"The confirmed schedule is locked."});
+    const before={scheduledDate:order.scheduledDate,scheduledEndDate:order.scheduledEndDate,startTime:order.startTime,endTime:order.endTime,assignedTechnicians:order.assignedTechnicians};
+    if(req.body.scheduledDate)order.scheduledDate=new Date(req.body.scheduledDate);if(req.body.scheduledEndDate)order.scheduledEndDate=new Date(req.body.scheduledEndDate);
+    if(req.body.startTime)order.startTime=req.body.startTime;if(req.body.endTime)order.endTime=req.body.endTime;
+    if(Array.isArray(req.body.assignedTechnicians))order.assignedTechnicians=req.body.assignedTechnicians;
+    order.planningStatus="scheduled";await order.save();
+    const validation=await validateProjectSchedule(project.toObject());
+    const conflict=validation.conflicts.find(row=>String(row.workOrderId||"")===String(order._id)&&row.blocking);
+    if(conflict){Object.assign(order,before);await order.save();return res.status(409).json({error:`Cannot save schedule: ${conflict.message}`,conflicts:validation.conflicts});}
+    project.schedulePlan.status="ready";project.schedulePlan.conflicts=validation.conflicts;project.schedulePlan.qualityScore=validation.qualityScore;project.schedulePlan.dailySummary=validation.dailySummary;await project.save();
+    order.activity.push({action:"schedule_changed",actorId:req.user._id,actorName:req.user.name||req.user.email||req.user.role,reason:req.body.reason||"Manual schedule adjustment",details:{before,after:{scheduledDate:order.scheduledDate,scheduledEndDate:order.scheduledEndDate,startTime:order.startTime,endTime:order.endTime}}});await order.save();
+    res.json({workOrder:order,readiness:validation,message:"Schedule updated and revalidated."});
+  }catch(error){res.status(500).json({error:error.message||"Failed to adjust schedule"});}
 });
 
 /**
@@ -1111,6 +1470,7 @@ router.post("/projects/:id/generate-work-orders", auth.requireRole(["admin", "se
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
     const result = await projectScheduler.generateWorkOrders(id, req.body || {});
+    await audit.logEvent({ actor: req.user._id, target: id, action: req.body?.regenerate ? "project.work_orders_regenerated" : "project.work_orders_generated", module: "projects", req, details: { referenceModel: "Project", referenceId: id, created: result.workOrders?.length || 0, preserved: result.preserved || 0, readiness: result.readiness } });
     res.json(result);
   } catch (error) {
     console.error("Error generating work orders:", error);
@@ -1127,11 +1487,264 @@ router.get("/projects/:id/suggest-resources", auth.requireRole(["admin", "secret
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
     const result = await projectScheduler.suggestResources(id);
-    res.json(result);
+    const project = await Project.findById(id).lean();
+    const prepared = (result.recommendations || []).map(item => ({
+      ...item,
+      source: "ai",
+      recommendationState: item.type === "part" && !/required by repair quotation/i.test(item.reason || "") ? "optional" : "recommended",
+      requirementRule: item.requirementRule || (item.scope === "shared" ? "shared" : "fixed"),
+      baseQuantity: item.baseQuantity || item.quantity || 1,
+      originalQuantity: item.quantity || 1,
+      confidence: item.confidence || (item.type === "part" ? "medium" : "high"),
+    }));
+    const evaluated = await evaluateProjectResources(project, prepared);
+    res.json({ ...result, recommendations: evaluated.resources, readiness: evaluated.readiness, context: evaluated.context });
   } catch (error) {
     console.error("Error suggesting resources:", error);
     res.status(500).json({ error: "Failed to suggest resources" });
   }
+});
+
+router.post("/projects/:id/plan-resources", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const items = Array.isArray(req.body.items) ? req.body.items.slice(0, 100) : [];
+    const evaluated = await evaluateProjectResources(project.toObject(), items);
+    project.planningDraft = project.planningDraft || {};
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    project.planningDraft.resources = evaluated.resources.map(item => ({
+      toolId: mongoose.Types.ObjectId.isValid(item.toolId) ? item.toolId : null,
+      itemName: String(item.itemName || "Resource").slice(0, 200), type: String(item.type || "equipment").slice(0, 30),
+      scope: String(item.scope || "shared").slice(0, 30), quantity: Math.max(1, Number(item.quantity) || 1),
+      unit: String(item.unit || "pcs").slice(0, 30), reason: String(item.reason || "").slice(0, 500), available: Math.max(0, Number(item.available) || 0),
+      owned: item.owned, assignedElsewhere: item.assignedElsewhere, shortage: item.shortage,
+      readinessStatus: item.readinessStatus, source: item.source || "ai",
+      recommendationState: item.recommendationState || "recommended",
+      requirementRule: item.requirementRule, baseQuantity: item.baseQuantity,
+      originalQuantity: item.originalQuantity, confidence: item.confidence || "medium",
+      affectedWorkOrderIds: item.affectedWorkOrderIds || [], affectedWorkOrders: item.affectedWorkOrders || [],
+      purchaseCost: item.purchaseCost, sellingPrice: item.sellingPrice, estimatedCost: item.estimatedCost,
+    }));
+    project.planningDraft.readiness = evaluated.readiness;
+    project.planningDraft.resourceHistory.push({ action: "ai_plan_created", after: { count: evaluated.resources.length }, changedAt: new Date(), changedBy: req.user._id });
+    project.planningDraft.updatedAt = new Date(); project.planningDraft.updatedBy = req.user._id;
+    await project.save();
+    await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor: req.user._id, target: project._id, action: "project.resource_plan_created", module: "projects", req, details: { referenceModel: "Project", referenceId: project._id, count: evaluated.resources.length } });
+    res.json({ resources: project.planningDraft.resources, message: `${project.planningDraft.resources.length} resource(s) added to the plan without reserving inventory.` });
+  } catch (error) {
+    console.error("Failed to save planned resources:", error);
+    res.status(500).json({ error: "Failed to save planned resources" });
+  }
+});
+
+router.get("/projects/:id/resource-plan", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft?.resources || []);
+    project.planningDraft.resources = evaluated.resources;
+    project.planningDraft.readiness = evaluated.readiness;
+    project.planningDraft.updatedAt = new Date();
+    await project.save();
+    await syncPlannedResourcesToWorkOrders(project);
+    const [purchases, suppliers] = await Promise.all([
+      ProjectResourcePurchase.find({ projectId: project._id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean(),
+      Tool.distinct("supplier", { supplier: { $nin: [null, ""] }, active: { $ne: false } }),
+    ]);
+    res.json({ ...evaluated, purchases, suppliers: suppliers.filter(Boolean).sort(), history: project.planningDraft.resourceHistory || [], baselineLocked: Boolean(project.planningDraft.baselineLocked) });
+  } catch (error) {
+    console.error("Failed to evaluate resource plan:", error);
+    res.status(500).json({ error: "Failed to evaluate resource plan" });
+  }
+});
+
+router.post("/projects/:id/resources/accept-available", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.planningDraft?.baselineLocked) return res.status(409).json({ error: "The confirmed planning baseline is locked." });
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft?.resources || []);
+    let accepted = 0;
+    for (const resource of evaluated.resources) {
+      if (resource.recommendationState === "recommended" && resource.type !== "part" && Number(resource.available || 0) >= Number(resource.quantity || 0)) {
+        resource.recommendationState = "planned";
+        resource.readinessStatus = "available";
+        resource.changedAt = new Date(); resource.changedBy = req.user._id;
+        project.planningDraft.resourceHistory.push({ resourceId: resource._id, itemName: resource.itemName, action: "bulk_available_accepted", after: { quantity: resource.quantity, available: resource.available }, changedAt: new Date(), changedBy: req.user._id });
+        accepted += 1;
+      }
+    }
+    const refreshed = await evaluateProjectResources(project.toObject(), evaluated.resources);
+    project.planningDraft.resources = refreshed.resources; project.planningDraft.readiness = refreshed.readiness;
+    project.planningDraft.updatedAt = new Date(); project.planningDraft.updatedBy = req.user._id;
+    await project.save(); await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor:req.user._id,target:project._id,action:"project.resources_bulk_accepted",module:"projects",req,details:{referenceModel:"Project",referenceId:project._id,accepted} });
+    res.json({ accepted, resources: project.planningDraft.resources, readiness: project.planningDraft.readiness, message: `${accepted} available resource(s) accepted.` });
+  } catch (error) {
+    console.error("Bulk resource acceptance failed:", error);
+    res.status(500).json({ error: error.message || "Failed to accept available resources" });
+  }
+});
+
+router.post("/projects/:id/resources/:resourceId/purchase", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.planningDraft?.baselineLocked) return res.status(409).json({ error: "The confirmed planning baseline is locked." });
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    const resource = project.planningDraft?.resources?.id(req.params.resourceId);
+    if (!resource) return res.status(404).json({ error: "Planned resource not found" });
+    if (resource.purchaseRecordId) {
+      const activePurchase = await ProjectResourcePurchase.findOne({ _id: resource.purchaseRecordId, status: { $in: ["ordered", "partially_received"] } });
+      if (activePurchase) return res.status(409).json({ error: `Receive or cancel the existing purchase first (${activePurchase.orderedQuantity - activePurchase.receivedQuantity} remaining).` });
+    }
+    const quantity = Math.max(1, Number(req.body.quantity) || 0);
+    const supplier = String(req.body.supplier || "").trim();
+    const unitPurchaseCost = Math.max(0, Number(req.body.unitPurchaseCost) || 0);
+    const expectedDelivery = new Date(req.body.expectedDelivery);
+    if (!supplier) return res.status(400).json({ error: "Supplier is required." });
+    if (Number.isNaN(expectedDelivery.getTime())) return res.status(400).json({ error: "Expected delivery date is required." });
+    let tool = resource.toolId ? await Tool.findById(resource.toolId) : null;
+    if (!tool) {
+      tool = await Tool.create({ itemName: resource.itemName, unit: resource.unit || "pcs", quantity: 0, costPrice: unitPurchaseCost, type: resource.type, itemType: resource.type, inventoryClass: resource.type === "equipment" ? "operational_asset" : "merchandise", supplier, status: "out_of_stock" });
+      resource.toolId = tool._id;
+    }
+    const purchase = await ProjectResourcePurchase.create({ projectId: project._id, resourceId: resource._id, toolId: tool._id, itemName: resource.itemName, resourceType: resource.type, orderedQuantity: quantity, supplier, unitPurchaseCost, expectedDelivery, acquisitionMode: req.body.acquisitionMode || "purchase", createdBy: req.user._id });
+    resource.purchaseRecordId = purchase._id; resource.purchaseStatus = purchase.status; resource.orderedQuantity = quantity; resource.receivedQuantity = 0; resource.supplier = supplier; resource.expectedDelivery = expectedDelivery; resource.unitPurchaseCost = unitPurchaseCost;
+    if (resource.recommendationState === "recommended") resource.recommendationState = "planned";
+    project.planningDraft.resourceHistory.push({ resourceId: resource._id, itemName: resource.itemName, action: "direct_purchase_created", after: { purchaseId: purchase._id, quantity, supplier, expectedDelivery }, changedAt: new Date(), changedBy: req.user._id });
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft.resources);
+    project.planningDraft.resources = evaluated.resources; project.planningDraft.readiness = evaluated.readiness;
+    await project.save(); await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor:req.user._id,target:project._id,action:"project.resource_purchase_created",module:"projects",req,details:{referenceModel:"Project",referenceId:project._id,purchaseId:purchase._id,itemName:resource.itemName,quantity,supplier,expectedDelivery} });
+    res.json({ purchase, message: `Purchase recorded for ${quantity} ${resource.unit || "pcs"}. Inventory will update only when items are received.` });
+  } catch (error) {
+    console.error("Direct resource purchase failed:", error);
+    res.status(500).json({ error: error.message || "Failed to record purchase" });
+  }
+});
+
+router.post("/projects/:id/resources/:resourceId/receive", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    const resource = project.planningDraft?.resources?.id(req.params.resourceId);
+    if (!resource?.purchaseRecordId) return res.status(404).json({ error: "No active purchase found for this resource." });
+    const purchase = await ProjectResourcePurchase.findById(resource.purchaseRecordId);
+    if (!purchase || purchase.status === "cancelled") return res.status(404).json({ error: "Purchase record not found." });
+    const remaining = Math.max(0, purchase.orderedQuantity - purchase.receivedQuantity);
+    const quantity = Math.max(0, Number(req.body.quantity) || 0);
+    if (!quantity || quantity > remaining) return res.status(400).json({ error: `Receive a quantity between 1 and ${remaining}.` });
+    const result = await StockAdjustment.record({ toolId: purchase.toolId, type: "stock_in", delta: quantity, adjustedBy: req.user._id, reason: "purchase", notes: `Project ${project._id} purchase from ${purchase.supplier}; resource ${resource.itemName}` });
+    purchase.receivedQuantity += quantity;
+    purchase.status = purchase.receivedQuantity >= purchase.orderedQuantity ? "received" : "partially_received";
+    purchase.receipts.push({ quantity, receivedAt: new Date(), receivedBy: req.user._id, stockAdjustmentId: result.adjustment._id });
+    await purchase.save();
+    resource.purchaseStatus = purchase.status; resource.receivedQuantity = purchase.receivedQuantity;
+    project.planningDraft.resourceHistory.push({ resourceId: resource._id, itemName: resource.itemName, action: "purchase_received", after: { quantity, totalReceived: purchase.receivedQuantity, status: purchase.status, stockAdjustmentId: result.adjustment._id }, changedAt: new Date(), changedBy: req.user._id });
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft.resources);
+    project.planningDraft.resources = evaluated.resources; project.planningDraft.readiness = evaluated.readiness;
+    await project.save(); await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor:req.user._id,target:project._id,action:"project.resource_purchase_received",module:"projects",req,details:{referenceModel:"Project",referenceId:project._id,purchaseId:purchase._id,itemName:resource.itemName,quantity,totalReceived:purchase.receivedQuantity,stockAdjustmentId:result.adjustment._id} });
+    res.json({ purchase, readiness: evaluated.readiness, message: `${quantity} ${resource.unit || "pcs"} received and added to inventory.` });
+  } catch (error) {
+    console.error("Resource receiving failed:", error);
+    res.status(500).json({ error: error.message || "Failed to receive purchased resource" });
+  }
+});
+
+router.post("/projects/:id/resources", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.planningDraft?.baselineLocked) return res.status(409).json({ error: "The confirmed planning baseline is locked." });
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    const item = req.body || {};
+    if (!String(item.itemName || "").trim()) return res.status(400).json({ error: "Resource name is required" });
+    const rule = VALID_RULES.includes(item.requirementRule) ? item.requirementRule : "fixed";
+    const evaluated = await evaluateProjectResources(project.toObject(), [{
+      ...item, itemName: String(item.itemName).trim().slice(0, 200), type: cleanType(item.type),
+      quantity: Math.max(1, Number(item.quantity) || 1), baseQuantity: Math.max(0.01, Number(item.baseQuantity || item.quantity) || 1),
+      requirementRule: rule, source: "manual", recommendationState: item.recommendationState === "optional" ? "optional" : "planned",
+    }]);
+    project.planningDraft.resources.push(evaluated.resources[0]);
+    const created = project.planningDraft.resources[project.planningDraft.resources.length - 1];
+    project.planningDraft.resourceHistory.push({ resourceId: created._id, itemName: created.itemName, action: "resource_added", after: created.toObject(), reason: item.reason || "", changedAt: new Date(), changedBy: req.user._id });
+    const full = await evaluateProjectResources(project.toObject(), project.planningDraft.resources);
+    project.planningDraft.resources = full.resources; project.planningDraft.readiness = full.readiness;
+    project.planningDraft.updatedAt = new Date(); project.planningDraft.updatedBy = req.user._id;
+    await project.save();
+    await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor: req.user._id, target: project._id, action: "project.resource_added", module: "projects", req, details: { referenceModel: "Project", referenceId: project._id, itemName: created.itemName } });
+    res.json({ resources: project.planningDraft.resources, readiness: project.planningDraft.readiness, message: "Resource added to the planning preview." });
+  } catch (error) {
+    console.error("Failed to add planned resource:", error);
+    res.status(500).json({ error: error.message || "Failed to add resource" });
+  }
+});
+
+router.put("/projects/:id/resources/:resourceId", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (project.planningDraft?.baselineLocked) return res.status(409).json({ error: "The confirmed planning baseline is locked." });
+    project.planningDraft.resourceHistory = project.planningDraft.resourceHistory || [];
+    const resource = project.planningDraft?.resources?.id(req.params.resourceId);
+    if (!resource) return res.status(404).json({ error: "Planned resource not found" });
+    const before = resource.toObject();
+    const body = req.body || {};
+    if (body.quantity != null) {
+      resource.quantity = Math.max(1, Number(body.quantity) || 1);
+      resource.baseQuantity = resource.quantity;
+      // A direct total-quantity override becomes a fixed planning quantity;
+      // otherwise a per-unit/per-tech rule would multiply the edited total.
+      if (!body.requirementRule) resource.requirementRule = "fixed";
+    }
+    if (body.requirementRule && VALID_RULES.includes(body.requirementRule)) resource.requirementRule = body.requirementRule;
+    if (body.recommendationState && VALID_STATES.includes(body.recommendationState)) resource.recommendationState = body.recommendationState;
+    if (body.reason != null) resource.reason = String(body.reason).slice(0, 500);
+    if (Array.isArray(body.affectedWorkOrderIds)) resource.affectedWorkOrderIds = body.affectedWorkOrderIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    resource.adjustmentReason = String(body.adjustmentReason || body.reason || "").slice(0, 500);
+    resource.changedAt = new Date(); resource.changedBy = req.user._id;
+    const action = resource.recommendationState === "rejected" ? "recommendation_rejected" : resource.recommendationState === "optional" ? "recommendation_optional" : before.recommendationState === "recommended" ? "recommendation_accepted" : "resource_updated";
+    project.planningDraft.resourceHistory.push({ resourceId: resource._id, itemName: resource.itemName, action, before, after: resource.toObject(), reason: resource.adjustmentReason, changedAt: new Date(), changedBy: req.user._id });
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft.resources);
+    project.planningDraft.resources = evaluated.resources; project.planningDraft.readiness = evaluated.readiness;
+    project.planningDraft.updatedAt = new Date(); project.planningDraft.updatedBy = req.user._id;
+    await project.save();
+    await syncPlannedResourcesToWorkOrders(project);
+    await audit.logEvent({ actor: req.user._id, target: project._id, action: `project.${action}`, module: "projects", req, details: { referenceModel: "Project", referenceId: project._id, itemName: resource.itemName, before, after: resource.toObject() } });
+    res.json({ resources: project.planningDraft.resources, readiness: project.planningDraft.readiness, message: "Resource plan updated." });
+  } catch (error) {
+    console.error("Failed to update planned resource:", error);
+    res.status(500).json({ error: error.message || "Failed to update resource" });
+  }
+});
+
+router.post("/projects/:id/resource-readiness", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const evaluated = await evaluateProjectResources(project.toObject(), project.planningDraft?.resources || []);
+    project.planningDraft.resources = evaluated.resources; project.planningDraft.readiness = evaluated.readiness;
+    project.planningDraft.updatedAt = new Date(); project.planningDraft.updatedBy = req.user._id;
+    await project.save();
+    res.json(evaluated);
+  } catch (error) {
+    console.error("Resource readiness failed:", error);
+    res.status(500).json({ error: "Failed to check resource readiness" });
+  }
+});
+
+router.post("/projects/:id/resources/:resourceId/procurement", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  res.status(410).json({ error: "The approval-request workflow was retired. Use direct Purchase / Rent / Acquire from Resource Planning." });
 });
 
 /**
@@ -1139,12 +1752,18 @@ router.get("/projects/:id/suggest-resources", auth.requireRole(["admin", "secret
  * Reserve the suggested resources (or a chosen subset) on the project.
  * body: { items: [{ itemName, type, quantity, unit, scope, reason }] }
  */
-const Tool = require("../models/Tool");
-
 router.post("/projects/:id/reserve-suggested", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
+    const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (["pending_project_scheduling", "accepted", "planning"].includes(project.status)) {
+      return res.status(409).json({ error: "Step 2 is planning-only. Review the draft and use Confirm Project Plan in Step 6 to reserve approved resources." });
+    }
+    const teamStatus = project.teamStatus || [];
+    const pendingTeam = (project.assignedTechnicians || []).filter(member => !teamStatus.some(row => String(row._id) === String(member._id) && row.status === "acknowledged"));
+    if (pendingTeam.length) return res.status(409).json({ error: "Required team acceptance is needed before physical resources can be reserved." });
     const items = (req.body && req.body.items) || [];
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "No items provided" });
     
@@ -1161,10 +1780,11 @@ router.post("/projects/:id/reserve-suggested", auth.requireRole(["admin", "secre
     
     const created = [];
     for (const it of items) {
+      const itemType = it.type === "tool" ? "equipment" : (["part", "equipment", "consumable"].includes(it.type) ? it.type : "equipment");
       const m = await ProjectMaterial.create({
         projectId: id,
-        type: it.type || "equipment",
-        scope: it.scope || "shared",
+        type: itemType,
+        scope: itemType === "part" || itemType === "consumable" ? "shared" : (it.scope || "shared"),
         itemName: it.itemName,
         quantity: it.quantity || 1,
         unit: it.unit || "pcs",
@@ -1172,6 +1792,12 @@ router.post("/projects/:id/reserve-suggested", auth.requireRole(["admin", "secre
         notes: it.reason || "",
       });
       created.push(m);
+    }
+    if (project.planningDraft?.resources?.length) {
+      project.planningDraft.resources = [];
+      project.planningDraft.updatedAt = new Date();
+      project.planningDraft.updatedBy = req.user._id;
+      await project.save();
     }
     res.json({ materials: created, message: `${created.length} resource(s) reserved`, stockWarnings });
   } catch (error) {
@@ -1219,23 +1845,44 @@ router.post("/projects/:id/work-orders", auth.requireRole(["admin", "secretary"]
       return res.status(400).json({ error: "workOrders must be a non-empty array" });
     }
 
+    const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
+    const scopeUnits = projectUnits(project.toObject(), booking);
+    const existingOrders = await WorkOrder.find({ projectId: id, status: { $ne: "cancelled" } }).select("units workOrderNumber").lean();
+    const usedKeys = new Set(existingOrders.flatMap(order => (order.units || []).map(unit => unit.unitKey)));
+    const availableUnits = scopeUnits.filter(unit => !usedKeys.has(unit.unitKey));
+    let unitCursor = 0;
+    let sequence = Math.max(0, ...existingOrders.map(order => Number(String(order.workOrderNumber || "").match(/(\d+)$/)?.[1] || 0)));
     const createdOrders = [];
     for (const wo of workOrders) {
-      const assigned = Array.isArray(wo.assignedTechnicians)
-        ? wo.assignedTechnicians.map((t) => ({
-            _id: t._id, name: t.name, phone: t.phone,
-            assignedUnits: t.assignedUnits != null ? t.assignedUnits : (wo.assignedTechnicians.length === 1 ? (wo.unitCount || 0) : 0),
-          }))
-        : [];
+      const requestedUnits = Math.max(1, Number(wo.unitCount) || 1);
+      const selectedUnits = Array.isArray(wo.units) && wo.units.length
+        ? wo.units
+        : availableUnits.slice(unitCursor, unitCursor + requestedUnits);
+      unitCursor += selectedUnits.length;
+      if (!selectedUnits.length) return res.status(409).json({ error: "No uncovered project units remain for this work order." });
+      sequence += 1;
+      const assigned = (project.assignedTechnicians || []).map(t => ({
+        _id: t._id, name: t.name, phone: t.phone, assignedUnits: 0,
+      }));
       const order = await WorkOrder.create({
         projectId: id,
         bookingId: project.bookingId,
+        workOrderNumber: `WO-${String(sequence).padStart(3, "0")}`,
+        planningStatus: wo.scheduledDate ? "scheduled" : "draft",
+        assignmentProvisional: true,
         title: wo.title || "",
         description: wo.description || "",
         section: wo.section || "",
-        unitCount: wo.unitCount || 0,
+        location: wo.location || { label: wo.section || project.location?.address || booking?.location?.address || "Customer site", address: project.location?.address || booking?.location?.address || "" },
+        serviceType: wo.serviceType || selectedUnits[0]?.serviceType || "core",
+        workflowType: wo.serviceType || selectedUnits[0]?.serviceType || "core",
+        serviceName: wo.serviceName || selectedUnits[0]?.serviceName || project.service?.name || "HVAC Service",
+        units: selectedUnits,
+        unitCount: selectedUnits.length,
         estimatedHours: wo.estimatedHours || 0,
+        requiredTechnicianCount: Math.max(1, Math.min(assigned.length || 1, Number(project.dailyRequiredTechnicians || assigned.length || 1))),
         assignedTechnicians: assigned,
+        suggestedTechnicians: assigned,
         scheduledDate: wo.scheduledDate || null,
         startTime: wo.startTime || null,
         endTime: wo.endTime || null,
@@ -1248,7 +1895,10 @@ router.post("/projects/:id/work-orders", auth.requireRole(["admin", "secretary"]
               { label: "Execute service", completed: false },
               { label: "Final quality check", completed: false },
             ],
+        activity: [{ action: "work_order_created", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { generationMode: "manual" } }],
       });
+      order.resourceRequirements = resourcesForWorkOrder(project.toObject(), order.toObject());
+      await order.save();
       createdOrders.push(order);
     }
 
@@ -1262,7 +1912,7 @@ router.post("/projects/:id/work-orders", auth.requireRole(["admin", "secretary"]
     // Generate daily assignment plans for orders that already have a tech + date.
     for (const order of createdOrders) {
       if ((order.assignedTechnicians || []).length && order.scheduledDate) {
-        ensureDailyAssignments(order._id).catch(() => {});
+        ensureDailyAssignmentsIfLegacy(order._id).catch(() => {});
       }
     }
 
@@ -1284,11 +1934,24 @@ router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technici
       return res.status(400).json({ error: "Invalid work order id" });
     }
 
+    const existing = await WorkOrder.findById(id);
+    if (!existing) return res.status(404).json({ error: "Work order not found" });
+    const isPlanner = ["admin", "secretary"].includes(req.user.role);
+    const structuralFields = ["title", "description", "section", "location", "serviceType", "serviceName", "workflowType", "units", "unitCount", "estimatedHours", "assignedTechnicians", "suggestedTechnicians", "dependencies", "priority"];
+    if (!isPlanner && structuralFields.some(field => req.body[field] !== undefined)) {
+      return res.status(403).json({ error: "Only project planners can change work-order scope." });
+    }
+    if (existing.planningStatus === "released" && structuralFields.some(field => req.body[field] !== undefined)) {
+      return res.status(409).json({ error: "Released work-order scope cannot be destructively edited. Cancel or create a follow-up work order." });
+    }
+
     const allowedFields = [
       "title", "description", "section", "unitCount", "estimatedHours",
       "status", "assignedTechnicians", "scheduledDate", "startTime", "endTime",
       "actualStartDate", "actualCompletionDate", "notes", "technicianNotes",
-      "priority", "sortOrder", "checklist", "completedUnitCount",
+      "priority", "sortOrder", "checklist", "completedUnitCount", "location",
+      "serviceType", "serviceName", "workflowType", "units", "suggestedTechnicians",
+      "dependencies", "planningStatus",
     ];
 
     const updateData = {};
@@ -1298,7 +1961,13 @@ router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technici
       }
     }
 
-    const workOrder = await WorkOrder.findByIdAndUpdate(id, updateData, { new: true });
+    if (req.body.scheduledDate) updateData.planningStatus = "scheduled";
+    if (Array.isArray(req.body.assignedTechnicians) && existing.planningStatus !== "released") updateData.assignmentProvisional = true;
+    const changedFields = Object.keys(updateData);
+    const workOrder = await WorkOrder.findByIdAndUpdate(id, {
+      $set: updateData,
+      $push: { activity: { action: "work_order_edited", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, reason: req.body.changeReason || "", details: { fields: changedFields } } },
+    }, { new: true });
     if (!workOrder) {
       return res.status(404).json({ error: "Work order not found" });
     }
@@ -1306,14 +1975,33 @@ router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technici
     // If the schedule or assignment changed, regenerate the daily plan.
     if (req.body.scheduledDate !== undefined || req.body.assignedTechnicians !== undefined) {
       if ((workOrder.assignedTechnicians || []).length && workOrder.scheduledDate) {
-        ensureDailyAssignments(workOrder._id).catch(() => {});
+        ensureDailyAssignmentsIfLegacy(workOrder._id).catch(() => {});
       }
     }
 
+    if (req.body.completedUnitCount !== undefined && workOrder.units?.length) {
+      const targetComplete = Math.min(Number(req.body.completedUnitCount) || 0, workOrder.units.length);
+      workOrder.units.forEach((unit, index) => {
+        if (unit.status === "cancelled") return;
+        unit.status = index < targetComplete ? "completed" : "pending";
+        unit.completedAt = index < targetComplete ? (unit.completedAt || new Date()) : null;
+      });
+    }
     if (workOrder.status === "completed" && !workOrder.actualCompletionDate) {
-      workOrder.actualCompletionDate = new Date();
-      workOrder.completedUnitCount = workOrder.unitCount;
+      if (Number(workOrder.completedUnitCount || 0) < Number(workOrder.unitCount || 0)) {
+        workOrder.status = "partially_completed";
+      } else {
+        workOrder.actualCompletionDate = new Date();
+      }
       await workOrder.save();
+    }
+
+    if (req.body.dependencies !== undefined) {
+      const siblings = await WorkOrder.find({ projectId: workOrder.projectId }).lean();
+      if (hasCycle(siblings)) {
+        await WorkOrder.findByIdAndUpdate(id, { dependencies: existing.dependencies || [] });
+        return res.status(409).json({ error: "This dependency would create a circular work-order chain." });
+      }
     }
 
     await updateProjectProgress(workOrder.projectId);
@@ -1436,6 +2124,142 @@ router.get("/projects/:id/work-orders", auth.requireRole(["admin", "secretary", 
   }
 });
 
+router.get("/projects/:id/work-order-readiness", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
+    const orders = await WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } });
+    for (const order of orders) {
+      order.resourceRequirements = resourcesForWorkOrder(project.toObject(), order.toObject());
+      if (order.planningStatus === "draft" && order.scheduledDate) order.planningStatus = "scheduled";
+      await order.save();
+    }
+    const readiness = await validateWorkOrderPlan(project.toObject(), booking);
+    res.json({ readiness });
+  } catch (error) {
+    console.error("Work-order readiness failed:", error);
+    res.status(500).json({ error: error.message || "Failed to validate work orders" });
+  }
+});
+
+router.post("/work-orders/:id/split", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const order = await WorkOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Work order not found" });
+    if (order.status !== "pending" || order.planningStatus === "released") return res.status(409).json({ error: "Only draft work orders can be split." });
+    if (!order.units?.length || order.units.length < 2) return res.status(409).json({ error: "This work order needs at least two tracked units to split." });
+    const splitAt = Math.max(1, Math.min(order.units.length - 1, Number(req.body.splitAt) || Math.ceil(order.units.length / 2)));
+    const movedUnits = order.units.slice(splitAt).map(unit => unit.toObject());
+    order.units = order.units.slice(0, splitAt);
+    order.unitCount = order.units.length;
+    order.estimatedHours = Number((Number(order.estimatedHours || 0) * order.unitCount / (order.unitCount + movedUnits.length)).toFixed(1));
+    order.activity.push({ action: "work_order_split", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { movedUnits: movedUnits.map(unit => unit.unitKey) } });
+    await order.save();
+    const siblings = await WorkOrder.find({ projectId: order.projectId }).select("workOrderNumber").lean();
+    const next = Math.max(0, ...siblings.map(row => Number(String(row.workOrderNumber || "").match(/(\d+)$/)?.[1] || 0))) + 1;
+    const clone = order.toObject();
+    delete clone._id; delete clone.createdAt; delete clone.updatedAt;
+    clone.workOrderNumber = `WO-${String(next).padStart(3, "0")}`;
+    clone.title = `${order.title} — Split`;
+    clone.units = movedUnits; clone.unitCount = movedUnits.length; clone.completedUnitCount = 0;
+    clone.estimatedHours = Math.max(0.5, Number((Number(req.body.estimatedHours) || movedUnits.length * (Number(order.estimatedHours || 1) / Math.max(1, order.unitCount))).toFixed(1)));
+    clone.activity = [{ action: "work_order_created_from_split", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { sourceWorkOrderId: order._id } }];
+    const created = await WorkOrder.create(clone);
+    const project = await Project.findById(order.projectId).lean();
+    if (project) {
+      order.resourceRequirements = resourcesForWorkOrder(project, order.toObject());
+      created.resourceRequirements = resourcesForWorkOrder(project, created.toObject());
+      await Promise.all([order.save(), created.save()]);
+    }
+    await updateProjectProgress(order.projectId);
+    await audit.logEvent({ actor: req.user._id, target: order.projectId, action: "project.work_order_split", module: "projects", req, details: { referenceModel: "WorkOrder", referenceId: order._id, createdId: created._id } });
+    res.json({ workOrders: [order, created], message: `${order.workOrderNumber} split into two draft work orders.` });
+  } catch (error) {
+    console.error("Failed to split work order:", error);
+    res.status(500).json({ error: error.message || "Failed to split work order" });
+  }
+});
+
+router.post("/projects/:id/work-orders/merge", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.workOrderIds) ? req.body.workOrderIds.filter(mongoose.Types.ObjectId.isValid) : [];
+    if (ids.length < 2) return res.status(400).json({ error: "Select at least two work orders to merge." });
+    const orders = await WorkOrder.find({ _id: { $in: ids }, projectId: req.params.id });
+    if (orders.length !== ids.length) return res.status(404).json({ error: "One or more work orders were not found." });
+    if (orders.some(order => order.status !== "pending" || order.planningStatus === "released")) return res.status(409).json({ error: "Only draft work orders can be merged." });
+    if (new Set(orders.map(order => order.serviceType)).size > 1) return res.status(409).json({ error: "Core and Repair work orders cannot be merged." });
+    const primary = orders[0];
+    const unitMap = new Map(orders.flatMap(order => order.units || []).map(unit => [unit.unitKey, unit.toObject()]));
+    primary.units = [...unitMap.values()]; primary.unitCount = primary.units.length;
+    primary.estimatedHours = Number(orders.reduce((sum, order) => sum + Number(order.estimatedHours || 0), 0).toFixed(1));
+    primary.title = req.body.title || primary.title;
+    primary.activity.push({ action: "work_orders_merged", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { mergedIds: orders.slice(1).map(order => order._id) } });
+    const project = await Project.findById(primary.projectId).lean();
+    if (project) primary.resourceRequirements = resourcesForWorkOrder(project, primary.toObject());
+    await primary.save();
+    await WorkOrder.deleteMany({ _id: { $in: orders.slice(1).map(order => order._id) } });
+    await updateProjectProgress(primary.projectId);
+    await audit.logEvent({ actor: req.user._id, target: req.params.id, action: "project.work_orders_merged", module: "projects", req, details: { referenceModel: "WorkOrder", referenceId: primary._id, mergedIds: ids } });
+    res.json({ workOrder: primary, message: `${orders.length} draft work orders merged.` });
+  } catch (error) {
+    console.error("Failed to merge work orders:", error);
+    res.status(500).json({ error: error.message || "Failed to merge work orders" });
+  }
+});
+
+router.post("/work-orders/:id/move-units", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const source = await WorkOrder.findById(req.params.id);
+    const target = await WorkOrder.findById(req.body.targetWorkOrderId);
+    if (!source || !target || String(source.projectId) !== String(target.projectId)) return res.status(404).json({ error: "Source or target work order not found in this project." });
+    if (target.status !== "pending" || target.planningStatus === "released") return res.status(409).json({ error: "Units can only be moved into a draft work order." });
+    if (!["pending", "partially_completed", "on_hold"].includes(source.status)) return res.status(409).json({ error: "Units cannot be moved from this work-order state." });
+    if (source.serviceType !== target.serviceType) return res.status(409).json({ error: "Units cannot move between Core and Repair workflows." });
+    const requestedKeys = Array.isArray(req.body.unitKeys) ? new Set(req.body.unitKeys.map(String)) : null;
+    const movable = source.units.filter(unit => unit.status !== "completed" && unit.status !== "cancelled" && (!requestedKeys || requestedKeys.has(unit.unitKey)));
+    const count = Math.max(1, Number(req.body.count) || movable.length);
+    const moving = movable.slice(-count);
+    if (!moving.length) return res.status(409).json({ error: "No incomplete units are available to move." });
+    if (moving.length >= source.units.length) return res.status(409).json({ error: "Move fewer units so the source work order retains scope, or merge/delete the draft instead." });
+    const movingKeys = new Set(moving.map(unit => unit.unitKey));
+    source.units = source.units.filter(unit => !movingKeys.has(unit.unitKey));
+    target.units.push(...moving.map(unit => unit.toObject()));
+    source.unitCount = source.units.length; target.unitCount = target.units.length;
+    source.activity.push({ action: "units_moved_out", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { targetWorkOrderId: target._id, unitKeys: [...movingKeys] } });
+    target.activity.push({ action: "units_moved_in", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { sourceWorkOrderId: source._id, unitKeys: [...movingKeys] } });
+    const project = await Project.findById(source.projectId).lean();
+    if (project) {
+      source.resourceRequirements = resourcesForWorkOrder(project, source.toObject());
+      target.resourceRequirements = resourcesForWorkOrder(project, target.toObject());
+    }
+    await Promise.all([source.save(), target.save()]);
+    await updateProjectProgress(source.projectId);
+    await audit.logEvent({ actor: req.user._id, target: source.projectId, action: "project.work_order_units_moved", module: "projects", req, details: { referenceModel: "WorkOrder", referenceId: source._id, targetId: target._id, unitKeys: [...movingKeys] } });
+    res.json({ source, target, message: `${moving.length} unit(s) moved to ${target.workOrderNumber || target.title}.` });
+  } catch (error) {
+    console.error("Failed to move work-order units:", error);
+    res.status(500).json({ error: error.message || "Failed to move units" });
+  }
+});
+
+router.post("/work-orders/:id/cancel", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const reason = String(req.body.reason || "").trim();
+    if (!reason) return res.status(400).json({ error: "Cancellation reason is required." });
+    const order = await WorkOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Work order not found" });
+    if (order.status === "completed") return res.status(409).json({ error: "Completed work orders cannot be cancelled." });
+    order.status = "cancelled"; order.cancellationReason = reason; order.cancelledBy = req.user._id; order.cancelledAt = new Date();
+    order.activity.push({ action: "work_order_cancelled", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, reason });
+    await order.save();
+    await updateProjectProgress(order.projectId);
+    res.json({ workOrder: order, message: "Work order cancelled and retained in project history." });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to cancel work order" });
+  }
+});
+
 router.delete("/work-orders/:id", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { id } = req.params;
@@ -1443,6 +2267,11 @@ router.delete("/work-orders/:id", auth.requireRole(["admin", "secretary"]), asyn
       return res.status(400).json({ error: "Invalid work order id" });
     }
 
+    const existing = await WorkOrder.findById(id);
+    if (!existing) return res.status(404).json({ error: "Work order not found" });
+    if (existing.status !== "pending" || existing.planningStatus === "released") {
+      return res.status(409).json({ error: "Only draft work orders can be deleted. Cancel released or scheduled work instead." });
+    }
     const workOrder = await WorkOrder.findByIdAndDelete(id);
     if (!workOrder) {
       return res.status(404).json({ error: "Work order not found" });
@@ -1467,6 +2296,14 @@ router.post("/projects/:id/materials", auth.requireRole(["admin", "secretary"]),
     const project = await Project.findById(id);
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
+    }
+    if (["pending_project_scheduling", "accepted", "planning"].includes(project.status)) {
+      return res.status(409).json({ error: "Resources cannot be reserved during planning. Add them to the Step 2 resource plan, then confirm the complete plan in Step 6." });
+    }
+    const teamStatus = project.teamStatus || [];
+    const pendingTeam = (project.assignedTechnicians || []).filter(member => !teamStatus.some(row => String(row._id) === String(member._id) && row.status === "acknowledged"));
+    if (pendingTeam.length) {
+      return res.status(409).json({ error: "Resources may be planned now, but physical reservation requires all assigned team members to accept." });
     }
 
     const { materials } = req.body;
@@ -1531,11 +2368,12 @@ router.post("/projects/:id/materials", auth.requireRole(["admin", "secretary"]),
         skippedMaterials.push(mat);
         continue;
       }
+      const itemType = mat.type === "tool" ? "equipment" : (["part", "equipment", "consumable"].includes(mat.type) ? mat.type : "equipment");
       const material = await ProjectMaterial.create({
         projectId: id,
         workOrderId: mat.workOrderId || null,
-        type: ["part", "equipment", "tool"].includes(mat.type) ? mat.type : "equipment",
-        scope: mat.type === "part" ? "shared" : (["shared", "assigned"].includes(mat.scope) ? mat.scope : "shared"),
+        type: itemType,
+        scope: itemType === "part" || itemType === "consumable" ? "shared" : (["shared", "assigned"].includes(mat.scope) ? mat.scope : "shared"),
         itemName: mat.itemName,
         quantity: mat.quantity || 1,
         unit: mat.unit || "pcs",
@@ -1777,7 +2615,7 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
     // 1) Via work orders assigned to this technician (active statuses)
     const workOrders = await WorkOrder.find({
       "assignedTechnicians._id": technician._id,
-      status: { $in: ["pending", "assigned", "accepted", "en_route", "arrived", "in_progress"] },
+      status: { $in: ["assigned", "accepted", "en_route", "arrived", "in_progress", "partially_completed", "awaiting_review", "on_hold"] },
     })
       .sort({ scheduledDate: 1 })
       .lean();
@@ -1843,18 +2681,37 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
       if (!project) continue;
       const wos = grouped[pid];
 
+      // Self-heal schedules created before Step 4 became authoritative. This
+      // runs only when the confirmed baseline differs and no work is completed.
+      await reconcileCommittedSchedule(project).catch(error => console.warn("Committed schedule reconciliation skipped:", error.message));
+
       // All work orders on the project (so the lead's "Today's Team" board can
       // reflect every member's live status, not just the caller's own WOs).
       const allWos = await WorkOrder.find({ projectId: project._id })
         .sort({ scheduledDate: 1 })
         .lean()
         .catch(() => wos);
+      await reconcileTrackedUnitProgress(allWos).catch(error => console.warn("Tracked unit reconciliation skipped:", error.message));
+      for (const order of allWos) {
+        await rebalanceFutureUnitTargets(order).catch(error => console.warn("Future target reconciliation skipped:", error.message));
+      }
 
       // Per-member current status for the lead's "Today's Team" board.
       // Derived from each member's latest work-order status on this project.
       const teamBoard = [];
       const DailyAssignment = require("../models/DailyAssignment");
       const todayKey = new Date(); todayKey.setHours(0, 0, 0, 0);
+      const tomorrowKey = new Date(todayKey); tomorrowKey.setDate(tomorrowKey.getDate() + 1);
+      // Load the allocation ledger once and aggregate from it. Exact Date
+      // equality is unsafe when older rows were saved with a UTC offset.
+      const projectDailyAssignments = await DailyAssignment.find({
+        projectId: project._id,
+        status: { $ne: "skipped" },
+      }).lean().catch(() => []);
+      const isTodayAssignment = row => {
+        const date = new Date(row.date);
+        return date >= todayKey && date < tomorrowKey;
+      };
       for (const t of (project.assignedTechnicians || [])) {
         const memberWos = allWos.filter((w) =>
           (w.assignedTechnicians || []).some((a) => (a._id || a).toString() === t._id.toString())
@@ -1867,19 +2724,21 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
             .sort((a, b) => (order[b] || 0) - (order[a] || 0))[0] || "assigned";
         }
         // Today's target and completed for this member (from DailyAssignment).
-        let todayTarget = 0, todayDone = 0;
-        if (memberWos.length) {
-          const da = await DailyAssignment.find({
-            workOrderId: { $in: memberWos.map((w) => w._id) },
-            technicianId: t._id,
-            date: todayKey,
-          }).lean().catch(() => []);
-          todayTarget = da.reduce((s, d) => s + (d.targetUnits || 0), 0);
-          todayDone = da.reduce((s, d) => s + (d.completedUnits || 0), 0);
-        }
-        // Total units assigned and completed across all WOs for this member.
-        const memberTotalUnits = memberWos.reduce((s, w) => s + (w.unitCount || 0), 0);
-        const memberDoneUnits = memberWos.reduce((s, w) => s + (w.completedUnitCount || 0), 0);
+        const memberAllocations = projectDailyAssignments.filter(row => String(row.technicianId) === String(t._id));
+        const todayRows = memberAllocations.filter(isTodayAssignment);
+        const todayTarget = todayRows.reduce((s, d) => s + Number(d.targetUnits || 0), 0);
+        const todayDone = todayRows.reduce((s, d) => s + Number(d.completedUnits || 0), 0);
+        // Scheduled unit allocations are authoritative. Fall back to the WO
+        // assignment shares only for legacy projects without daily rows.
+        const scheduledTotal = memberAllocations.reduce((s, d) => s + Number(d.targetUnits || 0), 0);
+        const assignedFallback = memberWos.reduce((sum, wo) => {
+          const share = (wo.assignedTechnicians || []).find(member => String(member._id || member) === String(t._id));
+          return sum + Number(share?.assignedUnits || 0);
+        }, 0);
+        const memberTotalUnits = scheduledTotal || assignedFallback;
+        const memberDoneUnits = memberAllocations.length
+          ? memberAllocations.reduce((s, d) => s + Number(d.completedUnits || 0), 0)
+          : 0;
         teamBoard.push({
           _id: t._id,
           name: t.name || "Technician",
@@ -1895,30 +2754,56 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
       // Work order details with daily plan targets for the lead's drawer.
       const workOrderDetails = [];
       for (const wo of allWos) {
-        const woDa = await DailyAssignment.find({
-          workOrderId: wo._id,
-          date: todayKey,
-        }).lean().catch(() => []);
+        const allWoAssignments = projectDailyAssignments
+          .filter(row => String(row.workOrderId) === String(wo._id))
+          .sort((a, b) => new Date(a.date) - new Date(b.date) || String(a.startTime || "").localeCompare(String(b.startTime || "")));
+        const woDa = projectDailyAssignments.filter(row => String(row.workOrderId) === String(wo._id) && isTodayAssignment(row));
         const woTarget = woDa.reduce((s, d) => s + (d.targetUnits || 0), 0);
         const woDone = woDa.reduce((s, d) => s + (d.completedUnits || 0), 0);
         const woRemaining = Math.max(0, (wo.unitCount || 0) - (wo.completedUnitCount || 0));
         const woPct = (wo.unitCount || 0) > 0 ? Math.round(((wo.completedUnitCount || 0) / wo.unitCount) * 100) : 0;
+        const legacyScheduledToday = !projectDailyAssignments.length && wo.scheduledDate &&
+          new Date(wo.scheduledDate) < tomorrowKey && (!wo.scheduledEndDate || new Date(wo.scheduledEndDate) >= todayKey);
+        const batchDays = new Map();
+        for (const row of allWoAssignments) {
+          const key = `${scheduleDayKey(row.date)}|${row.startTime || ""}|${row.endTime || ""}`;
+          const day = batchDays.get(key) || { date: row.date, startTime: row.startTime, endTime: row.endTime, targetUnits: 0, completedUnits: 0 };
+          day.targetUnits += Number(row.targetUnits || 0);
+          day.completedUnits += Number(row.completedUnits || 0);
+          batchDays.set(key, day);
+        }
         workOrderDetails.push({
           _id: wo._id,
           title: wo.title || wo.section || 'Work Order',
           section: wo.section || '',
           status: wo.status || 'pending',
+          planningStatus: wo.planningStatus || 'draft',
           unitCount: wo.unitCount || 0,
           completedUnitCount: wo.completedUnitCount || 0,
           remaining: woRemaining,
           estimatedHours: wo.estimatedHours || 0,
           scheduledDate: wo.scheduledDate || null,
+          scheduledEndDate: wo.scheduledEndDate || null,
           startTime: wo.startTime || null,
           endTime: wo.endTime || null,
+          dailyAllocations: allWoAssignments.map(row => ({
+            date: row.date, startTime: row.startTime, endTime: row.endTime,
+            targetUnits: Number(row.targetUnits || 0), completedUnits: Number(row.completedUnits || 0),
+            unitKeys: row.unitKeys || [], technicianId: row.technicianId,
+            technicianName: (project.assignedTechnicians || []).find(member => String(member._id) === String(row.technicianId))?.name || "Technician",
+          })),
+          dailySchedule: [...batchDays.values()],
           todayTarget: woTarget,
           todayDone: woDone,
+          isScheduledToday: woDa.length > 0 || Boolean(legacyScheduledToday),
           completionPct: woPct,
-          assignedTechnicians: (wo.assignedTechnicians || []).map(at => ({ _id: at._id, name: at.name || 'Technician' })),
+          assignedTechnicians: (project.assignedTechnicians || []).map(at => ({ _id: at._id, name: at.name || 'Technician' })),
+          units: (wo.units || []).map(unit => ({
+            unitKey: unit.unitKey, label: unit.label || unit.unitKey,
+            applianceType: unit.applianceType || '', brand: unit.brand || '', model: unit.model || '',
+            location: unit.location || '', status: unit.status || 'pending', notes: unit.notes || '',
+            completedAt: unit.completedAt || null, completedBy: unit.completedBy || null,
+          })),
         });
       }
 
@@ -1943,23 +2828,33 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
       // Crew-wide phase (drives the lead's single mobilize flow) + team gate.
       const phase = deriveProjectPhase(allWos, project);
       const allAccepted = teamAllAccepted(project);
+      const leadTeamEntry = (project.teamStatus || []).find(row => String(row._id) === String(technician._id));
+      const leadParticipationAccepted = leadTeamEntry?.status === "acknowledged";
+      const verifiedForParticipation = !project.isLargeScale || Boolean(project.verifiedAt);
+      const participationOpen = ["pending_project_scheduling", "accepted", "planning"].includes(project.status);
+      const startOpen = project.status === "ready" && allAccepted;
+      const canLeadAccept = Boolean(isLead && !project.leadAcceptedAt && verifiedForParticipation && ((!leadParticipationAccepted && participationOpen) || (leadParticipationAccepted && startOpen)));
+      let leadAcceptanceBlocker = null;
+      if (isLead && !project.leadAcceptedAt && !canLeadAccept) {
+        if (project.isLargeScale && !project.verifiedAt) leadAcceptanceBlocker = "Waiting for admin verification";
+        else if (leadParticipationAccepted && ["pending_project_scheduling", "accepted", "planning"].includes(project.status)) leadAcceptanceBlocker = "Participation accepted — waiting for admin to confirm the final project plan";
+        else if (project.status === "ready" && !allAccepted) leadAcceptanceBlocker = "Waiting for every assigned team member to accept participation";
+        else leadAcceptanceBlocker = `Project is ${String(project.status || "not ready").replace(/_/g, " ")}`;
+      }
 
       // My daily quota (today) for the calling technician across their WOs.
-      const myWos = allWos.filter((w) =>
-        (w.assignedTechnicians || []).some((a) => (a._id || a).toString() === technician._id.toString())
-      );
+      // Work orders belong to the project crew. Every team member sees the
+      // same batch queue; individual accountability lives on unit.completedBy.
+      const myWos = allWos.filter(w => w.status !== "cancelled");
       let myTodayTarget = 0, myTodayDone = 0;
       if (myWos.length) {
-        const das = await DailyAssignment.find({
-          workOrderId: { $in: myWos.map((w) => w._id) },
-          technicianId: technician._id,
-          date: todayKey,
-        }).lean().catch(() => []);
+        const das = projectDailyAssignments.filter(row => String(row.technicianId) === String(technician._id) && isTodayAssignment(row));
         myTodayTarget = das.reduce((s, d) => s + (d.targetUnits || 0), 0);
         myTodayDone = das.reduce((s, d) => s + (d.completedUnits || 0), 0);
       }
-      const myTotalUnits = myWos.reduce((s, w) => s + (w.unitCount || 0), 0);
-      const myDoneUnits = myWos.reduce((s, w) => s + (w.completedUnitCount || 0), 0);
+      const myAllocationRows = projectDailyAssignments.filter(row => String(row.technicianId) === String(technician._id));
+      const myTotalUnits = myAllocationRows.reduce((s, row) => s + Number(row.targetUnits || 0), 0) || myWos.reduce((sum, wo) => { const share=(wo.assignedTechnicians||[]).find(member=>String(member._id||member)===String(technician._id)); return sum+Number(share?.assignedUnits||0); },0);
+      const myDoneUnits = myAllocationRows.reduce((s, row) => s + Number(row.completedUnits || 0), 0);
 
       // Overall project unit progress + all-done flag (for lead's collect flow).
       const projTotalUnits = allWos.reduce((s, w) => s + (w.unitCount || 0), 0);
@@ -1971,6 +2866,9 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
         myWorkOrders: myWos,
         isLead,
         leadAccepted: !!project.leadAcceptedAt,
+        leadParticipationAccepted,
+        canLeadAccept,
+        leadAcceptanceBlocker,
         leadDeclinedReason: project.leadDeclinedReason || null,
         teamBoard,
         workOrderDetails,
@@ -1991,7 +2889,12 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
         serviceName: project.service?.name || null,
         serviceCategory: project.service?.category || null,
         myQuota: { targetToday: myTodayTarget, doneToday: myTodayDone, totalUnits: myTotalUnits, doneUnits: myDoneUnits },
-        projectUnits: { total: projTotalUnits, done: projDoneUnits, allDone: projTotalUnits > 0 && projDoneUnits >= projTotalUnits },
+        projectUnits: {
+          total: projTotalUnits,
+          done: projDoneUnits,
+          allDone: projTotalUnits > 0 && projDoneUnits >= projTotalUnits,
+          allSubmitted: allWos.length > 0 && allWos.filter(w => w.status !== "cancelled").every(w => w.status === "completed"),
+        },
         paymentStatus: (project.payment && project.payment.paymentStatus) || "unpaid",
       });
     }
@@ -2019,9 +2922,48 @@ router.post("/projects/:id/lead-accept", auth.authenticate, auth.requireRole("te
     if (!project.leadTechnicianId || project.leadTechnicianId.toString() !== tech._id.toString()) {
       return res.status(403).json({ error: "Only the assigned lead technician can accept this project" });
     }
-    const ACCEPTABLE_STATUSES = ["ready", "planning", "pending_project_scheduling", "assigned", "accepted", "pending"];
-    if (!ACCEPTABLE_STATUSES.includes(project.status)) {
-      return res.status(400).json({ error: `Project cannot be accepted from "${project.status}" status` });
+    // Acceptance is idempotent. A retry or double-click after the successful
+    // transition must return the current state instead of a misleading 409.
+    if (project.leadAcceptedAt && project.status === "in_progress") {
+      await reconcileCommittedSchedule(project).catch(error => console.warn("Committed schedule reconciliation skipped:", error.message));
+      return res.json({ success: true, alreadyAccepted: true, project });
+    }
+    if (project.isLargeScale && !project.verifiedAt) {
+      return res.status(409).json({ error: "Admin must verify this large-scale project before the lead can accept participation." });
+    }
+
+    // Participation acceptance happens before final planning confirmation.
+    // It only updates the team roster; it never starts work or releases WOs.
+    if (["pending_project_scheduling", "accepted", "planning"].includes(project.status)) {
+      const teamStatus = project.teamStatus || [];
+      let entry = teamStatus.find(row => String(row._id) === String(tech._id));
+      if (!entry) {
+        entry = { _id: tech._id, name: tech.name, status: "acknowledged", acknowledgedAt: new Date() };
+        teamStatus.push(entry);
+      } else {
+        entry.status = "acknowledged";
+        entry.acknowledgedAt = new Date();
+        entry.declinedReason = undefined;
+      }
+      project.teamStatus = teamStatus;
+      project.leadDeclinedReason = undefined;
+      await project.save();
+
+      const io = req.app.get("io");
+      await createNotification({
+        type: "project_lead_participation_accepted", title: "Lead accepted project participation",
+        message: `${tech.name} accepted the team assignment for ${project.customer?.name || "the project"}. Final planning confirmation is still pending.`,
+        role: "admin", referenceId: project._id, referenceModel: "Project",
+        link: `/admin/projects/${project._id}`, priority: "normal", io,
+      }).catch(() => {});
+      if (io) io.to("admin-room").emit("project:team-status", { projectId: project._id, teamStatus: project.teamStatus });
+      return res.json({ success: true, participationAccepted: true, awaitingFinalPlan: true, project, message: "Participation accepted. Waiting for final project-plan confirmation." });
+    }
+    if (project.status !== "ready") {
+      return res.status(409).json({ error: `Project cannot start from "${project.status}".` });
+    }
+    if (!teamAllAccepted(project)) {
+      return res.status(409).json({ error: "Every assigned team member must accept participation before the project can start." });
     }
 
     project.status = "in_progress";
@@ -2029,12 +2971,17 @@ router.post("/projects/:id/lead-accept", auth.authenticate, auth.requireRole("te
     project.leadAcceptedAt = new Date();
     project.leadDeclinedReason = undefined;
     // Build the team acknowledgement roster from the assigned team.
-    project.teamStatus = (project.assignedTechnicians || []).map((t) => ({
-      _id: t._id,
-      name: t.name || "Technician",
-      status: t._id.toString() === tech._id.toString() ? "acknowledged" : "notified",
-      acknowledgedAt: t._id.toString() === tech._id.toString() ? new Date() : undefined,
-    }));
+    project.teamStatus = (project.assignedTechnicians || []).map((t) => {
+      const prior = (project.teamStatus || []).find(row => String(row._id) === String(t._id));
+      const isLead = String(t._id) === String(tech._id);
+      return {
+        _id: t._id,
+        name: t.name || "Technician",
+        status: isLead ? "acknowledged" : (prior?.status || "notified"),
+        acknowledgedAt: isLead ? new Date() : prior?.acknowledgedAt,
+        declinedReason: prior?.declinedReason,
+      };
+    });
     await project.save();
 
     // ── Cascade: update BookingService status to in-progress ──
@@ -2042,30 +2989,14 @@ router.post("/projects/:id/lead-accept", auth.authenticate, auth.requireRole("te
       await BookingService.findByIdAndUpdate(project.bookingId, { status: "in-progress" }).catch(() => {});
     }
 
-    // Auto-generate the work orders (if not already) and the daily schedule so
-    // the team immediately receives assignments once they accept. The whole
-    // team is assigned to every work order (joint on-site effort).
-    try {
-      const existingWos = await WorkOrder.countDocuments({ projectId: project._id });
-      if (existingWos === 0 && (project.totalUnits || project.quantity)) {
-        await projectScheduler.generateWorkOrders(project._id, {});
-      }
-      // Regenerate work orders if any are missing a team assignment.
-      const orphanWos = await WorkOrder.find({ projectId: project._id, $or: [{ assignedTechnicians: { $size: 0 } }, { assignedTechnicians: { $exists: false } }] }).lean();
-      if (orphanWos.length > 0) {
-        await WorkOrder.deleteMany({ projectId: project._id });
-        await projectScheduler.generateWorkOrders(project._id, {});
-      }
-      await projectScheduler.generateSchedule(project._id);
-      // Mark generated work orders as "assigned" so the team can see and act
-      // on their daily assignments immediately after the lead accepts.
-      await WorkOrder.updateMany(
-        { projectId: project._id, status: "pending" },
-        { $set: { status: "assigned" } }
-      );
-    } catch (schedErr) {
-      console.error("Auto-schedule on lead accept failed:", schedErr.message);
-    }
+    // Step 4 already created the authoritative Work Orders and daily schedule.
+    // Starting the project only releases those records; it must never generate
+    // a second schedule or redistribute units.
+    await reconcileCommittedSchedule(project).catch(error => console.warn("Committed schedule reconciliation skipped:", error.message));
+    await WorkOrder.updateMany(
+      { projectId: project._id, status: "pending" },
+      { $set: { status: "assigned" } }
+    );
 
     // Notify all assigned members (except the lead) to accept / decline.
     const io = req.app.get("io");
@@ -2235,6 +3166,7 @@ router.post("/projects/:id/member-accept", auth.authenticate, auth.requireRole("
     await project.save();
 
     const io = req.app.get("io");
+    if (io) io.to("admin-room").emit("project:team-status", { projectId: project._id, teamStatus: project.teamStatus });
     if (project.leadTechnicianId && project.leadTechnicianId.toString() !== tech._id.toString()) {
       await createNotification({
         type: "project_member_ack",
@@ -2336,7 +3268,15 @@ router.put("/work-orders/:id/equipment-ready", auth.authenticate, auth.requireRo
     const workOrder = await WorkOrder.findById(id);
     if (!workOrder) return res.status(404).json({ error: "Work order not found" });
     if (workOrder.status !== "assigned") return res.status(400).json({ error: `Equipment can only be marked ready from "assigned" (current: ${workOrder.status})` });
+    if (workOrder.planningStatus !== "released" || workOrder.status !== "assigned") {
+      return res.status(409).json({ error: "Only released work orders assigned to the field team can be accepted." });
+    }
+    if (workOrder.dependencies?.length) {
+      const incompleteDependencies = await WorkOrder.find({ _id: { $in: workOrder.dependencies }, status: { $ne: "completed" } }).select("workOrderNumber title").lean();
+      if (incompleteDependencies.length) return res.status(409).json({ error: `Prerequisite work must finish first: ${incompleteDependencies.map(order => order.workOrderNumber || order.title).join(", ")}.` });
+    }
     workOrder.status = "accepted";
+    workOrder.activity.push({ action: "technician_accepted", actorId: req.user._id, actorName: req.user.name || req.user.email || "Technician" });
     await workOrder.save();
     res.json({ workOrder, message: "Equipment ready" });
   } catch (error) {
@@ -2452,6 +3392,14 @@ router.put("/work-orders/:id/progress", auth.authenticate, auth.requireRole("tec
 
     if (completedUnitCount !== undefined) {
       workOrder.completedUnitCount = Math.min(completedUnitCount, workOrder.unitCount);
+      if (workOrder.units?.length) {
+        workOrder.units.forEach((unit, index) => {
+          if (index < workOrder.completedUnitCount && unit.status !== "cancelled") {
+            unit.status = "completed";
+            unit.completedAt = unit.completedAt || new Date();
+          }
+        });
+      }
     }
     if (status) {
       workOrder.status = status;
@@ -2459,11 +3407,16 @@ router.put("/work-orders/:id/progress", auth.authenticate, auth.requireRole("tec
     if (status === "in_progress" && !workOrder.actualStartDate) {
       workOrder.actualStartDate = new Date();
     }
-    if (status === "completed" || workOrder.completedUnitCount >= workOrder.unitCount) {
-      workOrder.status = "completed";
+    if (workOrder.completedUnitCount >= workOrder.unitCount) {
+      workOrder.status = "awaiting_review";
       workOrder.completedUnitCount = workOrder.unitCount;
-      workOrder.actualCompletionDate = new Date();
+      workOrder.actualCompletionDate = null;
+    } else if (workOrder.completedUnitCount > 0) {
+      workOrder.status = "partially_completed";
+      workOrder.actualCompletionDate = null;
     }
+
+    workOrder.activity.push({ action: workOrder.status === "awaiting_review" ? "units_completed" : "progress_updated", actorId: req.user._id, actorName: req.user.name || req.user.email || "Technician", details: { completedUnitCount: workOrder.completedUnitCount, totalUnits: workOrder.unitCount } });
 
     await workOrder.save();
     await updateProjectProgress(workOrder.projectId);
@@ -2476,6 +3429,217 @@ router.put("/work-orders/:id/progress", auth.authenticate, auth.requireRole("tec
 });
 
 // ── Work Order field lifecycle (En Route / Arrived / Start) ─────────────────
+router.post("/work-orders/:id/submit-units", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid work order id" });
+    }
+    const requested = Number(req.body.completedUnits);
+    if (!Number.isInteger(requested) || requested < 1) {
+      return res.status(400).json({ error: "Done units must be a whole number greater than zero." });
+    }
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician profile not found" });
+
+    let updatedWorkOrder = null;
+    let completedUnits = [];
+    for (let attempt = 0; attempt < 3 && !updatedWorkOrder; attempt += 1) {
+      const workOrder = await WorkOrder.findById(req.params.id).lean();
+      if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+      const project = await Project.findById(workOrder.projectId).select("assignedTechnicians status projectPhase").lean();
+      const isCrewMember = (project?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
+      if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
+      if (!["assigned", "accepted", "en_route", "arrived", "in_progress", "partially_completed"].includes(workOrder.status)) {
+        return res.status(409).json({ error: "The team lead must start this work order before units can be submitted." });
+      }
+      // Once today's project work is started, the crew may work ahead. The
+      // daily allocation is a target; real unfinished unit rows are the limit.
+      const activeToday = await scheduledWorkOrdersForDay(project._id, ["in_progress", "partially_completed", "awaiting_review"]);
+      if (!activeToday.length) {
+        return res.status(409).json({ error: "The team lead must start today's project work before units can be submitted." });
+      }
+
+      const available = (workOrder.units || [])
+        .map((unit, index) => ({ unit, index }))
+        .filter(({ unit }) => unit.status !== "completed" && unit.status !== "cancelled");
+      if (requested > available.length) {
+        return res.status(409).json({ error: `Only ${available.length} tracked unit(s) remain on this work order.` });
+      }
+
+      const now = new Date();
+      const selected = available.slice(0, requested);
+      const alreadyCompleted = (workOrder.units || []).filter(unit => unit.status === "completed").length;
+      const nextCompleted = alreadyCompleted + selected.length;
+      const executableTotal = (workOrder.units || []).filter(unit => unit.status !== "cancelled").length;
+      const set = {
+        completedUnitCount: nextCompleted,
+        status: nextCompleted >= executableTotal ? "awaiting_review" : "partially_completed",
+        actualCompletionDate: null,
+      };
+      const notes = String(req.body.notes || "").trim().slice(0, 1000);
+      selected.forEach(({ index }) => {
+        set[`units.${index}.status`] = "completed";
+        set[`units.${index}.completedAt`] = now;
+        set[`units.${index}.completedBy`] = technician._id;
+        if (notes) set[`units.${index}.notes`] = notes;
+      });
+      updatedWorkOrder = await WorkOrder.findOneAndUpdate(
+        { _id: workOrder._id, __v: workOrder.__v },
+        {
+          $set: set,
+          $inc: { __v: 1 },
+          $push: { activity: {
+            action: "units_submitted",
+            actorId: req.user._id,
+            actorName: technician.name || req.user.name || "Technician",
+            details: { completedUnits: selected.length, unitKeys: selected.map(({ unit }) => unit.unitKey), notes },
+            timestamp: now,
+          } },
+        },
+        { new: true, runValidators: true }
+      );
+      if (updatedWorkOrder) completedUnits = selected.map(({ unit }) => unit.label || unit.unitKey);
+    }
+    if (!updatedWorkOrder) {
+      return res.status(409).json({ error: "Unit progress changed while you were submitting. Please review and try again." });
+    }
+
+    // Unit rows above are the source of truth. Summary maintenance is isolated
+    // so a secondary failure never reports a committed submission as failed and
+    // causes the technician to accidentally submit another batch on retry.
+    try {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      const daily = await DailyAssignment.findOneAndUpdate(
+        { projectId: updatedWorkOrder.projectId, workOrderId: updatedWorkOrder._id, technicianId: technician._id, date: day },
+        {
+          $inc: { completedUnits: requested },
+          $set: { planningOnly: false },
+          $setOnInsert: { targetUnits: 0, generatedBy: "system" },
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
+      daily.status = Number(daily.completedUnits || 0) >= Number(daily.targetUnits || 0) ? "completed" : "in_progress";
+      daily.completedAt = daily.status === "completed" ? new Date() : null;
+      await daily.save();
+    } catch (summaryError) {
+      console.warn("Daily unit summary refresh skipped:", summaryError.message);
+    }
+    await rebalanceFutureUnitTargets(updatedWorkOrder).catch(error => console.warn("Future target reconciliation skipped:", error.message));
+    await updateProjectProgress(updatedWorkOrder.projectId).catch(error => console.warn("Project progress refresh skipped:", error.message));
+    res.json({ workOrder: updatedWorkOrder, completedUnits, message: `${requested} done unit${requested === 1 ? "" : "s"} submitted.` });
+  } catch (error) {
+    console.error("Failed to submit completed units:", error);
+    res.status(500).json({ error: error.message || "Failed to submit completed units" });
+  }
+});
+
+router.put("/work-orders/:id/units/:unitKey", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+    if (workOrder.planningStatus !== "released") return res.status(409).json({ error: "Draft units cannot be executed." });
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    const project = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId").lean();
+    const isCrewMember = technician && (project?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
+    if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
+    if (!["in_progress", "partially_completed", "awaiting_review"].includes(workOrder.status)) {
+      return res.status(409).json({ error: "The team lead must start this work order before units can be updated." });
+    }
+    const todayOrders = await scheduledWorkOrdersForDay(project._id, ["in_progress", "partially_completed", "awaiting_review"]);
+    if (!todayOrders.some(order => String(order._id) === String(workOrder._id))) {
+      return res.status(409).json({ error: "This work order is not scheduled for today." });
+    }
+    const unit = workOrder.units.find(row => row.unitKey === req.params.unitKey);
+    if (!unit) return res.status(404).json({ error: "Tracked unit not found" });
+    const nextStatus = ["pending", "in_progress", "completed", "on_hold"].includes(req.body.status) ? req.body.status : "completed";
+    const wasCompleted = unit.status === "completed";
+    unit.status = nextStatus; unit.notes = String(req.body.notes || unit.notes || "").slice(0, 1000);
+    if (nextStatus === "completed") { unit.completedAt = new Date(); unit.completedBy = technician._id; }
+    else { unit.completedAt = null; unit.completedBy = null; }
+    const complete = workOrder.units.filter(row => row.status === "completed").length;
+    workOrder.completedUnitCount = complete;
+    workOrder.status = complete >= workOrder.unitCount ? "awaiting_review" : complete > 0 ? "partially_completed" : nextStatus === "on_hold" ? "on_hold" : "in_progress";
+    workOrder.actualCompletionDate = null;
+    workOrder.activity.push({ action: "unit_status_changed", actorId: req.user._id, actorName: technician.name, details: { unitKey: unit.unitKey, status: nextStatus } });
+    await workOrder.save();
+    await rebalanceFutureUnitTargets(workOrder);
+    const completionDelta = (nextStatus === "completed" ? 1 : 0) - (wasCompleted ? 1 : 0);
+    if (completionDelta) {
+      const day = new Date(); day.setHours(0, 0, 0, 0);
+      const daily = await DailyAssignment.findOneAndUpdate(
+        { projectId: project._id, workOrderId: workOrder._id, technicianId: technician._id, date: day },
+        {
+          $inc: { completedUnits: completionDelta },
+          $set: { status: nextStatus === "completed" ? "completed" : "in_progress", completedAt: nextStatus === "completed" ? new Date() : null, planningOnly: false },
+          $setOnInsert: { targetUnits: 0, generatedBy: "system" },
+        },
+        { upsert: true, returnDocument: "after" }
+      );
+      if (daily.completedUnits < 0) { daily.completedUnits = 0; await daily.save(); }
+    }
+    await updateProjectProgress(workOrder.projectId);
+    res.json({ workOrder, unit, message: `${unit.label || unit.unitKey} marked ${nextStatus.replace(/_/g, " ")}.` });
+  } catch (error) {
+    console.error("Failed to update work-order unit:", error);
+    res.status(500).json({ error: error.message || "Failed to update unit" });
+  }
+});
+
+// The crew completes unit tasks; only the project lead closes the batch after
+// reviewing the unit records, notes, and evidence.
+router.post("/work-orders/:id/submit", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid work order id" });
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician profile not found" });
+    const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+    const project = await Project.findById(workOrder.projectId);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (!project.leadTechnicianId || String(project.leadTechnicianId) !== String(technician._id)) {
+      return res.status(403).json({ error: "Only the project lead can submit this work order." });
+    }
+    const trackedUnits = workOrder.units || [];
+    const incomplete = trackedUnits.filter(unit => !["completed", "cancelled"].includes(unit.status));
+    const completed = trackedUnits.length
+      ? trackedUnits.filter(unit => unit.status === "completed").length
+      : Number(workOrder.completedUnitCount || 0);
+    if (incomplete.length || completed < Number(workOrder.unitCount || 0)) {
+      return res.status(409).json({ error: `${incomplete.length || Math.max(0, Number(workOrder.unitCount || 0) - completed)} unit(s) still need completion.` });
+    }
+    workOrder.completedUnitCount = workOrder.unitCount;
+    workOrder.status = "completed";
+    workOrder.submittedAt = new Date();
+    workOrder.submittedBy = technician._id;
+    workOrder.submissionNotes = String(req.body?.notes || "").slice(0, 1000);
+    workOrder.actualCompletionDate = new Date();
+    workOrder.activity.push({ action: "work_order_submitted", actorId: req.user._id, actorName: technician.name, details: { completedUnits: workOrder.unitCount } });
+    await workOrder.save();
+    await releaseUnblockedWorkOrders(project._id);
+    await updateProjectProgress(project._id);
+    const remainingBatches = await WorkOrder.countDocuments({ projectId: project._id, status: { $nin: ["completed", "cancelled"] } });
+    let continueTomorrow = false;
+    if (remainingBatches > 0) {
+      const activeToday = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "en_route", "arrived", "in_progress", "partially_completed", "awaiting_review"]);
+      if (!activeToday.length) {
+        await openNextDayAcceptance(req, project);
+        continueTomorrow = true;
+      }
+    }
+    res.json({
+      workOrder,
+      continueTomorrow,
+      message: continueTomorrow
+        ? "Work order submitted. Confirm availability to continue on the next workday."
+        : "Work order reviewed and submitted.",
+    });
+  } catch (error) {
+    console.error("Failed to submit work order:", error);
+    res.status(500).json({ error: error.message || "Failed to submit work order" });
+  }
+});
+
 function woTransition(allowedFrom, newStatus, tsField) {
   return async (req, res) => {
     try {
@@ -2485,13 +3649,17 @@ function woTransition(allowedFrom, newStatus, tsField) {
       }
       const workOrder = await WorkOrder.findById(id);
       if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+      const technician = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+      const projectForAccess = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId status").lean();
+      const onTeam = technician && (projectForAccess?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
+      if (!onTeam) return res.status(403).json({ error: "You are not on this project team." });
       if (allowedFrom && !allowedFrom.includes(workOrder.status)) {
         return res.status(400).json({ error: `Cannot transition from ${workOrder.status}` });
       }
 
       // Block en-route / arrived / start if admin planning is not complete on the parent project.
       if (workOrder.projectId && ["en_route", "arrived", "in_progress"].includes(newStatus)) {
-        const proj = await Project.findById(workOrder.projectId).lean().catch(() => null);
+        const proj = projectForAccess;
         if (proj && ["pending_project_scheduling", "planning", "pending", "assigned"].includes(proj.status)) {
           return res.status(400).json({ error: "Admin planning is not yet complete — cannot proceed" });
         }
@@ -2501,6 +3669,7 @@ function woTransition(allowedFrom, newStatus, tsField) {
       if (newStatus === "in_progress" && !workOrder.actualStartDate) {
         workOrder.actualStartDate = new Date();
       }
+      workOrder.activity.push({ action: `work_${newStatus}`, actorId: req.user._id, actorName: req.user.name || req.user.email || "Technician" });
       await workOrder.save();
       await updateProjectProgress(workOrder.projectId);
 
@@ -2559,6 +3728,7 @@ function deriveProjectPhase(workOrders, project) {
       const active = (workOrders || []).filter((w) => w.status !== "completed" && w.status !== "cancelled" && w.status !== "declined");
       if (active.length === 0) return "execution";
       const statuses = active.map((w) => w.status);
+      if (statuses.some((s) => ["partially_completed", "awaiting_review"].includes(s))) return "in_progress";
       if (statuses.every((s) => s === "in_progress")) return "in_progress";
       if (statuses.some((s) => s === "in_progress")) return "in_progress";
       if (statuses.every((s) => s === "arrived")) return "arrived";
@@ -2577,6 +3747,7 @@ function deriveProjectPhase(workOrders, project) {
     return "completed";
   }
   const statuses = active.map((w) => w.status);
+  if (statuses.some((s) => ["partially_completed", "awaiting_review"].includes(s))) return "in_progress";
   if (statuses.every((s) => s === "in_progress")) return "in_progress";
   if (statuses.some((s) => s === "in_progress")) return "in_progress";
   if (statuses.every((s) => s === "arrived")) return "arrived";
@@ -2617,6 +3788,61 @@ function emitProjectPhase(req, project, phase) {
   }
 }
 
+async function scheduledWorkOrdersForDay(projectId, statuses, value = new Date()) {
+  const start = new Date(value); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const rows = await DailyAssignment.find({
+    projectId, date: { $gte: start, $lt: end }, planningOnly: false, status: { $ne: "skipped" },
+  }).select("workOrderId").lean();
+  const ids = [...new Set(rows.map(row => String(row.workOrderId)))];
+  if (ids.length) return WorkOrder.find({ _id: { $in: ids }, projectId, status: { $in: statuses } });
+
+  const scheduled = await WorkOrder.find({
+    projectId, status: { $in: statuses }, scheduledDate: { $lt: end },
+    $or: [{ scheduledEndDate: null }, { scheduledEndDate: { $exists: false } }, { scheduledEndDate: { $gte: start } }],
+  });
+  if (scheduled.length) return scheduled;
+
+  // Compatibility for projects created before daily schedule records existed.
+  const hasAnyPlan = await DailyAssignment.exists({ projectId });
+  return hasAnyPlan ? [] : WorkOrder.find({ projectId, status: { $in: statuses } });
+}
+
+async function openNextDayAcceptance(req, project) {
+  const nextDate = nextWorkingDay(new Date());
+  project.dailyAcceptance = {
+    required: true,
+    date: nextDate,
+    leadAccepted: false,
+    leadAcceptedAt: null,
+    membersAccepted: (project.assignedTechnicians || [])
+      .filter(member => project.leadTechnicianId && String(member._id) !== String(project.leadTechnicianId))
+      .map(member => ({ _id: member._id, name: member.name || "Technician", accepted: false, acceptedAt: null })),
+    declined: [],
+  };
+  await project.save();
+
+  const io = req.app.get("io");
+  const projectName = project.customer?.name || project.service?.name || "your project";
+  for (const member of (project.assignedTechnicians || [])) {
+    await createNotification({
+      type: "daily_acceptance_required",
+      title: "Daily check-in required",
+      message: `Today's work ended for "${projectName}". Confirm that you can continue on the next scheduled workday.`,
+      userId: member._id,
+      role: "technician",
+      referenceId: project._id,
+      referenceModel: "Project",
+      link: "/technician/assignments",
+      priority: "high",
+      io,
+    }).catch(() => {});
+    if (io) io.to(`tech:${member._id}`).emit("project:daily_acceptance", { projectId: project._id, date: nextDate });
+  }
+  emitProjectPhase(req, project, "daily_acceptance");
+  return nextDate;
+}
+
 // Lead: mobilize the crew (En Route). Requires the full team to have accepted
 // AND daily acceptance must be complete (if required).
 router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
@@ -2634,7 +3860,7 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     if (project.dailyAcceptance && project.dailyAcceptance.required) {
       return res.status(400).json({ error: "Waiting for daily team confirmation — ask members to confirm availability", dailyAcceptance: true });
     }
-    const wos = await WorkOrder.find({ projectId: project._id, status: { $in: ["assigned", "accepted", "arrived"] } });
+    const wos = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "arrived", "partially_completed"]);
     if (wos.length === 0) return res.status(400).json({ error: "No active work to mobilize today" });
     for (const w of wos) { w.status = "en_route"; w.enRouteAt = new Date(); await w.save(); }
     emitProjectPhase(req, project, "en_route");
@@ -2650,7 +3876,7 @@ router.put("/projects/:id/mobilize/arrived", auth.authenticate, auth.requireRole
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
-    const wos = await WorkOrder.find({ projectId: project._id, status: { $in: ["en_route", "accepted"] } });
+    const wos = await scheduledWorkOrdersForDay(project._id, ["en_route", "accepted"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must be en route first" });
     for (const w of wos) { w.status = "arrived"; w.arrivedAt = new Date(); await w.save(); }
     emitProjectPhase(req, project, "arrived");
@@ -2666,7 +3892,7 @@ router.put("/projects/:id/mobilize/start", auth.authenticate, auth.requireRole("
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
-    const wos = await WorkOrder.find({ projectId: project._id, status: { $in: ["arrived", "accepted"] } });
+    const wos = await scheduledWorkOrdersForDay(project._id, ["arrived", "accepted"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must arrive on site first" });
     for (const w of wos) { w.status = "in_progress"; w.startedAt = new Date(); if (!w.actualStartDate) w.actualStartDate = new Date(); await w.save(); }
     if (project.status !== "in_progress") { project.status = "in_progress"; if (!project.actualStartDate) project.actualStartDate = new Date(); await project.save(); }
@@ -2699,7 +3925,7 @@ router.put("/projects/:id/mobilize/no-show", auth.authenticate, auth.requireRole
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
     const { reason } = req.body || {};
-    const wos = await WorkOrder.find({ projectId: project._id, status: { $in: ["en_route", "arrived", "accepted"] } });
+    const wos = await scheduledWorkOrdersForDay(project._id, ["en_route", "arrived", "accepted"]);
     if (wos.length === 0) return res.status(400).json({ error: "No active work orders to mark" });
 
     for (const w of wos) {
@@ -2737,16 +3963,14 @@ router.put("/projects/:id/mobilize/end-day", auth.authenticate, auth.requireRole
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
-    const wos = await WorkOrder.find({ projectId: project._id, status: { $in: ["in_progress", "arrived", "en_route"] } });
+    const wos = await scheduledWorkOrdersForDay(project._id, ["in_progress", "partially_completed", "arrived", "en_route", "awaiting_review"]);
     for (const w of wos) {
       const remaining = (w.unitCount || 0) - (w.completedUnitCount || 0);
       if (remaining > 0) { w.status = "accepted"; await w.save(); }
     }
 
     // Set up daily re-acceptance for the next working day.
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    const tomorrow = nextWorkingDay(new Date());
     project.dailyAcceptance = {
       required: true,
       date: tomorrow,
@@ -2999,10 +4223,122 @@ async function buildProjectPaymentSummary(project) {
   };
 }
 
+// Customer collection must use a price the customer actually saw or approved.
+// Crew size and elapsed workdays are operational metrics, not billable inputs.
+async function buildAuthoritativeProjectPaymentSummary(project) {
+  const moneyValue = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const [workOrders, dailyRows, booking] = await Promise.all([
+    WorkOrder.find({ projectId: project._id }).lean(),
+    DailyAssignment.find({ projectId: project._id, completedUnits: { $gt: 0 } }).lean().catch(() => []),
+    project.bookingId ? BookingService.findById(project.bookingId).lean().catch(() => null) : null,
+  ]);
+  const pricing = calculateProjectCustomerPricing({ project, booking, workOrders, dailyRows });
+  const projectCrewSize = Math.max(1, (project.assignedTechnicians || []).length);
+  return {
+    ...pricing,
+    crewSize: projectCrewSize,
+    laborCategory: booking?.quotation?.laborCategory || "standard",
+    pricingMessage: pricing.pricingReady
+      ? "Locked to the approved unit pricing and actual productive site visits."
+      : "No approved customer price is stored. An admin must set the project total before payment can be collected.",
+    allDone: pricing.totalUnits > 0 && pricing.completedUnits >= pricing.totalUnits,
+    customerName: project.customer?.name || project.service?.name || "Customer",
+  };
+
+  /* Legacy calculation retained below temporarily for migration comparison.
+     The return above is the sole customer-facing pricing path. */
+  const totalUnits = workOrders.reduce((sum, order) => sum + Number(order.unitCount || 0), 0);
+  const completedUnits = workOrders.reduce((sum, order) => sum + Number(order.completedUnitCount || 0), 0);
+  const crewSize = Math.max(1, (project.assignedTechnicians || []).length);
+  const daysWorked = Math.max(1, new Set(dailyRows.map(row => new Date(row.date).toDateString())).size);
+  const serviceType = booking?.serviceType || project.repair?.serviceType || "core";
+  const travelFare = moneyValue(booking?.travelFare);
+  const payment = project.payment || {};
+  let total = 0;
+  let pricingSource = "";
+
+  // Existing project totals are grand totals. Never reuse one as a line item
+  // and then add labor/travel on top of it.
+  if (moneyValue(payment.totalAmount)) {
+    total = moneyValue(payment.totalAmount);
+    pricingSource = "Approved project total";
+  } else {
+    const approvedProjectQuote = project.quotationReview?.status === "approved"
+      ? moneyValue(project.quotationReview.totalAmount)
+      : 0;
+    if (approvedProjectQuote) {
+      total = approvedProjectQuote + travelFare;
+      pricingSource = "Approved project quotation";
+    } else if (serviceType === "repair" || serviceType === "mixed") {
+      const projectRepairQuote = project.repair?.quotation?.approvedAt
+        ? moneyValue(project.repair.quotation.totalCost)
+        : 0;
+      const bookingRepairQuote = booking?.approval?.status === "approved"
+        ? moneyValue(booking.quotation?.totalCost)
+        : 0;
+      const repairQuote = projectRepairQuote || bookingRepairQuote;
+      if (repairQuote) {
+        total = repairQuote + travelFare;
+        pricingSource = "Approved repair quotation";
+      }
+    } else if (booking) {
+      // estimatedFee is the checkout amount and includes travel. The model also
+      // normalizes multi-service totalPrice with travel included.
+      const checkoutTotal = moneyValue(booking.estimatedFee);
+      const bookingTotal = moneyValue(booking.totalPrice);
+      const itemTotal = (booking.services || []).reduce((sum, item) => {
+        const quantity = Math.max(1, Number(item.quantity) || 1);
+        const lineTotal = moneyValue(item.totalPrice)
+          || moneyValue(item.unitPrice) * quantity;
+        return sum + lineTotal;
+      }, 0);
+      const singleServiceTotal = moneyValue(booking.servicePrice || booking.service?.basePrice)
+        * Math.max(1, Number(booking.quantity || project.totalUnits) || 1);
+      if (checkoutTotal) {
+        total = checkoutTotal;
+        pricingSource = "Customer booking total";
+      } else if (bookingTotal) {
+        total = bookingTotal + (booking.isMultiService ? 0 : travelFare);
+        pricingSource = "Stored booking total";
+      } else if (itemTotal || singleServiceTotal) {
+        total = (itemTotal || singleServiceTotal) + travelFare;
+        pricingSource = "Booked service pricing";
+      }
+    }
+  }
+
+  const serviceCharge = Math.max(0, total - Math.min(total, travelFare));
+  const alreadyPaid = Math.max(moneyValue(payment.amountPaid), moneyValue(booking?.amountPaid));
+  const balance = Math.max(0, total - alreadyPaid);
+  const pricingReady = total > 0 && (serviceCharge > 0 || serviceType === "repair" || serviceType === "mixed");
+  return {
+    totalUnits,
+    completedUnits,
+    crewSize,
+    daysWorked,
+    serviceType,
+    travelFare,
+    serviceCharge,
+    total,
+    alreadyPaid,
+    balance,
+    pricingReady,
+    pricingSource,
+    pricingMessage: pricingReady
+      ? "Locked to the customer-approved booking or quotation."
+      : "No approved customer price is stored. An admin must set the project total before payment can be collected.",
+    allDone: totalUnits > 0 && completedUnits >= totalUnits,
+    customerName: project.customer?.name || project.service?.name || "Customer",
+  };
+}
+
 router.get("/projects/:id/payment-summary", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
-    const summary = await buildProjectPaymentSummary(ctx.project);
+    const summary = await buildAuthoritativeProjectPaymentSummary(ctx.project);
     res.json(summary);
   } catch (e) {
     console.error("payment-summary error:", e);
@@ -3014,31 +4350,37 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
-    const summary = await buildProjectPaymentSummary(project);
+    const summary = await buildAuthoritativeProjectPaymentSummary(project);
     if (!summary.allDone) return res.status(400).json({ error: "All units must be completed before collecting payment" });
+    if (!summary.pricingReady) return res.status(409).json({ error: summary.pricingMessage });
+    if (summary.balance <= 0) return res.status(409).json({ error: "This project has no outstanding balance." });
 
     const b = req.body || {};
     const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : d; };
-    const daysWorked = Math.max(1, Math.round(num(b.daysWorked, summary.daysWorked)));
-    const crewSize = Math.max(1, Math.round(num(b.crewSize, summary.crewSize)));
-    const laborRatePerDay = num(b.laborRatePerDay, summary.laborRatePerDay);
-    const serviceFee = num(b.serviceFee, summary.serviceFee);
-    const additionalCharges = num(b.additionalCharges, 0);
+    const daysWorked = summary.daysWorked;
+    const crewSize = summary.crewSize;
+    const laborRatePerDay = 0;
+    const serviceFee = summary.serviceCharge;
+    const additionalCharges = 0;
     const travelFare = summary.travelFare; // from booking, read-only
     const laborType = summary.laborType; // "core" or "repair"
-    const partsCost = summary.partsCost || 0;
+    const partsCost = 0;
     let laborTotal;
     if (laborType === "repair") {
       laborTotal = laborRatePerDay * daysWorked; // repair: rate × days (no crew multiplier)
     } else {
       laborTotal = laborRatePerDay * crewSize * daysWorked; // core: rate × crew × days
     }
-    const total = laborTotal + travelFare + serviceFee + additionalCharges + partsCost;
-    const amount = num(b.amount, total);
+    const total = summary.total;
+    const amount = num(b.amount, summary.balance);
+    if (amount <= 0) return res.status(400).json({ error: "Enter an amount greater than zero." });
+    if (amount > summary.balance) return res.status(400).json({ error: `Amount cannot exceed the ₱${summary.balance.toLocaleString()} balance.` });
     const method = (b.paymentMethod || "cash").toString().slice(0, 40);
+    if (!["cash", "gcash", "bank"].includes(method)) return res.status(400).json({ error: "Invalid payment method" });
+    if (!b.customerSignature) return res.status(400).json({ error: "Customer signature is required" });
+    if (["gcash", "bank"].includes(method) && (!b.reference || !b.proofUrl)) return res.status(400).json({ error: "Reference number and receipt screenshot are required" });
 
-    const prevPaid = (project.payment && project.payment.amountPaid) || 0;
-    const amountPaid = prevPaid + amount;
+    const amountPaid = summary.alreadyPaid + amount;
     const balanceAmount = Math.max(0, total - amountPaid);
     project.payment = {
       ...(project.payment || {}),
@@ -3046,7 +4388,7 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
       amountPaid,
       balanceAmount,
       paymentMethod: method,
-      paymentStatus: balanceAmount <= 0 ? "paid" : "partial",
+      paymentStatus: balanceAmount <= 0 ? "waiting_for_remittance" : "partial",
       laborRatePerDay,
       serviceFee,
       daysWorked,
@@ -3063,7 +4405,15 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     // ── Cascade: update BookingService status ──
     if (project.bookingId) {
       const bsUpdate = balanceAmount <= 0 ? "completed" : "in-progress";
-      await BookingService.findByIdAndUpdate(project.bookingId, { status: bsUpdate }).catch(() => {});
+      await BookingService.findByIdAndUpdate(project.bookingId, {
+        status: bsUpdate,
+        amountPaid,
+        balanceAmount,
+        paymentStatus: balanceAmount <= 0 ? "waiting_for_remittance" : "partial",
+        balanceCollected: balanceAmount <= 0,
+        balanceCollectedAt: balanceAmount <= 0 ? new Date() : null,
+        balanceCollectedBy: ctx.tech._id,
+      }).catch(() => {});
     }
 
     // ── Cascade: create standalone Payment record ──
@@ -3075,12 +4425,17 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
         method: method === "gcash" ? "gcash" : "cod",
         type: balanceAmount <= 0 ? "final" : "downpayment",
         gateway: method === "gcash" ? "gcash" : "cod",
-        status: "paid",
-        reference: `Project ${project._id}`,
+        status: "waiting_for_remittance",
+        reference: b.reference || `Project ${project._id}`,
+        proofUrl: b.proofUrl || undefined,
+        customerSignature: b.customerSignature,
+        collectedBy: ctx.tech._id,
+        collectedByName: ctx.tech.name,
+        collectedAt: new Date(),
+        collectionLocation: b.location || undefined,
+        events: [{ status: "payment_collected", actor: req.user._id, actorName: ctx.tech.name, actorRole: "technician", at: new Date() }, { status: "waiting_for_remittance", actor: req.user._id, actorName: ctx.tech.name, actorRole: "technician", at: new Date() }],
         notes: `Collected by ${ctx.tech.name || "lead"}. ${b.remarks || ""}`.trim(),
         submittedAt: new Date(),
-        verifiedAt: new Date(),
-        completedAt: new Date(),
       }).catch(() => {});
     }
 
@@ -3143,17 +4498,25 @@ router.post("/projects/:id/record-parts-used", auth.authenticate, auth.requireRo
     const recorded = [];
     for (const p of parts) {
       if (!p.name || !p.quantity) continue;
+      let itemType = 'part';
+      if (p.toolId) {
+        try {
+          const inv = await Tool.findById(p.toolId).select('type').lean();
+          itemType = inv ? (inv.type === 'tool' ? 'equipment' : (inv.type || 'part')) : 'part';
+        } catch (_) {}
+      }
       const entry = {
         name: p.name,
         quantity: Number(p.quantity) || 1,
         unitCost: Number(p.unitCost) || 0,
         toolId: p.toolId || undefined,
+        itemType,
         usedBy: req.user._id,
         usedAt: new Date(),
       };
       recorded.push(entry);
-      // Deduct from Tool inventory if toolId provided
-      if (entry.toolId) {
+      // Deduct from Tool inventory if toolId provided and the item is part/consumable
+      if (entry.toolId && itemType !== 'equipment') {
         try {
           await Tool.findByIdAndUpdate(entry.toolId, { $inc: { quantity: -entry.quantity } }).catch(() => {});
         } catch (_) {}
@@ -3182,12 +4545,23 @@ router.post("/projects/:id/reserve-parts", auth.authenticate, auth.requireRole([
     const Tool = require("../models/Tool");
     const parts = project.repair.quotation?.parts || [];
 
-    // Try auto-linking toolId by part name if not set
+    // Try auto-linking toolId by part name if not set (only repair parts / consumables)
     for (const p of parts) {
       if (!p.toolId && p.name) {
-        const toolMatch = await Tool.findOne({ itemName: new RegExp(`^${p.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+        const toolMatch = await Tool.findOne({
+          itemName: new RegExp(`^${p.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+          type: { $in: ['part', 'consumable'] }
+        });
         if (toolMatch) p.toolId = toolMatch._id;
       }
+    }
+
+    // Make sure no equipment items leak into the parts reservation
+    const linkedToolIds = parts.filter(p => p.toolId).map(p => p.toolId);
+    const linkedTools = linkedToolIds.length ? await Tool.find({ _id: { $in: linkedToolIds } }).select('type').lean() : [];
+    const typeMap = new Map(linkedTools.map(t => [String(t._id), t.type === 'tool' ? 'equipment' : (t.type || 'part')]));
+    for (const p of parts) {
+      if (p.toolId && typeMap.get(String(p.toolId)) === 'equipment') p.toolId = null;
     }
 
     const partsWithToolId = parts.filter(p => p.toolId);
@@ -3249,7 +4623,7 @@ router.put("/work-orders/:id/reassign", auth.requireRole(["admin", "secretary"])
     // Reset to assigned so the new tech must accept
     workOrder.status = "assigned";
     await workOrder.save();
-    if (workOrder.scheduledDate) ensureDailyAssignments(workOrder._id).catch(() => {});
+    if (workOrder.scheduledDate) ensureDailyAssignmentsIfLegacy(workOrder._id).catch(() => {});
 
     const { createNotification } = require("../utils/notify");
     const io = req.app.get("io");
@@ -3493,10 +4867,10 @@ router.put("/scheduling/config", auth.requireRole(["admin"]), async (req, res) =
 async function updateProjectProgress(projectId) {
   try {
     const workOrders = await WorkOrder.find({ projectId }).lean();
-    const totalWO = workOrders.length;
-    const completedWO = workOrders.filter((wo) => wo.status === "completed").length;
-    const totalUnits = workOrders.reduce((sum, wo) => sum + (wo.unitCount || 0), 0);
-    const completedUnits = workOrders.reduce((sum, wo) => sum + (wo.completedUnitCount || 0), 0);
+    const activeOrders = workOrders.filter((wo) => wo.status !== "cancelled");
+    const totalWO = activeOrders.length;
+    const completedWO = activeOrders.filter((wo) => wo.status === "completed").length;
+    const completedUnits = activeOrders.reduce((sum, wo) => sum + (wo.completedUnitCount || 0), 0);
     const assignedTechs = new Set();
     workOrders.forEach((wo) => {
       (wo.assignedTechnicians || []).forEach((t) => assignedTechs.add(String(t._id)));
@@ -3505,7 +4879,6 @@ async function updateProjectProgress(projectId) {
     const update = {
       totalWorkOrders: totalWO,
       completedWorkOrders: completedWO,
-      totalUnits,
       completedUnits,
       totalAssignedTechnicians: assignedTechs.size,
     };
@@ -3522,11 +4895,12 @@ async function updateProjectProgress(projectId) {
     // Never downgrade a verified/accepted large-scale project back to planning
     // via work-order progress (it should only move forward from "accepted").
     const proj = await Project.findById(projectId).lean();
-    if (proj && proj.isLargeScale && proj.status === "accepted") {
+    if (proj && ["accepted", "ready", "in_progress", "on_hold"].includes(proj.status)) {
       delete update.status;
     }
 
     await Project.findByIdAndUpdate(projectId, update);
+    if (completedWO > 0) await releaseUnblockedWorkOrders(projectId);
 
     // ── Cascade: when project completes, update BookingService + Assignments ──
     if (update.status === "completed" && proj) {

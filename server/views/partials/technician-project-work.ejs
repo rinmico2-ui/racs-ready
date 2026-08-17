@@ -250,40 +250,132 @@
   }
   .pw-drawer.open { transform:translateX(0); visibility:visible; transition:transform .35s cubic-bezier(.16,1,.3,1), visibility 0s; }
 
-  /* Drawer Hero */
+  /* Full-page planning view */
+  .pw-drawer.page {
+    width: 100% !important; max-width: 100% !important; border-radius: 0 !important; border-left: none !important;
+    box-shadow: none !important;
+  }
+  .pw-drawer.page .pw-d-hero,
+  .pw-drawer.page .pw-d-workflow,
+  .pw-drawer.page .pw-d-body,
+  .pw-drawer.page .pw-d-actions {
+    width: 100%; max-width: 100%; margin-left: 0; margin-right: 0;
+  }
+  .pw-drawer.page .pw-d-hero {
+    padding: 16px;
+    background: #ffffff !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .pw-drawer.page .pw-d-avatar {
+    width: 46px; height: 46px; min-width: 46px;
+    background: linear-gradient(135deg,#2563eb,#1d4ed8);
+    color: #fff; border: none; border-radius: 14px;
+    font-size: 1rem; font-weight: 700;
+    box-shadow: 0 8px 20px rgba(37,99,235,0.2);
+  }
+  .pw-drawer.page .pw-d-title { font-size: 0.95rem; font-weight: 800; color: #0f172a; }
+  .pw-drawer.page .pw-d-subtitle { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 2px; }
+  .pw-drawer.page .pw-d-workflow {
+    padding: 16px;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .pw-drawer.page .pw-d-workflow::before { display: none; }
+  .pw-drawer.page .pw-d-wo-hero { color: #0f172a; font-weight: 700; }
+  .pw-drawer.page .pw-d-wo-hero > i { background: #eff6ff; color: #2563eb; border-color: #dbeafe; }
+  .pw-drawer.page .pw-d-wo-meta { color: #64748b; opacity: 1; }
+  .pw-drawer.page .pw-d-wo-meta i { display: inline; width: auto; height: auto; border: none; border-radius: 0; background: transparent; color: #2563eb; font-size: 0.7rem; vertical-align: middle; margin-right: 4px; }
+  .pw-drawer.page .pw-d-steps { display:flex; justify-content:space-between; align-items:flex-start; gap:0; margin-top:10px; }
+  .pw-drawer.page .pw-d-step { flex:1; gap:8px; color:#64748b; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .pw-drawer.page .pw-d-step .dot { width:36px; height:36px; box-sizing:border-box; background:#e2e8f0; border:2px solid #e2e8f0; color:#94a3b8; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:2; }
+  .pw-drawer.page .pw-d-step .dot i { font-size:0.85rem; line-height:1; }
+  .pw-drawer.page .pw-d-step.active .dot,
+  .pw-drawer.page .pw-d-step.done .dot { color:#fff; }
+  .pw-drawer.page .pw-d-step.done .dot { background:linear-gradient(135deg,#22c55e,#16a34a); border-color:#22c55e; }
+  .pw-drawer.page .pw-d-step.active .dot { background:linear-gradient(135deg,#2563eb,#1d4ed8); border-color:#2563eb; box-shadow:0 2px 12px rgba(37,99,235,0.35); }
+  .pw-drawer.page .pw-d-step span { font-size:0.58rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+  .pw-drawer.page .pw-d-step.active span,
+  .pw-drawer.page .pw-d-step.done span { color:#0f172a; }
+  .pw-drawer.page .pw-d-connector { flex:1; height:2px; background:#e2e8f0; margin-top:17px; }
+  .pw-drawer.page .pw-d-connector.done { background:#22c55e; }
+  .pw-drawer.page .pw-d-body {
+    padding: 22px 0 100px;
+    background: #f5f7fb !important;
+    display: block !important;
+    grid: none !important;
+  }
+  .pw-drawer.page .pw-d-actions { padding: 1rem 0; }
+
+  /* Drawer Header — matches standard booking detail panel */
   .pw-d-hero {
-    position:relative; padding:1.25rem 1.5rem 1.1rem;
-    background:linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-    color:#fff; overflow:hidden; flex-shrink:0;
+    background:#fff; color:#0f172a;
+    padding:14px 16px 0; flex-shrink:0;
+    position:sticky; top:0; z-index:50;
+    overflow:hidden;
+    border-bottom:1px solid #e2e8f0;
+    box-shadow:0 1px 2px rgba(15,23,42,0.03);
   }
-  .pw-d-hero::after { content:''; position:absolute; right:-20px; top:-20px; width:100px; height:100px; border-radius:50%; background:radial-gradient(circle, rgba(99,102,241,.12) 0%, transparent 70%); }
-  .pw-d-hero::before { content:''; position:absolute; right:60px; bottom:-40px; width:80px; height:80px; border-radius:50%; background:radial-gradient(circle, rgba(14,165,233,.08) 0%, transparent 70%); }
-  .pw-d-x {
-    position:absolute; top:.75rem; right:.75rem;
-    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.08);
-    color:#fff; width:28px; height:28px; border-radius:7px;
-    cursor:pointer; font-size:.8rem; z-index:2;
-    display:flex; align-items:center; justify-content:center;
-    transition: all .2s ease;
+  .pw-d-hero::before { content:''; position:absolute; top:-55px; right:-55px; width:180px; height:180px; background:radial-gradient(circle, rgba(15,23,42,0.03) 0%, transparent 70%); border-radius:50%; pointer-events:none; }
+  .pw-d-hero::after { content:''; position:absolute; bottom:-35px; left:-30px; width:140px; height:140px; background:radial-gradient(circle, rgba(37,99,235,0.04) 0%, transparent 70%); border-radius:50%; pointer-events:none; }
+  .pw-d-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; position:relative; z-index:1; }
+  .pw-d-top-left { display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+  .pw-d-back {
+    display:inline-flex; align-items:center; gap:6px; padding:8px 13px; border-radius:10px;
+    background:#f1f5f9; border:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; font-weight:700;
+    cursor:pointer; transition:all .2s ease; margin-right:4px;
   }
-  .pw-d-x:hover { background:rgba(239,68,68,.85); border-color:#ef4444; }
-  .pw-d-tag {
-    display:inline-flex; align-items:center; gap:.3rem;
-    font-size:.56rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
-    background:rgba(255,255,255,.1); padding:.25rem .6rem; border-radius:999px;
-    margin-bottom:.5rem; border:1px solid rgba(255,255,255,.06);
+  .pw-d-back:hover { background:#e2e8f0; border-color:#cbd5e1; }
+  .pw-d-back i { font-size:0.75rem; }
+  .pw-d-avatar {
+    width:44px; height:44px; border-radius:12px; background:#f1f5f9;
+    display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+    flex-shrink:0; border:1px solid #e2e8f0; transition:transform .3s ease;
   }
-  .pw-d-title { font-size:1.05rem; font-weight:700; margin:0; line-height:1.3; letter-spacing:-.01em; }
-  .pw-d-sub { font-size:.72rem; opacity:.65; margin-top:.25rem; }
-  .pw-d-pills { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.7rem; }
-  .pw-d-pill {
-    font-size:.6rem; font-weight:700; padding:.2rem .55rem; border-radius:999px;
-    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.06);
+  .pw-d-title { font-size:1.1rem; font-weight:800; margin:0 0 3px; line-height:1.25; letter-spacing:-0.02em; color:#0f172a; }
+  .pw-d-subtitle { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .pw-d-subtitle > .pw-d-ref { font-size:0.62rem; font-weight:600; color:#64748b; letter-spacing:0.02em; }
+  .pw-d-status {
+    display:inline-flex; align-items:center; gap:4px; font-size:0.52rem; font-weight:700;
+    padding:2px 8px 2px 6px; border-radius:20px; background:#f1f5f9; color:#475569;
+    letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; border:1px solid #e2e8f0;
   }
-  .pw-d-pill.fee { background:#fff; color:#0f172a; border-color:#fff; }
+  .pw-d-status::before { content:''; width:4px; height:4px; border-radius:50%; background:#22c55e; flex-shrink:0; animation:pwPulseDot 2.4s ease-in-out infinite; }
+  @keyframes pwPulseDot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.65); } }
+  .pw-d-close {
+    width:36px; height:36px; border-radius:10px; border:1px solid #e2e8f0;
+    background:#fff; color:#64748b; font-size:0.9rem; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all .2s ease; flex-shrink:0;
+  }
+  .pw-d-close:hover { background:#fee2e2; border-color:#fecaca; color:#991b1b; }
+
+  /* Workflow stepper band under the white header */
+  .pw-d-workflow {
+    display:flex; flex-direction:column; gap:8px;
+    padding:14px 16px 16px;
+    background:linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+    color:#fff; position:relative; z-index:1;
+  }
+  .pw-d-workflow::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg, rgba(99,102,241,0.18) 0%, transparent 60%); pointer-events:none; }
+  .pw-d-wo-hero { display:flex; align-items:center; gap:10px; font-size:0.82rem; font-weight:700; position:relative; z-index:1; }
+  .pw-d-wo-hero i { width:32px; height:32px; border-radius:10px; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,0.12); }
+  .pw-d-wo-meta { font-size:0.7rem; opacity:0.8; font-weight:500; margin-top:2px; }
+  .pw-d-steps { display:flex; align-items:flex-start; justify-content:space-between; gap:2px; position:relative; z-index:1; padding-top:10px; }
+  .pw-d-step { display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; font-size:0.58rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.03em; text-align:center; position:relative; }
+  .pw-d-step span { font-size:0.58rem; }
+  .pw-d-step .dot { width:24px; height:24px; border-radius:50%; background:#1e293b; border:2px solid #475569; color:#94a3b8; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
+  .pw-d-step .dot i { font-size:0.68rem; line-height:1; }
+  .pw-d-step.done .dot { background:rgba(255,255,255,0.2); border-color:rgba(255,255,255,0.4); color:#fff; }
+  .pw-d-step.active .dot { background:linear-gradient(135deg, #10b981, #059669); border-color:rgba(255,255,255,0.45); color:#fff; box-shadow:0 0 0 3px rgba(16,185,129,0.25); }
+  .pw-d-step.active span, .pw-d-step.done span { color:#fff; }
+  .pw-d-connector { flex:1; height:1.5px; border-radius:999px; background:#475569; margin-top:11px; position:relative; z-index:1; }
+  .pw-d-connector.done { background:rgba(255,255,255,0.44); }
 
   /* Drawer Body */
-  .pw-d-body { padding:1.25rem 1.5rem 1.5rem; overflow-y:auto; flex:1; background:#f8fafc; }
+  .pw-d-body { padding:10px 16px 80px; overflow-y:auto; flex:1; background:#f5f7fb; }
   .pw-d-section { margin-bottom:1.25rem; }
   .pw-d-section:last-child { margin-bottom:0; }
   .pw-d-section h6 {
@@ -368,6 +460,15 @@
   /* Payment rows */
   .pw-pay-row { display:flex; justify-content:space-between; align-items:center; padding:.5rem 0; border-bottom:1px solid #f1f5f9; font-size:.75rem; }
   .pw-pay-row input { width:110px; text-align:right; }
+
+  /* Payment modal layout */
+  .pw-pay-modal { display: flex; flex-direction: column; max-width: 560px !important; max-height: 90vh !important; border-radius: 22px !important; overflow: hidden; padding: 0 !important; background: #ffffff; }
+  .pw-pay-modal > * { border-radius: 0 !important; }
+  .pw-pay-header { flex-shrink: 0; padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%); border-bottom: 1px solid #e2e8f0; }
+  .pw-pay-header h5 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: .5rem; }
+  .pw-pay-header p { margin: .3rem 0 0; font-size: .72rem; color: #64748b; line-height: 1.45; }
+  .pw-pay-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 0.5rem 1.5rem; }
+  .pw-pay-footer { flex-shrink: 0; padding: 1.1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: .75rem; background: #ffffff; border-top: 1px solid #e2e8f0; }
 
   /* ══ SUBMIT MODAL ══ */
   .sm-header { display:flex; align-items:center; gap:.85rem; padding:1.25rem 1.5rem; background:linear-gradient(135deg,#f0fdf4,#ecfdf5); border-bottom:1px solid #d1fae5; }
@@ -606,12 +707,21 @@
 
     /* Drawer */
     .pw-drawer { width: 100%; max-width: 100%; border-radius: 0; }
-    .pw-d-hero { padding: 1rem 1.15rem .85rem; }
+    .pw-d-hero { padding: 12px 14px 0; }
+    .pw-d-avatar { width: 38px; height: 38px; font-size: 1rem; }
     .pw-d-title { font-size: .92rem; }
-    .pw-d-sub { font-size: .66rem; }
-    .pw-d-pills { gap: .25rem; margin-top: .5rem; }
-    .pw-d-pill { font-size: .52rem; padding: .15rem .45rem; }
-    .pw-d-body { padding: 1rem 1.15rem 1.25rem; }
+    .pw-d-subtitle { flex-wrap: wrap; gap: 5px; }
+    .pw-d-back { padding: 6px 10px; font-size: 0; }
+    .pw-d-back span { display: none; }
+    .pw-d-close { width: 30px; height: 30px; }
+    .pw-d-workflow { padding: 12px 14px 14px; }
+    .pw-d-wo-hero { font-size: .75rem; }
+    .pw-d-wo-hero i { width: 28px; height: 28px; font-size: .8rem; }
+    .pw-d-wo-meta { font-size: .62rem; }
+    .pw-d-step .dot { width: 20px; height: 20px; font-size: .65rem; }
+    .pw-d-step span { font-size: .46rem; }
+    .pw-d-connector { margin-top: 9px; }
+    .pw-d-body { padding: 10px 14px 80px; }
     .pw-d-section { margin-bottom: 1rem; }
     .pw-d-section h6 { font-size: .58rem; margin-bottom: .45rem; }
     .pw-d-grid { grid-template-columns: 1fr; gap: .4rem; }
@@ -1047,15 +1157,31 @@
   </div>
 </div>
 
-<!-- Slide-in details drawer — enterprise grade -->
+<!-- Slide-in details drawer — matches standard booking detail panel -->
 <div class="pw-drawer-overlay" id="pwDrawerOverlay" onclick="pwCloseDrawer()"></div>
 <aside class="pw-drawer" id="pwDrawer" aria-hidden="true">
   <div class="pw-d-hero">
-    <button class="pw-d-x" onclick="pwCloseDrawer()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-    <span class="pw-d-tag" id="pwDrawerTag"><i class="bi bi-kanban"></i> Large-Scale Project</span>
-    <h2 class="pw-d-title" id="pwDrawerTitle">Project Details</h2>
-    <div class="pw-d-sub" id="pwDrawerSub"></div>
-    <div class="pw-d-pills" id="pwDrawerPills"></div>
+    <div class="pw-d-top">
+      <div class="pw-d-top-left">
+        <button class="pw-d-back" onclick="pwCloseDrawer()" title="Back to projects">
+          <i class="bi bi-arrow-left"></i>
+          <span>Back to projects</span>
+        </button>
+        <div class="pw-d-avatar" id="pwDrawerAvatar"><i class="bi bi-person"></i></div>
+        <div style="min-width:0;">
+          <h2 class="pw-d-title" id="pwDrawerTitle">Project Details</h2>
+          <div class="pw-d-subtitle">
+            <span class="pw-d-ref" id="pwDrawerRef">Project #---</span>
+            <span class="pw-d-status" id="pwDrawerStatus">Status</span>
+          </div>
+        </div>
+      </div>
+      <button class="pw-d-close" onclick="pwCloseDrawer()" aria-label="Close"><i class="bi bi-x-lg" style="font-size:0.75rem;"></i></button>
+    </div>
+  </div>
+  <div class="pw-d-workflow" id="pwDrawerWorkflow">
+    <div class="pw-d-wo-hero" id="pwDrawerWfHero"><i class="bi bi-kanban"></i><div style="min-width:0;"><div id="pwDrawerWfTitle">Large-Scale Project</div><div class="pw-d-wo-meta" id="pwDrawerWfMeta">Project workflow</div></div></div>
+    <div class="pw-d-steps" id="pwDrawerSteps"></div>
   </div>
   <div class="pw-d-body" id="pwDrawerBody"></div>
   <div class="pw-d-actions" id="pwDrawerActions"></div>
@@ -1182,7 +1308,9 @@
     const p = a.project;
     const phase = a.phase || 'ready';
 
-    if (!a.leadAccepted) {
+    if (!a.leadParticipationAccepted) {
+      const canAccept = a.canLeadAccept === true;
+      const blocker = a.leadAcceptanceBlocker || 'Project preparation must be completed by operations.';
       return `
       <div class="pw-project" id="pwCard-${p._id}">
         ${cardHead(p, 'Assigned to you (Lead)', 'assigned', phase)}
@@ -1190,13 +1318,38 @@
           ${kpiRow(a, true)}
           <div class="pw-wait mt-3">
             <div class="ic"><i class="bi bi-clipboard-check"></i></div>
-            <div><div class="t">Review & accept this project</div><div class="d">Open the details panel to inspect scope, site, and team before accepting.</div></div>
+            <div><div class="t">${canAccept ? 'Review & accept team participation' : 'Project acceptance is not available yet'}</div><div class="d">${canAccept ? 'Confirm that you can join this project. This does not start work or release Work Orders.' : blocker}</div></div>
           </div>
           <div class="d-flex gap-2 mt-3">
-            <button class="pw-btn primary" onclick="pwLeadAccept('${p._id}')"><i class="bi bi-check-lg"></i> Accept Project</button>
+            ${canAccept ? `<button class="pw-btn primary" onclick="pwLeadAccept('${p._id}', this)"><i class="bi bi-check-lg"></i> Accept Participation</button>` : `<button class="pw-btn" disabled><i class="bi bi-hourglass-split"></i> Awaiting Verification</button>`}
             <button class="pw-btn danger" onclick="pwLeadDecline('${p._id}')"><i class="bi bi-x-circle"></i> Decline</button>
             <button class="pw-link ms-auto" onclick="pwViewDetails('${p._id}')">View Details</button>
           </div>
+        </div>
+      ${pwCardClose()}`;
+    }
+
+    if (!a.leadAccepted && p.status !== 'ready') {
+      return `
+      <div class="pw-project" id="pwCard-${p._id}">
+        ${cardHead(p, 'Participation accepted', 'accepted', phase)}
+        <div class="pw-project-body">
+          ${kpiRow(a, true)}
+          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-check-circle"></i></div><div><div class="t">Your participation is confirmed</div><div class="d">Operations is completing the final plan. Work Orders remain provisional until Step 6 confirmation.</div></div></div>
+          <div class="d-flex gap-2 mt-3"><button class="pw-link" onclick="pwViewDetails('${p._id}')">View Planning Details</button></div>
+        </div>
+      ${pwCardClose()}`;
+    }
+
+    if (!a.leadAccepted && p.status === 'ready') {
+      const canStart = a.canLeadAccept === true;
+      return `
+      <div class="pw-project" id="pwCard-${p._id}">
+        ${cardHead(p, 'Final plan confirmed', 'ready', phase)}
+        <div class="pw-project-body">
+          ${kpiRow(a, true)}
+          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-play-circle"></i></div><div><div class="t">Project is ready to mobilize</div><div class="d">${canStart ? 'The final plan is committed. Start the project when the crew is ready.' : (a.leadAcceptanceBlocker || 'Waiting for the complete team.')}</div></div></div>
+          <div class="d-flex gap-2 mt-3">${canStart ? `<button class="pw-btn primary" onclick="pwLeadAccept('${p._id}', this)"><i class="bi bi-play-fill"></i> Start Project</button>` : `<button class="pw-btn" disabled>Awaiting Team</button>`}<button class="pw-link ms-auto" onclick="pwViewDetails('${p._id}')">View Details</button></div>
         </div>
       ${pwCardClose()}`;
     }
@@ -1381,6 +1534,7 @@
 
     if (phase === 'in_progress') {
       const done = a.projectUnits?.allDone;
+      const allSubmitted = a.projectUnits?.allSubmitted;
       const hasPayment = p.payment?.paymentStatus === 'paid';
       const hasProof = p.completionProofUrl;
       return `
@@ -1400,12 +1554,15 @@
           </div>
           <div class="d-flex gap-2 flex-wrap mt-3">
             ${!done
-              ? `<button class="pw-btn primary" onclick="pwLeadSubmit('${p._id}')"><i class="bi bi-check2-circle"></i> Submit Units Finished</button>`
+              ? `<button class="pw-btn primary" onclick="pwOpenSubmitUnits('${p._id}',this)"><i class="bi bi-check2-square"></i> Submit Done Units</button>`
+              : !allSubmitted
+                ? `<button class="pw-btn success" onclick="pwViewDetails('${p._id}')"><i class="bi bi-clipboard-check"></i> Review Completed Work Orders</button>`
               : !hasPayment
                 ? `<button class="pw-btn success" onclick="pwOpenPayment('${p._id}')"><i class="bi bi-cash-coin"></i> Collect Payment</button>`
                 : !hasProof
                   ? `<button class="pw-btn success" onclick="pwOpenCompletionProof('${p._id}')"><i class="bi bi-camera"></i> Upload Proof of Completion</button>`
                   : `<button class="pw-btn success" onclick="pwFinalSubmit('${p._id}')"><i class="bi bi-send"></i> Final Submit</button>`}
+            ${!done ? `<button class="pw-btn" onclick="pwCompleteToday('${p._id}')"><i class="bi bi-calendar-check"></i> Complete Today's Work</button>` : ''}
             ${(p.repair?.serviceType === 'repair' || p.laborType === 'repair') && !done ? `<button class="pw-btn" onclick="pwOpenPartsModal('${p._id}')"><i class="bi bi-box-seam"></i> Record Parts</button>` : ''}
             <button class="pw-link" onclick="pwViewDetails('${p._id}')">View Details</button>
           </div>
@@ -1418,7 +1575,8 @@
       const leadDone = da.leadAccepted;
       const memberAccepted = (da.membersAccepted || []).filter(m => m.accepted);
       const memberDeclined = (da.declined || []);
-      const allMembersOk = a.teamCount > 1 ? memberAccepted.length >= (a.teamCount - 1) : true;
+      const teamCount = (p.assignedTechnicians || []).length;
+      const allMembersOk = teamCount > 1 ? memberAccepted.length >= (teamCount - 1) : true;
       return `
       <div class="pw-project pw-daily-card" id="pwCard-${p._id}">
         ${cardHead(p, 'Daily Confirmation Required', 'daily_acceptance', phase)}
@@ -1434,12 +1592,12 @@
           ${leadProgressRow(a)}
           <div class="pw-daily-status">
             <span class="pw-daily-chip ${leadDone ? 'ok' : 'pending'}"><i class="bi ${leadDone ? 'bi-check-circle-fill' : 'bi-hourglass-split'}"></i> Lead: ${leadDone ? 'Confirmed' : 'Pending'}</span>
-            ${(da.membersAccepted||[]).map(m => `<span class="pw-daily-chip ok"><i class="bi bi-check-circle-fill"></i> ${esc(m.name)} confirmed</span>`).join('')}
+            ${(da.membersAccepted||[]).filter(m => m.accepted).map(m => `<span class="pw-daily-chip ok"><i class="bi bi-check-circle-fill"></i> ${esc(m.name)} confirmed</span>`).join('')}
             ${memberDeclined.map(m => `<span class="pw-daily-chip no"><i class="bi bi-x-circle-fill"></i> ${esc(m.name)} declined</span>`).join('')}
           </div>
           <div class="pw-daily-actions">
             ${!leadDone
-              ? `<button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}')"><i class="bi bi-check-lg"></i> Continue Project</button>
+              ? `<button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Continue Tomorrow</button>
                  <button class="pw-daily-btn decline" onclick="pwDailyDecline('${p._id}')"><i class="bi bi-x-lg"></i> Decline Tomorrow</button>`
               : allMembersOk
                 ? `<button class="pw-btn primary" onclick="pwLeadMobilize('${p._id}','en-route')"><i class="bi bi-truck"></i> All Confirmed — Mobilize</button>`
@@ -1490,19 +1648,8 @@
     const p = a.project;
     const phase = a.phase || 'ready';
 
-    if (!a.leadAccepted) {
-      return `
-      <div class="pw-project" id="pwCard-${p._id}">
-        ${cardHead(p, 'Pending team lead', 'waiting', phase)}
-        <div class="pw-project-body">
-          ${kpiRow(a, false)}
-          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-hourglass-split"></i></div><div><div class="t">Waiting for team lead to accept</div><div class="d">You'll be notified when the lead accepts the project.</div></div></div>
-          <button class="pw-link mt-3" onclick="pwViewDetails('${p._id}')">View Details</button>
-        </div>
-      ${pwCardClose()}`;
-    }
-
-    // Lead accepted; now the member accepts/declines.
+    // Every assigned member can confirm availability during planning. This is
+    // independent of lead mobilization and does not release project work.
     if (!acknowledged && !myDeclined) {
       return `
       <div class="pw-project" id="pwCard-${p._id}">
@@ -1527,6 +1674,18 @@
           ${kpiRow(a, false)}
           <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-slash-circle"></i></div><div><div class="t">You declined this assignment</div><div class="d">The lead has been notified to replace you.</div></div></div>
           <button class="pw-link mt-3" onclick="pwViewDetails('${p._id}')">View Details</button>
+        </div>
+      ${pwCardClose()}`;
+    }
+
+    if (!a.leadAccepted) {
+      return `
+      <div class="pw-project" id="pwCard-${p._id}">
+        ${cardHead(p, 'Participation accepted', 'accepted', phase)}
+        <div class="pw-project-body">
+          ${kpiRow(a, false)}
+          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-check-circle"></i></div><div><div class="t">You are confirmed on the team</div><div class="d">Wait for operations to confirm Step 6 and for the lead to start the project.</div></div></div>
+          <button class="pw-link mt-3" onclick="pwViewDetails('${p._id}')">View Planning Details</button>
         </div>
       ${pwCardClose()}`;
     }
@@ -1587,8 +1746,8 @@
     // ── Member: daily re-acceptance ──
     if (phase === 'daily_acceptance') {
       const da = a.dailyAcceptance || {};
-      const myAccepted = (da.membersAccepted||[]).find(m => String(m.techId) === String(ME_ID) && m.accepted);
-      const myDeclined = (da.declined||[]).find(m => String(m.techId) === String(ME_ID));
+      const myAccepted = (da.membersAccepted||[]).find(m => String(m._id || m.techId) === String(ME_ID) && m.accepted);
+      const myDeclined = (da.declined||[]).find(m => String(m._id || m.techId) === String(ME_ID));
       const leadDone = da.leadAccepted;
       return `
       <div class="pw-project pw-daily-card" id="pwCard-${p._id}">
@@ -1609,7 +1768,7 @@
           </div>
           ${!myAccepted && !myDeclined ? `
           <div class="pw-daily-actions">
-            <button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}')"><i class="bi bi-check-lg"></i> Confirm Tomorrow</button>
+            <button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Confirm Tomorrow</button>
             <button class="pw-daily-btn decline" onclick="pwDailyDecline('${p._id}')"><i class="bi bi-x-lg"></i> Can't Continue</button>
           </div>` : `
           <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-hourglass-split"></i></div><div><div class="t">Waiting for other team members</div><div class="d">Once everyone confirms, the lead can mobilize for tomorrow.</div></div></div>`}
@@ -1642,8 +1801,8 @@
           ${quotaHtml(a, false)}
           <div id="pwEq-${p._id}" class="pw-eq-placeholder"></div>
           <div class="d-flex gap-2 flex-wrap mt-3">
-            ${done ? `<span class="pw-status completed" style="align-self:center;">All units complete — lead will finalize</span>`
-                   : `<button class="pw-btn success" onclick="pwMemberSubmit('${p._id}')"><i class="bi bi-check2-circle"></i> Submit Units Finished</button>`}
+            ${done ? `<span class="pw-status completed" style="align-self:center;">All units complete — lead review pending</span>`
+                   : `<button class="pw-btn success" onclick="pwOpenSubmitUnits('${p._id}',this)"><i class="bi bi-check2-square"></i> Submit Done Units</button>`}
             <button class="pw-link" onclick="pwViewDetails('${p._id}')">View Details</button>
           </div>
         </div>
@@ -1666,6 +1825,22 @@
     </div>`;
   }
 
+  // Horizontal stepper for the detail drawer (matches standard bookings panel).
+  function pwDrawerStepper(phase) {
+    const labels = { assessment:'Assess', quotation_review:'Quote', execution:'Execute', ready:'Ready', en_route:'En Route', arrived:'Arrived', in_progress:'Working', completed:'Done' };
+    const cur = PHASE_ORDER.indexOf(phase || 'ready');
+    let html = '';
+    for (let i = 0; i < PHASE_ORDER.length; i++) {
+      const ph = PHASE_ORDER[i];
+      const cls = i < cur ? 'done' : (i === cur ? 'active' : '');
+      html += `<div class="pw-d-step ${cls}"><div class="dot"><i class="bi ${PHASE_ICON[ph]}"></i></div><span>${esc(labels[ph])}</span></div>`;
+      if (i < PHASE_ORDER.length - 1) {
+        html += `<div class="pw-d-connector ${i < cur ? 'done' : ''}"></div>`;
+      }
+    }
+    return html;
+  }
+
   function cardHead(p, statusText, statusClass, phase) {
     const name = p?.customer?.name || p?.service?.name || 'Commercial Project';
     const isRepair = p?.repair?.serviceType === 'repair' || p?.laborType === 'repair';
@@ -1684,10 +1859,9 @@
   // Closes the .pw-content and .pw-project wrappers opened by cardHead.
   function pwCardClose() { return `</div></div>`; }
 
-  // KPI tiles row (lead = crew totals; member = personal).
+  // KPI tiles show shared batch progress for every crew member.
   function kpiRow(a, isLead) {
     const pu = a.projectUnits || { total:0, done:0 };
-    const q = a.myQuota || { targetToday:0, doneToday:0, doneUnits:0, totalUnits:0 };
     const pct = pu.total > 0 ? Math.round((pu.done/pu.total)*100) : 0;
     const remaining = Math.max(0, pu.total - pu.done);
     const crew = (a.project?.assignedTechnicians || []).length;
@@ -1699,9 +1873,9 @@
           { k:'Crew', v:`${crew}`, ic:'bi-people' },
         ]
       : [
-          { k:'Your Target', v:`${q.targetToday}`, ic:'bi-calendar-day' },
-          { k:'Done Today', v:`${q.doneToday}`, ic:'bi-check2-circle' },
-          { k:'Your Units', v:`${q.doneUnits}<small>/${q.totalUnits}</small>`, ic:'bi-grid-3x3-gap' },
+          { k:'Total Units', v:`${pu.total}`, ic:'bi-grid-3x3-gap' },
+          { k:'Team Completed', v:`${pu.done}`, ic:'bi-check2-circle' },
+          { k:'Remaining', v:`${remaining}`, ic:'bi-hourglass-split' },
           { k:'Project', v:`${pct}<small>%</small>`, ic:'bi-activity' },
         ];
     return `<div class="pw-kpis">${tiles.map(t => `
@@ -1737,20 +1911,21 @@
       <div style="font-size:0.74rem;color:#64748b;">Project progress: <b style="color:#0f172a;">${pu.done} / ${pu.total} units</b> (${pct}%)</div>`;
   }
 
-  // Today's quota panel (lead sees whole-crew suggestion; member sees their own).
+  // Today's target belongs to the work-order team, not an individual.
   function quotaHtml(a, isLead) {
-    const q = a.myQuota || { targetToday:0, doneToday:0, totalUnits:0, doneUnits:0 };
     const pu = a.projectUnits || { total:0, done:0 };
-    const remaining = Math.max(0, q.totalUnits - q.doneUnits);
+    const teamTodayTarget = (a.teamBoard || []).reduce((sum, row) => sum + Number(row.todayTarget || 0), 0);
+    const teamTodayDone = (a.teamBoard || []).reduce((sum, row) => sum + Number(row.todayDone || 0), 0);
     return `
       <div class="pw-quota mt-3">
-        <div style="font-size:0.78rem;font-weight:800;color:#0f172a;margin-bottom:0.5rem;"><i class="bi bi-calendar-day me-1"></i>Today's Assignment</div>
+        <div style="font-size:0.78rem;font-weight:800;color:#0f172a;margin-bottom:0.5rem;"><i class="bi bi-calendar-day me-1"></i>Today's Team Work</div>
         <div class="pw-quota-grid">
-          <div><span class="pw-quota-k">${isLead?'Suggested Daily Target':'Your Target'}</span><span class="pw-quota-v">${q.targetToday} units</span></div>
-          <div><span class="pw-quota-k">Completed Today</span><span class="pw-quota-v succ">${q.doneToday}</span></div>
-          <div><span class="pw-quota-k">Your Overall</span><span class="pw-quota-v">${q.doneUnits} / ${q.totalUnits} units</span></div>
+          <div><span class="pw-quota-k">Team Target</span><span class="pw-quota-v">${teamTodayTarget} units</span></div>
+          <div><span class="pw-quota-k">Completed Today</span><span class="pw-quota-v succ">${teamTodayDone}</span></div>
+          <div><span class="pw-quota-k">Overall Progress</span><span class="pw-quota-v">${pu.done} / ${pu.total} units</span></div>
           <div><span class="pw-quota-k">Project Remaining</span><span class="pw-quota-v">${pu.total - pu.done} units</span></div>
         </div>
+        <div style="font-size:.62rem;color:var(--pw-muted);margin-top:.45rem;"><i class="bi bi-info-circle me-1"></i>The target is a planning goal, not a limit. The crew may complete more today when capacity allows.</div>
       </div>`;
   }
 
@@ -1777,29 +1952,78 @@
 
   // ── Live map init (called after card render) ──
   window.pwInitMaps = function () {
-    const maps = document.querySelectorAll('[id^="pwMap-"]');
-    maps.forEach(el => {
+    document.querySelectorAll('[id^="pwMap-"]').forEach(el => {
       const pid = el.id.replace('pwMap-', '');
-      try { initProjectTracker(el, pid); } catch (e) {}
+      initProjectTracker(el, pid).catch(() => {});
     });
   };
 
-  function initProjectTracker(el, pid) {
+  async function initProjectTracker(el, pid) {
     if (!window.L) return;
     if (el._pwInited) { try { el._pwMap.invalidateSize(); } catch(_){} return; }
     const a = (window.__pwData || []).find(x => x.project._id.toString() === pid.toString());
+    const p = a?.project || {};
     const c = a?.customer || {};
-    const lat = typeof c.lat === 'number' ? c.lat : null;
-    const lng = typeof c.lng === 'number' ? c.lng : null;
-    if (lat == null || lng == null) return;
+    const cust = p.customer || c || {};
+    const site = p.location || c || {};
 
-    const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([lat, lng], 14);
+    let customerLat = typeof cust.lat === 'number' ? cust.lat : null;
+    let customerLng = typeof cust.lng === 'number' ? cust.lng : null;
+    let siteLat = typeof site.lat === 'number' ? site.lat : null;
+    let siteLng = typeof site.lng === 'number' ? site.lng : null;
+
+    if ((customerLat == null || customerLng == null) && (siteLat == null || siteLng == null)) {
+      const address = site.address || cust.address || c.address;
+      if (address) {
+        const geocodeAddress = async (addr) => {
+          const parts = addr.split(',').map(part => part.trim()).filter(Boolean);
+          for (let i = 0; i < parts.length; i++) {
+            const query = parts.slice(i).join(', ');
+            if (query.length < 5) continue;
+            try {
+              const geoUrl = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) + '&limit=1';
+              const geoRes = await fetch(geoUrl);
+              if (geoRes.ok) {
+                const geoData = await geoRes.json();
+                if (geoData && geoData.length > 0) {
+                  return { lat: parseFloat(geoData[0].lat), lng: parseFloat(geoData[0].lon) };
+                }
+              }
+            } catch (e) { console.warn('Geocoding attempt failed for query: ' + query, e); }
+          }
+          return null;
+        };
+        const result = await geocodeAddress(address);
+        if (result) { siteLat = result.lat; siteLng = result.lng; }
+      }
+    }
+
+    const firstLat = customerLat ?? siteLat;
+    const firstLng = customerLng ?? siteLng;
+    if (firstLat == null || firstLng == null) return;
+
+    el.innerHTML = '';
+    const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([firstLat, firstLng], 14);
     el._pwMap = map; el._pwInited = true;
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-    const custIcon = L.divIcon({ className:'', html:'<div style="background:#7c3aed;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);"><i class="bi bi-house-fill"></i></div>', iconSize:[30,30], iconAnchor:[15,15] });
-    L.marker([lat, lng], { icon: custIcon }).addTo(map).bindPopup('<b>' + esc(c.name || 'Customer') + '</b><br>' + esc(c.address || ''));
+    const addMarker = (lat, lng, color, icon, title, body) => {
+      const m = L.divIcon({ className: '', html: `<div style="background:${color};color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);">${icon}</div>`, iconSize: [30,30], iconAnchor: [15,15] });
+      L.marker([lat, lng], { icon: m }).addTo(map).bindPopup('<b>' + esc(title) + '</b><br>' + body);
+    };
 
+    if (customerLat != null && customerLng != null) {
+      const body = [esc(cust.name || c.name || 'Customer'), esc(cust.address || c.address || '')].filter(Boolean).join('<br>');
+      addMarker(customerLat, customerLng, '#7c3aed', '<i class="bi bi-house-fill"></i>', 'Customer', body);
+    }
+
+    if (siteLat != null && siteLng != null && (siteLat !== customerLat || siteLng !== customerLng)) {
+      const body = [esc(site.address || c.address || ''), esc(site.name || '')].filter(Boolean).join('<br>');
+      addMarker(siteLat, siteLng, '#f97316', '<i class="bi bi-geo-alt-fill"></i>', 'Site', body);
+    }
+
+    const destLat = siteLat ?? customerLat;
+    const destLng = siteLng ?? customerLng;
     const techIcon = L.divIcon({ className:'', html:'<div style="background:#2563eb;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(37,99,235,.3);"><i class="bi bi-geo-alt-fill"></i></div>', iconSize:[26,26], iconAnchor:[13,13] });
 
     function drawTech(pos) {
@@ -1812,7 +2036,7 @@
           el._pwAccCircle = L.circle([pos.lat, pos.lng], { color:'#4361ee', fillColor:'#4361ee', fillOpacity:.08, weight:1.5, radius:pos.acc }).addTo(map);
         } else { el._pwAccCircle.setLatLng([pos.lat, pos.lng]).setRadius(pos.acc); }
       }
-      const url = `https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${lng},${lat}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
       fetch(url).then(r => r.json()).then(route => {
         if (route && route.routes && route.routes[0]) {
           const geom = route.routes[0].geometry;
@@ -1831,9 +2055,14 @@
   }
 
   // ════════════════════ ACTIONS ════════════════════
-  window.pwLeadAccept = async (pid) => {
-    try { await api(`/api/projects/${pid}/lead-accept`, { method:'POST' }); toast('Project accepted — team notified'); window.__loadProjectWork(); }
-    catch (e) { toast(e.message, 'error'); }
+  const pwLeadAcceptPending = new Set();
+  window.pwLeadAccept = async (pid, btn) => {
+    if (pwLeadAcceptPending.has(pid)) return;
+    pwLeadAcceptPending.add(pid);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Accepting…'; }
+    try { const result = await api(`/api/projects/${pid}/lead-accept`, { method:'POST' }); toast(result.message || (result.alreadyAccepted ? 'Project was already accepted' : 'Project started')); window.__loadProjectWork(); }
+    catch (e) { toast(e.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> Try Again'; } }
+    finally { pwLeadAcceptPending.delete(pid); }
   };
   window.pwLeadDecline = (pid) => {
     const reason = prompt('Reason for declining (sent to admin):'); if (reason === null) return;
@@ -1846,9 +2075,26 @@
   };
 
   // ── Daily re-acceptance ──
-  window.pwDailyAccept = async (pid) => {
-    try { await api(`/api/projects/${pid}/daily-accept`, { method:'POST' }); toast('Confirmed — ready for tomorrow'); window.__loadProjectWork(); }
-    catch (e) { toast(e.message, 'error'); }
+  window.pwDailyAccept = async (pid, btn) => {
+    const original = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Confirming…'; }
+    try {
+      const result = await api(`/api/projects/${pid}/daily-accept`, { method:'POST' });
+      toast(result.message || 'Confirmed for tomorrow');
+      await window.__loadProjectWork();
+    } catch (e) {
+      toast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    }
+  };
+
+  window.pwCompleteToday = async (pid) => {
+    if (!confirm("Complete today's work? Finished units will remain recorded and unfinished units will continue on the next scheduled workday.")) return;
+    try {
+      await api(`/api/projects/${pid}/mobilize/end-day`, { method: 'PUT' });
+      toast("Today's work completed — confirm availability to continue tomorrow");
+      window.__loadProjectWork();
+    } catch (e) { toast(e.message, 'error'); }
   };
   window.pwDailyDecline = (pid) => {
     const reason = prompt('Reason you cannot continue tomorrow (sent to admin & lead):'); if (reason === null) return;
@@ -1990,6 +2236,213 @@
     try {
       await api(`/api/projects/${pid}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'completed' }) });
       toast('Project submitted for completion!'); window.__loadProjectWork();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  window.pwUpdateUnit = async (workOrderId, encodedUnitKey, status) => {
+    try {
+      const unitKey = decodeURIComponent(encodedUnitKey);
+      await api(`/api/work-orders/${workOrderId}/units/${encodeURIComponent(unitKey)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      });
+      toast(status === 'completed' ? 'Unit completed' : status === 'in_progress' ? 'Unit started' : 'Unit updated');
+      await window.__loadProjectWork();
+      const openId = window.__openProjectId;
+      if (openId) pwViewDetails(openId);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  window.pwOpenSubmitUnits = function (pid, trigger) {
+    const assignment = PW_ASSIGNMENTS.find(x => String(x.project?._id) === String(pid))
+      || (window.__pwData || []).find(x => String(x.project?._id) === String(pid));
+    if (!assignment) return toast('Project data is still loading. Please try again.', 'error');
+
+    const p = assignment.project || {};
+    const serviceName = p.service?.name || assignment.serviceName || 'Commercial Service';
+    const siteAddress = p.location?.address || p.customer?.address || (assignment.customer || {}).address || '';
+    const overallDone = Number(assignment.projectUnits?.done || 0);
+    const overallTotal = Number(assignment.projectUnits?.total || 0);
+    const overallPct = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
+
+    const executableStatuses = ['assigned', 'accepted', 'en_route', 'arrived', 'in_progress', 'partially_completed'];
+    const availableOrders = (assignment.workOrderDetails || [])
+      .filter(wo => Number(wo.remaining || 0) > 0
+        && executableStatuses.includes(wo.status))
+      .sort((a, b) => Number(b.isScheduledToday) - Number(a.isScheduledToday)
+        || new Date(a.scheduledDate || 0) - new Date(b.scheduledDate || 0));
+    if (!availableOrders.length) {
+      return toast('No unfinished field-work units are available to submit.', 'warning');
+    }
+    const projectRemaining = availableOrders.reduce((sum, wo) => sum + Number(wo.remaining || 0), 0);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'pw-modal-overlay';
+    overlay.innerHTML = `
+      <div class="pw-modal pw-submit-modal">
+        <div class="pw-submit-header">
+          <h5><i class="bi bi-check2-square" style="color:#22c55e;"></i>Submit Done Units</h5>
+          <p>Enter the units physically completed now. Today’s target is only a planning goal. You may work ahead across available work orders, up to the project’s ${projectRemaining} actual unfinished units.</p>
+        </div>
+        <div class="pw-submit-summary">
+          <div class="job">${esc(serviceName)} — ${esc(siteAddress)}</div>
+          <div class="site"><i class="bi bi-geo-alt-fill" style="color:#64748b;flex-shrink:0;margin-top:2px;"></i>${esc(siteAddress)}</div>
+          <div class="overall">
+            <span class="overall-label">Overall progress</span>
+            <span class="overall-value">${overallDone} / ${overallTotal} done</span>
+          </div>
+          <div class="pw-submit-progress"><div class="bar" style="width:${overallPct}%;"></div></div>
+        </div>
+        <div class="pw-submit-body">
+          <div class="pw-submit-wo" style="border-color:#86efac;background:#f0fdf4;">
+            <div class="pw-submit-wo-head">
+              <div>
+                <div class="pw-submit-wo-title">Total done now</div>
+                <div class="pw-submit-wo-sub">Automatically applied to today’s batch first, then the next available work orders.</div>
+              </div>
+              <span class="pw-submit-wo-remaining">${projectRemaining} available</span>
+            </div>
+            <div class="pw-submit-input-wrap">
+              <span class="pw-submit-label">Units completed</span>
+              <div class="pw-submit-stepper">
+                <button type="button" data-total-step="-1" aria-label="Decrease total">&minus;</button>
+                <input id="pwProjectDoneUnits" type="number" inputmode="numeric" min="0" max="${projectRemaining}" value="0" aria-label="Total done units">
+                <button type="button" data-total-step="1" aria-label="Increase total">+</button>
+              </div>
+            </div>
+            <div style="margin-top:.25rem;font-size:.6rem;color:#64748b;text-align:right;">Maximum: ${projectRemaining} actual unfinished project unit${projectRemaining === 1 ? '' : 's'}</div>
+          </div>
+          ${availableOrders.map(wo => {
+            const woDone = Number(wo.completedUnitCount || 0);
+            const woTotal = Number(wo.unitCount || 0);
+            const actualRemaining = Math.max(0, woTotal - woDone);
+            const woPct = woTotal > 0 ? Math.round((woDone / woTotal) * 100) : 0;
+            return `
+            <div class="pw-submit-wo">
+              <div class="pw-submit-wo-head">
+                <div>
+                  <div class="pw-submit-wo-title">${esc(wo.title || wo.section || 'Work Order')}</div>
+                  <div class="pw-submit-wo-sub">${esc(wo.section || (wo.isScheduledToday ? 'Today’s scheduled work' : 'Available project work'))}</div>
+                </div>
+                <span class="pw-submit-wo-remaining">${actualRemaining} left</span>
+              </div>
+              <div class="pw-submit-wo-stats">
+                <span>${wo.isScheduledToday ? `Today’s target <b>${Number(wo.todayTarget || 0)}</b>` : '<b style="color:#2563eb;">Working ahead</b>'}</span>
+                <span>Completed <b>${woDone}</b> / ${woTotal}</span>
+              </div>
+              <div class="pw-submit-wo-progress"><div class="bar" style="width:${woPct}%;"></div></div>
+              <div class="pw-submit-input-wrap">
+                <span class="pw-submit-label">Allocated now</span>
+                <div class="pw-submit-stepper">
+                  <input class="pw-submit-units-input" type="number" min="0" max="${actualRemaining}" value="0" data-wo="${wo._id}" data-max="${actualRemaining}" aria-label="Allocated done units for ${esc(wo.title || 'work order')}" readonly>
+                </div>
+              </div>
+              <div style="margin-top:.25rem;font-size:.6rem;color:#94a3b8;text-align:right;">${actualRemaining} actual unit${actualRemaining === 1 ? '' : 's'} remaining in this batch</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="pw-submit-note">
+          <label for="pwDoneUnitsNote"><i class="bi bi-pencil-square" style="color:#22c55e;margin-right:.3rem;"></i>Work note <span style="font-weight:500;color:#94a3b8;">(optional)</span></label>
+          <textarea id="pwDoneUnitsNote" rows="2" maxlength="1000" placeholder="Example: Units tested and cooling normally"></textarea>
+        </div>
+        <div id="pwDoneUnitsError" style="display:none;padding:.65rem 1.5rem;background:#fef2f2;border-top:1px solid #fecaca;font-size:.68rem;color:#dc2626;"></div>
+        <div class="pw-submit-footer">
+          <button class="pw-btn" type="button" data-action="cancel">Cancel</button>
+          <button class="pw-btn success" type="button" data-action="submit"><i class="bi bi-send-check" style="margin-right:.35rem;"></i> Submit Done Units</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+    overlay.querySelector('[data-action="cancel"]').addEventListener('click', () => overlay.remove());
+    const totalInput = overlay.querySelector('#pwProjectDoneUnits');
+    const allocateTotal = () => {
+      let total = Number(totalInput.value || 0);
+      if (!Number.isFinite(total)) total = 0;
+      total = Math.max(0, Math.min(projectRemaining, Math.trunc(total)));
+      totalInput.value = String(total);
+      let left = total;
+      overlay.querySelectorAll('.pw-submit-units-input').forEach(input => {
+        const take = Math.min(left, Number(input.dataset.max || 0));
+        input.value = String(take);
+        left -= take;
+      });
+    };
+    totalInput.addEventListener('input', allocateTotal);
+    totalInput.addEventListener('blur', allocateTotal);
+    overlay.querySelectorAll('[data-total-step]').forEach(button => {
+      button.addEventListener('click', () => {
+        totalInput.value = String(Number(totalInput.value || 0) + Number(button.dataset.totalStep));
+        allocateTotal();
+      });
+    });
+    totalInput.focus();
+
+    overlay.querySelector('[data-action="submit"]').addEventListener('click', async event => {
+      const submitButton = event.currentTarget;
+      const errorBox = overlay.querySelector('#pwDoneUnitsError');
+      const rows = Array.from(overlay.querySelectorAll('.pw-submit-units-input')).map(input => ({
+        workOrderId: input.dataset.wo,
+        units: Number(input.value),
+        max: Number(input.dataset.max),
+        input,
+      }));
+      const invalid = rows.find(row => !Number.isInteger(row.units) || row.units < 0 || row.units > row.max);
+      if (invalid) {
+        errorBox.textContent = `Enter a whole number from 0 to ${invalid.max}.`;
+        errorBox.style.display = 'block';
+        return;
+      }
+      const submissions = rows.filter(row => row.units > 0);
+      if (!submissions.length) {
+        errorBox.textContent = 'Enter at least one completed unit.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      errorBox.style.display = 'none';
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Submitting…';
+      const notes = overlay.querySelector('#pwDoneUnitsNote').value.trim();
+      try {
+        for (const row of submissions) {
+          await api(`/api/work-orders/${row.workOrderId}/submit-units`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completedUnits: row.units, notes }),
+          });
+          // If a later work order fails, a retry must not resubmit rows that
+          // the server has already accepted.
+          row.input.value = '0';
+          row.input.dataset.max = String(Math.max(0, row.max - row.units));
+          row.input.max = row.input.dataset.max;
+        }
+        const total = submissions.reduce((sum, row) => sum + row.units, 0);
+        overlay.remove();
+        toast(`${total} done unit${total === 1 ? '' : 's'} submitted`);
+        await window.__loadProjectWork();
+      } catch (error) {
+        totalInput.value = String(Array.from(overlay.querySelectorAll('.pw-submit-units-input'))
+          .reduce((sum, input) => sum + Number(input.value || 0), 0));
+        errorBox.textContent = `${error.message || 'Unable to submit units.'} Accepted rows were cleared; review the remaining values and try again.`;
+        errorBox.style.display = 'block';
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-send-check"></i> Submit Done Units';
+      }
+    });
+  };
+
+  window.pwSubmitReadyWorkOrders = async (pid) => {
+    try {
+      const assignment = (await api(API)).assignments.find(x => String(x.project._id) === String(pid));
+      const ready = (assignment?.workOrderDetails || []).filter(wo => wo.status === 'awaiting_review');
+      if (!ready.length) return toast('No work order is ready for lead review', 'warning');
+      if (!confirm(`Review and submit ${ready.length} completed work order(s)?`)) return;
+      for (const wo of ready) {
+        await api(`/api/work-orders/${wo._id}/submit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Reviewed and submitted by project lead' }),
+        });
+      }
+      toast(`${ready.length} work order(s) submitted`);
+      window.__loadProjectWork();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -2177,7 +2630,110 @@
   function initials(name){ const p=(name||'').trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase() || '?'; }
   function phasePillClass(phase){ return { assessment:'assessment', quotation_review:'quotation_review', execution:'execution', ready:'assigned', en_route:'en_route', arrived:'arrived', in_progress:'in_progress', daily_acceptance:'daily_acceptance', completed:'completed' }[phase] || 'assigned'; }
 
+  // Planning-phase detail body styled like the standard booking tracker.
+  function trkRow(icon, label, value) {
+    return `<div class="trk-detail-row"><div class="trk-detail-icon"><i class="bi bi-${icon}"></i></div><div class="trk-detail-content"><div class="trk-detail-label">${esc(label)}</div><div class="trk-detail-value" style="word-break:break-word;">${value != null ? esc(value) : '—'}</div></div></div>`;
+  }
+
+  function projectPlanningHtml(a) {
+    const p = a.project || {};
+    const c = a.customer || {};
+    const serviceName = p?.service?.name || 'Commercial Project';
+    const typeText = (a.serviceType || 'Commercial').toUpperCase();
+    const fee = (p.payment && p.payment.totalAmount) ? money(p.payment.totalAmount) : (a.serviceName ? 'Quoted' : 'TBD');
+    const lead = (p.assignedTechnicians||[]).find(t => p.leadTechnicianId && t._id.toString() === p.leadTechnicianId.toString());
+    const crew = (p.assignedTechnicians||[]).length;
+    const start = p.plannedStartDate || p.preferredStartDate || a.projectSchedule?.plannedStartDate;
+    const end = p.plannedCompletionDate || p.preferredCompletionDeadline || a.projectSchedule?.plannedCompletionDate;
+    let windowText = 'Schedule to be confirmed';
+    if (start && end) {
+      const days = Math.ceil((new Date(end) - new Date(start)) / (1000*60*60*24));
+      windowText = `${days} day window · ${fmtFull(start)} – ${fmtFull(end)}`;
+    } else if (start) {
+      windowText = `Starts ${fmtFull(start)}`;
+    } else if (end) {
+      windowText = `Target completion ${fmtFull(end)}`;
+    }
+    const phase = PHASE_LABEL[a.phase] || a.phase || 'Ready';
+    const phaseIcon = { assessment:'clipboard-data', quotation_review:'file-check', execution:'play-circle', ready:'flag', en_route:'truck', arrived:'geo-alt', in_progress:'play-fill', completed:'check2-circle' }[a.phase] || 'flag';
+    const notes = p.notes || p.bookingNotes || p.serviceNotes || '';
+    const accepted = (a.teamBoard||[]).filter(t => t.acknowledge === 'acknowledged').length;
+    return `
+      <div class="ent-panel">
+        <div class="trk-card" style="margin-bottom:12px;">
+          <div class="trk-card-body">
+            <div class="trk-detail-hero" style="padding:4px 0 14px;margin-bottom:10px;border-bottom:1px solid rgba(226,232,240,0.6);">
+              <div class="trk-detail-hero-icon"><i class="bi bi-${phaseIcon}"></i></div>
+              <div>
+                <div class="trk-detail-hero-title">${esc(serviceName)}</div>
+                <div class="trk-detail-hero-sub">${esc(typeText)} · ${esc(phase)} · ${a.projectUnits?.total || p.totalUnits || 0} unit(s)</div>
+              </div>
+            </div>
+            ${trkRow('cash-coin', 'Quoted Fee', fee)}
+            ${p?.service?.description ? `<div class="trk-detail-subsection" style="margin-top:8px;"><div class="trk-detail-subhead"><i class="bi bi-info-circle"></i> Description</div><div class="trk-detail-subtext">${esc(p.service.description)}</div></div>` : ''}
+          </div>
+        </div>
+
+        <div class="trk-card" style="margin-bottom:12px;">
+          <div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-person-circle"></i> Customer</h6></div>
+          <div class="trk-card-body">
+            ${trkRow('person', 'Name', c.name)}
+            ${trkRow('telephone', 'Phone', c.phone)}
+            ${trkRow('envelope', 'Email', c.email)}
+            ${trkRow('geo-alt', 'Address', c.address || 'Location to be confirmed')}
+          </div>
+        </div>
+
+        <div class="trk-card" style="margin-bottom:12px;">
+          <div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-calendar3"></i> Schedule</h6></div>
+          <div class="trk-card-body">
+            ${trkRow('calendar-event', 'Window', windowText)}
+          </div>
+        </div>
+
+        <div class="trk-card" style="margin-bottom:12px;">
+          <div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-people"></i> Team</h6></div>
+          <div class="trk-card-body">
+            ${trkRow('person-badge', 'Lead Technician', lead?.name || '—')}
+            ${trkRow('people', 'Crew', crew + ' member(s)')}
+            ${trkRow('check-circle', 'Accepted', accepted + ' of ' + crew)}
+          </div>
+        </div>
+
+        ${notes ? `
+        <div class="trk-card" style="margin-bottom:12px;">
+          <div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-journal-text"></i> Notes</h6></div>
+          <div class="trk-card-body">
+            <div class="trk-detail-subtext">${esc(notes)}</div>
+          </div>
+        </div>` : ''}
+
+        <div style="padding:10px 0;text-align:center;font-size:0.72rem;color:#64748b;">
+          <i class="bi bi-info-circle me-1"></i> Work Orders will be available once operations confirms Step 6.
+        </div>
+      </div>`;
+  }
+
+  function unitTasksHtml(wo, executionOpen) {
+    const units = wo.units || [];
+    if (!units.length) return '';
+    return `<div style="font-size:.64rem;font-weight:750;color:var(--pw-ink);margin-top:.65rem;"><i class="bi bi-list-check me-1"></i>Today's Unit Checklist</div>
+    <div style="font-size:.59rem;color:var(--pw-muted);margin:.15rem 0 .4rem;">This is the tracked-unit audit list. Use <b>Submit Done Units</b> on the project card to record completed work.</div>
+    <div style="display:grid;gap:.35rem;">
+      ${units.map(unit => {
+        const done = unit.status === 'completed';
+        const active = unit.status === 'in_progress';
+        const key = encodeURIComponent(unit.unitKey || '');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.45rem .55rem;border:1px solid var(--pw-line-2);border-radius:7px;background:${done ? '#f0fdf4' : '#fff'};">
+          <div style="min-width:0;"><div style="font-size:.68rem;font-weight:750;color:var(--pw-ink);">${esc(unit.label || unit.unitKey)}</div><div style="font-size:.59rem;color:var(--pw-muted);">${esc([unit.brand, unit.model, unit.location].filter(Boolean).join(' · ') || 'Tracked project unit')} · ${esc((unit.status || 'pending').replace('_',' '))}</div></div>
+          ${executionOpen && !done ? `<div style="display:flex;gap:.3rem;flex-shrink:0;">${!active ? `<button class="pw-btn" style="padding:.3rem .5rem;font-size:.61rem;" onclick="pwUpdateUnit('${wo._id}','${key}','in_progress')">Start Unit</button>` : ''}<button class="pw-btn success" style="padding:.3rem .5rem;font-size:.61rem;" onclick="pwUpdateUnit('${wo._id}','${key}','completed')">Mark Complete</button></div>` : done ? '<i class="bi bi-check-circle-fill" style="color:var(--pw-ok);"></i>' : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   window.pwViewDetails = function (pid) {
+    window.__openProjectId = pid;
     const a = window.__pwData && window.__pwData.find(x => x.project._id.toString() === pid.toString());
     if (!a) { toast('Loading details…', 'error'); return; }
     const p = a.project;
@@ -2190,14 +2746,15 @@
     const declined = (a.teamBoard||[]).filter(t=>t.acknowledge==='declined').map(t=>esc(t.name));
 
     document.getElementById('pwDrawerTitle').textContent = name;
-    document.getElementById('pwDrawerSub').textContent = (p?.service?.name || 'Commercial Project');
-    document.getElementById('pwDrawerTag').innerHTML = '<i class="bi bi-kanban"></i> Large-Scale Project';
-    document.getElementById('pwDrawerPills').innerHTML = `
-      <span class="pw-d-pill ${phasePillClass(a.phase)}" style="text-transform:capitalize;">${(PHASE_LABEL[a.phase]||a.phase||'Ready').replace(' — ',' · ')}</span>
-      <span class="pw-d-pill fee"><i class="bi bi-cash-coin me-1"></i>${esc(fee)}</span>
-      <span class="pw-d-pill"><i class="bi bi-grid-3x3-gap me-1"></i>${pu.done}/${pu.total} units</span>`;
+    document.getElementById('pwDrawerRef').textContent = (p?.service?.name || 'Commercial Project');
+    document.getElementById('pwDrawerStatus').textContent = (PHASE_LABEL[a.phase] || a.phase || 'Ready');
+    document.getElementById('pwDrawerAvatar').textContent = initials(name);
+    document.getElementById('pwDrawerWfTitle').textContent = (p?.service?.name || 'Commercial Project');
+    document.getElementById('pwDrawerWfMeta').innerHTML = `<i class="bi bi-cash-coin me-1"></i>${esc(fee)} · <i class="bi bi-grid-3x3-gap me-1"></i>${pu.done}/${pu.total} units`;
+    document.getElementById('pwDrawerSteps').innerHTML = pwDrawerStepper(a.phase);
 
-    document.getElementById('pwDrawerBody').innerHTML = `
+    const isPlanningPhase = ['assessment','quotation_review'].includes(a.phase);
+    document.getElementById('pwDrawerBody').innerHTML = isPlanningPhase ? projectPlanningHtml(a) : `
       <div class="pw-d-section">
         <div class="pw-d-prog">
           <div class="pw-d-prog-top">
@@ -2296,8 +2853,8 @@
             <div style="font-size:1rem;font-weight:800;color:var(--pw-ok);">${(a.teamBoard||[]).filter(t=>t.acknowledge==='acknowledged').length}</div>
           </div>
           <div style="flex:1;min-width:100px;background:#f8fafc;border:1px solid var(--pw-line-2);border-radius:var(--pw-radius-xs);padding:.5rem .7rem;text-align:center;">
-            <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--pw-muted);">Today's Total</div>
-            <div style="font-size:1rem;font-weight:800;color:var(--pw-brand);">${(a.teamBoard||[]).reduce((s,t)=>s+(t.todayDone||0),0)}</div>
+            <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--pw-muted);">Today's Plan</div>
+            <div style="font-size:1rem;font-weight:800;color:var(--pw-brand);">${(a.teamBoard||[]).reduce((s,t)=>s+(t.todayTarget||0),0)} <span style="font-size:.62rem;color:var(--pw-muted);">units</span></div>
           </div>
         </div>` : ''}
         <div class="pw-d-team">${teamMembersHtml(a)}</div>
@@ -2312,7 +2869,7 @@
           ${(a.workOrderDetails||[]).map(wo => {
             const woPct = wo.completionPct || 0;
             const isFull = woPct >= 100;
-            const woDateClass = isToday(wo.scheduledDate) ? 'today' : (isPast(wo.scheduledDate) && wo.status !== 'completed' ? 'past' : '');
+            const woDateClass = wo.isScheduledToday ? 'today' : (isPast(wo.scheduledDate) && wo.status !== 'completed' ? 'past' : '');
             return `
             <div class="pw-wo-card wo-${wo.status}">
               <div class="pw-wo-head">
@@ -2329,14 +2886,15 @@
               ${wo.scheduledDate ? `
               <div class="pw-wo-date ${woDateClass}">
                 <i class="bi bi-calendar3"></i>
-                ${fmtFull(wo.scheduledDate)}${wo.startTime ? ` · ${wo.startTime}${wo.endTime ? ' – ' + wo.endTime : ''}` : ''}
-                ${isToday(wo.scheduledDate) ? ' <b style="margin-left:3px;">TODAY</b>' : ''}
+                ${fmtFull(wo.scheduledDate)}${wo.startTime ? ` · ${wo.startTime}` : ''}${wo.scheduledEndDate ? ` → ${fmtFull(wo.scheduledEndDate)}${wo.endTime ? ` · ${wo.endTime}` : ''}` : (wo.endTime ? ` – ${wo.endTime}` : '')}
+                ${wo.isScheduledToday ? ' <b style="margin-left:3px;">TODAY</b>' : ''}
               </div>` : ''}
+              ${(wo.dailySchedule||[]).length ? `<div style="margin:.45rem 0;display:grid;gap:.3rem;">${wo.dailySchedule.map(day=>{const target=Number(day.targetUnits||0),completed=Number(day.completedUnits||0),ahead=Math.max(0,completed-target);return `<div style="display:flex;justify-content:space-between;gap:.6rem;padding:.35rem .5rem;border:1px solid var(--pw-line-2);border-radius:6px;background:#f8fafc;font-size:.63rem;"><span><b>${fmtShort(day.date)}</b> · ${esc(day.startTime||'')}–${esc(day.endTime||'')}</span><span>Target <b>${target}</b> · Completed <b>${completed}</b>${ahead ? ` · <b style="color:var(--pw-ok);">+${ahead} ahead</b>` : ''}</span></div>`;}).join('')}</div>` : ''}
               <div class="pw-wo-stats">
                 <div class="pw-wo-stat"><span class="k">Total</span><span class="v">${wo.unitCount}</span></div>
                 <div class="pw-wo-stat"><span class="k">Done</span><span class="v ok">${wo.completedUnitCount}</span></div>
                 <div class="pw-wo-stat"><span class="k">Left</span><span class="v">${wo.remaining}</span></div>
-                <div class="pw-wo-stat"><span class="k">Today</span><span class="v brand">${wo.todayTarget}</span></div>
+                <div class="pw-wo-stat"><span class="k">Today's Target</span><span class="v brand">${wo.todayTarget}</span></div>
               </div>
               <div class="pw-wo-progress">
                 <div class="pw-wo-progress-bar"><div class="${isFull?'full':''}" style="width:${woPct}%;"></div></div>
@@ -2345,6 +2903,7 @@
                   <span style="font-weight:700;color:${isFull?'var(--pw-ok)':'var(--pw-brand)'};">${woPct}%</span>
                 </div>
               </div>
+              ${wo.isScheduledToday ? unitTasksHtml(wo, false) : ''}
               ${(wo.assignedTechnicians||[]).length ? `
               <div class="pw-wo-team">
                 ${wo.assignedTechnicians.map(at => `<span class="pw-wo-team-chip"><i class="bi bi-person"></i>${esc(at.name)}</span>`).join('')}
@@ -2357,13 +2916,22 @@
       ${a.isLead ? leadBoardHtml(a) : memberBoardHtml(a)}
     `;
 
+    const readyForLeadReview = (a.workOrderDetails || []).filter(wo => wo.status === 'awaiting_review').length;
     document.getElementById('pwDrawerActions').innerHTML = a.isLead
       ? `<button class="pw-btn" onclick="pwLeadReportDelay('${p._id}')"><i class="bi bi-exclamation-triangle"></i> Report Delay</button>
          <button class="pw-btn" onclick="pwRequestMaterial('${p._id}','')"><i class="bi bi-box-seam"></i> Request Material</button>
+         ${readyForLeadReview ? `<button class="pw-btn success" onclick="pwSubmitReadyWorkOrders('${p._id}')"><i class="bi bi-send-check"></i> Submit ${readyForLeadReview} Reviewed Work Order${readyForLeadReview > 1 ? 's' : ''}</button>` : ''}
          <button class="pw-btn primary" onclick="pwCloseDrawer()"><i class="bi bi-check2-all"></i> Done</button>`
       : `<button class="pw-btn" onclick="pwRequestMaterial('${p._id}','')"><i class="bi bi-box-seam"></i> Request Material</button>
          <button class="pw-btn primary" onclick="pwCloseDrawer()"><i class="bi bi-check2-all"></i> Done</button>`;
 
+    const overlay = document.getElementById('pwDrawerOverlay');
+    const drawer = document.getElementById('pwDrawer');
+    if (overlay && overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    if (drawer && drawer.parentElement !== document.body) document.body.appendChild(drawer);
+
+    document.getElementById('pwDrawerOverlay').classList.add('page');
+    document.getElementById('pwDrawer').classList.add('page');
     document.getElementById('pwDrawerOverlay').classList.add('show');
     document.getElementById('pwDrawer').classList.add('open');
     document.getElementById('pwDrawer').setAttribute('aria-hidden','false');
@@ -2375,34 +2943,28 @@
       const tb = (a.teamBoard||[]).find(x => x._id && x._id.toString() === t._id.toString());
       let st = 'Awaiting', cls = '';
       if (tb) { if (tb.acknowledge === 'declined') { st = 'Declined'; cls = 'no'; } else if (tb.acknowledge === 'acknowledged') { st = STATUS_LABEL[tb.status] || 'Accepted'; cls = 'ok'; } }
-      const todayDone = tb?.todayDone || 0;
-      const todayTarget = tb?.todayTarget || 0;
-      const memberDone = tb?.memberDoneUnits || 0;
-      const memberTotal = tb?.memberTotalUnits || 0;
-      const memberPct = memberTotal > 0 ? Math.round((memberDone / memberTotal) * 100) : 0;
       return `<div class="pw-d-member" style="flex:1 1 220px;max-width:100%;">
         <div class="pw-d-av ${isLeadT ? 'lead' : ''}">${esc(initials(t.name))}</div>
         <div style="min-width:0;flex:1;">
           <div class="nm">${esc(t.name||'Technician')}${isLeadT?' <span style="color:#818cf8;font-size:.6rem;font-weight:700;background:rgba(99,102,241,.1);padding:1px 5px;border-radius:4px;margin-left:3px;">LEAD</span>':''}</div>
           <div class="st ${cls}">${esc(st)}</div>
-          <div style="margin-top:.35rem;">
-            <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--pw-muted);margin-bottom:2px;">
-              <span>Today: <b style="color:var(--pw-ink);">${todayDone}</b>${todayTarget ? ` / ${todayTarget}` : ''} units</span>
-              <span style="font-weight:700;color:${memberPct >= 100 ? 'var(--pw-ok)' : 'var(--pw-brand)'};">${memberPct}%</span>
-            </div>
-            <div style="height:4px;background:#e9eef5;border-radius:999px;overflow:hidden;">
-              <div style="height:100%;width:${memberPct}%;background:linear-gradient(90deg,#4f46e5,#818cf8);border-radius:999px;transition:width .4s;"></div>
-            </div>
-            <div style="font-size:.58rem;color:var(--pw-muted);margin-top:2px;">${memberDone} / ${memberTotal} total units</div>
-          </div>
+          <div style="font-size:.6rem;color:var(--pw-muted);margin-top:.25rem;">Works from the shared unit queue</div>
         </div>
       </div>`;
     }).join('');
   }
 
   window.pwCloseDrawer = function () {
+    window.__openProjectId = null;
+    const params = new URLSearchParams(window.location.search);
+    if (window.opener && params.get('projectId')) {
+      window.close();
+      return;
+    }
     document.getElementById('pwDrawerOverlay').classList.remove('show');
     document.getElementById('pwDrawer').classList.remove('open');
+    document.getElementById('pwDrawerOverlay').classList.remove('page');
+    document.getElementById('pwDrawer').classList.remove('page');
     document.getElementById('pwDrawer').setAttribute('aria-hidden','true');
   };
 
@@ -2423,7 +2985,9 @@
       </div>`;
   }
   function memberBoardHtml(a) {
-    const myWos = a.myWorkOrders || [];
+    // The shared Work Orders section above is the single team queue. Do not
+    // repeat a misleading technician-owned subset below it.
+    const myWos = [];
     return `
       <div class="pw-d-section">
         <h6><i class="bi bi-info-circle"></i> Your Role</h6>
@@ -2484,68 +3048,73 @@
     try { s = await api(`/api/projects/${pid}/payment-summary`); } catch (e) { toast(e.message,'error'); return; }
     const overlay = document.createElement('div'); overlay.className = 'pw-modal-overlay';
     overlay.innerHTML = `
-      <div class="pw-modal">
-        <h5><i class="bi bi-cash-coin me-2" style="color:var(--pw-ok);"></i>Project Completion — Collect Payment</h5>
-        <p style="font-size:.78rem;color:var(--pw-muted);margin-bottom:0.5rem;">${esc(s.customerName)} · ${s.completedUnits}/${s.totalUnits} units done · crew of ${s.crewSize} · ${s.daysWorked} working day(s) · ${s.serviceType === 'repair' ? 'Repair (' + (s.laborCategory || 'standard') + ')' : 'Core Service'}. The system prefilled the rates from the project — review and adjust before collecting.</p>
-        <div class="pw-pay-row"><span>Working days</span><input id="ppDays" type="number" class="form-control form-control-sm" style="width:90px;display:inline;" min="1" value="${s.daysWorked}"></div>
-        <div class="pw-pay-row"><span>Crew size</span><input id="ppCrew" type="number" class="form-control form-control-sm" style="width:90px;display:inline;" min="1" value="${s.crewSize}"></div>
-        <div class="pw-pay-row"><span>${s.laborType === 'repair' ? 'Labor / day (' + (s.laborCategory || 'standard') + ')' : 'Labor / tech / day'}</span><input id="ppLabor" type="number" class="form-control form-control-sm" style="width:120px;display:inline;" min="0" value="${s.laborRatePerDay}"></div>
-        <div class="pw-pay-row"><span>Travel fare (from booking)</span><span style="font-weight:600;">₱${(s.travelFare||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-        <div class="pw-pay-row"><span>Service fee</span><input id="ppService" type="number" class="form-control form-control-sm" style="width:120px;display:inline;" min="0" value="${s.serviceFee}"></div>
-        <div class="pw-pay-row"><span>Additional charges</span><input id="ppExtra" type="number" class="form-control form-control-sm" style="width:120px;display:inline;" min="0" value="0"></div>
-        ${s.serviceType === 'repair' ? `<div class="pw-pay-row"><span>Parts cost</span><input id="ppParts" type="number" class="form-control form-control-sm" style="width:120px;display:inline;" min="0" value="${s.partsCost||0}"></div>` : ''}
-        <div class="pw-pay-row" style="border:none;"><span class="pw-pay-total">Total</span><span class="pw-pay-total" id="ppTotal">${money(s.total)}</span></div>
-        <div class="pw-pay-row" style="border:none;color:var(--pw-muted);"><span>Already collected</span><span>${money(s.alreadyPaid)}</span></div>
-        <div class="pw-pay-row" style="border:none;font-weight:800;"><span>Balance due</span><span id="ppBalance">${money(s.balance)}</span></div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.5rem;">Amount collected now</label>
-        <input id="ppAmount" type="number" class="form-control form-control-sm mt-1" min="0" value="${s.balance}">
-        <div class="pw-meta-row" style="margin-top:0.6rem;">
-          <div><b>Method</b><select id="ppMethod" class="form-control form-control-sm" style="width:130px;display:inline;"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank</option><option value="card">Card</option></select></div>
+      <div class="pw-modal pw-pay-modal">
+        <div class="pw-pay-header">
+          <h5><i class="bi bi-cash-coin me-2" style="color:var(--pw-ok);"></i>Project Completion — Collect Payment</h5>
+          <p>${esc(s.customerName)} · ${s.completedUnits}/${s.totalUnits} units completed. Review the locked customer balance, then record only the amount actually received.</p>
         </div>
-        <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.4rem;">Remarks / signature note</label>
-        <textarea id="ppRemarks" class="form-control form-control-sm mt-1" rows="2" placeholder="Customer signature, handover notes"></textarea>
-        <div class="d-flex gap-2 justify-content-end mt-3">
+        <div class="pw-pay-body">
+          <div style="padding:.65rem .75rem;margin-bottom:.65rem;border-radius:8px;background:${s.pricingReady ? '#f0fdf4' : '#fff7ed'};color:${s.pricingReady ? '#166534' : '#9a3412'};font-size:.7rem;">
+            <i class="bi ${s.pricingReady ? 'bi-lock-fill' : 'bi-exclamation-triangle-fill'} me-1"></i>${esc(s.pricingMessage)}
+          </div>
+          <div class="pw-pay-row"><span>Pricing source</span><strong>${esc(s.pricingSource || 'Not configured')}</strong></div>
+          <div class="pw-pay-row"><span>Approved service/project charge</span><strong>${money(s.serviceCharge || 0)}</strong></div>
+          <div class="pw-pay-row"><span>Travel (${money(s.travelFarePerDay || 0)} × ${s.daysWorked} productive day${s.daysWorked === 1 ? '' : 's'})</span><strong>${money(s.travelFare || 0)}</strong></div>
+          <div class="pw-pay-row" style="border:none;"><span class="pw-pay-total">Approved total</span><span class="pw-pay-total" id="ppTotal">${money(s.total)}</span></div>
+          <div style="font-size:.64rem;color:var(--pw-muted);margin:-.25rem 0 .55rem;">Operational record: ${s.daysWorked} working day(s) · ${s.crewSize} crew member(s). This does not change the customer price.</div>
+          <div class="pw-pay-row" style="border:none;color:var(--pw-muted);"><span>Already collected</span><span>${money(s.alreadyPaid)}</span></div>
+          <div class="pw-pay-row" style="border:none;font-weight:800;"><span>Balance due</span><span id="ppBalance">${money(s.balance)}</span></div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.5rem;">Amount collected now</label>
+          <input id="ppAmount" type="number" class="form-control form-control-sm mt-1" min="0" max="${s.balance}" data-max="${s.balance}" value="${s.pricingReady ? s.balance : 0}" ${s.pricingReady && s.balance > 0 ? '' : 'disabled'}>
+          <div class="pw-meta-row" style="margin-top:0.6rem;">
+            <div><b>Method</b><select id="ppMethod" class="form-control form-control-sm" style="width:150px;display:inline;"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select></div>
+          </div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.4rem;">Reference Number (GCash / Bank)</label><input id="ppReference" class="form-control form-control-sm mt-1">
+          <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.4rem;">Receipt Screenshot (GCash / Bank)</label><input id="ppProof" type="file" accept="image/*" class="form-control form-control-sm mt-1">
+          <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.4rem;">Customer Signature *</label><input id="ppSignature" class="form-control form-control-sm mt-1" placeholder="Customer full name">
+          <label style="font-size:.75rem;font-weight:600;color:var(--pw-muted);margin-top:0.4rem;">Remarks</label><textarea id="ppRemarks" class="form-control form-control-sm mt-1" rows="2"></textarea>
+        </div>
+        <div class="pw-pay-footer">
           <button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Cancel</button>
-          <button class="pw-btn success" id="ppSave"><i class="bi bi-check-lg"></i> Record Payment</button>
+          <button class="pw-btn success" id="ppSave" ${s.pricingReady && s.balance > 0 ? '' : 'disabled'}><i class="bi bi-check-lg"></i> Record Payment</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    const recalc = () => {
-      const days = Math.max(1, +document.getElementById('ppDays').value || s.daysWorked);
-      const crew = Math.max(1, +document.getElementById('ppCrew').value || s.crewSize);
-      const labor = +document.getElementById('ppLabor').value || 0;
-      const serv = +document.getElementById('ppService').value || 0;
-      const extra = +document.getElementById('ppExtra').value || 0;
-      const partsEl = document.getElementById('ppParts');
-      const parts = partsEl ? (+partsEl.value || 0) : 0;
-      const laborTotal = s.laborType === 'repair' ? labor * days : labor * crew * days;
-      const total = laborTotal + (s.travelFare||0) + serv + extra + parts;
-      const bal = Math.max(0, total - s.alreadyPaid);
-      document.getElementById('ppTotal').textContent = money(total);
-      document.getElementById('ppBalance').textContent = money(bal);
-      const amt = document.getElementById('ppAmount');
-      if (!amt.dataset.touched) amt.value = bal;
-    };
-    ['ppDays','ppCrew','ppLabor','ppService','ppExtra','ppParts'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', recalc); });
-    document.getElementById('ppAmount').addEventListener('input', e => e.target.dataset.touched = '1');
-    overlay.querySelector('#ppSave').addEventListener('click', async () => {
+    document.getElementById('ppAmount').addEventListener('input', e => {
+      e.target.dataset.touched = '1';
+      const max = Number(e.target.dataset.max || e.target.max || 0);
+      const v = Number(e.target.value);
+      if (Number.isNaN(v) || v < 0) e.target.value = '0';
+      else if (v > max) e.target.value = String(max);
+    });
+    document.getElementById('ppAmount').addEventListener('blur', e => {
+      const max = Number(e.target.dataset.max || e.target.max || 0);
+      const v = Number(e.target.value);
+      if (Number.isNaN(v) || v < 0) e.target.value = '0';
+      else if (v > max) e.target.value = String(max);
+    });
+    overlay.querySelector('#ppSave').addEventListener('click', async event => {
+      const saveButton = event.currentTarget;
+      const method = document.getElementById('ppMethod').value, reference = document.getElementById('ppReference').value.trim(), customerSignature = document.getElementById('ppSignature').value.trim(), proofFile = document.getElementById('ppProof').files[0];
+      if (!customerSignature || ((method === 'gcash' || method === 'bank') && (!reference || !proofFile))) { toast('Signature and required transfer evidence are missing.','error'); return; }
+      saveButton.disabled = true;
+      saveButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Recording…';
+      const proofUrl = proofFile ? await new Promise((ok,bad)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=bad;f.readAsDataURL(proofFile);}) : null;
       const payload = {
-        daysWorked: +document.getElementById('ppDays').value,
-        crewSize: +document.getElementById('ppCrew').value,
-        laborRatePerDay: +document.getElementById('ppLabor').value,
-        laborType: s.laborType,
-        serviceFee: +document.getElementById('ppService').value,
-        additionalCharges: +document.getElementById('ppExtra').value,
         amount: +document.getElementById('ppAmount').value,
-        paymentMethod: document.getElementById('ppMethod').value,
+        paymentMethod: method, reference, proofUrl, customerSignature,
         remarks: document.getElementById('ppRemarks').value,
       };
       try {
         await api(`/api/projects/${pid}/collect-payment`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         overlay.remove();
         pwOpenCompletionProof(pid);
-      } catch (e) { toast(e.message, 'error'); }
+      } catch (e) {
+        toast(e.message, 'error');
+        saveButton.disabled = false;
+        saveButton.innerHTML = '<i class="bi bi-check-lg"></i> Record Payment';
+      }
     });
   };
 
@@ -2633,23 +3202,31 @@
   function pwOpenCompletionProof(pid) {
     const overlay = document.createElement('div'); overlay.className = 'pw-modal-overlay';
     overlay.innerHTML = `
-      <div class="pw-modal">
-        <h5><i class="bi bi-camera me-2" style="color:var(--pw-primary);"></i>Proof of Completion</h5>
-        <p style="font-size:.78rem;color:var(--pw-muted);margin-bottom:0.75rem;">Upload a photo of the completed work as proof for the customer and admin records.</p>
-        <div id="cpPreviewWrap" style="display:none;text-align:center;margin-bottom:1rem;">
-          <img id="cpPreview" src="" alt="Preview" style="max-width:100%;max-height:220px;border-radius:var(--pw-radius-sm);border:2px solid var(--pw-border);" />
+      <div class="pw-modal pw-proof-modal">
+        <div style="text-align:center;margin-bottom:.75rem;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#eff6ff;color:var(--pw-primary, #2563eb);display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:.4rem;"><i class="bi bi-camera-fill"></i></div>
+          <h5 style="margin:0 0 .3rem;font-weight:800;">Proof of Completion</h5>
+          <p style="font-size:.78rem;color:var(--pw-muted);margin:0;">Upload a clear photo of the completed project. The customer and admin will see this proof.</p>
         </div>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-          <label class="pw-btn primary" style="cursor:pointer;">
-            <i class="bi bi-camera-fill"></i> Take Photo
-            <input id="cpFileInput" type="file" accept="image/*" capture="environment" style="display:none;" />
-          </label>
-          <label class="pw-btn" style="cursor:pointer;">
-            <i class="bi bi-image"></i> Choose File
-            <input id="cpFileBrowse" type="file" accept="image/*" style="display:none;" />
-          </label>
+        <div id="cpPreviewWrap" style="display:none;margin-bottom:1rem;">
+          <img id="cpPreview" src="" alt="Completion preview" style="width:100%;max-height:260px;object-fit:contain;border-radius:var(--pw-radius-sm);border:2px solid var(--pw-border);background:#f8fafc;" />
         </div>
-        <div id="cpFileName" style="font-size:.72rem;color:var(--pw-muted);margin-top:.5rem;min-height:1rem;"></div>
+        <div id="cpUploadZone" style="display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1.25rem;border:2px dashed var(--pw-border);border-radius:var(--pw-radius-sm);background:#f8fafc;text-align:center;margin-bottom:.5rem;transition:all .2s ease;">
+          <i class="bi bi-cloud-upload" style="font-size:1.6rem;color:var(--pw-primary, #2563eb);"></i>
+          <div style="font-weight:700;font-size:.85rem;color:#0f172a;">Select a completion photo</div>
+          <div style="font-size:.72rem;color:var(--pw-muted);">Take a new photo or choose from gallery</div>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:.25rem;">
+            <label class="pw-btn primary" style="cursor:pointer;margin:0;">
+              <i class="bi bi-camera-fill"></i> Take Photo
+              <input id="cpFileInput" type="file" accept="image/*" capture="environment" style="display:none;" />
+            </label>
+            <label class="pw-btn" style="cursor:pointer;margin:0;">
+              <i class="bi bi-image"></i> Choose File
+              <input id="cpFileBrowse" type="file" accept="image/*" style="display:none;" />
+            </label>
+          </div>
+        </div>
+        <div id="cpFileName" style="font-size:.72rem;color:var(--pw-muted);text-align:center;min-height:1.25rem;"></div>
         <div class="d-flex gap-2 justify-content-end mt-3">
           <button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove();window.__loadProjectWork();">Skip</button>
           <button class="pw-btn success" id="cpUploadBtn" disabled><i class="bi bi-upload"></i> Upload &amp; Finish</button>
@@ -2665,13 +3242,18 @@
     const uploadBtn = document.getElementById('cpUploadBtn');
     const fileInput = document.getElementById('cpFileInput');
     const fileBrowse = document.getElementById('cpFileBrowse');
+    const uploadZone = document.getElementById('cpUploadZone');
 
     function handleFile(file) {
       if (!file || !file.type.startsWith('image/')) return;
       selectedFile = file;
       fileNameEl.textContent = file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
       const reader = new FileReader();
-      reader.onload = e => { previewImg.src = e.target.result; previewWrap.style.display = 'block'; };
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        previewWrap.style.display = 'block';
+        if (uploadZone) uploadZone.style.display = 'none';
+      };
       reader.readAsDataURL(file);
       uploadBtn.disabled = false;
     }
@@ -3209,4 +3791,61 @@
     background: #ffffff;
     border-top: 1px solid #e2e8f0;
   }
+</style>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     Submit Done Units Modal — Technician Large-Scale
+     ════════════════════════════════════════════════════════════════════ */
+
+  .pw-submit-modal { display: flex; flex-direction: column; max-width: 560px !important; max-height: 90vh !important; border-radius: 22px !important; overflow: hidden; padding: 0 !important; background: #ffffff; }
+  .pw-submit-modal > * { border-radius: 0 !important; }
+
+  .pw-submit-header { flex-shrink: 0;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .pw-submit-header h5 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: .5rem; }
+  .pw-submit-header p { margin: .3rem 0 0; font-size: .72rem; color: #64748b; line-height: 1.45; }
+
+  .pw-submit-summary { padding: 1.1rem 1.5rem; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+  .pw-submit-summary .job { font-size: .92rem; font-weight: 800; color: #0f172a; }
+  .pw-submit-summary .site { font-size: .7rem; color: #64748b; display: flex; align-items: flex-start; gap: .4rem; margin-top: .35rem; }
+  .pw-submit-summary .overall { display: flex; align-items: center; justify-content: space-between; margin-top: .7rem; }
+  .pw-submit-summary .overall-label { font-size: .66rem; color: #64748b; }
+  .pw-submit-summary .overall-value { font-size: .72rem; font-weight: 800; color: #0f172a; }
+  .pw-submit-progress { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-top: .35rem; }
+  .pw-submit-progress .bar { height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 999px; transition: width .3s ease; }
+
+  .pw-submit-body { padding: 1.1rem 1.5rem; flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+  .pw-submit-wo { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1rem; margin-bottom: .75rem; box-shadow: 0 2px 8px rgba(15,23,42,0.04); }
+  .pw-submit-wo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .7rem; }
+  .pw-submit-wo-title { font-size: .82rem; font-weight: 800; color: #0f172a; }
+  .pw-submit-wo-sub { font-size: .62rem; color: #64748b; margin-top: 2px; }
+  .pw-submit-wo-remaining { white-space: nowrap; background: #f1f5f9; color: #475569; padding: .25rem .55rem; border-radius: 999px; font-size: .62rem; font-weight: 800; }
+  .pw-submit-wo-stats { display: flex; gap: 1rem; margin: .65rem 0; font-size: .65rem; color: #64748b; }
+  .pw-submit-wo-stats b { color: #0f172a; font-weight: 800; }
+  .pw-submit-wo-progress { height: 5px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+  .pw-submit-wo-progress .bar { height: 100%; background: #22c55e; border-radius: 999px; }
+
+  .pw-submit-input-wrap { display: flex; align-items: center; gap: .7rem; margin-top: .85rem; }
+  .pw-submit-label { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+  .pw-submit-stepper { display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; }
+  .pw-submit-stepper button { width: 42px; height: 42px; border: none; background: #f8fafc; font-size: 1.2rem; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+  .pw-submit-stepper button:hover { background: #e2e8f0; }
+  .pw-submit-stepper button:active { background: #cbd5e1; }
+  .pw-submit-stepper input { width: 70px; height: 42px; border: none; text-align: center; font-size: 1.2rem; font-weight: 800; color: #0f172a; background: transparent; -moz-appearance: textfield; -webkit-appearance: textfield; appearance: textfield; outline: none; }
+  .pw-submit-stepper input::-webkit-outer-spin-button,
+  .pw-submit-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .pw-submit-max { font-size: .62rem; color: #94a3b8; }
+
+  .pw-submit-note { padding: 1.1rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; flex-shrink: 0; }
+  .pw-submit-note label { font-size: .68rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: .35rem; }
+  .pw-submit-note textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; padding: .75rem; font-size: .75rem; margin-top: .4rem; resize: vertical; min-height: 80px; outline: none; }
+  .pw-submit-note textarea:focus { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.12); }
+
+  .pw-submit-footer { padding: 1.1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: .75rem; background: #ffffff; border-top: 1px solid #e2e8f0; flex-shrink: 0; }
+  .pw-submit-footer .pw-btn { padding: .75rem 1.1rem; font-size: .78rem; border-radius: 12px; }
+  .pw-submit-footer .pw-btn.success { flex: 1; justify-content: center; font-weight: 800; }
 </style>

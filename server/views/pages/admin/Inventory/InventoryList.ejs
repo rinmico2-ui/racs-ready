@@ -4,26 +4,46 @@
     /* ── Enterprise KPI Card Styles (matching Appointments page) ── */
     .inventory-premium .dash-card {
       background: #fff;
-      border-radius: 12px;
-      padding: 1.25rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
     }
     .inventory-premium .dash-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
     }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
     .inventory-premium .kpi-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
       flex-shrink: 0;
     }
-    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-currency { font-size: 0.9rem; font-weight: 700; color: #64748b; align-self: flex-start; margin-top: 2px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    /* Toolbar matching Repair Parts */
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
     .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
     .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
     .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
@@ -31,6 +51,43 @@
     .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
     .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
     .inventory-premium .fs-7 { font-size: 0.75rem; }
+
+    /* Product save toast (POS-style) */
+    .inv-toast-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999999; justify-content: center; align-items: center; }
+    .inv-toast-overlay.show { display: flex; }
+    .inv-toast-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: inv-toast-in 0.2s ease; }
+    @keyframes inv-toast-in { from { opacity: 0; transform: translateY(-20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .inv-toast-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .inv-toast-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .inv-toast-close:hover { background: rgba(255,255,255,0.15); }
+    .inv-toast-body { padding: 24px; text-align: center; }
+    .inv-toast-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .inv-toast-icon.success { background: #dcfce7; color: #16a34a; }
+    .inv-toast-message { font-size: 0.95rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .inv-toast-ok { padding: 10px 36px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .inv-toast-ok:hover { background: #cbd5e1; }
+
+    /* Variant confirm modal (POS-style header) */
+    .inv-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999999; justify-content: center; align-items: center; }
+    .inv-confirm-overlay.show { display: flex; }
+    .inv-confirm-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: inv-toast-in 0.2s ease; }
+    .inv-confirm-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .inv-confirm-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .inv-confirm-close:hover { background: rgba(255,255,255,0.15); }
+    .inv-confirm-body { padding: 24px; text-align: center; }
+    .inv-confirm-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .inv-confirm-icon.warning { background: #fef3c7; color: #f59e0b; }
+    .inv-confirm-icon.success { background: #dcfce7; color: #16a34a; }
+    .inv-confirm-icon.error { background: #fee2e2; color: #ef4444; }
+    .inv-confirm-icon.info { background: #dbeafe; color: #3b82f6; }
+    .inv-confirm-message { font-size: 1rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .inv-confirm-message strong { color: #0f172a; display: block; margin-bottom: 6px; }
+    .inv-confirm-message small { color: #64748b; }
+    .inv-confirm-actions { display: flex; justify-content: center; gap: 10px; }
+    .inv-confirm-cancel { padding: 10px 24px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .inv-confirm-cancel:hover { background: #cbd5e1; }
+    .inv-confirm-delete { padding: 10px 24px; border-radius: 10px; border: none; background: #dc2626; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .inv-confirm-delete:hover { background: #b91c1c; }
   </style>
   
   <!-- Standard Hero Header (match stock history) -->
@@ -52,68 +109,79 @@
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Items</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiTotalItems">0</span>
+            <div class="kpi-title">Total Items</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiTotalItems">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7">All</div>
-            <small class="text-muted">SKUs in catalog</small>
+            <span class="inv-kpi-sub">SKUs in catalog</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-box-seam-fill text-white"></i>
+            <i class="bi bi-box-seam-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiTotalSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Low Stock Items</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiLowStock">0</span>
+            <div class="kpi-title">Low Stock Items</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiLowStock">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Alert</span>
             </div>
-            <div class="badge bg-danger-subtle text-danger fs-7">Alert</div>
-            <small class="text-muted">Below threshold</small>
+            <span class="inv-kpi-sub">Below threshold</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-            <i class="bi bi-exclamation-triangle-fill text-white"></i>
+            <i class="bi bi-exclamation-triangle-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiLowStockSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Value</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiTotalValue">₱0</span>
+            <div class="kpi-title">Total Value</div>
+            <div class="d-flex align-items-start gap-1">
+              <span class="inv-kpi-currency">₱</span>
+              <span class="inv-kpi-value mb-0" id="kpiTotalValue">0.00</span>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7">Value</div>
-            <small class="text-muted">Inventory worth</small>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Value</span>
+            </div>
+            <span class="inv-kpi-sub">Inventory worth</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
-            <i class="bi bi-currency-dollar text-white"></i>
+            <i class="bi bi-currency-dollar"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiTotalValueSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Assigned to Techs</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiAssigned">0</span>
+            <div class="kpi-title">Assigned to Techs</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiAssigned">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Assigned</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Assigned</div>
-            <small class="text-muted">Units dispatched</small>
+            <span class="inv-kpi-sub">Units dispatched</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-people-fill text-white"></i>
+            <i class="bi bi-people-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiAssignedSpark"></canvas></div>
       </div>
     </div>
   </div>
@@ -127,41 +195,34 @@
     <div class="tab-pane fade show active" id="pane-aircon" role="tabpanel">
 
   <!-- Premium Filters -->
-  <div class="inv-filter-card mb-4">
-    <div class="inv-filter-body">
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="inv-filter-label"><i class="bi bi-search"></i> Search Aircon</label>
-          <div class="inv-input-wrapper">
-            <i class="bi bi-search inv-input-icon"></i>
-            <input
-              type="text"
-              class="inv-input"
-              id="airconSearchInput"
-              placeholder="Model, SKU, or Brand..."
-            />
-          </div>
-        </div>
-        <div class="col-md-3">
-          <label class="inv-filter-label"><i class="bi bi-circle-half"></i> Stock Status</label>
-          <div class="inv-select-wrapper">
-            <i class="bi bi-circle-half inv-select-icon-left"></i>
-            <select class="inv-select" id="airconStatusFilter">
-              <option value="all">Any Status</option>
-              <option value="in_stock">In Stock</option>
-              <option value="low_stock">Low Stock</option>
-              <option value="out_of_stock">Out of Stock</option>
-            </select>
-            <i class="bi bi-chevron-down inv-select-icon-right"></i>
-          </div>
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <button class="inv-btn-filter w-100" id="airconFilterBtn">
-            <i class="bi bi-funnel"></i> Filter
-          </button>
-        </div>
+  <div class="rp-toolbar">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="airconSearchInput"><i class="bi bi-search me-1"></i>Search Aircon</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="airconSearchInput" placeholder="Model, SKU, or Brand..." />
       </div>
     </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="airconStatusFilter"><i class="bi bi-funnel me-1"></i>Status</label>
+      <select class="form-select rp-filter-input" id="airconStatusFilter" style="height:42px;">
+        <option value="all">All Status</option>
+        <option value="in_stock">In Stock</option>
+        <option value="low_stock">Low Stock</option>
+        <option value="out_of_stock">Out of Stock</option>
+      </select>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="airconSort"><i class="bi bi-arrow-down-up me-1"></i>Sort By</label>
+      <select class="form-select rp-filter-input" id="airconSort" style="height:42px;">
+        <option value="modelLine">Name A-Z</option>
+        <option value="-modelLine">Name Z-A</option>
+        <option value="totalQuantity">Stock Low-High</option>
+        <option value="-totalQuantity">Stock High-Low</option>
+        <option value="-createdAt">Newest</option>
+      </select>
+    </div>
+    <button class="btn btn-primary rp-filter-btn" type="button" id="airconFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
   </div>
 
   <!-- Aircon Table -->
@@ -177,13 +238,13 @@
       <table class="table inv-table">
         <thead>
           <tr>
-            <th class="ps-4" style="min-width: 280px;"><i class="bi bi-box-seam me-2"></i> Product Details</th>
-            <th style="min-width: 120px;"><i class="bi bi-info-circle me-2"></i> Specifications</th>
-            <th style="min-width: 150px;"><i class="bi bi-cpu me-2"></i> HP Variants</th>
-            <th style="min-width: 140px;"><i class="bi bi-currency-dollar me-2"></i> Price Range</th>
-            <th style="min-width: 120px;"><i class="bi bi-graph-up me-2"></i> Stock Level</th>
-            <th style="min-width: 100px;"><i class="bi bi-activity me-2"></i> Availability</th>
-            <th class="text-end pe-4" style="min-width: 200px;"><i class="bi bi-gear-wide-connected me-2"></i> Actions</th>
+            <th class="ps-4" style="min-width: 220px;"><i class="bi bi-box-seam me-2"></i> Product Details</th>
+            <th style="min-width: 100px;"><i class="bi bi-info-circle me-2"></i> Specs</th>
+            <th style="min-width: 100px;"><i class="bi bi-cpu me-2"></i> HP</th>
+            <th style="min-width: 110px;"><i class="bi bi-currency-dollar me-2"></i> Price</th>
+            <th style="min-width: 90px;"><i class="bi bi-graph-up me-2"></i> Stock</th>
+            <th style="min-width: 90px;"><i class="bi bi-activity me-2"></i> Status</th>
+            <th class="text-center" style="min-width: 110px;"><i class="bi bi-gear-wide-connected me-2"></i> Actions</th>
           </tr>
         </thead>
         <tbody id="inventoryTableBody">
@@ -258,29 +319,31 @@
             </div>
             <!-- Product Image -->
             <div class="col-12">
-              <label class="inv-field-label" for="invImage">Product Image</label>
-              <div class="row">
-                <div class="col-md-8">
-                  <div class="inv-input-wrapper">
-                    <i class="bi bi-image inv-input-icon"></i>
-                    <input type="file" id="invImage" class="inv-input" accept="image/*" />
+              <label class="inv-field-label" for="invImage"><i class="bi bi-image me-1"></i>Product Image</label>
+              <div class="row align-items-center g-3">
+                <div class="col-md-7">
+                  <input type="file" id="invImage" class="d-none" accept="image/*" />
+                  <div class="d-flex align-items-center gap-3 p-3 border rounded" style="background:#f8fafc;">
+                    <label for="invImage" class="btn btn-outline-primary btn-sm">
+                      <i class="bi bi-upload me-1"></i> Choose Image
+                    </label>
+                    <span id="invImageName" class="text-muted small">No file chosen</span>
                   </div>
                   <div class="inv-field-hint">Upload product image (JPG, PNG, max 5MB)</div>
                 </div>
-                <div class="col-md-4">
-                  <div class="inv-image-preview" id="invImagePreview" style="display:none;">
-                    <img src="" alt="Product preview" class="img-fluid rounded border" style="max-height:80px;object-fit:cover;">
-                    <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="removeImageBtn">
-                      <i class="bi bi-trash"></i> Remove
-                    </button>
-                  </div>
-                  <div class="inv-image-placeholder" id="invImagePlaceholder">
-                    <div class="text-center text-muted p-3 border rounded bg-light" style="height:80px;display:flex;align-items:center;justify-content:center;">
-                      <div>
-                        <i class="bi bi-image fs-3 d-block mb-1"></i>
-                        <small>No image</small>
+                <div class="col-md-5">
+                  <div class="d-flex align-items-center gap-3" style="min-height:80px;">
+                    <div class="inv-image-preview" id="invImagePreview" style="display:none;">
+                      <img src="" alt="Product preview" class="rounded border" style="height:80px;width:80px;object-fit:cover;">
+                    </div>
+                    <div class="inv-image-placeholder" id="invImagePlaceholder">
+                      <div class="text-center text-muted p-3 border rounded bg-light" style="height:80px;width:80px;display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-image fs-3"></i>
                       </div>
                     </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="removeImageBtn" style="display:none;">
+                      <i class="bi bi-trash me-1"></i> Remove
+                    </button>
                   </div>
                 </div>
               </div>
@@ -371,22 +434,23 @@
 
   <!-- HP Variants Management Modal -->
   <div class="modal fade" id="variantsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg" style="margin-top: 8vh">
-      <div class="inv-modal-content">
-        <div class="inv-modal-header" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);">
-          <h5 class="inv-modal-title" id="variantsModalTitle">
-            <i class="bi bi-box"></i> Edit Variant
-          </h5>
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content inv-modal-content">
+        <div class="modal-header inv-modal-header">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+              <i class="bi bi-box" style="font-size:1.1rem;color:#fff;"></i>
+            </div>
+            <div>
+              <h6 class="modal-title fw-bold mb-0 text-white" style="font-size:1.1rem;">Edit HP Variant</h6>
+              <small class="opacity-75" id="variantsModalSubtitle" style="color:#fff;">-</small>
+            </div>
+          </div>
           <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
         <div class="modal-body inv-modal-body">
-          <div class="mb-3">
-            <h6 class="mb-0 fw-bold text-dark">
-              <i class="bi bi-box me-2"></i>Product: <span id="variantProductName">-</span>
-            </h6>
-          </div>
           <div id="variantsContainer2" class="row g-2">
             <!-- Single variant will be loaded here -->
           </div>
@@ -397,7 +461,44 @@
         </div>
         <div class="modal-footer inv-modal-footer">
           <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
-            <i class="bi bi-x-lg"></i> Close
+            <i class="bi bi-x-lg"></i> Cancel
+          </button>
+          <button type="button" class="inv-btn-primary" id="saveVariantFooterBtn">
+            <i class="bi bi-check-lg"></i> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Archive Confirmation Modal -->
+  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content inv-modal-content">
+        <div class="modal-header inv-modal-header">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+              <i class="bi bi-archive" style="font-size:1.1rem;color:#fff;"></i>
+            </div>
+            <div>
+              <h6 class="modal-title fw-bold mb-0 text-white" style="font-size:1.1rem;">Archive Product</h6>
+              <small class="opacity-75" style="color:#fff;">Confirm action</small>
+            </div>
+          </div>
+          <button type="button" class="inv-modal-close" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body inv-modal-body">
+          <p class="mb-0 text-muted">Are you sure you want to archive this product? It will be hidden from active inventory.</p>
+          <input type="hidden" id="deleteConfirmId" />
+        </div>
+        <div class="modal-footer inv-modal-footer">
+          <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Cancel
+          </button>
+          <button type="button" class="btn btn-danger" id="deleteConfirmArchiveBtn">
+            <i class="bi bi-archive me-1"></i> Archive
           </button>
         </div>
       </div>
@@ -448,7 +549,7 @@
     }
     .inv-title {
       font-size: 1.8rem;
-      font-weight: 800;
+      font-weight: 700;
       color: #fff;
       margin: 0;
       letter-spacing: -0.5px;
@@ -573,7 +674,7 @@
     }
     .inv-kpi-value {
       font-size: 1.5rem;
-      font-weight: 800;
+      font-weight: 600;
       color: #0f172a;
       line-height: 1.2;
     }
@@ -871,15 +972,20 @@
     }
     .inv-actions-stack {
       display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-      align-items: flex-end;
-      width: 100%;
-    }
-    .inv-action-btn {
-      min-width: 112px;
+      gap: 8px;
+      align-items: center;
       justify-content: center;
-      font-weight: 600;
+      flex-wrap: nowrap;
+    }
+    .inv-actions-stack .btn {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 0.75rem;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .inv-loading-cell {
       text-align: center;
@@ -953,12 +1059,51 @@
     }
 
     /* Modal */
-    #addItemModal .modal-dialog {
-      transform: translate(0, 8vh) !important;
+    #addItemModal .modal-dialog,
+    #deleteConfirmModal .modal-dialog {
+      transform: translate(0, 6vh) !important;
     }
-    #addItemModal .modal-dialog-centered {
+    /* variantsModal: centered, override scrollable's height:100% so centering works */
+    #variantsModal .modal-dialog {
+      transform: none !important;
+      height: auto !important;
+    }
+    #addItemModal .modal-dialog-centered,
+    #deleteConfirmModal .modal-dialog-centered {
       display: flex !important;
       align-items: flex-start !important;
+    }
+    /* variantsModal: position lower on screen */
+    #variantsModal .modal-dialog-centered {
+      display: flex !important;
+      align-items: flex-end !important;
+      padding-bottom: 8vh;
+    }
+    /* archive modal: centered vertically (not too high, not too low) */
+    #deleteConfirmModal .modal-dialog {
+      transform: none !important;
+    }
+    #deleteConfirmModal .modal-dialog-centered {
+      display: flex !important;
+      align-items: center !important;
+    }
+    /* Make Bootstrap modal-dialog-scrollable work with our custom classes */
+    #variantsModal .modal-dialog-scrollable .modal-content {
+      max-height: 70vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #variantsModal .modal-dialog-scrollable .inv-modal-header {
+      flex-shrink: 0;
+    }
+    #variantsModal .modal-dialog-scrollable .inv-modal-body {
+      overflow-y: auto !important;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    #variantsModal .modal-dialog-scrollable .inv-modal-footer {
+      flex-shrink: 0;
     }
     .inv-modal-content {
       background: rgba(255,255,255,0.98);
@@ -967,13 +1112,17 @@
       overflow: hidden;
       box-shadow: 0 32px 64px rgba(15,36,96,0.2);
       backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 12vh);
     }
     .inv-modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 24px 28px;
-      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 45%, #2563eb 100%);
+      flex-shrink: 0;
     }
     .inv-modal-title {
       font-size: 1.2rem;
@@ -1002,6 +1151,24 @@
       background: rgba(255,255,255,0.25);
       transform: rotate(90deg);
     }
+    /* Form Cards (Repair Parts style) */
+    .inv-modal-content .rp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .inv-modal-content .rp-form-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; }
+    .inv-modal-content .rp-form-card-header { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 18px; }
+    .inv-modal-content .rp-form-card-icon { width: 40px; height: 40px; border-radius: 11px; background: #eff6ff; color: #2563eb; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .inv-modal-content .rp-form-label { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .inv-modal-content .rp-form-label i { color: #2563eb; font-size: 0.85rem; }
+    .inv-modal-content .rp-form-card .form-control,
+    .inv-modal-content .rp-form-card .form-select { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inv-modal-content .rp-form-card .form-control:focus,
+    .inv-modal-content .rp-form-card .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); }
+    .inv-modal-content .rp-form-card .form-control::placeholder { color: #94a3b8; }
+    .inv-modal-content .rp-form-card textarea { resize: none; }
+    .inv-modal-content .form-control,
+    .inv-modal-content .form-select { border-radius: 10px; border-color: #e2e8f0; }
+    .inv-modal-content .form-control:focus,
+    .inv-modal-content .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); }
+    .inv-modal-content .inv-field-label { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .inv-modal-close:focus-visible {
       outline: none;
       box-shadow: 0 0 0 4px rgba(255,255,255,0.18), 0 8px 18px rgba(15, 23, 42, 0.08);
@@ -1032,15 +1199,21 @@
     }
     .inv-modal-body {
       padding: 28px;
+      overflow-y: auto;
+      flex: 1 1 0%;
+      min-height: 0;
     }
     .inv-modal-footer {
       display: flex;
       justify-content: flex-end;
       gap: 0.75rem;
+      flex-shrink: 0;
       padding: 20px 28px;
       background: rgba(241,245,249,0.5);
       border-top: 1px solid rgba(148,163,184,0.1);
     }
+    .modal { overflow-y: auto !important; }
+    .modal-dialog { max-height: calc(100vh - 12vh); }
     .inv-field-label {
       display: block;
       font-size: 0.75rem;
@@ -1086,8 +1259,7 @@
       .inv-modal-footer { flex-direction: column; }
       .inv-modal-footer .inv-btn-primary, .inv-modal-footer .inv-btn-secondary { width: 100%; justify-content: center; }
       .inv-variant-grid { grid-template-columns: repeat(2, minmax(80px, 1fr)); max-width: none; }
-      .inv-actions-stack { align-items: stretch; }
-      .inv-action-btn { width: 100%; min-width: 0; }
+      .inv-modal-content .rp-form-grid { grid-template-columns: 1fr; }
     }
   </style>
 
@@ -1110,13 +1282,57 @@
     const kpiTotal = document.getElementById("kpiTotalItems");
     const kpiLow = document.getElementById("kpiLowStock");
     const kpiValue = document.getElementById("kpiTotalValue");
+    const kpiAssigned = document.getElementById("kpiAssigned");
+    const airconSearchInput = document.getElementById("airconSearchInput");
+    const airconStatusFilter = document.getElementById("airconStatusFilter");
+    const airconSort = document.getElementById("airconSort");
+    const airconFilterBtn = document.getElementById("airconFilterBtn");
     let inventoryData = [];
+    let allInventoryData = [];
     let editingId = null;
 
     // ── Helpers ────────────────────────────────────────────────────────────────
     function fmtPrice(p) {
       if (!p) return '₱ 0.00';
       return '₱ ' + Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function makeSparkData(count) {
+      const c = Math.max(0, count || 0);
+      if (c === 0) return [0,0,0,0,0,0,0];
+      return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
+    }
+
+    const _invSparkCharts = {};
+
+    async function waitForChart(timeout = 10000) {
+      if (typeof Chart !== 'undefined') return;
+      if (!document.querySelector('script[src*="chart.js"]')) {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        s.async = true;
+        document.head.appendChild(s);
+      }
+      const start = Date.now();
+      while (typeof Chart === 'undefined' && Date.now() - start < timeout) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
+    function drawSpark(id, data, color) {
+      if (typeof Chart === 'undefined') return;
+      const canvas = document.getElementById(id);
+      if (!canvas) return;
+      if (_invSparkCharts[id]) { _invSparkCharts[id].destroy(); delete _invSparkCharts[id]; }
+      const h = canvas.height || 40;
+      const g = canvas.getContext('2d').createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      _invSparkCharts[id] = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+      });
     }
 
     const TYPE_LABELS = {
@@ -1281,20 +1497,19 @@
             ) +
             (totalQuantity <= 5 && totalQuantity > 0 ? '<div class="text-warning small mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock</div>' : '') +
           '</td>' +
-          '<td class="text-end pe-4">' +
+          '<td class="text-center">' +
             '<div class="inv-actions-stack">' +
-              '<button class="btn btn-sm btn-outline-primary inv-action-btn edit-grouped" ' +
+              '<button class="btn btn-outline-primary btn-sm edit-grouped" ' +
                       'data-model="' + modelName + '" data-brand="' + brandName + '" title="Edit product details">' +
-                '<i class="bi bi-pencil me-1"></i>Edit' +
+                '<i class="bi bi-pencil"></i>' +
               '</button>' +
-              '<button class="btn btn-sm btn-outline-info inv-action-btn manage-variants" ' +
+              '<button class="btn btn-outline-info btn-sm manage-variants" ' +
                       'data-model="' + modelName + '" data-brand="' + brandName + '" title="Manage HP variants">' +
-                '<i class="bi bi-layers me-1"></i>Variants' +
+                '<i class="bi bi-layers"></i>' +
               '</button>' +
-
-              '<button class="btn btn-sm btn-outline-danger inv-action-btn delete-inventory" ' +
+              '<button class="btn btn-outline-danger btn-sm delete-inventory" ' +
                       'data-id="' + product._id + '" title="Archive product">' +
-                '<i class="bi bi-archive me-1"></i>Archive' +
+                '<i class="bi bi-archive"></i>' +
               '</button>' +
             '</div>' +
           '</td>';
@@ -1326,9 +1541,52 @@
       ul.appendChild(next);
     }
 
+    // ── Aircon Filter / Sort ───────────────────────────────────────────────────
+    let filterTimeout;
+    function applyAirconFilters() {
+      if (!allInventoryData.length) return;
+      const q = (airconSearchInput.value || '').toLowerCase().trim();
+      const status = airconStatusFilter.value;
+      const sort = airconSort.value;
+
+      let list = allInventoryData.filter(product => {
+        const modelName = (product.modelLine || '').toLowerCase();
+        const brandName = ((product.brand && product.brand.name) || product.brand || '').toLowerCase();
+        const skuMatch = (product.variants || []).some(v => (v.sku || '').toLowerCase().includes(q));
+        const textMatch = q ? (modelName.includes(q) || brandName.includes(q) || skuMatch) : true;
+        const statusMatch = status === 'all' || (product.variants || []).some(v => v.status === status);
+        return textMatch && statusMatch;
+      });
+
+      list.forEach(product => {
+        product.totalQuantity = (product.variants || []).reduce((sum, v) => sum + (v.quantity || 0), 0);
+      });
+
+      list.sort((a, b) => {
+        if (sort === 'modelLine') return (a.modelLine || '').localeCompare(b.modelLine || '');
+        if (sort === '-modelLine') return (b.modelLine || '').localeCompare(a.modelLine || '');
+        if (sort === 'totalQuantity') return a.totalQuantity - b.totalQuantity;
+        if (sort === '-totalQuantity') return b.totalQuantity - a.totalQuantity;
+        if (sort === '-createdAt') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        return 0;
+      });
+
+      inventoryData = list;
+      invCurrentPage = 1;
+      renderItemsPage(invCurrentPage);
+    }
+
+    airconSearchInput.addEventListener('input', () => {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(applyAirconFilters, 300);
+    });
+    airconStatusFilter.addEventListener('change', applyAirconFilters);
+    airconSort.addEventListener('change', applyAirconFilters);
+    airconFilterBtn.addEventListener('click', applyAirconFilters);
+
     // ── KPI Rendering ──────────────────────────────────────────────────────────
-    function renderItems(items) {
-      inventoryData = items;
+    async function renderItems(items) {
+      allInventoryData = items;
       let totalValue = 0, lowCount = 0, totalVariants = 0;
       
       items.forEach((product) => {
@@ -1342,12 +1600,19 @@
         });
       });
       
+      const assignedCount = 0; // place-holder until dispatch data available
       kpiTotal.innerText = totalVariants; // Total variants instead of items
       kpiLow.innerText = lowCount;
-      kpiValue.innerText = fmtPrice(totalValue);
+      kpiValue.innerText = Number(totalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      kpiAssigned.innerText = assignedCount;
 
-      invCurrentPage = 1;
-      renderItemsPage(invCurrentPage);
+      await waitForChart();
+      drawSpark('kpiTotalSpark', makeSparkData(totalVariants), '#3b82f6');
+      drawSpark('kpiLowStockSpark', makeSparkData(lowCount), '#ef4444');
+      drawSpark('kpiTotalValueSpark', makeSparkData(Math.round(totalValue / 1000)), '#10b981');
+      drawSpark('kpiAssignedSpark', makeSparkData(assignedCount), '#f59e0b');
+
+      applyAirconFilters();
     }
 
     // ── Data Fetch ─────────────────────────────────────────────────────────────
@@ -1356,7 +1621,7 @@
         const r = await fetch('/api/admin/hvac');
         if (!r.ok) throw new Error('fail');
         const j = await r.json();
-        renderItems(j.products || []);
+        await renderItems(j.products || []);
       } catch (e) {
         console.error(e);
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 small text-muted text-danger">Failed to load</td></tr>';
@@ -1496,11 +1761,11 @@
     }
 
     // Event delegation for remove variant buttons
-    document.body.addEventListener('click', function(e) {
+    document.body.addEventListener('click', async function(e) {
       if (e.target.matches('.remove-variant') || e.target.closest('.remove-variant')) {
         const btn = e.target.matches('.remove-variant') ? e.target : e.target.closest('.remove-variant');
         const variantId = btn.dataset.variantId;
-        if (confirm('Remove this variant?')) {
+        if (await showInvConfirm('Remove this variant?', '<small>Are you sure you want to remove this variant?</small>', 'Remove', 'Cancel', 'warning')) {
           removeVariantRow(variantId);
         }
       }
@@ -1546,11 +1811,14 @@
     // Image upload event listener
     document.getElementById('invImage').addEventListener('change', function(e) {
       const file = e.target.files[0];
+      const nameEl = document.getElementById('invImageName');
       if (file) {
+        if (nameEl) nameEl.textContent = file.name;
         // Validate file size (5MB max)
         if (file.size > 5 * 1024 * 1024) {
           showFormAlert('danger', 'Image size must be less than 5MB');
           e.target.value = '';
+          if (nameEl) nameEl.textContent = 'No file chosen';
           return;
         }
         
@@ -1558,6 +1826,7 @@
         if (!file.type.startsWith('image/')) {
           showFormAlert('danger', 'Please select a valid image file');
           e.target.value = '';
+          if (nameEl) nameEl.textContent = 'No file chosen';
           return;
         }
         
@@ -1568,6 +1837,8 @@
           showImagePreview(uploadedImageData);
         };
         reader.readAsDataURL(file);
+      } else {
+        if (nameEl) nameEl.textContent = 'No file chosen';
       }
     });
     
@@ -1583,6 +1854,7 @@
         const preview = document.getElementById('invImagePreview');
         const placeholder = document.getElementById('invImagePlaceholder');
         const img = preview.querySelector('img');
+        const removeBtn = document.getElementById('removeImageBtn');
         
         if (!preview || !placeholder || !img) {
           console.error('Image preview elements not found');
@@ -1592,6 +1864,7 @@
         img.src = imageSrc;
         preview.style.display = 'block';
         placeholder.style.display = 'none';
+        if (removeBtn) removeBtn.style.display = 'inline-flex';
       } catch (error) {
         console.error('Error in showImagePreview:', error);
       }
@@ -1601,6 +1874,8 @@
       try {
         const preview = document.getElementById('invImagePreview');
         const placeholder = document.getElementById('invImagePlaceholder');
+        const removeBtn = document.getElementById('removeImageBtn');
+        const nameEl = document.getElementById('invImageName');
         
         if (!preview || !placeholder) {
           console.error('Image preview elements not found');
@@ -1608,7 +1883,9 @@
         }
         
         preview.style.display = 'none';
-        placeholder.style.display = 'block';
+        placeholder.style.display = 'flex';
+        if (removeBtn) removeBtn.style.display = 'none';
+        if (nameEl) nameEl.textContent = 'No file chosen';
       } catch (error) {
         console.error('Error in hideImagePreview:', error);
       }
@@ -1733,7 +2010,7 @@
         modal && modal.show();
       } catch (error) {
         console.error('Error in openModal:', error);
-        alert('Error opening modal: ' + error.message);
+        showInvToast('Error opening modal: ' + error.message, 'error');
       }
     }
     window.openInventoryModal = openModal;
@@ -1809,7 +2086,7 @@
       if (!product) return;
       
       // Set product name
-      document.getElementById('variantProductName').textContent = 
+      document.getElementById('variantsModalSubtitle').textContent = 
         `${product.modelLine || 'Unknown'} - ${(product.brand && product.brand.name) || product.brand || 'Unknown'}`;
       
       // Clear and load all variants for this product
@@ -1835,9 +2112,12 @@
         addVariantRow2();
       }
       
-      // Show modal
-      const modal = new bootstrap.Modal(document.getElementById('variantsModal'));
-      modal.show();
+      // Show modal (reuse or create a single Bootstrap Modal instance)
+      const mEl = document.getElementById('variantsModal');
+      const modal = bootstrap && bootstrap.Modal
+        ? (bootstrap.Modal.getInstance(mEl) || new bootstrap.Modal(mEl))
+        : null;
+      if (modal) modal.show();
     }
 
     function addVariantRow2(variantData = null) {
@@ -1850,24 +2130,12 @@
       variantRow.id = `variant2_${variantId}`;
       
       variantRow.innerHTML = `
-        <div class="border rounded p-4 bg-white">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0 fw-bold text-primary">
-              <i class="bi bi-box me-1"></i>Variant ${variantNumber}
-            </h6>
-            <div class="d-flex gap-2">
-              ${variantData ? `<button type="button" class="btn btn-sm btn-outline-danger remove-variant2" data-variant-id="${variantId}" title="Remove this variant">
-                <i class="bi bi-trash"></i> Remove
-              </button>` : ''}
-              <button type="button" class="btn btn-sm btn-success save-variant2" data-variant-id="${variantId}" title="Save this variant">
-                <i class="bi bi-check-lg"></i> Save
-              </button>
-            </div>
-          </div>
-          <div class="row g-3">
-            <div class="col-md-3">
-              <label class="inv-field-label text-small">Capacity (HP) <span class="text-danger">*</span></label>
-              <select class="form-select form-select-sm" data-field="capacity" data-variant-id="${variantId}" required>
+        <div class="rp-form-grid">
+          <div class="rp-form-card">
+            <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-box-seam"></i></div>Basic Info</div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-lightning-charge"></i>Capacity (HP) <span class="text-danger">*</span></label>
+              <select class="form-select" data-field="capacity" data-variant-id="${variantId}" required>
                 <option value="">Select HP</option>
                 <option value="0.5">0.5 HP</option>
                 <option value="0.75">0.75 HP</option>
@@ -1881,27 +2149,42 @@
                 <option value="5.0">5.0 HP</option>
               </select>
             </div>
-            <div class="col-md-3">
-              <label class="inv-field-label text-small">BTU Rating</label>
-              <input type="number" class="form-control form-control-sm" data-field="btu" data-variant-id="${variantId}" placeholder="e.g. 9000" min="0" />
-            </div>
-            <div class="col-md-3">
-              <label class="inv-field-label text-small">Selling Price (₱) <span class="text-danger">*</span></label>
-              <input type="number" class="form-control form-control-sm" data-field="sellingPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" required />
-            </div>
-            <div class="col-md-3">
-              <label class="inv-field-label text-small">Cost Price (₱)</label>
-              <input type="number" class="form-control form-control-sm" data-field="costPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" />
-            </div>
-            <div class="col-md-6">
-              <label class="inv-field-label text-small">Stock Qty</label>
-              <input type="number" class="form-control form-control-sm" data-field="quantity" data-variant-id="${variantId}" placeholder="0" min="0" />
-            </div>
-            <div class="col-md-6">
-              <label class="inv-field-label text-small">Reorder Level</label>
-              <input type="number" class="form-control form-control-sm" data-field="minStockLevel" data-variant-id="${variantId}" placeholder="3" min="0" />
+            <div class="mb-0">
+              <label class="rp-form-label"><i class="bi bi-fire"></i>BTU Rating</label>
+              <input type="number" class="form-control" data-field="btu" data-variant-id="${variantId}" placeholder="e.g. 9000" min="0" />
             </div>
           </div>
+          <div class="rp-form-card">
+            <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-cash-coin"></i></div>Pricing &amp; Stock</div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Selling Price (₱) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" data-field="sellingPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" required />
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Cost Price (₱)</label>
+              <input type="number" class="form-control" data-field="costPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" />
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-graph-up-arrow"></i>Margin</label>
+              <div class="form-control d-flex align-items-center" id="variantMargin_${variantId}" style="background:#f8fafc;color:#16a34a;font-weight:700;">₱0 (0%)</div>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-boxes"></i>Stock Qty</label>
+              <input type="number" class="form-control" data-field="quantity" data-variant-id="${variantId}" placeholder="0" min="0" />
+            </div>
+            <div class="mb-0">
+              <label class="rp-form-label"><i class="bi bi-bell"></i>Reorder Level</label>
+              <input type="number" class="form-control" data-field="minStockLevel" data-variant-id="${variantId}" placeholder="3" min="0" />
+            </div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          ${variantData ? `<button type="button" class="btn btn-outline-danger remove-variant2" data-variant-id="${variantId}" title="Remove this variant">
+            <i class="bi bi-trash"></i> Remove
+          </button>` : ''}
+          <button type="button" class="btn btn-primary save-variant2" data-variant-id="${variantId}" title="Save this variant">
+            <i class="bi bi-check-lg"></i> Save
+          </button>
         </div>
       `;
       
@@ -1916,20 +2199,46 @@
         const quantityInput = variantRow.querySelector(`[data-field="quantity"]`);
         const minStockLevelInput = variantRow.querySelector(`[data-field="minStockLevel"]`);
         
-        if (capacitySelect) capacitySelect.value = variantData.capacity || '';
+        if (capacitySelect) {
+          const cap = parseFloat(variantData.capacity);
+          if (!isNaN(cap) && Number.isInteger(cap)) {
+            capacitySelect.value = cap.toFixed(1);
+          } else {
+            capacitySelect.value = String(variantData.capacity || '');
+          }
+        }
         if (btuInput) btuInput.value = variantData.btu || '';
         if (sellingPriceInput) sellingPriceInput.value = variantData.sellingPrice || '';
         if (costPriceInput) costPriceInput.value = variantData.costPrice || '';
         if (quantityInput) quantityInput.value = variantData.quantity || '';
         if (minStockLevelInput) minStockLevelInput.value = variantData.minStockLevel || '';
       }
-      
+
+      // Add margin listeners
+      const spInput = variantRow.querySelector(`[data-field="sellingPrice"]`);
+      const cpInput = variantRow.querySelector(`[data-field="costPrice"]`);
+      if (spInput) spInput.addEventListener('input', () => computeVariantMargin(variantId));
+      if (cpInput) cpInput.addEventListener('input', () => computeVariantMargin(variantId));
+      computeVariantMargin(variantId);
+
       // Store variant data
       variantsData2.push({ variantId, data: variantData || {} });
     }
 
+    function computeVariantMargin(variantId) {
+      const sellingInput = document.querySelector(`[data-field="sellingPrice"][data-variant-id="${variantId}"]`);
+      const costInput = document.querySelector(`[data-field="costPrice"][data-variant-id="${variantId}"]`);
+      const marginEl = document.getElementById(`variantMargin_${variantId}`);
+      if (!sellingInput || !costInput || !marginEl) return;
+      const selling = parseFloat(sellingInput.value) || 0;
+      const cost = parseFloat(costInput.value) || 0;
+      const margin = selling - cost;
+      const pct = cost ? ((margin / cost) * 100).toFixed(1) : 0;
+      marginEl.textContent = `₱${margin.toLocaleString()} (${pct}%)`;
+    }
+
     // Event delegation for variants modal
-    document.body.addEventListener('click', function(e) {
+    document.body.addEventListener('click', async function(e) {
       // Save variant in variants modal
       if (e.target.matches('.save-variant2') || e.target.closest('.save-variant2')) {
         const btn = e.target.matches('.save-variant2') ? e.target : e.target.closest('.save-variant2');
@@ -1941,14 +2250,20 @@
       if (e.target.matches('.remove-variant2') || e.target.closest('.remove-variant2')) {
         const btn = e.target.matches('.remove-variant2') ? e.target : e.target.closest('.remove-variant2');
         const variantId = btn.dataset.variantId;
-        if (confirm('Remove this variant?')) {
+        if (await showInvConfirm('Remove this variant?', '<small>Are you sure you want to remove this variant? This will take effect after you save the product.</small>', 'Remove', 'Cancel', 'warning')) {
           removeVariantRow2(variantId);
         }
       }
     });
 
+    // Footer save button for variants modal - save the first variant and close the modal
+    document.getElementById('saveVariantFooterBtn')?.addEventListener('click', () => {
+      const firstSaveBtn = document.querySelector('#variantsContainer2 .save-variant2');
+      if (firstSaveBtn) saveIndividualVariant2(firstSaveBtn.dataset.variantId, true);
+    });
+
     // Save individual variant function
-    async function saveIndividualVariant2(variantId) {
+    async function saveIndividualVariant2(variantId, closeAfter = false) {
       try {
         const variantRow = document.getElementById(`variant2_${variantId}`);
         if (!variantRow) return;
@@ -1964,7 +2279,7 @@
         // Find the product
         const product = inventoryData.find(i => i._id === currentEditingProduct);
         if (!product) {
-          alert('Product not found');
+          showInvToast('Product not found', 'error');
           return;
         }
         
@@ -1992,18 +2307,23 @@
         });
         
         if (response.ok) {
-          alert('Variant saved successfully!');
+          showInvToast('Variant saved successfully!', 'success');
           loadInventory(); // Reload inventory data
-          // Close modal
-          const modal = bootstrap.Modal.getInstance(document.getElementById('variantsModal'));
-          modal && modal.hide();
+          // Close the main modal only when the footer Save button triggered this save
+          if (closeAfter) {
+            const mEl = document.getElementById('variantsModal');
+            const modal = bootstrap && bootstrap.Modal
+              ? (bootstrap.Modal.getInstance(mEl) || new bootstrap.Modal(mEl))
+              : null;
+            if (modal) modal.hide();
+          }
         } else {
           const error = await response.json();
-          alert('Failed to save variant: ' + (error.error || 'Unknown error'));
+          showInvToast('Failed to save variant: ' + (error.error || 'Unknown error'), 'error');
         }
       } catch (error) {
         console.error('Error saving variant:', error);
-        alert('Error saving variant: ' + error.message);
+        showInvToast('Error saving variant: ' + error.message, 'error');
       }
     }
 
@@ -2132,15 +2452,29 @@
         const btn = e.target.matches('.delete-inventory') ? e.target : e.target.closest('.delete-inventory');
         const id = btn.dataset.id;
         if (!id) return;
-        if (!confirm('Archive this product? It will be hidden from active inventory.')) return;
-        fetch(`/api/admin/hvac/${encodeURIComponent(id)}`, { method: 'DELETE' })
-          .then(async (r) => {
-            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Delete failed'); }
-            return r.json();
-          })
-          .then(() => loadInventory())
-          .catch((err) => alert(err.message || 'Delete failed'));
+        document.getElementById('deleteConfirmId').value = id;
+        const archiveModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        archiveModal.show();
       }
+    });
+
+    document.getElementById('deleteConfirmArchiveBtn').addEventListener('click', function() {
+      const id = document.getElementById('deleteConfirmId').value;
+      if (!id) return;
+      const archiveModal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+      fetch(`/api/admin/hvac/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        .then(async (r) => {
+          if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Delete failed'); }
+          return r.json();
+        })
+        .then(() => {
+          archiveModal && archiveModal.hide();
+          loadInventory();
+        })
+        .catch((err) => {
+          console.error(err);
+          showInvToast(err.message || 'Delete failed', 'error');
+        });
     });
 
     // ── Save Product Handler ──────────────────────────────────────────────────
@@ -2162,13 +2496,15 @@
       if (!brand) return showFormAlert('warning', 'Brand is required.');
       if (!category) return showFormAlert('warning', 'Category is required.');
       if (!type) return showFormAlert('warning', 'Type is required.');
-      
+
       // Get variants data
       const variants = getVariantsData();
       if (variants.length === 0) {
         return showFormAlert('warning', 'At least one variant with capacity and selling price is required.');
       }
-      
+
+      const isEdit = !!editingId;
+
       const data = {
         modelLine, brand, category, type, inverter,
         status, warranty, description,
@@ -2207,6 +2543,7 @@
             m && m.hide();
             editingId = null;
             uploadedImageData = null;
+            showInvToast(`${isEdit ? 'Product updated' : 'Product added'} successfully!`, 'success');
             loadInventory();
           } else {
             const j = await r.json();
@@ -2231,6 +2568,8 @@
             const m = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
             m && m.hide();
             editingId = null;
+            uploadedImageData = null;
+            showInvToast(`${isEdit ? 'Product updated' : 'Product added'} successfully!`, 'success');
             loadInventory();
           } else {
             const j = await r.json();
@@ -2282,6 +2621,105 @@
 
   function fmtPrice(num) {
     return '₱' + (num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── Product save toast (POS-style) ───────────────────────────────────
+  let _invToastTimer;
+  function createInvToastModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'invToastModal';
+    overlay.className = 'inv-toast-overlay';
+    overlay.innerHTML = `
+      <div class="inv-toast-modal">
+        <div class="inv-toast-header">
+          <span class="inv-toast-title">Success</span>
+          <button class="inv-toast-close" onclick="closeInvToast()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="inv-toast-body">
+          <div class="inv-toast-icon success"><i class="bi bi-check-circle-fill"></i></div>
+          <p class="inv-toast-message"></p>
+          <button class="inv-toast-ok" onclick="closeInvToast()">OK</button>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeInvToast(); });
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function showInvToast(msg, type = 'info') {
+    let overlay = document.getElementById('invToastModal');
+    if (!overlay) overlay = createInvToastModal();
+    const titleMap = { success: 'Success', error: 'Error', warning: 'Warning', info: 'Info' };
+    const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+    const typeClass = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+    const t = titleMap[type] ? type : 'info';
+    overlay.querySelector('.inv-toast-title').textContent = titleMap[t];
+    overlay.querySelector('.inv-toast-icon').className = `inv-toast-icon ${typeClass[t]}`;
+    overlay.querySelector('.inv-toast-icon i').className = `bi ${iconMap[t]}`;
+    overlay.querySelector('.inv-toast-message').textContent = msg;
+    document.body.appendChild(overlay);
+    overlay.classList.add('show');
+    if (_invToastTimer) clearTimeout(_invToastTimer);
+    _invToastTimer = setTimeout(() => closeInvToast(), 2500);
+  }
+
+  function closeInvToast() {
+    const overlay = document.getElementById('invToastModal');
+    if (overlay) overlay.classList.remove('show');
+    if (_invToastTimer) clearTimeout(_invToastTimer);
+  }
+
+  // ── Variant confirm modal (POS-style) ────────────────────────────────
+  let _invConfirmResolve;
+  function showInvConfirm(title, message, confirmText, cancelText, type = 'warning') {
+    return new Promise((resolve) => {
+      _invConfirmResolve = resolve;
+      let overlay = document.getElementById('invConfirmModal');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'invConfirmModal';
+        overlay.className = 'inv-confirm-overlay';
+        overlay.innerHTML = `
+          <div class="inv-confirm-modal">
+            <div class="inv-confirm-header">
+              <span class="inv-confirm-title"></span>
+              <button class="inv-confirm-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="inv-confirm-body">
+              <div class="inv-confirm-icon"><i class="bi"></i></div>
+              <div class="inv-confirm-message"></div>
+              <div class="inv-confirm-actions">
+                <button class="inv-confirm-cancel"></button>
+                <button class="inv-confirm-delete"></button>
+              </div>
+            </div>
+          </div>
+        `;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeInvConfirm(false); });
+        overlay.querySelector('.inv-confirm-close').addEventListener('click', () => closeInvConfirm(false));
+        document.body.appendChild(overlay);
+      }
+      const typeMap = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+      const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+      const t = typeMap[type] ? type : 'warning';
+      overlay.querySelector('.inv-confirm-title').textContent = title;
+      overlay.querySelector('.inv-confirm-icon').className = `inv-confirm-icon ${t}`;
+      overlay.querySelector('.inv-confirm-icon i').className = `bi ${iconMap[t]}`;
+      overlay.querySelector('.inv-confirm-message').innerHTML = message;
+      overlay.querySelector('.inv-confirm-cancel').textContent = cancelText || 'Cancel';
+      overlay.querySelector('.inv-confirm-delete').textContent = confirmText || 'Delete';
+      overlay.querySelector('.inv-confirm-cancel').onclick = () => closeInvConfirm(false);
+      overlay.querySelector('.inv-confirm-delete').onclick = () => closeInvConfirm(true);
+      document.body.appendChild(overlay);
+      overlay.classList.add('show');
+    });
+  }
+
+  function closeInvConfirm(value) {
+    const overlay = document.getElementById('invConfirmModal');
+    if (overlay) overlay.classList.remove('show');
+    if (_invConfirmResolve) { _invConfirmResolve(value); _invConfirmResolve = null; }
   }
 </script>
 

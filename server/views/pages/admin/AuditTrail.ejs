@@ -1,0 +1,582 @@
+<div class="admin-dashboard container-fluid py-4 audit-page inventory-premium">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    /* ═════════════════════════════════════════════════
+       AUDIT TRAIL — Enterprise Activity Explorer
+       ═════════════════════════════════════════════════ */
+    .audit-page {
+      --at-primary: #4f46e5;
+      --at-accent: #7c3aed;
+      --at-pale: #eef2ff;
+      --at-light: #e0e7ff;
+      --at-border: #e2e8f0;
+      --at-muted: #94a3b8;
+      --at-text: #1e293b;
+      --at-radius: 16px;
+      --at-shadow: 0 4px 6px -1px rgba(79,70,229,0.07), 0 2px 4px -2px rgba(79,70,229,0.04);
+    }
+
+    .audit-page .au-hero { background: linear-gradient(120deg, #1e1b4b, #4f46e5 60%, #7c3aed); }
+    .audit-page .au-hero .au-hero-icon { background: rgba(255,255,255,0.16); }
+
+    /* ── Category pill row ── */
+    .audit-page .at-cats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .audit-page .at-cat {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.42rem 0.85rem; border-radius: 999px;
+      font-size: 0.76rem; font-weight: 600; cursor: pointer;
+      background: #fff; border: 1.5px solid var(--at-border);
+      color: var(--at-text); transition: all 0.2s ease;
+    }
+    .audit-page .at-cat i { font-size: 0.85rem; }
+    .audit-page .at-cat .n { font-size: 0.7rem; opacity: 0.7; }
+    .audit-page .at-cat:hover { transform: translateY(-1px); box-shadow: var(--at-shadow); }
+    .audit-page .at-cat.active { color: #fff; border-color: transparent; box-shadow: 0 3px 10px rgba(0,0,0,0.18); }
+
+    /* ── Filter bar ── */
+    .audit-page .filter-bar {
+      background: #fff; border: 1px solid var(--at-border);
+      border-radius: 14px; padding: 0.85rem 1.25rem;
+      display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+      box-shadow: var(--at-shadow); margin-bottom: 1rem;
+    }
+    .audit-page .filter-bar .fb-group {
+      display: flex; align-items: center; background: var(--at-pale);
+      border: 1.5px solid var(--at-border); border-radius: 10px; padding: 0 0.5rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .audit-page .filter-bar .fb-group:focus-within {
+      border-color: var(--at-primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); background: #fff;
+    }
+    .audit-page .filter-bar .fb-group i { color: var(--at-muted); font-size: 0.85rem; margin-right: 0.25rem; }
+    .audit-page .filter-bar .fb-group input,
+    .audit-page .filter-bar .fb-group select {
+      border: none; background: transparent; font-size: 0.82rem; color: var(--at-text);
+      padding: 0.4rem 0.35rem; outline: none; font-weight: 500 !important;
+    }
+    .audit-page .filter-bar .fb-group select { cursor: pointer; }
+    .audit-page .fb-spacer { flex: 1; }
+    .audit-page .btn-filter {
+      padding: 0.45rem 1rem; border-radius: 9px; font-weight: 600 !important; font-size: 0.78rem;
+      display: inline-flex; align-items: center; gap: 0.35rem; border: none; cursor: pointer;
+      transition: all 0.2s ease; text-decoration: none;
+    }
+    .audit-page .btn-filter.primary { background: linear-gradient(135deg, var(--at-primary), var(--at-accent)); color: #fff; box-shadow: 0 3px 10px rgba(79,70,229,0.25); }
+    .audit-page .btn-filter.primary:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(79,70,229,0.3); }
+    .audit-page .btn-filter.outline { background: #fff; color: var(--at-text); border: 1.5px solid var(--at-border); }
+    .audit-page .btn-filter.outline:hover { border-color: var(--at-primary); color: var(--at-primary); background: var(--at-pale); }
+    .audit-page .btn-filter.success { background: linear-gradient(135deg, #059669, #10b981); color: #fff; box-shadow: 0 3px 10px rgba(16,185,129,0.25); }
+
+    /* ── Table card ── */
+    .audit-page .table-card {
+      background: #fff; border: 1px solid var(--at-border); border-radius: var(--at-radius);
+      box-shadow: var(--at-shadow); overflow: hidden;
+    }
+    .audit-page .table-card .tc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .audit-page .table-card .tc-head .tc-title {
+      display: flex; align-items: center; gap: 0.5rem; font-size: 0.92rem; font-weight: 700 !important;
+      color: var(--at-text); font-family: 'Outfit', sans-serif;
+    }
+    .audit-page .table-card .tc-head .tc-title .tc-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--at-primary), var(--at-accent));
+      color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+    }
+    .audit-page .tc-count { background: var(--at-light); color: var(--at-primary); font-size: 0.72rem; font-weight: 700 !important; padding: 0.2rem 0.6rem; border-radius: 999px; }
+
+    .audit-page .at-table { width: 100%; border-collapse: collapse; }
+    .audit-page .at-table thead th {
+      background: var(--at-pale); color: var(--at-muted); font-size: 0.68rem; font-weight: 700 !important;
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 0.7rem 1rem;
+      border-bottom: 1.5px solid var(--at-border); white-space: nowrap;
+    }
+    .audit-page .at-table tbody td { padding: 0.6rem 1rem; border-bottom: 1px solid #f8fafc; font-size: 0.8rem; color: var(--at-text); vertical-align: middle; }
+    .audit-page .at-table tbody tr { cursor: pointer; transition: background 0.15s ease; }
+    .audit-page .at-table tbody tr:hover { background: var(--at-pale); }
+
+    .audit-page .cat-badge {
+      display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem;
+      border-radius: 999px; font-size: 0.68rem; font-weight: 700; white-space: nowrap;
+    }
+    .audit-page .act-badge {
+      font-size: 0.7rem; font-weight: 600; padding: 0.22rem 0.6rem; border-radius: 7px;
+      background: rgba(100,116,139,0.1); color: #475569; white-space: nowrap;
+      font-family: 'Consolas','Menlo',monospace;
+    }
+    .audit-page .ent-tag { font-size: 0.68rem; color: var(--at-muted); }
+    .audit-page .actor-cell { font-weight: 600 !important; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .audit-page .role-tag { font-size: 0.62rem; color: var(--at-muted); display: block; }
+    .audit-page .detail-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74rem; color: var(--at-muted); }
+    .audit-page .date-cell { white-space: nowrap; }
+    .audit-page .date-cell .time-sub { font-size: 0.68rem; color: var(--at-muted); display: block; }
+
+    .audit-page .table-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1.25rem; border-top: 1px solid #f1f5f9; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .audit-page .table-footer .range-text { font-size: 0.78rem; color: var(--at-muted); font-weight: 500 !important; }
+    .audit-page .pag-btn {
+      width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; border: 1.5px solid var(--at-border); background: #fff; color: var(--at-text); cursor: pointer; transition: all 0.2s ease;
+    }
+    .audit-page .pag-btn:hover:not(.disabled) { border-color: var(--at-primary); color: var(--at-primary); background: var(--at-pale); }
+    .audit-page .pag-btn.disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+    .audit-page .pag-indicator { font-size: 0.78rem; font-weight: 600 !important; color: var(--at-text); padding: 0 0.5rem; }
+
+    .audit-page .kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.15rem; }
+
+    .audit-page .at-week { display: flex; align-items: flex-end; gap: 4px; height: 34px; }
+    .audit-page .at-week .bar { flex: 1; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--at-accent), #c7d2fe); min-height: 3px; }
+
+    .at-detail-modal .modal-header { background: linear-gradient(120deg, #1e1b4b, #4f46e5 60%, #7c3aed); }
+    .at-detail-modal .modal-header .btn-close { filter: invert(1); }
+    .at-detail-modal .kv { display: flex; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px dashed #e2e8f0; font-size: 0.82rem; }
+    .at-detail-modal .kv span:first-child { color: var(--at-muted); font-weight: 600; }
+    .at-detail-modal .kv span:last-child { color: var(--at-text); text-align: right; word-break: break-word; }
+    .at-detail-modal pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 0.9rem; font-size: 0.74rem; max-height: 220px; overflow: auto; }
+
+    .at-toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--at-muted); cursor: pointer; user-select: none; }
+  </style>
+
+  <!-- ═══ HERO ═══ -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-clipboard2-check-fill"></i></div>
+        <div>
+          <h1>Audit Trail</h1>
+          <p>Complete audit trail for all bookings, orders, payments, customer actions, and system events.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KPI STATS ═══ -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Total Events</div>
+            <span class="inv-kpi-value mb-0" id="at-total">—</span>
+            <span class="inv-kpi-sub">All recorded actions</span>
+          </div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);"><i class="bi bi-journal-richtext"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkAll"></canvas></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Today</div>
+            <span class="inv-kpi-value mb-0" id="at-today">—</span>
+            <span class="inv-kpi-sub">Events since midnight</span>
+          </div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#059669,#10b981);"><i class="bi bi-lightning-charge-fill"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkToday"></canvas></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Bookings</div>
+            <span class="inv-kpi-value mb-0" id="at-bookings">—</span>
+            <span class="inv-kpi-sub">Booking lifecycle events</span>
+          </div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);"><i class="bi bi-calendar-check"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkBooking"></canvas></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="dash-card h-100 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Orders</div>
+            <span class="inv-kpi-value mb-0" id="at-orders">—</span>
+            <span class="inv-kpi-sub">Orders, POS &amp; deliveries</span>
+          </div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#06b6d4,#22d3ee);"><i class="bi bi-box-seam"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkOrder"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CATEGORY PILLS ═══ -->
+  <div class="at-cats" id="atCats"></div>
+
+  <!-- ═══ FILTER BAR ═══ -->
+  <div class="filter-bar">
+    <div class="fb-group" style="min-width:200px; flex:1;">
+      <i class="bi bi-search"></i>
+      <input id="at-q" type="text" placeholder="Search action, actor, role, entity...">
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-box"></i>
+      <select id="at-entity">
+        <option value="">All Entities</option>
+        <option>BookingService</option>
+        <option>Order</option>
+        <option>WalkInSale</option>
+        <option>Payment</option>
+        <option>Assignment</option>
+        <option>Project</option>
+        <option>Expense</option>
+        <option>Technician</option>
+        <option>User</option>
+      </select>
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-tag"></i>
+      <select id="at-actiontype">
+        <option value="">All Action Types</option>
+        <option value="created">Created</option>
+        <option value="updated">Updated</option>
+        <option value="status_change">Status Change</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="deleted">Deleted / Void</option>
+        <option value="auth">Auth</option>
+        <option value="action">Other</option>
+      </select>
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-calendar-range"></i>
+      <input type="date" id="at-from" title="From date">
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-calendar-range"></i>
+      <input type="date" id="at-to" title="To date">
+    </div>
+    <div class="fb-spacer"></div>
+    <label class="at-toggle" title="Auto-refresh every 20s">
+      <input type="checkbox" id="at-auto"> <i class="bi bi-arrow-repeat"></i> Live
+    </label>
+    <button class="btn-filter outline" onclick="resetFilters()"><i class="bi bi-x-circle"></i> Clear</button>
+    <button class="btn-filter success" onclick="exportCsv()"><i class="bi bi-filetype-csv"></i> Export</button>
+    <button class="btn-filter primary" onclick="applyFilter()"><i class="bi bi-funnel-fill"></i> Apply</button>
+  </div>
+
+  <!-- ═══ TABLE CARD ═══ -->
+  <div class="table-card">
+    <div class="tc-head">
+      <div class="tc-title">
+        <div class="tc-icon"><i class="bi bi-list-ul"></i></div>
+        Activity Log
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn-filter outline" style="padding:0.35rem 0.7rem;" onclick="loadTable()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <span class="tc-count">Showing <span id="at-count">0</span></span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="at-table">
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Date / Time</th>
+            <th>Category</th>
+            <th>Action</th>
+            <th>Actor</th>
+            <th>Entity</th>
+            <th>Details</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody id="at-body">
+          <tr><td colspan="8" style="text-align:center; padding:2.5rem; color:#94a3b8; font-size:0.85rem;">
+            <i class="bi bi-arrow-repeat" style="font-size:1.3rem; display:block; margin-bottom:0.5rem; animation: atspin 1s linear infinite;"></i>
+            Loading audit trail...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <div class="range-text" id="at-range">—</div>
+      <div class="d-flex align-items-center gap-2">
+        <button class="pag-btn" id="at-prev" onclick="prevPage()"><i class="bi bi-chevron-left"></i></button>
+        <span class="pag-indicator" id="at-indicator">1 of 1</span>
+        <button class="pag-btn" id="at-next" onclick="nextPage()"><i class="bi bi-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ DETAIL MODAL ═══ -->
+  <div class="modal fade at-detail-modal" id="atDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:640px;">
+      <div class="modal-content">
+        <div class="modal-header text-white">
+          <div class="d-flex align-items-center gap-3">
+            <div class="ent-modal-icon bg-white-subtle" style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.15);"><i class="bi bi-journal-text" style="font-size:1.1rem;"></i></div>
+            <div>
+              <h6 class="modal-title fw-bold mb-0" id="atDetailTitle">Audit Entry</h6>
+              <small class="text-white-50" id="atDetailTime"></small>
+            </div>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="padding:1.1rem 1.25rem;">
+          <div id="atDetailBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>@keyframes atspin { to { transform: rotate(360deg); } }</style>
+
+  <script>
+    var CATS = [
+      ['booking', 'Bookings', 'bi-calendar-check', '#8b5cf6'],
+      ['order', 'Orders', 'bi-box-seam', '#06b6d4'],
+      ['payment', 'Payments', 'bi-cash-coin', '#10b981'],
+      ['assignment', 'Assignments', 'bi-person-badge', '#6366f1'],
+      ['project', 'Projects', 'bi-building', '#f97316'],
+      ['expense', 'Expenses', 'bi-receipt', '#f59e0b'],
+      ['auth', 'Auth', 'bi-shield-lock', '#ef4444'],
+      ['inventory', 'Inventory', 'bi-boxes', '#14b8a6'],
+      ['settings', 'Settings', 'bi-gear', '#64748b'],
+      ['system', 'System', 'bi-cpu', '#475569']
+    ];
+    var PAGE_SIZE = 25;
+    var currentPage = 1;
+    var state = { category: '', q: '', entityType: '', actionType: '', from: '', to: '' };
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderCats(stats) {
+      var el = document.getElementById('atCats');
+      var html = '<div class="at-cat' + (state.category === '' ? ' active' : '') + '" style="' + (state.category === '' ? 'background:linear-gradient(135deg,#4f46e5,#7c3aed);' : '') + '" onclick="setCat(\'\')"><i class="bi bi-collection"></i>All <span class="n">' + (stats.total || 0) + '</span></div>';
+      CATS.forEach(function (c) {
+        var n = (stats.byCategory && stats.byCategory[c[0]]) || 0;
+        var active = state.category === c[0];
+        var bg = active ? 'background:' + c[3] + ';' : '';
+        html += '<div class="at-cat' + (active ? ' active' : '') + '" style="' + bg + '" onclick="setCat(\'' + c[0] + '\')"><i class="bi ' + c[2] + '"></i>' + c[1] + ' <span class="n">' + n + '</span></div>';
+      });
+      el.innerHTML = html;
+    }
+
+    function setCat(c) {
+      state.category = c;
+      currentPage = 1;
+      renderCatsOnly();
+      loadTable();
+    }
+
+    function renderCatsOnly() {
+      // just update active styles without re-fetching stats
+      var pills = document.querySelectorAll('#atCats .at-cat');
+      pills.forEach(function (p, idx) {
+        var key = idx === 0 ? '' : CATS[idx - 1][0];
+        var active = state.category === key;
+        p.classList.toggle('active', active);
+        var c = idx === 0 ? ['', '', '', '#4f46e5'] : CATS[idx - 1];
+        p.style.background = active ? c[3] : '';
+        p.style.color = active ? '#fff' : '';
+      });
+    }
+
+    function applyFilter() {
+      state.q = document.getElementById('at-q').value;
+      state.entityType = document.getElementById('at-entity').value;
+      state.actionType = document.getElementById('at-actiontype').value;
+      state.from = document.getElementById('at-from').value;
+      state.to = document.getElementById('at-to').value;
+      currentPage = 1;
+      loadTable();
+    }
+
+    function resetFilters() {
+      state = { category: '', q: '', entityType: '', actionType: '', from: '', to: '' };
+      document.getElementById('at-q').value = '';
+      document.getElementById('at-entity').value = '';
+      document.getElementById('at-actiontype').value = '';
+      document.getElementById('at-from').value = '';
+      document.getElementById('at-to').value = '';
+      currentPage = 1;
+      renderCatsOnly();
+      loadTable();
+    }
+
+    function queryString() {
+      var p = [];
+      if (state.category) p.push('category=' + encodeURIComponent(state.category));
+      if (state.q) p.push('q=' + encodeURIComponent(state.q));
+      if (state.entityType) p.push('entityType=' + encodeURIComponent(state.entityType));
+      if (state.actionType) p.push('actionType=' + encodeURIComponent(state.actionType));
+      if (state.from) p.push('from=' + encodeURIComponent(state.from));
+      if (state.to) p.push('to=' + encodeURIComponent(state.to));
+      return p.join('&');
+    }
+
+    function exportCsv() {
+      var url = '/api/admin/audit?format=csv&' + queryString();
+      window.open(url, '_blank');
+    }
+
+    function actClass(a) {
+      var at = a === 'created' ? 'rgba(16,185,129,0.12);color:#059669' :
+        a === 'updated' ? 'rgba(14,165,233,0.12);color:#0284c7' :
+        a === 'status_change' ? 'rgba(124,58,237,0.12);color:#7c3aed' :
+        a === 'cancelled' ? 'rgba(245,158,11,0.12);color:#d97706' :
+        a === 'deleted' ? 'rgba(225,29,72,0.12);color:#e11d48' :
+        a === 'auth' ? 'rgba(239,68,68,0.12);color:#dc2626' : 'rgba(100,116,139,0.1);color:#475569';
+      return at;
+    }
+
+    function catBadge(cat) {
+      var c = CATS.filter(function (x) { return x[0] === cat; })[0];
+      if (!c) c = ['system', 'System', 'bi-cpu', '#475569'];
+      return '<span class="cat-badge" style="background:' + c[3] + '22;color:' + c[3] + ';"><i class="bi ' + c[2] + '"></i>' + c[1] + '</span>';
+    }
+
+    function detailsText(d) {
+      if (!d) return '';
+      if (typeof d === 'string') return d;
+      var parts = [];
+      ['reason', 'note', 'fromStatus', 'toStatus', 'invoiceNumber', 'orderReference', 'bookingReference'].forEach(function (k) {
+        if (d[k] != null && d[k] !== '') parts.push(String(d[k]));
+      });
+      if (parts.length === 0) {
+        Object.keys(d).slice(0, 4).forEach(function (k) {
+          var v = d[k];
+          if (v && typeof v === 'object') v = JSON.stringify(v);
+          parts.push(k + '=' + v);
+        });
+      }
+      return parts.join(' · ');
+    }
+
+    function renderTable(data) {
+      var body = document.getElementById('at-body');
+      var items = data.items || [];
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#94a3b8;"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>No audit events found for the current filters.</td></tr>';
+      } else {
+        body.innerHTML = items.map(function (l, idx) {
+          var d = new Date(l.createdAt);
+          var dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          var timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          var num = ((currentPage - 1) * PAGE_SIZE) + idx + 1;
+          var actor = l.actorName || 'System';
+          var role = l.actorRole || '';
+          var entityId = l.entityId ? '#' + String(l.entityId).slice(-8).toUpperCase() : '—';
+          return '<tr onclick="openDetail(' + JSON.stringify(JSON.stringify(l)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ')">' +
+            '<td style="color:#94a3b8;font-size:0.72rem;">' + num + '</td>' +
+            '<td class="date-cell">' + dateStr + '<span class="time-sub">' + timeStr + '</span></td>' +
+            '<td>' + catBadge(l.category) + '</td>' +
+            '<td><span class="act-badge" style="background:' + actClass(l.actionType) + ';">' + esc(l.action) + '</span></td>' +
+            '<td class="actor-cell" title="' + esc(actor) + '">' + esc(actor) + (role ? '<span class="role-tag">' + esc(role) + '</span>' : '') + '</td>' +
+            '<td>' + esc(l.entityType || '—') + ' <span class="ent-tag">' + entityId + '</span></td>' +
+            '<td class="detail-cell" title="' + esc(detailsText(l.details)) + '">' + esc(detailsText(l.details)) + '</td>' +
+            '<td style="color:#94a3b8;font-size:0.72rem;">' + esc(l.ip || '') + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+      document.getElementById('at-count').textContent = items.length;
+      var pag = data.pagination || {};
+      var total = pag.total || 0;
+      var from = total === 0 ? 0 : ((pag.page - 1) * pag.limit) + 1;
+      var to = Math.min(pag.page * pag.limit, total);
+      document.getElementById('at-range').textContent = 'Showing ' + from + '–' + to + ' of ' + total + ' events';
+      var pages = Math.max(1, pag.pages || 1);
+      document.getElementById('at-indicator').textContent = (pag.page || 1) + ' of ' + pages;
+      document.getElementById('at-prev').classList.toggle('disabled', (pag.page || 1) <= 1);
+      document.getElementById('at-next').classList.toggle('disabled', (pag.page || 1) >= pages);
+    }
+
+    function openDetail(jsonStr) {
+      var l = JSON.parse(jsonStr);
+      var d = new Date(l.createdAt);
+      var body = document.getElementById('atDetailBody');
+      var kv = function (k, v) {
+        return '<div class="kv"><span>' + k + '</span><span>' + esc(v) + '</span></div>';
+      };
+      body.innerHTML =
+        kv('Category', l.category) +
+        kv('Action', l.action) +
+        kv('Action Type', l.actionType) +
+        kv('Module', l.module) +
+        kv('Actor', (l.actorName || 'System') + (l.actorRole ? ' (' + l.actorRole + ')' : '')) +
+        (l.actorEmail && l.actorEmail !== l.actorName ? kv('Actor Email', l.actorEmail) : '') +
+        kv('Entity', l.entityType ? l.entityType + ' #' + (l.entityId || '') : '—') +
+        kv('IP Address', l.ip || '—') +
+        kv('Timestamp', d.toLocaleString('en-US')) +
+        '<div class="mt-3 mb-1" style="font-weight:700;font-size:0.82rem;color:#334155;">Raw Details</div>' +
+        '<pre>' + esc(JSON.stringify(l.details, null, 2)) + '</pre>';
+      document.getElementById('atDetailTitle').textContent = l.action;
+      document.getElementById('atDetailTime').textContent = l.category + ' · ' + d.toLocaleString('en-US');
+      new bootstrap.Modal(document.getElementById('atDetailModal')).show();
+    }
+
+    function prevPage() { if (currentPage > 1) { currentPage--; loadTable(); } }
+    function nextPage() {
+      var pages = parseInt(document.getElementById('at-indicator').textContent.split(' of ')[1]) || 1;
+      if (currentPage < pages) { currentPage++; loadTable(); }
+    }
+
+    function loadStats() {
+      fetch('/api/admin/audit/stats').then(function (r) { return r.json(); }).then(function (s) {
+        document.getElementById('at-total').textContent = (s.total || 0).toLocaleString();
+        document.getElementById('at-today').textContent = (s.today || 0).toLocaleString();
+        var bc = s.byCategory || {};
+        document.getElementById('at-bookings').textContent = (bc.booking || 0).toLocaleString();
+        document.getElementById('at-orders').textContent = (bc.order || 0).toLocaleString();
+        renderCats(s);
+        drawWeek(s.weekSeries || []);
+      }).catch(function () {});
+    }
+
+    function drawWeek(series) {
+      var el = document.querySelector('.at-week');
+      if (!el) return;
+      var max = 1;
+      series.forEach(function (s) { if (s.count > max) max = s.count; });
+      var bars = series.map(function (s) {
+        return '<div class="bar" style="height:' + Math.max(6, Math.round((s.count / max) * 34)) + 'px;" title="' + s._id + ': ' + s.count + '"></div>';
+      }).join('');
+      if (!bars) bars = '<span style="font-size:0.7rem;color:#94a3b8;">No data this week</span>';
+      el.innerHTML = bars;
+    }
+
+    function loadTable() {
+      var url = '/api/admin/audit?page=' + currentPage + '&limit=' + PAGE_SIZE + '&' + queryString();
+      var body = document.getElementById('at-body');
+      fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+        renderTable(data);
+      }).catch(function () {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#e11d48;"><i class="bi bi-exclamation-triangle" style="font-size:1.2rem;display:block;margin-bottom:0.5rem;"></i>Failed to load audit trail.</td></tr>';
+      });
+    }
+
+    document.getElementById('at-auto').addEventListener('change', function () {
+      if (this.checked) startLive(); else stopLive();
+    });
+
+    var liveTimer = null;
+    function startLive() {
+      stopLive();
+      liveTimer = setInterval(function () { loadTable(); }, 20000);
+    }
+    function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+
+    document.getElementById('at-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') applyFilter(); });
+
+    // Build a small weekly bar widget inside the Total Events card
+    var kpiCard = document.getElementById('at-total').closest('.dash-card');
+    var sparkWrap = kpiCard.querySelector('.inv-kpi-spark-wrap');
+    if (sparkWrap) { sparkWrap.innerHTML = '<div class="at-week mt-auto"></div>'; sparkWrap.style.height = '40px'; }
+
+    loadStats();
+    loadTable();
+  </script>
+</div>

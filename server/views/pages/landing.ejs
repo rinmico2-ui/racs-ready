@@ -793,13 +793,13 @@
     <!-- Picture Carousels -->
     <div class="cc-carousels" data-aos="fade-up" data-aos-duration="900" data-aos-delay="100">
       <% const ccServices = [
-        { name: 'Aircon Installation', icon: 'bi-tools' },
-        { name: 'Aircon Cleaning', icon: 'bi-droplet' },
-        { name: 'Freon Recharging', icon: 'bi-moisture' },
-        { name: 'Aircon Relocation', icon: 'bi-truck' },
-        { name: 'Dismantling & Reinstall', icon: 'bi-arrow-left-right' },
-        { name: 'System Reprocess', icon: 'bi-gear' },
-        { name: 'Pump Down', icon: 'bi-arrow-down-circle' }
+        { name: 'Aircon Installation', icon: 'bi-tools', img: '/images/technicianWork/tech2.jpg' },
+        { name: 'Aircon Cleaning', icon: 'bi-droplet', img: '/images/technicianWork/tech1.jpg' },
+        { name: 'Freon Recharging', icon: 'bi-moisture', img: '/images/technicianWork/tech3.jpg' },
+        { name: 'Aircon Relocation', icon: 'bi-truck', img: '/images/technicianWork/tech4.jpg' },
+        { name: 'Dismantling & Reinstall', icon: 'bi-arrow-left-right', img: '/images/technicianWork/image.png' },
+        { name: 'System Reprocess', icon: 'bi-gear', img: '/images/technician.jpg' },
+        { name: 'Pump Down', icon: 'bi-arrow-down-circle', img: '/images/servicesbg/section4services.jpeg' }
       ]; %>
       <% const ccRepairs = [
         { name: 'Refrigerator', icon: 'bi-snow2', img: '/images/bgphotos/ref.jpg' },
@@ -824,7 +824,7 @@
             <% ccServices.forEach((item) => { %>
               <a href="/services" class="cc-pic-card cc-pic-service" data-name="<%= item.name %>">
                 <div class="cc-pic-media">
-                  <img src="/images/care/<%= item.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') %>.jpg" alt="<%= item.name %>" onerror="this.style.display='none'">
+                  <img src="<%= item.img %>" alt="<%= item.name %>" loading="lazy" onerror="this.style.display='none'">
                   <div class="cc-pic-overlay"><div class="cc-pic-icon"><i class="bi <%= item.icon %>"></i></div></div>
                   <span class="cc-pic-chip cc-pic-chip--svc">Service</span>
                 </div>
@@ -849,7 +849,7 @@
         <div class="cc-carousel">
           <div class="cc-carousel-track" data-cc-track>
             <% ccRepairs.forEach((item) => { %>
-              <a href="/repair-request" class="cc-pic-card cc-pic-repair" data-name="<%= item.name %>">
+              <a href="/services" class="cc-pic-card cc-pic-repair" data-name="<%= item.name %>">
                 <div class="cc-pic-media">
                   <img src="<%= item.img %>" alt="<%= item.name %>" loading="lazy" onerror="this.style.display='none'">
                   <span class="cc-pic-chip">Repair</span>
@@ -893,13 +893,25 @@
   /* ── Background ── */
   .cc-bg {
     position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(165deg, #020617 0%, #0f172a 40%, #1e3a5f 100%);
+    background: linear-gradient(165deg, #020617 0%, #061b2d 35%, #083344 70%, #0b4a5e 100%);
+  }
+  .cc-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 900px 700px at 20% 20%, rgba(6,182,212,.12) 0%, transparent 60%),
+      radial-gradient(ellipse 700px 500px at 85% 85%, rgba(34,211,238,.08) 0%, transparent 60%),
+      radial-gradient(ellipse 600px 600px at 50% 50%, rgba(59,130,246,.04) 0%, transparent 60%);
+    pointer-events: none; animation: ccBgPulse 14s ease-in-out infinite alternate;
+  }
+  @keyframes ccBgPulse {
+    from { opacity: .85; }
+    to { opacity: 1; }
   }
   .cc-grid-overlay {
     position: absolute; inset: 0; z-index: 0; pointer-events: none;
     background-image:
-      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
     background-size: 60px 60px;
   }
 
@@ -916,16 +928,16 @@
     text-transform: uppercase; color: #60a5fa;
   }
   .cc-heading {
-    font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800;
-    letter-spacing: -1.5px; color: #f1f5f9; line-height: 1.15; margin: 0;
+    font-size: clamp(2.2rem, 4.5vw, 3.2rem); font-weight: 800;
+    letter-spacing: -2px; color: #f8fafc; line-height: 1.08; margin: 0;
   }
   .cc-heading-accent {
-    background: linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%);
+    background: linear-gradient(135deg, #60a5fa 0%, #22d3ee 55%, #93c5fd 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
   .cc-subheading {
-    max-width: 600px; font-size: 1.05rem; line-height: 1.7;
-    color: rgba(203,213,225,0.7); margin: 0;
+    max-width: 620px; font-size: 1.1rem; line-height: 1.75;
+    color: rgba(203,213,225,0.85); margin: 0;
   }
 
   /* ── Card ── */
@@ -1004,20 +1016,20 @@
     flex: 0 0 auto;
     width: 270px;
     text-decoration: none;
-    border-radius: 1.25rem;
+    border-radius: 1.4rem;
     overflow: hidden;
-    background: rgba(15, 43, 94, 0.45);
-    border: 1px solid rgba(96,165,250,0.18);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 10px 30px rgba(3, 10, 25, 0.4);
-    transition: all 0.4s cubic-bezier(0.165,0.84,0.44,1);
+    background: rgba(15, 43, 94, 0.35);
+    border: 1px solid rgba(96,165,250,0.12);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 14px 40px rgba(2, 6, 23, 0.45);
+    transition: all 0.45s cubic-bezier(0.165,0.84,0.44,1);
     position: relative;
   }
   .cc-pic-card:hover {
-    transform: translateY(-10px);
-    border-color: rgba(96,165,250,0.45);
-    box-shadow: 0 22px 50px rgba(3, 10, 25, 0.55);
+    transform: translateY(-12px) scale(1.02);
+    border-color: rgba(96,165,250,0.4);
+    box-shadow: 0 28px 70px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(96,165,250,0.1);
   }
   .cc-pic-media {
     position: relative;
@@ -1085,8 +1097,8 @@
     position: absolute; top: 0; bottom: 0; width: 60px; z-index: 3;
     pointer-events: none;
   }
-  .cc-carousel-fade--left { left: 0; background: linear-gradient(90deg, #0a1628, transparent); }
-  .cc-carousel-fade--right { right: 0; background: linear-gradient(270deg, #0a1628, transparent); }
+  .cc-carousel-fade--left { left: 0; background: linear-gradient(90deg, #061b2d, transparent); }
+  .cc-carousel-fade--right { right: 0; background: linear-gradient(270deg, #0b4a5e, transparent); }
 
   /* Carousel controls */
   .cc-carousel-ctrl {
@@ -1113,10 +1125,11 @@
   /* ── CTA Banner ── */
   .cc-cta {
     margin-top: 3rem; padding: 2.5rem 2.5rem;
-    background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06));
-    border: 1px solid rgba(59,130,246,0.12);
-    border-radius: 1.25rem; position: relative; overflow: hidden;
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(37,99,235,0.05) 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 1.5rem; position: relative; overflow: hidden;
     transition: all 0.4s ease;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   }
   .cc-cta:hover {
     border-color: rgba(59,130,246,0.2);
@@ -1838,9 +1851,6 @@
                      onerror="this.src='/images/products/default.png';">
                 <% if (p.inverter) { %><span class="fp-tag fp-tag-inverter">Inverter</span><% } %>
                 <span class="fp-tag fp-tag-stock <%= p.inStock ? 'in' : 'out' %>"><%= p.inStock ? 'In Stock' : 'Sold Out' %></span>
-                <div class="fp-quick-add">
-                  <a href="/products/<%= p._id %>" class="fp-quick-btn">View Details <i class="bi bi-arrow-right"></i></a>
-                </div>
               </div>
               <div class="fp-card-body">
                 <div class="fp-brand"><%= p.brand %></div>
@@ -1853,7 +1863,7 @@
                   <div class="fp-price">
                     <% if (p.startingPrice) { %><span class="fp-from">from</span> ₱<%= Number(p.startingPrice).toLocaleString() %><% } else { %><span class="fp-from">Price on request</span><% } %>
                   </div>
-                  <a href="/products/<%= p._id %>" class="fp-buy">Shop <i class="bi bi-bag"></i></a>
+                  <a href="/products/<%= p._id %>" class="fp-buy" aria-label="View <%= p.brand %> <%= p.modelLine %>">View Product <i class="bi bi-arrow-right"></i></a>
                 </div>
               </div>
             </div>
@@ -1901,10 +1911,6 @@
     .fp-tag-stock { right: 12px; }
     .fp-tag-stock.in { background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
     .fp-tag-stock.out { background: rgba(239,68,68,0.1); color: #dc2626; border: 1px solid rgba(239,68,68,0.2); }
-    .fp-quick-add { position: absolute; inset: auto 0 0 0; padding: 0.9rem; background: linear-gradient(to top, rgba(255,255,255,0.95), transparent); transform: translateY(20px); opacity: 0; transition: all 0.4s ease; }
-    .fp-card:hover .fp-quick-add { transform: translateY(0); opacity: 1; }
-    .fp-quick-btn { display: block; text-align: center; padding: 0.6rem; border-radius: 0.75rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; font-size: 0.85rem; text-decoration: none; }
-    .fp-quick-btn:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; }
 
     .fp-card-body { padding: 1.1rem 1.2rem 1.3rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
     .fp-brand { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; }
@@ -1991,13 +1997,6 @@
       .fp-tag-stock {
         right: 6px;
       }
-      .fp-quick-add {
-        padding: 0.5rem;
-      }
-      .fp-quick-btn {
-        padding: 0.4rem;
-        font-size: 0.7rem;
-      }
       .fp-viewall {
         padding: 0.6rem 1.25rem;
         font-size: 0.8rem;
@@ -2030,10 +2029,6 @@
       }
       .fp-buy {
         padding: 0.25rem 0.5rem;
-        font-size: 0.65rem;
-      }
-      .fp-quick-btn {
-        padding: 0.35rem;
         font-size: 0.65rem;
       }
     }
@@ -2701,7 +2696,7 @@
       <span class="badge px-4 py-2 rounded-pill fw-bold mb-3 shadow-sm border" style="letter-spacing: 1px; text-transform: uppercase; font-size: 0.82rem; background: rgba(255,255,255,0.08); color: #93c5fd; border-color: rgba(147,197,253,0.25) !important; backdrop-filter: blur(10px);">Get in Touch</span>
       <h2 class="display-5 fw-bold mb-3" style="letter-spacing: -1.5px; color: #ffffff;">Find <span style="background: linear-gradient(135deg, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Us</span></h2>
       <p class="fs-5 mx-auto" style="max-width: 600px; color: rgba(219,234,254,0.7);">
-        Visit our location in San Leonardo, Nueva Ecija
+        Visit our location in <%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %>
       </p>
     </div>
     <div class="row g-4 align-items-stretch justify-content-center">
@@ -2718,7 +2713,7 @@
             </div>
             
             <p class="mb-4" style="color: rgba(219,234,254,0.6); font-size: 0.95rem; line-height: 1.7;">
-              Located in the heart of San Leonardo, Nueva Ecija, CALIDRO RACS serves the local community with reliable air conditioning and home appliance services.
+              Located in the heart of <%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %>, <%= locals.companyName || 'CALIDRO RACS' %> serves the local community with reliable air conditioning and home appliance services.
             </p>
             
             <div class="d-flex flex-column gap-3 w-100">
@@ -2729,7 +2724,7 @@
                 </div>
                 <div>
                   <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Address</h6>
-                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;">CALIDRO Refrigeration and Airconditioning</span>
+                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;"><%= locals.companyName || 'CALIDRO RACS' %></span>
                 </div>
               </div>
               <!-- Phone -->
@@ -2739,7 +2734,7 @@
                 </div>
                 <div>
                   <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Phone</h6>
-                  <a href="tel:+639656056495" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;">09656056495</a>
+                  <a href="tel:<%= (locals.companyPhone || '09656056495').replace(/\s/g, '') %>" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;"><%= locals.companyPhone || '09656056495' %></a>
                 </div>
               </div>
               <!-- Email -->
@@ -2749,7 +2744,7 @@
                 </div>
                 <div>
                   <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Email</h6>
-                  <a href="mailto:info@calidro.com" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;">info@calidro.com</a>
+                  <a href="mailto:<%= locals.companyEmail || 'calidroracs@gmail.com' %>" class="text-decoration-none fw-semibold" style="color: rgba(219,234,254,0.5); font-size: 0.82rem; transition: color 0.3s ease;"><%= locals.companyEmail || 'calidroracs@gmail.com' %></a>
                 </div>
               </div>
               <!-- Hours -->
@@ -2759,7 +2754,7 @@
                 </div>
                 <div>
                   <h6 class="fw-bold mb-0" style="color: rgba(255,255,255,0.95); font-size: 0.9rem;">Working Hours</h6>
-                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;">Mon–Sat · 8:00 AM – 6:00 PM</span>
+                  <span style="color: rgba(219,234,254,0.5); font-size: 0.82rem;"><%= (locals.businessHours && businessHours.summary) || 'Mon–Sat · 8:00 AM – 6:00 PM' %></span>
                 </div>
               </div>
             </div>
@@ -2777,7 +2772,7 @@
         <div class="findus-map-card w-100 h-100 d-flex align-items-center justify-content-center">
           <div class="w-100 h-100 overflow-hidden" style="border-radius: 1.25rem; min-height: 450px;">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d12345.67890!2d120.123456!3d15.123456!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTXCsDA3JzI0LjAiTiAxMjDCsDA3JzI0LjAiRQ!5e0!3m2!1sen!2sph!4v1234567890123!5m2!1sen!2sph"
+              src="https://www.google.com/maps?q=<%= (locals.companyLocation && companyLocation.lat) || 15.123456 %>,<%= (locals.companyLocation && companyLocation.lng) || 120.123456 %>&z=15&output=embed"
               width="100%"
               height="100%"
               style="border:0; min-height: 450px; display: block; filter: brightness(0.85) contrast(1.1) saturate(1.2);"

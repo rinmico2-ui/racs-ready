@@ -64,8 +64,11 @@ router.get("/counts", authenticate, async (req, res) => {
     const BookingService = require("../models/BookingService");
     const Expense = require("../models/Expense");
     const LeaveRequest = require("../models/LeaveRequest");
+    const ActivityLog = require("../models/ActivityLog");
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-    const [pendingBookings, activeJobs, pendingExpenses, assignmentQueue, escalatedBookings, pendingLeaveRequests, unreadNotifs] =
+    const [pendingBookings, activeJobs, pendingExpenses, assignmentQueue, escalatedBookings, pendingLeaveRequests, unreadNotifs, auditToday] =
       await Promise.all([
         BookingService.countDocuments({ status: "pending" }),
         BookingService.countDocuments({
@@ -90,6 +93,7 @@ router.get("/counts", authenticate, async (req, res) => {
         Notification.unreadCount({
           $or: [{ userId: req.user._id }, { role: req.user.role }],
         }),
+        ActivityLog.countDocuments({ createdAt: { $gte: startOfToday } }),
       ]);
 
     res.json({
@@ -100,6 +104,7 @@ router.get("/counts", authenticate, async (req, res) => {
       escalatedBookings,
       pendingLeaveRequests,
       unreadNotifications: unreadNotifs,
+      auditToday,
     });
   } catch (error) {
     console.error("Error fetching counts:", error);

@@ -1,6 +1,12 @@
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
+  <style>
+    /* Customer Ratings tabs */
+    .nav-pills .nav-link { color: #64748b; font-weight: 600; border-radius: 10px; padding: 0.6rem 1.1rem; }
+    .nav-pills .nav-link.active { background: #fff; color: #0f172a; box-shadow: inset -4px 0 0 0 #2563eb, 0 2px 6px rgba(0,0,0,0.06); }
+    .nav-pills .nav-link:not(.active):hover { background: #f1f5f9; color: #334155; }
+  </style>
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
@@ -20,6 +26,12 @@
       </div>
     </div>
   </div>
+
+  <!-- Customer Ratings Tabs -->
+  <ul class="nav nav-pills mb-4">
+    <li class="nav-item"><a class="nav-link" href="/admin/ratings/service"><i class="bi bi-wrench-adjustable me-2"></i>Services</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/admin/ratings/aircons"><i class="bi bi-snow2 me-2"></i>Aircon Products</a></li>
+  </ul>
 
   <!-- Product Rating Overview -->
   <div class="row mb-4">

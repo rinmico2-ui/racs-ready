@@ -21,7 +21,10 @@ const BookingService = require("../models/BookingService");
 const LeaveRequest = require("../models/LeaveRequest");
 const Tool = require("../models/Tool");
 const ProjectMaterial = require("../models/ProjectMaterial");
+const { evaluateProjectResources } = require("./projectResourcePlanning");
+const { projectUnits, resourcesForWorkOrder, validateWorkOrderPlan } = require("./projectWorkOrderPlanning");
 const { tavilyProjectResourceSearch, tavilyPartsPricingSearch } = require("./aiTechnicianAssistant");
+const { buildServicePreparation } = require("./servicePreparation");
 
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -193,7 +196,21 @@ async function generateSchedule(projectId) {
   const avail = await buildDailyAvailability(project.toObject ? project.toObject() : project);
   if (!avail) throw new Error("Project has no valid working span (set start/completion)");
 
-  const workOrders = await WorkOrder.find({ projectId }).sort({ sortOrder: 1, _id: 1 }).lean();
+  let workOrders = await WorkOrder.find({ projectId, status: { $ne: "cancelled" } }).sort({ sortOrder: 1, _id: 1 }).lean();
+  const priorityRank = { critical: 0, urgent: 0, high: 1, normal: 2, low: 3 };
+  // Stable topological ordering: prerequisites precede dependants, while
+  // critical/high work wins among currently unblocked packages.
+  const byId = new Map(workOrders.map(order => [String(order._id), order]));
+  const remainingDependencies = new Map(workOrders.map(order => [String(order._id), new Set((order.dependencies || []).map(String).filter(id => byId.has(id)))]));
+  const ordered = [];
+  while (ordered.length < workOrders.length) {
+    const candidates = workOrders.filter(order => !ordered.includes(order) && remainingDependencies.get(String(order._id)).size === 0)
+      .sort((a, b) => (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2) || (a.sortOrder || 0) - (b.sortOrder || 0));
+    if (!candidates.length) throw new Error("Work-order dependencies contain a circular reference");
+    const next = candidates[0]; ordered.push(next);
+    remainingDependencies.forEach(set => set.delete(String(next._id)));
+  }
+  workOrders = ordered;
   const totalUnits = workOrders.reduce((s, w) => s + (w.unitCount || 0), 0);
   if (totalUnits <= 0) throw new Error("No units found to schedule");
 
@@ -324,11 +341,30 @@ async function generateSchedule(projectId) {
   // Remaining units across all techs
   const remainingUnits = Object.values(perTechProgress).reduce((s, p) => s + p.remainingUnits, 0);
 
+  // Scheduling is date-aware for reusable assets. Re-evaluate the resource
+  // plan after work-order dates are assigned and surface equipment conflicts
+  // alongside technician conflicts without reserving anything.
+  let resourceReadiness = null;
+  if (project.planningDraft?.resources?.length) {
+    try {
+      const refreshedProject = await Project.findById(projectId);
+      const evaluated = await evaluateProjectResources(refreshedProject.toObject(), refreshedProject.planningDraft.resources);
+      refreshedProject.planningDraft.resources = evaluated.resources;
+      refreshedProject.planningDraft.readiness = evaluated.readiness;
+      refreshedProject.planningDraft.updatedAt = new Date();
+      await refreshedProject.save();
+      resourceReadiness = evaluated.readiness;
+      evaluated.resources.filter(resource => resource.readinessStatus === "equipment_conflict").forEach(resource => {
+        conflicts.push({ type: "equipment", itemName: resource.itemName, shortage: resource.shortage, message: `${resource.itemName}: ${resource.shortage} unit(s) unavailable during the project schedule` });
+      });
+    } catch (_) {}
+  }
+
   // ── Update work orders' scheduledDate ─────────────────────────
   for (const wo of workOrders) {
-    if (!wo.scheduledDate) {
-      await WorkOrder.findByIdAndUpdate(wo._id, { scheduledDate: startOfDay(days[0]) });
-    }
+    const workDates = schedule.filter(row => String(row.workOrderId) === String(wo._id)).map(row => new Date(row.date)).sort((a,b) => a-b);
+    const scheduledDate = workDates[0] || wo.scheduledDate || startOfDay(days[0]);
+    await WorkOrder.findByIdAndUpdate(wo._id, { scheduledDate: startOfDay(scheduledDate), planningStatus: "scheduled" });
   }
 
   // Repair existing admin-created daily plans
@@ -347,6 +383,7 @@ async function generateSchedule(projectId) {
     totalUnits,
     assignedUnits: totalAssigned,
     remainingUnits: Math.max(0, remainingUnits),
+    resourceReadiness,
   };
 }
 
@@ -369,6 +406,86 @@ async function ensureDailyAssignmentsSafe(woId) {
 async function generateWorkOrders(projectId, opts = {}) {
   const project = await Project.findById(projectId);
   if (!project) throw new Error("Project not found");
+
+  // Enterprise default: create practical draft execution packages from the
+  // real service/unit scope. Manual location modes remain available below.
+  if (!opts.mode || opts.mode === "intelligent" || opts.regenerate) {
+    const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
+    const allUnits = projectUnits(project.toObject(), booking);
+    const prior = await WorkOrder.find({ projectId }).sort({ sortOrder: 1 }).lean();
+    const replaceable = prior.filter(order => order.planningStatus !== "released" && order.status === "pending");
+    const protectedOrders = prior.filter(order => !replaceable.some(draft => String(draft._id) === String(order._id)));
+    const protectedKeys = new Set(protectedOrders.flatMap(order => (order.units || []).map(unit => unit.unitKey)));
+    const remainingUnits = allUnits.filter(unit => !protectedKeys.has(unit.unitKey));
+    if (replaceable.length) {
+      await DailyAssignment.deleteMany({ workOrderId: { $in: replaceable.map(order => order._id) } });
+      await WorkOrder.deleteMany({ _id: { $in: replaceable.map(order => order._id) } });
+    }
+    if (!remainingUnits.length) {
+      const readiness = await validateWorkOrderPlan(project.toObject(), booking);
+      return { workOrders: [], preserved: protectedOrders.length, readiness, message: "No uncovered project units remain; released work orders were preserved." };
+    }
+
+    const team = (project.assignedTechnicians || []).map(member => ({
+      _id: member._id || member, name: member.name || "Technician", phone: member.phone || "",
+    }));
+    const groups = new Map();
+    remainingUnits.forEach(unit => {
+      const key = [unit.serviceType, unit.serviceName, unit.location, unit.groupIndex].join("|");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(unit);
+    });
+    const existingNumbers = prior.map(order => Number(String(order.workOrderNumber || "").match(/(\d+)$/)?.[1] || 0));
+    let sequence = Math.max(0, ...existingNumbers);
+    const created = [];
+    for (const units of groups.values()) {
+      const sample = units[0];
+      const durationMinutes = Math.max(15, Number(sample.durationMinutes || 60));
+      // 6.5 productive hours accounts for setup, breaks, site movement and
+      // reporting. Repair packages stay small to preserve inspection/quote flow.
+      const perTechnicianCapacity = Math.max(1, Math.floor(390 / durationMinutes));
+      const batchSize = sample.serviceType === "repair"
+        ? Math.min(2, perTechnicianCapacity)
+        : Math.min(6, perTechnicianCapacity);
+      for (let start = 0; start < units.length; start += batchSize) {
+        const batch = units.slice(start, start + batchSize);
+        sequence += 1;
+        // The project team owns every batch. Individual accountability is
+        // captured when a technician updates a tracked unit during execution.
+        const suggested = team.map(member => ({ ...member, assignedUnits: 0 }));
+        const number = `WO-${String(sequence).padStart(3, "0")}`;
+        const location = sample.location || project.location?.address || booking?.location?.address || "Customer site";
+        const order = await WorkOrder.create({
+          projectId, bookingId: project.bookingId, workOrderNumber: number,
+          planningStatus: "draft", status: "pending", assignmentProvisional: true,
+          title: `${sample.serviceName || "HVAC Service"} — ${location}`,
+          description: `${sample.serviceType === "repair" ? "Repair assessment and approved repair workflow" : "Core service execution"} for ${batch.length} unit(s).`,
+          section: location, location: { label: location, address: project.location?.address || booking?.location?.address || location, lat: project.location?.lat || booking?.location?.lat, lng: project.location?.lng || booking?.location?.lng },
+          serviceType: sample.serviceType, workflowType: sample.serviceType, serviceName: sample.serviceName,
+          units: batch.map(({ durationMinutes: ignored, ...unit }) => unit), unitCount: batch.length,
+          estimatedHours: Number(((batch.length * durationMinutes) / 60).toFixed(1)),
+          requiredTechnicianCount: Math.max(1, Math.min(team.length || 1, Number(project.dailyRequiredTechnicians || team.length || 1))),
+          suggestedTechnicians: suggested, assignedTechnicians: suggested,
+          priority: booking?.priority === "medium" ? "normal" : (booking?.priority || "normal"),
+          sortOrder: protectedOrders.length + created.length + 1,
+          checklist: sample.serviceType === "repair"
+            ? [{ label: "Inspect and diagnose", completed: false }, { label: "Prepare quotation", completed: false }, { label: "Complete customer-approved repair", completed: false }, { label: "Proof of completion", completed: false }]
+            : [{ label: "Initial inspection", completed: false }, { label: "Execute core service", completed: false }, { label: "Final quality check", completed: false }, { label: "Proof of completion", completed: false }],
+          activity: [{ action: "work_order_created", actorName: "Planning Engine", details: { generationMode: "intelligent", provisionalAssignment: true } }],
+        });
+        order.resourceRequirements = resourcesForWorkOrder(project.toObject(), order.toObject());
+        await order.save();
+        created.push(order);
+      }
+    }
+    project.totalWorkOrders = protectedOrders.length + created.length;
+    await project.save();
+    const readiness = await validateWorkOrderPlan(project.toObject(), booking);
+    return {
+      workOrders: created, preserved: protectedOrders.length, readiness,
+      message: `${created.length} draft work order(s) generated from ${remainingUnits.length} unit(s). ${protectedOrders.length ? `${protectedOrders.length} released/active order(s) preserved.` : ""}`.trim(),
+    };
+  }
 
   const estimatedTotalHours = project.estimatedTotalHours || 0;
   let totalUnits = Number(project.totalUnits) || 0;
@@ -497,10 +614,11 @@ async function generateWorkOrders(projectId, opts = {}) {
     }
   }
 
-  // Replace existing auto-generated work orders and clean up daily assignments
-  const oldWos = await WorkOrder.find({ projectId }).select('_id').lean();
+  // Replace draft records only. Released, active, completed and cancelled
+  // records are immutable to automatic regeneration.
+  const oldWos = await WorkOrder.find({ projectId, status: "pending", planningStatus: { $ne: "released" } }).select('_id').lean();
   const oldWoIds = oldWos.map(w => w._id);
-  await WorkOrder.deleteMany({ projectId });
+  await WorkOrder.deleteMany({ _id: { $in: oldWoIds } });
   if (oldWoIds.length) {
     await DailyAssignment.deleteMany({ workOrderId: { $in: oldWoIds } });
   }
@@ -511,22 +629,11 @@ async function generateWorkOrders(projectId, opts = {}) {
   const hoursPerUnit = project.estimatedDurationPerUnit
     || (estimatedTotalHours && totalUnits ? estimatedTotalHours / totalUnits : 1);
   const dailyHours = 8;
-  const techWeights = team.map(() => Math.max(1, Math.floor(dailyHours / hoursPerUnit)));
-  const totalWeight = techWeights.reduce((s, w) => s + w, 0);
-
   const created = [];
   specs.forEach((sp, idx) => {
-    let remaining = sp.unitCount;
-    const assigned = team.map((tech, ti) => {
-      const share = totalWeight > 0
-        ? Math.max(1, Math.floor((techWeights[ti] / totalWeight) * sp.unitCount))
-        : Math.ceil(sp.unitCount / Math.max(1, teamSize));
-      const actualUnits = Math.min(share, remaining);
-      remaining = Math.max(0, remaining - actualUnits);
-      return { _id: tech._id, name: tech.name, phone: tech.phone, assignedUnits: actualUnits };
-    });
-    // Give any remaining units to the first tech
-    if (remaining > 0 && assigned.length > 0) assigned[0].assignedUnits += remaining;
+    const assigned = team.map(tech => ({
+      _id: tech._id, name: tech.name, phone: tech.phone, assignedUnits: 0,
+    }));
 
     created.push({
       projectId,
@@ -540,6 +647,7 @@ async function generateWorkOrders(projectId, opts = {}) {
       hp: sp.hp || null,
       unitCount: sp.unitCount,
       estimatedHours: sp.estimatedHours,
+      requiredTechnicianCount: Math.max(1, Math.min(team.length || 1, Number(project.dailyRequiredTechnicians || team.length || 1))),
       assignedTechnicians: assigned,
       scheduledDate: null,
       priority: "normal",
@@ -560,7 +668,7 @@ async function generateWorkOrders(projectId, opts = {}) {
     ? ` (auto-calculated: ${teamSize} tech(s) × ${Math.floor(dailyHours / hoursPerUnit)} units/day × project duration)`
     : "";
   const assignMsg = teamSize > 0
-    ? ` distributed across ${teamSize} technician(s) by capacity${capacityNote}`
+    ? ` assigned to the ${teamSize}-person project team${capacityNote}`
     : " (no team assigned yet — add the team to auto-assign technicians)";
   return { workOrders: inserted, message: `${inserted.length} work order(s) created (total ${totalUnits} units)${assignMsg}` };
 }
@@ -574,6 +682,7 @@ async function generateWorkOrders(projectId, opts = {}) {
 async function suggestResources(projectId) {
   const project = await Project.findById(projectId).lean();
   if (!project) throw new Error("Project not found");
+  const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
   const workOrders = await WorkOrder.find({ projectId }).lean();
   const totalUnits = project.totalUnits || workOrders.reduce((s, w) => s + (w.unitCount || 0), 0);
   const crew = project.dailyRequiredTechnicians || (project.assignedTechnicians || []).length || 1;
@@ -614,52 +723,81 @@ async function suggestResources(projectId) {
   // Equipment suggestions (shared tools)
   const pressureWasher = findTool(["pressure washer", "power washer", "jet wash"]);
   if (pressureWasher) {
-    recs.push({ itemName: pressureWasher.itemName, type: "equipment", quantity: round(crew / 2), unit: pressureWasher.unit || "pcs", scope: "shared", reason: `${crew} technicians on site`, toolId: pressureWasher._id, available: (pressureWasher.quantity || 0) });
+    recs.push({ itemName: pressureWasher.itemName, type: "equipment", quantity: round(crew / 2), baseQuantity: 0.5, requirementRule: "per_technician", unit: pressureWasher.unit || "pcs", scope: "shared", reason: `One shared washer per two technicians (${crew} currently planned)`, toolId: pressureWasher._id, available: (pressureWasher.quantity || 0) });
   } else {
-    recs.push({ itemName: "Pressure Washer", type: "equipment", quantity: round(crew / 2), unit: "pcs", scope: "shared", reason: `${crew} technicians on site`, available: 0 });
+    recs.push({ itemName: "Pressure Washer", type: "equipment", quantity: round(crew / 2), baseQuantity: 0.5, requirementRule: "per_technician", unit: "pcs", scope: "shared", reason: `One shared washer per two technicians (${crew} currently planned)`, available: 0 });
   }
 
   const ladders = findTools(["ladder", "step ladder", "extension ladder"]);
   if (ladders.length) {
-    recs.push({ itemName: ladders[0].itemName, type: "equipment", quantity: round(crew / 2), unit: ladders[0].unit || "pcs", scope: "shared", reason: "Shared access equipment", toolId: ladders[0]._id, available: (ladders[0].quantity || 0) });
+    recs.push({ itemName: ladders[0].itemName, type: "equipment", quantity: round(crew / 2), baseQuantity: 0.5, requirementRule: "per_technician", unit: ladders[0].unit || "pcs", scope: "shared", reason: "Shared access equipment; one per two technicians", toolId: ladders[0]._id, available: (ladders[0].quantity || 0) });
   } else {
-    recs.push({ itemName: "Ladder", type: "equipment", quantity: round(crew / 2), unit: "pcs", scope: "shared", reason: "Shared access equipment", available: 0 });
+    recs.push({ itemName: "Ladder", type: "equipment", quantity: round(crew / 2), baseQuantity: 0.5, requirementRule: "per_technician", unit: "pcs", scope: "shared", reason: "Shared access equipment; one per two technicians", available: 0 });
   }
 
   // Consumables from catalog
   const cleaningSolutions = findTools(["cleaning solution", "cleaner", "coil cleaner", "foam cleaner"]);
   if (cleaningSolutions.length) {
-    recs.push({ itemName: cleaningSolutions[0].itemName, type: "part", quantity: round(totalUnits / 4) * 5, unit: cleaningSolutions[0].unit || "pcs", scope: "consumable", reason: `~${(totalUnits / 4).toFixed(1)} units per 5L`, toolId: cleaningSolutions[0]._id, available: (cleaningSolutions[0].quantity || 0) });
+    recs.push({ itemName: cleaningSolutions[0].itemName, type: "consumable", quantity: round(totalUnits * 1.25), baseQuantity: 1.25, requirementRule: "per_unit", unit: cleaningSolutions[0].unit || "pcs", scope: "shared", reason: "Configured usage: 5L per 4 units", toolId: cleaningSolutions[0]._id, available: (cleaningSolutions[0].quantity || 0) });
   } else {
-    recs.push({ itemName: "Cleaning Solution", type: "part", quantity: round(totalUnits / 4) * 5, unit: "L", scope: "consumable", reason: `~${(totalUnits / 4).toFixed(1)} units per 5L`, available: 0 });
+    recs.push({ itemName: "Cleaning Solution", type: "consumable", quantity: round(totalUnits * 1.25), baseQuantity: 1.25, requirementRule: "per_unit", unit: "L", scope: "shared", reason: "Configured usage: 5L per 4 units", available: 0 });
   }
 
   const cloths = findTools(["microfiber", "cloth", "rag", "wipe"]);
   if (cloths.length) {
-    recs.push({ itemName: cloths[0].itemName, type: "part", quantity: round(totalUnits), unit: cloths[0].unit || "pcs", scope: "consumable", reason: "One per unit", toolId: cloths[0]._id, available: (cloths[0].quantity || 0) });
+    recs.push({ itemName: cloths[0].itemName, type: "consumable", quantity: round(totalUnits), baseQuantity: 1, requirementRule: "per_unit", unit: cloths[0].unit || "pcs", scope: "shared", reason: "Configured usage: one per unit", toolId: cloths[0]._id, available: (cloths[0].quantity || 0) });
   } else {
-    recs.push({ itemName: "Microfiber Cloths", type: "part", quantity: round(totalUnits), unit: "pcs", scope: "consumable", reason: "One per unit", available: 0 });
+    recs.push({ itemName: "Microfiber Cloths", type: "consumable", quantity: round(totalUnits), baseQuantity: 1, requirementRule: "per_unit", unit: "pcs", scope: "shared", reason: "Configured usage: one per unit", available: 0 });
   }
 
   // Common repair parts from catalog
   const capacitors = findTools(["capacitor"]);
   if (capacitors.length) {
-    recs.push({ itemName: capacitors[0].itemName, type: "part", quantity: Math.max(1, Math.round(totalUnits * 0.1)), unit: capacitors[0].unit || "pcs", scope: "spare", reason: "Common failure part (~10% of units)", toolId: capacitors[0]._id, available: (capacitors[0].quantity || 0) });
+    recs.push({ itemName: capacitors[0].itemName, type: "part", quantity: Math.max(1, Math.round(totalUnits * 0.1)), baseQuantity: 0.1, requirementRule: "per_unit", unit: capacitors[0].unit || "pcs", scope: "shared", reason: "Possible repair part based on a 10% planning allowance", toolId: capacitors[0]._id, available: (capacitors[0].quantity || 0) });
   }
 
   const filters = findTools(["filter", "air filter", "filter drier"]);
   if (filters.length) {
-    recs.push({ itemName: filters[0].itemName, type: "part", quantity: round(totalUnits), unit: filters[0].unit || "pcs", scope: "consumable", reason: "One per unit", toolId: filters[0]._id, available: (filters[0].quantity || 0) });
+    recs.push({ itemName: filters[0].itemName, type: "consumable", quantity: round(totalUnits), baseQuantity: 1, requirementRule: "per_unit", unit: filters[0].unit || "pcs", scope: "shared", reason: "Configured usage: one per unit", toolId: filters[0]._id, available: (filters[0].quantity || 0) });
   }
 
   const refrigerants = findTools(["refrigerant", "freon", "r410", "r22", "r32"]);
   if (refrigerants.length) {
-    recs.push({ itemName: refrigerants[0].itemName, type: "part", quantity: round(totalUnits / 3), unit: refrigerants[0].unit || "kg", scope: "consumable", reason: "~1kg per 3 units", toolId: refrigerants[0]._id, available: (refrigerants[0].quantity || 0) });
+    recs.push({ itemName: refrigerants[0].itemName, type: "consumable", quantity: round(totalUnits / 3), baseQuantity: 1 / 3, requirementRule: "per_unit", unit: refrigerants[0].unit || "kg", scope: "shared", reason: "Configured usage: 1kg per 3 units", toolId: refrigerants[0]._id, available: (refrigerants[0].quantity || 0) });
   }
 
   const copperPipes = findTools(["copper pipe", "copper tubing", "refrigerant pipe"]);
   if (copperPipes.length) {
-    recs.push({ itemName: copperPipes[0].itemName, type: "part", quantity: round(totalUnits * 2), unit: copperPipes[0].unit || "pcs", scope: "consumable", reason: "~2m per unit", toolId: copperPipes[0]._id, available: (copperPipes[0].quantity || 0) });
+    recs.push({ itemName: copperPipes[0].itemName, type: "consumable", quantity: round(totalUnits * 2), baseQuantity: 2, requirementRule: "per_unit", unit: copperPipes[0].unit || "pcs", scope: "shared", reason: "Configured usage: 2m per unit", toolId: copperPipes[0]._id, available: (copperPipes[0].quantity || 0) });
+  }
+
+  // Merge the same service-aware kit used by technician preparation. This
+  // captures tools/consumables for non-cleaning and mixed Core + Repair jobs.
+  if (booking) {
+    const preparation = await buildServicePreparation(booking);
+    for (const item of preparation.recommendations || []) {
+      const quantity = item.kind === "consumable"
+        ? Math.max(1, Number(item.quantity || 1) * totalUnits)
+        : Math.max(1, Math.min(crew, Number(item.quantity || 1) * crew));
+      if (!recs.some(rec => String(rec.toolId || "") === String(item.inventoryId || "") && rec.itemName.toLowerCase() === String(item.name).toLowerCase())) {
+        recs.push({ itemName: item.name, type: item.kind, quantity, baseQuantity: Math.max(0.01, Number(item.quantity || 1)), requirementRule: item.kind === "consumable" ? "per_unit" : "per_technician", unit: item.unit || "pcs", scope: "shared", reason: item.kind === "consumable" ? `Service kit requirement for ${totalUnits} units` : `Required service equipment for ${crew} technicians`, toolId: item.inventoryId || undefined, available: Number(item.available || 0) });
+      }
+    }
+
+    // Parts already identified in an approved/submitted repair quotation are
+    // requirements, not generic AI guesses, and must appear in the plan.
+    const quotedParts = [
+      ...(booking.quotation?.parts || []),
+      ...((booking.services || []).flatMap(item => item.quotation?.parts || [])),
+    ];
+    for (const part of quotedParts) {
+      const name = String(part.name || "").trim();
+      if (!name) continue;
+      const catalog = part.toolId ? allTools.find(tool => String(tool._id) === String(part.toolId)) : findTool([name.toLowerCase()]);
+      const existing = recs.find(rec => rec.type === "part" && rec.itemName.toLowerCase() === name.toLowerCase());
+      if (existing) existing.quantity = Math.max(existing.quantity, Number(part.quantity) || 1);
+      else recs.push({ itemName: name, type: "part", quantity: Math.max(1, Number(part.quantity) || 1), baseQuantity: Math.max(1, Number(part.quantity) || 1), requirementRule: "fixed", unit: catalog?.unit || "pcs", scope: "shared", reason: "Required by repair quotation", toolId: catalog?._id, available: Number(catalog?.quantity || 0) });
+    }
   }
 
   return {

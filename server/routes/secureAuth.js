@@ -7,18 +7,19 @@ router.post(
   "/login",
   [
     body("email")
-      .isLength({ max: 50 })
       .trim()
-      .matches(/^[A-Za-z0-9]+@[A-Za-z0-9]+\.[A-Za-z0-9]+$/)
-      .withMessage("Invalid email format"),
+      .isLength({ min: 3, max: 254 })
+      .isEmail()
+      .withMessage("Invalid email format")
+      .normalizeEmail({
+        gmail_remove_dots: false,
+        gmail_remove_subaddress: false,
+        all_lowercase: true,
+      }),
     body("password")
-      .isLength({ min: 8, max: 20 })
-      .matches(
-        /^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]+$/,
-      )
-      .withMessage(
-        "Password must be 8–20 chars, include exactly one uppercase, and each of !,@,#,$ may appear at most once",
-      ),
+      .isString()
+      .isLength({ min: 1, max: 128 })
+      .withMessage("Invalid password"),
     body("mathCaptcha")
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 2 })

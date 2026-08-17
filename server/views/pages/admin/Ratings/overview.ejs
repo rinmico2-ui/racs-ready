@@ -1,308 +1,241 @@
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
+
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-graph-up"></i></div>
+        <div class="au-hero-icon"><i class="bi bi-grid-1x2-fill"></i></div>
         <div>
-          <h1>Rating Overview</h1>
-          <p>Comprehensive dashboard for all customer ratings and reviews</p>
+          <h1>Admin Dashboard</h1>
+          <p>Revenue, bookings, orders, inventory, customers, and technician performance</p>
         </div>
       </div>
       <div class="au-hero-actions">
-        <button class="btn btn-outline-primary" onclick="exportRatingsData()">
-          <i class="bi bi-download me-2"></i>Export Data
-        </button>
-        <button class="btn btn-primary" onclick="refreshDashboard()">
-          <i class="bi bi-arrow-clockwise me-2"></i>Refresh
-        </button>
+        <button class="btn btn-outline-primary" onclick="window.location.reload()"><i class="bi bi-arrow-clockwise me-2"></i>Refresh</button>
       </div>
     </div>
   </div>
 
-  <!-- Enterprise KPI Card Styles -->
   <style>
-    .dash-card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 1.25rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .dash-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }
-    .kpi-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-    }
-    .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
-    .kpi-sparkline-container {
-      height: 40px;
-      margin-top: 0.5rem;
-    }
-    .kpi-sparkline-container canvas {
-      width: 100% !important;
-      height: 100% !important;
-    }
-    .bg-success-subtle {
-      background-color: rgba(16, 185, 129, 0.15);
-    }
-    .bg-info-subtle {
-      background-color: rgba(8, 145, 178, 0.15);
-    }
-    .bg-warning-subtle {
-      background-color: rgba(245, 158, 11, 0.15);
-    }
-    .bg-danger-subtle {
-      background-color: rgba(220, 38, 38, 0.15);
-    }
-    .fs-7 {
-      font-size: 0.75rem;
-    }
-    .card {
-      transition: transform 0.2s ease-in-out;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-    }
-    .rating-stars {
-      color: #ffc107;
-    }
-    .badge-rating {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.75rem;
-    }
+    .kpi-card{background:#fff;border-radius:14px;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04);transition:transform .2s,box-shadow .2s}
+    .kpi-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.1)}
+    .kpi-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .kpi-icon i{color:#fff!important;font-size:1.3rem}
+    .kpi-value{font-size:1.6rem;font-weight:800;line-height:1.1}
+    .kpi-label{font-size:.8rem;color:#64748b;font-weight:500}
+    .kpi-change{font-size:.72rem;font-weight:600;padding:.2rem .5rem;border-radius:20px}
+    .bg-up{background:rgba(16,185,129,.12);color:#059669}
+    .bg-down{background:rgba(239,68,68,.12);color:#dc2626}
+    .section-card{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04);overflow:hidden}
+    .section-header{padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between}
+    .section-header h6{margin:0;font-weight:700;font-size:.9rem}
+    .section-body{padding:1.25rem}
+    .pipeline-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px}
+    .pipeline-bar>div{height:100%;border-radius:5px;transition:width .5s}
+    .pipeline-legend{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.75rem}
+    .pipeline-legend-item{display:flex;align-items:center;gap:4px;font-size:.75rem;color:#64748b}
+    .pipeline-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .alert-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #f8f9fa}
+    .alert-row:last-child{border-bottom:none}
+    .alert-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .stat-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid #f8f9fa}
+    .stat-row:last-child{border-bottom:none}
+    .tech-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #f8f9fa}
+    .tech-row:last-child{border-bottom:none}
+    .tech-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:#fff;flex-shrink:0}
+    .review-mini{padding:.6rem 0;border-bottom:1px solid #f8f9fa}
+    .review-mini:last-child{border-bottom:none}
+    .chart-wrap{position:relative;width:100%;overflow:hidden}
+    .chart-wrap canvas{position:absolute;top:0;left:0;width:100%!important;height:100%!important}
+    .order-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #f8f9fa;font-size:.82rem}
+    .order-row:last-child{border-bottom:none}
+    .order-ref{font-weight:700;color:#334155}
+    .order-status{font-size:.7rem;padding:.15rem .45rem;border-radius:10px;font-weight:600;white-space:nowrap}
   </style>
 
-  <!-- KPI Cards - Enterprise Level -->
+  <!-- KPI Cards -->
   <div class="row g-3 mb-4">
-    <div class="col-lg-3 col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Ratings</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="totalRatings">0</span>
-              <span class="badge bg-success-subtle text-success fs-7" id="totalRatingsBadge">
-                <i class="bi bi-arrow-up-short"></i>12%
-              </span>
-            </div>
-            <small class="text-muted">All time reviews</small>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-star-fill text-white"></i>
-          </div>
-        </div>
-        <div class="kpi-sparkline-container">
-          <canvas id="kpiSparkTotal" height="40"></canvas>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Monthly Revenue</div><div class="kpi-value text-dark" id="kpiRevenue">--</div><div class="kpi-change bg-up mt-1" id="kpiRevenueChange">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#059669,#047857)"><i class="bi bi-cash-stack"></i></div>
         </div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Average Rating</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="avgRating">0.0</span>
-              <span class="text-warning fs-5">
-                <i class="bi bi-star-fill"></i>
-              </span>
-            </div>
-            <small class="text-muted">Out of 5 stars</small>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-trophy text-white"></i>
-          </div>
-        </div>
-        <div class="d-flex align-items-center gap-1 mt-2" id="starDisplay">
-          <i class="bi bi-star-fill text-warning"></i>
-          <i class="bi bi-star-fill text-warning"></i>
-          <i class="bi bi-star-fill text-warning"></i>
-          <i class="bi bi-star-fill text-warning"></i>
-          <i class="bi bi-star-half text-warning"></i>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Active Services</div><div class="kpi-value text-dark" id="kpiActiveServices">--</div><div class="kpi-change bg-up mt-1" id="kpiTodayBookings">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#2563eb,#1d4ed8)"><i class="bi bi-tools"></i></div>
         </div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Service Ratings</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="serviceRatings">0</span>
-              <span class="badge bg-info-subtle text-info fs-7" id="serviceBadge">
-                <i class="bi bi-wrench"></i> Active
-              </span>
-            </div>
-            <small class="text-muted">Last 30 days</small>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
-            <i class="bi bi-wrench-adjustable text-white"></i>
-          </div>
-        </div>
-        <div class="kpi-sparkline-container">
-          <canvas id="kpiSparkService" height="40"></canvas>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Orders</div><div class="kpi-value text-dark" id="kpiOrders">--</div><div class="kpi-change bg-up mt-1" id="kpiTodayOrders">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)"><i class="bi bi-bag-check"></i></div>
         </div>
       </div>
     </div>
-
-    <div class="col-lg-3 col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Product Ratings</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="productRatings">0</span>
-              <span class="badge bg-warning-subtle text-warning fs-7" id="productBadge">
-                <i class="bi bi-snow"></i> Aircon
-              </span>
-            </div>
-            <small class="text-muted">Unit reviews</small>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-snow2 text-white"></i>
-          </div>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Customers</div><div class="kpi-value text-dark" id="kpiCustomers">--</div><div class="kpi-change bg-up mt-1" id="kpiNewCustomers">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#ec4899,#db2777)"><i class="bi bi-people"></i></div>
         </div>
-        <div class="kpi-sparkline-container">
-          <canvas id="kpiSparkProduct" height="40"></canvas>
+      </div>
+    </div>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Technicians</div><div class="kpi-value text-dark" id="kpiTechnicians">--</div><div class="kpi-change bg-up mt-1" id="kpiTechAvailable">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#ea580c,#c2410c)"><i class="bi bi-person-gear"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl col-lg-4 col-md-6">
+      <div class="kpi-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div><div class="kpi-label">Avg Rating</div><div class="kpi-value text-dark" id="kpiAvgRating">--</div><div class="kpi-change bg-up mt-1" id="kpiTotalReviews">--</div></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><i class="bi bi-star-fill"></i></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Charts Section -->
-  <div class="row mb-4">
-    <div class="col-lg-8 mb-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0">
-          <h5 class="mb-0">Rating Trends</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="ratingTrendsChart" height="300"></canvas>
-        </div>
+  <!-- Revenue Trend + Booking Pipeline -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-8">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-graph-up me-2 text-success"></i>Revenue Trend (7 Days)</h6><small class="text-muted" id="revenueSummary">--</small></div>
+        <div class="section-body"><div class="chart-wrap" style="height:260px"><canvas id="revenueChart"></canvas></div></div>
       </div>
     </div>
-    
-    <div class="col-lg-4 mb-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0">
-          <h5 class="mb-0">Rating Distribution</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="ratingDistributionChart" height="300"></canvas>
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-funnel me-2 text-primary"></i>Booking Pipeline</h6><small class="text-muted" id="pipelineTotal">-- total</small></div>
+        <div class="section-body">
+          <div class="pipeline-bar mb-2" id="pipelineBar"></div>
+          <div class="pipeline-legend" id="pipelineLegend"></div>
+          <hr>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted" style="font-size:.82rem">Pending Payments</span><span class="fw-bold text-warning" id="pendingPayments">--</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted" style="font-size:.82rem">Profit Margin</span><span class="fw-bold text-success" id="profitMargin">--</span></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Recent Ratings with Chart -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white border-0">
-      <div class="d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Recent User Ratings</h5>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-primary" onclick="refreshRatings()">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
-          </button>
-          <button class="btn btn-sm btn-outline-success" onclick="exportRatings()">
-            <i class="bi bi-download"></i> Export
-          </button>
+  <!-- Services Distribution + Inventory + Alerts -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-pie-chart me-2 text-info"></i>Service Distribution</h6></div>
+        <div class="section-body"><div class="chart-wrap" style="height:220px"><canvas id="serviceDistChart"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-box-seam me-2 text-warning"></i>Inventory</h6></div>
+        <div class="section-body" id="inventorySection">
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Total Products</span><span class="fw-bold" id="invTotalProducts">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Total Units</span><span class="fw-bold" id="invTotalUnits">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">In Stock</span><span class="fw-bold text-success" id="invInStock">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Low Stock</span><span class="fw-bold text-warning" id="invLowStock">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Out of Stock</span><span class="fw-bold text-danger" id="invOutOfStock">--</span></div>
+          <hr>
+          <h6 style="font-size:.8rem;color:#64748b" class="mb-2">Low Stock Items</h6>
+          <div id="lowStockList"></div>
         </div>
       </div>
     </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-lg-8">
-          <div class="chart-container">
-            <canvas id="overviewRatingsChart" height="300"></canvas>
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Alerts</h6></div>
+        <div class="section-body" id="alertsSection">
+          <div class="alert-row"><div class="alert-dot" style="background:#f59e0b"></div><div class="flex-grow-1"><div style="font-size:.85rem" class="fw-semibold">Awaiting Assignment</div><small class="text-muted">Confirmed bookings with no technician</small></div><span class="badge bg-warning-subtle text-warning fw-bold" id="alertAssignment">0</span></div>
+          <div class="alert-row"><div class="alert-dot" style="background:#dc3545"></div><div class="flex-grow-1"><div style="font-size:.85rem" class="fw-semibold">Low Ratings</div><small class="text-muted">1-2 star reviews need attention</small></div><span class="badge bg-danger-subtle text-danger fw-bold" id="alertLowRatings">0</span></div>
+          <div class="alert-row"><div class="alert-dot" style="background:#0dcaf0"></div><div class="flex-grow-1"><div style="font-size:.85rem" class="fw-semibold">Low Stock</div><small class="text-muted">Products with 5 or fewer units</small></div><span class="badge bg-info-subtle text-info fw-bold" id="alertLowStock">0</span></div>
+          <div class="alert-row"><div class="alert-dot" style="background:#8b5cf6"></div><div class="flex-grow-1"><div style="font-size:.85rem" class="fw-semibold">New Customers</div><small class="text-muted">Joined this month</small></div><span class="badge bg-purple-subtle text-purple fw-bold" id="alertNewCustomers">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders Section -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-5">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-bag-check me-2 text-purple"></i>Order Pipeline</h6><small class="text-muted" id="orderPipelineTotal">-- total</small></div>
+        <div class="section-body">
+          <div class="pipeline-bar mb-2" id="orderPipelineBar"></div>
+          <div class="pipeline-legend" id="orderPipelineLegend"></div>
+          <hr>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Orders This Month</span><span class="fw-bold" id="orderThisMonth">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Order Revenue</span><span class="fw-bold text-success" id="orderRevenue">--</span></div>
+          <div class="stat-row"><span class="text-muted" style="font-size:.85rem">Total Orders (All Time)</span><span class="fw-bold" id="orderTotalAllTime">--</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-receipt me-2 text-secondary"></i>Recent Orders</h6></div>
+        <div class="section-body" id="recentOrdersList"><div class="text-center text-muted py-3">No orders yet</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technician Ratings + Customer Ratings + Sentiment -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-trophy me-2 text-warning"></i>Top Technicians</h6><a href="/admin/ratings/technicians" class="text-primary" style="font-size:.8rem">View All</a></div>
+        <div class="section-body" id="topTechList"><div class="text-center text-muted py-3">No data</div></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-star me-2 text-primary"></i>Customer Ratings</h6><a href="/admin/ratings/overview" class="text-primary" style="font-size:.8rem">View All</a></div>
+        <div class="section-body">
+          <div class="text-center mb-3">
+            <div style="font-size:2.2rem;font-weight:800;line-height:1" id="ratingBig">--</div>
+            <div id="ratingStars" class="mb-1"></div>
+            <div class="text-muted" style="font-size:.8rem"><span id="totalReviewsText">0</span> reviews</div>
+          </div>
+          <div class="chart-wrap" style="height:120px"><canvas id="starDistChart"></canvas></div>
+          <hr>
+          <div class="d-flex justify-content-between" style="font-size:.82rem">
+            <span class="text-muted">Sentiment</span>
+            <span class="fw-bold" id="sentimentScore">--</span>
+          </div>
+          <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-top:4px">
+            <div id="sentBar" style="height:100%;background:#198754;border-radius:3px;width:0%;transition:width .6s"></div>
           </div>
         </div>
-        <div class="col-lg-4">
-          <div class="recent-ratings-list">
-            <h6 class="text-muted mb-3">Latest Reviews</h6>
-            <div id="recentRatingsContent">
-              <!-- Recent ratings will be loaded here -->
-            </div>
-          </div>
-        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-chat-left-text me-2 text-success"></i>Recent Reviews</h6><a href="/admin/ratings/overview" class="text-primary" style="font-size:.8rem">View All</a></div>
+        <div class="section-body" id="recentReviews"><div class="text-center text-muted py-3">No reviews</div></div>
       </div>
     </div>
   </div>
 
-  <!-- Rating Distribution by Category -->
-  <div class="row mb-4">
-    <div class="col-lg-6 mb-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0">
-          <h5 class="mb-0">Service Ratings Distribution</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="serviceDistributionChart" height="250"></canvas>
-        </div>
+  <!-- Lowest Technicians + Expenses by Type -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-exclamation-circle me-2 text-danger"></i>Lowest Rated Technicians</h6></div>
+        <div class="section-body" id="lowestTechList"><div class="text-center text-muted py-3">No data</div></div>
       </div>
     </div>
-    
-    <div class="col-lg-6 mb-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0">
-          <h5 class="mb-0">Product Ratings Distribution</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="productDistributionChart" height="250"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Ratings Table -->
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
-      <h5 class="mb-0">Recent Ratings</h5>
-      <div class="d-flex gap-2">
-        <select class="form-select form-select-sm" id="ratingFilter" style="width: 150px;">
-          <option value="all">All Types</option>
-          <option value="service">Service</option>
-          <option value="product">Product</option>
-          <option value="technician">Technician</option>
-        </select>
-      </div>
-    </div>
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Customer</th>
-              <th>Rating</th>
-              <th>Comment</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="recentRatingsTable">
-            <tr>
-              <td colspan="7" class="text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-                <div class="mt-2">Loading ratings data...</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <div class="col-lg-6">
+      <div class="section-card h-100">
+        <div class="section-header"><h6><i class="bi bi-receipt me-2 text-secondary"></i>Expenses by Type</h6></div>
+        <div class="section-body"><div class="chart-wrap" style="height:200px"><canvas id="expensesChart"></canvas></div></div>
       </div>
     </div>
   </div>
@@ -310,536 +243,6 @@
   <%- include('../../../partials/chart-drilldown-modal') %>
 </div>
 
-<!-- JavaScript -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/chart-drilldown.js"></script>
-<script>
-  // @ts-nocheck
-  let dashboardData = {
-    totalRatings: 0,
-    avgRating: 0,
-    serviceRatings: 0,
-    productRatings: 0,
-    recentRatings: []
-  };
-
-  let charts = {};
-
-  function openDrill(title, subtitle, chartCfg, details, filters, ff, summary) {
-    if (typeof ChartDrilldown === 'undefined') return;
-    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: ff || 'category', summary: summary || {} });
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    loadDashboardData();
-    loadRecentRatings();
-  });
-
-  async function loadDashboardData() {
-    try {
-      const response = await fetch('/api/admin/ratings/dashboard');
-      if (response.ok) {
-        const data = await response.json();
-        dashboardData = data;
-        updateKPIs();
-        updateRecentRatingsTable();
-        initializeCharts(data);
-      }
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      showEmptyState();
-    }
-  }
-
-  function updateKPIs() {
-    document.getElementById('totalRatings').textContent = dashboardData.totalRatings || 0;
-    document.getElementById('avgRating').textContent = (dashboardData.avgRating || 0).toFixed(1);
-    document.getElementById('serviceRatings').textContent = dashboardData.serviceRatings || 0;
-    document.getElementById('productRatings').textContent = dashboardData.productRatings || 0;
-
-    updateStarDisplay(dashboardData.avgRating || 0);
-
-    setTimeout(() => {
-      createSparkline('kpiSparkTotal', [65, 72, 68, 75, 80, 85, 90], '#3b82f6');
-      createSparkline('kpiSparkService', [45, 52, 48, 55, 60, 58, 65], '#0891b2');
-      createSparkline('kpiSparkProduct', [30, 35, 32, 40, 45, 42, 50], '#ea580c');
-    }, 100);
-  }
-
-  function updateStarDisplay(rating) {
-    const starContainer = document.getElementById('starDisplay');
-    if (!starContainer) return;
-
-    let starsHtml = '';
-    for (let i = 1; i <= 5; i++) {
-      if (i <= Math.floor(rating)) {
-        starsHtml += '<i class="bi bi-star-fill text-warning"></i>';
-      } else if (i === Math.ceil(rating) && rating % 1 !== 0) {
-        starsHtml += '<i class="bi bi-star-half text-warning"></i>';
-      } else {
-        starsHtml += '<i class="bi bi-star text-warning"></i>';
-      }
-    }
-    starContainer.innerHTML = starsHtml;
-  }
-
-  function createSparkline(canvasId, data, color) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const width = canvas.offsetWidth || 200;
-    const height = canvas.offsetHeight || 40;
-
-    canvas.width = width;
-    canvas.height = height;
-
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const range = max - min || 1;
-    const step = width / (data.length - 1);
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, color + '40');
-    gradient.addColorStop(1, color + '10');
-
-    ctx.beginPath();
-    ctx.moveTo(0, height);
-    data.forEach((val, i) => {
-      const y = height - ((val - min) / range) * (height - 10) - 5;
-      if (i === 0) ctx.lineTo(0, y);
-      else ctx.lineTo(i * step, y);
-    });
-    ctx.lineTo(width, height);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    data.forEach((val, i) => {
-      const y = height - ((val - min) / range) * (height - 10) - 5;
-      if (i === 0) ctx.moveTo(0, y);
-      else ctx.lineTo(i * step, y);
-    });
-    ctx.stroke();
-  }
-
-  function initializeCharts(data) {
-    var trend = data.trend || {};
-    var distribution = data.distribution || {};
-    var categoryBreakdown = data.categoryBreakdown || {};
-
-    var trendLabels = trend.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    var trendData = trend.data || [4.2, 4.3, 4.1, 4.4, 4.5, 4.6];
-    var distData = distribution.data || [45, 30, 15, 7, 3];
-    var serviceDist = categoryBreakdown.service || [45, 30, 15, 7, 3];
-    var productDist = categoryBreakdown.product || [38, 32, 18, 8, 4];
-    var overviewLabels = trend.overviewLabels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    var overviewService = trend.overviewService || [4.2, 4.5, 4.3, 4.7, 4.4, 4.6, 4.5];
-    var overviewProduct = trend.overviewProduct || [4.1, 4.3, 4.4, 4.2, 4.5, 4.3, 4.4];
-    var overviewTechnician = trend.overviewTechnician || [4.3, 4.4, 4.5, 4.6, 4.5, 4.7, 4.6];
-
-    var starLabels = ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
-    var starColors = ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'];
-
-    // Chart 1: Rating Trends Chart (line)
-    var trendsCtx = document.getElementById('ratingTrendsChart').getContext('2d');
-    var trendsChartCfg = {
-      type: 'line',
-      data: {
-        labels: trendLabels,
-        datasets: [{
-          label: 'Average Rating',
-          data: trendData,
-          borderColor: '#0d6efd',
-          backgroundColor: 'rgba(13, 110, 253, 0.1)',
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: false,
-            min: 3,
-            max: 5
-          }
-        }
-      }
-    };
-    charts.ratingTrends = new Chart(trendsCtx, trendsChartCfg);
-    trendsCtx.canvas.style.cursor = 'pointer';
-    trendsCtx.canvas.onclick = function(evt) {
-      if (typeof ChartDrilldown === 'undefined') return;
-      var elements = charts.ratingTrends.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      var label = '';
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = trendLabels[idx] || '';
-      }
-      var details = starLabels.map(function(l, i) { return { category: l, value: distData[i] }; });
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: i === 0 }; });
-      openDrill(
-        'Rating Trends - ' + label,
-        'Star distribution breakdown for ' + (label || 'selected period'),
-        trendsChartCfg, details, filters, 'category',
-        { total: distData.reduce(function(a, b) { return a + b; }, 0) }
-      );
-    };
-
-    // Chart 2: Rating Distribution Chart (doughnut)
-    var distCtx = document.getElementById('ratingDistributionChart').getContext('2d');
-    var distChartCfg = {
-      type: 'doughnut',
-      data: {
-        labels: starLabels,
-        datasets: [{
-          data: distData,
-          backgroundColor: starColors
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom' }
-        }
-      }
-    };
-    charts.ratingDistribution = new Chart(distCtx, distChartCfg);
-    distCtx.canvas.style.cursor = 'pointer';
-    distCtx.canvas.onclick = function(evt) {
-      if (typeof ChartDrilldown === 'undefined') return;
-      var elements = charts.ratingDistribution.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      var label = '';
-      var clickedVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = starLabels[idx] || '';
-        clickedVal = distData[idx] || 0;
-      }
-      var details = [{ category: label, value: clickedVal }];
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
-      openDrill(
-        'Rating Distribution - ' + label,
-        'Drilldown for ' + (label || 'all ratings'),
-        distChartCfg, details, filters, 'category',
-        { total: clickedVal }
-      );
-    };
-
-    // Chart 3: Overview Ratings Chart (line)
-    var overviewCtx = document.getElementById('overviewRatingsChart').getContext('2d');
-    var overviewChartCfg = {
-      type: 'line',
-      data: {
-        labels: overviewLabels,
-        datasets: [{
-          label: 'Service',
-          data: overviewService,
-          borderColor: '#0d6efd',
-          backgroundColor: 'rgba(13, 110, 253, 0.1)',
-          tension: 0.4
-        }, {
-          label: 'Product',
-          data: overviewProduct,
-          borderColor: '#198754',
-          backgroundColor: 'rgba(25, 135, 84, 0.1)',
-          tension: 0.4
-        }, {
-          label: 'Technician',
-          data: overviewTechnician,
-          borderColor: '#ffc107',
-          backgroundColor: 'rgba(255, 193, 7, 0.1)',
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: false,
-            min: 3,
-            max: 5
-          }
-        }
-      }
-    };
-    charts.overviewRatings = new Chart(overviewCtx, overviewChartCfg);
-    overviewCtx.canvas.style.cursor = 'pointer';
-    overviewCtx.canvas.onclick = function(evt) {
-      if (typeof ChartDrilldown === 'undefined') return;
-      var elements = charts.overviewRatings.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      var label = '';
-      var serviceVal = 0, productVal = 0, techVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = overviewLabels[idx] || '';
-        serviceVal = overviewService[idx] || 0;
-        productVal = overviewProduct[idx] || 0;
-        techVal = overviewTechnician[idx] || 0;
-      }
-      var categories = ['Service', 'Product', 'Technician'];
-      var values = [serviceVal, productVal, techVal];
-      var details = categories.map(function(c, i) { return { category: c, value: values[i] }; });
-      var filters = categories.map(function(c, i) { return { id: c.toLowerCase(), label: c, active: i === 0 }; });
-      openDrill(
-        'Weekly Trends - ' + label,
-        'Category breakdown for ' + (label || 'selected day'),
-        overviewChartCfg, details, filters, 'category',
-        { total: values.reduce(function(a, b) { return a + b; }, 0) }
-      );
-    };
-
-    // Chart 4: Service Distribution Chart (doughnut)
-    var serviceCtx = document.getElementById('serviceDistributionChart').getContext('2d');
-    var serviceChartCfg = {
-      type: 'doughnut',
-      data: {
-        labels: starLabels,
-        datasets: [{
-          data: serviceDist,
-          backgroundColor: starColors
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom' }
-        }
-      }
-    };
-    charts.serviceDistribution = new Chart(serviceCtx, serviceChartCfg);
-    serviceCtx.canvas.style.cursor = 'pointer';
-    serviceCtx.canvas.onclick = function(evt) {
-      if (typeof ChartDrilldown === 'undefined') return;
-      var elements = charts.serviceDistribution.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      var label = '';
-      var clickedVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = starLabels[idx] || '';
-        clickedVal = serviceDist[idx] || 0;
-      }
-      var details = [{ category: label, value: clickedVal }];
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
-      openDrill(
-        'Service Distribution - ' + label,
-        'Service rating drilldown for ' + (label || 'all'),
-        serviceChartCfg, details, filters, 'category',
-        { total: clickedVal }
-      );
-    };
-
-    // Chart 5: Product Distribution Chart (bar)
-    var productCtx = document.getElementById('productDistributionChart').getContext('2d');
-    var productChartCfg = {
-      type: 'bar',
-      data: {
-        labels: starLabels,
-        datasets: [{
-          label: 'Product Ratings',
-          data: productDist,
-          backgroundColor: starColors
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        }
-      }
-    };
-    charts.productDistribution = new Chart(productCtx, productChartCfg);
-    productCtx.canvas.style.cursor = 'pointer';
-    productCtx.canvas.onclick = function(evt) {
-      if (typeof ChartDrilldown === 'undefined') return;
-      var elements = charts.productDistribution.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      var label = '';
-      var clickedVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = starLabels[idx] || '';
-        clickedVal = productDist[idx] || 0;
-      }
-      var details = [{ category: label, value: clickedVal }];
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
-      openDrill(
-        'Product Distribution - ' + label,
-        'Product rating drilldown for ' + (label || 'all'),
-        productChartCfg, details, filters, 'category',
-        { total: clickedVal }
-      );
-    };
-  }
-
-  function loadRecentRatings() {
-    const recentRatings = [
-      { id: 1, customer: 'John Smith', rating: 5, type: 'service', comment: 'Excellent service! Very professional technician.', date: new Date('2024-01-20') },
-      { id: 2, customer: 'Sarah Davis', rating: 4, type: 'product', comment: 'Good product quality, fast delivery.', date: new Date('2024-01-19') },
-      { id: 3, customer: 'Robert Chen', rating: 5, type: 'technician', comment: 'Outstanding work! Very knowledgeable.', date: new Date('2024-01-18') },
-      { id: 4, customer: 'Emily Brown', rating: 3, type: 'service', comment: 'Average service, could be faster.', date: new Date('2024-01-17') }
-    ];
-
-    displayRecentRatings(recentRatings);
-  }
-
-  function displayRecentRatings(ratings) {
-    const ratingsContent = document.getElementById('recentRatingsContent');
-    
-    if (ratings.length === 0) {
-      ratingsContent.innerHTML = `
-        <div class="text-center text-muted py-3">
-          <i class="bi bi-star fs-1 d-block mb-2"></i>
-          <p>No recent ratings found</p>
-        </div>
-      `;
-      return;
-    }
-
-    ratingsContent.innerHTML = ratings.map(rating => `
-      <div class="rating-item mb-3 p-3 border rounded">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <strong>${rating.customer}</strong>
-            <small class="text-muted ms-2">${new Date(rating.date).toLocaleDateString()}</small>
-          </div>
-          <div class="rating-stars">
-            ${generateStars(rating.rating)}
-          </div>
-        </div>
-        <p class="mb-1">${rating.comment}</p>
-        <span class="badge bg-${getTypeColor(rating.type)}">${rating.type}</span>
-      </div>
-    `).join('');
-  }
-
-  function refreshRatings() {
-    loadDashboardData();
-    loadRecentRatings();
-  }
-
-  function exportRatings() {
-    alert('Export ratings functionality would be implemented here');
-  }
-
-  function updateRecentRatingsTable() {
-    const tbody = document.getElementById('recentRatingsTable');
-    
-    if (!dashboardData.recentRatings || dashboardData.recentRatings.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" class="text-center py-4">
-            <div class="text-muted">
-              <i class="bi bi-star fs-1 d-block mb-2"></i>
-              No ratings found
-            </div>
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
-    tbody.innerHTML = dashboardData.recentRatings.map(rating => `
-      <tr>
-        <td>${new Date(rating.date).toLocaleDateString()}</td>
-        <td><span class="badge badge-rating bg-${getTypeColor(rating.type)}">${rating.type}</span></td>
-        <td>${rating.customer}</td>
-        <td>
-          <div class="rating-stars">
-            ${generateStars(rating.score)}
-          </div>
-        </td>
-        <td>
-          <div class="text-truncate" style="max-width: 200px;" title="${rating.comment}">
-            ${rating.comment || 'No comment'}
-          </div>
-        </td>
-        <td><span class="badge bg-success">Active</span></td>
-        <td>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary" onclick="viewRating('${rating.id}')">
-              <i class="bi bi-eye"></i>
-            </button>
-            <button class="btn btn-outline-danger" onclick="deleteRating('${rating.id}')">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-  }
-
-  function generateStars(score) {
-    let stars = '';
-    for (let i = 1; i <= 5; i++) {
-      if (i <= score) {
-        stars += '<i class="bi bi-star-fill"></i>';
-      } else if (i - 0.5 <= score) {
-        stars += '<i class="bi bi-star-half"></i>';
-      } else {
-        stars += '<i class="bi bi-star"></i>';
-      }
-    }
-    return stars;
-  }
-
-  function getTypeColor(type) {
-    const colors = {
-      'service': 'primary',
-      'product': 'warning',
-      'technician': 'info'
-    };
-    return colors[type] || 'secondary';
-  }
-
-  function showEmptyState() {
-    document.getElementById('totalRatings').textContent = '0';
-    document.getElementById('avgRating').textContent = '0.0';
-    document.getElementById('serviceRatings').textContent = '0';
-    document.getElementById('productRatings').textContent = '0';
-    
-    const tbody = document.getElementById('recentRatingsTable');
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" class="text-center py-4">
-          <div class="text-muted">
-            <i class="bi bi-star fs-1 d-block mb-2"></i>
-            No ratings data available
-          </div>
-        </td>
-      </tr>
-    `;
-  }
-
-  function refreshDashboard() {
-    loadDashboardData();
-  }
-
-  function exportRatingsData() {
-    alert('Export functionality would be implemented here');
-  }
-
-  function viewRating(id) {
-    console.log('View rating:', id);
-  }
-
-  function deleteRating(id) {
-    if (confirm('Are you sure you want to delete this rating?')) {
-      console.log('Delete rating:', id);
-    }
-  }
-
-  document.getElementById('ratingFilter').addEventListener('change', function() {
-    const filter = this.value;
-    console.log('Filter by:', filter);
-  });
-</script>
+<script src="/js/admin-dashboard.js?v=4"></script>

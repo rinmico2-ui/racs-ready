@@ -21,8 +21,24 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
 const { getMinAdvanceMinutes, getBufferMinutes, checkAdvanceNotice, assertCompanyCapacity, parseTimeValue } = require("../utils/bookingPolicy");
 const { BookingStatus } = require("../models/BookingStatus");
+const { capacityMinutes, aggregateBookingType } = require("../utils/bookingServiceItems");
+const { createNotification } = require("../utils/notify");
+const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
+
+const walkInRepairPhotoDir = path.join(__dirname, "../public/uploads/repairs");
+if (!fs.existsSync(walkInRepairPhotoDir)) fs.mkdirSync(walkInRepairPhotoDir, { recursive: true });
+const walkInRepairPhotos = multer({
+  storage: multer.diskStorage({ destination: (_req, _file, cb) => cb(null, walkInRepairPhotoDir), filename: (_req, file, cb) => cb(null, `walkin-${Date.now()}-${crypto.randomBytes(5).toString("hex")}${path.extname(file.originalname).toLowerCase()}`) }),
+  limits: { fileSize: 5 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
+});
+
+router.post("/walk-in/upload-repair-photos", auth.authenticate, auth.requireRole(["admin", "secretary"]), walkInRepairPhotos.array("photos", 5), (req, res) => {
+  res.json({ urls: (req.files || []).map(file => `/uploads/repairs/${file.filename}`) });
+});
 
 // rating endpoint (customer feedback after completion)
 router.post("/:id/rate", auth.authenticate, async (req, res, next) => {
@@ -41,6 +57,16 @@ router.post("/:id/rate", auth.authenticate, async (req, res, next) => {
     booking.customerRating = Number(score);
     booking.customerRatingComment = comment || null;
     await booking.save();
+
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: booking._id,
+      action: "booking.rate",
+      module: "appointments",
+      req,
+      details: { bookingId: id, score: Number(score), comment: comment || "" },
+    });
+
     // recalc technician average rating
     if (booking.technicianId) {
       const stats = await BookingService.aggregate([
@@ -93,6 +119,25 @@ function parseMinuteValue(value) {
     return hh * 60 + Number(ampm[2]);
   }
   return NaN;
+}
+
+function calculateTechnicianAcceptanceDeadline(bookingDate, assignedAt = new Date()) {
+  const now = new Date(assignedAt);
+  const bookingDay = new Date(bookingDate);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  bookingDay.setHours(0, 0, 0, 0);
+  const daysUntil = Math.round((bookingDay - today) / 86400000);
+
+  if (daysUntil <= 0) return new Date(now.getTime() + 30 * 60 * 1000);
+  if (daysUntil === 1) {
+    const todayAtSix = new Date(now);
+    todayAtSix.setHours(18, 0, 0, 0);
+    return todayAtSix > now
+      ? todayAtSix
+      : new Date(now.getTime() + 30 * 60 * 1000);
+  }
+  return new Date(now.getTime() + 12 * 60 * 60 * 1000);
 }
 
 function normalizeEmailAddress(value) {
@@ -160,32 +205,55 @@ function generateAutoCustomerPassword() {
 async function findOrCreateCustomerAccount({
   firstName,
   lastName,
+  customerName,
   customerEmail,
   customerPhone,
   address,
+  customerAddress,
 }) {
-  // debug input values
-  console.log("findOrCreateCustomerAccount called", {
-    firstName,
-    lastName,
-    customerEmail,
-    customerPhone,
-    address,
-  });
+  if (!firstName || !lastName) {
+    const parsedName = splitCustomerName(customerName);
+    firstName = firstName || parsedName.firstName;
+    lastName = lastName || parsedName.lastName;
+  }
+  address = address || customerAddress || {};
   const normalizedEmail = normalizeEmailAddress(customerEmail);
   const normalizedPhone = normalizePhoneForUser(customerPhone);
-
-  console.log("[CUSTOMER ACCOUNT DEBUG] Creating NEW customer account with email:", normalizedEmail);
-
-  // For walk-in new customers, ALWAYS create a new account
-  // Don't check for existing customers - this ensures we create the account with the typed email
+  const existingCustomer = normalizedEmail
+    ? await User.findOne({
+        email: normalizedEmail,
+        $or: [
+          { role: "customer" },
+          { role: { $regex: /^customer$/i } },
+          { role: { $exists: false } },
+          { role: null },
+        ],
+      })
+    : null;
+  if (existingCustomer) {
+    return {
+      user: existingCustomer,
+      created: false,
+      generatedPassword: null,
+      resetToken: null,
+    };
+  }
+  const conflictingAccount = normalizedEmail
+    ? await User.findOne({ email: normalizedEmail }).select("_id role")
+    : null;
+  if (conflictingAccount) {
+    const conflict = new Error("This email is already used by a non-customer account.");
+    conflict.status = 409;
+    throw conflict;
+  }
+  const accountEmail = normalizedEmail || await generateUniqueAutoCustomerEmail(normalizedPhone);
   
   const generatedPassword = generateAutoCustomerPassword();
   const saltRounds = 12;
   const hashedPassword = await bcrypt.hash(generatedPassword, saltRounds);
 
   const newUser = new User({
-    email: normalizedEmail,
+    email: accountEmail,
     passwordHash: hashedPassword,
     firstName: firstName || "",
     lastName: lastName || "",
@@ -200,7 +268,6 @@ async function findOrCreateCustomerAccount({
 
   try {
     const savedUser = await newUser.save();
-    console.log("[CUSTOMER ACCOUNT DEBUG] Created new user:", savedUser._id, savedUser.email);
     return {
       user: savedUser,
       created: true,
@@ -208,11 +275,9 @@ async function findOrCreateCustomerAccount({
       resetToken,
     };
   } catch (saveErr) {
-    console.error("[CUSTOMER ACCOUNT DEBUG] Failed to save new user:", saveErr);
     // If save fails due to duplicate email, try to find existing user
     if (saveErr.code === 11000 && saveErr.keyPattern?.email) {
-      console.log("[CUSTOMER ACCOUNT DEBUG] Email already exists, finding existing user");
-      const existingUser = await User.findOne({ email: normalizedEmail, role: "customer" });
+      const existingUser = await User.findOne({ email: accountEmail, role: "customer" });
       if (existingUser) {
         return {
           user: existingUser,
@@ -454,6 +519,8 @@ router.post("/create", auth.authenticate, async (req, res) => {
     estimatedFee,
     issueDescription,
     cashNotes,
+    hp,
+    hpDescription,
   } = req.body;
   // normalize client-side "cash" into database value "cod"
   if (paymentMethod === "cash") paymentMethod = "cod";
@@ -535,20 +602,32 @@ router.post("/create", auth.authenticate, async (req, res) => {
           if (svc) {
             const itemDuration = svc.durationMinutes || svc.duration || svc.estimatedDurationMinutes || 60;
             const itemPrice = serviceItem.unitPrice || svc.basePrice || 0;
+            const itemQuantity = Math.max(1, Number(serviceItem.quantity) || 1);
             
-            totalDuration += itemDuration;
-            totalPrice += serviceItem.totalPrice || itemPrice;
+            totalDuration += itemDuration * itemQuantity;
+            totalPrice += serviceItem.totalPrice || (itemPrice * itemQuantity);
             
             servicesSnap.push({
               serviceId: serviceItem.serviceId,
-              name: serviceItem.name,
+              name: serviceItem.name || svc.name,
               type: serviceItem.type,
-              quantity: serviceItem.quantity,
+              quantity: itemQuantity,
               unitPrice: itemPrice,
-              totalPrice: serviceItem.totalPrice || itemPrice,
+              totalPrice: serviceItem.totalPrice || (itemPrice * itemQuantity),
               hp: serviceItem.hp,
               hpDescription: serviceItem.hpDescription,
-              duration: itemDuration,
+              airconType: serviceItem.airconType,
+              airconTypeName: serviceItem.airconTypeName,
+              applianceType: serviceItem.applianceType,
+              applianceTypeName: serviceItem.applianceTypeName,
+              brand: serviceItem.brand,
+              model: serviceItem.model,
+              problemDescription: serviceItem.problemDescription || serviceItem.repairIssue,
+              repairIssue: serviceItem.repairIssue || serviceItem.problemDescription,
+              unitCategory: serviceItem.unitCategory,
+              symptoms: Array.isArray(serviceItem.symptoms) ? serviceItem.symptoms.slice(0, 8) : [],
+              photos: Array.isArray(serviceItem.photos) ? serviceItem.photos.slice(0, 5) : [],
+              duration: itemDuration * itemQuantity,
               isAirconService: serviceItem.isAirconService || false
             });
           }
@@ -646,6 +725,11 @@ router.post("/create", auth.authenticate, async (req, res) => {
       bookingReference,
       serviceId,
       serviceModel: serviceModelName,
+      serviceType: servicesSnap.length
+        ? (servicesSnap.some(item => item.type === "core") && servicesSnap.some(item => item.type === "repair")
+            ? "mixed"
+            : servicesSnap[0].type === "repair" ? "repair" : "core")
+        : (serviceModelName === "RepairService" ? "repair" : "core"),
       service: serviceSnap,
       servicePrice,
       serviceDurationMinutes: serviceDuration,
@@ -670,6 +754,8 @@ router.post("/create", auth.authenticate, async (req, res) => {
       travelTime: Number.isFinite(travelMins) ? travelMins : undefined,
       estimatedFee: fee || undefined,
       issueDescription: issueDescription || undefined,
+      hp: hp ? Number(hp) : undefined,
+      hpDescription: hpDescription || undefined,
     };
 
     // Add multi-service information if applicable
@@ -752,7 +838,8 @@ router.post("/create", auth.authenticate, async (req, res) => {
 
       const totalQty = isMultiService && Array.isArray(servicesSnap)
         ? servicesSnap.reduce((sum, s) => sum + (Number(s.quantity) || 1), 0)
-        : 1;
+        : Math.max(1, Number(appointment.quantity || appointmentData.quantity || 1));
+      if (totalQty > 40) throw new Error("A booking can contain at most 40 units");
 
       let estimatedTotalMinutes = 0;
       if (isMultiService && Array.isArray(servicesSnap)) {
@@ -761,7 +848,7 @@ router.post("/create", auth.authenticate, async (req, res) => {
         estimatedTotalMinutes = (serviceDuration || 60) * totalQty;
       }
 
-      const isLarge = await isLargeProject({ totalEstimatedMinutes: estimatedTotalMinutes });
+      const isLarge = await isLargeProject({ totalUnits: totalQty, totalEstimatedMinutes: estimatedTotalMinutes });
 
       if (isLarge) {
         appointment.status = BookingStatus.PENDING_PROJECT_SCHEDULING;
@@ -980,6 +1067,21 @@ router.post("/create", auth.authenticate, async (req, res) => {
     }
 
     // ── 10. Respond ───────────────────────────────────────────────────────
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: appointment.customerId || appointment.customer,
+      action: "booking.create",
+      module: "appointments",
+      req,
+      details: {
+        bookingId: appointment._id,
+        bookingReference,
+        serviceType: isMultiService ? "multi" : (services && services.length ? "repair" : "core"),
+        totalPrice: fee,
+        paymentMethod: paymentMethod || "cod",
+      },
+    });
+
     const respObj = {
       success: true,
       bookingId: appointment._id,
@@ -1009,7 +1111,7 @@ router.post("/create", auth.authenticate, async (req, res) => {
 // ?upcoming=1  => bookings from today onward
 // ?requests=1  => booking requests (status=pending)
 // supports ?limit and ?page
-router.get("/", async (req, res) => {
+router.get("/", auth.authenticate, async (req, res) => {
   try {
     const q = req.query || {};
     const limit = Math.min(Math.max(1, Number(q.limit) || 100), 1000);
@@ -1141,7 +1243,7 @@ router.get("/", async (req, res) => {
 });
 
 // GET /today - helper used by dashboard; return bookings with today's date
-router.get("/today", async (req, res) => {
+router.get("/today", auth.authenticate, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1175,20 +1277,33 @@ router.get("/proof/:token", async (req, res) => {
       return res.status(400).send("Invalid data URI");
     }
 
-    // http(s) -> redirect
+    // http(s) -> only allow same-origin redirects (prevent open redirect)
     if (/^https?:\/\//i.test(raw)) {
-      return res.redirect(raw);
+      try {
+        const url = new URL(raw);
+        const allowedHosts = [
+          process.env.APP_URL ? new URL(process.env.APP_URL).hostname : null,
+          process.env.APP_BASE_URL ? new URL(process.env.APP_BASE_URL).hostname : null,
+          "localhost",
+        ].filter(Boolean);
+        if (!allowedHosts.includes(url.hostname)) {
+          return res.status(400).send("Invalid proof URL");
+        }
+        return res.redirect(raw);
+      } catch (e) {
+        return res.status(400).send("Invalid proof URL");
+      }
     }
 
     // server-relative path (starts with /) -> serve from public folder
     if (raw.startsWith("/")) {
-      const publicPath = path.join(
-        __dirname,
-        "..",
-        "public",
-        raw.replace(/^\//, ""),
-      );
-      return res.sendFile(publicPath, (err) => {
+      const publicDir = path.join(__dirname, "..", "public");
+      const filePath = path.resolve(publicDir, raw.replace(/^\//, ""));
+      // Prevent path traversal: resolved path must be within public dir
+      if (!filePath.startsWith(path.resolve(publicDir))) {
+        return res.status(400).send("Invalid path");
+      }
+      return res.sendFile(filePath, (err) => {
         if (err) res.status(404).send("Not found");
       });
     }
@@ -1196,7 +1311,11 @@ router.get("/proof/:token", async (req, res) => {
     // look for file under uploads/payment_proofs (custom folder)
     const uploadDir = path.join(__dirname, "..", "uploads", "payment_proofs");
     const safeName = path.normalize(raw).replace(/^\.\.(\/|\\)/, "");
-    const fp = path.join(uploadDir, safeName);
+    const fp = path.resolve(uploadDir, safeName);
+    // Prevent path traversal: resolved path must be within uploadDir
+    if (!fp.startsWith(path.resolve(uploadDir))) {
+      return res.status(400).send("Invalid path");
+    }
     if (fs.existsSync(fp)) {
       return res.sendFile(fp);
     }
@@ -1224,23 +1343,39 @@ router.get(
       const Technician = require("../models/Technician");
       const [coreServices, repairServices, technicians] = await Promise.all([
         CoreService.find({ active: true })
-          .select("_id name basePrice durationMinutes")
+          .select("_id name description basePrice durationMinutes unit isAirconService hpPricing airconTypes brands applianceTypes")
           .sort({ name: 1 })
           .lean(),
         RepairService.find({ active: true })
-          .select("_id name basePrice estimatedDurationMinutes applianceType")
+          .select("_id name description basePrice estimatedDurationMinutes applianceType applianceTypes commonFaults")
           .sort({ name: 1 })
           .lean(),
-        Technician.find({ active: true })
-          .select("_id name email phone")
+        Technician.find({ active: true, user: { $ne: null } })
+          .select("_id user name userEmail phone")
+          .populate("user", "email role active blocked")
           .sort({ name: 1 })
           .lean(),
       ]);
 
+      // The technician assignment API identifies a technician through its
+      // linked User account. Do not offer orphaned technician profiles: jobs
+      // assigned to them can never be retrieved by a logged-in technician.
+      const assignableTechnicians = technicians
+        .filter(tech => tech.user
+          && String(tech.user.role || "").toLowerCase() === "technician"
+          && tech.user.active !== false
+          && tech.user.blocked !== true)
+        .map(tech => ({
+          _id: tech._id,
+          name: tech.name,
+          phone: tech.phone || "",
+          email: tech.userEmail || tech.user.email || "",
+        }));
+
       return res.json({
         coreServices,
         repairServices,
-        technicians,
+        technicians: assignableTechnicians,
       });
     } catch (err) {
       console.error("walk-in options error", err);
@@ -1256,8 +1391,6 @@ router.post(
   auth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     try {
-      // debug payload early for troubleshooting
-      console.log("walk-in raw body", req.body);
       let {
         firstName,
         lastName,
@@ -1267,6 +1400,7 @@ router.post(
         address,
         customerLocation,
         serviceId,
+        services,
         technicianId,
         date,
         startTime,
@@ -1278,15 +1412,14 @@ router.post(
         travelFare,
         travelTime,
         estimatedFee,
+        projectScheduling,
       } = req.body || {};
+
+      services = Array.isArray(services) ? services.slice(0, 40) : [];
 
       // coerce isNewCustomer to a strict boolean (handles string "true"/"false" from clients)
       isNewCustomer = isNewCustomer === true || isNewCustomer === "true";
 
-      console.log("[APPOINTMENT DEBUG] Raw request body customerEmail:", req.body.customerEmail);
-      console.log("[APPOINTMENT DEBUG] Normalized customerEmail:", customerEmail);
-      console.log("[APPOINTMENT DEBUG] Frontend isNewCustomer:", isNewCustomer);
-      
       firstName = String(firstName || "").trim();
       lastName = String(lastName || "").trim();
       customerPhone = String(customerPhone || "").trim();
@@ -1311,49 +1444,57 @@ router.post(
       if (!normalizedReference) {
         normalizedReference = `OR-${Date.now()}`;
       }
-      const parsedTravelFare = Number(travelFare) || 0;
+      const parsedTravelFare = Math.max(0, Number(travelFare) || 0);
       const parsedTravelTime = Math.max(0, Number(travelTime) || 0);
       const parsedEstimatedFee = Number(estimatedFee);
       const parsedDownpaymentAmount = Number(downpaymentAmount);
 
-      if (!firstName || !lastName) {
-        return res
-          .status(400)
-          .json({ error: "Customer first and last name are required" });
-      }
-      if (!customerPhone) {
-        return res.status(400).json({ error: "Customer phone is required" });
-      }
       if (!customerEmail || !normalizeEmailAddress(customerEmail)) {
         return res
           .status(400)
           .json({ error: "Valid customer email is required" });
       }
-      // auto-detect: if the email already belongs to a customer, treat as existing;
-      // otherwise treat as new (create account at the end)
-      // BUT: if frontend explicitly says isNewCustomer=true, respect that choice
-      if (!isNewCustomer) {
-        // Only check for existing customer if frontend selected "Existing Customer"
-        const norm = normalizeEmailAddress(customerEmail);
-        if (norm) {
-          const exists = await User.findOne({
-            email: norm,
-            role: "customer",
-          }).lean();
-          isNewCustomer = !exists;
-          console.log("[APPOINTMENT DEBUG] Existing customer check - exists:", !!exists, "isNewCustomer:", isNewCustomer);
-        } else {
-          isNewCustomer = true;
-        }
-      } else {
-        // Frontend explicitly selected "New Customer" - always create new account
-        console.log("[APPOINTMENT DEBUG] Frontend selected New Customer - forcing new account creation");
-        isNewCustomer = true;
+      // The database is authoritative: an existing email always reuses the
+      // customer account, while an unknown email creates one after validation.
+      const normalizedCustomerEmail = normalizeEmailAddress(customerEmail);
+      const existingCustomer = await User.findOne({
+        email: normalizedCustomerEmail,
+        $or: [
+          { role: "customer" },
+          { role: { $regex: /^customer$/i } },
+          { role: { $exists: false } },
+          { role: null },
+        ],
+      });
+      const conflictingAccount = existingCustomer
+        ? null
+        : await User.findOne({ email: normalizedCustomerEmail }).select("_id role");
+      if (conflictingAccount) {
+        return res.status(409).json({ error: "This email is already used by a non-customer account." });
+      }
+      isNewCustomer = !existingCustomer;
+      if (existingCustomer) {
+        firstName = firstName || String(existingCustomer.firstName || "").trim();
+        lastName = lastName || String(existingCustomer.lastName || "").trim();
+        customerPhone = customerPhone || String(existingCustomer.phone || "").trim();
+        const savedAddress = existingCustomer.address || {};
+        address = {
+          province: address.province || String(savedAddress.province || "").trim(),
+          city: address.city || String(savedAddress.city || "").trim(),
+          barangay: address.barangay || String(savedAddress.barangay || "").trim(),
+          postalCode: address.postalCode || String(savedAddress.postalCode || "").trim(),
+        };
+      }
+      if (!firstName || !lastName) {
+        return res.status(400).json({ error: "Customer first and last name are required" });
+      }
+      if (!customerPhone) {
+        return res.status(400).json({ error: "Customer phone is required" });
       }
       if (!address.city) {
         return res.status(400).json({ error: "Customer city is required" });
       }
-      if (!serviceId) {
+      if (!serviceId && !services.length) {
         return res.status(400).json({ error: "Service is required" });
       }
       if (!technicianId) {
@@ -1374,32 +1515,76 @@ router.post(
       }
       bookingDate.setHours(0, 0, 0, 0);
 
-      // resolve service and duration
-      let serviceDoc = await CoreService.findById(serviceId).lean();
-      let serviceModelName = "CoreService";
-      let serviceDuration = 60;
-      if (!serviceDoc) {
-        serviceDoc = await RepairService.findById(serviceId).lean();
-        serviceModelName = "RepairService";
-        if (!serviceDoc) {
-          return res.status(404).json({ error: "Service not found" });
+      // Resolve every configured service item server-side. Never trust names,
+      // prices, types, or durations supplied by the browser.
+      const requestedItems = services.length ? services : [{ serviceId, quantity: 1 }];
+      const totalUnits = requestedItems.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+      if (totalUnits > 40) return res.status(400).json({ error: "A booking can contain a maximum of 40 units." });
+      const resolvedItems = [];
+      for (const requested of requestedItems) {
+        const requestedId = requested.serviceId || requested._id;
+        let doc = await CoreService.findOne({ _id: requestedId, active: true }).lean();
+        let type = "core";
+        if (!doc) { doc = await RepairService.findOne({ _id: requestedId, active: true }).lean(); type = "repair"; }
+        if (!doc) return res.status(404).json({ error: "One of the selected services is unavailable." });
+        const quantity = Math.max(1, Math.min(40, Number(requested.quantity) || 1));
+        let unitPrice = Math.max(0, Number(doc.basePrice) || 0);
+        if (type === "core" && doc.isAirconService && requested.hp) {
+          const airconType = (doc.airconTypes || []).find(row => row.type === requested.airconType || row.name === requested.airconTypeName);
+          const pricing = airconType?.hpPricing?.length ? airconType.hpPricing : doc.hpPricing;
+          const hpOption = (pricing || []).find(row => Number(row.hp) === Number(requested.hp));
+          if (!hpOption) return res.status(400).json({ error: `The selected HP pricing for ${doc.name} is unavailable.` });
+          unitPrice = Math.max(0, Number(hpOption.price) || 0);
         }
-        serviceDuration = Number(serviceDoc.estimatedDurationMinutes) || 60;
-      } else {
-        serviceDuration = Number(serviceDoc.durationMinutes) || 60;
+        const duration = Math.max(15, Number(doc.durationMinutes || doc.estimatedDurationMinutes) || 60) * quantity;
+        const problemDescription = String(requested.problemDescription || requested.repairIssue || "").trim().slice(0, 1000);
+        if (type === "repair" && problemDescription.length < 10) return res.status(400).json({ error: `Describe the problem for ${doc.name} using at least 10 characters.` });
+        const itemName = type === "repair" && requested.applianceType ? `${String(requested.applianceType).slice(0, 100)} Repair` : doc.name;
+        resolvedItems.push({ serviceId: doc._id, name: itemName, type, quantity, unitPrice, totalPrice: unitPrice * quantity, duration,
+          hp: Number(requested.hp) || undefined, hpDescription: String(requested.hpDescription || "").slice(0, 100), airconType: String(requested.airconType || "").slice(0, 100), airconTypeName: String(requested.airconTypeName || "").slice(0, 100),
+          applianceType: String(requested.applianceType || doc.applianceType || "").slice(0, 100), applianceTypeName: String(requested.applianceTypeName || "").slice(0, 100),
+          brand: String(requested.brand || "").slice(0, 100), model: String(requested.model || "").slice(0, 100), problemDescription,
+          unitCategory: String(requested.unitCategory || "").slice(0, 50), symptoms: Array.isArray(requested.symptoms) ? requested.symptoms.slice(0, 8).map(value => String(value).slice(0, 50)) : [],
+          photos: Array.isArray(requested.photos) ? requested.photos.slice(0, 5).filter(url => /^\/uploads\/repairs\/[\w.-]+$/.test(String(url))) : [],
+          repairIssue: problemDescription, isAirconService: Boolean(doc.isAirconService), phase: type === "repair" ? "repair_phase_1" : "core" });
       }
-
-      const servicePrice = Number(serviceDoc.basePrice) || 0;
+      const primaryItem = resolvedItems[0];
+      const serviceDoc = primaryItem;
+      const serviceModelName = primaryItem.type === "repair" ? "RepairService" : "CoreService";
+      const serviceDuration = resolvedItems.reduce((sum, item) => sum + item.duration, 0);
+      const servicePrice = resolvedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+      serviceId = primaryItem.serviceId;
       const endMin = startMin + serviceDuration;
 
       // normalize technician id and prevent overlap
       const technicianRefId = await resolveTechnicianRefId(technicianId);
-      await assertNoTechnicianOverlap({
-        technicianId: technicianRefId,
-        bookingDate,
-        startMin,
-        endMin,
-      });
+      const Technician = require("../models/Technician");
+      const selectedTechnician = await Technician.findOne({
+        _id: technicianRefId,
+        active: { $ne: false },
+        user: { $ne: null },
+      }).select("_id user userEmail name phone").lean();
+      const selectedTechnicianUser = selectedTechnician?.user
+        ? await User.findOne({
+            _id: selectedTechnician.user,
+            role: { $regex: /^technician$/i },
+            active: { $ne: false },
+            blocked: { $ne: true },
+          }).select("_id email").lean()
+        : null;
+      if (!selectedTechnician || !selectedTechnicianUser) {
+        return res.status(400).json({
+          error: "The selected technician does not have an active technician account. Refresh and select another technician.",
+        });
+      }
+      if (totalUnits < 8) {
+        await assertNoTechnicianOverlap({
+          technicianId: technicianRefId,
+          bookingDate,
+          startMin,
+          endMin,
+        });
+      }
 
       // unique booking reference
       let bookingReference = null;
@@ -1446,9 +1631,9 @@ router.post(
         locationPayload = { address: customerAddressStr };
       }
 
-      const computedEstimatedFee = Number.isFinite(parsedEstimatedFee)
-        ? parsedEstimatedFee
-        : servicePrice + parsedTravelFare;
+      // Price is rebuilt from server-resolved services. Do not accept a client
+      // supplied estimated total that can drift from the fee breakdown.
+      const computedEstimatedFee = servicePrice + parsedTravelFare;
 
       const effectiveTotalFee = Math.max(0, Number(computedEstimatedFee) || 0);
       let effectiveDownpayment =
@@ -1473,24 +1658,10 @@ router.post(
           .json({ error: "Downpayment cannot exceed estimated total fee" });
       }
 
-      // log incoming walk-in payload for debugging (useful when errors occur)
-      console.log("walk-in payload", {
-        firstName,
-        lastName,
-        customerEmail,
-        customerPhone,
-        address,
-        serviceId,
-        technicianId,
-        date,
-      });
-
       let customerResult;
-      console.log("[APPOINTMENT] Creating customer. isNewCustomer:", isNewCustomer, "email:", customerEmail);
       
       if (isNewCustomer) {
         // New customer: create a User account with generated password
-        console.log("[APPOINTMENT] Creating new customer account");
         customerResult = await findOrCreateCustomerAccount({
           firstName,
           lastName,
@@ -1500,11 +1671,7 @@ router.post(
         });
       } else {
         // Existing customer: look up only, never create
-        console.log("[APPOINTMENT] Looking up existing customer");
-        const norm = normalizeEmailAddress(customerEmail);
-        const existingUser = norm
-          ? await User.findOne({ email: norm, role: "customer" })
-          : null;
+        const existingUser = existingCustomer;
         if (existingUser) {
           // update snapshot fields if they differ
           let updated = false;
@@ -1552,7 +1719,6 @@ router.post(
         ? String(customerUser.email || "").trim()
         : customerEmail;
         
-      console.log("[APPOINTMENT] Final email to use:", customerSnapshotEmail);
       const customerSnapshotPhone = customerUser
         ? String(customerUser.phone || "").trim()
         : customerPhone;
@@ -1560,21 +1726,23 @@ router.post(
       const appointment = new BookingService({
         bookingReference,
         customerId: customerUser ? customerUser._id : undefined,
-        serviceId: serviceDoc._id,
+        serviceId: primaryItem.serviceId,
         serviceModel: serviceModelName,
         service: {
-          _id: serviceDoc._id,
+          _id: primaryItem.serviceId,
           name: serviceDoc.name || "",
-          description:
-            serviceModelName === "RepairService"
-              ? Array.isArray(serviceDoc.commonFaults)
-                ? serviceDoc.commonFaults.join(", ")
-                : ""
-              : serviceDoc.description || "",
-          basePrice: servicePrice,
+          description: primaryItem.problemDescription || "",
+          basePrice: primaryItem.unitPrice,
         },
         servicePrice,
         serviceDurationMinutes: serviceDuration,
+        serviceType: resolvedItems.some(item => item.type === "core") && resolvedItems.some(item => item.type === "repair") ? "mixed" : primaryItem.type,
+        isMultiService: resolvedItems.length > 1 || totalUnits > 1,
+        services: resolvedItems,
+        quantity: totalUnits,
+        unitInfo: primaryItem.type === "repair" ? { unitType: primaryItem.applianceType, brand: primaryItem.brand, model: primaryItem.model, problemDescription: primaryItem.problemDescription, photos: primaryItem.photos } : undefined,
+        totalPrice: servicePrice + parsedTravelFare,
+        totalInitialCost: resolvedItems.filter(item => item.type === "repair").reduce((sum, item) => sum + item.totalPrice, 0),
         bookingDate,
         startTime: String(startMin),
         endTime: String(endMin),
@@ -1589,7 +1757,12 @@ router.post(
         },
         location: locationPayload,
         issueDescription: issueDescription || undefined,
-        status: "confirmed",
+        // A standard walk-in is not confirmed merely because the admin chose
+        // a technician. Confirmation happens only in the technician accept API.
+        // Keep a recoverable queue state until the Assignment itself has been
+        // persisted. This prevents an "assigned" booking with no technician
+        // job if assignment creation fails midway.
+        status: totalUnits < 8 ? BookingStatus.AWAITING_ASSIGNMENT : "confirmed",
         paymentMethod: "cod",
         paymentReference: normalizedReference,
         downpaymentAmount: effectiveDownpayment,
@@ -1601,10 +1774,166 @@ router.post(
 
       await appointment.save();
 
+      // Standard walk-ins follow the same acceptance pipeline as customer
+      // bookings: create the technician assignment, show the booking in the
+      // admin waiting tab, and notify the technician. Large-scale bookings
+      // stay in project planning because they require a technician team.
+      let assignment = null;
+      if (totalUnits < 8) {
+        const Assignment = require("../models/Assignment");
+        const assignedAt = new Date();
+        const coordinateValues = locationPayload?.coordinates?.coordinates;
+        const assignmentServiceName = resolvedItems
+          .map(item => item.quantity > 1 ? `${item.name} (${item.quantity})` : item.name)
+          .join(", ");
+
+        assignment = new Assignment({
+          bookingId: appointment._id,
+          technicianId: selectedTechnician._id,
+          customerName: customerSnapshotName,
+          customerPhone: customerSnapshotPhone,
+          customerEmail: customerSnapshotEmail,
+          serviceName: assignmentServiceName,
+          serviceType: appointment.serviceType,
+          servicePrice,
+          quantity: totalUnits,
+          bookingDate,
+          startTime: String(startMin),
+          endTime: String(endMin),
+          address: locationPayload?.address || customerAddressStr,
+          coordinates: Array.isArray(coordinateValues) && coordinateValues.length >= 2
+            ? { lat: Number(coordinateValues[1]), lng: Number(coordinateValues[0]) }
+            : undefined,
+          status: "pending_acceptance",
+          priority: "normal",
+          assignedAt,
+          acceptanceDeadline: calculateTechnicianAcceptanceDeadline(bookingDate, assignedAt),
+          slaDeadline: new Date(assignedAt.getTime() + 2 * 60 * 60 * 1000),
+          responseSLAMinutes: 30,
+          estimatedFee: effectiveTotalFee,
+          travelFare: parsedTravelFare,
+          travelTime: parsedTravelTime,
+          notes: [{
+            text: "Walk-in booking assigned by admin/secretary",
+            by: req.user?._id,
+            byName: req.user?.name || req.user?.email || "Admin/Secretary",
+          }],
+        });
+        await assignment.save();
+
+        // Selection by an admin is only an assignment offer. The booking must
+        // stay here until the technician explicitly accepts it.
+        appointment.status = BookingStatus.ASSIGNED;
+        appointment.assignmentId = assignment._id;
+        appointment.assignedAt = assignedAt;
+        appointment.assignedBy = req.user?._id;
+        for (const item of appointment.services || []) {
+          item.status = "assigned";
+          item.technicianId = selectedTechnician._id;
+          item.technicianName = selectedTechnician.name;
+          item.assignmentId = assignment._id;
+          item.schedule = {
+            date: bookingDate,
+            startTime: String(startMin),
+            endTime: String(endMin),
+            durationMinutes: Number(item.duration) || serviceDuration,
+            kind: item.type === "repair" ? "inspection" : "service",
+          };
+          item.statusHistory.push({
+            status: "assigned",
+            changedAt: assignedAt,
+            changedBy: req.user?._id,
+            changedByName: req.user?.name || req.user?.email || "Admin/Secretary",
+            reason: "Walk-in assignment awaiting technician acceptance",
+          });
+        }
+        await appointment.save();
+
+        const io = req.app.get("io");
+        if (io) {
+          io.to(`tech:${selectedTechnician._id}`).emit("assignment:new", {
+            assignmentId: assignment._id,
+            bookingId: appointment._id,
+            bookingReference,
+            serviceName: assignmentServiceName,
+            customerName: customerSnapshotName,
+            bookingDate,
+            acceptanceDeadline: assignment.acceptanceDeadline,
+            priority: "normal",
+          });
+        }
+
+        await createNotification({
+          type: "assignment_new",
+          title: "New Walk-in Assignment",
+          message: `A walk-in ${assignmentServiceName} booking for ${customerSnapshotName} is waiting for your acceptance.`,
+          userId: selectedTechnicianUser._id,
+          role: "technician",
+          referenceId: assignment._id,
+          referenceModel: "Assignment",
+          link: "/technician/assignments",
+          priority: "high",
+          io,
+        }).catch(err => console.warn("walk-in technician notification failed", err?.message));
+
+        const technicianEmail = selectedTechnician.userEmail || selectedTechnicianUser.email || "";
+        if (technicianEmail) {
+          sendTechnicianNotificationEmail({
+            to: technicianEmail,
+            technicianName: selectedTechnician.name || "Technician",
+            customerName: customerSnapshotName,
+            bookingReference,
+            serviceName: assignmentServiceName,
+            dateLabel: bookingDate.toLocaleDateString("en-PH", {
+              weekday: "long", year: "numeric", month: "long", day: "numeric",
+            }),
+            timeLabel: selectedTimeLabel,
+            totalLabel: `₱${effectiveTotalFee.toLocaleString()}`,
+            locationAddress: locationPayload?.address || customerAddressStr,
+            issueDescription,
+          }).catch(err => console.warn("walk-in technician email failed", err?.message));
+        }
+      }
+
+      // Eight or more units enter the enterprise project-planning queue. The
+      // requested walk-in date remains a preference; operations owns the
+      // multi-day plan and technician team assignment.
+      if (totalUnits >= 8) {
+        const Project = require("../models/Project");
+        const projectPrefs = projectScheduling && typeof projectScheduling === "object"
+          ? (projectScheduling.preferences || {})
+          : {};
+        const preferredHours = {
+          morning: { start: "08:00", end: "12:00" },
+          afternoon: { start: "13:00", end: "17:00" },
+          evening: { start: "17:00", end: "19:00" },
+        }[String(projectPrefs.preferredWorkingHours || "").toLowerCase()] || { start: "", end: "" };
+        const preferredDeadlineRaw = projectScheduling?.endDate || projectPrefs.completionDeadline;
+        const preferredDeadline = preferredDeadlineRaw ? new Date(preferredDeadlineRaw) : undefined;
+        appointment.status = "pending_project_scheduling";
+        await appointment.save();
+        await Project.findOneAndUpdate(
+          { bookingId: appointment._id },
+          { $setOnInsert: {
+            bookingId: appointment._id, customerId: customerUser._id,
+            customer: { _id: customerUser._id, name: customerSnapshotName, email: customerSnapshotEmail, phone: customerSnapshotPhone, address: customerAddressStr },
+            service: { name: resolvedItems.map(item => item.name).join(", "), description: issueDescription || "Walk-in large-scale service project", category: appointment.serviceType },
+            status: "pending_project_scheduling", isLargeScale: true, projectPhase: "assessment",
+            estimatedTotalHours: serviceDuration / 60, totalUnits, quantity: totalUnits,
+            estimatedDurationPerUnit: serviceDuration / 60 / totalUnits,
+            preferredStartDate: bookingDate,
+            preferredCompletionDeadline: preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : undefined,
+            preferredWorkingDays: Array.isArray(projectPrefs.workingDays) ? projectPrefs.workingDays.slice(0, 7).map(String) : [],
+            preferredWorkingHours: preferredHours,
+            location: locationPayload,
+            assignedTechnicians: [], totalAssignedTechnicians: 0,
+          } },
+          { upsert: true, new: true }
+        );
+      }
+
       if (customerSnapshotEmail) {
         try {
-          console.log("[APPOINTMENT] Sending walk-in email to:", customerSnapshotEmail);
-          
           const resetLink =
             customerResult && customerResult.resetToken
               ? `${req.protocol}://${req.get("host")}/reset-password?token=${customerResult.resetToken}`
@@ -1670,7 +1999,7 @@ router.post(
           customerName: customerSnapshotName,
           customerEmail: customerSnapshotEmail,
           customerPhone: customerSnapshotPhone,
-          serviceId: serviceDoc._id,
+          serviceId: primaryItem.serviceId,
           technicianId: technicianRefId,
           date,
           startTime,
@@ -1690,6 +2019,7 @@ router.post(
         ),
         resetLink,
         appointment,
+        assignment,
         customer:
           customerResult && customerResult.user
             ? {
@@ -1710,15 +2040,14 @@ router.post(
             : "Failed to create walk-in appointment",
       });
     }
-  },
-);
+  });
 
-// GET /:id - single appointment
-router.get("/:id", async (req, res) => {
+router.get("/:id", auth.authenticate, async (req, res) => {
   try {
     const id = req.params.id;
     const appt = await BookingService.findById(id)
       .populate("serviceId")
+      .populate("customerId", "firstName lastName email phone mobile address")
       .populate("technicianId", "firstName lastName phone location availabilityStatus")
       .lean();
     if (!appt) return res.status(404).json({ error: "Appointment not found" });
@@ -1744,14 +2073,129 @@ router.get("/:id", async (req, res) => {
       appt.amountPaid = appt.amountPaid || 0;
     }
 
+    // Merge large-scale project data so customer tracking shows correct totals,
+    // units, assigned team, and progress.
+    // Look up a linked project even when legacy BookingService.isProject was
+    // not backfilled. The detail refresh must preserve the same project data
+    // supplied by the initial /tracking page render.
+    {
+      try {
+        const Project = require("../models/Project");
+        const WorkOrder = require("../models/WorkOrder");
+        const DailyAssignment = require("../models/DailyAssignment");
+        const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
+        const project = await Project.findOne({ bookingId: appt._id })
+          .select("customer service status projectPhase totalUnits completedUnits payment quotationReview location assignedTechnicians leadTechnicianId plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline dailyAcceptance")
+          .lean();
+        if (project) {
+          const [workOrders, dailyRows] = await Promise.all([
+            WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } })
+              .select("unitCount completedUnitCount status scheduledDate scheduledEndDate")
+              .lean(),
+            DailyAssignment.find({ projectId: project._id, status: { $ne: "skipped" } })
+              .select("date startTime endTime targetUnits completedUnits")
+              .sort({ date: 1, startTime: 1 })
+              .lean(),
+          ]);
+          const trackedTotal = workOrders.reduce((sum, order) => sum + Number(order.unitCount || 0), 0);
+          const trackedDone = workOrders.reduce((sum, order) => sum + Number(order.completedUnitCount || 0), 0);
+          const totalUnits = trackedTotal || Number(project.totalUnits || appt.quantity || 0);
+          const completedUnits = workOrders.length ? trackedDone : Number(project.completedUnits || 0);
+          const pricing = calculateProjectCustomerPricing({ project, booking: appt, workOrders, dailyRows });
+          const lead = (project.assignedTechnicians || []).find(member => String(member._id) === String(project.leadTechnicianId))
+            || (project.assignedTechnicians || [])[0];
+          const scheduleStart = project.plannedStartDate || project.preferredStartDate || dailyRows[0]?.date || appt.bookingDate;
+          const scheduleEnd = project.plannedCompletionDate || project.preferredCompletionDeadline || dailyRows[dailyRows.length - 1]?.date || scheduleStart;
+          const projectStatusMap = {
+            pending_project_scheduling: "pending",
+            accepted: "confirmed",
+            planning: "confirmed",
+            ready: "confirmed",
+            in_progress: "in-progress",
+            completed: "completed",
+            closed: "completed",
+            cancelled: "cancelled",
+            on_hold: "scheduled",
+          };
+          appt.isProject = true;
+          appt.projectId = String(project._id);
+          appt.project = {
+            status: project.status,
+            phase: project.projectPhase || "execution",
+            totalUnits,
+            completedUnits,
+            remainingUnits: Math.max(0, totalUnits - completedUnits),
+            completionPct: totalUnits ? Math.round((completedUnits / totalUnits) * 100) : 0,
+            scheduleStart,
+            scheduleEnd,
+            team: (project.assignedTechnicians || []).map(member => ({ _id: member._id, name: member.name, phone: member.phone })),
+            leadTechnicianId: project.leadTechnicianId || lead?._id || null,
+            dailyAcceptanceRequired: Boolean(project.dailyAcceptance?.required),
+            workOrders: workOrders.map(order => ({
+              _id: order._id,
+              status: order.status,
+              unitCount: Number(order.unitCount || 0),
+              completedUnitCount: Number(order.completedUnitCount || 0),
+              scheduledDate: order.scheduledDate,
+              scheduledEndDate: order.scheduledEndDate,
+            })),
+            pricing,
+          };
+          appt.status = projectStatusMap[project.status] || appt.status;
+          if (scheduleStart) appt.bookingDate = scheduleStart;
+          appt.projectEndDate = scheduleEnd;
+          if (project.customer && project.customer.name) appt.customer = project.customer;
+          if (project.service && project.service.name) {
+            if (!appt.service) appt.service = {};
+            appt.service.name = project.service.name;
+          }
+          if (project.location && (project.location.lat || project.location.lng || project.location.address)) {
+            appt.location = {
+              address: project.location.address || appt.location?.address,
+              lat: project.location.lat,
+              lng: project.location.lng,
+              coordinates: { type: "Point", coordinates: [project.location.lng, project.location.lat] },
+            };
+          }
+          if (lead) {
+            appt.technicianId = String(lead._id);
+            appt.technicianName = lead.name;
+            appt.technicianPhone = lead.phone;
+            appt.technician = { name: lead.name, phone: lead.phone };
+          }
+          if (totalUnits) appt.quantity = totalUnits;
+          appt.completedUnits = completedUnits;
+
+          const projectMethod = project.payment?.paymentMethod || "";
+          appt.totalPrice = pricing.total;
+          appt.travelFare = pricing.travelFare;
+          appt.amountPaid = pricing.alreadyPaid;
+          appt.balanceAmount = pricing.balance;
+          if (projectMethod) appt.paymentMethod = projectMethod;
+
+          // Re-calculate amount paid from project payment records when available
+          try {
+            const projectPayments = await Payment.find({
+              $or: [{ bookingId: appt._id }, { projectId: project._id }],
+              status: { $in: ["paid", "succeeded", "completed", "verified"] },
+            }).lean();
+            const totalPaid = (projectPayments || []).reduce((s, p) => s + Number((p && (p.amount || p.paidAmount)) || 0), 0);
+            if (totalPaid > 0) appt.amountPaid = totalPaid;
+          } catch (_) {}
+        }
+      } catch (projErr) {
+        console.warn('Failed to merge project data for appointment', id, projErr && projErr.message);
+      }
+    }
+
     return res.json({ appointment: appt });
   } catch (err) {
     return res.status(500).json({ error: "Failed to load appointment" });
   }
 });
 
-// GET /:id - single appointment
-router.get("/:id", async (req, res) => {
+// GET /:id - single appointment (basic)
+router.get("/:id", auth.authenticate, async (req, res) => {
   try {
     const id = req.params.id;
     const appt = await BookingService.findById(id).populate("serviceId").lean();
@@ -2189,6 +2633,18 @@ router.post(
       const newDate = appt.rescheduleRequest.requestedDate;
       const newTime = appt.rescheduleRequest.requestedTime;
 
+      // Guard against double-booking before committing the requested slot.
+      const rwStartMin = parseTimeValue(newTime);
+      if (!Number.isFinite(rwStartMin)) {
+        return res.status(400).json({ error: 'Invalid requested time format' });
+      }
+      const rwEndMin = rwStartMin + (Number(appt.serviceDurationMinutes) || 90);
+      try {
+        await assertCompanyCapacity(new Date(newDate), rwStartMin, rwEndMin, appt._id);
+      } catch (capErr) {
+        return res.status(409).json({ error: capErr.message });
+      }
+
       // Update appointment with new date/time
       appt.bookingDate = new Date(newDate);
       appt.startTime = newTime;
@@ -2198,14 +2654,14 @@ router.post(
       appt.rescheduleRequest.processedBy = req.user._id;
       appt.rescheduleRequest.processedAt = new Date();
 
-      // Update status to re-scheduled
-      appt.status = "re-scheduled";
+      // Move to assignment queue so admin can assign a technician
+      appt.status = "awaiting_assignment";
       appt.rescheduleReason = appt.rescheduleRequest.reason;
 
       // Push status history
       if (!appt.statusHistory) appt.statusHistory = [];
       appt.statusHistory.push({
-        status: "re-scheduled",
+        status: "awaiting_assignment",
         message: `Rescheduled to ${newDate} at ${newTime}`,
         date: new Date(),
         by: req.user.firstName || req.user.name || "Admin",
@@ -2812,6 +3268,7 @@ router.post("/", auth.authenticate, async (req, res) => {
       paymentReference,
       paymentProof,
       downpaymentAmount,
+      estimatedFee,
     } = req.body;
 
     if (paymentMethod === "cash") paymentMethod = "cod";
@@ -2844,8 +3301,11 @@ router.post("/", auth.authenticate, async (req, res) => {
         return res
           .status(400)
           .json({ error: "Proof of payment is required for cash bookings." });
-      // fixed downpayment of 400
-      req.body.downpaymentAmount = 400;
+      const percentage = await getDownpaymentPercentage();
+      const breakdown = calculatePaymentBreakdown(Number(estimatedFee) || 0, percentage);
+      downpaymentAmount = breakdown.downpaymentAmount;
+      req.body.downpaymentAmount = downpaymentAmount;
+      req.body.downpaymentPercentage = breakdown.downpaymentPercentage;
     }
     if (paymentMethod === "cash") paymentMethod = "cod";
 
@@ -2935,7 +3395,10 @@ router.post("/", auth.authenticate, async (req, res) => {
       paymentMethod: paymentMethod || undefined,
       gcashNumber: gcashNumber || undefined,
       paymentReference: paymentReference || undefined,
+      downpaymentPercentage: req.body.downpaymentPercentage || undefined,
       downpaymentAmount: downpaymentAmount || undefined,
+      balanceAmount: paymentMethod === "cod" ? Math.max(0, (Number(estimatedFee) || 0) - downpaymentAmount) : 0,
+      estimatedFee: Number(estimatedFee) || undefined,
       paymentProof: paymentProof || undefined,
     });
 
@@ -3085,6 +3548,25 @@ router.put("/:id", auth.authenticate, async (req, res) => {
     const id = req.params.id;
     const appt = await BookingService.findById(id);
     if (!appt) return res.status(404).json({ error: "Appointment not found" });
+
+    // Ownership/role check: admin/secretary can edit any; others only their own
+    const role = req.user.role;
+    if (role === "technician") {
+      if (String(appt.technicianId) !== String(req.user._id)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    } else if (role === "customer") {
+      if (String(appt.customerId) !== String(req.user._id)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      // Customers can only reschedule, not change status/technician
+      const up = req.body || {};
+      if (up.status || up.technicianId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    } else if (role !== "admin" && role !== "secretary") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     // keep previous date/time to sync timeslots if changed
     const prevDate = appt.bookingDate ? new Date(appt.bookingDate) : null;
@@ -3492,9 +3974,12 @@ router.post(
   },
 );
 
-// Delete appointment
+// Delete appointment (admin/secretary only)
 router.delete("/:id", auth.authenticate, async (req, res) => {
   try {
+    if (req.user.role !== "admin" && req.user.role !== "secretary") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const id = req.params.id;
     const appt = await BookingService.findByIdAndDelete(id);
     if (!appt) return res.status(404).json({ error: "Appointment not found" });
@@ -3631,6 +4116,106 @@ router.post("/:id/add-service", auth.authenticate, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Admin queue for governed customer service-item changes.
+router.get("/service-change-requests/pending", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
+  try {
+    const bookings = await BookingService.find({ "serviceChangeRequests.status": { $in: ["pending", "schedule_proposed"] } })
+      .select("bookingReference customer bookingDate startTime endTime technician serviceChangeRequests")
+      .sort({ "serviceChangeRequests.requestedAt": 1 }).lean();
+    const requests = bookings.flatMap(booking => (booking.serviceChangeRequests || [])
+      .filter(row => ["pending", "schedule_proposed"].includes(row.status))
+      .map(row => ({ ...row, bookingId: booking._id, bookingReference: booking.bookingReference, customer: booking.customer, technician: booking.technician, bookingDate: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime })));
+    return res.json({ success: true, requests });
+  } catch (err) { next(err); }
+});
+
+router.post("/:id/service-change-requests/:requestId/decision", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
+  try {
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    const change = booking.serviceChangeRequests.id(req.params.requestId);
+    if (!change) return res.status(404).json({ error: "Change request not found" });
+    if (!["pending", "schedule_proposed"].includes(change.status)) return res.status(409).json({ error: "This change request has already been decided." });
+
+    const action = String(req.body.action || "");
+    const reason = String(req.body.reason || "").trim();
+    if (action === "propose_schedule") {
+      const date = req.body.date ? new Date(`${req.body.date}T00:00:00`) : null;
+      const start = parseTimeValue(req.body.startTime);
+      if (!date || Number.isNaN(date.getTime()) || !Number.isFinite(start)) return res.status(400).json({ error: "A valid proposed date and start time are required." });
+      const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
+      const buffer = await getBufferMinutes();
+      const end = start + capacityMinutes(change.proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
+      await assertCompanyCapacity(date, start, end, booking._id);
+      change.status = "schedule_proposed";
+      change.proposedSchedule = { date, startTime: req.body.startTime, endTime: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`, notes: reason };
+      await booking.save();
+      await createNotification({ type: "booking_schedule_proposed", title: "New schedule proposed", message: `A new schedule was proposed for ${booking.bookingReference || booking._id}.`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "high", io: req.app.get("io") });
+      return res.json({ success: true, changeRequest: change });
+    }
+
+    if (action === "reject") {
+      change.status = "rejected";
+      change.adminDecision = { decidedBy: req.user._id, decidedByName: req.user.fullName || req.user.email, decidedAt: new Date(), reason: reason || "Unable to accommodate the requested change." };
+      await booking.save();
+      await createNotification({ type: "booking_change_rejected", title: "Service change declined", message: `${booking.bookingReference || booking._id}: ${change.adminDecision.reason}`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "normal", io: req.app.get("io") });
+      return res.json({ success: true, changeRequest: change });
+    }
+
+    if (action !== "approve") return res.status(400).json({ error: "Action must be approve, reject, or propose_schedule." });
+    const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
+    const buffer = await getBufferMinutes();
+    const start = parseTimeValue(booking.startTime);
+    const end = start + capacityMinutes(change.proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
+    if (booking.bookingDate && Number.isFinite(start)) await assertCompanyCapacity(booking.bookingDate, start, end, booking._id);
+    booking.services = change.proposedServices;
+    booking.isMultiService = booking.services.length > 1;
+    booking.serviceType = aggregateBookingType(booking.services);
+    if (Number.isFinite(end)) booking.endTime = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+    const totals = booking.calculateTotalCosts();
+    booking.totalInitialCost = totals.totalInitialCost; booking.totalFinalCost = totals.totalFinalCost; booking.totalPrice = totals.totalPrice;
+    change.status = "approved";
+    change.adminDecision = { decidedBy: req.user._id, decidedByName: req.user.fullName || req.user.email, decidedAt: new Date(), reason: reason || "Approved after capacity review." };
+    await booking.save();
+    await Promise.all([
+      createNotification({ type: "booking_change_approved", title: "Service change approved", message: `${booking.bookingReference || booking._id} has been updated.`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "normal", io: req.app.get("io") }),
+      booking.technicianId ? createNotification({ type: "booking_update_acknowledgement", title: "Assigned booking updated", message: `Services changed for ${booking.bookingReference || booking._id}. Please review and acknowledge.`, userId: booking.technicianId, role: "technician", referenceId: booking._id, referenceModel: "BookingService", link: "/technician/assignments", priority: "high", io: req.app.get("io") }) : Promise.resolve(),
+    ]);
+    return res.json({ success: true, booking, changeRequest: change });
+  } catch (err) { next(err); }
+});
+
+router.post("/:id/service-items/:itemId/assign", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
+  try {
+    const Assignment = require("../models/Assignment");
+    const Technician = require("../models/Technician");
+    const booking = await BookingService.findById(req.params.id);
+    const technician = await Technician.findOne({ _id: req.body.technicianId, active: { $ne: false } });
+    if (!booking || !technician) return res.status(404).json({ error: "Booking or technician not found" });
+    const item = booking.services.id(req.params.itemId);
+    if (!item) return res.status(404).json({ error: "Service item not found" });
+    const date = req.body.date ? new Date(`${req.body.date}T00:00:00`) : new Date(item.schedule?.date || booking.bookingDate);
+    const startTime = req.body.startTime || item.schedule?.startTime || booking.startTime;
+    const start = parseTimeValue(startTime);
+    const duration = item.type === "repair" && item.phase !== "repair_phase_2" ? await require("../utils/bookingPolicy").getInspectionDurationMinutes() : Number(item.schedule?.durationMinutes || item.duration || 60) * Math.max(1, Number(item.quantity) || 1);
+    const end = req.body.endTime ? parseTimeValue(req.body.endTime) : start + duration;
+    if (Number.isNaN(date.getTime()) || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) return res.status(400).json({ error: "A valid service-item schedule is required." });
+    const dayStart = new Date(date); dayStart.setHours(0,0,0,0); const dayEnd = new Date(date); dayEnd.setHours(23,59,59,999);
+    const active = await Assignment.find({ technicianId: technician._id, bookingDate: { $gte: dayStart, $lte: dayEnd }, status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] }, _id: { $ne: item.assignmentId } }).select("startTime endTime serviceName").lean();
+    const conflict = active.find(row => { const rowStart = parseTimeValue(row.startTime), rowEnd = parseTimeValue(row.endTime); return Number.isFinite(rowStart) && Number.isFinite(rowEnd) && start < rowEnd && end > rowStart; });
+    if (conflict) return res.status(409).json({ error: `Technician schedule conflict with ${conflict.serviceName || "another assignment"}.` });
+    const endTime = `${String(Math.floor(end/60)).padStart(2,"0")}:${String(end%60).padStart(2,"0")}`;
+    const assignment = item.assignmentId ? await Assignment.findById(item.assignmentId) : new Assignment({ bookingId: booking._id, serviceItemId: item._id });
+    Object.assign(assignment, { technicianId: technician._id, customerName: booking.customer?.name || "", customerPhone: booking.customer?.phone || "", customerEmail: booking.customer?.email || "", serviceType: item.type, serviceName: item.name, servicePrice: item.totalPrice || 0, quantity: item.quantity || 1, bookingDate: date, startTime, endTime, address: booking.location?.address || booking.address || "", coordinates: { lat: booking.location?.lat, lng: booking.location?.lng }, status: "pending_acceptance", assignedAt: new Date(), estimatedFee: item.totalPrice || 0, travelFare: booking.travelFare || 0, travelTime: booking.travelTime || 0 });
+    await assignment.save();
+    item.technicianId = technician._id; item.technicianName = technician.name; item.assignmentId = assignment._id; item.status = "assigned"; item.schedule = { date, startTime, endTime, durationMinutes: duration, kind: item.type === "repair" && item.phase !== "repair_phase_2" ? "inspection" : item.type === "repair" ? "repair" : "service" }; item.statusHistory.push({ status: "assigned", changedAt: new Date(), changedBy: req.user._id, changedByName: req.user.fullName || req.user.email, reason: "Service item assigned" });
+    if (!booking.technicianId) { booking.technicianId = technician._id; booking.technician = { _id: technician._id, name: technician.name, email: technician.userEmail || technician.email, phone: technician.phone || technician.mobile }; }
+    await booking.save();
+    await createNotification({ type: "assignment_new", title: "New service item assigned", message: `${item.name} in ${booking.bookingReference || booking._id} requires your acceptance.`, userId: technician._id, role: "technician", referenceId: assignment._id, referenceModel: "Assignment", link: "/technician/assignments", priority: "high", io: req.app.get("io") });
+    return res.json({ success: true, assignment, serviceItem: item });
+  } catch (err) { next(err); }
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3979,6 +4564,15 @@ router.post("/:id/repair-today-choice", auth.authenticate, async (req, res, next
       };
       await booking.save();
 
+      await audit.logEvent({
+        actor: req.user && req.user._id,
+        target: booking._id,
+        action: "booking.repair_today_choice",
+        module: "appointments",
+        req,
+        details: { bookingId: booking._id, choice: "today", technicianId: tech._id },
+      });
+
       return res.json({
         success: true,
         available: true,
@@ -4005,6 +4599,15 @@ router.post("/:id/repair-today-choice", auth.authenticate, async (req, res, next
         decidedAt: new Date(),
       };
       await booking.save();
+
+      await audit.logEvent({
+        actor: req.user && req.user._id,
+        target: booking._id,
+        action: "booking.repair_today_choice",
+        module: "appointments",
+        req,
+        details: { bookingId: booking._id, choice: "later", preferredDates, preferredTimeWindow },
+      });
 
       // Notify admin
       if (global.io) {
@@ -4248,5 +4851,294 @@ async function buildRepairData(booking) {
     },
   };
 }
+
+// Customer reschedule confirmation: accept, request new, or cancel
+router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
+  try {
+    const BookingService = require('../models/BookingService');
+    const Payment = require('../models/Payment');
+    const Assignment = require('../models/Assignment');
+    const Technician = require('../models/Technician');
+    const { BookingStatus } = require('../models/BookingStatus');
+    const { createNotification } = require('../utils/notify');
+
+    const { action, requestedDate, requestedTime, reason } = req.body;
+    if (!['accept', 'request_new', 'cancel'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be accept, request_new, or cancel.' });
+    }
+
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (String(booking.customerId) !== String(req.user._id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const io = req.app.get('io');
+    const isRepair = booking.serviceModel === 'RepairService' || booking.serviceType === 'repair';
+    const proposal = booking.proposedReschedule;
+
+    if (action === 'accept') {
+      if (!proposal || proposal.status !== 'pending') {
+        return res.status(400).json({ error: 'No pending reschedule proposal to accept' });
+      }
+      proposal.status = 'accepted';
+      booking.proposedReschedule = proposal;
+
+      // Apply the confirmed schedule from the proposal. The booking's active
+      // date/time is only committed here (admin-reschedule no longer mutates
+      // it early), so once accepted the booking reflects the proposed slot.
+      if (proposal.date) booking.bookingDate = new Date(proposal.date);
+      booking.startTime = proposal.time || proposal.timeLabel || booking.startTime;
+      booking.selectedTimeLabel = booking.startTime;
+
+      if (proposal.technicianId) {
+        const tech = await Technician.findById(proposal.technicianId).select('name _id').lean();
+        const customerName = booking.customer?.name || 'Customer';
+        const serviceName = booking.service?.name || (isRepair ? 'Repair Service' : 'Service');
+
+        const assignment = new Assignment({
+          bookingId: booking._id,
+          technicianId: proposal.technicianId,
+          customerName,
+          serviceName,
+          serviceDurationMinutes: booking.serviceDurationMinutes || 60,
+          bookingDate: booking.bookingDate,
+          startTime: booking.startTime,
+          selectedTimeLabel: booking.startTime,
+          address: booking.location?.address || '',
+          estimatedFee: booking.totalPrice || booking.estimatedFee || 0,
+          status: 'pending_acceptance',
+          notes: [{ text: `Reschedule proposal accepted by customer. Proposed by ${proposal.proposedByName || 'admin'}`, by: req.user._id, byName: req.user.name || req.user.email, createdAt: new Date() }],
+        });
+        await assignment.save();
+
+        const previousStatus = booking.status;
+        booking.technicianId = proposal.technicianId;
+        booking.technician = { _id: proposal.technicianId, name: tech?.name || proposal.technicianName };
+        booking.assignmentId = assignment._id;
+        booking.assignedAt = new Date();
+        booking.assignedBy = req.user._id;
+        booking.status = isRepair ? BookingStatus.INSPECTION_SCHEDULED : BookingStatus.ASSIGNED;
+
+        booking.recordStatusHistory({
+          fromStatus: previousStatus,
+          toStatus: booking.status,
+          changedBy: req.user._id,
+          changedByModel: 'User',
+          changedByName: req.user.name || req.user.email,
+          reason: 'Customer accepted reschedule proposal',
+        });
+      } else {
+        const previousStatus = booking.status;
+        booking.status = BookingStatus.AWAITING_ASSIGNMENT;
+        booking.recordStatusHistory({
+          fromStatus: previousStatus,
+          toStatus: booking.status,
+          changedBy: req.user._id,
+          changedByModel: 'User',
+          changedByName: req.user.name || req.user.email,
+          reason: 'Customer accepted reschedule proposal; technician TBD',
+        });
+      }
+
+      await booking.save();
+
+      // ── Cleanup: Release reserved equipment from old assignment ──────
+      try {
+        const EquipmentAssignment = require('../models/EquipmentAssignment');
+        const Tool = require('../models/Tool');
+        const reserved = await EquipmentAssignment.find({
+          bookingId: booking._id,
+          status: 'reserved',
+        }).lean();
+        if (reserved.length) {
+          for (const eq of reserved) {
+            if (eq.equipmentId) {
+              await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
+            }
+          }
+          await EquipmentAssignment.deleteMany({
+            bookingId: booking._id,
+            status: 'reserved',
+          });
+        }
+      } catch (eqErr) {
+        console.warn('Equipment cleanup on accept reschedule skipped:', eqErr.message);
+      }
+
+      await createNotification({
+        type: 'booking_reschedule_accepted',
+        title: 'Reschedule Accepted',
+        message: `Customer accepted the rescheduled ${booking.service?.name || 'service'} on ${new Date(booking.bookingDate).toLocaleDateString('en-PH')} at ${booking.startTime}.`,
+        role: 'admin',
+        referenceId: booking._id,
+        referenceModel: 'BookingService',
+        link: `/admin/appointments?ref=${booking.bookingReference}`,
+        io,
+      });
+
+      if (booking.customerId) {
+        await createNotification({
+          type: 'booking_reschedule_confirmed',
+          title: 'Reschedule Confirmed',
+          message: `Your reschedule for ${booking.service?.name || 'your service'} has been confirmed for ${new Date(booking.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })} at ${booking.startTime}.`,
+          userId: booking.customerId,
+          role: 'customer',
+          referenceId: booking._id,
+          referenceModel: 'BookingService',
+          link: '/tracking',
+          io,
+        });
+      }
+
+      await audit.logEvent({
+        actor: req.user && req.user._id,
+        target: booking._id,
+        action: 'booking.reschedule_accept',
+        module: 'appointments',
+        req,
+        details: { bookingId: booking._id, newDate: booking.bookingDate, newTime: booking.startTime },
+      });
+
+      return res.json({ success: true, message: 'Reschedule accepted. Technician will be notified.', booking });
+    }
+
+    if (action === 'request_new') {
+      if (!requestedDate || !requestedTime) {
+        return res.status(400).json({ error: 'requestedDate and requestedTime are required' });
+      }
+      // Guard against double-booking: reject a requested slot that is no
+      // longer available (conflicts with other active bookings or all
+      // technicians are busy) before recording the customer's request.
+      const reqStartMin = parseTimeValue(requestedTime);
+      if (!Number.isFinite(reqStartMin)) {
+        return res.status(400).json({ error: 'Invalid requested time format' });
+      }
+      const reqEndMin = reqStartMin + (Number(booking.serviceDurationMinutes) || 90);
+      try {
+        await assertCompanyCapacity(new Date(requestedDate), reqStartMin, reqEndMin, booking._id);
+      } catch (capErr) {
+        return res.status(409).json({ error: capErr.message });
+      }
+      if (proposal) {
+        proposal.status = 'new_requested';
+        booking.proposedReschedule = proposal;
+      }
+      booking.rescheduleRequest = {
+        requested: true,
+        requestedDate,
+        requestedTime,
+        reason: reason || '',
+        requestedBy: req.user._id,
+        requestedAt: new Date(),
+        status: 'pending',
+      };
+      const previousStatus = booking.status;
+      booking.status = BookingStatus.PENDING_REASSIGNMENT;
+      booking.recordStatusHistory({
+        fromStatus: previousStatus,
+        toStatus: booking.status,
+        changedBy: req.user._id,
+        changedByModel: 'User',
+        changedByName: req.user.name || req.user.email,
+        reason: `Customer requested a different schedule: ${requestedDate} at ${requestedTime}`,
+      });
+      await booking.save();
+
+      await createNotification({
+        type: 'booking_reschedule_request',
+        title: 'Customer Reschedule Request',
+        message: `Customer for ${booking.bookingReference} requested a new schedule: ${requestedDate} at ${requestedTime}.`,
+        role: 'admin',
+        referenceId: booking._id,
+        referenceModel: 'BookingService',
+        link: `/admin/appointments/attention`,
+        io,
+      });
+
+      await audit.logEvent({
+        actor: req.user && req.user._id,
+        target: booking._id,
+        action: 'booking.reschedule_request_new',
+        module: 'appointments',
+        req,
+        details: { bookingId: booking._id, requestedDate, requestedTime, reason: reason || '' },
+      });
+
+      return res.json({ success: true, message: 'New schedule request submitted.', booking });
+    }
+
+    if (action === 'cancel') {
+      const previousStatus = booking.status;
+      booking.status = BookingStatus.CANCELLED;
+      booking.cancellationReason = reason || 'Customer cancelled after reschedule proposal';
+      if (proposal) {
+        proposal.status = 'rejected';
+        booking.proposedReschedule = proposal;
+      }
+      booking.recordStatusHistory({
+        fromStatus: previousStatus,
+        toStatus: booking.status,
+        changedBy: req.user._id,
+        changedByModel: 'User',
+        changedByName: req.user.name || req.user.email,
+        reason: booking.cancellationReason,
+      });
+
+      // Refund downpayment if any
+      const downpayment = await Payment.findOne({
+        bookingId: booking._id,
+        type: 'downpayment',
+        status: { $in: ['verified', 'paid', 'payment_collected', 'remitted'] },
+      }).sort({ submittedAt: -1 });
+      if (downpayment) {
+        downpayment.status = 'refunded';
+        downpayment.refundedAt = new Date();
+        downpayment.refundedBy = req.user._id;
+        downpayment.refundReason = 'Customer cancelled after reschedule proposal';
+        downpayment.events.push({
+          status: 'refunded',
+          actor: req.user._id,
+          actorName: req.user.name || req.user.email,
+          actorRole: 'customer',
+          note: 'Refunded by customer-initiated cancellation',
+          at: new Date(),
+        });
+        await downpayment.save();
+
+        booking.paymentStatus = 'refunded';
+        booking.amountPaid = 0;
+        booking.balanceAmount = 0;
+      }
+
+      await booking.save();
+
+      await createNotification({
+        type: 'booking_cancelled',
+        title: 'Booking Cancelled',
+        message: `Customer cancelled ${booking.bookingReference} after a reschedule proposal. Downpayment ${downpayment ? 'refunded' : 'not applicable'}.`,
+        role: 'admin',
+        referenceId: booking._id,
+        referenceModel: 'BookingService',
+        link: `/admin/appointments?ref=${booking.bookingReference}`,
+        io,
+      });
+
+      await audit.logEvent({
+        actor: req.user && req.user._id,
+        target: booking._id,
+        action: 'booking.reschedule_cancel',
+        module: 'appointments',
+        req,
+        details: { bookingId: booking._id, reason: reason || 'Customer cancelled after reschedule proposal', downpaymentRefunded: !!downpayment },
+      });
+
+      return res.json({ success: true, message: 'Booking cancelled and downpayment refunded if applicable.', booking });
+    }
+  } catch (error) {
+    console.error('Reschedule action error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process reschedule action' });
+  }
+});
 
 module.exports = router;

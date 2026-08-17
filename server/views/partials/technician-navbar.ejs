@@ -115,6 +115,30 @@
       margin-left: -8px;
       margin-top: -2px;
     }
+    #notifDropdown {
+      right: 0;
+      left: 0;
+      width: 100%;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      max-height: 80vh;
+    }
+    #notifList {
+      max-height: calc(80vh - 100px);
+    }
+  }
+
+  /* Override Bootstrap dropdown-menu behavior for technician notifications */
+  #notifDropdown {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+  #notifDropdown.show {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 </style>
 <nav id="technicianNavbar" class="navbar navbar-expand-lg border-bottom px-4 py-2 bg-white" style="border-color: rgba(226, 232, 240, 0.8) !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);">
@@ -141,26 +165,24 @@
         <button
           class="navbar-icon-btn"
           id="notifDropdownBtn"
-          data-bs-toggle="dropdown"
-          aria-expanded="false"
           aria-label="Notifications"
           type="button"
         >
           <i class="bi bi-bell" style="font-size: 1.15rem;"></i>
           <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill d-none" style="font-size: 0.55rem; background: #ef4444; padding: 0.2em 0.45em; border: 1.5px solid #fff; margin-left: -10px; margin-top: -2px;">0</span>
         </button>
-        <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg" aria-labelledby="notifDropdownBtn" id="notifDropdown" style="width: min(360px, 92vw); border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div class="d-flex justify-content-between align-items-center bg-light px-3 py-2 border-bottom">
+        <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg" id="notifDropdown" style="width: min(360px, 92vw); max-height: 70vh; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; display: none; visibility: hidden; opacity: 0; position: absolute; right: 0; top: 100%; margin-top: 8px;">
+          <div class="d-flex justify-content-between align-items-center bg-light px-3 py-2 border-bottom flex-shrink-0">
             <h6 class="mb-0 fw-bold" style="color: #334155;">Notifications</h6>
             <span class="badge bg-secondary rounded-pill" id="notifCount" style="font-size: 0.7rem;">0</span>
           </div>
-          <div id="notifList" style="max-height: 360px; overflow-y: auto;">
+          <div id="notifList" style="max-height: calc(70vh - 90px); overflow-y: auto; flex: 1;">
             <div class="p-4 text-center" id="notifEmpty">
               <i class="bi bi-bell-slash text-muted mb-2 d-block" style="font-size: 2rem;"></i>
               <p class="text-muted small mb-0">No new notifications.</p>
             </div>
           </div>
-          <div class="border-top text-center py-2 bg-light" id="notifFooter">
+          <div class="border-top text-center py-2 bg-light flex-shrink-0" id="notifFooter">
             <a href="/technician" class="text-decoration-none small fw-semibold" style="color: #2563eb;">View All</a>
           </div>
         </div>
@@ -237,6 +259,9 @@
     var countEl = document.getElementById('notifCount');
     var listEl = document.getElementById('notifList');
     var emptyEl = document.getElementById('notifEmpty');
+    var btn = document.getElementById('notifDropdownBtn');
+    var panel = document.getElementById('notifDropdown');
+    var isOpen = false;
 
     function timeAgo(dateStr) {
       var now = new Date();
@@ -293,11 +318,37 @@
         .catch(function() { /* silent */ });
     }
 
-    // Fetch on open
-    var btn = document.getElementById('notifDropdownBtn');
+    // Toggle panel (same as admin navbar)
     if (btn) {
-      btn.addEventListener('shown.bs.dropdown', fetchNotifications);
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isOpen = !isOpen;
+        if (isOpen) {
+          panel.classList.add('show');
+          panel.style.display = 'block';
+          panel.style.visibility = 'visible';
+          panel.style.opacity = '1';
+          fetchNotifications();
+        } else {
+          panel.classList.remove('show');
+          panel.style.display = 'none';
+          panel.style.visibility = 'hidden';
+          panel.style.opacity = '0';
+        }
+      });
     }
+
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.classList.remove('show');
+        panel.style.display = 'none';
+        panel.style.visibility = 'hidden';
+        panel.style.opacity = '0';
+        isOpen = false;
+      }
+    });
 
     // Initial fetch (delay so page loads fully)
     setTimeout(fetchNotifications, 1500);

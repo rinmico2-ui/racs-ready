@@ -4,7 +4,11 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 
 async function run() {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://racs_ready:tOwE7F0fwflbzuzD@cluster0.zg3zjgk.mongodb.net/?appName=Cluster0';
+  const mongoUri = process.env.MONGODB_URI;
+  if (!mongoUri) {
+    console.error("FATAL: MONGODB_URI environment variable is required. Exiting.");
+    process.exit(1);
+  }
   const email = (process.env.ADMIN_EMAIL || 'xiejustina50@gmail.com').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
 

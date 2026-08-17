@@ -10,9 +10,9 @@
           <div class="footer-brand-icon">
             <i class="bi bi-snow2 fs-3"></i>
           </div>
-          <span class="fw-bold text-uppercase footer-brand-text">CALIDRO RACS</span>
+          <span class="fw-bold text-uppercase footer-brand-text"><%= locals.companyName || 'CALIDRO RACS' %></span>
         </div>
-        <p class="mb-3 footer-description">Premium air conditioning & appliance care powered by transparent service and certified technicians.</p>
+        <p class="mb-3 footer-description"><%= locals.companyTagline || 'Premium air conditioning & appliance care powered by transparent service and certified technicians.' %></p>
         <div class="d-flex gap-2">
           <a href="#" class="footer-pill" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
           <a href="#" class="footer-pill" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
@@ -32,21 +32,21 @@
         <h6 class="footer-heading text-uppercase small">Contact</h6>
         <div class="footer-contact-item">
           <i class="bi bi-geo-alt-fill"></i>
-          <span>San Leonardo, Nueva Ecija</span>
+          <span><%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %></span>
         </div>
         <div class="footer-contact-item">
           <i class="bi bi-telephone-fill"></i>
-          <span>0965 605 6495</span>
+          <span><%= locals.companyPhone || '0965 605 6495' %></span>
         </div>
         <div class="footer-contact-item">
           <i class="bi bi-envelope-fill"></i>
-          <span>calidroracs@gmail.com</span>
+          <span><%= locals.companyEmail || 'calidroracs@gmail.com' %></span>
         </div>
       </div>
     </div>
     <div class="footer-copyright text-center mt-5 pt-4">
       <div class="copyright-line"></div>
-      <p class="mb-0 mt-3">&copy; <%= new Date().getFullYear() %> CALIDRO RACS. All rights reserved.</p>
+      <p class="mb-0 mt-3">&copy; <%= new Date().getFullYear() %> <%= locals.companyName || 'CALIDRO RACS' %>. All rights reserved.</p>
     </div>
   </div>
 

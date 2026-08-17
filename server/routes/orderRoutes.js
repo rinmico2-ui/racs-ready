@@ -10,6 +10,8 @@ const Technician = require("../models/Technician");
 const TechnicianSchedule = require("../models/TechnicianSchedule");
 const BookingService = require("../models/BookingService");
 const SiteSetting = require("../models/SiteSetting");
+const Payment = require("../models/Payment");
+const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 
 // ── Multer config for GCash receipt uploads ──────────────────────────────────
 const gcashUploadDir = path.join(__dirname, "../public/uploads/gcash-receipts");
@@ -225,7 +227,7 @@ router.get("/all", authenticate, requireRole("admin", "secretary"), async (req, 
     const [totalOrders, pending, inProgress, completed, cancelled] = await Promise.all([
       Order.countDocuments({}),
       Order.countDocuments({ status: "pending_payment" }),
-      Order.countDocuments({ status: { $in: ["preparing_unit", "technician_assigned", "out_for_delivery", "arrived", "installing"] } }),
+      Order.countDocuments({ status: { $in: ["preparing_unit", "ready_for_pickup", "technician_assigned", "out_for_delivery", "arrived", "installing"] } }),
       Order.countDocuments({ status: "completed" }),
       Order.countDocuments({ status: "cancelled" }),
     ]);
@@ -277,11 +279,15 @@ router.post("/", authenticate, gcashUpload.single("gcashProof"), async (req, res
     if (!fulfillmentType) {
       return res.status(400).json({ error: "Fulfillment type is required" });
     }
+    if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && !req.file) {
+      return res.status(400).json({ error: "A GCash receipt screenshot is required for this payment method." });
+    }
 
     // Fetch dynamic rates
-    const [settingF, settingI] = await Promise.all([
+    const [settingF, settingI, downpaymentPercentage] = await Promise.all([
       SiteSetting.findOne({ key: "farePerKm" }).lean(),
-      SiteSetting.findOne({ key: "airconInstallFee" }).lean()
+      SiteSetting.findOne({ key: "airconInstallFee" }).lean(),
+      getDownpaymentPercentage(),
     ]);
     const fareRaw = settingF && settingF.value != null ? parseFloat(settingF.value) : NaN;
     const installRaw = settingI && settingI.value != null ? parseFloat(settingI.value) : NaN;
@@ -394,6 +400,21 @@ router.post("/", authenticate, gcashUpload.single("gcashProof"), async (req, res
       orderData.pickupDate = pickupDate ? new Date(pickupDate) : null;
     }
 
+    const calculatedOrderTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0)
+      + orderData.deliveryFee
+      + orderData.installationFee
+      + orderData.transportationFee;
+    if (paymentMethod === "cod" || paymentMethod === "gcash_downpayment" || paymentMethod === "downpayment") {
+      const paymentBreakdown = calculatePaymentBreakdown(calculatedOrderTotal, downpaymentPercentage);
+      orderData.downpaymentPercentage = paymentBreakdown.downpaymentPercentage;
+      orderData.downpaymentAmount = paymentBreakdown.downpaymentAmount;
+      orderData.balanceAmount = paymentBreakdown.balanceAmount;
+    } else if (paymentMethod === "gcash_full") {
+      orderData.downpaymentPercentage = 100;
+      orderData.downpaymentAmount = calculatedOrderTotal;
+      orderData.balanceAmount = 0;
+    }
+
     // Technician is NOT assigned at order creation — admin assigns after confirming
     // Status always starts as pending_payment
 
@@ -416,19 +437,42 @@ router.post("/", authenticate, gcashUpload.single("gcashProof"), async (req, res
       }
     }
 
+    // Manual GCash receipts enter the same verification queue as service
+    // booking receipts. The amount comes from the saved policy snapshot.
+    if (req.file && (paymentMethod === "cod" || paymentMethod === "gcash_full")) {
+      const isDownpayment = paymentMethod === "cod";
+      const paymentRecord = await Payment.create({
+        orderId: order._id,
+        amount: isDownpayment ? order.downpaymentAmount : order.total,
+        method: "gcash",
+        type: isDownpayment ? "downpayment" : "final",
+        gateway: "gcash",
+        reference: gcashNumber || undefined,
+        proofUrl: order.gcashProofUrl,
+        status: "pending",
+        notes: isDownpayment
+          ? `${order.downpaymentPercentage}% order downpayment submitted for verification`
+          : "Full order payment submitted for verification",
+      });
+      order.paymentId = paymentRecord._id;
+      await order.save();
+    }
+
     // BookingService is NOT created at order creation — created when admin assigns technician
 
     // --- PAYMONGO PAYMENT INTEGRATION ---
     let checkoutUrl = null;
 
-    if (paymentMethod === "gcash_full" || paymentMethod === "gcash_downpayment") {
+    // The checkout UI uses manual GCash receipt verification for gcash_full.
+    // Only the legacy gateway-specific option should create a PayMongo source.
+    if (paymentMethod === "gcash_downpayment") {
        // Calculate required amount
        const itemTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0);
        const subTotal = itemTotal + orderData.transportationFee + orderData.installationFee;
        
        let paymentAmount = subTotal;
        if (paymentMethod === "gcash_downpayment") {
-          paymentAmount = Math.ceil(subTotal / 2);
+          paymentAmount = order.downpaymentAmount;
        }
 
        // Convert to centavos
@@ -789,7 +833,7 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
       status: "accepted",
       respondedAt: new Date(),
     };
-    order.pushStatus("technician_accepted", "Technician accepted the assignment");
+    order.pushStatus("technician_accepted", "Technician accepted the assignment", { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
     await order.save();
     res.json({ success: true, order: order.toObject() });
   } catch (err) {
@@ -827,7 +871,8 @@ router.post("/:id/decline", authenticate, requireRole("technician"), async (req,
     order.technician = {};
     order.pushStatus(
       "technician_declined",
-      `Technician declined. ${reason ? "Reason: " + reason : ""}`
+      `Technician declined. ${reason ? "Reason: " + reason : ""}`,
+      { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' }
     );
     await order.save();
     res.json({ success: true, order: order.toObject() });
@@ -859,7 +904,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     const wasCancelled = status === "cancelled" && order.status !== "cancelled";
 
-    order.pushStatus(status, note || "");
+    order.pushStatus(status, note || "", { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
     await order.save();
 
     // Restore stock if cancelled via status update
@@ -887,6 +932,85 @@ router.patch("/:id/status", authenticate, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Record an on-site collection after product delivery/installation. No gateway
+// is contacted and only an administrator may subsequently verify it.
+router.post("/:id/collect-payment", authenticate, requireRole("technician"), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    const tech = await Technician.findOne({ user: req.user._id });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!tech || String(order.technicianId) !== String(tech._id)) return res.status(403).json({ error: "Order is not assigned to you" });
+    if (order.status !== "completed") return res.status(400).json({ error: "Complete the order before collecting payment." });
+    const { amount, method = "cash", reference, proofUrl, customerSignature, notes, location } = req.body || {};
+    const paymentMethod = String(method).toLowerCase();
+    const value = Number(amount);
+    if (!["cash", "gcash", "bank"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method." });
+    if (!Number.isFinite(value) || value <= 0 || value > Number(order.total || 0)) return res.status(400).json({ error: "Invalid amount collected." });
+    if (!customerSignature) return res.status(400).json({ error: "Customer signature is required." });
+    if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
+    const now = new Date();
+    const payment = await Payment.create({
+      orderId: order._id, amount: value, method: paymentMethod,
+      type: order.paymentStatus === "partial" ? "final" : (value < Number(order.total || 0) ? "downpayment" : "final"),
+      gateway: paymentMethod === "cash" ? "cod" : paymentMethod, status: "waiting_for_remittance",
+      reference: String(reference || "").trim() || undefined, proofUrl: proofUrl || undefined, customerSignature,
+      collectedBy: tech._id, collectedByName: tech.name, collectedAt: now, collectionLocation: location || undefined, notes,
+      events: [{ status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now, metadata: { method: paymentMethod } }, { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }]
+    });
+    order.paymentStatus = "waiting_for_remittance";
+    order.paymentId = payment._id;
+    order.pushStatus(order.status, `Payment collected by ${tech.name}; waiting for remittance verification.`, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
+    await order.save();
+    res.status(201).json({ message: "Payment recorded. Waiting for admin remittance verification.", paymentId: payment._id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * POST /api/orders/:id/mark-ready-for-pickup — Admin marks a customer_pickup order as ready
+ * Transitions: preparing_unit → ready_for_pickup
+ */
+router.post("/:id/mark-ready-for-pickup", authenticate, requireRole("admin", "secretary"), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.fulfillmentType !== "customer_pickup") {
+      return res.status(400).json({ error: "This endpoint is only for customer pickup orders." });
+    }
+    if (order.status !== "preparing_unit") {
+      return res.status(400).json({ error: `Order must be in "preparing_unit" status. Current: ${order.status}` });
+    }
+    order.pushStatus("ready_for_pickup", req.body.note || "Unit ready for customer pickup", {
+      actor: req.user && req.user._id, actorRole: req.user && req.user.role,
+      actorName: (req.user && (req.user.name || req.user.email)) || "System"
+    });
+    await order.save();
+    res.json({ success: true, order: order.toObject() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * POST /api/orders/:id/confirm-pickup — Admin confirms customer has picked up the unit
+ * Transitions: ready_for_pickup → completed
+ */
+router.post("/:id/confirm-pickup", authenticate, requireRole("admin", "secretary"), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.fulfillmentType !== "customer_pickup") {
+      return res.status(400).json({ error: "This endpoint is only for customer pickup orders." });
+    }
+    if (order.status !== "ready_for_pickup") {
+      return res.status(400).json({ error: `Order must be in "ready_for_pickup" status. Current: ${order.status}` });
+    }
+    order.pushStatus("completed", req.body.note || "Customer has picked up the unit", {
+      actor: req.user && req.user._id, actorRole: req.user && req.user.role,
+      actorName: (req.user && (req.user.name || req.user.email)) || "System"
+    });
+    await order.save();
+    res.json({ success: true, order: order.toObject() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 /**
@@ -925,7 +1049,7 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       cancelNote += `. Reason: ${reason.trim()}`;
     }
 
-    order.pushStatus("cancelled", cancelNote);
+    order.pushStatus("cancelled", cancelNote, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
 
     // Store cancellation reason if order has that field
     if (reason && reason.trim()) {
@@ -1045,7 +1169,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
     order.rescheduleRequest.processedAt = new Date();
 
     // Add to status history
-    order.pushStatus("preparing_unit", `Rescheduled to ${order.rescheduleRequest.requestedDate} at ${order.rescheduleRequest.requestedTime}`);
+    order.pushStatus("preparing_unit", `Rescheduled to ${order.rescheduleRequest.requestedDate} at ${order.rescheduleRequest.requestedTime}`, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
 
     await order.save();
 
@@ -1246,18 +1370,33 @@ router.patch("/:id/payment", authenticate, requireRole("admin", "secretary"), as
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    order.paymentStatus = paymentStatus;
+    const isInitialDeposit = order.status === "pending_payment"
+      && Number(order.downpaymentAmount || 0) > 0
+      && Number(order.balanceAmount || 0) > 0;
+    const effectivePaymentStatus = paymentStatus === "paid" && isInitialDeposit ? "partial" : paymentStatus;
+    order.paymentStatus = effectivePaymentStatus;
 
     // If payment is verified and order is still pending_payment, move to preparing_unit
-    if (paymentStatus === "paid" && order.status === "pending_payment") {
-      order.pushStatus("preparing_unit", note || "Payment verified. Order is now being prepared.");
+    if (["paid", "partial"].includes(effectivePaymentStatus) && order.status === "pending_payment") {
+      order.pushStatus("preparing_unit", note || (effectivePaymentStatus === "partial" ? "Downpayment verified. Order is now being prepared." : "Payment verified. Order is now being prepared."), { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
     } else {
-      order.pushStatus(order.status, note || `Payment status updated to ${paymentStatus}`);
+      order.pushStatus(order.status, note || `Payment status updated to ${effectivePaymentStatus}`, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
     }
 
     await order.save();
 
-    res.json({ success: true, order: order.toObject() });
+    if (order.paymentId && ["paid", "partial", "failed"].includes(effectivePaymentStatus)) {
+      await Payment.findByIdAndUpdate(order.paymentId, {
+        $set: {
+          status: effectivePaymentStatus,
+          verifiedAt: effectivePaymentStatus === "failed" ? undefined : new Date(),
+          verifiedBy: effectivePaymentStatus === "failed" ? undefined : req.user._id,
+          notes: note || undefined,
+        },
+      });
+    }
+
+    res.json({ success: true, order: order.toObject(), paymentStatus: effectivePaymentStatus });
   } catch (err) {
     console.error("PATCH /api/orders/:id/payment error:", err);
     res.status(500).json({ error: err.message || "Failed to update payment status" });

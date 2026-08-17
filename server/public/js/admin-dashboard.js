@@ -1225,7 +1225,7 @@
 
   async function loadDashboard() {
     try {
-      var res = await fetch('/api/admin/analytics/summary');
+      var res = await fetch('/api/admin/analytics/summary', { credentials: 'same-origin' });
       var d = res.ok ? await res.json() : {};
       _dashData = d;
     } catch (e) {
@@ -1241,60 +1241,63 @@
     setText('kpi-revenue-today', fmtMoney(d.revenueToday, d.revenueCurrency));
 
     // Secondary labels
-    setText('kpi-total-bookings-sub', (d.totalBookingsToday || 0) + ' all bookings');
+    setText('kpi-total-bookings-sub', (d.totalBookingsAllTime || 0) + ' all bookings');
     setText('kpi-pending-review-sub', (d.pendingReview || 0) + ' need review');
     setText('kpi-awaiting-assignment-sub', (d.awaitingAssignment || 0) + ' unassigned');
     setText('kpi-active-services-sub', (d.activeServices || 0) + ' on-site');
     setText('kpi-revenue-today-sub', fmtMoney(d.revenueToday, d.revenueCurrency) + ' gross');
 
-    // Percentage badges
+    // Percentage badges — compare today vs 7-day average (meaningful trend)
+    var trend7 = d.trend7 || [];
     var totalB = d.totalBookingsToday || 0;
-    var targetB = totalB > 0 ? Math.max(totalB, 10) : 10;
-    var bookPct = totalB > 0 ? 100 : 0;
-    setText('kpi-total-bookings-percent', bookPct + '%');
+    var avgB = trend7.length > 0 ? Math.round(trend7.reduce(function(s,t){ return s + t.count; },0) / trend7.length) : totalB;
+    var bookPct = avgB > 0 ? Math.round(((totalB - avgB) / avgB) * 100) : (totalB > 0 ? 100 : 0);
+    setText('kpi-total-bookings-percent', (bookPct >= 0 ? '+' : '') + bookPct + '% vs avg');
 
     var pendR = d.pendingReview || 0;
-    var pendPct = pendR > 0 ? Math.round((pendR / (pendR + 1)) * 100) : 0;
-    setText('kpi-pending-review-percent', pendPct + '%');
+    var pendPct = d.totalBookingsToday > 0 ? Math.round((pendR / d.totalBookingsToday) * 100) : 0;
+    setText('kpi-pending-review-percent', pendPct + '% of today');
 
     var awaitA = d.awaitingAssignment || 0;
-    var awaitPct = awaitA > 0 ? Math.round((awaitA / (awaitA + 1)) * 100) : 0;
-    setText('kpi-awaiting-assignment-percent', awaitPct + '%');
+    var awaitPct = d.totalBookingsAllTime > 0 ? Math.round((awaitA / d.totalBookingsAllTime) * 100) : 0;
+    setText('kpi-awaiting-assignment-percent', awaitPct + '% of total');
 
     var activeS = d.activeServices || 0;
-    var activePct = activeS > 0 ? Math.round((activeS / (activeS + 2)) * 100) : 0;
-    setText('kpi-active-services-percent', activePct + '%');
+    var activePct = avgB > 0 ? Math.round(((activeS - avgB) / Math.max(avgB, 1)) * 100) : (activeS > 0 ? 100 : 0);
+    setText('kpi-active-services-percent', (activePct >= 0 ? '+' : '') + activePct + '% vs avg');
 
     var availT = d.availableTechnicians || 0;
     var totalT = d.totalTechnicians || 1;
     var techPct = totalT > 0 ? Math.round((availT / totalT) * 100) : 0;
-    setText('kpi-available-techs-percent', techPct + '%');
+    setText('kpi-available-techs-percent', techPct + '% free');
 
     var revT = d.revenueToday || 0;
-    var revPct = revT > 0 ? 100 : 0;
-    setText('kpi-revenue-today-percent', revPct + '%');
+    var monthRev = d.monthlyRevenue || 0;
+    var avgRevPerDay = trend7.length > 0 ? monthRev / trend7.length : revT;
+    var revPct = avgRevPerDay > 0 ? Math.round(((revT - avgRevPerDay) / avgRevPerDay) * 100) : (revT > 0 ? 100 : 0);
+    setText('kpi-revenue-today-percent', (revPct >= 0 ? '+' : '') + revPct + '% vs avg');
 
     // Technician KPI (special format)
     setText('kpi-available-techs', d.availableTechnicians != null ? d.availableTechnicians + ' / ' + d.totalTechnicians : '--');
     setText('kpi-available-techs-sub', (d.totalTechnicians || 0) + ' total');
     setText('kpi-tech-badge', d.availableTechnicians != null ? d.availableTechnicians + ' avail' : 'Available');
 
-    // Trend indicators (compare today vs average)
+    // Trend indicators (compare today vs 7-day average)
     var trend7 = d.trend7 || [];
     var avgBookings = trend7.length > 0 ? Math.round(trend7.reduce(function(s,t){ return s + t.count; },0) / trend7.length) : (d.totalBookingsToday || 0);
     setTrend('kpi-total-bookings-trend', d.totalBookingsToday || 0, avgBookings);
 
-    var avgRevPerDay = trend7.length > 0 ? (d.revenueToday / trend7.length) : d.revenueToday;
+    var avgRevPerDay = trend7.length > 0 ? (d.monthlyRevenue / trend7.length) : d.revenueToday;
     var prevRev = d.revenueTrend7 && d.revenueTrend7.length > 1 ? d.revenueTrend7[d.revenueTrend7.length - 2].amount : 0;
-    setTrend('kpi-revenue-today-trend', d.revenueToday, prevRev);
+    setTrend('kpi-revenue-today-trend', d.revenueToday, prevRev || avgRevPerDay);
 
     var avgActive = trend7.length > 0 ? Math.round(trend7.reduce(function(s,t){ return s + Math.min(t.count, d.activeServices || 0); },0) / trend7.length) : (d.activeServices || 0);
     setTrend('kpi-active-services-trend', d.activeServices || 0, avgActive);
 
     var busyPct = d.totalTechnicians > 0 ? Math.round((d.busyTechnicians / d.totalTechnicians) * 100) : 0;
-    setTrend('kpi-awaiting-assignment-trend', d.awaitingAssignment || 0, busyPct);
-    setTrend('kpi-pending-review-trend', d.pendingReview || 0, Math.round((d.pendingReview || 0) * 0.9));
     setTrend('kpi-available-techs-trend', d.availableTechnicians || 0, d.busyTechnicians || 0);
+    setTrend('kpi-pending-review-trend', d.pendingReview || 0, Math.round((d.pendingReview || 0) * 0.9));
+    setTrend('kpi-awaiting-assignment-trend', d.awaitingAssignment || 0, Math.round((d.awaitingAssignment || 0) * 0.85));
 
     // Repair queue badge in sidebar
     (function() {
@@ -1894,6 +1897,137 @@
           '<span class="inv-prod-badge ' + stCls + '">' + statusText + '</span>' +
           '</div></div></div>';
       }).join('') + '</div>';
+    })();
+
+    // ── Insights Summary ──
+    (function() {
+      var grid = $('insightsGrid');
+      var ts = $('insightsTimestamp');
+      if (!grid) return;
+      if (ts) ts.textContent = new Date().toLocaleString('en', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' — Auto-generated';
+
+      var insights = [];
+
+      // Bookings insight
+      var todayBookings = d.totalBookingsToday || 0;
+      var allBookings = d.totalBookingsAllTime || 0;
+      var completedToday = d.completedToday || 0;
+      var trend7 = d.trend7 || [];
+      var weekTotal = trend7.reduce(function(s, t) { return s + (t.count || 0); }, 0);
+      var avgPerDay = trend7.length ? Math.round(weekTotal / trend7.length) : 0;
+
+      if (todayBookings > 0) {
+        var change = avgPerDay > 0 ? Math.round(((todayBookings - avgPerDay) / avgPerDay) * 100) : 0;
+        insights.push({
+          type: change > 0 ? 'success' : change < -30 ? 'warning' : 'info',
+          icon: change > 0 ? 'bi-arrow-up-short' : change < 0 ? 'bi-arrow-down-short' : 'bi-dash',
+          title: todayBookings + ' bookings today' + (change !== 0 ? ' (' + (change > 0 ? '+' : '') + change + '% vs avg)' : ''),
+          text: '7-day average is ' + avgPerDay + ' bookings/day (' + weekTotal + ' this week).',
+          action: '/admin/appointments', actionLabel: 'View Bookings'
+        });
+      } else if (allBookings > 0) {
+        insights.push({ type: 'info', icon: 'bi-calendar3', title: 'No bookings scheduled for today', text: 'You have ' + allBookings + ' total bookings on record. Average ' + avgPerDay + '/day this week.', action: '/admin/appointments', actionLabel: 'View Schedule' });
+      }
+
+      // Pending review
+      var pendingReview = d.pendingReview || 0;
+      if (pendingReview > 0) {
+        insights.push({ type: 'warning', icon: 'bi-clock-history', title: pendingReview + ' booking' + (pendingReview > 1 ? 's' : '') + ' awaiting payment review', text: 'Payments need verification before work can proceed. Review promptly to keep jobs on schedule.', action: '/admin/payments', actionLabel: 'Review Payments' });
+      }
+
+      // Awaiting assignment
+      var awaitAssign = d.awaitingAssignment || 0;
+      var availTechs = d.availableTechnicians || 0;
+      if (awaitAssign > 0) {
+        insights.push({
+          type: availTechs > 0 ? 'info' : 'danger',
+          icon: 'bi-person-plus',
+          title: awaitAssign + ' booking' + (awaitAssign > 1 ? 's' : '') + ' awaiting technician assignment',
+          text: availTechs > 0 ? availTechs + ' technician' + (availTechs > 1 ? 's' : '') + ' available for assignment.' : 'No technicians currently available. Consider rebalancing workload.',
+          action: '/admin/technicians', actionLabel: 'Assign Techs'
+        });
+      }
+
+      // Active services
+      var activeS = d.activeServices || 0;
+      var busyTechs = d.busyTechnicians || 0;
+      if (activeS > 0) {
+        var utilization = d.totalTechnicians > 0 ? Math.round((busyTechs / d.totalTechnicians) * 100) : 0;
+        insights.push({
+          type: utilization > 80 ? 'warning' : 'success',
+          icon: 'bi-tools',
+          title: activeS + ' active service' + (activeS > 1 ? 's' : '') + ' in progress',
+          text: 'Technician utilization at ' + utilization + '% (' + busyTechs + '/' + (d.totalTechnicians || 0) + ' busy).',
+          action: '/admin/jobs/active', actionLabel: 'View Active Jobs'
+        });
+      }
+
+      // Revenue insight
+      var revenueToday = d.revenueToday || 0;
+      var monthlyRevenue = d.monthlyRevenue || 0;
+      var lastMonthRevenue = d.lastMonthRevenue || 0;
+      var pendingPayments = d.pendingPayments || 0;
+      if (revenueToday > 0 || monthlyRevenue > 0) {
+        var revChange = lastMonthRevenue > 0 ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : 0;
+        var msg = 'Today: ' + fmtMoney(revenueToday) + '. Monthly: ' + fmtMoney(monthlyRevenue) + '.';
+        if (revChange !== 0) msg += ' ' + (revChange > 0 ? '+' : '') + revChange + '% vs last month.';
+        if (pendingPayments > 0) msg += ' ' + fmtMoney(pendingPayments) + ' pending collection.';
+        insights.push({
+          type: revChange > 0 ? 'success' : revChange < -10 ? 'danger' : 'info',
+          icon: 'bi-cash-coin',
+          title: 'Revenue performance',
+          text: msg,
+          action: '/admin/payments', actionLabel: 'View Payments'
+        });
+      }
+
+      // Low stock
+      var lowStock = d.lowStockCount || 0;
+      if (lowStock > 0) {
+        var items = (d.lowStockItems || []).slice(0, 3).map(function(i) { return i.name || i.productName || 'Item'; }).join(', ');
+        insights.push({
+          type: 'danger', icon: 'bi-exclamation-triangle',
+          title: lowStock + ' item' + (lowStock > 1 ? 's' : '') + ' low on stock',
+          text: (items ? items + (lowStock > 3 ? ' and more' : '') + ' — ' : '') + 'Reorder soon to avoid service delays.',
+          action: '/admin/inventory', actionLabel: 'Check Inventory'
+        });
+      }
+
+      // Pending expenses
+      var pendExp = d.pendingExpenses || 0;
+      if (pendExp > 0) {
+        insights.push({
+          type: 'warning', icon: 'bi-receipt',
+          title: pendExp + ' expense' + (pendExp > 1 ? 's' : '') + ' pending approval',
+          text: fmtMoney(d.pendingExpensesTotal || 0) + ' total awaiting your review.',
+          action: '/admin/expenses', actionLabel: 'Review Expenses'
+        });
+      }
+
+      // Technician availability
+      var totalTechs = d.totalTechnicians || 0;
+      var absentTechs = d.absentTechnicians || 0;
+      if (totalTechs > 0 && absentTechs > totalTechs * 0.4) {
+        insights.push({
+          type: 'warning', icon: 'bi-person-x',
+          title: absentTechs + ' of ' + totalTechs + ' technicians offline',
+          text: Math.round((absentTechs / totalTechs) * 100) + '% of workforce unavailable. May impact service capacity.',
+          action: '/admin/technicians', actionLabel: 'Manage Team'
+        });
+      }
+
+      // Default insight if nothing else
+      if (!insights.length) {
+        insights.push({ type: 'success', icon: 'bi-check-circle', title: 'All systems running smoothly', text: 'No immediate action required. KPIs are within normal range.' });
+      }
+
+      grid.innerHTML = insights.map(function(ins) {
+        return '<div class="col-xl-4 col-md-6"><div class="insight-item ' + ins.type + '">' +
+          '<div class="insight-icon ' + ins.type + '"><i class="bi ' + ins.icon + '"></i></div>' +
+          '<div class="insight-text"><strong>' + ins.title + '</strong><p>' + ins.text + '</p></div>' +
+          (ins.action ? '<a href="' + ins.action + '" class="insight-action">' + ins.actionLabel + ' &rarr;</a>' : '') +
+          '</div></div>';
+      }).join('');
     })();
   }
 

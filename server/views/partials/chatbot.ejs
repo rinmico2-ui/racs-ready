@@ -908,8 +908,8 @@
           <button class="racbot-suggestion" data-q="I want to book a service appointment">
             <i class="bi bi-calendar-check"></i> Book a service
           </button>
-          <button class="racbot-suggestion" data-q="How do I track my booking?">
-            <i class="bi bi-geo-alt"></i> Track my booking
+          <button class="racbot-suggestion" data-q="What is my booking or project status?">
+            <i class="bi bi-geo-alt"></i> My booking / project
           </button>
           <button class="racbot-suggestion" data-q="My AC is not cooling, what should I do?">
             <i class="bi bi-exclamation-triangle"></i> My AC isn't working
@@ -959,7 +959,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          history: history.slice(-20),
+          // Exclude the current message because `message` is added separately.
+          history: history.slice(0, -1).slice(-20),
           sessionId: getOrCreateSessionId(),
         }),
         signal: abortController.signal,
@@ -967,7 +968,11 @@
 
       hideTyping();
 
-      if (!response.ok) throw new Error('Stream failed');
+      if (!response.ok) {
+        let detail = 'The assistant could not respond.';
+        try { detail = (await response.json()).error || detail; } catch (_) {}
+        throw new Error(detail);
+      }
 
       // Create assistant message container
       const msgRow = document.createElement('div');
@@ -1140,9 +1145,11 @@
 
   // ── Markdown Formatter ─────────────────────────────────────────────────
   function formatMarkdown(text) {
+    // Treat model output as text before adding the small supported markdown set.
+    text = escapeHtml(String(text || ''));
     // Handle code blocks first
     let html = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-      return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+      return `<pre><code>${code.trim()}</code></pre>`;
     });
 
     // Handle tables
@@ -1152,11 +1159,11 @@
         row.split('|').map(c => c.trim()).filter(Boolean)
       );
       let table = '<div class="racbot-table-wrap"><table class="racbot-table"><thead><tr>';
-      headers.forEach(h => { table += `<th>${h}</th>`; });
+      headers.forEach(h => { table += `<th>${inlineFormat(h)}</th>`; });
       table += '</tr></thead><tbody>';
       rows.forEach(row => {
         table += '<tr>';
-        row.forEach(c => { table += `<td>${c}</td>`; });
+        row.forEach(c => { table += `<td>${inlineFormat(c)}</td>`; });
         table += '</tr>';
       });
       table += '</tbody></table></div>';
@@ -1256,7 +1263,11 @@
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      .replace(/\[(.+?)\]\((.+?)\)/g, (match, label, href) => {
+        const safeHref = /^(?:https?:\/\/|mailto:|\/(?!\/))/i.test(href) ? href : '#';
+        const target = safeHref.startsWith('/') ? '' : ' target="_blank"';
+        return `<a href="${safeHref}"${target} rel="noopener noreferrer">${label}</a>`;
+      });
   }
 
   function escapeHtml(str) {

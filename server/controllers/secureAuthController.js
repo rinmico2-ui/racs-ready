@@ -303,7 +303,33 @@ exports.login = async (req, res, next) => {
           if (rememberMe) {
             const REMEMBER_ME_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
             req.session.cookie.maxAge = REMEMBER_ME_TTL;
+            // Touch the session in the store so its TTL is also extended
+            req.session.touch?.();
           }
+
+          // Issue a JWT auth_token cookie as well, so the authenticate
+          // middleware (JWT-first) recognises the session.  Include the
+          // rememberMe flag so token rotation preserves the extended expiry.
+          const jwt = require("jsonwebtoken");
+          const sessionId = require("crypto").randomBytes(24).toString("hex");
+          user.currentSessionId = sessionId;
+          await user.save();
+          const jwtMaxAge = rememberMe
+            ? 30 * 24 * 60 * 60 * 1000
+            : Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
+          const jwtToken = jwt.sign(
+            { id: user._id, role: user.role, sessionId, rememberMe: !!rememberMe },
+            process.env.JWT_SECRET,
+            { expiresIn: Math.floor(jwtMaxAge / 1000) + "s" },
+          );
+          const isProd = process.env.NODE_ENV === "production";
+          res.cookie("auth_token", jwtToken, {
+            httpOnly: true,
+            secure: isProd,
+            sameSite: "Strict",
+            maxAge: jwtMaxAge,
+            path: "/",
+          });
 
           try {
             await AuthSession.create({

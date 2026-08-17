@@ -75,7 +75,8 @@ router.post("/:id/reject", auth.authenticate, auth.requireRole("admin", "secreta
 router.post("/:id/verify-payment", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
-    const Payment = require("../models/Payment");
+const Payment = require("../models/Payment");
+const { calculatePaymentBreakdown } = require("../utils/paymentPolicy");
     const { id } = req.params;
     const { notes } = req.body;
 
@@ -92,7 +93,7 @@ router.post("/:id/verify-payment", auth.authenticate, auth.requireRole("admin", 
     const isCOD = booking.paymentMethod === 'cod';
 
     if (isCOD) {
-      const downpayment = booking.downpaymentAmount || 400;
+      const downpayment = booking.downpaymentAmount || calculatePaymentBreakdown(totalAmount, booking.downpaymentPercentage).downpaymentAmount;
       booking.paymentStatus = 'partial';
       booking.amountPaid = downpayment;
       booking.balanceAmount = Math.max(0, totalAmount - downpayment);
@@ -111,7 +112,7 @@ router.post("/:id/verify-payment", auth.authenticate, auth.requireRole("admin", 
 
     // Update payment record
     const paymentUpdateData = isCOD
-      ? { status: "partial", verifiedAt: new Date(), notes: notes || "", amount: booking.downpaymentAmount || 400 }
+      ? { status: "partial", verifiedAt: new Date(), notes: notes || "", amount: booking.downpaymentAmount || calculatePaymentBreakdown(totalAmount, booking.downpaymentPercentage).downpaymentAmount }
       : { status: "paid", verifiedAt: new Date(), notes: notes || "" };
     await Payment.updateMany(
       { bookingId: booking._id, status: "pending" },

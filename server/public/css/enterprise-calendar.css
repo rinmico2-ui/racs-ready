@@ -578,23 +578,52 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 575px) {
-  .ent-cal-cell { min-height: 44px; border-radius: 8px; border-width: 1.5px; }
-  .ent-cal-date { font-size: 0.82rem; }
-  .ent-cal-slots { font-size: 0.52rem; }
+  .ent-cal-cell { aspect-ratio: 1 / 1; min-height: 0; border-radius: 8px; border-width: 1.5px; padding: 3px; }
+  .ent-cal-reason { display: none; }
+  .ent-cal-date { font-size: 0.8rem; }
+  .ent-cal-slots { font-size: 0.5rem; }
   .ent-cal-legend { gap: 8px; padding: 8px 14px; }
   .ent-cal-legend-item { font-size: 0.62rem; }
   .ent-cal-legend-dot { width: 12px; height: 12px; }
   .ent-cal-header { padding: 12px 14px; }
   .ent-cal-grid { gap: 3px; padding: 3px 8px 10px; }
   .ent-time-section { border-radius: 14px; }
-  .ent-time-grid { gap: 8px; padding: 12px; }
-  .ent-time-slot { min-height: 56px; padding: 8px 12px; border-radius: 10px; }
-  .ent-time-slot-label { font-size: 0.82rem; }
+  .ent-time-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; padding: 12px; }
+  .ent-time-slot { min-height: 56px; padding: 8px 10px; border-radius: 10px; }
+  .ent-time-slot-label { font-size: 0.8rem; }
+  .ent-time-slot-status { font-size: 0.55rem; padding: 3px 6px; }
   .ent-time-header { padding: 10px 14px; flex-direction: column; align-items: flex-start; }
   .ent-time-header .ent-time-date { align-self: flex-start; }
 }
-@media (max-width: 380px) {
-  .ent-time-grid { gap: 6px; padding: 10px; }
+@media (max-width: 480px) {
+  .ent-cal-header { padding: 10px 12px; }
+  .ent-cal-header h6 { font-size: 0.85rem; }
+  .ent-cal-nav-btn { width: 28px; height: 28px; }
+  .ent-cal-mode { padding: 6px 12px; font-size: 0.65rem; }
+  .ent-cal-legend { gap: 5px; padding: 6px 10px; }
+  .ent-cal-legend-item { font-size: 0.58rem; }
+  .ent-cal-legend-dot { width: 10px; height: 10px; }
+  .ent-cal-days { padding: 6px 8px 2px; }
+  .ent-cal-day-name { font-size: 0.58rem; }
+  .ent-cal-grid { gap: 2px; padding: 2px 6px 8px; }
+  .ent-cal-cell { aspect-ratio: 1 / 1; min-height: 0; border-radius: 7px; padding: 3px; border-width: 1px; }
+  .ent-cal-date { font-size: 0.76rem; }
+  .ent-cal-slots { font-size: 0.45rem; }
+  .ent-cal-reason { font-size: 0.48rem; }
+  .ent-time-grid { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; padding: 10px; }
+  .ent-time-slot { min-height: 52px; padding: 6px 6px; }
+  .ent-time-slot-label { font-size: 0.74rem; }
+  .ent-time-slot-status { font-size: 0.52rem; padding: 2px 5px; }
+  .ent-time-header { padding: 8px 10px; }
+}
+@media (max-width: 360px) {
+  .ent-cal-cell { aspect-ratio: 1 / 1; min-height: 0; border-radius: 6px; padding: 2px; }
+  .ent-cal-date { font-size: 0.72rem; }
+  .ent-cal-reason { font-size: 0.45rem; }
+  .ent-time-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 8px; }
+  .ent-time-slot { min-height: 48px; padding: 5px 4px; }
+  .ent-time-slot-label { font-size: 0.7rem; }
+  .ent-time-slot-status { font-size: 0.5rem; padding: 2px 4px; }
 }
 
 /* ── Project / Large-Scale Mode ─────────────────────────────────────────── */

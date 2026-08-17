@@ -5,7 +5,6 @@ npm-debug.log*
 .env.local
 .env.*.local
 .DS_Store
-.env.example
 
 # IDE / AI agent workspaces
 .cursor/

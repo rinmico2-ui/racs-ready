@@ -68,7 +68,7 @@ function parseCookies(req) {
 }
 
 function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 async function sendOTPEmail(email, otp, type = "verification") {
@@ -681,10 +681,10 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.currentSessionId = sessionId;
     await user.save();
 
-    const payload = { id: user._id, role: user.role, sessionId };
+    const payload = { id: user._id, role: user.role, sessionId, rememberMe: !!stored.rememberMe };
     const defaultMaxAge = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
     const maxAge = stored.rememberMe ? 30 * 24 * 60 * 60 * 1000 : defaultMaxAge; // 30 days if rememberMe, else default
-    const token = jwt.sign(payload, process.env.JWT_SECRET || "dev-secret", {
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: Math.floor(maxAge / 1000) + "s",
     });
 
@@ -959,7 +959,7 @@ exports.login = async (req, res, next) => {
     let password = String(req.body.password || "");
 
     // Basic size checks
-    if (!email || !password || email.length > 50 || password.length > 20) {
+    if (!email || !password || email.length > 254 || password.length > 128) {
       return sendGenericError(res);
     }
 
@@ -1125,7 +1125,7 @@ exports.verify = async (req, res) => {
     if (!token) return res.json({ user: null });
     let payload;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
+      payload = jwt.verify(token, process.env.JWT_SECRET);
     } catch (e) {
       return res.json({ user: null });
     }

@@ -3,15 +3,32 @@ const router = express.Router();
 const auth = require("../middleware/authenticate");
 
 // Get users - supports optional email query for existence check
-router.get("/", auth.authenticate, async (req, res) => {
+router.get("/", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const User = require("../models/User");
     if (req.query.email) {
-      const u = await User.findOne({
-        email: req.query.email.toLowerCase().trim(),
-        role: "customer",
-      }).lean();
-      return res.json({ user: u });
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      const normalizedEmail = req.query.email.toLowerCase().trim();
+      const customer = await User.findOne({
+        email: normalizedEmail,
+        $or: [
+          { role: "customer" },
+          { role: { $regex: /^customer$/i } },
+          { role: { $exists: false } },
+          { role: null },
+        ],
+      })
+        .select("_id email firstName lastName phone address role isActive")
+        .lean();
+      if (customer) {
+        customer.role = "customer";
+        return res.json({ user: customer, emailAvailable: false, isCustomer: true });
+      }
+      const accountExists = await User.exists({ email: normalizedEmail });
+      if (accountExists) {
+        return res.json({ user: null, emailAvailable: false });
+      }
+      return res.json({ user: null, emailAvailable: true, isCustomer: false });
     }
     // otherwise return limited list or placeholder
     const users = await User.find({}).limit(200).lean();

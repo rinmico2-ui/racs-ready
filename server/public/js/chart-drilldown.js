@@ -251,6 +251,26 @@ var ChartDrilldown = (function () {
       filtered.forEach(function (row) {
         var tr = document.createElement('tr');
 
+        if (columns && columns.length > 0) {
+          columns.forEach(function (col) {
+            var td = document.createElement('td');
+            if (col.align === 'right') td.className = 'text-end';
+            var raw = row[col.key];
+            if (raw === undefined || raw === null || raw === '') raw = '—';
+            if (col.key === 'amount' && typeof raw === 'number') {
+              td.textContent = '₱' + raw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            } else if (col.key === 'date' && raw !== '—') {
+              var date = new Date(raw);
+              td.textContent = isNaN(date.getTime()) ? String(raw) : date.toLocaleString('en-PH');
+            } else {
+              td.textContent = String(raw).replace(/_/g, ' ');
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+          return;
+        }
+
         // Label cell
         var tdLabel = document.createElement('td');
         tdLabel.innerHTML = '<span class="cdm-row-label">' + escapeHtml(row.label) + '</span>';

@@ -1,7 +1,62 @@
-<div class="admin-dashboard container-fluid py-4">
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
-    /* Custom customer page overrides removed to match admin-dashboard.ejs */
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12); flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; cursor: pointer; }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; cursor: default; }
+    .inv-pagination .page-item.active .page-link { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .customer-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+    .text-micro { font-size: 0.78rem; }
+    .btn-micro { padding: 2px 8px; font-size: 0.75rem; }
+    #customerTableBody tr { transition: background 0.15s; }
+    #customerTableBody tr:hover { background: #f8fafc; }
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .empty-state i { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    .loading-spinner { display: flex; justify-content: center; align-items: center; padding: 3rem; }
+    .loading-spinner .spinner-border { width: 2rem; height: 2rem; color: #2563eb; }
   </style>
 
   <div class="au-hero mb-4">
@@ -22,120 +77,96 @@
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Customers</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="custTotal">2,148</span>
+            <div class="kpi-title">Total Customers</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="custTotal">--</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7" id="badgeCustTotal"></div>
-            <small class="text-muted">Registered accounts</small>
+            <span class="inv-kpi-sub">Registered accounts</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-people-fill text-white"></i>
+            <i class="bi bi-people-fill"></i>
           </div>
         </div>
-        <div class="kpi-sparkline-container"><canvas id="custSparkTotal" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Accounts</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="custActive">2,021</span>
+            <div class="kpi-title">Active Accounts</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="custActive">--</span>
+              <span class="badge inv-kpi-pill bg-info-subtle text-info">Active</span>
             </div>
-            <div class="badge bg-info-subtle text-info fs-7" id="badgeCustActive"></div>
-            <small class="text-muted">In good standing</small>
+            <span class="inv-kpi-sub">In good standing</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
-            <i class="bi bi-person-check-fill text-white"></i>
+            <i class="bi bi-person-check-fill"></i>
           </div>
         </div>
-        <div class="kpi-sparkline-container"><canvas id="custSparkActive" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Verification</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="custPending">97</span>
+            <div class="kpi-title">VIP Customers</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="custVIP">--</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">VIP</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7" id="badgeCustPending"></div>
-            <small class="text-muted">Awaiting review</small>
+            <span class="inv-kpi-sub">Priority accounts</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-hourglass-split text-white"></i>
+            <i class="bi bi-star-fill"></i>
           </div>
         </div>
-        <div class="kpi-sparkline-container"><canvas id="custSparkPending" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Blocked Accounts</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="custBlocked">30</span>
+            <div class="kpi-title">Blocked Accounts</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="custBlocked">--</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Blocked</span>
             </div>
-            <div class="badge bg-danger-subtle text-danger fs-7" id="badgeCustBlocked"></div>
-            <small class="text-muted">Suspended access</small>
+            <span class="inv-kpi-sub">Suspended access</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-            <i class="bi bi-slash-circle-fill text-white"></i>
+            <i class="bi bi-slash-circle-fill"></i>
           </div>
         </div>
-        <div class="kpi-sparkline-container"><canvas id="custSparkBlocked" height="40"></canvas></div>
       </div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Search Customer</label
-          >
-          <div class="input-group">
-            <span class="input-group-text bg-light border-end-0"
-              ><i class="bi bi-search text-muted"></i
-            ></span>
-            <input
-              type="text"
-              class="form-control border-start-0 bg-light"
-              placeholder="Name, email, phone, or customer ID"
-            />
-          </div>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Status</label
-          >
-          <select class="form-select">
-            <option>All Status</option>
-            <option>Active</option>
-            <option>Pending Verification</option>
-            <option>Blocked</option>
-          </select>
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <button class="btn btn-light w-100 border">
-            <i class="bi bi-funnel me-2"></i>Filter
-          </button>
-        </div>
+  <div class="rp-toolbar">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="customerSearchInput"><i class="bi bi-search me-1"></i>Search Customer</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="customerSearchInput" placeholder="Name, email, or phone" />
       </div>
     </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="customerStatusFilter"><i class="bi bi-funnel me-1"></i>Status</label>
+      <select class="form-select rp-filter-input" id="customerStatusFilter" style="height:42px;">
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="vip">VIP</option>
+        <option value="blocked">Blocked</option>
+      </select>
+    </div>
+    <button class="btn btn-primary rp-filter-btn" type="button" id="customerFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
   </div>
 
   <div class="card border-0 shadow-sm">
-    <div
-      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
-    >
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
       <h6 class="mb-0 fw-bold">Customer Records</h6>
-      <span class="text-muted small">Updated 5 min ago</span>
+      <span class="text-muted small fw-normal" id="customerCountLabel">Loading...</span>
     </div>
     <div class="table-responsive">
       <table class="table table-hover table-dense align-middle mb-0">
@@ -144,185 +175,299 @@
             <th class="ps-4">Customer</th>
             <th>Contact</th>
             <th>Address</th>
-            <th>Bookings</th>
             <th>Status</th>
+            <th>Joined</th>
             <th class="text-end pe-4">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="customerTableBody">
           <tr>
-            <td class="ps-4">
-              <div class="d-flex align-items-center">
-                <div
-                  class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-2"
-                  style="width: 34px; height: 34px"
-                >
-                  JD
-                </div>
-                <div>
-                  <div class="fw-bold text-dark">John Dela Cruz</div>
-                  <div class="text-muted text-micro">CUS-10234</div>
-                </div>
+            <td colspan="6">
+              <div class="loading-spinner">
+                <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
               </div>
-            </td>
-            <td>
-              <div class="text-dark text-micro">john.delacruz@gmail.com</div>
-              <div class="text-muted text-micro">+63 917 456 1123</div>
-            </td>
-            <td class="text-muted text-micro">Quezon City, Metro Manila</td>
-            
-            <td><span class="fw-bold text-dark">16</span></td>
-            <td>
-              <span
-                class="badge bg-success-subtle text-success border border-success-subtle"
-                >Active</span
-              >
-            </td>
-            <td class="text-end pe-4">
-              <button class="btn btn-micro btn-light border">
-                <i class="bi bi-eye text-primary"></i>
-              </button>
-            </td>
-          </tr>
-
-          <tr>
-            <td class="ps-4">
-              <div class="d-flex align-items-center">
-                <div
-                  class="rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center fw-bold me-2"
-                  style="width: 34px; height: 34px"
-                >
-                  MS
-                </div>
-                <div>
-                  <div class="fw-bold text-dark">Maria Santos</div>
-                  <div class="text-muted text-micro">CUS-10991</div>
-                </div>
-              </div>
-            </td>
-            <td>
-              <div class="text-dark text-micro">maria.santos@gmail.com</div>
-              <div class="text-muted text-micro">+63 998 223 1105</div>
-            </td>
-            <td class="text-muted text-micro">Makati City, Metro Manila</td>>
-            <td><span class="fw-bold text-dark">34</span></td>
-            <td>
-              <span
-                class="badge bg-success-subtle text-success border border-success-subtle"
-                >Active</span
-              >
-            </td>
-            <td class="text-end pe-4">
-              <div class="dropdown">
-                <button
-                  class="btn btn-micro btn-light border dropdown-toggle"
-                  data-bs-toggle="dropdown"
-                >
-                  Action
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li>
-                    <a class="dropdown-item" href="#"
-                      ><i class="bi bi-eye me-2"></i>View Profile</a
-                    >
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="#"
-                      ><i class="bi bi-stars me-2 text-warning"></i>Manage
-                      Privilege</a
-                    >
-                  </li>
-                </ul>
-              </div>
-            </td>
-          </tr>
-
-          <tr>
-            <td class="ps-4">
-              <div class="d-flex align-items-center">
-                <div
-                  class="rounded-circle bg-danger-subtle text-danger d-flex align-items-center justify-content-center fw-bold me-2"
-                  style="width: 34px; height: 34px"
-                >
-                  RL
-                </div>
-                <div>
-                  <div class="fw-bold text-dark">Ramon Lim</div>
-                  <div class="text-muted text-micro">CUS-11107</div>
-                </div>
-              </div>
-            </td>
-            <td>
-              <div class="text-dark text-micro">ramon.lim@gmail.com</div>
-              <div class="text-muted text-micro">+63 966 900 7812</div>
-            </td>
-            <td class="text-muted text-micro">Pasig City, Metro Manila</td>
-            <td><span class="fw-bold text-dark">8</span></td>
-            <td>
-              <span
-                class="badge bg-danger-subtle text-danger border border-danger-subtle"
-                >Blocked</span
-              >
-            </td>
-            <td class="text-end pe-4">
-              <button class="btn btn-micro btn-outline-success">
-                <i class="bi bi-unlock me-1"></i>Restore
-              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class="card-footer bg-white py-3 border-top">
-      <div class="row align-items-center">
-        <div class="col-md-6 text-muted text-micro">
-          Showing 1 to 10 of 2,148 records
-        </div>
-        <div class="col-md-6">
-          <ul class="pagination pagination-sm justify-content-end mb-0">
-            <li class="page-item disabled">
-              <a class="page-link" href="#">Previous</a>
-            </li>
-            <li class="page-item active">
-              <a class="page-link" href="#">1</a>
-            </li>
-            <li class="page-item"><a class="page-link" href="#">2</a></li>
-            <li class="page-item"><a class="page-link" href="#">3</a></li>
-            <li class="page-item"><a class="page-link" href="#">Next</a></li>
-          </ul>
-        </div>
+      <nav aria-label="Customer pagination">
+        <ul class="inv-pagination justify-content-end mb-0" id="customerPagination"></ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<!-- Customer Detail Modal -->
+<div class="modal fade" id="customerDetailModal" tabindex="-1" aria-labelledby="customerDetailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" id="customerDetailModalLabel">Customer Details</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="customerModalBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
       </div>
     </div>
   </div>
-  <!-- wrapper end -->
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  (function(){
-    function applyBadge(id,text){
-      var el=document.getElementById(id);
-      if(!el)return;
-      el.innerHTML=text;
-      el.classList.remove('positive','negative','neutral');
-      if(/^[+]/.test(text))el.classList.add('positive');
-      else if(/^[-]/.test(text))el.classList.add('negative');
-      else el.classList.add('neutral');
-    }
-    var badgeData = { total: '+4.5%', active: '+3.2%', pending: '-1.1%', blocked: '+0.0%' };
-    applyBadge('badgeCustTotal', badgeData.total);
-    applyBadge('badgeCustActive', badgeData.active);
-    applyBadge('badgeCustPending', badgeData.pending);
-    applyBadge('badgeCustBlocked', badgeData.blocked);
+(function(){
+  var allCustomers = [];
+  var filteredCustomers = [];
+  var currentPage = 1;
+  var perPage = 10;
 
-    function createSparkline(id,data,color){
-      var c=document.getElementById(id);
-      if(!c||typeof Chart==='undefined')return;
-      return new Chart(c,{type:'line',data:{labels:data.map((_,i)=>i+1),datasets:[{data:data,borderColor:color,backgroundColor:color.replace('rgb','rgba').replace(')',',0.12)'),fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},elements:{point:{radius:0}},scales:{x:{display:false},y:{display:false}}}});
+  function getInitials(firstName, lastName) {
+    return ((firstName || '')[0] || '') + ((lastName || '')[0] || '');
+  }
+
+  function getStatusInfo(c) {
+    if (c.blocked) return { label: 'Blocked', cls: 'bg-danger-subtle text-danger border border-danger-subtle' };
+    if (c.vip) return { label: 'VIP', cls: 'bg-warning-subtle text-warning border border-warning-subtle' };
+    return { label: 'Active', cls: 'bg-success-subtle text-success border border-success-subtle' };
+  }
+
+  function getAvatarColor(c) {
+    if (c.blocked) return 'bg-danger-subtle text-danger';
+    if (c.vip) return 'bg-warning-subtle text-warning';
+    return 'bg-primary-subtle text-primary';
+  }
+
+  function formatDate(d) {
+    if (!d) return '--';
+    var dt = new Date(d);
+    return dt.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function renderKPIs() {
+    var total = allCustomers.length;
+    var active = allCustomers.filter(function(c){ return !c.blocked; }).length;
+    var vip = allCustomers.filter(function(c){ return c.vip; }).length;
+    var blocked = allCustomers.filter(function(c){ return c.blocked; }).length;
+    document.getElementById('custTotal').textContent = total.toLocaleString();
+    document.getElementById('custActive').textContent = active.toLocaleString();
+    document.getElementById('custVIP').textContent = vip.toLocaleString();
+    document.getElementById('custBlocked').textContent = blocked.toLocaleString();
+  }
+
+  function applyFilter() {
+    var q = document.getElementById('customerSearchInput').value.toLowerCase().trim();
+    var status = document.getElementById('customerStatusFilter').value;
+    filteredCustomers = allCustomers.filter(function(c) {
+      var name = ((c.firstName || '') + ' ' + (c.lastName || '')).toLowerCase();
+      var email = (c.email || '').toLowerCase();
+      var phone = (c.phone || '').toLowerCase();
+      var matchSearch = !q || name.indexOf(q) !== -1 || email.indexOf(q) !== -1 || phone.indexOf(q) !== -1;
+      var matchStatus = true;
+      if (status === 'active') matchStatus = !c.blocked;
+      else if (status === 'blocked') matchStatus = c.blocked;
+      else if (status === 'vip') matchStatus = c.vip;
+      return matchSearch && matchStatus;
+    });
+    currentPage = 1;
+    renderTable();
+    renderPagination();
+  }
+
+  function renderTable() {
+    var tbody = document.getElementById('customerTableBody');
+    var start = (currentPage - 1) * perPage;
+    var pageItems = filteredCustomers.slice(start, start + perPage);
+    var total = filteredCustomers.length;
+    document.getElementById('customerCountLabel').textContent = total + ' total records';
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-people"></i><p>No customers found</p></div></td></tr>';
+      return;
     }
-    createSparkline('custSparkTotal',[5,7,6,8,7,9,8],'#4361ee');
-    createSparkline('custSparkActive',[4,6,5,7,6,8,7],'#2ec4b6');
-    createSparkline('custSparkPending',[3,4,3,5,4,6,5],'#f59e0b');
-    createSparkline('custSparkBlocked',[1,2,1,2,1,1,0],'#dc3545');
-  })();
+
+    var html = '';
+    pageItems.forEach(function(c) {
+      var initials = getInitials(c.firstName, c.lastName);
+      var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
+      var status = getStatusInfo(c);
+      var avatarCls = getAvatarColor(c);
+      var addr = [c.address && c.address.city, c.address && c.address.province].filter(Boolean).join(', ') || '--';
+
+      html += '<tr>' +
+        '<td class="ps-4">' +
+          '<div class="d-flex align-items-center">' +
+            '<div class="customer-avatar ' + avatarCls + ' me-2">' + initials + '</div>' +
+            '<div>' +
+              '<div class="fw-bold text-dark">' + fullName + '</div>' +
+              '<div class="text-muted text-micro">ID: ' + c._id.slice(-6).toUpperCase() + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</td>' +
+        '<td>' +
+          '<div class="text-dark text-micro">' + (c.email || '--') + '</div>' +
+          '<div class="text-muted text-micro">' + (c.phone || '--') + '</div>' +
+        '</td>' +
+        '<td class="text-muted text-micro">' + addr + '</td>' +
+        '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
+        '<td class="text-muted text-micro">' + formatDate(c.createdAt) + '</td>' +
+        '<td class="text-end pe-4">' +
+          '<button class="btn btn-micro btn-light border view-customer-btn" data-id="' + c._id + '" title="View">' +
+            '<i class="bi bi-eye text-primary"></i>' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function renderPagination() {
+    var totalPages = Math.ceil(filteredCustomers.length / perPage) || 1;
+    var pag = document.getElementById('customerPagination');
+    var html = '';
+
+    html += '<li class="page-item' + (currentPage <= 1 ? ' disabled' : '') + '">' +
+      '<a class="page-link" data-page="' + (currentPage - 1) + '">Previous</a></li>';
+
+    for (var i = 1; i <= totalPages; i++) {
+      if (totalPages > 7) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+          html += '<li class="page-item' + (i === currentPage ? ' active' : '') + '">' +
+            '<a class="page-link" data-page="' + i + '">' + i + '</a></li>';
+        } else if (i === currentPage - 2 || i === currentPage + 2) {
+          html += '<li class="page-item disabled"><a class="page-link">...</a></li>';
+        }
+      } else {
+        html += '<li class="page-item' + (i === currentPage ? ' active' : '') + '">' +
+          '<a class="page-link" data-page="' + i + '">' + i + '</a></li>';
+      }
+    }
+
+    html += '<li class="page-item' + (currentPage >= totalPages ? ' disabled' : '') + '">' +
+      '<a class="page-link" data-page="' + (currentPage + 1) + '">Next</a></li>';
+
+    pag.innerHTML = html;
+  }
+
+  document.getElementById('customerPagination').addEventListener('click', function(e) {
+    var link = e.target.closest('.page-link');
+    if (!link) return;
+    var page = parseInt(link.getAttribute('data-page'));
+    if (isNaN(page) || page < 1) return;
+    var totalPages = Math.ceil(filteredCustomers.length / perPage) || 1;
+    if (page > totalPages) return;
+    currentPage = page;
+    renderTable();
+    renderPagination();
+  });
+
+  document.getElementById('customerFilterBtn').addEventListener('click', applyFilter);
+  document.getElementById('customerSearchInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') applyFilter();
+  });
+
+  document.getElementById('customerTableBody').addEventListener('click', function(e) {
+    var btn = e.target.closest('.view-customer-btn');
+    if (!btn) return;
+    var id = btn.getAttribute('data-id');
+    openCustomerModal(id);
+  });
+
+  function openCustomerModal(id) {
+    var modal = document.getElementById('customerDetailModal');
+    var bsModal = new bootstrap.Modal(modal);
+    var body = document.getElementById('customerModalBody');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+    bsModal.show();
+
+    fetch('/api/admin/customers/' + id, { credentials: 'same-origin' })
+      .then(function(r) { if (!r.ok) throw new Error('Not found'); return r.json(); })
+      .then(function(data) {
+        var c = data.user;
+        if (!c) { body.innerHTML = '<p class="text-danger">Customer not found.</p>'; return; }
+        var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
+        var initials = ((c.firstName || '')[0] || '') + ((c.lastName || '')[0] || '');
+        var statusLabel = c.blocked ? 'Blocked' : c.vip ? 'VIP' : 'Active';
+        var statusCls = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success';
+        var addr = [c.address && c.address.barangay, c.address && c.address.city, c.address && c.address.province].filter(Boolean).join(', ') || '--';
+        var joined = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }) : '--';
+        var lastLogin = c.lastLogin ? new Date(c.lastLogin).toLocaleString() : 'Never';
+
+        var html = '<div class="d-flex align-items-center mb-4">' +
+          '<div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-3" style="width:56px;height:56px;font-size:1.2rem;">' + initials + '</div>' +
+          '<div><h5 class="mb-0 fw-bold">' + fullName + '</h5>' +
+          '<span class="badge ' + statusCls + ' mt-1">' + statusLabel + '</span>' +
+          (c.vip ? ' <span class="badge bg-warning-subtle text-warning mt-1"><i class="bi bi-star-fill me-1"></i>VIP</span>' : '') +
+          '</div></div>';
+
+        html += '<div class="row g-3 mb-3">' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-envelope me-1"></i>Email</div><div class="fw-semibold">' + (c.email || '--') + '</div></div>' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-phone me-1"></i>Phone</div><div class="fw-semibold">' + (c.phone || '--') + '</div></div>' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i>Address</div><div class="fw-semibold">' + addr + '</div></div>' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-calendar me-1"></i>Joined</div><div class="fw-semibold">' + joined + '</div></div>' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Last Login</div><div class="fw-semibold">' + lastLogin + '</div></div>' +
+          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Violations</div><div class="fw-semibold">' + (c.violations ? c.violations.length : 0) + '</div></div>' +
+          '</div>';
+
+        html += '<hr><div class="d-flex gap-2">' +
+          '<button class="btn btn-sm ' + (c.blocked ? 'btn-outline-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
+            '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock' : 'Block') + '</button>' +
+          '<button class="btn btn-sm ' + (c.vip ? 'btn-outline-warning' : 'btn-outline-info') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
+            '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') + '</button>' +
+          '</div>';
+
+        body.innerHTML = html;
+
+        body.querySelectorAll('.action-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var action = btn.getAttribute('data-action');
+            var custId = btn.getAttribute('data-id');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+            fetch('/api/admin/customers/' + custId, {
+              method: 'PATCH',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: action })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+              bsModal.hide();
+              return fetch('/api/admin/customers', { credentials: 'same-origin' });
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              allCustomers = data.customers || [];
+              filteredCustomers = allCustomers.slice();
+              renderKPIs();
+              renderTable();
+              renderPagination();
+              applyFilter();
+            })
+            .catch(function(err) { alert('Action failed: ' + err.message); btn.disabled = false; });
+          });
+        });
+      })
+      .catch(function(err) {
+        body.innerHTML = '<p class="text-danger">Failed to load customer details.</p>';
+      });
+  }
+
+  fetch('/api/admin/customers', { credentials: 'same-origin' })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Failed to fetch customers');
+      return r.json();
+    })
+    .then(function(data) {
+      allCustomers = data.customers || [];
+      filteredCustomers = allCustomers.slice();
+      renderKPIs();
+      renderTable();
+      renderPagination();
+    })
+    .catch(function(err) {
+      console.error('Error loading customers:', err);
+      document.getElementById('customerTableBody').innerHTML =
+        '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load customers. Please try again.</p></div></td></tr>';
+    });
+})();
 </script>

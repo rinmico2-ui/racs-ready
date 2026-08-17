@@ -357,6 +357,36 @@
         </div>
       </div>
 
+      <!-- Store Open Hours (for Customer Pickup) -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon amber"><i class="bi bi-shop"></i></div>
+          <div>
+            <h3>Store Open Hours</h3>
+            <p class="sub">Set the store's open hours for customer pickup orders</p>
+          </div>
+        </div>
+        <div class="ss-card-body">
+          <p class="text-muted mb-3" style="font-size:0.78rem;">These hours determine when customers can schedule a pickup at your main store. Customers will see available pickup time slots based on these hours.</p>
+          <div class="table-responsive">
+            <table class="wd-table">
+              <thead>
+                <tr>
+                  <th style="width:130px;">Day</th>
+                  <th style="width:90px;">Status</th>
+                  <th style="width:130px;">Opens At</th>
+                  <th style="width:130px;">Closes At</th>
+                </tr>
+              </thead>
+              <tbody id="storeHoursBody"></tbody>
+            </table>
+          </div>
+          <div class="d-flex gap-2 justify-content-end mt-3">
+            <button id="saveStoreHoursBtn" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Store Hours</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ═══ RIGHT COLUMN ═══ -->
@@ -683,6 +713,96 @@
 
   document.getElementById("saveInspectionDurationBtn")?.addEventListener("click", saveInspectionDuration);
 
+  // ── Store Open Hours ──
+  const storeWeekdays = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  let currentStoreHours = null;
+
+  function renderStoreHoursRows(hours) {
+    const tbody = qs("#storeHoursBody");
+    tbody.innerHTML = "";
+    for (let i = 0; i < 7; i++) {
+      const found = hours && hours.find(h => h.dayOfWeek === i);
+      const enabled = found ? !!found.open : (i >= 1 && i <= 6);
+      const rule = found || { startMinutes: 480, endMinutes: 1080 };
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span class="day-name">${storeWeekdays[i]}</span></td>
+        <td>
+          <div class="toggle-wrap">
+            <label class="toggle-switch"><input type="checkbox" class="store-day-toggle" data-day="${i}" ${enabled ? "checked" : ""}><span class="toggle-slider"></span></label>
+            <span class="toggle-label ${enabled ? 'on' : 'off'}">${enabled ? 'On' : 'Off'}</span>
+          </div>
+        </td>
+        <td><input type="time" class="form-control form-control-sm time-input store-start-time" data-day="${i}" value="${minutesToTime(rule.startMinutes)}"></td>
+        <td><input type="time" class="form-control form-control-sm time-input store-end-time" data-day="${i}" value="${minutesToTime(rule.endMinutes)}"></td>`;
+      tbody.appendChild(tr);
+    }
+    // Bind toggles
+    qsa("#storeHoursBody tr").forEach(r => {
+      const toggle = r.querySelector(".store-day-toggle");
+      const sInput = r.querySelector(".store-start-time");
+      const eInput = r.querySelector(".store-end-time");
+      const label = r.querySelector(".toggle-label");
+      const update = () => {
+        const on = toggle.checked;
+        sInput.disabled = !on; eInput.disabled = !on;
+        label.textContent = on ? "On" : "Off";
+        label.className = "toggle-label " + (on ? "on" : "off");
+      };
+      toggle.addEventListener("change", update);
+      update();
+    });
+  }
+
+  async function loadStoreHours() {
+    try {
+      const r = await fetch("/api/admin/settings/store-open-hours", { credentials: "same-origin" });
+      if (!r.ok) return;
+      const data = await r.json();
+      currentStoreHours = data.hours || null;
+      renderStoreHoursRows(currentStoreHours);
+    } catch(e) { console.warn("Failed to load store hours", e); }
+  }
+
+  async function saveStoreHours() {
+    const btn = qs("#saveStoreHoursBtn");
+    if (!btn) return;
+    const rows = qsa("#storeHoursBody tr");
+    const hours = [];
+    rows.forEach((r, i) => {
+      const toggle = r.querySelector(".store-day-toggle");
+      hours.push({
+        dayOfWeek: i,
+        open: toggle.checked,
+        startMinutes: timeToMinutes(r.querySelector(".store-start-time").value),
+        endMinutes: timeToMinutes(r.querySelector(".store-end-time").value),
+      });
+    });
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+    try {
+      const r = await fetch("/api/admin/settings/store-open-hours", {
+        method: "PUT", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours }),
+      });
+      if (r.ok) {
+        toast("Store open hours saved successfully!");
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+        setTimeout(() => { btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Store Hours'; }, 1500);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast(err.error || "Failed to save.", "error");
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Store Hours';
+      }
+    } catch(e) {
+      toast("Failed to save store hours.", "error");
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Save Store Hours';
+    } finally { btn.disabled = false; }
+  }
+
+  document.getElementById("saveStoreHoursBtn")?.addEventListener("click", saveStoreHours);
+
   // ── Large Project Threshold ──
   async function loadProjectThreshold() {
     try {
@@ -950,6 +1070,7 @@
   loadInspectionDuration();
   loadProjectThreshold();
   loadNonWorkingDays();
+  loadStoreHours();
   renderWorkingRows(null);
 })();
 </script>

@@ -238,22 +238,31 @@ async function createToolUsageEntry({
 
   let updatedItem = null;
   let catalogItem = null;
+  let itemType = 'part';
   if (hasInventorySelection) {
-    updatedItem = await Tool.findOneAndUpdate(
-      {
-        _id: inventoryItemId,
-        active: true,
-        isStockItem: true,
-        quantity: { $gte: quantityUsed },
-      },
-      { $inc: { quantity: -quantityUsed } },
-      { new: true },
-    ).lean();
+    const inv = await Tool.findById(inventoryItemId).select('itemName unit type').lean();
+    itemType = inv ? (inv.type === 'tool' ? 'equipment' : (inv.type || 'part')) : 'part';
+    if (itemType === 'equipment') {
+      // Equipment is not consumed; do not deduct stock.
+      catalogItem = inv;
+    } else {
+      updatedItem = await Tool.findOneAndUpdate(
+        {
+          _id: inventoryItemId,
+          active: true,
+          isStockItem: true,
+          quantity: { $gte: quantityUsed },
+        },
+        { $inc: { quantity: -quantityUsed } },
+        { new: true },
+      ).lean();
 
-    if (!updatedItem) {
-      const e = new Error("Insufficient stock or invalid tool item");
-      e.status = 409;
-      throw e;
+      if (!updatedItem) {
+        const e = new Error("Insufficient stock or invalid tool item");
+        e.status = 409;
+        throw e;
+      }
+      catalogItem = updatedItem;
     }
   }
 
@@ -304,10 +313,11 @@ async function createToolUsageEntry({
       : undefined,
     toolItemId: updatedItem ? updatedItem._id : catalogItem ? catalogItem._id : undefined,
     inventoryItemId: updatedItem ? updatedItem._id : catalogItem ? catalogItem._id : undefined,
-    itemName: updatedItem ? updatedItem.itemName : manualItemName,
-    unit: updatedItem ? updatedItem.unit || "pcs" : manualUnit,
+    itemName: catalogItem ? catalogItem.itemName : manualItemName,
+    itemType: catalogItem ? (catalogItem.type === 'tool' ? 'equipment' : (catalogItem.type || 'part')) : 'part',
+    unit: catalogItem ? catalogItem.unit || "pcs" : manualUnit,
     quantityUsed,
-    unitPrice: updatedItem ? Number(updatedItem.costPrice) || 0 : Number(manualUnitPriceRaw || 0),
+    unitPrice: catalogItem ? Number(catalogItem.costPrice) || 0 : Number(manualUnitPriceRaw || 0),
     deductedFromInventory: Boolean(updatedItem),
     notes,
     recordedBy: actorId,

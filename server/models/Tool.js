@@ -16,6 +16,10 @@ const TOOL_STATUSES = [
   "discontinued",  // no longer used
 ];
 
+const INVENTORY_CLASSES = ["merchandise", "operational_asset"];
+const ASSET_CONDITIONS = ["good", "fair", "needs_repair", "damaged"];
+const ASSET_STATUSES = ["available", "reserved", "checked_out", "under_maintenance", "damaged", "retired"];
+
 // ─── Main Tool Schema ────────────────────────────────────────────────────────
 
 const toolSchema = new mongoose.Schema(
@@ -71,6 +75,47 @@ const toolSchema = new mongoose.Schema(
     },
 
     // ── Details ───────────────────────────────────────────────────────────────
+    type: {
+      type: String,
+      enum: ["equipment", "part", "consumable", "tool"],
+      default: "part",
+      index: true,
+    },
+
+    // Normalized display type. Legacy "tool" is treated as "equipment".
+    itemType: {
+      type: String,
+      default: function () {
+        const raw = this.type;
+        return raw === "tool" ? "equipment" : (raw || "part");
+      },
+    },
+
+    // Business ownership/classification is intentionally separate from type.
+    // Legacy records without this field are classified by the query helpers
+    // below: equipment/tool => operational asset; everything else => merchandise.
+    inventoryClass: {
+      type: String,
+      enum: INVENTORY_CLASSES,
+      default: function () {
+        return ["equipment", "tool"].includes(this.type) ? "operational_asset" : "merchandise";
+      },
+      index: true,
+    },
+
+    assetCode: { type: String, trim: true, unique: true, sparse: true, index: true },
+    assetCondition: { type: String, enum: ASSET_CONDITIONS, default: "good" },
+    assetStatus: { type: String, enum: ASSET_STATUSES, default: "available", index: true },
+    maintenanceIntervalDays: { type: Number, min: 0, default: 180 },
+    lastMaintenanceAt: { type: Date, default: null },
+    nextMaintenanceAt: { type: Date, default: null },
+    assignable: { type: Boolean, default: true },
+    checkedOutQuantity: { type: Number, min: 0, default: 0 },
+    // Items technicians normally carry. Daily preparation treats these as
+    // already covered and does not issue/check them out again.
+    standardTechnicianKit: { type: Boolean, default: false, index: true },
+    standardKitQuantity: { type: Number, min: 1, default: 1 },
+
     category: {
       type: String,
       trim: true,
@@ -148,10 +193,22 @@ toolSchema.index({ itemName: "text" });
 // ─── Pre-save Middleware ─────────────────────────────────────────────────────
 
 toolSchema.pre("save", async function () {
+  if (!this.inventoryClass) {
+    this.inventoryClass = ["equipment", "tool"].includes(this.type) ? "operational_asset" : "merchandise";
+  }
+  if (this.inventoryClass === "operational_asset") {
+    this.sellingPrice = 0;
+    if (!this.assetCode) {
+      this.assetCode = `ASSET-${this._id.toString().slice(-8).toUpperCase()}`;
+    }
+    if (this.lastMaintenanceAt && this.maintenanceIntervalDays > 0) {
+      this.nextMaintenanceAt = new Date(new Date(this.lastMaintenanceAt).getTime() + this.maintenanceIntervalDays * 86400000);
+    }
+  }
   // ── Auto-generate serial number if missing ────────────────────────────
   if (!this.serialNumber) {
-    const count = await mongoose.models.Tool.countDocuments();
-    this.serialNumber = `SN-${String(count + 1).padStart(6, "0")}`;
+    // ObjectId-based values remain unique after deletions and concurrent inserts.
+    this.serialNumber = `SN-${this._id.toString().slice(-10).toUpperCase()}`;
   }
 
   // ── Auto-generate barcode if missing ───────────────────────────────────
@@ -185,10 +242,33 @@ toolSchema.pre("save", async function () {
  * @param {number} [limit=600]
  */
 toolSchema.statics.findForDropdown = function (limit = 600) {
-  return this.find({ active: true, isStockItem: true })
+  return this.find({ active: true, isStockItem: true, ...this.merchandiseFilter() })
     .sort({ itemName: 1 })
     .limit(limit)
-    .select("_id itemName unit quantity costPrice barcode");
+    .select("_id itemName unit quantity costPrice sellingPrice barcode type inventoryClass");
+};
+
+toolSchema.statics.merchandiseFilter = function () {
+  return {
+    $or: [
+      { inventoryClass: "merchandise" },
+      { inventoryClass: { $exists: false }, type: { $nin: ["equipment", "tool"] } },
+    ],
+  };
+};
+
+toolSchema.statics.operationalAssetFilter = function () {
+  return {
+    $or: [
+      { inventoryClass: "operational_asset" },
+      { inventoryClass: { $exists: false }, type: { $in: ["equipment", "tool"] } },
+    ],
+  };
+};
+
+toolSchema.statics.effectiveInventoryClass = function (item) {
+  if (item && item.inventoryClass) return item.inventoryClass;
+  return item && ["equipment", "tool"].includes(item.type) ? "operational_asset" : "merchandise";
 };
 
 /**

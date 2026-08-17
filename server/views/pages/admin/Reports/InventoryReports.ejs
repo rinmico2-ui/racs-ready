@@ -3,18 +3,25 @@
   <link rel="stylesheet" href="/css/analytics.css">
 
     <div class="au-hero mb-4">
-      <div class="au-hero-inner">
+      <div class="au-hero-inner" style="display:flex;justify-content:space-between;align-items:center;">
         <div class="au-hero-left">
           <div class="au-hero-icon"><i class="bi bi-box-seam"></i></div>
           <div>
-            <h1>Inventory Analytics</h1>
+            <h1>Inventory</h1>
             <p>Monitor stock velocity, shrinkage trends, and replenishment performance</p>
           </div>
         </div>
+        <button class="report-nav-trigger" id="reportNavTrigger"><i class="bi bi-list" id="reportNavTriggerIcon"></i><span id="reportNavTriggerLabel">Sections</span></button>
       </div>
     </div>
 
-    <div class="section-label">Key Metrics</div>
+    <!-- --- SECTION NAV --- -->
+    <div class="report-nav" id="reportNav">
+      <button class="report-nav-btn active" data-target="top"><i class="bi bi-speedometer2"></i>Overview</button>
+      <button class="report-nav-btn" data-target="section-key"><i class="bi bi-box-seam"></i>Key Metrics</button>
+    </div>
+
+    <div class="section-label" id="section-key">Key Metrics</div>
     <style>
       /* remove built‑in container padding so KPI cards start at the left edge of the main area */
       .admin-dashboard.container-fluid {
@@ -153,120 +160,120 @@
         font-size: 0.75rem;
       }
     </style>
+    <%
+      function formatAmount(n) {
+        if (!n) return '₱0';
+        if (Math.abs(n) >= 1000000) return '₱' + (n / 1000000).toFixed(2) + 'M';
+        return '₱' + Math.round(n).toLocaleString();
+      }
+    %>
+    <%- include('../../../partials/report-kpi-styles') %>
+    <div class="kpi-grid">
+      <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon blue"><i class="bi bi-box-seam"></i></div>
+          <span class="kpi-enterprise-badge blue"><%= analytics ? Math.round(((analytics.inStock + analytics.toolsInStock) / ((analytics.totalProducts + analytics.totalTools) || 1)) * 100) : 0 %>% In Stock</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Total Inventory SKUs</p>
+          <div class="kpi-enterprise-value"><%= analytics ? (analytics.totalProducts + analytics.totalTools).toLocaleString() : "0" %></div>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="invSparkSKUs" height="28"></canvas></div>
+      </div>
+      <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="100">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-dollar"></i></div>
+          <span class="kpi-enterprise-badge cyan">Margin: <%= analytics ? Number(analytics.weightedMarginPct || 0).toFixed(1) : "0.0" %>%</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Total Retail Value</p>
+          <div class="kpi-enterprise-value"><%= analytics ? formatAmount(analytics.totalValue) : '₱0' %></div>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="invSparkTurnover" height="28"></canvas></div>
+      </div>
+      <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="200">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <span class="kpi-enterprise-badge red"><%= analytics ? analytics.toolsLowStock : 0 %> Tools + <%= analytics ? analytics.lowStock : 0 %> Products</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Low Stock Alerts</p>
+          <div class="kpi-enterprise-value"><%= analytics ? (analytics.lowStock + analytics.toolsLowStock) : "0" %></div>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="invSparkLowstock" height="28"></canvas></div>
+      </div>
+      <div class="kpi-enterprise" data-accent="orange" data-aos="fade-up" data-aos-delay="300">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon orange"><i class="bi bi-hourglass-split"></i></div>
+          <span class="kpi-enterprise-badge orange"><%= analytics ? analytics.toolsOutOfStock : 0 %> Tools + <%= analytics ? analytics.outOfStock : 0 %> Products</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Out of Stock</p>
+          <div class="kpi-enterprise-value"><%= analytics ? (analytics.outOfStock + analytics.toolsOutOfStock) : "0" %></div>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="invSparkStockout" height="28"></canvas></div>
+      </div>
+    </div>
+
+    <% const f = analytics && analytics.filterContext ? analytics.filterContext : {range:'30',kind:'all',inventoryClass:'all',status:'all',type:'all',supplier:'all',margin:'all',stock:'all',search:''}; %>
+    <form class="card border-0 shadow-sm mb-4" method="get" action="/admin/reports/inventory">
+      <div class="card-body row g-3 align-items-end">
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Usage Period</label><select class="form-select" name="range"><% [['7','7 days'],['30','30 days'],['90','90 days'],['365','12 months']].forEach(function(x){ %><option value="<%= x[0] %>" <%= f.range===x[0]?'selected':'' %>><%= x[1] %></option><% }); %></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Catalog</label><select class="form-select" name="kind"><option value="all">All inventory</option><option value="product" <%= f.kind==='product'?'selected':'' %>>HVAC products</option><option value="tool" <%= f.kind==='tool'?'selected':'' %>>Parts & assets</option><option value="part" <%= f.kind==='part'?'selected':'' %>>Parts</option><option value="consumable" <%= f.kind==='consumable'?'selected':'' %>>Consumables</option><option value="equipment" <%= f.kind==='equipment'?'selected':'' %>>Equipment</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Inventory Class</label><select class="form-select" name="inventoryClass"><option value="all">All classes</option><option value="merchandise" <%= f.inventoryClass==='merchandise'?'selected':'' %>>Merchandise</option><option value="operational_asset" <%= f.inventoryClass==='operational_asset'?'selected':'' %>>Operational Assets</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Stock Status</label><select class="form-select" name="status"><option value="all">All statuses</option><% ['in_stock','low_stock','out_of_stock','discontinued'].forEach(function(s){ %><option value="<%= s %>" <%= f.status===s?'selected':'' %>><%= s.replace(/_/g,' ') %></option><% }); %></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Item Type</label><select class="form-select" name="type"><option value="all">All types</option><% (analytics?.filterOptions?.types||[]).forEach(function(type){ %><option value="<%= type %>" <%= f.type===type?'selected':'' %>><%= type.replace(/_/g,' ') %></option><% }); %></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Supplier</label><select class="form-select" name="supplier"><option value="all">All suppliers</option><% (analytics?.filterOptions?.suppliers||[]).forEach(function(s){ %><option value="<%= s %>" <%= f.supplier===s?'selected':'' %>><%= s %></option><% }); %></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Margin</label><select class="form-select" name="margin"><option value="all">All margins</option><option value="negative" <%= f.margin==='negative'?'selected':'' %>>Loss / zero</option><option value="low" <%= f.margin==='low'?'selected':'' %>>Below 20%</option><option value="healthy" <%= f.margin==='healthy'?'selected':'' %>>20% and above</option></select></div>
+        <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Stock Risk</label><select class="form-select" name="stock"><option value="all">All stock levels</option><option value="below_min" <%= f.stock==='below_min'?'selected':'' %>>At/below minimum</option><option value="overstock" <%= f.stock==='overstock'?'selected':'' %>>Potential overstock</option></select></div>
+        <div class="col-lg-5 col-md-8"><label class="form-label small text-uppercase text-muted fw-bold">Search</label><input class="form-control" type="search" name="search" value="<%= f.search %>" placeholder="Item, SKU, barcode, brand, supplier…"></div>
+        <div class="col-lg-3 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-funnel me-2"></i>Apply</button><a class="btn btn-light border" href="/admin/reports/inventory">Reset</a></div>
+      </div>
+    </form>
+
     <div class="row g-3 mb-4">
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Products</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark" id="inv-kpi-skus"><%= analytics ? analytics.totalProducts.toLocaleString() : "0" %></span>
-              </div>
-              <div class="badge bg-primary-subtle text-primary fs-7"><%= analytics ? Math.round((analytics.inStock / analytics.totalProducts) * 100) : 0 %>% In Stock</div>
-              <small class="text-muted">SKUs in catalog</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-              <i class="bi bi-box-seam text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="invSparkSKUs" height="40"></canvas>
-          </div>
+      <div class="col-xl-6">
+        <div class="dash-card bg-white h-100 border-start border-4 border-success">
+          <div class="card-header-custom"><h6 class="mb-0 fw-bold text-success"><i class="bi bi-bag-check-fill me-2"></i>Merchandise</h6></div>
+          <div class="card-body"><div class="row g-3 text-center">
+            <% const ms=analytics?.merchandiseSummary||{}; [['SKUs',ms.skus||0],['Stock',ms.stock||0],['Reserved',ms.reserved||0],['Low Stock',ms.lowStock||0],['Units Sold',ms.unitsSold||0],['Sales',formatAmount(ms.salesRevenue||0)]].forEach(function(x){ %>
+            <div class="col-4"><div class="h5 mb-1 fw-bold"><%= x[1] %></div><div class="small text-muted"><%= x[0] %></div></div><% }); %>
+          </div></div>
         </div>
       </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Inventory Value</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark" id="inv-kpi-turnover">₱<%= analytics ? (analytics.inventoryValue / 1000000).toFixed(2) : "0.00" %>M</span>
-              </div>
-              <div class="badge bg-info-subtle text-info fs-7">Margin: <%= analytics ? ((analytics.profitPotential / analytics.inventoryValue) * 100).toFixed(1) : "0.0" %>%</div>
-              <small class="text-muted">Total stock value</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
-              <i class="bi bi-currency-dollar text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="invSparkTurnover" height="40"></canvas>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Low Stock Alerts</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark" id="inv-kpi-lowstock"><%= analytics ? (analytics.lowStock + analytics.toolsLowStock) : "0" %></span>
-              </div>
-              <div class="badge bg-danger-subtle text-danger fs-7"><%= analytics ? analytics.toolsLowStock : "0" %> Tools + <%= analytics ? analytics.lowStock : "0" %> Products</div>
-              <small class="text-muted">Below threshold</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-              <i class="bi bi-exclamation-triangle-fill text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="invSparkLowstock" height="40"></canvas>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Out of Stock</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark" id="inv-kpi-stockout"><%= analytics ? (analytics.outOfStock + analytics.toolsOutOfStock) : "0" %></span>
-              </div>
-              <div class="badge bg-warning-subtle text-warning fs-7"><%= analytics ? analytics.toolsOutOfStock : "0" %> Tools + <%= analytics ? analytics.outOfStock : "0" %> Products</div>
-              <small class="text-muted">Unavailable items</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-              <i class="bi bi-hourglass-split text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="invSparkStockout" height="40"></canvas>
-          </div>
+      <div class="col-xl-6">
+        <div class="dash-card bg-white h-100 border-start border-4 border-primary">
+          <div class="card-header-custom"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-tools me-2"></i>Operational Assets</h6></div>
+          <div class="card-body"><div class="row g-3 text-center">
+            <% const os=analytics?.operationalAssetSummary||{}; [['Assets',os.total||0],['Available',os.available||0],['Reserved',os.reserved||0],['Checked Out',os.checkedOut||0],['Maintenance',os.underMaintenance||0],['Damaged / Retired',(os.damaged||0)+(os.retired||0)]].forEach(function(x){ %>
+            <div class="col-4"><div class="h5 mb-1 fw-bold"><%= x[1] %></div><div class="small text-muted"><%= x[0] %></div></div><% }); %>
+          </div><div class="small text-muted text-center mt-3">Purchase value: <strong><%= formatAmount(os.purchaseValue||0) %></strong> · excluded from revenue and gross margin</div></div>
         </div>
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body row g-3">
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Period</label><select class="form-select">
-            <option>Last 30 Days</option>
-            <option>Quarterly</option>
-            <option>Year-to-Date</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Category</label><select class="form-select">
-            <option>All Categories</option>
-            <option>Parts</option>
-            <option>Consumables</option>
-            <option>Equipment</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Warehouse</label><select
-            class="form-select">
-            <option>All</option>
-            <option>Main Storage</option>
-            <option>Field Mobile Stock</option>
-          </select>
-        </div>
-        <div class="col-md-3 d-flex align-items-end">
-          <button class="btn btn-light border w-100">
-            <i class="bi bi-funnel me-2"></i>Apply
-          </button>
-        </div>
-      </div>
+    <div class="kpi-grid mb-4">
+      <% [
+        {label:'Stock Cost Capital',value:formatAmount(analytics?.totalCost||0),badge:'Purchase value',icon:'bi-cash-stack',accent:'blue'},
+        {label:'Retail Stock Value',value:formatAmount(analytics?.totalValue||0),badge:'Selling value',icon:'bi-tags',accent:'cyan'},
+        {label:'Potential Margin',value:formatAmount(analytics?.profitPotential||0),badge:(analytics?.weightedMarginPct||0).toFixed(1)+'% weighted',icon:'bi-graph-up-arrow',accent:'green'},
+        {label:'Committed Stock',value:(analytics?.committedUnits||0).toLocaleString()+' units',badge:formatAmount(analytics?.committedCost||0)+' cost',icon:'bi-lock-fill',accent:'purple'},
+        {label:'Reorder Cash Needed',value:formatAmount(analytics?.reorderCashRequired||0),badge:(analytics?.reorderRecommendations||[]).length+' items',icon:'bi-cart-plus-fill',accent:'orange'},
+        {label:'Dead Stock Capital',value:formatAmount(analytics?.deadStockCost||0),badge:(analytics?.deadStock||[]).length+' no-use items',icon:'bi-hourglass-bottom',accent:'red'}
+      ].forEach(function(k,i){ %>
+      <div class="kpi-enterprise" data-accent="<%= k.accent %>" data-aos="fade-up" data-aos-delay="<%= i*40 %>"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon <%= k.accent %>"><i class="bi <%= k.icon %>"></i></div><span class="kpi-enterprise-badge <%= k.accent %>"><%= k.badge %></span></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label"><%= k.label %></p><div class="kpi-enterprise-value"><%= k.value %></div></div></div>
+      <% }); %>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-xl-5"><div class="dash-card bg-white h-100"><div class="card-header-custom d-flex justify-content-between"><h6 class="mb-0 fw-bold text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Priority Reorder Plan</h6><span class="badge bg-danger"><%= analytics?.reorderRecommendations?.length||0 %></span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 small"><thead><tr><th>Item</th><th class="text-end">Available</th><th class="text-end">Cover</th><th class="text-end">Order</th><th class="text-end">Cash</th></tr></thead><tbody><% if(analytics?.reorderRecommendations?.length){analytics.reorderRecommendations.slice(0,8).forEach(function(r){ %><tr><td><strong><%= r.name %></strong><br><span class="text-muted"><%= r.supplier %></span></td><td class="text-end"><%= r.available %></td><td class="text-end"><%= r.coverDays===null?'No usage':Math.round(r.coverDays)+'d' %></td><td class="text-end fw-bold"><%= r.reorderQty %></td><td class="text-end"><%= formatAmount(r.reorderCost) %></td></tr><% });}else{ %><tr><td colspan="5" class="text-center text-muted py-4">No items currently require replenishment</td></tr><% } %></tbody></table></div></div></div></div>
+      <div class="col-xl-4"><div class="dash-card bg-white h-100"><div class="card-header-custom d-flex justify-content-between"><h6 class="mb-0 fw-bold text-warning"><i class="bi bi-box2-heart me-2"></i>Slow / Dead Stock</h6><span class="badge bg-warning text-dark"><%= analytics?.deadStock?.length||0 %></span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 small"><thead><tr><th>Item</th><th class="text-end">Units</th><th class="text-end">Capital</th></tr></thead><tbody><% if(analytics?.deadStock?.length){analytics.deadStock.slice(0,8).forEach(function(r){ %><tr><td><strong><%= r.name %></strong><br><span class="text-muted">No consumption in <%= f.range %>d</span></td><td class="text-end"><%= r.quantity %></td><td class="text-end"><%= formatAmount(r.stockCost) %></td></tr><% });}else{ %><tr><td colspan="3" class="text-center text-muted py-4">No dead stock in this selection</td></tr><% } %></tbody></table></div></div></div></div>
+      <div class="col-xl-3"><div class="dash-card bg-white h-100"><div class="card-header-custom d-flex justify-content-between"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-percent me-2"></i>Pricing Risks</h6><span class="badge bg-primary"><%= analytics?.marginRisks?.length||0 %></span></div><div class="card-body"><% if(analytics?.marginRisks?.length){analytics.marginRisks.slice(0,7).forEach(function(r){ %><div class="d-flex justify-content-between border-bottom py-2"><div class="me-2"><strong class="small"><%= r.name %></strong><div class="text-muted" style="font-size:.7rem;">Cost <%= formatAmount(r.costPrice) %> · Sell <%= formatAmount(r.sellingPrice) %></div></div><span class="badge <%= r.marginPct<=0?'bg-danger':'bg-warning text-dark' %> align-self-center"><%= r.marginPct.toFixed(1) %>%</span></div><% });}else{ %><div class="text-center text-muted py-4">No missing or loss-making prices</div><% } %></div></div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-7"><div class="dash-card bg-white h-100"><div class="card-header-custom"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-truck me-2"></i>Supplier Exposure</h6></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 small"><thead><tr><th>Supplier</th><th class="text-end">SKUs</th><th class="text-end">Cost Capital</th><th class="text-end">Potential Margin</th><th class="text-end">At Risk</th></tr></thead><tbody><% if(analytics?.supplierAnalysis?.length){analytics.supplierAnalysis.slice(0,10).forEach(function(s){ %><tr><td><strong><%= s.supplier %></strong></td><td class="text-end"><%= s.skus %></td><td class="text-end"><%= formatAmount(s.stockCost) %></td><td class="text-end text-success"><%= formatAmount(s.potentialMargin) %></td><td class="text-end"><span class="badge <%= s.atRisk?'bg-danger':'bg-success' %>"><%= s.atRisk %></span></td></tr><% });}else{ %><tr><td colspan="5" class="text-center text-muted py-4">No supplier data for this selection</td></tr><% } %></tbody></table></div></div></div></div>
+      <div class="col-lg-5"><div class="dash-card bg-white h-100"><div class="card-header-custom d-flex justify-content-between"><h6 class="mb-0 fw-bold text-warning"><i class="bi bi-boxes me-2"></i>Potential Overstock</h6><span class="badge bg-warning text-dark"><%= analytics?.overstockItems?.length||0 %></span></div><div class="card-body"><% if(analytics?.overstockItems?.length){analytics.overstockItems.slice(0,8).forEach(function(r){ %><div class="d-flex justify-content-between align-items-center border-bottom py-2"><div><strong class="small"><%= r.name %></strong><div class="text-muted" style="font-size:.7rem;"><%= r.quantity %> units · <%= r.usage %> used in <%= f.range %>d</div></div><span class="fw-bold"><%= formatAmount(r.stockCost) %></span></div><% });}else{ %><div class="text-center text-muted py-4">No overstock risk detected</div><% } %></div></div></div>
     </div>
 
     <div class="row g-3 mb-4">
@@ -292,23 +299,19 @@
               <canvas id="inventoryCategoryValueChart"></canvas>
             </div>
             <ul class="list-unstyled small mb-0 mt-3 px-2">
-              <li class="d-flex justify-content-between py-2 border-bottom"
+              <% if (analytics) {
+                   const tv = analytics.typeValues || {};
+                   const tvColors = ['#14b8a6','#10b981','#f59e0b','#3b82f6','#8b5cf6'];
+                   const tvTotal = Math.max(Object.keys(tv).reduce((s, k) => s + (tv[k] || 0), 0), 1);
+                   Object.keys(tv).forEach(function(k, i) {
+                     const v = tv[k] || 0;
+              %>
+              <li class="d-flex justify-content-between py-2 <%= i < Object.keys(tv).length - 1 ? 'border-bottom' : '' %>"
                 style="border-color: rgba(226, 232, 240, 0.4) !important;">
                 <span class="text-muted"><i class="bi bi-circle-fill me-2"
-                    style="color: #14b8a6; font-size: 0.6rem;"></i>Spare Parts</span><strong style="color: #1d4ed8;">₱
-                  220k</strong>
+                    style="color: <%= tvColors[i % tvColors.length] %>; font-size: 0.6rem;"></i><%= k || 'Unknown' %></span><strong style="color: #1d4ed8;"><%= formatAmount(v) %></strong>
               </li>
-              <li class="d-flex justify-content-between py-2 border-bottom"
-                style="border-color: rgba(226, 232, 240, 0.4) !important;">
-                <span class="text-muted"><i class="bi bi-circle-fill me-2"
-                    style="color: #10b981; font-size: 0.6rem;"></i>Consumables</span><strong style="color: #1d4ed8;">₱
-                  145k</strong>
-              </li>
-              <li class="d-flex justify-content-between py-2">
-                <span class="text-muted"><i class="bi bi-circle-fill me-2"
-                    style="color: #f59e0b; font-size: 0.6rem;"></i>Equipment</span><strong style="color: #1d4ed8;">₱
-                  87k</strong>
-              </li>
+              <% }); } %>
             </ul>
           </div>
         </div>
@@ -647,7 +650,8 @@
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="/js/chart-drilldown.js"></script>
     <script id="inventory-data" type="application/json">
       {
         "stockTurnover": <%- JSON.stringify(analytics && analytics.stockTurnover ? analytics.stockTurnover.slice(0, 5).map(t => ({ name: t.name, rate: parseFloat(t.turnoverRate.toFixed(2)) })) : [{name:'Item 1', rate:1.2}, {name:'Item 2', rate:0.9}, {name:'Item 3', rate:0.7}, {name:'Item 4', rate:0.5}, {name:'Item 5', rate:0.3}]) %>,
@@ -658,31 +662,31 @@
         "typeValuesData": <%- JSON.stringify(analytics && analytics.typeValues ? Object.values(analytics.typeValues).slice(0, 5).map(v => Math.round(v / 1000)) : [450, 320, 280, 190, 150]) %>,
         "totalValue": <%= analytics ? (analytics.totalValue || 0) : 0 %>,
         "inventoryValue": <%= analytics ? (analytics.inventoryValue || 0) : 0 %>,
-        "stockLevels": <%- JSON.stringify(analytics && analytics.stockLevels ? Object.keys(analytics.stockLevels).map(function(k) { return { category: k, count: analytics.stockLevels[k] }; }) : []) %>,
-        "lowStockAlerts": <%- JSON.stringify(analytics && analytics.lowStockAlerts ? analytics.lowStockAlerts.slice(0, 5).map(function(a) { return { name: a.name, quantity: a.quantity, threshold: a.threshold }; }) : []) %>
+        "stockLevels": <%- JSON.stringify(analytics?.stockLevels || []) %>,
+        "lowStockAlerts": <%- JSON.stringify(analytics?.lowStockAlerts || []) %>,
+        "stockMovementActual": <%- JSON.stringify(analytics?.stockMovementActual || []) %>,
+        "topUsedTools": <%- JSON.stringify(analytics?.topConsumedItems || []) %>,
+        "itemAnalytics": <%- JSON.stringify((analytics?.itemAnalytics || []).map(function(r){return {name:r.name,type:r.type,kind:r.kind,quantity:r.quantity,available:r.available,status:r.status,stockCost:r.stockCost,retailValue:r.retailValue,marginPct:r.marginPct,usage:r.usage,coverDays:r.coverDays,updatedAt:r.updatedAt,supplier:r.supplier};})) %>
       }
     </script>
     <script>
       // @ts-nocheck
       var inventoryAnalytics = JSON.parse(document.getElementById('inventory-data').textContent);
 
-      (function () {
-        if (typeof Chart === "undefined" || typeof ChartDrilldown === "undefined") return;
+      function initializeInventoryCharts() {
+        if (window.__inventoryChartsInitialized) return;
+        if (typeof Chart === "undefined" || typeof ChartDrilldown === "undefined") {
+          setTimeout(initializeInventoryCharts, 100);
+          return;
+        }
+        window.__inventoryChartsInitialized = true;
 
         function computeStockMovement() {
-          var totalByCat = inventoryAnalytics.typeCountValues || [45, 25, 15];
-          var cats = inventoryAnalytics.typeCounts || ['Split','Window','Cassette'];
-          var labels = [];
-          var inbound = [];
-          var outbound = [];
-          var sum = totalByCat.reduce(function(a,b){ return a+b; }, 0) || 100;
-          var base = Math.round(sum / Math.max(totalByCat.length, 1));
-          for (var i = 0; i < 6; i++) {
-            labels.push('W' + (i+1));
-            var factor = 0.8 + Math.random() * 0.4 + i * 0.05;
-            inbound.push(Math.round(base * factor));
-            outbound.push(Math.round(base * factor * 0.7));
-          }
+          var rows = inventoryAnalytics.stockMovementActual || [];
+          var labels = rows.map(function(r){return r.date;});
+          var inbound = rows.map(function(r){return r.inbound||0;});
+          var outbound = rows.map(function(r){return r.outbound||0;});
+          if (!labels.length) { labels=['No movements']; inbound=[0]; outbound=[0]; }
           return { labels: labels, inbound: inbound, outbound: outbound };
         }
 
@@ -705,8 +709,8 @@
             data: {
               labels: movement.labels,
               datasets: [
-                { label: "Inbound (est.)", data: movement.inbound, borderColor: "#10b981", backgroundColor: gradientInbound, borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#10b981", pointBorderWidth: 2, pointRadius: 4 },
-                { label: "Outbound (est.)", data: movement.outbound, borderColor: "#ef4444", backgroundColor: gradientOutbound, borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#ef4444", pointBorderWidth: 2, pointRadius: 4 }
+                { label: "Inbound", data: movement.inbound, borderColor: "#10b981", backgroundColor: gradientInbound, borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#10b981", pointBorderWidth: 2, pointRadius: 4 },
+                { label: "Outbound", data: movement.outbound, borderColor: "#ef4444", backgroundColor: gradientOutbound, borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#ef4444", pointBorderWidth: 2, pointRadius: 4 }
               ]
             },
             options: {
@@ -719,7 +723,7 @@
             return { label: l, value: movement.inbound[i] + ' / ' + movement.outbound[i], category: l, barValue: movement.inbound[i], subtext: 'Outbound: ' + movement.outbound[i] };
           });
           var movementFilters = movement.labels.map(function(l) { return { key: l, label: l }; });
-          movementCtx.canvas.style.cursor = 'pointer';
+          movementCtx.style.cursor = 'pointer';
           movementCtx.onclick = function() { openDrill('Stock Movement Trend', 'Inbound vs outbound stock flow', movementChartCfg, movementDetails, movementFilters, 'category', { totalInbound: movement.inbound.reduce(function(a,b){return a+b;},0), totalOutbound: movement.outbound.reduce(function(a,b){return a+b;},0) }); };
           new Chart(movementCtx, movementChartCfg);
         }
@@ -741,7 +745,7 @@
           };
           var catDetails = catLabels.map(function(l, i) { return { label: l, value: catValues[i], category: l, barValue: catValues[i] }; });
           var catFilters = catLabels.map(function(l, i) { return { key: l, label: l, color: catColors[i] }; });
-          categoryCtx.canvas.style.cursor = 'pointer';
+          categoryCtx.style.cursor = 'pointer';
           categoryCtx.onclick = function() { openDrill('Inventory Value by Category', 'Stock value distribution across categories', catChartCfg, catDetails, catFilters, 'category', { total: catValues.reduce(function(a,b){return a+b;},0) }); };
           new Chart(categoryCtx, catChartCfg);
         }
@@ -749,11 +753,13 @@
         /* ── Stock Aging Distribution ── */
         var agingCtx = document.getElementById("inventoryAgingChart");
         if (agingCtx) {
-          var agelabels = catLabels.slice(0,3);
-          var health = inventoryAnalytics.healthScore || 70;
-          var agingYoung = agelabels.map(function() { return Math.round(health * 0.6 / agelabels.length); });
-          var agingMid = agelabels.map(function() { return Math.round(health * 0.25 / agelabels.length); });
-          var agingOld = agelabels.map(function() { return Math.round(health * 0.15 / agelabels.length); });
+          var agingRows = inventoryAnalytics.itemAnalytics || [];
+          var agelabels = Array.from(new Set(agingRows.map(function(r){return r.type||r.kind||'Unknown';}))).slice(0,6);
+          if(!agelabels.length)agelabels=['No inventory'];
+          function ageCount(type,min,max){return agingRows.filter(function(r){var age=(Date.now()-new Date(r.updatedAt).getTime())/86400000;return (r.type||r.kind||'Unknown')===type&&age>=min&&age<=max;}).length;}
+          var agingYoung = agelabels.map(function(t){return ageCount(t,0,30);});
+          var agingMid = agelabels.map(function(t){return ageCount(t,30.0001,90);});
+          var agingOld = agelabels.map(function(t){return ageCount(t,90.0001,Infinity);});
           var agingChartCfg = {
             type: "bar",
             data: {
@@ -774,7 +780,7 @@
             return { label: l, value: agingYoung[i] + agingMid[i] + agingOld[i], category: l, barValue: agingYoung[i] + agingMid[i] + agingOld[i], subtext: '<30d: ' + agingYoung[i] + ' | 31-90d: ' + agingMid[i] + ' | >90d: ' + agingOld[i] };
           });
           var agingFilters = agelabels.map(function(l) { return { key: l, label: l }; });
-          agingCtx.canvas.style.cursor = 'pointer';
+          agingCtx.style.cursor = 'pointer';
           agingCtx.onclick = function() { openDrill('Stock Aging Distribution', 'Inventory age breakdown by category', agingChartCfg, agingDetails, agingFilters, 'category', { total: agingYoung.reduce(function(a,b){return a+b;},0) + agingMid.reduce(function(a,b){return a+b;},0) + agingOld.reduce(function(a,b){return a+b;},0) }); };
           new Chart(agingCtx, agingChartCfg);
         }
@@ -782,9 +788,9 @@
         /* ── Top Consumed Items ── */
         var consumedCtx = document.getElementById("topConsumedItemsChart");
         if (consumedCtx) {
-          var toItems2 = inventoryAnalytics.stockTurnover || [];
-          var consumedLabels = toItems2.length ? toItems2.map(function(t){ return t.name; }).slice(0, 5) : ["R-32 Gas", "Capacitor 45uF", "Copper Tube", "Sealant", "Filter Drier"];
-          var consumedData = toItems2.length ? toItems2.map(function(t){ return Math.round(t.rate * 20); }).slice(0, 5) : [96, 74, 69, 55, 41];
+          var toItems2 = inventoryAnalytics.topUsedTools || [];
+          var consumedLabels = toItems2.length ? toItems2.map(function(t){ return t.name; }).slice(0, 8) : ["No consumption"];
+          var consumedData = toItems2.length ? toItems2.map(function(t){ return t.quantity; }).slice(0, 8) : [0];
           var consumedChartCfg = {
             type: "bar",
             data: { labels: consumedLabels, datasets: [{ label: "Units", data: consumedData, backgroundColor: "#14b8a6", borderRadius: 6, barThickness: 16 }] },
@@ -796,7 +802,7 @@
           };
           var consumedDetails = consumedLabels.map(function(l, i) { return { label: l, value: consumedData[i], category: l, barValue: consumedData[i] }; });
           var consumedFilters = consumedLabels.map(function(l) { return { key: l, label: l }; });
-          consumedCtx.canvas.style.cursor = 'pointer';
+          consumedCtx.style.cursor = 'pointer';
           consumedCtx.onclick = function() { openDrill('Top Consumed Items', 'Highest consumption quantities', consumedChartCfg, consumedDetails, consumedFilters, 'category', { total: consumedData.reduce(function(a,b){return a+b;},0) }); };
           new Chart(consumedCtx, consumedChartCfg);
         }
@@ -831,7 +837,7 @@
           };
           var turnoverDetails = toTurnoverLabels.map(function(l, i) { return { label: l, value: toTurnoverData[i] + 'x', category: l, barValue: toTurnoverData[i] }; });
           var turnoverFilters = toTurnoverLabels.map(function(l, i) { return { key: l, label: l, color: toTurnoverColors[i] }; });
-          turnoverCtx.canvas.style.cursor = 'pointer';
+          turnoverCtx.style.cursor = 'pointer';
           turnoverCtx.onclick = function() { openDrill('Stock Turnover Analysis', 'Items ranked by turnover rate', turnoverChartCfg, turnoverDetails, turnoverFilters, 'category', { avg: (toTurnoverData.reduce(function(a,b){return a+b;},0) / toTurnoverData.length).toFixed(2) + 'x' }); };
           new Chart(turnoverCtx, turnoverChartCfg);
         }
@@ -885,7 +891,7 @@
           };
           var typeDetails = typeLabels.map(function(l, i) { return { label: l, value: typeData[i], category: l, barValue: typeData[i] }; });
           var typeFilters = typeLabels.map(function(l, i) { return { key: l, label: l, color: typeColors[i] }; });
-          typeCtx.canvas.style.cursor = 'pointer';
+          typeCtx.style.cursor = 'pointer';
           typeCtx.onclick = function() { openDrill('Inventory by Type', 'Product type distribution', typeChartCfg, typeDetails, typeFilters, 'category', { total: typeData.reduce(function(a,b){return a+b;},0) }); };
           new Chart(typeCtx, typeChartCfg);
         }
@@ -918,7 +924,7 @@
           };
           var valueDetails = vLabels.map(function(l, i) { return { label: l, value: vData[i] + 'k', category: l, barValue: vData[i] }; });
           var valueFilters = vLabels.map(function(l, i) { return { key: l, label: l, color: vColors[i] }; });
-          valueCtx.canvas.style.cursor = 'pointer';
+          valueCtx.style.cursor = 'pointer';
           valueCtx.onclick = function() { openDrill('Value Distribution', 'Inventory value breakdown by type', valueChartCfg, valueDetails, valueFilters, 'category', { total: vData.reduce(function(a,b){return a+b;},0) + 'k' }); };
           new Chart(valueCtx, valueChartCfg);
         }
@@ -951,7 +957,39 @@
         createSparkline('invSparkTurnover', invBase.map(function(v) { return Math.round(v * 0.3); }), '#3b82f6');
         createSparkline('invSparkLowstock', [2, 3, 1, 4, 2, 3, 2], '#dc3545');
         createSparkline('invSparkStockout', [1, 0, 2, 1, 1, 0, 3], '#f59e0b');
-      })();
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeInventoryCharts);
+      else initializeInventoryCharts();
+
+      function setupReportNav() {
+        var nav = document.getElementById('reportNav');
+        if (!nav) return;
+        var buttons = nav.querySelectorAll('.report-nav-btn');
+        buttons.forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var target = btn.dataset.target;
+            if (target === 'top') {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+              var el = document.getElementById(target);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            buttons.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+          });
+        });
+        var trigger = document.getElementById('reportNavTrigger');
+        var icon = document.getElementById('reportNavTriggerIcon');
+        var label = document.getElementById('reportNavTriggerLabel');
+        if (trigger) {
+          trigger.addEventListener('click', function() {
+            nav.classList.toggle('open');
+            if (icon) { icon.classList.toggle('bi-list'); icon.classList.toggle('bi-x-lg'); }
+            if (label) { label.textContent = nav.classList.contains('open') ? 'Close' : 'Sections'; }
+          });
+        }
+      }
+      if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', setupReportNav); } else { setupReportNav(); }
     </script>
 
     <!-- ═══ Enterprise Chart Drilldown Modal ═══ -->
@@ -1010,4 +1048,3 @@
     </div>
 </div>
 <!-- end admin-dashboard container -->
-<script src="/js/chart-drilldown.js"></script>

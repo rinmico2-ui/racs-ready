@@ -1,0 +1,383 @@
+<div class="admin-dashboard container-fluid py-4 my-payroll-page">
+  <%- include('../../partials/dashboard-styles') %>
+
+  <style>
+    .my-payroll-page .dash-card { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04); border: 1px solid rgba(226, 232, 240, 0.6); padding: 1.25rem; }
+    .my-payroll-page .kpi-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .my-payroll-page .kpi-icon i { color: #fff !important; }
+    .my-payroll-page .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .my-payroll-page .kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .my-payroll-page .kpi-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+    .my-payroll-page .table-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04); border: 1px solid rgba(226, 232, 240, 0.6); overflow: hidden; }
+    .my-payroll-page .table thead th { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; white-space: nowrap; }
+    .my-payroll-page .table tbody td { padding: 12px 16px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; color: #334155; }
+    .my-payroll-page .table tbody tr:hover { background: #f8fafc; cursor: pointer; }
+    .my-payroll-page .status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .my-payroll-page .status-approved { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+    .my-payroll-page .status-paid { background: rgba(16, 185, 129, 0.12); color: #059669; }
+    .my-payroll-page .status-draft { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+    .my-payroll-page .status-voided { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+
+    .my-payroll-page .empty-state { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .my-payroll-page .empty-state i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+    .my-payroll-page .empty-state p { font-size: 0.85rem; margin: 0; }
+
+    /* ── Detail Modal ── */
+    .mp-modal { border-radius: 20px; border: none; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.18); }
+    .mp-modal-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1.25rem 1.75rem; display: flex; align-items: center; justify-content: space-between; }
+    .mp-modal-header-left { display: flex; align-items: center; gap: 14px; }
+    .mp-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.2rem; box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+    .mp-modal-title { margin: 0; font-weight: 700; font-size: 1.05rem; color: #fff; }
+    .mp-modal-sub { margin: 0; font-size: 0.75rem; color: #94a3b8; }
+    .mp-modal-body { overflow-y: auto; max-height: 70vh; padding: 1.5rem 1.75rem; }
+
+    .mp-section { margin-bottom: 1.25rem; }
+    .mp-section:last-child { margin-bottom: 0; }
+    .mp-section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .mp-section-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #fff; flex-shrink: 0; }
+    .mp-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin: 0; }
+
+    .mp-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mp-info-card { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px 14px; }
+    .mp-info-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 3px; }
+    .mp-info-value { font-size: 0.85rem; color: #0f172a; font-weight: 600; }
+
+    .mp-att-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .mp-att-item { text-align: center; border-radius: 10px; padding: 10px 6px; border: 1px solid #f1f5f9; }
+    .mp-att-num { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+    .mp-att-lbl { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+    .mp-att-present .mp-att-num { color: #059669; }
+    .mp-att-present .mp-att-lbl { color: #059669; }
+    .mp-att-present { background: rgba(16, 185, 129, 0.06); border-color: rgba(16, 185, 129, 0.15); }
+    .mp-att-late .mp-att-num { color: #d97706; }
+    .mp-att-late .mp-att-lbl { color: #d97706; }
+    .mp-att-late { background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.15); }
+    .mp-att-absent .mp-att-num { color: #dc2626; }
+    .mp-att-absent .mp-att-lbl { color: #dc2626; }
+    .mp-att-absent { background: rgba(239, 68, 68, 0.06); border-color: rgba(239, 68, 68, 0.15); }
+    .mp-att-leave .mp-att-num { color: #2563eb; }
+    .mp-att-leave .mp-att-lbl { color: #2563eb; }
+    .mp-att-leave { background: rgba(59, 130, 246, 0.06); border-color: rgba(59, 130, 246, 0.15); }
+    .mp-att-sick .mp-att-num { color: #7c3aed; }
+    .mp-att-sick .mp-att-lbl { color: #7c3aed; }
+    .mp-att-sick { background: rgba(139, 92, 246, 0.06); border-color: rgba(139, 92, 246, 0.15); }
+    .mp-att-hours .mp-att-num { color: #0369a1; }
+    .mp-att-hours .mp-att-lbl { color: #0369a1; }
+    .mp-att-hours { background: rgba(14, 165, 233, 0.06); border-color: rgba(14, 165, 233, 0.15); }
+
+    .mp-pay-box { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; }
+    .mp-pay-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 0.82rem; }
+    .mp-pay-row .mp-pay-label { color: #64748b; }
+    .mp-pay-row .mp-pay-amount { font-weight: 500; color: #334155; }
+    .mp-pay-divider { border-top: 1px dashed #e2e8f0; margin: 4px 0; }
+    .mp-pay-total { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 2px; font-size: 1rem; font-weight: 800; color: #0f172a; border-top: 2px solid #e2e8f0; margin-top: 6px; }
+    .mp-pay-total .mp-pay-amount { color: #059669; font-size: 1.1rem; }
+
+    .mp-allow-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.82rem; }
+    .mp-ded-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.82rem; }
+    .mp-ded-amount { color: #dc2626; }
+
+    .mp-payment-card { background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 14px 16px; }
+    .mp-notes { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; font-size: 0.82rem; color: #92400e; }
+  </style>
+
+  <!-- Header -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-wallet2-fill"></i></div>
+        <div>
+          <h1>My Payroll</h1>
+          <p>View your payroll records and payment history</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Total Earned</div>
+            <div class="kpi-value" id="kpiTotalEarned">--</div>
+            <div class="kpi-sub">Paid records only</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-cash-stack"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Pending Payment</div>
+            <div class="kpi-value" id="kpiPending">--</div>
+            <div class="kpi-sub">Approved, awaiting payment</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Last Payment</div>
+            <div class="kpi-value" id="kpiLastPay" style="font-size:1.1rem;">--</div>
+            <div class="kpi-sub" id="kpiLastPayDate">—</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);"><i class="bi bi-calendar-check"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Records Table -->
+  <div class="table-card">
+    <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+      <h6 style="margin:0;font-weight:700;font-size:0.9rem;color:#0f172a;"><i class="bi bi-list-ul me-2 text-primary"></i>Payroll History</h6>
+      <button id="btnRefresh" class="btn btn-sm btn-outline-secondary" style="border-radius:8px;font-size:0.78rem;"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th class="text-end">Basic Pay</th>
+            <th class="text-end">OT</th>
+            <th class="text-end">Allowances</th>
+            <th class="text-end">Deductions</th>
+            <th class="text-end">Net Pay</th>
+            <th>Status</th>
+            <th>Payment Date</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody">
+          <tr><td colspan="8" class="empty-state"><i class="bi bi-wallet2"></i><p>Loading your payroll records...</p></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- View Detail Modal -->
+<div class="modal fade" id="viewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content mp-modal">
+      <div class="mp-modal-header">
+        <div class="mp-modal-header-left">
+          <div class="mp-modal-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);"><i class="bi bi-receipt-cutoff"></i></div>
+          <div>
+            <h5 class="mp-modal-title" id="viewTitle">Payroll Detail</h5>
+            <p class="mp-modal-sub" id="viewSub">Full breakdown</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="mp-modal-body" id="viewBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/payroll';
+  const fmt = (n) => '\u20B1' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = (d) => { if (!d) return '\u2014'; return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }); };
+  let records = [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnRefresh').addEventListener('click', loadRecords);
+    loadRecords();
+
+    // Auto-refresh when a notification arrives via Socket.io
+    if (window.socket) {
+      window.socket.on('notification:new', function(data) {
+        if (data && (data.type === 'payroll_approved' || data.type === 'payroll_paid')) {
+          loadRecords();
+        }
+      });
+    }
+    // Fallback: poll every 30s
+    setInterval(loadRecords, 30000);
+  });
+
+  async function loadRecords() {
+    try {
+      const res = await fetch(API, { credentials: 'same-origin' });
+      const data = await res.json();
+      records = data.records || [];
+      renderStats();
+      renderRecords();
+    } catch(e) {
+      document.getElementById('recordsBody').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-exclamation-circle"></i><p>Failed to load payroll records</p></td></tr>';
+    }
+  }
+
+  function renderStats() {
+    const paid = records.filter(r => r.status === 'paid');
+    const approved = records.filter(r => r.status === 'approved');
+    const totalEarned = paid.reduce((s, r) => s + (r.netPay || 0), 0);
+    const pendingTotal = approved.reduce((s, r) => s + (r.netPay || 0), 0);
+    const lastPaid = paid.length ? paid.reduce((latest, r) => !latest || new Date(r.paidAt) > new Date(latest.paidAt) ? r : latest, null) : null;
+
+    document.getElementById('kpiTotalEarned').textContent = fmt(totalEarned);
+    document.getElementById('kpiPending').textContent = fmt(pendingTotal);
+    if (lastPaid) {
+      document.getElementById('kpiLastPay').textContent = fmt(lastPaid.netPay);
+      document.getElementById('kpiLastPayDate').textContent = 'Paid ' + fmtDate(lastPaid.paidAt || lastPaid.paidDate);
+    } else {
+      document.getElementById('kpiLastPay').textContent = '\u2014';
+      document.getElementById('kpiLastPayDate').textContent = 'No payments yet';
+    }
+  }
+
+  function renderRecords() {
+    const tbody = document.getElementById('recordsBody');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-wallet2"></i><p>No payroll records found yet</p></td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const allowTotal = (r.allowances || []).reduce((s, i) => s + i.amount, 0);
+      const statusIcon = r.status === 'paid' ? '<i class="bi bi-check-circle-fill me-1"></i>' : r.status === 'approved' ? '<i class="bi bi-clock me-1"></i>' : '';
+      return `<tr onclick="window._mp.viewDetail('${r._id}')" style="cursor:pointer;">
+        <td style="white-space:nowrap;font-weight:500;">${fmtDate(r.periodStart)} \u2013 ${fmtDate(r.periodEnd)}</td>
+        <td class="text-end">${fmt(r.basicPay)}</td>
+        <td class="text-end">${fmt(r.overtimePay)}</td>
+        <td class="text-end">${fmt(allowTotal)}</td>
+        <td class="text-end" style="color:#dc2626;">-${fmt(r.totalDeductions)}</td>
+        <td class="text-end" style="font-weight:700;color:#0f172a;">${fmt(r.netPay)}</td>
+        <td><span class="status-badge status-${r.status}">${statusIcon}${r.status}</span></td>
+        <td style="white-space:nowrap;">${r.status === 'paid' ? fmtDate(r.paidAt || r.paymentDate) : '\u2014'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function viewDetail(id) {
+    try {
+      const res = await fetch(API + '/' + id, { credentials: 'same-origin' });
+      const data = await res.json();
+      const r = data.record;
+      if (!r) return;
+
+      const statusColors = { paid: '#059669', approved: '#2563eb', draft: '#d97706', voided: '#dc2626' };
+      const statusLabels = { paid: 'Paid', approved: 'Approved', draft: 'Draft', voided: 'Voided' };
+      const stColor = statusColors[r.status] || '#64748b';
+
+      document.getElementById('viewTitle').textContent = 'Payroll Detail';
+      document.getElementById('viewSub').textContent = fmtDate(r.periodStart) + ' \u2013 ' + fmtDate(r.periodEnd);
+
+      const att = r.attendanceSummary || {};
+      const allowTotal = (r.allowances || []).reduce((s, i) => s + i.amount, 0);
+      const dedTotal = (r.deductions || []).reduce((s, i) => s + i.amount, 0);
+
+      let allowHtml = '';
+      if (r.allowances && r.allowances.length) {
+        allowHtml = r.allowances.map(a => `<div class="mp-allow-row"><span style="color:#64748b;">${esc(a.name)}</span><span style="font-weight:500;">${fmt(a.amount)}</span></div>`).join('');
+      }
+
+      let dedHtml = '';
+      if (r.deductions && r.deductions.length) {
+        dedHtml = r.deductions.map(d => `<div class="mp-ded-row"><span style="color:#64748b;">${esc(d.name)}</span><span class="mp-ded-amount" style="font-weight:500;">-${fmt(d.amount)}</span></div>`).join('');
+      }
+
+      let paymentHtml = '';
+      if (r.status === 'paid') {
+        paymentHtml = `
+          <div class="mp-section">
+            <div class="mp-section-header">
+              <div class="mp-section-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-credit-card"></i></div>
+              <p class="mp-section-title">Payment Information</p>
+            </div>
+            <div class="mp-payment-card">
+              <div class="mp-info-grid">
+                <div class="mp-info-card"><div class="mp-info-label">Method</div><div class="mp-info-value" style="text-transform:capitalize;">${esc((r.paymentMethod || '\u2014').replace('_', ' '))}</div></div>
+                <div class="mp-info-card"><div class="mp-info-label">Payment Date</div><div class="mp-info-value">${fmtDate(r.paymentDate || r.paidAt)}</div></div>
+                <div class="mp-info-card"><div class="mp-info-label">Reference</div><div class="mp-info-value">${esc(r.paymentReference || '\u2014')}</div></div>
+                <div class="mp-info-card"><div class="mp-info-label">Paid By</div><div class="mp-info-value">${r.paidBy ? esc(r.paidBy.firstName + ' ' + r.paidBy.lastName) : '\u2014'}</div></div>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      let notesHtml = '';
+      if (r.notes) {
+        notesHtml = `<div class="mp-section"><div class="mp-notes"><i class="bi bi-info-circle me-1"></i>${esc(r.notes)}</div></div>`;
+      }
+
+      document.getElementById('viewBody').innerHTML = `
+        <!-- Status + Pay Type -->
+        <div class="mp-section">
+          <div class="mp-info-grid">
+            <div class="mp-info-card">
+              <div class="mp-info-label">Status</div>
+              <div class="mp-info-value"><span class="status-badge status-${r.status}" style="font-size:0.72rem;padding:5px 12px;">${statusLabels[r.status] || r.status}</span></div>
+            </div>
+            <div class="mp-info-card">
+              <div class="mp-info-label">Pay Type</div>
+              <div class="mp-info-value">${r.payType ? esc(r.payType.charAt(0).toUpperCase() + r.payType.slice(1)) + ' @ ' + fmt(r.baseRate) : '\u2014'}</div>
+            </div>
+            <div class="mp-info-card">
+              <div class="mp-info-label">Pay Period</div>
+              <div class="mp-info-value" style="font-size:0.78rem;">${fmtDate(r.periodStart)} \u2013 ${fmtDate(r.periodEnd)}</div>
+            </div>
+            <div class="mp-info-card">
+              <div class="mp-info-label">Pay Date</div>
+              <div class="mp-info-value">${fmtDate(r.payDate)}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance -->
+        <div class="mp-section">
+          <div class="mp-section-header">
+            <div class="mp-section-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);"><i class="bi bi-calendar-check"></i></div>
+            <p class="mp-section-title">Attendance Summary</p>
+          </div>
+          <div class="mp-att-grid">
+            <div class="mp-att-item mp-att-present"><div class="mp-att-num">${att.present || 0}</div><div class="mp-att-lbl">Present</div></div>
+            <div class="mp-att-item mp-att-late"><div class="mp-att-num">${att.late || 0}</div><div class="mp-att-lbl">Late</div></div>
+            <div class="mp-att-item mp-att-absent"><div class="mp-att-num">${att.absent || 0}</div><div class="mp-att-lbl">Absent</div></div>
+            <div class="mp-att-item mp-att-leave"><div class="mp-att-num">${att.onLeave || 0}</div><div class="mp-att-lbl">Leave</div></div>
+            <div class="mp-att-item mp-att-sick"><div class="mp-att-num">${att.sickLeave || 0}</div><div class="mp-att-lbl">Sick</div></div>
+            <div class="mp-att-item mp-att-hours"><div class="mp-att-num">${att.hoursWorked || 0}</div><div class="mp-att-lbl">Hours</div></div>
+          </div>
+        </div>
+
+        <!-- Pay Breakdown -->
+        <div class="mp-section">
+          <div class="mp-section-header">
+            <div class="mp-section-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="bi bi-calculator"></i></div>
+            <p class="mp-section-title">Pay Breakdown</p>
+          </div>
+          <div class="mp-pay-box">
+            <div class="mp-pay-row"><span class="mp-pay-label">Basic Pay</span><span class="mp-pay-amount">${fmt(r.basicPay)}</span></div>
+            <div class="mp-pay-row"><span class="mp-pay-label">Overtime Pay</span><span class="mp-pay-amount">${fmt(r.overtimePay)}</span></div>
+            ${allowHtml ? '<div class="mp-pay-divider"></div>' + allowHtml : ''}
+            <div class="mp-pay-divider"></div>
+            <div class="mp-pay-row"><span class="mp-pay-label" style="font-weight:600;color:#334155;">Gross Pay</span><span class="mp-pay-amount" style="font-weight:700;">${fmt(r.grossPay)}</span></div>
+            ${dedHtml ? '<div class="mp-pay-divider"></div>' + '<div style="font-size:0.7rem;font-weight:600;color:#94a3b8;text-transform:uppercase;margin:4px 0 2px;">Deductions</div>' + dedHtml : ''}
+            ${dedTotal > 0 ? `<div class="mp-pay-row"><span class="mp-pay-label" style="color:#dc2626;">Total Deductions</span><span class="mp-pay-amount" style="color:#dc2626;">-${fmt(dedTotal)}</span></div>` : ''}
+            <div class="mp-pay-total"><span>Net Pay</span><span class="mp-pay-amount">${fmt(r.netPay)}</span></div>
+          </div>
+        </div>
+
+        ${notesHtml}
+        ${paymentHtml}
+      `;
+
+      new bootstrap.Modal(document.getElementById('viewModal')).show();
+    } catch(e) {
+      console.error('Failed to load payroll detail:', e);
+    }
+  }
+
+  function esc(str) { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+
+  window._mp = { viewDetail };
+})();
+</script>

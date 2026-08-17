@@ -1,0 +1,387 @@
+<link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
+<style>
+  .attention-card { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+  .attention-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+  .status-pending_reassignment { background:#fff7ed; color:#c2410c; }
+  .status-re-scheduled { background:#eff6ff; color:#1d4ed8; }
+  .status-repair_requested { background:#fef2f2; color:#b91c1c; }
+  .status-pending_inspection { background:#f5f3ff; color:#7c3aed; }
+  .status-awaiting_assignment { background:#f0fdf4; color:#15803d; }
+
+  .ent-modal-content { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.22); }
+  .ent-modal-header { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); color: #fff; padding: 18px 22px; border: none; }
+  .ent-modal-header.info { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); }
+  .ent-modal-header.danger { background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%); }
+  .ent-modal-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .ent-detail-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .ent-detail-card-wide { grid-column: span 2; }
+  .ent-detail-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; background: #eff6ff; color: #2563eb; }
+  .ent-detail-card-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ent-detail-card-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+  .ent-detail-card-value { font-size: 0.95rem; font-weight: 600; color: #1e293b; word-break: break-word; }
+  .ent-detail-card-sub { font-size: 0.8rem; color: #64748b; }
+  @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+
+  .rsch-booking-info { padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:16px; }
+  .rsch-booking-info strong { color:#0f172a; }
+  .rsch-booking-info small { color:#64748b; }
+</style>
+
+<div class="main-content">
+  <div class="container-fluid py-4">
+    <div class="au-hero mb-4">
+      <div class="au-hero-inner">
+        <div class="au-hero-left">
+          <div class="au-hero-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <div>
+            <h1>Attention Required</h1>
+            <p>Bookings that need admin action: declined, expired, reschedules, and repair requests</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="d-flex gap-2 mb-3">
+      <button class="btn btn-sm btn-primary status-tab active" onclick="filterBy(this, '')">All</button>
+      <button class="btn btn-sm btn-outline-secondary status-tab" onclick="filterBy(this, 'pending_reassignment')">Needs Reassignment</button>
+      <button class="btn btn-sm btn-outline-secondary status-tab" onclick="filterBy(this, 're-scheduled')">Needs Rescheduling</button>
+      <button class="btn btn-sm btn-outline-secondary status-tab" onclick="filterBy(this, 'repair_requested')">Repair Requests</button>
+      <button class="btn btn-sm btn-outline-secondary status-tab" onclick="filterBy(this, 'pending_inspection')">Pending Inspection</button>
+    </div>
+
+    <!-- Queue -->
+    <div id="attentionList" class="d-flex flex-column gap-3"></div>
+    <div id="emptyState" class="text-center py-5 text-muted d-none"><i class="bi bi-inbox" style="font-size:2.5rem;"></i><div class="mt-2">No attention required items</div></div>
+  </div>
+</div>
+
+<!-- Booking Details Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content ent-modal-content">
+      <div class="modal-header ent-modal-header info">
+        <h5 class="modal-title ent-modal-title"><i class="bi bi-info-circle" style="font-size:1.2rem;"></i>Booking Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="detailBody" style="max-height:70vh;overflow-y:auto;background:#fff;">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+      <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f1f5f9;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Modal — EnterpriseCalendar (same as core services page) -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content ent-modal-content">
+      <div class="modal-header ent-modal-header">
+        <h5 class="modal-title ent-modal-title"><i class="bi bi-calendar-event" style="font-size:1.2rem;"></i>Propose Reschedule</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="rescheduleBody" style="background:#fff;max-height:70vh;overflow-y:auto;">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+      <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f1f5f9;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/enterprise-calendar.js"></script>
+<script>
+  let currentFilter = '';
+  let rescheduleBookingId = null;
+  let rescheduleRef = '';
+
+  const STATUS_BADGES = {
+    pending_reassignment: { label: 'Needs Reassignment', class: 'status-pending_reassignment' },
+    're-scheduled': { label: 'Needs Rescheduling', class: 'status-re-scheduled' },
+    repair_requested: { label: 'Repair Request', class: 'status-repair_requested' },
+    pending_inspection: { label: 'Pending Inspection', class: 'status-pending_inspection' },
+    awaiting_assignment: { label: 'Awaiting Assignment', class: 'status-awaiting_assignment' },
+  };
+
+  async function loadQueue() {
+    try {
+      const res = await fetch(`/api/admin/attention-queue?status=${encodeURIComponent(currentFilter)}&limit=50`);
+      const data = await res.json();
+      renderQueue(data.items || []);
+    } catch (e) { console.error(e); }
+  }
+
+  function renderQueue(items) {
+    const list = document.getElementById('attentionList');
+    const empty = document.getElementById('emptyState');
+    if (!items.length) {
+      list.innerHTML = '';
+      empty.classList.remove('d-none');
+      return;
+    }
+    empty.classList.add('d-none');
+    list.innerHTML = items.map(i => {
+      const status = STATUS_BADGES[i.status] || { label: i.status, class: 'bg-light text-dark' };
+      const date = i.bookingDate ? new Date(i.bookingDate).toLocaleDateString('en-PH') : 'TBD';
+      return `
+        <div class="attention-card">
+          <div class="d-flex align-items-start gap-3">
+            <div class="attention-icon ${status.class}"><i class="bi bi-exclamation-lg"></i></div>
+            <div class="flex-grow-1">
+              <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                <span class="fw-bold">${i.reference}</span>
+                <span class="badge ${status.class}" style="font-size:0.72rem;">${status.label}</span>
+              </div>
+              <div class="small text-muted mb-1"><strong>Customer:</strong> ${i.customer}${i.phone ? ' • ' + i.phone : ''}${i.email ? ' • ' + i.email : ''}</div>
+              <div class="small text-muted mb-1"><strong>Service:</strong> ${i.serviceName} (${i.serviceModel.replace('Service', ' Service')})</div>
+              <div class="small text-muted mb-1"><strong>Scheduled:</strong> ${date} ${i.startTime ? 'at ' + i.startTime : ''}</div>
+              ${i.proposedReschedule ? `<div class="small text-info mb-1"><i class="bi bi-calendar-check me-1"></i><strong>Proposed:</strong> ${i.proposedReschedule.dateLabel || new Date(i.proposedReschedule.date).toLocaleDateString('en-PH')} at ${i.proposedReschedule.timeLabel || i.proposedReschedule.time}${i.proposedReschedule.technicianName ? ' — ' + i.proposedReschedule.technicianName : ''} <span class="badge bg-info text-dark" style="font-size:0.65rem;">${i.proposedReschedule.status}</span></div>` : ''}
+              ${i.proposedReschedule && i.proposedReschedule.status === 'pending' ? `<div class="alert alert-light border-info text-info small py-2 px-2 d-flex align-items-center gap-2 mb-1" style="border-style:dashed;"><i class="bi bi-hourglass-split"></i> <strong>Awaiting customer's confirmation</strong> — the customer must accept, request a new time, or cancel before any assignment.</div>` : ''}
+              ${i.isProposedPassed ? `<div class="alert alert-danger small py-2 my-2 d-flex align-items-center gap-2"><i class="bi bi-exclamation-triangle-fill"></i><strong>This date/time has already passed.</strong> Reassign is blocked — use Reschedule to propose a new slot.</div>` : ''}
+              <div class="small text-warning mb-1"><i class="bi bi-info-circle me-1"></i>${i.reason}</div>
+              ${i.rescheduleRequest?.requested && i.rescheduleRequest?.status === 'pending' ? `
+              <div class="alert alert-warning small py-2 my-2">
+                <i class="bi bi-calendar-event me-1"></i><strong>Customer requests new schedule:</strong> ${i.rescheduleRequest.requestedDate} at ${i.rescheduleRequest.requestedTime}${i.rescheduleRequest.reason ? ' — ' + i.rescheduleRequest.reason : ''}
+              </div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <button class="btn btn-sm btn-success" onclick="approveReschedule('${i.id}')" title="Accept the customer's requested schedule and go to assign"><i class="bi bi-check-lg me-1"></i>Accept & Assign</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="rejectReschedule('${i.id}')" title="Reject the customer's request"><i class="bi bi-x-lg me-1"></i>Reject</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewDetail('${i.id}')"><i class="bi bi-eye me-1"></i>View Details</button>
+                ${i.phone ? `<a href="tel:${i.phone}" class="btn btn-sm btn-outline-success"><i class="bi bi-telephone me-1"></i>Call</a>` : ''}
+                <a href="mailto:${i.email}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope me-1"></i>Contact</a>
+              </div>` : `
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewDetail('${i.id}')" title="View Details"><i class="bi bi-eye me-1"></i>View Details</button>
+                ${i.status === 'pending_reassignment' && !i.isProposedPassed ? `<a href="/admin/appointments/queue?assign=${i.id}" class="btn btn-sm btn-outline-success" title="Assign a technician in the assignment queue"><i class="bi bi-person-plus me-1"></i>Reassign</a>` : ''}
+                ${i.requiresReschedule && (!i.proposedReschedule || i.proposedReschedule.status !== 'pending') ? `<button class="btn btn-sm btn-outline-info" onclick="openReschedule('${i.id}', '${i.reference}', ${i.serviceDurationMinutes || 60})"><i class="bi bi-calendar-event me-1"></i>${i.isProposedPassed ? 'Reschedule (required)' : 'Reschedule'}</button>` : ''}
+                ${i.phone ? `<a href="tel:${i.phone}" class="btn btn-sm btn-outline-success" title="Call customer"><i class="bi bi-telephone me-1"></i>Call</a>` : ''}
+                <a href="mailto:${i.email}" class="btn btn-sm btn-outline-secondary" title="Contact customer via email"><i class="bi bi-envelope me-1"></i>Contact</a>
+              </div>`}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function viewDetail(id) {
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    const body = document.getElementById('detailBody');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    modal.show();
+    try {
+      const res = await fetch(`/api/admin/appointments/${id}`);
+      const data = await res.json();
+      if (!data.booking) throw new Error('Booking not found');
+      const b = data.booking;
+      const date = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBD';
+      const phone = b.customer?.phone || b.customer?.mobile || '';
+      body.innerHTML = `
+        <div class="ent-detail-grid">
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon"><i class="bi bi-hash"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Reference</div><div class="ent-detail-card-value">${b.bookingReference || b.workOrderNumber || 'N/A'}</div></div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-tag"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Status</div><div class="ent-detail-card-value">${b.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div></div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#fff7ed;color:#c2410c;"><i class="bi bi-person"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer</div><div class="ent-detail-card-value">${b.customer?.name || 'N/A'}</div></div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-envelope"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Email</div><div class="ent-detail-card-value" style="font-size:0.85rem;">${b.customer?.email || 'N/A'}</div></div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-telephone"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Phone</div><div class="ent-detail-card-value">${phone ? `${phone} <a href="tel:${phone}" class="btn btn-sm btn-outline-success ms-1" title="Call customer"><i class="bi bi-telephone-fill"></i></a>` : 'N/A'}</div></div>
+          </div>
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#f5f3ff;color:#7c3aed;"><i class="bi bi-wrench"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Service</div><div class="ent-detail-card-value">${b.service?.name || (Array.isArray(b.services)&&b.services.length ? b.services.map(s=>s.name).join(', ') : (b.serviceModel === 'RepairService' ? 'Repair Service' : 'N/A'))}</div></div>
+          </div>
+          ${Array.isArray(b.services) && b.services.length > 0 ? `
+          <div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-box-seam"></i></div>
+            <div class="ent-detail-card-content" style="width:100%;">
+              <div class="ent-detail-card-label">Unit Details (${b.services.length} item${b.services.length>1?'s':''})</div>
+              ${b.services.map(function(s,i){
+                var t=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'—';
+                var bnd=s.brand||'—';
+                var q=Number(s.quantity)||1;
+                var h=s.hpDescription||(s.hp?s.hp+' HP':'—');
+                var sn=s.name||('Service '+(i+1));
+                var model=s.model||'—';
+                var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+                var stBadge=s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+                return '<div style="padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+                  '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+                    '<div style="font-weight:600;font-size:0.82rem;color:#1e293b;">'+sn+'</div>'+
+                    '<span style="'+stBadge+'padding:3px 8px;border-radius:6px;font-size:0.65rem;font-weight:600;">'+(s.type||'core').toUpperCase()+'</span>'+
+                  '</div>'+
+                  '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px;">'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Type</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+t+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Brand</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+bnd+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Model</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+model+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">HP / Qty</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+h+' / '+q+'</div></div>'+
+                  '</div>'+
+                  (issue?'<div style="margin-top:6px;"><span style="font-size:0.65rem;color:#64748b;">Problem</span><div style="font-size:0.75rem;color:#475569;line-height:1.4;">'+issue+'</div></div>':'')+
+                '</div>';
+              }).join('')}
+            </div>
+          </div>` : ''}
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-calendar-check"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Scheduled</div><div class="ent-detail-card-value">${date} ${b.startTime ? 'at ' + b.startTime : ''}</div></div>
+          </div>
+          ${b.technician?.name ? `
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#fffbeb;color:#b45309;"><i class="bi bi-person-badge"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Technician</div><div class="ent-detail-card-value">${b.technician.name}</div></div>
+          </div>` : ''}
+          ${b.totalPrice ? `
+          <div class="ent-detail-card">
+            <div class="ent-detail-card-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-cash"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Estimated Fee</div><div class="ent-detail-card-value">₱${b.totalPrice.toLocaleString()}</div></div>
+          </div>` : ''}
+          <div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Address</div><div class="ent-detail-card-value" style="white-space:pre-line;">${b.location?.address || 'N/A'}</div></div>
+          </div>
+          ${b.rescheduleReason ? `
+          <div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;">
+            <div class="ent-detail-card-icon" style="background:#fef3c7;color:#b45309;"><i class="bi bi-info-circle"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Attention Reason</div><div class="ent-detail-card-value" style="color:#b45309;">${b.rescheduleReason}</div></div>
+          </div>` : ''}
+          ${b.proposedReschedule?.status === 'pending' ? `
+          <div class="ent-detail-card ent-detail-card-wide" style="background:#eff6ff;border-color:#bfdbfe;">
+            <div class="ent-detail-card-icon" style="background:#dbeafe;color:#1d4ed8;"><i class="bi bi-calendar-check"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Proposed Reschedule</div><div class="ent-detail-card-value" style="color:#1d4ed8;">${b.proposedReschedule.dateLabel || new Date(b.proposedReschedule.date).toLocaleDateString('en-PH')} at ${b.proposedReschedule.timeLabel || b.proposedReschedule.time} — awaiting customer confirmation</div></div>
+          </div>` : ''}
+          ${b.proposedReschedule?.status === 'new_requested' ? `
+          <div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;">
+            <div class="ent-detail-card-icon" style="background:#fef3c7;color:#b45309;"><i class="bi bi-calendar-event"></i></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer Requests New Schedule</div><div class="ent-detail-card-value" style="color:#b45309;">${b.rescheduleRequest?.requestedDate} at ${b.rescheduleRequest?.requestedTime}${b.rescheduleRequest?.reason ? ' — ' + b.rescheduleRequest.reason : ''}</div></div>
+          </div>` : ''}
+        </div>`;
+    } catch (e) {
+      body.innerHTML = `<div class="text-center text-danger py-4">${e.message || 'Failed to load details'}</div>`;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     RESCHEDULE — EnterpriseCalendar (same as core services page)
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  async function openReschedule(id, ref, duration) {
+    rescheduleBookingId = id;
+    rescheduleRef = ref;
+
+    const modalEl = document.getElementById('rescheduleModal');
+    const body = document.getElementById('rescheduleBody');
+
+    // Build the container structure that EnterpriseCalendar renders into
+    body.innerHTML = `
+      <div class="rsch-booking-info">
+        <strong>Booking:</strong> ${ref} &nbsp;|&nbsp;
+        <small>Pick a new date and time from the calendar below</small>
+      </div>
+      <div id="calendarGrid"></div>
+      <div id="timeSelection" class="mt-3 d-none">
+        <div id="timeSlots"></div>
+      </div>
+    `;
+
+    new bootstrap.Modal(modalEl).show();
+
+    // Initialize EnterpriseCalendar — same as core services page
+    try {
+      await EnterpriseCalendar.init({
+        duration: duration || 60,
+        mode: 'appointment',
+        onSelect: rschOnCalendarSelect,
+      });
+    } catch (e) {
+      console.error('EnterpriseCalendar init failed:', e);
+    }
+  }
+
+  function rschOnCalendarSelect({ date, slot }) {
+    if (!date || !slot) return;
+    const dateStr = EnterpriseCalendar.formatDateKey(date);
+    const timeLabel = slot.label || slot.startTime;
+    const startTime = slot.startTime || slot.label;
+
+    if (!confirm(`Propose reschedule to ${date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at ${timeLabel}?`)) return;
+
+    rschSubmitProposal(dateStr, startTime, timeLabel);
+  }
+
+  async function rschSubmitProposal(dateStr, startTime, timeLabel) {
+    try {
+      const res = await fetch(`/api/admin/appointments/${rescheduleBookingId}/admin-reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newDate: dateStr,
+          newTime: startTime,
+          notifyCustomer: true
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reschedule failed');
+      bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
+      alert('Reschedule proposed. The customer has been notified via email and must confirm before a technician is assigned.');
+      loadQueue();
+    } catch (e) {
+      alert(e.message || 'Reschedule failed');
+    }
+  }
+
+  function filterBy(btn, status) {
+    currentFilter = status;
+    document.querySelectorAll('.status-tab').forEach(t => { t.classList.remove('active', 'btn-primary'); t.classList.add('btn-outline-secondary'); });
+    btn.classList.add('active', 'btn-primary');
+    btn.classList.remove('btn-outline-secondary');
+    loadQueue();
+  }
+
+  async function approveReschedule(id) {
+    if (!confirm('Accept the customer-requested schedule and proceed to assign a technician?')) return;
+    try {
+      const res = await fetch(`/api/appointments/${id}/reschedule-approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Approve failed');
+      window.location.href = `/admin/appointments/queue?assign=${id}`;
+    } catch (e) {
+      alert(e.message || 'Failed to approve reschedule');
+    }
+  }
+
+  async function rejectReschedule(id) {
+    const reason = prompt('Reason for rejecting the reschedule request:');
+    if (reason === null) return;
+    try {
+      const res = await fetch(`/api/appointments/${id}/reschedule-reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reject failed');
+      loadQueue();
+    } catch (e) {
+      alert(e.message || 'Failed to reject reschedule');
+    }
+  }
+
+  loadQueue();
+</script>

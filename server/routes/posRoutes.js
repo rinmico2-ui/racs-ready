@@ -19,7 +19,9 @@ function requireAdmin(req, res, next) {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/tools/generate-barcodes", requireAdmin, async (req, res) => {
   try {
-    const tools = await Tool.find({ $or: [{ barcode: { $exists: false } }, { barcode: "" }, { barcode: null }] }).lean();
+    const tools = await Tool.find({
+      $and: [Tool.merchandiseFilter(), { $or: [{ barcode: { $exists: false } }, { barcode: "" }, { barcode: null }] }],
+    }).lean();
     let updated = 0;
     for (const t of tools) {
       const base = `TOOL${t._id.toString().slice(-8).toUpperCase()}`;
@@ -47,7 +49,7 @@ router.use(requireAdmin);
 router.get("/tools", async (req, res) => {
   try {
     const { q, category, page = 1, limit = 50 } = req.query;
-    const filter = { active: true, isStockItem: true, status: { $ne: "discontinued" } };
+    const filter = { active: true, isStockItem: true, status: { $ne: "discontinued" }, $and: [Tool.merchandiseFilter()] };
 
     if (q && q.trim()) {
       const regex = new RegExp(q.trim(), "i");
@@ -102,7 +104,7 @@ router.get("/tools/barcode/:barcode", async (req, res) => {
     const barcode = req.params.barcode;
 
     // 1. Try Tool collection first
-    const tool = await Tool.findOne({ barcode, active: true, isStockItem: true }).lean();
+    const tool = await Tool.findOne({ barcode, active: true, isStockItem: true, $and: [Tool.merchandiseFilter()] }).lean();
     if (tool) {
       const available = Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
       if (available <= 0) return res.status(400).json({ error: "Item is out of stock" });
@@ -284,6 +286,7 @@ router.get("/categories", async (req, res) => {
       active: true,
       isStockItem: true,
       status: { $ne: "discontinued" },
+      $and: [Tool.merchandiseFilter()],
     });
     res.json({ categories: categories.filter(Boolean).sort() });
   } catch (err) {
@@ -364,6 +367,9 @@ router.post("/checkout", async (req, res) => {
         // Tool
         const tool = await Tool.findById(item.toolId).session(session);
         if (!tool) throw new Error(`Tool not found: ${item.toolId}`);
+        if (Tool.effectiveInventoryClass(tool) !== 'merchandise') {
+          throw new Error(`${tool.itemName} is an operational asset and cannot be sold`);
+        }
         if (!tool.active) throw new Error(`${tool.itemName} is no longer available`);
 
         available = (tool.quantity || 0) - (tool.reservedQuantity || 0);
@@ -445,6 +451,20 @@ router.post("/checkout", async (req, res) => {
     await sale.save({ session });
     await session.commitTransaction();
 
+    require("../utils/audit").logEvent({
+      actor: req.user && req.user._id,
+      action: "pos.sale.create",
+      module: "WalkInSale",
+      details: { invoiceNumber, customerName: sale.customerName, totalAmount, paymentMethod, itemCount: saleItems.length },
+      entityId: sale._id,
+      entityType: "WalkInSale",
+      category: "order",
+      actionType: "created",
+      actorRole: req.user && req.user.role,
+      actorName: (req.user && (req.user.name || req.user.email)) || "Admin",
+      req,
+    });
+
     // Return populated sale for receipt
     const receipt = await WalkInSale.findById(sale._id).lean();
     res.json({ success: true, sale: receipt });
@@ -462,10 +482,19 @@ router.post("/checkout", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/sales", async (req, res) => {
   try {
-    const { status, from, to, page = 1, limit = 20 } = req.query;
+    const { status, from, to, page = 1, limit = 20, q, category } = req.query;
     const filter = {};
 
     if (status) filter.status = status;
+    if (q) {
+      filter.$or = [
+        { invoiceNumber: { $regex: q, $options: "i" } },
+        { customerName: { $regex: q, $options: "i" } },
+      ];
+    }
+    if (category) {
+      filter.items = { $elemMatch: { category: { $regex: category, $options: "i" } } };
+    }
     if (from || to) {
       filter.createdAt = {};
       if (from) filter.createdAt.$gte = new Date(from);
@@ -546,6 +575,21 @@ router.post("/sales/:id/void", async (req, res) => {
     await sale.save({ session });
 
     await session.commitTransaction();
+
+    require("../utils/audit").logEvent({
+      actor: req.user && req.user._id,
+      action: "pos.sale.void",
+      module: "WalkInSale",
+      details: { invoiceNumber: sale.invoiceNumber, reason: sale.voidReason, totalAmount: sale.totalAmount },
+      entityId: sale._id,
+      entityType: "WalkInSale",
+      category: "order",
+      actionType: "deleted",
+      actorRole: req.user && req.user.role,
+      actorName: (req.user && (req.user.name || req.user.email)) || "Admin",
+      req,
+    });
+
     res.json({ success: true, sale });
   } catch (err) {
     await session.abortTransaction();

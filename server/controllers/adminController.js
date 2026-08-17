@@ -46,10 +46,31 @@ async function logAction(actorId, targetId, action, req, details) {
 
 exports.listCustomers = async (req, res, next) => {
   try {
-    const customers = await User.find({ role: "customer" }).select(
-      "-passwordHash -resetPasswordTokenHash -resetPasswordExpires",
-    );
-    res.json({ customers });
+    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+    const page = Math.max(0, Number(req.query.page) || 0);
+    const search = req.query.search ? String(req.query.search).trim() : "";
+
+    const filter = { role: "customer" };
+    if (search) {
+      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phone: regex },
+      ];
+    }
+
+    const [customers, total] = await Promise.all([
+      User.find(filter)
+        .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires")
+        .sort({ createdAt: -1 })
+        .skip(page * limit)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+    res.json({ customers, total, page, limit });
   } catch (err) {
     next(err);
   }
@@ -528,6 +549,165 @@ exports.listLogs = async (req, res, next) => {
   }
 };
 
+// Enterprise audit trail — aggregate stats for KPI cards + category chips
+exports.auditStats = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const [total, today, byCategory, weekSeries] = await Promise.all([
+      ActivityLog.countDocuments({}),
+      ActivityLog.countDocuments({ createdAt: { $gte: startOfDay } }),
+      ActivityLog.aggregate([
+        { $group: { _id: "$category", count: { $sum: 1 } } },
+      ]),
+      ActivityLog.aggregate([
+        { $match: { createdAt: { $gte: weekAgo } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    const catMap = byCategory.reduce((o, x) => {
+      o[x._id || "system"] = x.count;
+      return o;
+    }, {});
+
+    res.json({
+      total,
+      today,
+      byCategory: catMap,
+      weekSeries,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Enterprise audit trail — filterable, categorized, paginated, CSV-exportable
+exports.listAuditTrail = async (req, res, next) => {
+  try {
+    const {
+      category,
+      entityType,
+      actionType,
+      module: moduleFilter,
+      q = "",
+      actor,
+      referenceId,
+      from,
+      to,
+      page = 1,
+      limit = 25,
+      sort = "-createdAt",
+      format,
+    } = req.query;
+
+    const query = {};
+    if (category) query.category = category;
+    if (entityType) query.entityType = entityType;
+    if (actionType) query.actionType = actionType;
+    if (moduleFilter) query.module = moduleFilter;
+    if (actor && mongoose.Types.ObjectId.isValid(actor)) query.actor = actor;
+    if (referenceId && mongoose.Types.ObjectId.isValid(referenceId)) query.entityId = referenceId;
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) {
+        const t = new Date(to);
+        t.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = t;
+      }
+    }
+    if (q) {
+      const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      query.$or = [
+        { action: re },
+        { actorName: re },
+        { actorRole: re },
+        { entityType: re },
+        { module: re },
+      ];
+    }
+
+    const total = await ActivityLog.countDocuments(query);
+    const safeLimit = Math.min(Number(limit), 100);
+    const items = await ActivityLog.find(query)
+      .sort(sort)
+      .skip((Number(page) - 1) * safeLimit)
+      .limit(safeLimit)
+      .populate("actor", "email firstName lastName name role")
+      .lean();
+
+    const mapped = items.map((l) => ({
+      _id: l._id,
+      action: l.action,
+      category: l.category || "system",
+      entityType: l.entityType || "",
+      entityId: l.entityId || null,
+      actionType: l.actionType || "action",
+      module: l.module || (l.details && l.details.module) || "",
+      actor: l.actor ? l.actor._id : (l.actor || null),
+      actorEmail: l.actor && l.actor.email ? l.actor.email : (l.actorName || ""),
+      actorName:
+        l.actorName ||
+        (l.actor && l.actor.name) ||
+        (l.actor && l.actor.firstName && l.actor.lastName ? `${l.actor.firstName} ${l.actor.lastName}` : "") ||
+        "System",
+      actorRole: l.actorRole || (l.actor && l.actor.role) || "",
+      ip: l.ip || "",
+      details: l.details || {},
+      createdAt: l.createdAt,
+    }));
+
+    if (format === "csv") {
+      const head = ["Date", "Category", "Action", "Type", "Actor", "Role", "Entity", "Entity ID", "IP", "Details"];
+      const csv = [head, ...mapped.map((l) => [
+        l.createdAt ? new Date(l.createdAt).toISOString() : "",
+        l.category,
+        l.action,
+        l.actionType,
+        l.actorName,
+        l.actorRole,
+        l.entityType,
+        l.entityId ? l.entityId.toString() : "",
+        l.ip,
+        JSON.stringify(l.details),
+      ])].map((r) => r.map((c) => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", 'attachment; filename="audit-trail.csv"');
+      return res.send(csv);
+    }
+
+    const byActionType = await ActivityLog.aggregate([
+      { $match: query },
+      { $group: { _id: "$actionType", count: { $sum: 1 } } },
+    ]);
+
+    res.json({
+      items: mapped,
+      pagination: {
+        page: Number(page),
+        limit: safeLimit,
+        total,
+        pages: Math.ceil(total / safeLimit),
+      },
+      aggregates: {
+        byActionType: byActionType.reduce((o, x) => {
+          o[x._id || "action"] = x.count;
+          return o;
+        }, {}),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Analytics summary used by admin dashboard (returns operational metrics)
 exports.analyticsSummary = async (req, res, next) => {
   try {
@@ -548,6 +728,7 @@ exports.analyticsSummary = async (req, res, next) => {
     let data = {
       // KPIs
       totalBookingsToday: 0,
+      totalBookingsAllTime: 0,
       pendingReview: 0,
       awaitingAssignment: 0,
       activeServices: 0,
@@ -571,6 +752,9 @@ exports.analyticsSummary = async (req, res, next) => {
         inProgress: 0,
         completed: 0,
         cancelled: 0,
+        active: 0,
+        awaitingAssignment: 0,
+        assigned: 0,
       },
 
       // Schedule for today
@@ -629,54 +813,82 @@ exports.analyticsSummary = async (req, res, next) => {
     try {
       const BookingService = require("../models/BookingService");
 
+      // Total bookings today (by bookingDate OR createdAt)
       data.totalBookingsToday = await BookingService.countDocuments({
-        bookingDate: { $gte: startOfDay, $lte: endOfDay },
+        $or: [
+          { bookingDate: { $gte: startOfDay, $lte: endOfDay } },
+          { createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ],
       });
 
-      // Pipeline counts (all statuses)
+      // Total all-time bookings count
+      data.totalBookingsAllTime = await BookingService.countDocuments();
+
+      // Pipeline counts (all statuses) — single aggregation for efficiency
       var pipelineRaw = await BookingService.aggregate([
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]);
       var pipeMap = {};
       pipelineRaw.forEach(function (p) { pipeMap[p._id] = p.count; });
-      data.pipeline.pending = pipeMap.pending || 0;
-      data.pipeline.confirmed = pipeMap.confirmed || 0;
-      data.pipeline.scheduled = pipeMap.scheduled || 0;
+      console.log('[DEBUG] Pipeline:', JSON.stringify(pipeMap), 'TotalBookingsToday:', data.totalBookingsToday);
+
+      // Active statuses: anything that isn't completed, cancelled, closed, no-show, rejected
+      var activeStatuses = [
+        "pending", "confirmed", "scheduled", "on-the-way", "arrived", "in-progress",
+        "awaiting_assignment", "assigned", "pending_reassignment",
+        "repair_requested", "pending_inspection", "inspection_scheduled",
+        "inspection_in_progress", "inspection_completed", "awaiting_approval",
+        "repair_approved", "waiting_parts", "parts_reserved", "ready_for_repair",
+        "repair_scheduled", "repair_in_progress", "payment_verified",
+        "under_warranty", "warranty_claim", "re-scheduled"
+      ];
+
+      // Compute pipeline totals from pipeMap
+      var totalActive = 0;
+      activeStatuses.forEach(function (s) { totalActive += pipeMap[s] || 0; });
+      data.pipeline.active = totalActive;
+      data.pipeline.pending = (pipeMap.pending || 0) + (pipeMap.payment_verified || 0);
+      data.pipeline.confirmed = (pipeMap.confirmed || 0) + (pipeMap.scheduled || 0);
       data.pipeline.onTheWay = pipeMap["on-the-way"] || 0;
       data.pipeline.arrived = pipeMap.arrived || 0;
-      data.pipeline.inProgress = pipeMap["in-progress"] || 0;
+      data.pipeline.inProgress = (pipeMap["in-progress"] || 0) + (pipeMap.repair_in_progress || 0) + (pipeMap.inspection_in_progress || 0);
       data.pipeline.completed = pipeMap.completed || 0;
-      data.pipeline.cancelled = pipeMap.cancelled || 0;
+      data.pipeline.cancelled = (pipeMap.cancelled || 0) + (pipeMap.rejected || 0) + (pipeMap["no-show"] || 0);
+      data.pipeline.awaitingAssignment = (pipeMap.awaiting_assignment || 0) + (pipeMap.pending_reassignment || 0);
+      data.pipeline.assigned = pipeMap.assigned || 0;
 
-      // Pending Review = paymentStatus "pending"
+      // Pending Review = paymentStatus "pending" or "partial"
       data.pendingReview = await BookingService.countDocuments({
-        paymentStatus: "pending",
-      }).catch(function () { return data.pipeline.pending; });
-
-      // Awaiting Assignment = confirmed + no technicianId
-      data.awaitingAssignment = await BookingService.countDocuments({
-        status: "confirmed",
-        technicianId: { $exists: false },
+        paymentStatus: { $in: ["pending", "partial"] },
       }).catch(function () { return 0; });
-      // Also consider confirmed with null technicianId
-      var awaitingTechNull = await BookingService.countDocuments({
-        status: "confirmed",
-        technicianId: null,
-      }).catch(function () { return 0; });
-      data.awaitingAssignment += awaitingTechNull;
 
-      // Active Services = on-the-way + arrived + in-progress
-      data.activeServices = data.pipeline.onTheWay + data.pipeline.arrived + data.pipeline.inProgress;
+      // Awaiting Assignment = awaiting_assignment status OR confirmed with no technician
+      data.awaitingAssignment = (pipeMap.awaiting_assignment || 0) + (pipeMap.pending_reassignment || 0);
+      var awaitConfirmedNoTech = await BookingService.countDocuments({
+        status: "confirmed",
+        technicianId: { $in: [null, undefined] },
+      }).catch(function () { return 0; });
+      data.awaitingAssignment += awaitConfirmedNoTech;
+
+      // Active Services = all statuses that mean work is in progress
+      data.activeServices = data.pipeline.onTheWay + data.pipeline.arrived + data.pipeline.inProgress
+        + data.pipeline.assigned + data.pipeline.awaitingAssignment;
 
       data.completedToday = await BookingService.countDocuments({
         status: "completed",
-        bookingDate: { $gte: startOfDay, $lte: endOfDay },
+        $or: [
+          { bookingDate: { $gte: startOfDay, $lte: endOfDay } },
+          { createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ],
       });
 
       // Today's schedule (upcoming, sorted)
       var scheduleItems = await BookingService.find({
-        bookingDate: { $gte: startOfDay, $lte: endOfDay },
-        status: { $nin: ["cancelled", "completed"] },
+        $or: [
+          { bookingDate: { $gte: startOfDay, $lte: endOfDay } },
+          { createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ],
+        status: { $nin: ["cancelled", "completed", "closed", "no-show", "rejected"] },
       })
         .sort({ startTime: 1 })
         .limit(10)
@@ -709,7 +921,10 @@ exports.analyticsSummary = async (req, res, next) => {
         var dEnd = new Date(d);
         dEnd.setHours(23, 59, 59, 999);
         var cnt = await BookingService.countDocuments({
-          bookingDate: { $gte: d, $lte: dEnd },
+          $or: [
+            { bookingDate: { $gte: d, $lte: dEnd } },
+            { createdAt: { $gte: d, $lte: dEnd } }
+          ],
         }).catch(function () { return 0; });
         var dayLabel = d.toLocaleDateString("en", { weekday: "short" });
         trendData.push({ date: dayLabel, count: cnt });
@@ -737,6 +952,7 @@ exports.analyticsSummary = async (req, res, next) => {
       data.notifications = notes;
 
     } catch (e) {
+      console.error('[analyticsSummary] BookingService error:', e.message);
       // fallback: try ActivityLog
       try {
         var ActivityLog = require("../models/ActivityLog");
@@ -773,25 +989,88 @@ exports.analyticsSummary = async (req, res, next) => {
       data.totalTechnicians = 0;
     }
 
-    // ── Payment data ──
+    // ── Revenue data (all sources: services, POS, orders) ──
     try {
       var Payment = require("../models/Payment");
+      var BookingService = require("../models/BookingService");
+      var WalkInSale = require("../models/WalkInSale");
+      var Order = require("../models/Order");
+      var paidStatuses = ["paid", "payment_collected", "waiting_for_remittance", "remitted", "verified"];
+      var allCompletedBookingStatuses = [
+        "completed", "repair_completed", "under_warranty", "warranty_claim"
+      ];
 
-      // Today's paid revenue
-      var todayAgg = await Payment.aggregate([
-        { $match: { submittedAt: { $gte: startOfDay, $lte: endOfDay }, status: "paid" } },
+      // Helper: build date range filter for a given date field
+      function dateRange(fieldName, start, end) {
+        var f = {};
+        f[fieldName] = { $gte: start, $lte: end };
+        return f;
+      }
+
+      // ── Today's Revenue ──
+      // 1) Payments (service payments)
+      var todayPaymentAgg = await Payment.aggregate([
+        { $match: { submittedAt: { $gte: startOfDay, $lte: endOfDay }, status: { $in: paidStatuses } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]);
-      data.revenueToday = (todayAgg && todayAgg[0]) ? todayAgg[0].total : 0;
+      var todayPayments = (todayPaymentAgg && todayPaymentAgg[0]) ? todayPaymentAgg[0].total : 0;
 
-      // Monthly revenue
-      var monthAgg = await Payment.aggregate([
-        { $match: { submittedAt: { $gte: startOfMonth, $lte: endOfDay }, status: "paid" } },
+      // 2) Booking services (completed today, totalPrice)
+      var todayBookingsAgg = await BookingService.aggregate([
+        { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", startOfDay, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+      ]);
+      var todayBookings = (todayBookingsAgg && todayBookingsAgg[0]) ? todayBookingsAgg[0].total : 0;
+
+      // 3) Walk-in POS sales (completed today)
+      var todayPosAgg = await WalkInSale.aggregate([
+        { $match: { status: "completed", ...dateRange("completedAt", startOfDay, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ]);
+      var todayPos = (todayPosAgg && todayPosAgg[0]) ? todayPosAgg[0].total : 0;
+
+      // 4) Product orders (completed today)
+      var todayOrdersAgg = await Order.aggregate([
+        { $match: { status: "completed", ...dateRange("updatedAt", startOfDay, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$total" } } },
+      ]);
+      var todayOrders = (todayOrdersAgg && todayOrdersAgg[0]) ? todayOrdersAgg[0].total : 0;
+
+      data.revenueToday = todayPayments + todayBookings + todayPos + todayOrders;
+      data.revenueBreakdown = {
+        services: todayPayments + todayBookings,
+        pos: todayPos,
+        orders: todayOrders,
+      };
+
+      // ── Monthly Revenue ──
+      var monthPaymentAgg = await Payment.aggregate([
+        { $match: { submittedAt: { $gte: startOfMonth, $lte: endOfDay }, status: { $in: paidStatuses } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]);
-      data.monthlyRevenue = (monthAgg && monthAgg[0]) ? monthAgg[0].total : 0;
+      var monthPayments = (monthPaymentAgg && monthPaymentAgg[0]) ? monthPaymentAgg[0].total : 0;
 
-      // Pending payments (pending + partial)
+      var monthBookingsAgg = await BookingService.aggregate([
+        { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", startOfMonth, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+      ]);
+      var monthBookings = (monthBookingsAgg && monthBookingsAgg[0]) ? monthBookingsAgg[0].total : 0;
+
+      var monthPosAgg = await WalkInSale.aggregate([
+        { $match: { status: "completed", ...dateRange("completedAt", startOfMonth, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ]);
+      var monthPos = (monthPosAgg && monthPosAgg[0]) ? monthPosAgg[0].total : 0;
+
+      var monthOrdersAgg = await Order.aggregate([
+        { $match: { status: "completed", ...dateRange("updatedAt", startOfMonth, endOfDay) } },
+        { $group: { _id: null, total: { $sum: "$total" } } },
+      ]);
+      var monthOrders = (monthOrdersAgg && monthOrdersAgg[0]) ? monthOrdersAgg[0].total : 0;
+
+      data.monthlyRevenue = monthPayments + monthBookings + monthPos + monthOrders;
+
+      // ── Pending payments ──
       var pendingAgg = await Payment.aggregate([
         { $match: { status: { $in: ["pending", "partial"] } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
@@ -802,6 +1081,7 @@ exports.analyticsSummary = async (req, res, next) => {
       data.revenueToday = 0;
       data.monthlyRevenue = 0;
       data.pendingPayments = 0;
+      data.revenueBreakdown = { services: 0, pos: 0, orders: 0 };
     }
 
     // ── Low stock ──
@@ -874,6 +1154,19 @@ exports.analyticsSummary = async (req, res, next) => {
     try {
       var Expense = require("../models/Expense");
       var Payment = require("../models/Payment");
+      var BookingService = require("../models/BookingService");
+      var WalkInSale = require("../models/WalkInSale");
+      var Order = require("../models/Order");
+      var paidStatuses = ["paid", "payment_collected", "waiting_for_remittance", "remitted", "verified"];
+      var allCompletedBookingStatuses = [
+        "completed", "repair_completed", "under_warranty", "warranty_claim"
+      ];
+
+      function dateRange(fieldName, start, end) {
+        var f = {};
+        f[fieldName] = { $gte: start, $lte: end };
+        return f;
+      }
 
       // Monthly approved expenses
       var expAgg = await Expense.aggregate([
@@ -887,31 +1180,66 @@ exports.analyticsSummary = async (req, res, next) => {
         data.profitMargin = Math.round(((data.monthlyRevenue - data.monthlyExpenses) / data.monthlyRevenue) * 100);
       }
 
-      // Last month revenue
+      // Last month revenue (all sources)
       var lastMonthStart = new Date(startOfMonth);
       lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
       var lastMonthEnd = new Date(startOfMonth);
       lastMonthEnd.setDate(0);
       lastMonthEnd.setHours(23, 59, 59, 999);
       try {
-        var lastMonthAgg = await Payment.aggregate([
-          { $match: { submittedAt: { $gte: lastMonthStart, $lte: lastMonthEnd }, status: "paid" } },
+        var lmPayments = await Payment.aggregate([
+          { $match: { submittedAt: { $gte: lastMonthStart, $lte: lastMonthEnd }, status: { $in: paidStatuses } } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]);
-        data.lastMonthRevenue = (lastMonthAgg && lastMonthAgg[0]) ? lastMonthAgg[0].total : 0;
+        var lmBookings = await BookingService.aggregate([
+          { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", lastMonthStart, lastMonthEnd) } },
+          { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+        ]);
+        var lmPos = await WalkInSale.aggregate([
+          { $match: { status: "completed", ...dateRange("completedAt", lastMonthStart, lastMonthEnd) } },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]);
+        var lmOrders = await Order.aggregate([
+          { $match: { status: "completed", ...dateRange("updatedAt", lastMonthStart, lastMonthEnd) } },
+          { $group: { _id: null, total: { $sum: "$total" } } },
+        ]);
+        data.lastMonthRevenue =
+          ((lmPayments && lmPayments[0]) ? lmPayments[0].total : 0) +
+          ((lmBookings && lmBookings[0]) ? lmBookings[0].total : 0) +
+          ((lmPos && lmPos[0]) ? lmPos[0].total : 0) +
+          ((lmOrders && lmOrders[0]) ? lmOrders[0].total : 0);
       } catch (e) {}
 
-      // Revenue trend (last 7 days, per day)
+      // Revenue trend (last 7 days, per day — all sources)
       try {
         var revTrend = [];
         for (var ri = 6; ri >= 0; ri--) {
           var rd = new Date(); rd.setDate(rd.getDate() - ri); rd.setHours(0, 0, 0, 0);
           var rdEnd = new Date(rd); rdEnd.setHours(23, 59, 59, 999);
-          var revAgg = await Payment.aggregate([
-            { $match: { submittedAt: { $gte: rd, $lte: rdEnd }, status: "paid" } },
+          var rdRange = { $gte: rd, $lte: rdEnd };
+
+          var rPay = await Payment.aggregate([
+            { $match: { submittedAt: rdRange, status: { $in: paidStatuses } } },
             { $group: { _id: null, total: { $sum: "$amount" } } },
           ]).catch(() => []);
-          var revDay = (revAgg && revAgg[0]) ? revAgg[0].total : 0;
+          var rBook = await BookingService.aggregate([
+            { $match: { status: { $in: allCompletedBookingStatuses }, bookingDate: rdRange } },
+            { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+          ]).catch(() => []);
+          var rPos = await WalkInSale.aggregate([
+            { $match: { status: "completed", completedAt: rdRange } },
+            { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+          ]).catch(() => []);
+          var rOrd = await Order.aggregate([
+            { $match: { status: "completed", updatedAt: rdRange } },
+            { $group: { _id: null, total: { $sum: "$total" } } },
+          ]).catch(() => []);
+
+          var revDay =
+            ((rPay && rPay[0]) ? rPay[0].total : 0) +
+            ((rBook && rBook[0]) ? rBook[0].total : 0) +
+            ((rPos && rPos[0]) ? rPos[0].total : 0) +
+            ((rOrd && rOrd[0]) ? rOrd[0].total : 0);
           revTrend.push({ date: rd.toLocaleDateString("en", { weekday: "short" }), amount: revDay });
         }
         data.revenueTrend7 = revTrend;
@@ -972,9 +1300,71 @@ exports.analyticsSummary = async (req, res, next) => {
       }
     } catch (e) {}
 
+    // ── Orders Summary ──
+    try {
+      var Order = require("../models/Order");
+      data.ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startOfMonth } }).catch(() => 0);
+      data.totalOrdersAllTime = await Order.countDocuments({}).catch(() => 0);
+      data.todayOrders = await Order.countDocuments({ createdAt: { $gte: startOfDay, $lte: endOfDay } }).catch(() => 0);
+
+      var ordLastMonthStart = new Date(startOfMonth);
+      ordLastMonthStart.setMonth(ordLastMonthStart.getMonth() - 1);
+      var ordLastMonthEnd = new Date(startOfMonth);
+      ordLastMonthEnd.setDate(0);
+      ordLastMonthEnd.setHours(23, 59, 59, 999);
+
+      data.ordersLastMonth = await Order.countDocuments({ createdAt: { $gte: ordLastMonthStart, $lte: ordLastMonthEnd } }).catch(() => 0);
+
+      var orderRevenueAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: startOfMonth }, paymentStatus: { $in: ["paid", "verified", "payment_collected", "remitted"] } } },
+        { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }
+      ]).catch(() => []);
+      data.orderRevenue = (orderRevenueAgg && orderRevenueAgg[0]) ? orderRevenueAgg[0].total : 0;
+
+      var ordersByStatusRaw = await Order.aggregate([
+        { $match: { createdAt: { $gte: startOfMonth } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]).catch(() => []);
+      data.ordersByStatus = {};
+      ordersByStatusRaw.forEach(function(o) { data.ordersByStatus[o._id] = o.count; });
+
+      data.recentOrders = await Order.find({}).sort({ createdAt: -1 }).limit(5)
+        .select("orderReference status total paymentStatus createdAt customer")
+        .lean().catch(() => []);
+    } catch (e) {}
+
+    console.log('[DEBUG] analyticsSummary returning:', JSON.stringify({totalBookingsToday: data.totalBookingsToday, pendingReview: data.pendingReview, awaitingAssignment: data.awaitingAssignment, activeServices: data.activeServices, revenueToday: data.revenueToday, totalTechs: data.totalTechnicians, availableTechs: data.availableTechnicians}));
     res.json(data);
   } catch (err) {
     next(err);
+  }
+};
+
+// Debug endpoint — remove after verifying
+exports.debugCounts = async (req, res) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Payment = require("../models/Payment");
+    const Order = require("../models/Order");
+    const Technician = require("../models/Technician");
+
+    const totalBookings = await BookingService.countDocuments();
+    const bookingStatuses = await BookingService.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
+    const bookingPaymentStatuses = await BookingService.aggregate([{ $group: { _id: "$paymentStatus", count: { $sum: 1 } } }]);
+    const totalPayments = await Payment.countDocuments();
+    const paymentStatuses = await Payment.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
+    const totalOrders = await Order.countDocuments();
+    const totalTechs = await Technician.countDocuments();
+
+    res.json({
+      bookings: { total: totalBookings, byStatus: bookingStatuses, byPaymentStatus: bookingPaymentStatuses },
+      payments: { total: totalPayments, byStatus: paymentStatuses },
+      orders: { total: totalOrders },
+      technicians: { total: totalTechs },
+    });
+  } catch (e) {
+    res.json({ error: e.message });
   }
 };
 
@@ -2224,12 +2614,46 @@ exports.editInventory = async (req, res, next) => {
 exports.listTools = async (req, res, next) => {
   try {
     const Tool   = require("../models/Tool");
+    const ServiceToolUsage = require("../models/ServiceToolUsage");
     const filter = { active: true };
     if (req.query.showAll === "1") delete filter.active;
 
     const tools = await Tool.find(filter)
       .sort({ itemName: 1 })
       .lean();
+
+    // Expose a deterministic class for legacy rows without mutating them.
+    tools.forEach((tool) => {
+      tool.inventoryClass = Tool.effectiveInventoryClass(tool);
+    });
+
+    // Backfill missing type field
+    const bulkOps = tools.filter(t => !t.type).map(t => ({
+      updateOne: { filter: { _id: t._id }, update: { $set: { type: 'part' } } }
+    }));
+    if (bulkOps.length > 0) {
+      await Tool.bulkWrite(bulkOps, { ordered: false });
+      tools.forEach(t => { if (!t.type) t.type = 'part'; });
+    }
+
+    // Compute consumed quantities per tool
+    // `lean()` preserves `_id` as an ObjectId. Reuse those values directly:
+    // Mongoose 9's ObjectId is a class and throws when invoked without `new`.
+    // The previous conversion therefore made the entire catalog endpoint fail.
+    const toolIds = tools.map((tool) => tool._id).filter(Boolean);
+    const consumedAgg = await ServiceToolUsage.aggregate([
+      { $match: { toolItemId: { $in: toolIds } } },
+      { $group: { _id: "$toolItemId", consumed: { $sum: "$quantityUsed" } } },
+    ]);
+    const consumedMap = new Map(consumedAgg.map(c => [c._id.toString(), c.consumed]));
+
+    tools.forEach(t => {
+      const reserved = t.reservedQuantity || 0;
+      const consumed = consumedMap.get(t._id.toString()) || 0;
+      t.reserved = reserved;
+      t.consumed = consumed;
+      t.available = Math.max(0, (t.quantity || 0) - reserved);
+    });
 
     return res.json({ tools, count: tools.length });
   } catch (err) {
@@ -2246,28 +2670,49 @@ exports.createTool = async (req, res, next) => {
     const Tool = require("../models/Tool");
     const {
       itemName, unit, quantity, minStockLevel,
-      costPrice, sellingPrice, specification, description, supplier, category,
-      serialNumber,
+      costPrice, sellingPrice, specification, description, supplier, category, type,
+      serialNumber, inventoryClass, assetCode, assetCondition, assetStatus,
+      maintenanceIntervalDays, lastMaintenanceAt, assignable,
     } = req.body || {};
 
     if (!itemName || String(itemName).trim() === "") {
       return res.status(400).json({ error: "itemName is required" });
     }
 
-    const tool = new Tool({
+    const normalizedClass = inventoryClass || (["equipment", "tool"].includes(type) ? "operational_asset" : "merchandise");
+    if (!['merchandise', 'operational_asset'].includes(normalizedClass)) {
+      return res.status(400).json({ error: "Invalid inventory class" });
+    }
+
+    const toolData = {
       itemName:      String(itemName).trim(),
       unit:          unit          || "pcs",
       quantity:      Number(quantity)     || 0,
-      minStockLevel: Number(minStockLevel) || 3,
+      minStockLevel: Number.isFinite(Number(minStockLevel)) ? Number(minStockLevel) : 3,
       costPrice:     Number(costPrice)    || 0,
-      sellingPrice:  Number(sellingPrice) || 0,
+      sellingPrice:  normalizedClass === "merchandise" ? (Number(sellingPrice) || 0) : 0,
       specification: specification || null,
       description:   description   || null,
       supplier:      supplier      || null,
       category:      category      || "General",
-      serialNumber:  serialNumber  || null,
+      type:          type          || "part",
+      inventoryClass: normalizedClass,
+      assetCondition: assetCondition || "good",
+      assetStatus: assetStatus || "available",
+      maintenanceIntervalDays: Number(maintenanceIntervalDays) || 0,
+      lastMaintenanceAt: lastMaintenanceAt || null,
+      assignable: assignable !== false && assignable !== "false",
       active:        true,
-    });
+    };
+    // Sparse unique indexes only ignore an absent field; an explicit null can
+    // still collide with another null value in MongoDB.
+    if (normalizedClass === "operational_asset" && String(assetCode || "").trim()) {
+      toolData.assetCode = String(assetCode).trim();
+    }
+    if (String(serialNumber || "").trim()) {
+      toolData.serialNumber = String(serialNumber).trim();
+    }
+    const tool = new Tool(toolData);
     await tool.save();
 
     await logAction(req.user._id, tool._id, "tool.create", req, {
@@ -2275,7 +2720,12 @@ exports.createTool = async (req, res, next) => {
     });
     return res.status(201).json({ message: "Tool created", tool });
   } catch (err) {
-    next(err);
+    console.error("[createTool] Error:", err.message, err.stack);
+    if (err?.code === 11000) {
+      const field = Object.keys(err.keyPattern || err.keyValue || {})[0] || "identifier";
+      return res.status(409).json({ error: `Another inventory item already uses this ${field}.` });
+    }
+    return res.status(500).json({ error: err.message || "Failed to create tool" });
   }
 };
 
@@ -2318,12 +2768,23 @@ exports.editTool = async (req, res, next) => {
 
     const allowed = [
       "itemName","unit","quantity","minStockLevel","costPrice","sellingPrice",
-      "specification","description","supplier","status","active","category",
-      "serialNumber",
+      "specification","description","supplier","status","active","category","type",
+      "serialNumber","inventoryClass","assetCode","assetCondition","assetStatus",
+      "maintenanceIntervalDays","lastMaintenanceAt","assignable",
     ];
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) tool[key] = req.body[key];
     });
+    if (!['merchandise', 'operational_asset'].includes(tool.inventoryClass)) {
+      return res.status(400).json({ error: "Invalid inventory class" });
+    }
+    if (tool.inventoryClass === 'operational_asset') {
+      tool.sellingPrice = 0;
+      if (!String(tool.assetCode || '').trim()) tool.assetCode = undefined;
+    } else {
+      tool.assetCode = undefined;
+    }
+    if (!String(tool.serialNumber || '').trim()) tool.serialNumber = undefined;
 
     await tool.save();
     await logAction(req.user._id, tool._id, "tool.edit", req, {
@@ -2331,6 +2792,10 @@ exports.editTool = async (req, res, next) => {
     });
     return res.json({ message: "Tool updated", tool });
   } catch (err) {
+    if (err?.code === 11000) {
+      const field = Object.keys(err.keyPattern || err.keyValue || {})[0] || "identifier";
+      return res.status(409).json({ error: `Another inventory item already uses this ${field}.` });
+    }
     next(err);
   }
 };

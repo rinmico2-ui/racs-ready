@@ -10,6 +10,11 @@ const serviceToolUsageSchema = new mongoose.Schema(
       set: (v) => (v === "" || v === null ? undefined : v),
       // null means the usage is not tied to a specific appointment
     },
+    serviceItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
     technicianId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Technician",
@@ -36,6 +41,11 @@ const serviceToolUsageSchema = new mongoose.Schema(
 
     // Snapshots preserve historical accuracy even if inventory changes later.
     itemName: { type: String, required: true, trim: true },
+    itemType: {
+      type: String,
+      enum: ["equipment", "part", "consumable", "tool"],
+      default: "part",
+    },
     unit: { type: String, default: "pcs", trim: true },
 
     quantityUsed: {
@@ -85,6 +95,7 @@ const serviceToolUsageSchema = new mongoose.Schema(
 );
 
 serviceToolUsageSchema.index({ bookingId: 1, usedAt: -1 });
+serviceToolUsageSchema.index({ bookingId: 1, serviceItemId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ technicianId: 1, usedAt: -1 });
 
 module.exports = mongoose.model("ServiceToolUsage", serviceToolUsageSchema);

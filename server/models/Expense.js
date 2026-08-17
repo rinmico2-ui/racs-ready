@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
  * Expense — Fuel records, material costs, and general expenses logged by technicians.
  * Supports admin approval workflow.
  */
-const EXPENSE_TYPES = ["fuel", "material", "transport", "meal", "other"];
+const EXPENSE_TYPES = ["fuel", "parking", "toll", "external_parts", "meal", "other", "material", "transport"];
 const EXPENSE_STATUSES = ["pending", "approved", "rejected"];
 
 const expenseSchema = new mongoose.Schema(
@@ -116,6 +116,9 @@ expenseSchema.index({ technicianId: 1, bookingId: 1 });
 expenseSchema.virtual("typeLabel").get(function () {
   const labels = {
     fuel: "Fuel",
+    parking: "Parking",
+    toll: "Toll",
+    external_parts: "External Parts",
     material: "Materials",
     transport: "Transport",
     meal: "Meal",

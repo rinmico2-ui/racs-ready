@@ -58,6 +58,9 @@ const technicianAttendanceSchema = new mongoose.Schema(
       default: null,
     },
 
+    noExpensesTodayConfirmed: { type: Boolean, default: false },
+    noExpensesTodayConfirmedAt: { type: Date, default: null },
+
     /**
      * Whether attendance was verified
      * through QR code.

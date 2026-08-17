@@ -1,0 +1,252 @@
+<div class="main-content"><div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .inventory-premium .table-dense th,
+    .inventory-premium .table-dense td { padding: 0.6rem 1rem; font-size: 0.85rem; }
+    .inventory-premium .table-dense th { font-weight: 700; color: #475569; white-space: nowrap; }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inv-pagination {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .inv-pagination .page-item .page-link {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1.5px solid rgba(148,163,184,0.3);
+      background: rgba(255,255,255,0.8);
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+    .inv-kpi-spark-wrap { width: 100%; height: 36px; margin-top: 10px; }
+    .inv-kpi-spark { width: 100%; height: 100%; display: block; }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-receipt"></i></div>
+        <div>
+          <h1>Invoices</h1>
+          <p>Unified invoices for service bookings, large projects, product orders, and POS sales.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">All Invoices</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="invAll">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
+            </div>
+            <span class="inv-kpi-sub">Total unified invoices</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-receipt"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="invSparkAll"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Bookings / Projects</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="invBookings">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Bookings</span>
+            </div>
+            <span class="inv-kpi-sub">Service &amp; project invoices</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-calendar-check"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="invSparkBookings"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Product Orders</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="invOrders">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-info-subtle text-info">Orders</span>
+            </div>
+            <span class="inv-kpi-sub">Product purchase invoices</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
+            <i class="bi bi-box-seam"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="invSparkOrders"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">POS Sales</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="invPos">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">POS</span>
+            </div>
+            <span class="inv-kpi-sub">Point-of-sale invoices</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-cash-stack"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="invSparkPos"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toolbar">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label">Search</label>
+      <input id="invSearch" class="form-control rp-filter-input" placeholder="Search invoice, reference, or customer" oninput="renderInvoices()">
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Source</label>
+      <select id="invSource" class="form-select rp-filter-input" onchange="renderInvoices()">
+        <option value="">All sources</option>
+        <option>Service Booking</option>
+        <option>Large Project</option>
+        <option>Product Order</option>
+        <option>POS Sale</option>
+      </select>
+    </div>
+    <button class="btn btn-primary rp-filter-btn" onclick="loadInvoices()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-semibold"><i class="bi bi-receipt me-2"></i>Invoice Records</h5>
+      <span class="badge bg-secondary-subtle text-secondary" id="invCount">0</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-dense align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th><i class="bi bi-hash me-1"></i>Invoice No.</th>
+              <th><i class="bi bi-tag me-1"></i>Source</th>
+              <th><i class="bi bi-upc-scan me-1"></i>Reference</th>
+              <th><i class="bi bi-person me-1"></i>Customer</th>
+              <th><i class="bi bi-cash-coin me-1"></i>Amount</th>
+              <th><i class="bi bi-wallet me-1"></i>Method</th>
+              <th><i class="bi bi-calendar me-1"></i>Issued</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="invoiceRows"><tr><td colspan="8" class="text-center py-5">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer bg-white py-3 border-top" id="invoiceFooter"></div>
+  </div>
+</div></div>
+<script>
+let INV=[];let currentPage=1;const pageSize=10;let invFiltered=[];const invoiceFooter=document.getElementById('invoiceFooter');const ie=v=>String(v??'—').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function loadInvoices(){const r=await fetch('/api/admin/invoices'),d=await r.json();if(!r.ok){document.getElementById('invoiceRows').innerHTML=`<tr><td colspan="8" class="text-center text-danger py-5">${ie(d.error||'Unable to load invoices')}</td></tr>`;return;}INV=d.invoices||[];const c=d.counts||{};document.getElementById('invAll').textContent=c.total||0;document.getElementById('invBookings').textContent=c.bookings||0;document.getElementById('invOrders').textContent=c.orders||0;document.getElementById('invPos').textContent=c.pos||0;renderInvoices()}
+function renderInvoices(){const q=document.getElementById('invSearch').value.toLowerCase(),source=document.getElementById('invSource').value;const rows=INV.filter(i=>(!source||i.source===source)&&JSON.stringify(i).toLowerCase().includes(q));document.getElementById('invCount').textContent=rows.length;invFiltered=rows;currentPage=1;renderPage(1,rows);}
+function renderPage(page, items){const start=(page-1)*pageSize;const slice=items.slice(start,start+pageSize);if(!slice.length){document.getElementById('invoiceRows').innerHTML='<tr><td colspan="8" class="text-center text-muted py-5">No invoices found.</td></tr>';invoiceFooter.innerHTML='<nav aria-label="Invoice pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';return;}const pillMap={'POS Sale':'bg-info-subtle text-info','Product Order':'bg-primary-subtle text-primary','Service Booking':'bg-success-subtle text-success','Large Project':'bg-success-subtle text-success'};document.getElementById('invoiceRows').innerHTML=slice.map(i=>{const pill=pillMap[i.source]||'bg-secondary-subtle text-secondary';return `<tr><td class="fw-semibold">${ie(i.invoiceNumber)}</td><td><span class="badge ${pill}">${ie(i.source)}</span></td><td>${ie(i.reference)}</td><td>${ie(i.customer?.name)}</td><td class="fw-semibold">₱${Number(i.amount||0).toLocaleString()}</td><td>${ie(i.paymentMethod).replaceAll('_',' ').toUpperCase()}</td><td>${i.issuedAt?new Date(i.issuedAt).toLocaleString('en-PH'):'—'}</td><td><button class="btn btn-sm btn-outline-primary" onclick="printInvoice('${ie(i._id)}')"><i class="bi bi-printer"></i> Print</button></td></tr>`}).join('');renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);}
+function renderPagination(page, pages, total){const disabled=total===0;const nav=`<nav aria-label="Invoice pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item ${page<=1||disabled?'disabled':''}"><a class="page-link" href="javascript:void(0)" data-page="${page-1}">‹ Prev</a></li><li class="page-item active"><span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span></li><li class="page-item ${page>=pages||disabled?'disabled':''}"><a class="page-link" href="javascript:void(0)" data-page="${page+1}">Next ›</a></li></ul></nav>`;invoiceFooter.innerHTML=nav;invoiceFooter.querySelectorAll('.page-link[data-page]').forEach(el=>{el.addEventListener('click',e=>{e.preventDefault();const target=e.target.closest('.page-link');const newPage=parseInt(target?.dataset.page);if(!target?.closest('.page-item.disabled') && newPage>=1 && newPage<=pages){currentPage=newPage;renderPage(currentPage,invFiltered);}});});}
+function printInvoice(id){const i=INV.find(x=>x._id===id);if(!i)return;const items=(i.items||[]).map(x=>{const name=x.itemName||[x.brand,x.modelLine].filter(Boolean).join(' ')||x.description||'Item';return `<tr><td>${ie(name)}</td><td style="text-align:center">${Number(x.quantity||1)}</td><td style="text-align:right">₱${Number(x.unitPrice||x.totalPrice||0).toLocaleString()}</td><td style="text-align:right">₱${Number(x.totalPrice||i.amount||0).toLocaleString()}</td></tr>`}).join('');const b=i.breakdown||{};const extras=Object.entries(b).filter(([,v])=>Number(v)!==0).map(([k,v])=>`<tr><td colspan="3" style="text-align:right">${ie(k.replace(/([A-Z])/g,' $1'))}</td><td style="text-align:right">₱${Number(v).toLocaleString()}</td></tr>`).join('');const pw=850,ph=750;const pl=Math.round((screen.availWidth-pw)/2);const pt=Math.round((screen.availHeight-ph)/2);const w=window.open('','_blank',`width=${pw},height=${ph},left=${pl},top=${pt}`);w.document.write(`<html><head><title>${ie(i.invoiceNumber)}</title><style>body{font-family:Arial;padding:48px;color:#172033}.head{display:flex;justify-content:space-between;border-bottom:2px solid #172033;padding-bottom:20px}.meta{margin-top:24px;line-height:1.7}table{width:100%;margin-top:30px;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid #ddd}th{text-align:left;background:#f3f5f8}.total{font-size:26px;font-weight:bold;text-align:right;margin-top:28px}</style></head><body><div class="head"><div><h1>INVOICE</h1><div>${ie(i.invoiceNumber)}</div></div><div><b>${ie(i.source)}</b><br>${i.issuedAt?new Date(i.issuedAt).toLocaleString('en-PH'):''}</div></div><div class="meta"><b>Reference:</b> ${ie(i.reference)}<br><b>Customer:</b> ${ie(i.customer?.name)}<br><b>Payment Method:</b> ${ie(i.paymentMethod).replaceAll('_',' ').toUpperCase()}${i.paymentReference?'<br><b>Payment Reference:</b> '+ie(i.paymentReference):''}</div><table><thead><tr><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Amount</th></tr></thead><tbody>${items}${extras}</tbody></table><div class="total">Invoice Total: ₱${Number(i.amount||0).toLocaleString()}</div><p>This document reflects a transaction recorded by the system.</p><script>window.print()<\/script></body></html>`);w.document.close()}
+function createSparkline(id, data) {
+  const canvas = document.getElementById(id);
+  if (!canvas || !data || !data.length) return;
+  const w = canvas.width = canvas.offsetWidth || 200;
+  const h = canvas.height = canvas.offsetHeight || 36;
+  const ctx = canvas.getContext('2d');
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const pad = 2;
+  const step = (w - pad * 2) / (data.length - 1 || 1);
+  const y = v => h - pad - ((v - min) / range) * (h - pad * 2);
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath();
+  ctx.strokeStyle = '#0ea5e9';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  if (data.length === 1) {
+    ctx.moveTo(pad, y(data[0]));
+    ctx.lineTo(w - pad, y(data[0]));
+  } else {
+    ctx.moveTo(pad, y(data[0]));
+    for (let i = 1; i < data.length; i++) ctx.lineTo(pad + i * step, y(data[i]));
+  }
+  ctx.stroke();
+}
+createSparkline('invSparkAll', [12, 18, 15, 22, 20, 25, 24]);
+createSparkline('invSparkBookings', [5, 8, 6, 9, 10, 12, 11]);
+createSparkline('invSparkOrders', [4, 7, 5, 6, 8, 9, 7]);
+createSparkline('invSparkPos', [3, 3, 4, 5, 2, 4, 6]);
+loadInvoices();
+</script>

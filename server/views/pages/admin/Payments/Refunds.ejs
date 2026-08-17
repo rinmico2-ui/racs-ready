@@ -1,0 +1,259 @@
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-currency { font-size: 0.9rem; font-weight: 700; color: #64748b; align-self: flex-start; margin-top: 2px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .inventory-premium .rp-filter-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .bg-dark-subtle { background-color: rgba(30, 41, 59, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inventory-premium .table-dense > :not(caption) > * > * { padding: 0.65rem 0.85rem; }
+    .inventory-premium .table-dense th { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+    .inventory-premium .table-dense td { font-size: 0.82rem; color: #334155; }
+    .inventory-premium .table-dense .badge { font-size: 0.7rem; padding: 0.35em 0.65em; }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-cash-stack"></i></div>
+        <div>
+          <h1>Refunds</h1>
+          <p>Issue and audit refunds against verified manual payment records.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Eligible Payments</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiEligible">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Ready</span>
+            </div>
+            <span class="inv-kpi-sub">Awaiting refund decision</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-check-circle"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="refundSpark1"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Refund History</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiRefunded">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+              <span class="badge inv-kpi-pill bg-dark-subtle text-dark">Processed</span>
+            </div>
+            <span class="inv-kpi-sub">Completed refund records</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #475569, #334155);"><i class="bi bi-clock-history"></i></div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="refundSpark2"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toolbar">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">View</label>
+      <div class="d-flex gap-2">
+        <button class="btn btn-light rp-filter-btn active" data-tab="verified" onclick="refundTab('verified',this)"><i class="bi bi-check2-circle me-1"></i>Eligible Payments</button>
+        <button class="btn btn-light rp-filter-btn" data-tab="refunded" onclick="refundTab('refunded',this)"><i class="bi bi-clock-history me-1"></i>Refund History</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white" style="border-bottom: 1px solid #f1f5f9;">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0 fw-bold" id="tableTitle">Eligible Payments</h5>
+        <span class="badge bg-primary-subtle text-primary" id="tableCount">0 records</span>
+      </div>
+      <div class="d-flex align-items-start gap-2 p-2 rounded-2" style="background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b;">
+        <i class="bi bi-info-circle text-warning mt-1" style="font-size: 0.85rem;"></i>
+        <span class="small" style="color: #92400e;">This records a refund decision only. The system does not transfer funds through GCash, banks, or payment gateways.</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th><i class="bi bi-hash me-1"></i>Reference</th>
+            <th><i class="bi bi-person me-1"></i>Customer</th>
+            <th><i class="bi bi-currency-peso me-1"></i>Amount</th>
+            <th><i class="bi bi-wallet me-1"></i>Method</th>
+            <th><i class="bi bi-calendar me-1"></i>Date</th>
+            <th><i class="bi bi-chat-left-text me-1"></i>Reason</th>
+            <th><i class="bi bi-gear me-1"></i>Action</th>
+          </tr>
+        </thead>
+        <tbody id="refundRows"></tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top" id="refundFooter"></div>
+  </div>
+</div>
+<script>
+let refundStatus='verified';
+let currentPage=1;
+const pageSize=10;
+let refundData=[];
+let refundFiltered=[];
+const refundFooter=document.getElementById('refundFooter');
+const re=v=>String(v??'—').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function refundTab(s,b){
+  refundStatus=s;
+  document.querySelectorAll('.rp-filter-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('tableTitle').textContent = s==='verified'?'Eligible Payments':'Refund History';
+  loadRefunds();
+}
+async function loadRefunds(){
+  const r=await fetch('/api/admin/remittances?status='+refundStatus), d=await r.json();
+  const rows=(d.payments||[]);
+  refundData=rows;
+  refundFiltered=rows;
+  document.getElementById('tableCount').textContent = rows.length + ' records';
+  if(refundStatus==='verified') document.getElementById('kpiEligible').textContent = rows.length;
+  if(refundStatus==='refunded') document.getElementById('kpiRefunded').textContent = rows.length;
+  currentPage=1;
+  renderPage(1, rows);
+}
+
+function renderPage(page, items){
+  const start=(page-1)*pageSize;
+  const slice=items.slice(start, start+pageSize);
+  if(!slice.length){
+    document.getElementById('refundRows').innerHTML='<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No records found.</td></tr>';
+    refundFooter.innerHTML='<nav aria-label="Refund pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+    return;
+  }
+  document.getElementById('refundRows').innerHTML=slice.map(p=>`<tr>
+    <td class="fw-semibold">${re(p.bookingId?.bookingReference||p.orderId?.orderReference||String(p._id).slice(-8))}</td>
+    <td>${re(p.bookingId?.customer?.name||p.orderId?.customer?.name||p.projectId?.customer?.name)}</td>
+    <td>₱${Number(p.amount||0).toLocaleString()}</td>
+    <td>${re(p.method).toUpperCase()}</td>
+    <td>${new Date(p.refundedAt||p.verifiedAt||p.collectedAt).toLocaleString('en-PH')}</td>
+    <td>${re(p.refundReason)}</td>
+    <td>${refundStatus==='verified'?`<button class="btn btn-sm btn-outline-danger" onclick="issueRefund('${p._id}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Record Refund</button>`:'<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-check2 me-1"></i>Refunded</span>'}</td>
+  </tr>`).join('');
+  renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);
+}
+
+function renderPagination(page, pages, total){
+  const disabled = total===0;
+  const nav = `<nav aria-label="Refund pagination">
+  <ul class="inv-pagination justify-content-end mb-0">
+    <li class="page-item ${page<=1||disabled?'disabled':''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page-1}">‹ Prev</a>
+    </li>
+    <li class="page-item active">
+      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
+    </li>
+    <li class="page-item ${page>=pages||disabled?'disabled':''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page+1}">Next ›</a>
+    </li>
+  </ul>
+</nav>`;
+  refundFooter.innerHTML=nav;
+  refundFooter.querySelectorAll('.page-link[data-page]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.preventDefault();
+      const target=e.target.closest('.page-link');
+      const newPage=parseInt(target?.dataset.page);
+      if(!target?.closest('.page-item.disabled') && newPage>=1 && newPage<=pages){
+        currentPage=newPage;
+        renderPage(currentPage, refundFiltered);
+      }
+    });
+  });
+}
+async function issueRefund(id){
+  const reason=prompt('Refund reason:')||'';
+  if(!reason)return;
+  if(!confirm('Record this payment as refunded? This does not transfer funds.'))return;
+  const r=await fetch(`/api/admin/remittances/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refund',reason})}), d=await r.json();
+  if(!r.ok)return alert(d.error||'Refund failed');
+  loadRefunds();
+}
+function createSparkline(canvas,data,color){
+  if(!canvas||!data||data.length<2)return;
+  const ctx=canvas.getContext('2d');
+  const rect=canvas.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  ctx.scale(dpr,dpr);
+  const w=rect.width,h=rect.height,p=4;
+  const min=Math.min(...data),max=Math.max(...data),range=max-min||1;
+  const getX=i=>(w-2*p)*i/(data.length-1)+p;
+  const getY=v=>h-p-((v-min)/range)*(h-2*p);
+  ctx.clearRect(0,0,w,h);
+  ctx.beginPath();
+  ctx.moveTo(getX(0),getY(data[0]));
+  for(let i=1;i<data.length;i++)ctx.lineTo(getX(i),getY(data[i]));
+  ctx.lineWidth=2;
+  ctx.strokeStyle=color;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.stroke();
+}
+loadRefunds();
+createSparkline(document.getElementById('refundSpark1'),[2,4,3,6,5,7,6,8],'#10b981');
+createSparkline(document.getElementById('refundSpark2'),[5,3,6,4,7,5,8,6],'#475569');
+</script>

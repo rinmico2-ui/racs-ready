@@ -31,6 +31,55 @@
     .repair-services-page .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
     .repair-services-page .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
     .repair-services-page .fs-7 { font-size: 0.75rem; }
+    .repair-services-page .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+    .repair-services-page .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+    .repair-services-page .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+    .repair-services-page .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+    .repair-services-page .kpi-trend i { font-size:0.55rem; }
+    .repair-services-page .kpi-percent-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 3px;
+      background: rgba(59, 130, 246, 0.12); color: #2563eb;
+    }
+    .repair-services-page .stat-sparkline { height: 40px; margin-top: 0.5rem; }
+    .repair-services-page .stat-sparkline canvas { width: 100% !important; height: 100% !important; }
+    .repair-services-page .core-filter-card .card-body { padding: 1rem 1rem 1.1rem; }
+    .repair-services-page .core-filter-card .form-label { margin-bottom: 0.4rem; }
+    .repair-services-page .core-filter-card .input-group,
+    .repair-services-page .core-filter-card .form-select { border-radius: 10px; }
+    .repair-services-page .core-filter-card .input-group-text { background: #eff6ff; color: #2563eb; border-color: #cfd8e3; }
+    .repair-services-page .core-filter-card .form-control,
+    .repair-services-page .core-filter-card .form-select { background: #ffffff; }
+    .repair-services-page .core-filter-btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+    }
+    .repair-services-page .core-filter-btn:hover {
+      color: #fff;
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      transform: translateY(-1px);
+    }
+    .repair-services-page .new-repair-service {
+      background: #fff;
+      color: #2563eb;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .repair-services-page .new-repair-service:hover {
+      background: #f1f5f9;
+      color: #1d4ed8;
+      transform: translateY(-1px);
+    }
+    .rs-table-footer {
+      display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fff; flex-wrap: wrap; gap: 10px;
+    }
+    .rs-table-footer .pagination { margin: 0; }
+    .rs-table-footer .page-link { border-radius: 8px; margin: 0 3px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; color: #64748b; border: 1px solid #e2e8f0; }
+    .rs-table-footer .page-item.active .page-link { background: #ef4444; border-color: #ef4444; color: #fff; }
+    .rs-table-footer .page-item.disabled .page-link { color: #cbd5e1; }
+    .rs-pag-info { font-size: 0.8rem; color: #64748b; }
   </style>
 
   <div class="au-hero mb-4">
@@ -57,88 +106,91 @@
   <% const totalRepairs = repairServices ? repairServices.length : 0; %>
   <% const activeRepairs = repairServices ? repairServices.filter(r=>r.active).length : 0; %>
   <% const inactiveRepairs = totalRepairs - activeRepairs; %>
+  <% const avgRepairMinutes = (repairServices && repairServices.length) ? Math.round(repairServices.reduce((sum,r)=>sum+(r.estimatedDurationMinutes||0),0)/repairServices.length) : 0; %>
   <div class="row g-3 mb-4">
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+      <div class="dash-card h-100" data-accent="red" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Repair Services</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statOpen"><%= totalRepairs %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalRepairs ? 100 : 0 %>%</span>
             </div>
-            <div class="badge bg-danger-subtle text-danger fs-7">All</div>
             <small class="text-muted">Registered repair types</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
             <i class="bi bi-exclamation-octagon-fill text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkRepairTotal" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+      <div class="dash-card h-100" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Services</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statComplex"><%= activeRepairs %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalRepairs ? Math.round((activeRepairs/totalRepairs)*100) : 0 %>%</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Live</div>
             <small class="text-muted">Available for booking</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
             <i class="bi bi-tools text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkRepairActive" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+      <div class="dash-card h-100" data-accent="green" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Inactive/Review</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statResolved"><%= inactiveRepairs %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalRepairs ? Math.round((inactiveRepairs/totalRepairs)*100) : 0 %>%</span>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7">Review</div>
             <small class="text-muted">Needs attention</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
             <i class="bi bi-check-circle text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkRepairInactive" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+      <div class="dash-card h-100" data-accent="blue" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Avg Est. Duration</h6>
             <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="statSLA">
-                <% if (repairServices && repairServices.length) { %>
-                  <%= fmtDuration(Math.round(repairServices.reduce((sum,r)=>sum+(r.estimatedDurationMinutes||0),0)/repairServices.length)) %>
-                <% } else { %>-<% } %>
-              </span>
+              <span class="h3 mb-0 fw-bold text-dark" id="statSLA"><%= totalRepairs ? fmtDuration(avgRepairMinutes) : '-' %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge">AVG</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7">Avg</div>
             <small class="text-muted">Across all repairs</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
             <i class="bi bi-clock text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkRepairAvg" height="40"></canvas></div>
       </div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
+  <div class="card border-0 shadow-sm mb-4 core-filter-card">
     <div class="card-body">
       <div class="row g-3">
         <div class="col-md-4">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Search Repair Service</label
-          >
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-search me-1 text-primary"></i>Search Repair Service</label>
           <div class="input-group">
             <span class="input-group-text bg-light border-end-0"
               ><i class="bi bi-search text-muted"></i
@@ -151,9 +203,7 @@
           </div>
         </div>
         <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Severity</label
-          >
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-exclamation-triangle me-1 text-primary"></i>Severity</label>
           <select class="form-select">
             <option>All Severities</option>
             <option>Minor</option>
@@ -162,9 +212,7 @@
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Skill Requirement</label
-          >
+          <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-person-gear me-1 text-primary"></i>Skill Requirement</label>
           <select class="form-select">
             <option>All Levels</option>
             <option>Level 1 Technician</option>
@@ -173,8 +221,8 @@
           </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button class="btn btn-light border w-100">
-            <i class="bi bi-funnel me-2"></i>Filter
+          <button class="btn core-filter-btn w-100">
+            <i class="bi bi-funnel-fill me-2"></i>Filter
           </button>
         </div>
       </div>
@@ -207,7 +255,7 @@
             <th class="text-end pe-4">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="repairTableBody">
           <% if (repairServices && repairServices.length) { %>
             <% repairServices.forEach(function(svc) { %>
               <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
@@ -250,6 +298,12 @@
           <% } %>
         </tbody>
       </table>
+      <div class="rs-table-footer">
+        <small class="rs-pag-info" id="repairPaginationInfo">Showing 0 of 0</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0" id="repairPagination"></ul>
+        </nav>
+      </div>
     </div>
   </div>
 
@@ -276,35 +330,51 @@
   </div>
 </div>
 
+
 <!-- modal for repair service create/edit -->
-<div class="modal fade" id="repairServiceModal" tabindex="-1" aria-labelledby="repairServiceModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <form id="repairServiceForm" class="modal-content border-0 shadow">
-      <div class="modal-header bg-light border-bottom-0 pb-3">
-        <h5 class="modal-title fw-bold" id="repairServiceModalLabel">Repair Service</h5>
+<div class="modal fade modal-premium" id="repairServiceModal" tabindex="-1" aria-labelledby="repairServiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+    <form id="repairServiceForm" class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title-area">
+          <div class="modal-icon" style="background: linear-gradient(135deg,#2563eb,#1d4ed8);"><i class="bi bi-wrench"></i></div>
+          <div>
+            <h5 class="modal-title" id="repairServiceModalLabel">Repair Service</h5>
+            <p class="modal-subtitle">Create or edit a repair service</p>
+          </div>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body py-4">
+      <div class="modal-body">
         <div class="row g-4">
           <div class="col-md-6">
-            <h6 class="fw-bold text-muted mb-3 text-uppercase small">Basic Info</h6>
+            <h6 class="modal-section-title">Basic Info</h6>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Service Name</label>
-              <input type="text" name="name" class="form-control bg-light" required placeholder="e.g. Compressor Replacement" />
+              <label class="modal-label">Service Name</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-tools"></i>
+                <input type="text" name="name" class="modal-form-control" required placeholder="e.g. Compressor Replacement" />
+              </div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Slug / Code</label>
-              <input type="text" name="slug" class="form-control bg-light" required placeholder="e.g. rep-compressor" />
+              <label class="modal-label">Slug / Code</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-hash"></i>
+                <input type="text" name="slug" class="modal-form-control" required placeholder="e.g. rep-compressor" />
+              </div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Appliance Type</label>
-              <input type="text" name="applianceType" class="form-control bg-light" placeholder="e.g. Split Type Aircon" />
+              <label class="modal-label">Appliance Type</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-house-gear"></i>
+                <input type="text" name="applianceType" class="modal-form-control" placeholder="e.g. Split Type Aircon" />
+              </div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Estimated Duration (mins)</label>
-              <div class="input-group">
-                <input type="number" name="estimatedDurationMinutes" class="form-control bg-light" placeholder="120" />
-                <span class="input-group-text bg-light text-muted">min</span>
+              <label class="modal-label">Estimated Duration (mins)</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-clock"></i>
+                <input type="number" name="estimatedDurationMinutes" class="modal-form-control" placeholder="120" />
               </div>
             </div>
             <div class="form-check form-switch mb-3">
@@ -314,30 +384,30 @@
             </div>
           </div>
           <div class="col-md-6">
-            <h6 class="fw-bold text-muted mb-3 text-uppercase small">Pricing Structure</h6>
+            <h6 class="modal-section-title">Pricing Structure</h6>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Base Price (Legacy)</label>
-              <div class="input-group">
-                <span class="input-group-text bg-light text-muted">₱</span>
-                <input type="number" step="0.01" name="basePrice" class="form-control bg-light" placeholder="0.00" />
+              <label class="modal-label">Base Price (Legacy)</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-cash"></i>
+                <input type="number" step="0.01" name="basePrice" class="modal-form-control" placeholder="0.00" />
               </div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Initial / Diagnostic Fee</label>
-              <div class="input-group">
-                <span class="input-group-text bg-light text-muted">₱</span>
-                <input type="number" step="0.01" name="initialPrice" class="form-control bg-light" placeholder="0.00" />
+              <label class="modal-label">Initial / Diagnostic Fee</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-cash"></i>
+                <input type="number" step="0.01" name="initialPrice" class="modal-form-control" placeholder="0.00" />
               </div>
-              <div class="form-text mt-1">Charged upfront for inspection.</div>
+              <div class="form-hint">Charged upfront for inspection.</div>
             </div>
             <div class="mb-3">
-              <label class="form-label text-muted small fw-bold">Labor Rate per Hour</label>
-              <div class="input-group">
-                <span class="input-group-text bg-light text-muted">₱</span>
-                <input type="number" step="0.01" name="laborPerHour" class="form-control bg-light" placeholder="0.00" />
+              <label class="modal-label">Labor Rate per Hour</label>
+              <div class="modal-input-icon">
+                <i class="bi bi-cash"></i>
+                <input type="number" step="0.01" name="laborPerHour" class="modal-form-control" placeholder="0.00" />
               </div>
             </div>
-            
+
             <div class="card border-0 bg-light mt-4">
               <div class="card-body p-3">
                 <div class="form-check form-switch mb-2">
@@ -349,18 +419,18 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="form-check form-switch mt-4">
-              <input type="checkbox" name="active" class="form-check-input bg-success border-success" id="repairActiveCheck" checked />
+              <input type="checkbox" name="active" class="form-check-input" id="repairActiveCheck" checked />
               <label class="form-check-label fw-bold ms-2" for="repairActiveCheck">Active in Catalog</label>
             </div>
           </div>
-          
+
           <!-- AIRCON TYPES CONFIGURATION (Dynamic) -->
           <div class="col-12 d-none" id="airconConfigSection">
             <div class="card border border-info-subtle shadow-sm">
               <div class="card-header bg-info-subtle text-info-emphasis d-flex justify-content-between align-items-center py-3">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-snow me-2"></i>Aircon Types & HP Matrix</h6>
+                <h6 class="mb-0 fw-bold"><i class="bi bi-snow me-2"></i>Aircon Types &amp; HP Matrix</h6>
                 <button type="button" class="btn btn-sm btn-info text-white fw-bold shadow-sm" id="btnAddAirconType"><i class="bi bi-plus me-1"></i>Add Type</button>
               </div>
               <div class="card-body bg-light" id="airconTypesContainer">
@@ -373,13 +443,14 @@
 
         </div>
       </div>
-      <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
-        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary px-4 shadow-sm">Save Service</button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Service</button>
       </div>
     </form>
   </div>
 </div>
+
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -575,4 +646,90 @@
       }
     });
   });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function() {
+    const qs = (s) => document.querySelector(s);
+
+    function spark(ctx, data, color) {
+      if (!ctx || !window.Chart) return null;
+      const h = ctx.canvas.height || ctx.canvas.offsetHeight || 30;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map((_, i) => i + 1),
+          datasets: [{
+            data: data, borderColor: color, backgroundColor: g,
+            fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 600 },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } },
+        },
+      });
+    }
+
+    function makeSparkData(count) {
+      const c = Math.max(0, count || 0);
+      if (c === 0) return [0,0,0,0,0,0,0];
+      return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
+    }
+
+    spark(qs('#sparkRepairTotal')?.getContext('2d'), makeSparkData(<%= totalRepairs %>), '#ef4444');
+    spark(qs('#sparkRepairActive')?.getContext('2d'), makeSparkData(<%= activeRepairs %>), '#f59e0b');
+    spark(qs('#sparkRepairInactive')?.getContext('2d'), makeSparkData(<%= inactiveRepairs %>), '#10b981');
+    spark(qs('#sparkRepairAvg')?.getContext('2d'), makeSparkData(<%= avgRepairMinutes %>), '#2563eb');
+  })();
+</script>
+
+<script>
+  (function() {
+    const tbody = document.getElementById('repairTableBody');
+    const rows = tbody ? Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.dataset.svc) : [];
+    const info = document.getElementById('repairPaginationInfo');
+    const nav = document.getElementById('repairPagination');
+    const perPage = 10;
+    let currentPage = 1;
+
+    function renderPagination(total, pages) {
+      if (!info || !nav) return;
+      if (total === 0) { info.textContent = 'Showing 0 of 0'; nav.innerHTML = ''; return; }
+      const start = (currentPage - 1) * perPage + 1;
+      const end = Math.min(currentPage * perPage, total);
+      info.textContent = `Showing ${start}-${end} of ${total} services`;
+      if (pages <= 1) { nav.innerHTML = ''; return; }
+      let h = '<li class="page-item' + (currentPage === 1 ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToRepairPage(' + (currentPage - 1) + '); return false;">&laquo;</a></li>';
+      for (let i = 1; i <= pages; i++) {
+        h += '<li class="page-item' + (i === currentPage ? ' active' : '') + '"><a class="page-link" href="#" onclick="goToRepairPage(' + i + '); return false;">' + i + '</a></li>';
+      }
+      h += '<li class="page-item' + (currentPage === pages ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToRepairPage(' + (currentPage + 1) + '); return false;">&raquo;</a></li>';
+      nav.innerHTML = h;
+    }
+
+    function goToRepairPage(page) {
+      const pages = Math.max(1, Math.ceil(rows.length / perPage));
+      currentPage = Math.max(1, Math.min(page, pages));
+      render();
+    }
+    window.goToRepairPage = goToRepairPage;
+
+    function render() {
+      const pages = Math.ceil(rows.length / perPage) || 1;
+      rows.forEach((row, idx) => {
+        const start = (currentPage - 1) * perPage;
+        row.style.display = (idx >= start && idx < start + perPage) ? '' : 'none';
+      });
+      renderPagination(rows.length, pages);
+    }
+
+    render();
+  })();
 </script>

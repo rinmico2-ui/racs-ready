@@ -102,19 +102,33 @@
         </div>
       </div>
       <div class="col-6 col-md-4 col-xl-2">
-        <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="150">
-          <div class="kpi-enterprise-top">
-            <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-exchange"></i></div>
-            <span class="kpi-enterprise-badge cyan" id="badge_kRevenue">Earnings</span>
+          <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="150">
+            <div class="kpi-enterprise-top">
+              <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-exchange"></i></div>
+              <span class="kpi-enterprise-badge cyan" id="badge_kRevenue">Earnings</span>
+            </div>
+            <div class="kpi-enterprise-body">
+              <p class="kpi-enterprise-label">Net Revenue <i class="bi bi-info-circle" style="font-size:0.7rem;color:#94a3b8;" title="Gross revenue minus your logged expenses"></i></p>
+              <div class="kpi-enterprise-value" id="kRevenue">₱0</div>
+              <div class="kpi-enterprise-trend neutral" id="trend_kRevenue"><i class="bi bi-dash"></i> No change</div>
+            </div>
+            <div class="kpi-enterprise-sparkline"><canvas id="spark_kRevenue"></canvas></div>
           </div>
-          <div class="kpi-enterprise-body">
-            <p class="kpi-enterprise-label">Revenue</p>
-            <div class="kpi-enterprise-value" id="kRevenue">₱0</div>
-            <div class="kpi-enterprise-trend neutral" id="trend_kRevenue"><i class="bi bi-dash"></i> No change</div>
-          </div>
-          <div class="kpi-enterprise-sparkline"><canvas id="spark_kRevenue"></canvas></div>
         </div>
-      </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="175">
+            <div class="kpi-enterprise-top">
+              <div class="kpi-enterprise-icon red"><i class="bi bi-receipt-cutoff"></i></div>
+              <span class="kpi-enterprise-badge red" id="badge_kExpenses">Spent</span>
+            </div>
+            <div class="kpi-enterprise-body">
+              <p class="kpi-enterprise-label">Expenses</p>
+              <div class="kpi-enterprise-value" id="kExpenses">₱0</div>
+              <div class="kpi-enterprise-trend neutral" id="trend_kExpenses"><i class="bi bi-dash"></i> No change</div>
+            </div>
+            <div class="kpi-enterprise-sparkline"><canvas id="spark_kExpenses"></canvas></div>
+          </div>
+        </div>
       <div class="col-6 col-md-4 col-xl-2">
         <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="200">
           <div class="kpi-enterprise-top">
@@ -198,6 +212,26 @@
       </div>
     </div>
 
+    <!-- ─── CHARTS ROW 3 ─── -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-6">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-receipt me-2" style="color:#ef4444;"></i>Expenses by Type</h6>
+          </div>
+          <div class="analytics-chart-body"><canvas id="chartExpense" height="260"></canvas></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="analytics-chart-card h-100">
+          <div class="analytics-chart-header">
+            <h6><i class="bi bi-people me-2" style="color:#0891b2;"></i>Top Customers</h6>
+          </div>
+          <div class="analytics-chart-body"><canvas id="chartCustomers" height="260"></canvas></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── SUMMARY TABLE (Enterprise) ─── -->
     <div class="schedule-premium-card p-0 overflow-hidden">
       <div class="schedule-card-header">
@@ -208,7 +242,7 @@
           <table class="table schedule-table align-middle mb-0">
             <thead>
               <tr>
-                <th>Type</th><th>Reference</th><th>Customer</th><th>Service / Items</th><th>Date</th><th>Revenue</th><th>Status</th>
+                <th>Type</th><th>Reference</th><th>Customer</th><th>Service / Items</th><th>Date</th><th>Revenue</th><th>Expense</th><th>Net</th><th>Status</th>
               </tr>
             </thead>
             <tbody id="summaryBody">
@@ -334,6 +368,57 @@
     white-space: nowrap;
     display: inline-block;
   }
+
+  /* ── Mobile Responsive (orders pattern) ── */
+  @media (max-width: 991px) {
+    .dashboard-hero { padding: 1.5rem; }
+    .page-title { font-size: 1.35rem; }
+    .admin-filter-bar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .admin-filter-bar .filter-group { flex-wrap: wrap; width: 100%; }
+    .analytics-chart-card { margin-bottom: 1rem; }
+  }
+  @media (max-width: 767px) {
+    .dashboard-hero .row { flex-direction: column; align-items: flex-start; }
+    .admin-filter-bar .filter-item { width: 100%; }
+    .admin-filter-bar .form-select { width: 100%; }
+    .schedule-kpi-row > [class*="col-"] { min-width: 100%; flex: 1 1 100%; }
+    .schedule-table { border: 0; }
+    .schedule-table thead { display: none; }
+    .schedule-table tbody, .schedule-table tr { display: block; }
+    .schedule-table tr {
+      margin-bottom: 0.75rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    }
+    .schedule-table td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.85rem;
+    }
+    .schedule-table td:last-child { border-bottom: none; }
+    .schedule-table td::before {
+      font-weight: 600;
+      color: #64748b;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .schedule-table td:nth-child(1)::before { content: 'Type'; }
+    .schedule-table td:nth-child(2)::before { content: 'Reference'; }
+    .schedule-table td:nth-child(3)::before { content: 'Customer'; }
+    .schedule-table td:nth-child(4)::before { content: 'Service / Items'; }
+    .schedule-table td:nth-child(5)::before { content: 'Date'; }
+    .schedule-table td:nth-child(6)::before { content: 'Revenue'; }
+    .schedule-table td:nth-child(7)::before { content: 'Expense'; }
+    .schedule-table td:nth-child(8)::before { content: 'Net'; }
+    .schedule-table td:nth-child(9)::before { content: 'Status'; }
+  }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -346,6 +431,7 @@
   // ═══════════════════════════════════════════════════════════════════════════
   const rawBookings = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(allBookings || [])) %>"));
   const rawOrders   = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(allOrders || [])) %>"));
+  const rawExpenses = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(allExpenses || [])) %>"));
   const serverStats = JSON.parse(decodeURIComponent("<%- encodeURIComponent(JSON.stringify(stats || {})) %>"));
 
   // Merge into unified list
@@ -364,6 +450,12 @@
       a.revenue = a.estimatedFee || a.servicePrice || 0;
     }
   });
+
+  // Normalize expenses (approved + pending count toward cost; rejected removed)
+  const allExpensesArr = rawExpenses.map(e => Object.assign({}, e, { _type: "expense" }));
+  const EXPENSE_LABELS = { fuel: "Fuel", parking: "Parking", toll: "Toll", external_parts: "External Parts", material: "Materials", transport: "Transport", meal: "Meal", other: "Other" };
+  const expenseTypeLabel = (t) => EXPENSE_LABELS[t] || (t || "Other");
+  const expenseDate = (e) => new Date(e.expenseDate || e.createdAt || 0);
 
   function statusNorm(raw, type) {
     const s = String(raw || "").toLowerCase().trim();
@@ -425,12 +517,32 @@
     });
   }
 
+  function getFilteredExpenses() {
+    const days = elRange.value;
+    const src  = elSource.value;
+    // Expenses only make sense in the "All Sources" view (they aren't bookings or orders)
+    if (src !== "all") return [];
+
+    let cutoff = null;
+    if (days !== "all") {
+      cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - Number(days));
+      cutoff.setHours(0, 0, 0, 0);
+    }
+
+    return allExpensesArr.filter(e => {
+      if (e.status === "rejected") return false;
+      if (cutoff && expenseDate(e) < cutoff) return false;
+      return true;
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // KPI UPDATE
   // ═══════════════════════════════════════════════════════════════════════════
   function set(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 
-  function updateKpis(list) {
+  function updateKpis(list, expenses) {
     const total = list.length;
     let completed = 0, pending = 0, revenue = 0, ratings = [], cancelled = 0;
 
@@ -446,10 +558,14 @@
       }
     });
 
+    const expenseTotal = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const netRevenue = Math.max(0, revenue - expenseTotal);
+
     set("kTotal", total);
     set("kCompleted", completed);
     set("kPending", pending);
-    set("kRevenue", peso(revenue));
+    set("kRevenue", peso(netRevenue));
+    set("kExpenses", peso(expenseTotal));
     set("kRating", ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) + " ★" : "—");
     set("kRate", total > 0 ? Math.round((completed / total) * 100) + "%" : "0%");
 
@@ -464,7 +580,8 @@
     updTrend('trend_kTotal', total, '+' + total + ' tasks', 'No data');
     updTrend('trend_kCompleted', completed, '+' + completed + ' jobs', 'None completed');
     updTrend('trend_kPending', pending, '+' + pending + ' pending', 'None pending');
-    updTrend('trend_kRevenue', revenue, '+' + Math.round(revenue).toLocaleString() + ' earnings', 'No revenue');
+    updTrend('trend_kRevenue', netRevenue, '+' + Math.round(netRevenue).toLocaleString() + ' net earnings', 'No net earnings');
+    updTrend('trend_kExpenses', expenseTotal, '+' + Math.round(expenseTotal).toLocaleString() + ' spent', 'No expenses');
     var rate = total > 0 ? Math.round((completed / total) * 100) : 0;
     updTrend('trend_kRate', rate, rate + '% rate', 'No completions');
     updTrend('trend_kRating', ratings.length, ratings.length + ' ratings', 'No ratings');
@@ -473,17 +590,24 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // CHARTS
   // ═══════════════════════════════════════════════════════════════════════════
-  let chartMonthly, chartStatus, chartRevenue, chartWeekday;
+  let chartMonthly, chartStatus, chartRevenue, chartWeekday, chartExpense, chartCustomers;
 
-  function buildMonthlyChart(list) {
+  function buildMonthlyChart(list, expenses) {
     const months = {};
     list.forEach(a => {
       const d = new Date(a.bookingDate || a.createdAt || 0);
       const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-      if (!months[key]) months[key] = { bookings: 0, orders: 0, revenue: 0 };
+      if (!months[key]) months[key] = { bookings: 0, orders: 0, revenue: 0, expenses: 0 };
       if (a._type === "booking") months[key].bookings++;
       else months[key].orders++;
       months[key].revenue += (a.revenue || 0);
+    });
+
+    expenses.forEach(e => {
+      const d = expenseDate(e);
+      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      if (!months[key]) months[key] = { bookings: 0, orders: 0, revenue: 0, expenses: 0 };
+      months[key].expenses += (e.amount || 0);
     });
 
     const keys = Object.keys(months).sort();
@@ -491,6 +615,7 @@
       const [y, m] = k.split("-");
       return new Date(y, m - 1).toLocaleString("default", { month: "short", year: "2-digit" });
     });
+    const netData = keys.map(k => Math.max(0, (months[k].revenue || 0) - (months[k].expenses || 0)));
 
     const ctx = document.getElementById("chartMonthly");
     if (chartMonthly) chartMonthly.destroy();
@@ -501,16 +626,18 @@
         datasets: [
           { label: "Bookings", data: keys.map(k => months[k].bookings), backgroundColor: "rgba(99,102,241,0.7)", borderRadius: 6 },
           { label: "Orders", data: keys.map(k => months[k].orders), backgroundColor: "rgba(236,72,153,0.7)", borderRadius: 6 },
-          { label: "Revenue (₱)", data: keys.map(k => months[k].revenue), type: "line", borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)", yAxisID: "y1", tension: 0.4, fill: true, pointRadius: 4 }
+          { label: "Gross Revenue (₱)", data: keys.map(k => months[k].revenue), type: "line", borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.1)", yAxisID: "y1", tension: 0.4, fill: false, pointRadius: 4 },
+          { label: "Expenses (₱)", data: keys.map(k => months[k].expenses), type: "line", borderColor: "#ef4444", borderDash: [5, 4], backgroundColor: "rgba(239,68,68,0.08)", yAxisID: "y1", tension: 0.4, fill: false, pointRadius: 3 },
+          { label: "Net Earnings (₱)", data: netData, type: "line", borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.1)", yAxisID: "y1", tension: 0.4, fill: true, pointRadius: 4 }
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
-        plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 16 } } },
+        plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 16, font: { size: 10 } } } },
         scales: {
           y: { beginAtZero: true, title: { display: true, text: "Count" }, grid: { color: "rgba(0,0,0,0.04)" } },
-          y1: { beginAtZero: true, position: "right", title: { display: true, text: "Revenue (₱)" }, grid: { drawOnChartArea: false } },
+          y1: { beginAtZero: true, position: "right", title: { display: true, text: "₱" }, grid: { drawOnChartArea: false } },
           x: { grid: { display: false } }
         }
       }
@@ -601,19 +728,86 @@
     });
   }
 
+  function buildExpenseChart(list) {
+    const byType = {};
+    list.forEach(e => {
+      const label = expenseTypeLabel(e.type);
+      byType[label] = (byType[label] || 0) + (e.amount || 0);
+    });
+    const labels = Object.keys(byType);
+    const palette = ["#ef4444", "#f59e0b", "#8b5cf6", "#0891b2", "#10b981", "#6366f1", "#ec4899", "#94a3b8"];
+
+    const ctx = document.getElementById("chartExpense");
+    if (chartExpense) chartExpense.destroy();
+    if (!labels.length) {
+      ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
+      ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-receipt" style="font-size:2rem;"></i><br>No expenses recorded for this period</div>';
+      return;
+    }
+    chartExpense = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{ data: labels.map(l => byType[l]), backgroundColor: labels.map((_, i) => palette[i % palette.length]), borderWidth: 2, borderColor: "#fff" }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "58%",
+        plugins: {
+          legend: { position: "bottom", labels: { usePointStyle: true, padding: 12 } },
+          tooltip: { callbacks: { label: (c) => c.label + ": ₱" + Number(c.raw).toLocaleString() } }
+        }
+      }
+    });
+  }
+
+  function buildTopCustomersChart(list) {
+    const byCustomer = {};
+    list.forEach(a => {
+      const name = a._type === "order" ? ((a.customer && a.customer.name) || "") : (a.customerName || "");
+      if (!name) return;
+      byCustomer[name] = (byCustomer[name] || 0) + 1;
+    });
+    const entries = Object.entries(byCustomer).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+    const ctx = document.getElementById("chartCustomers");
+    if (chartCustomers) chartCustomers.destroy();
+    if (!entries.length) {
+      ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
+      ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-people" style="font-size:2rem;"></i><br>No customer data for this period</div>';
+      return;
+    }
+    chartCustomers = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: entries.map(e => e[0].length > 18 ? e[0].slice(0, 18) + "…" : e[0]),
+        datasets: [{ data: entries.map(e => e[1]), backgroundColor: "rgba(8,145,178,0.75)", borderRadius: 8, barThickness: 18 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: "y",
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.raw + " task" + (c.raw === 1 ? "" : "s") } } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(0,0,0,0.04)" } }, y: { grid: { display: false } } }
+      }
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TABLE
   // ═══════════════════════════════════════════════════════════════════════════
-  function renderTable(list) {
+  function renderTable(list, expenses) {
     const tbody = document.getElementById("summaryBody");
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No records match the selected filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No records match the selected filters.</td></tr>';
       set("tableCount", "0 records");
-      set("tableRevenue", "₱0 total revenue");
+      set("tableRevenue", "₱0 total net earnings");
       return;
     }
 
-    let totalRev = 0;
+    const expenseByBooking = {};
+    expenses.forEach(e => {
+      if (e.bookingId) expenseByBooking[String(e.bookingId)] = (expenseByBooking[String(e.bookingId)] || 0) + (e.amount || 0);
+    });
+
+    let totalRev = 0, totalExp = 0;
     const sorted = list.slice().sort((a, b) => new Date(b.bookingDate || b.createdAt || 0) - new Date(a.bookingDate || a.createdAt || 0));
     const rows = sorted.slice(0, 100).map(a => {
       const isOrder = a._type === "order";
@@ -622,7 +816,10 @@
       const svc = isOrder ? (a.items || []).map(i => i.modelLine || "Product").join(", ") : ((a.service && a.service.name) || a.serviceType || "—");
       const dateStr = new Date(a.bookingDate || a.createdAt || 0).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
       const rev = a.revenue || 0;
-      totalRev += rev;
+      const exp = isOrder ? 0 : (expenseByBooking[String(a._id)] || 0);
+      const net = Math.max(0, rev - exp);
+      totalRev += net;
+      totalExp += exp;
       const st = statusNorm(a.status, a._type);
       const stColor = STATUS_COLORS[st] || "#94a3b8";
       const stBg = {completed:'rgba(34,197,94,0.10)',scheduled:'rgba(59,130,246,0.10)',pending:'rgba(245,158,11,0.10)',cancelled:'rgba(239,68,68,0.10)',"in-progress":'rgba(139,92,246,0.10)',"re-scheduled":'rgba(99,102,241,0.10)'}[st] || 'rgba(148,163,184,0.10)';
@@ -634,13 +831,15 @@
         <td style="font-size:0.82rem;color:#475569;">${svc}</td>
         <td style="font-size:0.82rem;color:#64748b;">${dateStr}</td>
         <td style="font-size:0.85rem;font-weight:700;color:#0f172a;">${peso(rev)}</td>
+        <td style="font-size:0.82rem;color:${exp > 0 ? '#dc2626' : '#94a3b8'};">${exp > 0 ? peso(exp) : '—'}</td>
+        <td style="font-size:0.85rem;font-weight:700;color:#059669;">${peso(net)}</td>
         <td><span class="table-status-badge" style="background:${stBg};color:${stColor};">${st.toUpperCase()}</span></td>
       </tr>`;
     }).join("");
 
     tbody.innerHTML = rows;
     set("tableCount", list.length + " records" + (list.length > 100 ? " (showing top 100)" : ""));
-    set("tableRevenue", peso(totalRev) + " total revenue");
+    set("tableRevenue", peso(totalRev) + " total net earnings" + (totalExp > 0 ? " (₱" + Math.round(totalExp).toLocaleString() + " expenses)" : ""));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -651,7 +850,7 @@
   // ═══════════════════════════════════════════════════════════════════════════
   const techName = decodeURIComponent("<%- encodeURIComponent((technician && technician.name) || 'Technician') %>");
 
-  function generateSummary(list) {
+  function generateSummary(list, expenses) {
     const el = document.getElementById("perfSummaryText");
     if (!el) return;
 
@@ -687,6 +886,8 @@
     const avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null;
     const busiestIdx = dayCounts.indexOf(Math.max(...dayCounts));
     const avgRevenuePerTask = completed > 0 ? Math.round(revenue / completed) : 0;
+    const expenseTotal = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+    const netRevenue = Math.max(0, revenue - expenseTotal);
     const rangeDays = elRange.value === "all" ? "all time" : `the last ${elRange.value} days`;
 
     const parts = [];
@@ -715,7 +916,12 @@
 
     // Revenue
     if (revenue > 0) {
-      parts.push(`Total revenue generated is <strong>${peso(revenue)}</strong>` + (avgRevenuePerTask > 0 ? `, averaging <strong>${peso(avgRevenuePerTask)}</strong> per completed task.` : '.'));
+      parts.push(`Gross revenue is <strong>${peso(revenue)}</strong>` + (avgRevenuePerTask > 0 ? `, averaging <strong>${peso(avgRevenuePerTask)}</strong> per completed task.` : '.'));
+    }
+    if (expenseTotal > 0) {
+      parts.push(`After <strong>${peso(expenseTotal)}</strong> in logged expenses (${expenses.length} record${expenses.length === 1 ? '' : 's'}), your <strong style="color:#059669;">net earnings are ${peso(netRevenue)}</strong>.`);
+    } else if (revenue > 0) {
+      parts.push(`You have <strong>no logged expenses</strong>, so your full gross revenue is kept as net earnings.`);
     }
 
     // Rating
@@ -740,13 +946,16 @@
 
   function refresh() {
     const filtered = getFiltered();
-    updateKpis(filtered);
-    generateSummary(filtered);
-    buildMonthlyChart(filtered);
+    const filteredExpenses = getFilteredExpenses();
+    updateKpis(filtered, filteredExpenses);
+    generateSummary(filtered, filteredExpenses);
+    buildMonthlyChart(filtered, filteredExpenses);
     buildStatusChart(filtered);
     buildRevenueChart(filtered);
     buildWeekdayChart(filtered);
-    renderTable(filtered);
+    buildExpenseChart(filteredExpenses);
+    buildTopCustomersChart(filtered);
+    renderTable(filtered, filteredExpenses);
 
     // Sparklines
     if (window.techHelpers) {
@@ -754,6 +963,7 @@
       techHelpers.renderSparkline('spark_kCompleted',[1,2,1,3,2],'#10b981');
       techHelpers.renderSparkline('spark_kPending',[1,0,2,1,1],'#f59e0b');
       techHelpers.renderSparkline('spark_kRevenue',[1,2,1,3,2],'#0891b2');
+      techHelpers.renderSparkline('spark_kExpenses',[1,2,1,3,2],'#ef4444');
       techHelpers.renderSparkline('spark_kRating',[1,2,1,3,2],'#ef4444');
       techHelpers.renderSparkline('spark_kRate',[1,2,1,3,2],'#8b5cf6');
     }

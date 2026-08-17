@@ -9,6 +9,10 @@ const dailyAssignmentSchema = new mongoose.Schema({
 
   // The working day this assignment targets.
   date: { type: Date, required: true },
+  startTime: String,
+  endTime: String,
+  allocatedMinutes: { type: Number, default: 0, min: 0 },
+  unitKeys: [String],
 
   // Units expected to be completed this day (admin-editable).
   targetUnits: { type: Number, default: 0, min: 0 },
@@ -24,6 +28,9 @@ const dailyAssignmentSchema = new mongoose.Schema({
 
   status: { type: String, enum: DAILY_STATUSES, default: "pending" },
   generatedBy: { type: String, enum: ["system", "admin"], default: "system" },
+  // Generated schedules are planning records until Step 6 confirms the plan.
+  // Keeping them pending prevents draft work from appearing as active execution.
+  planningOnly: { type: Boolean, default: false, index: true },
 
   notes: { type: String, trim: true },
   completedAt: { type: Date },
@@ -33,6 +40,7 @@ const dailyAssignmentSchema = new mongoose.Schema({
 
 dailyAssignmentSchema.pre("save", function () {
   this.updatedAt = new Date();
+  if (this.planningOnly) return;
   if (this.completedUnits > 0 && this.status !== "skipped") this.status = "completed";
   else if (this.targetUnits > 0 && this.status === "pending") this.status = "in_progress";
 });

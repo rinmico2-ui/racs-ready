@@ -577,21 +577,25 @@ async function sendTechnicianArrivedEmail({ to, customerName, bookingReference, 
 }
 
 // ─── Work Started Email ───────────────────────────────────────────────────────
-async function sendWorkStartedEmail({ to, customerName, bookingReference, serviceName, technicianName }) {
+async function sendWorkStartedEmail({ to, customerName, bookingReference, serviceName, technicianName, techName, serviceType }) {
   if (!to) return false;
-  const subject = `Repair Work Has Started – ${bookingReference} | CALIDRO RACS`;
+  const isRepair = serviceType === 'repair' || serviceType === 'RepairService';
+  const workLabel = isRepair ? 'Repair Work' : 'Service Work';
+  const unitLabel = isRepair ? 'on your unit' : 'at your location';
+  const tech = technicianName || techName;
+  const subject = `${workLabel} Has Started – ${bookingReference} | CALIDRO RACS`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles('#8b5cf6','#6d28d9')}</head><body>
 <div class="wrap">
-  <div class="header"><h1>Repair Work Has Started</h1><div class="ref-badge">${bookingReference}</div></div>
+  <div class="header"><h1>${workLabel} Has Started</h1><div class="ref-badge">${bookingReference}</div></div>
   <div class="body">
     <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${customerName || 'Customer'}</strong>,</p>
-    <p style="color:#475569;line-height:1.6;">Our technician has started the repair work on your unit. We'll notify you once it's complete.</p>
+    <p style="color:#475569;line-height:1.6;">Our technician has started ${isRepair ? 'the repair work' : 'the service work'} ${unitLabel}. We'll notify you once it's complete.</p>
     <div class="status-pill" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">🔧 Work In Progress</div>
     <div class="section-title">Service Details</div>
     <table>
       <tr class="detail-row"><td>Reference</td><td style="font-weight:700;color:#8b5cf6;">${bookingReference}</td></tr>
       <tr class="detail-row"><td>Service</td><td>${serviceName || 'N/A'}</td></tr>
-      ${technicianName ? `<tr class="detail-row"><td>Technician</td><td>${technicianName}</td></tr>` : ''}
+      ${tech ? `<tr class="detail-row"><td>Technician</td><td>${tech}</td></tr>` : ''}
     </table>
   </div>
   ${premiumFooter()}
@@ -981,7 +985,7 @@ async function sendRescheduleNotificationEmail({
     ${reason ? `<div class="note-box"><strong>Reason:</strong> ${reason}</div>` : ""}
     <p style="color:#475569;font-size:13px;line-height:1.6;margin-top:16px;">Please review the new schedule and contact us if you need to make any further changes.</p>
     <div class="info-box" style="text-align:center;">
-      <a href="${process.env.APP_BASE_URL || ""}/book-history?highlight=${bookingReference}" class="btn" style="background:#f59e0b;">View Booking</a>
+      <a href="${process.env.APP_BASE_URL || ""}/tracking" class="btn" style="background:#f59e0b;">View & Accept Schedule</a>
     </div>
   </div>
   ${premiumFooter()}

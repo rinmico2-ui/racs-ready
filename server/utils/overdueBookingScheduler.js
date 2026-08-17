@@ -15,11 +15,20 @@
 const BookingService = require('../models/BookingService');
 const Technician = require('../models/Technician');
 const User = require('../models/User');
+const Assignment = require('../models/Assignment');
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 // Grace period after scheduled time before flagging as "delayed" (30 min)
 const DELAY_GRACE_MINUTES = 30;
+
+// Grace period after scheduled time before an unassigned booking in the
+// assignment queue is auto-fallen-back to "Needs Reschedule"
+const RESCHEDULE_FALLBACK_GRACE_MINUTES = 30;
+
+// Time window (in hours) before scheduled time during which the system reminds
+// admins to verify payment / assignment for upcoming bookings
+const VERIFY_REMINDER_HOURS = 3;
 
 /**
  * Convert a time string (HH:MM, "8:00 AM", or minutes-from-midnight integer)
@@ -66,6 +75,254 @@ function parseBookingDateTime(bookingDate, startTime) {
   }
 
   return localBase;
+}
+
+/**
+ * Resolve a readable customer name + id from the booking's embedded customer
+ * snapshot or the linked User document.
+ */
+async function resolveCustomer(customer, customerId) {
+  let name = customer && customer.name ? customer.name : 'Customer';
+  let id = null;
+  if (customerId) id = customerId;
+  else if (customer && customer._id) id = customer._id;
+  if (id) {
+    try {
+      const u = await User.findById(id).lean();
+      if (u) {
+        if (u.firstName && u.lastName) name = `${u.firstName} ${u.lastName}`;
+        else if (u.name) name = u.name;
+      }
+    } catch (_) {}
+  }
+  return { name, id };
+}
+
+/**
+ * Detect bookings in the assignment queue that have exceeded their scheduled
+ * time WITHOUT a committed technician, and auto-fall them back to
+ * "pending_reassignment" so admins can reschedule them.
+ *
+ * Enterprise rules:
+ *  - Only unassigned bookings are touched. A booking whose technician has
+ *    ACCEPTED the assignment is never auto-fallen-back — it is handled by the
+ *    notify-only delay monitor.
+ *  - Auto-fallback is idempotent (guarded by autoReschedulePending).
+ *  - The booking is NOT given a new date/time; it just moves to the
+ *    reschedule queue where an admin picks the new slot.
+ */
+async function checkForUnassignedOverdueBookings() {
+  try {
+    const now = new Date();
+
+    const queueBookings = await BookingService.find({
+      status: { $in: ['awaiting_assignment', 'assigned'] },
+      autoReschedulePending: { $ne: true },
+    }).select(
+      'bookingDate startTime serviceName customer customerId technicianId assignmentId bookingReference technician'
+    );
+
+    if (!queueBookings.length) return;
+
+    let flaggedCount = 0;
+
+    for (const booking of queueBookings) {
+      const scheduledDateTime = parseBookingDateTime(booking.bookingDate, booking.startTime);
+      if (!scheduledDateTime) continue;
+
+      const graceEnd = new Date(scheduledDateTime.getTime() + RESCHEDULE_FALLBACK_GRACE_MINUTES * 60000);
+      if (now <= graceEnd) continue;
+
+      // `assigned` requires the assignment to still be pending acceptance;
+      // if the technician already accepted, this is a lateness case (delay monitor).
+      if (booking.status === 'assigned' && booking.assignmentId) {
+        let live = false;
+        try {
+          const assignment = await Assignment.findById(booking.assignmentId)
+            .select('status acceptanceDeadline acceptedAt')
+            .lean();
+          live = !!assignment && !['cancelled', 'declined'].includes(assignment.status);
+        } catch (_) {}
+        if (live) continue;
+      }
+
+      const overdueByMin = Math.round((now - scheduledDateTime) / 60000);
+      const reason = `No technician assigned before scheduled time (${overdueByMin} minute(s) overdue). Auto-moved to reschedule queue.`;
+
+      const { name: customerName, id: customerId } = await resolveCustomer(booking.customer, booking.customerId);
+
+      let techName = 'None assigned';
+      if (booking.technicianId) {
+        try {
+          const t = await Technician.findById(booking.technicianId).select('name').lean();
+          if (t) techName = t.name;
+        } catch (_) {}
+      }
+
+      console.warn(
+        `[reschedule-monitor] ⏰ Booking ${booking.bookingReference || booking._id} exceeded its schedule (${overdueByMin}m) with no committed technician. Falling back to reschedule. Status: ${booking.status}.`
+      );
+
+      // Cancel the stale assignment record (if any) and move booking to queue-for-reschedule
+      if (booking.assignmentId) {
+        try {
+          await Assignment.findByIdAndUpdate(booking.assignmentId, {
+            status: 'cancelled',
+            cancelledAt: now,
+            notes: 'Auto-cancelled: booking exceeded schedule without an accepted technician',
+          });
+        } catch (_) {}
+      }
+
+      booking.status = 'pending_reassignment';
+      booking.technicianId = null;
+      booking.assignmentId = null;
+      booking.autoReschedulePending = true;
+      booking.autoRescheduleAt = now;
+      booking.autoRescheduleReason = reason;
+      booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
+      booking.cancellationHistory.push({
+        technicianId: null,
+        technicianName: techName,
+        action: 'auto_reschedule',
+        reason,
+        timestamp: now,
+      });
+      booking.recordStatusHistory({
+        fromStatus: 'assigned',
+        toStatus: 'pending_reassignment',
+        changedByModel: 'System',
+        changedByName: 'Booking Monitor',
+        reason,
+        metadata: { auto: true, overdueByMin },
+      });
+      await booking.save();
+
+      const io = global.io;
+      const { createNotification } = require('./notify');
+
+      try {
+        await createNotification({
+          type: 'booking_overdue_reschedule',
+          title: 'Booking Exceeded Schedule — Reschedule Required',
+          message: `${booking.serviceName || 'Service'} for ${customerName} (${booking.bookingReference || ''}) exceeded its scheduled time by ${overdueByMin} minute(s) with no assigned technician. Moved to Needs Reschedule.`,
+          role: 'admin',
+          referenceId: booking._id,
+          referenceModel: 'BookingService',
+          link: '/admin/appointments?tab=queue',
+          priority: 'high',
+          io,
+        }).catch(() => {});
+      } catch (_) {}
+
+      if (customerId && io) {
+        try {
+          io.to('customer:' + customerId).emit('booking:auto-reschedule-pending', {
+            bookingId: booking._id,
+            bookingRef: booking.bookingReference,
+            serviceName: booking.serviceName,
+            message: 'Your appointment passed its scheduled time without a confirmed technician. We are working to reschedule it — you will be notified of the new schedule.',
+          });
+        } catch (_) {}
+      }
+
+      flaggedCount++;
+    }
+
+    if (flaggedCount > 0) {
+      console.log(`[reschedule-monitor] Auto-moved ${flaggedCount} unassigned overdue booking(s) to the reschedule queue.`);
+    }
+  } catch (err) {
+    console.error('[reschedule-monitor] Error checking unassigned overdue bookings:', err.message);
+  }
+}
+
+/**
+ * Remind admins to verify bookings/orders BEFORE their scheduled time.
+ *
+ * Window: bookings scheduled within the next VERIFY_REMINDER_HOURS whose
+ * payment is still pending verification or that are still in the assignment
+ * queue. Fires exactly once per booking (guarded by verificationReminderAt).
+ */
+async function checkForUpcomingUnverifiedBookings() {
+  try {
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + VERIFY_REMINDER_HOURS * 3600 * 1000);
+
+    const upcoming = await BookingService.find({
+      status: {
+        $in: [
+          'pending',
+          'payment_verified',
+          'awaiting_assignment',
+          'assigned',
+          'pending_reassignment',
+          'confirmed',
+          'scheduled',
+        ],
+      },
+      verificationReminderAt: null,
+    }).select('bookingDate startTime serviceName customer customerId paymentStatus bookingReference');
+
+    if (!upcoming.length) return;
+
+    let remindedCount = 0;
+
+    for (const booking of upcoming) {
+      const scheduledDateTime = parseBookingDateTime(booking.bookingDate, booking.startTime);
+      if (!scheduledDateTime) continue;
+      if (scheduledDateTime <= now || scheduledDateTime > windowEnd) continue;
+
+      const hoursAway = Math.round((scheduledDateTime - now) / 3600000 * 10) / 10;
+
+      const issues = [];
+      if (booking.status === 'pending' || ['pending', 'failed', 'partial'].includes(booking.paymentStatus)) {
+        issues.push('Payment is not yet verified');
+      }
+      if (['awaiting_assignment', 'assigned', 'pending_reassignment'].includes(booking.status)) {
+        issues.push('No confirmed technician assigned');
+      }
+
+      if (!issues.length) continue;
+
+      const { name: customerName } = await resolveCustomer(booking.customer, booking.customerId);
+
+      const dateLabel = booking.bookingDate
+        ? new Date(booking.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })
+        : 'TBD';
+      const timeLabel = booking.startTime || 'TBD';
+
+      try {
+        booking.verificationReminderAt = now;
+        await booking.save();
+      } catch (_) {}
+
+      const io = global.io;
+      const { createNotification } = require('./notify');
+
+      try {
+        await createNotification({
+          type: 'booking_verify_reminder',
+          title: 'Verify Booking Before Schedule Time',
+          message: `${booking.serviceName || 'Service'} for ${customerName} (${booking.bookingReference || ''}) is scheduled ${dateLabel} at ${timeLabel} (${hoursAway} hour(s) away). ${issues.join('. ')}. Please verify before the schedule.`,
+          role: 'admin',
+          referenceId: booking._id,
+          referenceModel: 'BookingService',
+          link: '/admin/appointments?tab=queue',
+          priority: 'high',
+          io,
+        }).catch(() => {});
+      } catch (_) {}
+
+      remindedCount++;
+    }
+
+    if (remindedCount > 0) {
+      console.log(`[verify-reminder] Sent pre-schedule verification reminders for ${remindedCount} booking(s).`);
+    }
+  } catch (err) {
+    console.error('[verify-reminder] Error checking upcoming unverified bookings:', err.message);
+  }
 }
 
 /**
@@ -327,12 +584,16 @@ function startOverdueScheduler() {
   setTimeout(async () => {
     await checkForDelayedBookings();
     await checkForServiceDelays();
+    await checkForUnassignedOverdueBookings();
+    await checkForUpcomingUnverifiedBookings();
   }, 30 * 1000);
 
   // Then run every 5 minutes
   setInterval(async () => {
     await checkForDelayedBookings();
     await checkForServiceDelays();
+    await checkForUnassignedOverdueBookings();
+    await checkForUpcomingUnverifiedBookings();
   }, CHECK_INTERVAL_MS);
 }
 
@@ -340,5 +601,7 @@ module.exports = {
   startOverdueScheduler,
   checkForDelayedBookings,
   checkForServiceDelays,
+  checkForUnassignedOverdueBookings,
+  checkForUpcomingUnverifiedBookings,
   parseBookingDateTime,
 };

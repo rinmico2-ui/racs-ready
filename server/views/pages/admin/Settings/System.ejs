@@ -209,30 +209,57 @@
           <h3>Business Profile</h3>
         </div>
         <div class="ss-card-body">
+          <div id="bpAlert" class="alert d-none" role="alert"></div>
           <form id="businessProfileForm">
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Business Name</label>
-                <input type="text" class="form-control" name="businessName" value="KoolTech Cooling Systems">
+                <input type="text" class="form-control" name="businessName" id="bpName" maxlength="100" placeholder="CALIDRO RACS">
               </div>
               <div class="col-md-6">
                 <label class="form-label">Contact Email</label>
-                <input type="email" class="form-control" name="contactEmail" value="admin@kooltech.com">
+                <input type="email" class="form-control" name="email" id="bpEmail" maxlength="100" placeholder="calidroracs@gmail.com">
               </div>
               <div class="col-md-6">
                 <label class="form-label">Support Phone</label>
-                <input type="text" class="form-control" name="supportPhone" value="+63 912 345 6789">
+                <input type="text" class="form-control" name="phone" id="bpPhone" maxlength="30" placeholder="0965 605 6495">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Tax ID / TIN</label>
-                <input type="text" class="form-control" name="taxId" value="123-456-789-000">
+                <label class="form-label">Tagline</label>
+                <input type="text" class="form-control" name="tagline" id="bpTagline" maxlength="300" placeholder="Premium air conditioning & appliance care...">
               </div>
               <div class="col-12">
                 <label class="form-label">Business Address</label>
-                <textarea class="form-control" name="address" rows="2">123 Tech Avenue, Metro Manila, Philippines</textarea>
+                <textarea class="form-control" name="address" id="bpAddress" rows="2" maxlength="500" placeholder="San Leonardo, Nueva Ecija"></textarea>
               </div>
               <div class="col-12 text-end mt-3">
-                <button type="button" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Changes</button>
+                <button type="button" class="btn-ss primary" id="bpSaveBtn"><i class="bi bi-floppy"></i> Save Changes</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Payment Policy -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon amber"><i class="bi bi-percent"></i></div>
+          <h3>Payment Policy</h3>
+        </div>
+        <div class="ss-card-body">
+          <div id="paymentPolicyAlert" class="alert d-none" role="alert"></div>
+          <form id="paymentPolicyForm">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-7">
+                <label class="form-label" for="downpaymentPercentage">Required Downpayment</label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="downpaymentPercentage" min="1" max="100" step="0.01" value="10" required>
+                  <span class="input-group-text">%</span>
+                </div>
+                <div class="form-text">Applied to the total cost of new product orders and customer service bookings. Existing records keep their original rate.</div>
+              </div>
+              <div class="col-md-5 text-md-end">
+                <button type="submit" class="btn-ss primary" id="paymentPolicySaveBtn"><i class="bi bi-floppy"></i> Save Payment Policy</button>
               </div>
             </div>
           </form>
@@ -509,3 +536,116 @@
     </div>
   </div>
 </div>
+
+<script>
+(function() {
+  var btn = document.getElementById('bpSaveBtn');
+  var alertBox = document.getElementById('bpAlert');
+
+  function showAlert(msg, type) {
+    if (!alertBox) return;
+    alertBox.className = 'alert alert-' + (type || 'info') + ' py-2 small';
+    alertBox.textContent = msg;
+    alertBox.classList.remove('d-none');
+    setTimeout(function() { alertBox.classList.add('d-none'); }, 4000);
+  }
+
+  // Load existing values
+  fetch('/api/admin/settings/business-profile', { credentials: 'same-origin' })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      if (data.businessName) document.getElementById('bpName').value = data.businessName;
+      if (data.email) document.getElementById('bpEmail').value = data.email;
+      if (data.phone) document.getElementById('bpPhone').value = data.phone;
+      if (data.tagline) document.getElementById('bpTagline').value = data.tagline;
+      if (data.address) document.getElementById('bpAddress').value = data.address;
+    })
+    .catch(function() {});
+
+  if (btn) {
+    btn.addEventListener('click', function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+      var payload = {
+        businessName: document.getElementById('bpName').value,
+        email: document.getElementById('bpEmail').value,
+        phone: document.getElementById('bpPhone').value,
+        tagline: document.getElementById('bpTagline').value,
+        address: document.getElementById('bpAddress').value,
+      };
+      fetch('/api/admin/settings/business-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.message) {
+            showAlert('Business profile saved successfully.', 'success');
+          } else {
+            showAlert(data.error || 'Failed to save.', 'danger');
+          }
+        })
+        .catch(function() { showAlert('Network error.', 'danger'); })
+        .finally(function() {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-floppy"></i> Save Changes';
+        });
+    });
+  }
+})();
+
+(function() {
+  var form = document.getElementById('paymentPolicyForm');
+  var input = document.getElementById('downpaymentPercentage');
+  var btn = document.getElementById('paymentPolicySaveBtn');
+  var alertBox = document.getElementById('paymentPolicyAlert');
+
+  function showPaymentAlert(message, type) {
+    if (!alertBox) return;
+    alertBox.className = 'alert alert-' + (type || 'info') + ' py-2 small';
+    alertBox.textContent = message;
+    alertBox.classList.remove('d-none');
+  }
+
+  fetch('/api/admin/settings/payment-policy', { credentials: 'same-origin' })
+    .then(function(response) { return response.ok ? response.json() : null; })
+    .then(function(data) {
+      if (data && data.downpaymentPercentage != null) input.value = data.downpaymentPercentage;
+    })
+    .catch(function() { showPaymentAlert('Unable to load the payment policy.', 'warning'); });
+
+  if (form) form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    var percentage = Number(input.value);
+    if (!Number.isFinite(percentage) || percentage < 1 || percentage > 100) {
+      showPaymentAlert('Enter a percentage from 1 to 100.', 'danger');
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+    fetch('/api/admin/settings/payment-policy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ downpaymentPercentage: percentage }),
+    })
+      .then(function(response) {
+        return response.json().then(function(data) { return { ok: response.ok, data: data }; });
+      })
+      .then(function(result) {
+        if (!result.ok) throw new Error(result.data.error || 'Failed to save payment policy.');
+        input.value = result.data.downpaymentPercentage;
+        showPaymentAlert('Payment policy saved. New orders and bookings will use ' + result.data.downpaymentPercentage + '%.', 'success');
+      })
+      .catch(function(error) { showPaymentAlert(error.message || 'Unable to save the payment policy.', 'danger'); })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-floppy"></i> Save Payment Policy';
+      });
+  });
+})();
+</script>

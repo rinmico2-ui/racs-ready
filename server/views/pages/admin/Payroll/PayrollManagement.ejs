@@ -1,0 +1,1813 @@
+<div class="admin-dashboard container-fluid py-4 payroll-page">
+  <%- include('../../../partials/dashboard-styles') %>
+
+  <style>
+    .payroll-page .dash-card { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 16px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04); border: 1px solid rgba(226, 232, 240, 0.6); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); padding: 1.25rem; }
+    .payroll-page .dash-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+    .payroll-page .kpi-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .payroll-page .kpi-icon i { color: #fff !important; }
+    .payroll-page .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .payroll-page .kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .payroll-page .kpi-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+    .payroll-page .tab-btn { padding: 0.5rem 1.25rem; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.2s ease; }
+    .payroll-page .tab-btn:hover { border-color: #93c5fd; color: #2563eb; }
+    .payroll-page .tab-btn.active { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); }
+    .payroll-page .tab-panel { display: none; }
+    .payroll-page .tab-panel.active { display: block; animation: fadeUp 0.3s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .payroll-page .filter-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .payroll-page .filter-group { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+    .payroll-page .filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .payroll-page .filter-input { border-radius: 10px; border: 1px solid #e2e8f0; height: 40px; padding: 0 12px; font-size: 0.82rem; background: #fff; }
+    .payroll-page .filter-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .payroll-page .filter-btn { height: 40px; border-radius: 10px; padding: 0 18px; font-weight: 600; font-size: 0.82rem; }
+
+    .payroll-page .table-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04); border: 1px solid rgba(226, 232, 240, 0.6); overflow: hidden; }
+    .payroll-page .table thead th { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; white-space: nowrap; }
+    .payroll-page .table tbody td { padding: 12px 16px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; color: #334155; }
+    .payroll-page .table tbody tr:hover { background: #f8fafc; }
+    .payroll-page .status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .payroll-page .status-draft { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+    .payroll-page .status-approved { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+    .payroll-page .status-paid { background: rgba(16, 185, 129, 0.12); color: #059669; }
+    .payroll-page .status-voided { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+
+    .payroll-page .role-tag { font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+    .payroll-page .role-technician { background: rgba(59, 130, 246, 0.10); color: #2563eb; }
+    .payroll-page .role-secretary { background: rgba(236, 72, 153, 0.10); color: #db2777; }
+
+    .payroll-page .btn-action { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; cursor: pointer; transition: all 0.2s ease; padding: 0; }
+    .payroll-page .btn-action:hover { border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.06); }
+    .payroll-page .btn-action.danger:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.06); }
+    .payroll-page .btn-action.success:hover { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.06); }
+
+    .payroll-page .form-label-sm { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 0.25rem; }
+    .payroll-page .form-control-sm-custom { border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.45rem 0.7rem; font-size: 0.85rem; color: #1e293b; background: #f8fafc; width: 100%; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+    .payroll-page .form-control-sm-custom:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); background: #fff; }
+    .payroll-page .form-select-sm-custom { border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.45rem 1.8rem 0.45rem 0.7rem; font-size: 0.85rem; color: #1e293b; background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='%2364748b'%3E%3Cpath d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 0.6rem center; appearance: none; width: 100%; cursor: pointer; }
+    .payroll-page .form-select-sm-custom:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); background-color: #fff; }
+
+    .payroll-page .line-items-container { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .payroll-page .line-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .payroll-page .line-item-row:last-child { margin-bottom: 0; }
+    .payroll-page .line-item-row input { flex: 1; }
+    .payroll-page .line-item-row .btn-remove-item { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; flex-shrink: 0; }
+    .payroll-page .line-item-row .btn-remove-item:hover { background: #fef2f2; border-color: #ef4444; }
+
+    .payroll-page .calc-summary { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+    .payroll-page .calc-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.82rem; }
+    .payroll-page .calc-row.total { border-top: 2px solid #e2e8f0; margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: 0.95rem; color: #0f172a; }
+
+    .payroll-page .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .payroll-page .detail-item { background: #f8fafc; border-radius: 10px; padding: 10px 14px; }
+    .payroll-page .detail-item-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-bottom: 2px; }
+    .payroll-page .detail-item-value { font-size: 0.85rem; color: #0f172a; font-weight: 500; }
+
+    .payroll-page .empty-state { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .payroll-page .empty-state i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+    .payroll-page .empty-state p { font-size: 0.85rem; margin: 0; }
+
+    .payroll-page .att-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+    .payroll-page .att-item { text-align: center; background: #f8fafc; border-radius: 8px; padding: 8px 4px; }
+    .payroll-page .att-item .att-num { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
+    .payroll-page .att-item .att-lbl { font-size: 0.65rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
+
+    /* ═══ PREMIUM MODAL ═══════════════════════════════════════════════ */
+    .pw-modal { border-radius: 20px; border: none; overflow: hidden; box-shadow: 0 25px 60px rgba(15,23,42,0.18); max-height: 90vh; display: flex; flex-direction: column; }
+    .pw-modal-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1.25rem 1.75rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .pw-modal-header-left { display: flex; align-items: center; gap: 14px; }
+    .pw-modal-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.2rem; box-shadow: 0 4px 14px rgba(59,130,246,0.4); }
+    .pw-modal-title { margin: 0; font-weight: 700; font-size: 1.05rem; color: #fff; letter-spacing: -0.01em; }
+    .pw-modal-sub { margin: 0; font-size: 0.75rem; color: #94a3b8; }
+
+    /* Stepper */
+    .pw-stepper { display: flex; align-items: center; justify-content: center; gap: 0; padding: 1rem 1.75rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .pw-step { display: flex; align-items: center; gap: 8px; }
+    .pw-step-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; background: #e2e8f0; color: #94a3b8; transition: all 0.3s ease; }
+    .pw-step.active .pw-step-circle { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; box-shadow: 0 2px 8px rgba(59,130,246,0.35); }
+    .pw-step.completed .pw-step-circle { background: #10b981; color: #fff; }
+    .pw-step span { font-size: 0.75rem; font-weight: 600; color: #94a3b8; transition: color 0.3s; }
+    .pw-step.active span { color: #0f172a; }
+    .pw-step.completed span { color: #059669; }
+    .pw-step-line { flex: 1; height: 2px; background: #e2e8f0; margin: 0 12px; min-width: 30px; max-width: 80px; transition: background 0.3s; }
+    .pw-step.completed + .pw-step-line { background: #10b981; }
+
+    .pw-modal-body { overflow-y: auto; flex: 1; padding: 0; }
+
+    /* Step Panels */
+    .pw-step-panel { display: none; padding: 1.25rem 1.75rem 1rem; animation: pwFadeIn 0.3s ease; }
+    .pw-step-panel.active { display: block; }
+    @keyframes pwFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Section Cards */
+    .pw-section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.15rem 1.25rem; margin-bottom: 0.85rem; transition: box-shadow 0.2s; }
+    .pw-section-card:hover { box-shadow: 0 2px 12px rgba(15,23,42,0.04); }
+    .pw-section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+    .pw-section-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.95rem; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+    .pw-section-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: #0f172a; }
+    .pw-section-desc { margin: 0; font-size: 0.72rem; color: #94a3b8; }
+
+    /* Form Elements */
+    .pw-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 6px; display: block; }
+    .pw-input-wrap { position: relative; }
+    .pw-input { width: 100%; height: 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; padding: 0 12px; font-size: 0.85rem; color: #0f172a; background: #f8fafc; transition: all 0.2s ease; }
+    .pw-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); background: #fff; }
+    .pw-input-icon-field { padding-left: 38px; }
+    .pw-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem; pointer-events: none; }
+    .pw-input-prefix-field { padding-left: 30px; }
+    .pw-input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.82rem; font-weight: 700; pointer-events: none; }
+    .pw-select-wrap { position: relative; }
+    .pw-select { width: 100%; height: 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; padding: 0 32px 0 12px; font-size: 0.85rem; color: #0f172a; background: #f8fafc; appearance: none; cursor: pointer; transition: all 0.2s ease; }
+    .pw-select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); background: #fff; }
+    .pw-select-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.7rem; pointer-events: none; }
+
+    /* Calc Button */
+    .pw-btn-calc { width: 100%; height: 42px; border-radius: 10px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.25s ease; box-shadow: 0 4px 14px rgba(59,130,246,0.35); }
+    .pw-btn-calc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59,130,246,0.45); }
+    .pw-btn-calc:active { transform: translateY(0) scale(0.98); }
+    .pw-btn-calc:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Attendance Grid */
+    .pw-attendance-card { border-color: rgba(16,185,129,0.2); background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%); }
+    .pw-att-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+    .pw-att-item { text-align: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 6px; position: relative; transition: all 0.2s; }
+    .pw-att-item:hover { border-color: #cbd5e1; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .pw-att-dot { width: 6px; height: 6px; border-radius: 50%; margin: 6px auto 0; }
+    .pw-att-num { font-size: 1.3rem; font-weight: 800; color: #0f172a; line-height: 1.2; }
+    .pw-att-lbl { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-top: 2px; }
+
+    /* Add Buttons */
+    .pw-btn-add { border-radius: 8px; border: 1.5px dashed #3b82f6; background: rgba(59,130,246,0.04); color: #3b82f6; font-weight: 600; font-size: 0.72rem; padding: 5px 12px; cursor: pointer; transition: all 0.2s; margin-left: auto; flex-shrink: 0; }
+    .pw-btn-add:hover { background: rgba(59,130,246,0.1); border-color: #2563eb; }
+    .pw-btn-add-danger { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.04); }
+    .pw-btn-add-danger:hover { background: rgba(239,68,68,0.1); border-color: #dc2626; }
+
+    /* Line Items */
+    .pw-line-items { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; min-height: 48px; }
+    .pw-line-empty { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 14px; color: #94a3b8; font-size: 0.8rem; }
+    .pw-line-row { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+    .pw-line-row:last-child { border-bottom: none; }
+    .pw-line-row input { flex: 1; height: 34px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0 10px; font-size: 0.82rem; color: #0f172a; background: #f8fafc; transition: border-color 0.2s; }
+    .pw-line-row input:focus { outline: none; border-color: #3b82f6; background: #fff; }
+    .pw-line-row .pw-line-remove { width: 28px; height: 28px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+    .pw-line-row .pw-line-remove:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+
+    /* Review Panel */
+    .pw-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+    .pw-review-summary { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important; border: none !important; }
+    .pw-review-summary .pw-section-title { color: #fff !important; }
+    .pw-review-summary .pw-section-desc { color: #94a3b8 !important; }
+    .pw-review-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+    .pw-review-label { font-size: 0.82rem; color: #94a3b8; }
+    .pw-review-value { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+    .pw-text-green { color: #34d399 !important; }
+    .pw-text-red { color: #f87171 !important; }
+    .pw-review-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+    .pw-review-gross { padding: 10px 0; }
+    .pw-review-gross span { font-size: 0.88rem; font-weight: 600; color: #e2e8f0; }
+    .pw-review-net { padding: 10px 0 4px; }
+    .pw-review-net span { font-size: 1.1rem; font-weight: 800; color: #34d399; }
+
+    .pw-review-info-grid { display: flex; flex-direction: column; gap: 10px; }
+    .pw-review-info-item { background: #f8fafc; border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .pw-review-info-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; }
+    .pw-review-info-value { font-size: 0.85rem; font-weight: 600; color: #0f172a; }
+
+    /* Step Actions */
+    .pw-step-actions { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0 0.25rem; border-top: 1px solid #f1f5f9; margin-top: 0.5rem; }
+    .pw-btn-back { border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 600; font-size: 0.82rem; padding: 8px 18px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+    .pw-btn-back:hover { border-color: #cbd5e1; color: #0f172a; background: #f8fafc; }
+    .pw-btn-next { border-radius: 10px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; font-weight: 700; font-size: 0.82rem; padding: 9px 22px; cursor: pointer; transition: all 0.25s; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 12px rgba(59,130,246,0.3); }
+    .pw-btn-next:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(59,130,246,0.4); }
+    .pw-btn-save { border-radius: 10px; border: none; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 700; font-size: 0.85rem; padding: 10px 28px; cursor: pointer; transition: all 0.25s; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(16,185,129,0.35); }
+    .pw-btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.45); }
+
+    @media (max-width: 768px) {
+      .pw-att-grid { grid-template-columns: repeat(3, 1fr); }
+      .pw-review-grid { grid-template-columns: 1fr; }
+      .pw-stepper span { display: none; }
+      .pw-step-line { max-width: 40px; }
+      .pw-type-grid { grid-template-columns: 1fr !important; }
+    }
+
+    /* Pay Type Selector */
+    .pw-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .pw-type-option { cursor: pointer; }
+    .pw-type-radio { position: absolute; opacity: 0; width: 0; height: 0; }
+    .pw-type-card { border: 2px solid #e2e8f0; border-radius: 12px; padding: 16px 10px; text-align: center; transition: all 0.25s ease; background: #f8fafc; }
+    .pw-type-card:hover { border-color: #93c5fd; background: #eff6ff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59,130,246,0.1); }
+    .pw-type-radio:checked + .pw-type-card { border-color: #3b82f6; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); transform: translateY(-2px); }
+    .pw-type-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.1rem; margin: 0 auto 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+    .pw-type-label { font-size: 0.82rem; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+    .pw-type-desc { font-size: 0.68rem; color: #94a3b8; }
+
+    /* Due Today Banner */
+    .pw-due-banner { background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: none; }
+    .pw-due-banner.show { display: block; animation: fadeUp 0.4s ease; }
+    .pw-due-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pw-due-header-left { display: flex; align-items: center; gap: 10px; }
+    .pw-due-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.95rem; box-shadow: 0 3px 10px rgba(245,158,11,0.3); }
+    .pw-due-title { font-size: 0.9rem; font-weight: 700; color: #92400e; margin: 0; }
+    .pw-due-sub { font-size: 0.72rem; color: #b45309; margin: 0; }
+    .pw-due-count { font-size: 0.78rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #f59e0b, #d97706); padding: 4px 12px; border-radius: 20px; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
+    .pw-due-list { display: flex; flex-direction: column; gap: 8px; }
+    .pw-due-card { background: #fff; border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s ease; }
+    .pw-due-card:hover { border-color: #f59e0b; box-shadow: 0 2px 8px rgba(245,158,11,0.12); }
+    .pw-due-card-left { display: flex; align-items: center; gap: 10px; }
+    .pw-due-avatar { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.72rem; font-weight: 700; }
+    .pw-due-name { font-size: 0.82rem; font-weight: 600; color: #0f172a; }
+    .pw-due-meta { font-size: 0.68rem; color: #94a3b8; }
+    .pw-due-att { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+    .pw-due-att-present { background: rgba(16,185,129,0.1); color: #059669; }
+    .pw-due-att-late { background: rgba(245,158,11,0.1); color: #d97706; }
+    .pw-due-att-absent { background: rgba(239,68,68,0.1); color: #dc2626; }
+    .pw-due-empty { text-align: center; padding: 12px; font-size: 0.82rem; color: #92400e; }
+    .pw-due-create-btn { font-size: 0.72rem; font-weight: 600; padding: 4px 12px; border-radius: 8px; border: 1px solid #f59e0b; background: #fff; color: #d97706; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+    .pw-due-create-btn:hover { background: #f59e0b; color: #fff; }
+  </style>
+
+  <!-- Header -->
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-wallet2-fill"></i></div>
+        <div>
+          <h1>Payroll Management</h1>
+          <p>Manage employee compensation, process payroll, and track payments</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Total Net Payroll</div>
+            <div class="kpi-value" id="kpiNetTotal">--</div>
+            <div class="kpi-sub">Excluding voided</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-cash-stack"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Draft</div>
+            <div class="kpi-value" id="kpiDraft">0</div>
+            <div class="kpi-sub">Pending review</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><i class="bi bi-pencil-square"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Approved</div>
+            <div class="kpi-value" id="kpiApproved">0</div>
+            <div class="kpi-sub">Ready for payment</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb);"><i class="bi bi-check2-circle"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <div class="kpi-title">Paid</div>
+            <div class="kpi-value" id="kpiPaid">0</div>
+            <div class="kpi-sub">This period</div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);"><i class="bi bi-check-all"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payroll Due Today Banner -->
+  <div class="pw-due-banner" id="dueTodayBanner">
+    <div class="pw-due-header">
+      <div class="pw-due-header-left">
+        <div class="pw-due-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div>
+          <h6 class="pw-due-title">Payroll Due Today</h6>
+          <p class="pw-due-sub" id="dueTodayDate">—</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="pw-due-count" id="dueTodayCount">0</span>
+        <button id="btnRefreshDue" class="btn btn-sm" style="border-radius:8px;font-size:0.72rem;border:1px solid rgba(245,158,11,0.3);background:rgba(255,255,255,0.7);color:#92400e;" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
+    </div>
+    <div class="pw-due-list" id="dueTodayList">
+      <div class="pw-due-empty"><i class="bi bi-check-circle me-1"></i>Loading...</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="d-flex gap-2 mb-4">
+    <button class="tab-btn active" data-tab="records"><i class="bi bi-list-ul me-1"></i>Payroll Records</button>
+    <button class="tab-btn" data-tab="compensation"><i class="bi bi-person-gear me-1"></i>Employee Pay Rates</button>
+  </div>
+
+  <!-- ═══ TAB: PAYROLL RECORDS ═══ -->
+  <div class="tab-panel active" id="tab-records">
+    <!-- Filters -->
+    <div class="filter-bar">
+      <div class="filter-group" style="flex:1.5;">
+        <label class="filter-label">Status</label>
+        <select id="filterStatus" class="form-select-sm-custom filter-input">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="approved">Approved</option>
+          <option value="paid">Paid</option>
+          <option value="voided">Voided</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:1.2;">
+        <label class="filter-label">Role</label>
+        <select id="filterRole" class="form-select-sm-custom filter-input">
+          <option value="">All Roles</option>
+          <option value="technician">Technician</option>
+          <option value="secretary">Secretary</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:1.5;">
+        <label class="filter-label">Employee</label>
+        <select id="filterEmployee" class="form-select-sm-custom filter-input">
+          <option value="">All Employees</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:0.8;">
+        <label class="filter-label">Year</label>
+        <select id="filterYear" class="form-select-sm-custom filter-input"></select>
+      </div>
+      <button id="btnRefresh" class="btn btn-outline-secondary filter-btn" title="Refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+      <button id="btnCreatePayroll" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>Create Payroll</button>
+    </div>
+
+    <!-- Records Table -->
+    <div class="table-card">
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Period</th>
+              <th class="text-end">Basic Pay</th>
+              <th class="text-end">OT</th>
+              <th class="text-end">Allow.</th>
+              <th class="text-end">Ded.</th>
+              <th class="text-end">Net Pay</th>
+              <th>Status</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="recordsBody">
+            <tr><td colspan="9" class="empty-state"><i class="bi bi-wallet2"></i><p>Loading payroll records...</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: EMPLOYEE PAY RATES ═══ -->
+  <div class="tab-panel" id="tab-compensation">
+    <div class="filter-bar">
+      <div class="filter-group" style="flex:1.5;">
+        <label class="filter-label">Employee</label>
+        <select id="compFilterEmployee" class="form-select-sm-custom filter-input">
+          <option value="">All Employees</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:1;">
+        <label class="filter-label">Status</label>
+        <select id="compFilterActive" class="form-select-sm-custom filter-input">
+          <option value="">All</option>
+          <option value="true">Active Only</option>
+          <option value="false">Ended</option>
+        </select>
+      </div>
+      <button id="btnRefreshComp" class="btn btn-outline-secondary filter-btn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+      <button id="btnAddComp" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>Add Pay Rate</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Pay Type</th>
+              <th class="text-end">Base Rate</th>
+              <th class="text-end">OT Rate/hr</th>
+              <th>Effective From</th>
+              <th>Effective To</th>
+              <th>Status</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="compBody">
+            <tr><td colspan="8" class="empty-state"><i class="bi bi-person-gear"></i><p>Loading compensation records...</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MODALS -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Create / Edit Payroll Modal -->
+<div class="modal fade" id="payrollModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content pw-modal">
+      <!-- Header -->
+      <div class="pw-modal-header">
+        <div class="pw-modal-header-left">
+          <div class="pw-modal-icon"><i class="bi bi-wallet2"></i></div>
+          <div>
+            <h5 class="pw-modal-title" id="payrollModalTitle">Create Payroll</h5>
+            <p class="pw-modal-sub" id="payrollModalSub">Calculate and create a new payroll record</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Stepper -->
+      <div class="pw-stepper">
+        <div class="pw-step active" data-step="1">
+          <div class="pw-step-circle">1</div>
+          <span>Employee &amp; Period</span>
+        </div>
+        <div class="pw-step-line"></div>
+        <div class="pw-step" data-step="2">
+          <div class="pw-step-circle">2</div>
+          <span>Pay Breakdown</span>
+        </div>
+        <div class="pw-step-line"></div>
+        <div class="pw-step" data-step="3">
+          <div class="pw-step-circle">3</div>
+          <span>Review &amp; Save</span>
+        </div>
+      </div>
+
+      <div class="pw-modal-body">
+        <form id="payrollForm">
+          <input type="hidden" id="pfPayrollId" value="" />
+
+          <!-- ═══ STEP 1: Employee & Period ═══ -->
+          <div class="pw-step-panel active" id="pwStep1">
+            <div class="pw-section-card">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);"><i class="bi bi-person-badge"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Employee Selection</h6>
+                  <p class="pw-section-desc">Choose the staff member for this payroll</p>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-8">
+                  <label class="pw-label">Employee *</label>
+                  <div class="pw-select-wrap">
+                    <select id="pfEmployee" class="pw-select" required>
+                      <option value="">Select employee...</option>
+                    </select>
+                    <i class="bi bi-chevron-down pw-select-arrow"></i>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="pw-label">Pay Date *</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-calendar3 pw-input-icon"></i>
+                    <input type="date" id="pfPayDate" class="pw-input pw-input-icon-field" required />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pw-section-card">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="bi bi-calendar-range"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Pay Period</h6>
+                  <p class="pw-section-desc">Define the start and end dates for this payroll cycle</p>
+                </div>
+              </div>
+              <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="pw-label">Period Start *</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-calendar-event pw-input-icon"></i>
+                    <input type="date" id="pfPeriodStart" class="pw-input pw-input-icon-field" required />
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="pw-label">Period End *</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-calendar-event pw-input-icon"></i>
+                    <input type="date" id="pfPeriodEnd" class="pw-input pw-input-icon-field" required />
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <button type="button" id="btnAutoCalc" class="pw-btn-calc">
+                    <i class="bi bi-calculator"></i>
+                    <span>Auto-Calculate</span>
+                    <i class="bi bi-arrow-right"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Attendance Summary -->
+            <div id="calcAttendanceWrap" class="pw-section-card pw-attendance-card" style="display:none;">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-clipboard2-check"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Attendance Summary</h6>
+                  <p class="pw-section-desc">Auto-calculated from attendance records</p>
+                </div>
+              </div>
+              <div class="pw-att-grid">
+                <div class="pw-att-item"><div class="pw-att-num" id="attPresent">0</div><div class="pw-att-lbl">Present</div><div class="pw-att-dot" style="background:#10b981;"></div></div>
+                <div class="pw-att-item"><div class="pw-att-num" id="attLate">0</div><div class="pw-att-lbl">Late</div><div class="pw-att-dot" style="background:#f59e0b;"></div></div>
+                <div class="pw-att-item"><div class="pw-att-num" id="attAbsent">0</div><div class="pw-att-lbl">Absent</div><div class="pw-att-dot" style="background:#ef4444;"></div></div>
+                <div class="pw-att-item"><div class="pw-att-num" id="attLeave">0</div><div class="pw-att-lbl">On Leave</div><div class="pw-att-dot" style="background:#6366f1;"></div></div>
+                <div class="pw-att-item"><div class="pw-att-num" id="attSick">0</div><div class="pw-att-lbl">Sick Leave</div><div class="pw-att-dot" style="background:#ec4899;"></div></div>
+                <div class="pw-att-item pw-att-hours"><div class="pw-att-num" id="attHours">0</div><div class="pw-att-lbl">Hours Worked</div><div class="pw-att-dot" style="background:#0ea5e9;"></div></div>
+              </div>
+            </div>
+
+            <div class="pw-step-actions">
+              <div></div>
+              <button type="button" class="pw-btn-next" onclick="pwGoStep(2)">Continue <i class="bi bi-arrow-right"></i></button>
+            </div>
+          </div>
+
+          <!-- ═══ STEP 2: Pay Breakdown ═══ -->
+          <div class="pw-step-panel" id="pwStep2">
+            <div class="pw-section-card">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-cash-coin"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Compensation</h6>
+                  <p class="pw-section-desc">Enter base pay and overtime amounts</p>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="pw-label">Basic Pay *</label>
+                  <div class="pw-input-wrap">
+                    <span class="pw-input-prefix">₱</span>
+                    <input type="number" id="pfBasicPay" class="pw-input pw-input-prefix-field" min="0" step="0.01" required />
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="pw-label">Overtime Pay</label>
+                  <div class="pw-input-wrap">
+                    <span class="pw-input-prefix">₱</span>
+                    <input type="number" id="pfOvertimePay" class="pw-input pw-input-prefix-field" min="0" step="0.01" value="0" />
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="pw-label">Notes</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-text-left pw-input-icon"></i>
+                    <input type="text" id="pfNotes" class="pw-input pw-input-icon-field" maxlength="1000" placeholder="Optional notes..." />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Allowances -->
+            <div class="pw-section-card">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-plus-circle"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Allowances</h6>
+                  <p class="pw-section-desc">Transport, meal, or other allowances</p>
+                </div>
+                <button type="button" class="pw-btn-add" id="btnAddAllowance"><i class="bi bi-plus-lg"></i> Add</button>
+              </div>
+              <div class="pw-line-items" id="allowancesContainer">
+                <div class="pw-line-empty"><i class="bi bi-inbox"></i> No allowances added yet</div>
+              </div>
+            </div>
+
+            <!-- Deductions -->
+            <div class="pw-section-card">
+              <div class="pw-section-header">
+                <div class="pw-section-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626);"><i class="bi bi-dash-circle"></i></div>
+                <div>
+                  <h6 class="pw-section-title">Deductions</h6>
+                  <p class="pw-section-desc">Advances, loans, or other deductions</p>
+                </div>
+                <button type="button" class="pw-btn-add pw-btn-add-danger" id="btnAddDeduction"><i class="bi bi-plus-lg"></i> Add</button>
+              </div>
+              <div class="pw-line-items" id="deductionsContainer">
+                <div class="pw-line-empty"><i class="bi bi-inbox"></i> No deductions added yet</div>
+              </div>
+            </div>
+
+            <div class="pw-step-actions">
+              <button type="button" class="pw-btn-back" onclick="pwGoStep(1)"><i class="bi bi-arrow-left"></i> Back</button>
+              <button type="button" class="pw-btn-next" onclick="pwGoStep(3)">Review <i class="bi bi-arrow-right"></i></button>
+            </div>
+          </div>
+
+          <!-- ═══ STEP 3: Review ═══ -->
+          <div class="pw-step-panel" id="pwStep3">
+            <div class="pw-review-grid">
+              <!-- Left: Summary -->
+              <div>
+                <div class="pw-section-card pw-review-summary">
+                  <div class="pw-section-header">
+                    <div class="pw-section-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5);"><i class="bi bi-receipt-cutoff"></i></div>
+                    <div>
+                      <h6 class="pw-section-title">Pay Summary</h6>
+                      <p class="pw-section-desc">Review the final payroll amounts</p>
+                    </div>
+                  </div>
+
+                  <div class="pw-review-row">
+                    <span class="pw-review-label">Basic Pay</span>
+                    <span class="pw-review-value" id="sumBasic">₱0.00</span>
+                  </div>
+                  <div class="pw-review-row">
+                    <span class="pw-review-label">Overtime Pay</span>
+                    <span class="pw-review-value" id="sumOT">₱0.00</span>
+                  </div>
+                  <div class="pw-review-row">
+                    <span class="pw-review-label">Allowances</span>
+                    <span class="pw-review-value pw-text-green" id="sumAllow">₱0.00</span>
+                  </div>
+                  <div class="pw-review-divider"></div>
+                  <div class="pw-review-row pw-review-gross">
+                    <span>Gross Pay</span>
+                    <span id="sumGross">₱0.00</span>
+                  </div>
+                  <div class="pw-review-row">
+                    <span class="pw-review-label">Deductions</span>
+                    <span class="pw-review-value pw-text-red" id="sumDed">-₱0.00</span>
+                  </div>
+                  <div class="pw-review-divider"></div>
+                  <div class="pw-review-row pw-review-net">
+                    <span>Net Pay</span>
+                    <span id="sumNet">₱0.00</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Quick Review -->
+              <div>
+                <div class="pw-section-card">
+                  <div class="pw-section-header">
+                    <div class="pw-section-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);"><i class="bi bi-info-circle"></i></div>
+                    <div>
+                      <h6 class="pw-section-title">Quick Review</h6>
+                      <p class="pw-section-desc">Verify the details before saving</p>
+                    </div>
+                  </div>
+                  <div class="pw-review-info-grid">
+                    <div class="pw-review-info-item">
+                      <span class="pw-review-info-label">Employee</span>
+                      <span class="pw-review-info-value" id="reviewEmp">—</span>
+                    </div>
+                    <div class="pw-review-info-item">
+                      <span class="pw-review-info-label">Period</span>
+                      <span class="pw-review-info-value" id="reviewPeriod">—</span>
+                    </div>
+                    <div class="pw-review-info-item">
+                      <span class="pw-review-info-label">Pay Date</span>
+                      <span class="pw-review-info-value" id="reviewPayDate">—</span>
+                    </div>
+                    <div class="pw-review-info-item">
+                      <span class="pw-review-info-label">Attendance</span>
+                      <span class="pw-review-info-value" id="reviewAtt">—</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pw-step-actions">
+              <button type="button" class="pw-btn-back" onclick="pwGoStep(2)"><i class="bi bi-arrow-left"></i> Back</button>
+              <button type="button" id="btnSavePayroll" class="pw-btn-save"><i class="bi bi-check2-circle"></i> Save Draft</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View Payroll Detail Modal -->
+<div class="modal fade" id="viewPayrollModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-eye-fill"></i></div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;" id="viewModalTitle">Payroll Detail</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="viewModalSub">Full breakdown</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0.5rem 1.5rem 1.5rem;" id="viewModalBody">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Approve Payroll Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-check2-circle"></i></div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Approve Payroll</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">This will make the payroll visible to the employee</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0 1.5rem 1.25rem;">
+        <div id="approveSummary" style="background:#f0fdf4;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:0.85rem;color:#065f46;"></div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;font-size:0.82rem;">Cancel</button>
+          <button type="button" id="btnConfirmApprove" class="btn btn-success" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-check-lg me-1"></i>Approve</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mark Paid Modal -->
+<div class="modal fade" id="paidModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-credit-card"></i></div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Mark as Paid</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="paidModalSub">Record payment details</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0 1.5rem 1.25rem;">
+        <form id="paidForm">
+          <input type="hidden" id="paidPayrollId" />
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label-sm">Payment Method *</label>
+              <select id="paidMethod" class="form-select-sm-custom" required>
+                <option value="">Select method...</option>
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="gcash">GCash</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label-sm">Payment Date</label>
+              <input type="date" id="paidDate" class="form-control-sm-custom" />
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label-sm">Reference No.</label>
+              <input type="text" id="paidReference" class="form-control-sm-custom" maxlength="120" placeholder="Optional reference..." />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label-sm">Proof URL</label>
+              <input type="text" id="paidProof" class="form-control-sm-custom" maxlength="500" placeholder="Optional URL..." />
+            </div>
+          </div>
+        </form>
+        <div class="d-flex gap-2 justify-content-end">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;font-size:0.82rem;">Cancel</button>
+          <button type="button" id="btnConfirmPaid" class="btn btn-primary" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-check-lg me-1"></i>Mark as Paid</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Void Payroll Modal -->
+<div class="modal fade" id="voidModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
+      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-x-octagon"></i></div>
+          <div>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Void Payroll</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">This action cannot be undone</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:0 1.5rem 1.25rem;">
+        <input type="hidden" id="voidPayrollId" />
+        <div class="mb-3">
+          <label class="form-label-sm">Reason for voiding *</label>
+          <textarea id="voidReason" class="form-control-sm-custom" rows="3" maxlength="300" required placeholder="Explain why this payroll is being voided..."></textarea>
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;font-size:0.82rem;">Cancel</button>
+          <button type="button" id="btnConfirmVoid" class="btn btn-danger" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-x-lg me-1"></i>Void Payroll</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Compensation Modal -->
+<div class="modal fade" id="compModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content pw-modal" style="max-height:90vh;">
+      <!-- Header -->
+      <div class="pw-modal-header">
+        <div class="pw-modal-header-left">
+          <div class="pw-modal-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-person-gear"></i></div>
+          <div>
+            <h5 class="pw-modal-title" id="compModalTitle">Add Pay Rate</h5>
+            <p class="pw-modal-sub">Configure employee compensation</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="pw-modal-body" style="padding:1.25rem 1.75rem;">
+        <form id="compForm">
+          <input type="hidden" id="compId" value="" />
+
+          <!-- Employee -->
+          <div class="pw-section-card">
+            <div class="pw-section-header">
+              <div class="pw-section-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);"><i class="bi bi-person-badge"></i></div>
+              <div>
+                <h6 class="pw-section-title">Employee</h6>
+                <p class="pw-section-desc">Select the staff member</p>
+              </div>
+            </div>
+            <label class="pw-label">Employee *</label>
+            <div class="pw-select-wrap">
+              <select id="compEmployee" class="pw-select" required>
+                <option value="">Select employee...</option>
+              </select>
+              <i class="bi bi-chevron-down pw-select-arrow"></i>
+            </div>
+          </div>
+
+          <!-- Pay Type -->
+          <div class="pw-section-card">
+            <div class="pw-section-header">
+              <div class="pw-section-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="bi bi-tag"></i></div>
+              <div>
+                <h6 class="pw-section-title">Pay Type</h6>
+                <p class="pw-section-desc">How this employee is compensated</p>
+              </div>
+            </div>
+            <div class="pw-type-grid">
+              <label class="pw-type-option">
+                <input type="radio" name="compPayTypeRadio" value="daily" class="pw-type-radio" />
+                <div class="pw-type-card">
+                  <div class="pw-type-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-sun"></i></div>
+                  <div class="pw-type-label">Daily Rate</div>
+                  <div class="pw-type-desc">Per working day</div>
+                </div>
+              </label>
+              <label class="pw-type-option">
+                <input type="radio" name="compPayTypeRadio" value="hourly" class="pw-type-radio" />
+                <div class="pw-type-card">
+                  <div class="pw-type-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);"><i class="bi bi-clock"></i></div>
+                  <div class="pw-type-label">Hourly Rate</div>
+                  <div class="pw-type-desc">Per hour worked</div>
+                </div>
+              </label>
+              <label class="pw-type-option">
+                <input type="radio" name="compPayTypeRadio" value="monthly" class="pw-type-radio" />
+                <div class="pw-type-card">
+                  <div class="pw-type-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="bi bi-calendar-month"></i></div>
+                  <div class="pw-type-label">Monthly Salary</div>
+                  <div class="pw-type-desc">Fixed per month</div>
+                </div>
+              </label>
+            </div>
+            <input type="hidden" id="compPayType" />
+          </div>
+
+          <!-- Rates -->
+          <div class="pw-section-card">
+            <div class="pw-section-header">
+              <div class="pw-section-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-cash-coin"></i></div>
+              <div>
+                <h6 class="pw-section-title">Compensation Rates</h6>
+                <p class="pw-section-desc">Set the base pay and overtime rate</p>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="pw-label">Base Rate *</label>
+                <div class="pw-input-wrap">
+                  <span class="pw-input-prefix">₱</span>
+                  <input type="number" id="compBaseRate" class="pw-input pw-input-prefix-field" min="0" step="0.01" required placeholder="0.00" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="pw-label">Overtime Rate (₱/hr)</label>
+                <div class="pw-input-wrap">
+                  <span class="pw-input-prefix">₱</span>
+                  <input type="number" id="compOTRate" class="pw-input pw-input-prefix-field" min="0" step="0.01" value="0" placeholder="0.00" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Effective Date -->
+          <div class="pw-section-card">
+            <div class="pw-section-header">
+              <div class="pw-section-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5);"><i class="bi bi-calendar-range"></i></div>
+              <div>
+                <h6 class="pw-section-title">Effective Date</h6>
+                <p class="pw-section-desc">When this rate takes effect</p>
+              </div>
+            </div>
+            <label class="pw-label">Effective From *</label>
+            <div class="pw-input-wrap">
+              <i class="bi bi-calendar-event pw-input-icon"></i>
+              <input type="date" id="compEffectiveFrom" class="pw-input pw-input-icon-field" required />
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:0 1.75rem 1.5rem;display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="pw-btn-back" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnSaveComp" class="pw-btn-save"><i class="bi bi-check2-circle"></i> Save Pay Rate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/payroll';
+  const fmt = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }); };
+
+  let allStaff = [];
+  let allRecords = [];
+  let allComp = [];
+  let editingId = null;
+
+  // ── Init ──────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadStaff();
+    initYearFilter();
+    initTabs();
+    initEventListeners();
+    loadRecords();
+    loadCompensation();
+    loadDueToday();
+  });
+
+  // ── Load Staff ────────────────────────────────────────────────
+  async function loadStaff() {
+    try {
+      const res = await fetch(API + '/staff', { credentials: 'same-origin' });
+      const data = await res.json();
+      allStaff = data.staff || [];
+      populateStaffDropdowns();
+    } catch(e) { console.error('Failed to load staff', e); }
+  }
+
+  function populateStaffDropdowns() {
+    const opts = allStaff
+      .filter(s => s.firstName && s.lastName)
+      .map(s => `<option value="${s._id}">${esc(s.firstName)} ${esc(s.lastName)} (${s.role})</option>`)
+      .join('');
+    const defaultOpt = '<option value="">Select employee...</option>';
+    const allOpt = '<option value="">All Employees</option>';
+    ['pfEmployee', 'compEmployee'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = defaultOpt + opts;
+    });
+    ['filterEmployee', 'compFilterEmployee'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = allOpt + opts;
+    });
+  }
+
+  function initYearFilter() {
+    const sel = document.getElementById('filterYear');
+    const year = new Date().getFullYear();
+    for (let y = year; y >= year - 3; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      sel.appendChild(opt);
+    }
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────
+  function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+  }
+
+  // ── Event Listeners ───────────────────────────────────────────
+  function initEventListeners() {
+    document.getElementById('btnRefresh').addEventListener('click', loadRecords);
+    document.getElementById('btnRefreshComp').addEventListener('click', loadCompensation);
+    document.getElementById('btnRefreshDue').addEventListener('click', loadDueToday);
+    document.getElementById('btnCreatePayroll').addEventListener('click', openCreatePayroll);
+    document.getElementById('btnAddComp').addEventListener('click', openAddComp);
+    ['filterStatus', 'filterRole', 'filterEmployee', 'filterYear'].forEach(id => {
+      document.getElementById(id).addEventListener('change', loadRecords);
+    });
+    ['compFilterEmployee', 'compFilterActive'].forEach(id => {
+      document.getElementById(id).addEventListener('change', loadCompensation);
+    });
+
+    // Auto-calculate
+    document.getElementById('btnAutoCalc').addEventListener('click', autoCalculate);
+
+    // Live summary update
+    ['pfBasicPay', 'pfOvertimePay'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateSummary);
+    });
+
+    // Allowances / Deductions
+    document.getElementById('btnAddAllowance').addEventListener('click', () => addLineItem('allowancesContainer'));
+    document.getElementById('btnAddDeduction').addEventListener('click', () => addLineItem('deductionsContainer'));
+
+    // Save payroll
+    document.getElementById('btnSavePayroll').addEventListener('click', savePayroll);
+
+    // Approve
+    document.getElementById('btnConfirmApprove').addEventListener('click', confirmApprove);
+    // Paid
+    document.getElementById('btnConfirmPaid').addEventListener('click', confirmPaid);
+    // Void
+    document.getElementById('btnConfirmVoid').addEventListener('click', confirmVoid);
+    // Save compensation
+    document.getElementById('btnSaveComp').addEventListener('click', saveCompensation);
+
+    // Pay type radio sync
+    document.querySelectorAll('input[name="compPayTypeRadio"]').forEach(r => {
+      r.addEventListener('change', () => {
+        document.getElementById('compPayType').value = r.value;
+      });
+    });
+  }
+
+  // ── Load Payroll Records ──────────────────────────────────────
+  async function loadRecords() {
+    const params = new URLSearchParams();
+    const status = document.getElementById('filterStatus').value;
+    const role = document.getElementById('filterRole').value;
+    const emp = document.getElementById('filterEmployee').value;
+    const year = document.getElementById('filterYear').value;
+    if (status) params.set('status', status);
+    if (role) params.set('role', role);
+    if (emp) params.set('employee', emp);
+    if (year) params.set('year', year);
+
+    try {
+      const res = await fetch(API + '?' + params.toString(), { credentials: 'same-origin' });
+      const data = await res.json();
+      allRecords = data.records || [];
+      renderRecords(allRecords);
+      renderStats(data.stats || {});
+    } catch(e) {
+      document.getElementById('recordsBody').innerHTML = '<tr><td colspan="9" class="empty-state"><i class="bi bi-exclamation-circle"></i><p>Failed to load payroll records</p></td></tr>';
+    }
+  }
+
+  function renderStats(s) {
+    document.getElementById('kpiNetTotal').textContent = fmt(s.netTotal);
+    document.getElementById('kpiDraft').textContent = s.draft || 0;
+    document.getElementById('kpiApproved').textContent = s.approved || 0;
+    document.getElementById('kpiPaid').textContent = s.paid || 0;
+  }
+
+  function renderRecords(records) {
+    const tbody = document.getElementById('recordsBody');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="bi bi-wallet2"></i><p>No payroll records found</p></td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const emp = r.employee || {};
+      const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
+      const role = emp.role || r.employeeRole || '';
+      const statusCls = 'status-' + r.status;
+      const actions = getRecordActions(r);
+      return `<tr>
+        <td>
+          <div style="font-weight:600;color:#0f172a;">${esc(name)}</div>
+          <div style="font-size:0.7rem;color:#94a3b8;">${esc(role)}</div>
+        </td>
+        <td style="white-space:nowrap;">${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}</td>
+        <td class="text-end">${fmt(r.basicPay)}</td>
+        <td class="text-end">${fmt(r.overtimePay)}</td>
+        <td class="text-end">${fmt((r.allowances||[]).reduce((s,i)=>s+i.amount,0))}</td>
+        <td class="text-end">${fmt(r.totalDeductions)}</td>
+        <td class="text-end" style="font-weight:700;color:#0f172a;">${fmt(r.netPay)}</td>
+        <td><span class="status-badge ${statusCls}">${r.status}</span></td>
+        <td class="text-center">${actions}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function getRecordActions(r) {
+    let html = `<button class="btn-action" title="View" onclick="window._pw.viewRecord('${r._id}')"><i class="bi bi-eye"></i></button> `;
+    if (r.status === 'draft') {
+      html += `<button class="btn-action" title="Edit" onclick="window._pw.editRecord('${r._id}')"><i class="bi bi-pencil"></i></button> `;
+      html += `<button class="btn-action success" title="Approve" onclick="window._pw.openApprove('${r._id}')"><i class="bi bi-check2-circle"></i></button> `;
+      html += `<button class="btn-action danger" title="Void" onclick="window._pw.openVoid('${r._id}')"><i class="bi bi-x-octagon"></i></button>`;
+    } else if (r.status === 'approved') {
+      html += `<button class="btn-action success" title="Mark Paid" onclick="window._pw.openPaid('${r._id}')"><i class="bi bi-credit-card"></i></button>`;
+    }
+    return html;
+  }
+
+  // ── Load Compensation ─────────────────────────────────────────
+  async function loadCompensation() {
+    const params = new URLSearchParams();
+    const emp = document.getElementById('compFilterEmployee').value;
+    const active = document.getElementById('compFilterActive').value;
+    if (emp) params.set('employee', emp);
+    if (active) params.set('active', active);
+
+    try {
+      const res = await fetch(API + '/compensation?' + params.toString(), { credentials: 'same-origin' });
+      const data = await res.json();
+      allComp = data.records || [];
+      renderComp(allComp);
+    } catch(e) {
+      document.getElementById('compBody').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-exclamation-circle"></i><p>Failed to load compensation records</p></td></tr>';
+    }
+  }
+
+  function renderComp(records) {
+    const tbody = document.getElementById('compBody');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-person-gear"></i><p>No compensation records found</p></td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const emp = r.employee || {};
+      const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
+      const role = emp.role || '';
+      const statusBadge = r.active
+        ? '<span class="status-badge status-approved">Active</span>'
+        : '<span class="status-badge status-voided">Ended</span>';
+      return `<tr>
+        <td>
+          <div style="font-weight:600;color:#0f172a;">${esc(name)}</div>
+          <div style="font-size:0.7rem;color:#94a3b8;">${esc(role)}</div>
+        </td>
+        <td><span class="role-tag role-${role}">${r.payType}</span></td>
+        <td class="text-end" style="font-weight:600;">${fmt(r.baseRate)}</td>
+        <td class="text-end">${fmt(r.overtimeRate)}</td>
+        <td>${fmtDate(r.effectiveFrom)}</td>
+        <td>${fmtDate(r.effectiveTo)}</td>
+        <td>${statusBadge}</td>
+        <td class="text-center">
+          ${r.active ? `<button class="btn-action" title="Edit" onclick="window._pw.editComp('${r._id}')"><i class="bi bi-pencil"></i></button> <button class="btn-action danger" title="End" onclick="window._pw.endComp('${r._id}')"><i class="bi bi-stop-circle"></i></button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Load Due Today ────────────────────────────────────────────
+  async function loadDueToday() {
+    try {
+      const res = await fetch(API + '/due-today', { credentials: 'same-origin' });
+      const data = await res.json();
+      renderDueToday(data);
+    } catch(e) {
+      document.getElementById('dueTodayList').innerHTML = '<div class="pw-due-empty"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
+    }
+  }
+
+  function renderDueToday(data) {
+    const banner = document.getElementById('dueTodayBanner');
+    const list = document.getElementById('dueTodayList');
+    const countEl = document.getElementById('dueTodayCount');
+    const dateEl = document.getElementById('dueTodayDate');
+    const items = data.dueToday || [];
+    const dateStr = new Date(data.date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    dateEl.textContent = dateStr;
+    countEl.textContent = items.length + ' employee' + (items.length !== 1 ? 's' : '');
+
+    if (!items.length) {
+      banner.classList.add('show');
+      list.innerHTML = '<div class="pw-due-empty"><i class="bi bi-check-circle-fill me-1" style="color:#059669;"></i>All daily employees have been covered for today. No payroll pending.</div>';
+      return;
+    }
+
+    banner.classList.add('show');
+    list.innerHTML = items.map(item => {
+      const emp = item.employee;
+      const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
+      const initials = ((emp.firstName || '')[0] || '') + ((emp.lastName || '')[0] || '');
+      const att = item.attendance || {};
+      const attStatus = att.status || 'Unknown';
+      const attCls = attStatus === 'Present' ? 'pw-due-att-present' : attStatus === 'Late' ? 'pw-due-att-late' : 'pw-due-att-absent';
+      const rate = fmt(item.baseRate) + '/day';
+      const periodStart = new Date(data.date).toISOString().split('T')[0];
+      const periodEnd = periodStart;
+      return `<div class="pw-due-card">
+        <div class="pw-due-card-left">
+          <div class="pw-due-avatar">${esc(initials.toUpperCase())}</div>
+          <div>
+            <div class="pw-due-name">${esc(name)}</div>
+            <div class="pw-due-meta">${esc(emp.role)} \u2022 ${rate} \u2022 <span class="pw-due-att ${attCls}">${attStatus}</span></div>
+          </div>
+        </div>
+        <button class="pw-due-create-btn" onclick="window._pw.createDuePayroll('${emp._id}','${esc(name)}','${periodStart}','${periodEnd}')"><i class="bi bi-plus-lg me-1"></i>Create</button>
+      </div>`;
+    }).join('');
+  }
+
+  function createDuePayroll(empId, empName, periodStart, periodEnd) {
+    openCreatePayroll();
+    setTimeout(() => {
+      const sel = document.getElementById('pfEmployee');
+      if (sel) sel.value = empId;
+      const ps = document.getElementById('pfPeriodStart');
+      if (ps) ps.value = periodStart;
+      const pe = document.getElementById('pfPeriodEnd');
+      if (pe) pe.value = periodEnd;
+      pwGoStep(1);
+    }, 200);
+  }
+
+  // ── Create / Edit Payroll ─────────────────────────────────────
+  let currentStep = 1;
+
+  function pwGoStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.pw-step-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('pwStep' + step).classList.add('active');
+
+    document.querySelectorAll('.pw-step').forEach((s, i) => {
+      s.classList.remove('active', 'completed');
+      if (i + 1 < step) s.classList.add('completed');
+      if (i + 1 === step) s.classList.add('active');
+    });
+
+    // Update review panel on step 3
+    if (step === 3) updateReviewPanel();
+  }
+
+  function updateReviewPanel() {
+    const empEl = document.getElementById('pfEmployee');
+    const empName = empEl.options[empEl.selectedIndex]?.text || '—';
+    document.getElementById('reviewEmp').textContent = empName === 'Select employee...' ? '—' : empName;
+    const start = document.getElementById('pfPeriodStart').value;
+    const end = document.getElementById('pfPeriodEnd').value;
+    document.getElementById('reviewPeriod').textContent = (start && end) ? fmtDate(start) + ' – ' + fmtDate(end) : '—';
+    document.getElementById('reviewPayDate').textContent = fmtDate(document.getElementById('pfPayDate').value);
+    const attWrap = document.getElementById('calcAttendanceWrap');
+    if (attWrap.style.display !== 'none') {
+      document.getElementById('reviewAtt').textContent =
+        document.getElementById('attPresent').textContent + ' present, ' +
+        document.getElementById('attLate').textContent + ' late, ' +
+        document.getElementById('attAbsent').textContent + ' absent';
+    } else {
+      document.getElementById('reviewAtt').textContent = 'Not calculated';
+    }
+  }
+
+  function openCreatePayroll() {
+    editingId = null;
+    document.getElementById('payrollModalTitle').textContent = 'Create Payroll';
+    document.getElementById('payrollModalSub').textContent = 'Calculate and create a new payroll record';
+    document.getElementById('pfPayrollId').value = '';
+    document.getElementById('pfEmployee').value = '';
+    document.getElementById('pfEmployee').disabled = false;
+    document.getElementById('pfPayDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pfPeriodStart').value = '';
+    document.getElementById('pfPeriodEnd').value = '';
+    document.getElementById('pfBasicPay').value = '';
+    document.getElementById('pfOvertimePay').value = '0';
+    document.getElementById('pfNotes').value = '';
+    document.getElementById('btnSavePayroll').innerHTML = '<i class="bi bi-check2-circle"></i> Save Draft';
+    clearLineItems('allowancesContainer');
+    clearLineItems('deductionsContainer');
+    document.getElementById('calcAttendanceWrap').style.display = 'none';
+    updateSummary();
+    pwGoStep(1);
+    new bootstrap.Modal(document.getElementById('payrollModal')).show();
+  }
+
+  async function editRecord(id) {
+    try {
+      const res = await fetch(API + '/' + id, { credentials: 'same-origin' });
+      const data = await res.json();
+      const r = data.record;
+      if (!r) { showCalcMsg('Record not found.', 'error'); return; }
+
+      editingId = id;
+      document.getElementById('payrollModalTitle').textContent = 'Edit Payroll';
+      document.getElementById('payrollModalSub').textContent = 'Update draft payroll record';
+      document.getElementById('pfPayrollId').value = id;
+      document.getElementById('pfEmployee').value = r.employee._id;
+      document.getElementById('pfEmployee').disabled = true;
+      document.getElementById('pfPayDate').value = r.payDate ? new Date(r.payDate).toISOString().split('T')[0] : '';
+      document.getElementById('pfPeriodStart').value = r.periodStart ? new Date(r.periodStart).toISOString().split('T')[0] : '';
+      document.getElementById('pfPeriodEnd').value = r.periodEnd ? new Date(r.periodEnd).toISOString().split('T')[0] : '';
+      document.getElementById('pfBasicPay').value = r.basicPay;
+      document.getElementById('pfOvertimePay').value = r.overtimePay || 0;
+      document.getElementById('pfNotes').value = r.notes || '';
+      document.getElementById('btnSavePayroll').innerHTML = '<i class="bi bi-check2-circle"></i> Update Draft';
+
+      // Populate allowances
+      clearLineItems('allowancesContainer');
+      (r.allowances || []).forEach(a => addLineItem('allowancesContainer', a.name, a.amount));
+      clearLineItems('deductionsContainer');
+      (r.deductions || []).forEach(d => addLineItem('deductionsContainer', d.name, d.amount));
+
+      document.getElementById('calcAttendanceWrap').style.display = 'none';
+      updateSummary();
+      pwGoStep(1);
+      new bootstrap.Modal(document.getElementById('payrollModal')).show();
+    } catch(e) { showCalcMsg('Failed to load record.', 'error'); }
+  }
+
+  // ── Calc Toast (visible inside modal) ──────────────────────────
+  function showCalcMsg(msg, type) {
+    let toast = document.getElementById('calcToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'calcToast';
+      toast.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10900;padding:12px 20px;border-radius:10px;font-size:0.82rem;font-weight:600;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);transition:opacity 0.3s;';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    toast.style.background = type === 'error' ? '#fef2f2' : type === 'success' ? '#f0fdf4' : '#eff6ff';
+    toast.style.color = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#2563eb';
+    toast.style.border = '1px solid ' + (type === 'error' ? '#fecaca' : type === 'success' ? '#bbf7d0' : '#bfdbfe');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 4000);
+  }
+
+  // ── Auto Calculate ────────────────────────────────────────────
+  async function autoCalculate() {
+    const emp = document.getElementById('pfEmployee').value;
+    const start = document.getElementById('pfPeriodStart').value;
+    const end = document.getElementById('pfPeriodEnd').value;
+    if (!emp || !start || !end) {
+      showCalcMsg('Please select employee and period dates first.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnAutoCalc');
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Calculating...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(API + '/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ employeeId: emp, periodStart: start, periodEnd: end })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showCalcMsg(data.error || 'Calculation failed.', 'error');
+        return;
+      }
+
+      document.getElementById('pfBasicPay').value = data.basicPay;
+      document.getElementById('pfOvertimePay').value = data.overtimePay || 0;
+
+      // Show attendance
+      const att = data.attendanceSummary || {};
+      document.getElementById('attPresent').textContent = att.present || 0;
+      document.getElementById('attLate').textContent = att.late || 0;
+      document.getElementById('attAbsent').textContent = att.absent || 0;
+      document.getElementById('attLeave').textContent = att.onLeave || 0;
+      document.getElementById('attSick').textContent = att.sickLeave || 0;
+      document.getElementById('attHours').textContent = att.hoursWorked || 0;
+      document.getElementById('calcAttendanceWrap').style.display = 'block';
+
+      updateSummary();
+      showCalcMsg('Calculated: ' + fmt(data.basicPay) + ' basic pay (' + (att.present || 0) + ' present days)', 'success');
+    } catch(e) {
+      console.error('Calc error:', e);
+      showCalcMsg('Network error. Check console for details.', 'error');
+    } finally {
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+    }
+  }
+
+  // ── Line Items ────────────────────────────────────────────────
+  function addLineItem(containerId, name, amount) {
+    const container = document.getElementById(containerId);
+    // Remove placeholder
+    const empty = container.querySelector('.pw-line-empty');
+    if (empty) empty.remove();
+
+    const row = document.createElement('div');
+    row.className = 'pw-line-row';
+    row.innerHTML = `
+      <input type="text" class="li-name" placeholder="Item name" maxlength="80" value="${esc(name || '')}" />
+      <input type="number" class="li-amount" placeholder="0.00" min="0" step="0.01" value="${amount || 0}" style="max-width:120px;" />
+      <button type="button" class="pw-line-remove" onclick="this.parentElement.remove();window._pw.checkEmpty('${containerId}');window._pw.updateSummary();"><i class="bi bi-x"></i></button>
+    `;
+    row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateSummary));
+    container.appendChild(row);
+    updateSummary();
+  }
+
+  function checkEmpty(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container.querySelector('.pw-line-row')) {
+      const isAllow = containerId.includes('allow');
+      container.innerHTML = `<div class="pw-line-empty"><i class="bi bi-inbox"></i> No ${isAllow ? 'allowances' : 'deductions'} added yet</div>`;
+    }
+  }
+
+  function clearLineItems(containerId) {
+    const isAllow = containerId.includes('allow');
+    document.getElementById(containerId).innerHTML = `<div class="pw-line-empty"><i class="bi bi-inbox"></i> No ${isAllow ? 'allowances' : 'deductions'} added yet</div>`;
+  }
+
+  function getLineItems(containerId) {
+    const items = [];
+    document.getElementById(containerId).querySelectorAll('.pw-line-row').forEach(row => {
+      const name = (row.querySelector('.li-name') || {}).value || '';
+      const amount = parseFloat((row.querySelector('.li-amount') || {}).value) || 0;
+      if (name.trim() && amount > 0) items.push({ name: name.trim(), amount });
+    });
+    return items;
+  }
+
+  function updateSummary() {
+    const basic = parseFloat(document.getElementById('pfBasicPay').value) || 0;
+    const ot = parseFloat(document.getElementById('pfOvertimePay').value) || 0;
+    const allow = getLineItems('allowancesContainer').reduce((s, i) => s + i.amount, 0);
+    const ded = getLineItems('deductionsContainer').reduce((s, i) => s + i.amount, 0);
+    const gross = basic + ot + allow;
+    const net = Math.max(0, gross - ded);
+
+    document.getElementById('sumBasic').textContent = fmt(basic);
+    document.getElementById('sumOT').textContent = fmt(ot);
+    document.getElementById('sumAllow').textContent = fmt(allow);
+    document.getElementById('sumGross').textContent = fmt(gross);
+    document.getElementById('sumDed').textContent = '-' + fmt(ded);
+    document.getElementById('sumNet').textContent = fmt(net);
+  }
+
+  // ── Save Payroll ──────────────────────────────────────────────
+  async function savePayroll() {
+    const emp = document.getElementById('pfEmployee').value;
+    const start = document.getElementById('pfPeriodStart').value;
+    const end = document.getElementById('pfPeriodEnd').value;
+    const payDate = document.getElementById('pfPayDate').value;
+    if (!emp || !start || !end || !payDate) { showCalcMsg('Please fill in all required fields.', 'error'); return; }
+
+    const body = {
+      employee: emp,
+      periodStart: start,
+      periodEnd: end,
+      payDate,
+      basicPay: parseFloat(document.getElementById('pfBasicPay').value) || 0,
+      overtimePay: parseFloat(document.getElementById('pfOvertimePay').value) || 0,
+      allowances: getLineItems('allowancesContainer'),
+      deductions: getLineItems('deductionsContainer'),
+      notes: document.getElementById('pfNotes').value || '',
+    };
+
+    try {
+      const url = editingId ? API + '/' + editingId : API;
+      const method = editingId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Save failed.', 'error'); return; }
+
+      const wasEditing = !!editingId;
+      bootstrap.Modal.getInstance(document.getElementById('payrollModal')).hide();
+      document.getElementById('pfEmployee').disabled = false;
+      editingId = null;
+      loadRecords();
+      showCalcMsg(wasEditing ? 'Payroll updated.' : 'Payroll created.', 'success');
+    } catch(e) { console.error('Save error:', e); showCalcMsg('Failed to save payroll.', 'error'); }
+  }
+
+  // ── View Record ───────────────────────────────────────────────
+  async function viewRecord(id) {
+    try {
+      const res = await fetch(API + '/' + id, { credentials: 'same-origin' });
+      const data = await res.json();
+      const r = data.record;
+      if (!r) return;
+
+      const emp = r.employee || {};
+      const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
+      document.getElementById('viewModalTitle').textContent = name + ' — Payroll Detail';
+      document.getElementById('viewModalSub').textContent = fmtDate(r.periodStart) + ' – ' + fmtDate(r.periodEnd);
+
+      const allowTotal = (r.allowances || []).reduce((s, i) => s + i.amount, 0);
+      const att = r.attendanceSummary || {};
+
+      let allowHtml = (r.allowances || []).map(a => `<div class="calc-row"><span style="color:#64748b;">${esc(a.name)}</span><span>${fmt(a.amount)}</span></div>`).join('');
+      let dedHtml = (r.deductions || []).map(d => `<div class="calc-row"><span style="color:#64748b;">${esc(d.name)}</span><span style="color:#ef4444;">-${fmt(d.amount)}</span></div>`).join('');
+
+      let paymentHtml = '';
+      if (r.status === 'paid') {
+        paymentHtml = `
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+            <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;margin-bottom:8px;"><i class="bi bi-credit-card me-1"></i>Payment Info</div>
+            <div class="detail-grid">
+              <div class="detail-item"><div class="detail-item-label">Method</div><div class="detail-item-value">${esc(r.paymentMethod || '—')}</div></div>
+              <div class="detail-item"><div class="detail-item-label">Date</div><div class="detail-item-value">${fmtDate(r.paymentDate)}</div></div>
+              <div class="detail-item"><div class="detail-item-label">Reference</div><div class="detail-item-value">${esc(r.paymentReference || '—')}</div></div>
+              <div class="detail-item"><div class="detail-item-label">Paid By</div><div class="detail-item-value">${r.paidBy ? esc(r.paidBy.firstName + ' ' + r.paidBy.lastName) : '—'}</div></div>
+            </div>
+          </div>`;
+      }
+
+      let auditHtml = `
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;margin-bottom:8px;"><i class="bi bi-clock-history me-1"></i>Audit Trail</div>
+          <div class="detail-grid">
+            <div class="detail-item"><div class="detail-item-label">Created By</div><div class="detail-item-value">${r.createdBy ? esc(r.createdBy.firstName + ' ' + r.createdBy.lastName) : '—'}</div></div>
+            <div class="detail-item"><div class="detail-item-label">Created At</div><div class="detail-item-value">${fmtDate(r.createdAt)}</div></div>
+            ${r.approvedBy ? `<div class="detail-item"><div class="detail-item-label">Approved By</div><div class="detail-item-value">${esc(r.approvedBy.firstName + ' ' + r.approvedBy.lastName)}</div></div><div class="detail-item"><div class="detail-item-label">Approved At</div><div class="detail-item-value">${fmtDate(r.approvedAt)}</div></div>` : ''}
+            ${r.voidedBy ? `<div class="detail-item"><div class="detail-item-label">Voided By</div><div class="detail-item-value">${esc(r.voidedBy.firstName + ' ' + r.voidedBy.lastName)}</div></div><div class="detail-item"><div class="detail-item-label">Reason</div><div class="detail-item-value">${esc(r.voidReason || '—')}</div></div>` : ''}
+          </div>
+        </div>`;
+
+      document.getElementById('viewModalBody').innerHTML = `
+        <div class="detail-grid mb-3">
+          <div class="detail-item"><div class="detail-item-label">Status</div><div class="detail-item-value"><span class="status-badge status-${r.status}">${r.status}</span></div></div>
+          <div class="detail-item"><div class="detail-item-label">Pay Type</div><div class="detail-item-value">${r.payType ? esc(r.payType) + ' @ ' + fmt(r.baseRate) : '—'}</div></div>
+          <div class="detail-item"><div class="detail-item-label">Period</div><div class="detail-item-value">${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}</div></div>
+          <div class="detail-item"><div class="detail-item-label">Pay Date</div><div class="detail-item-value">${fmtDate(r.payDate)}</div></div>
+        </div>
+
+        <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;margin-bottom:6px;"><i class="bi bi-calendar-check me-1"></i>Attendance</div>
+        <div class="att-grid">
+          <div class="att-item"><div class="att-num">${att.present || 0}</div><div class="att-lbl">Present</div></div>
+          <div class="att-item"><div class="att-num">${att.late || 0}</div><div class="att-lbl">Late</div></div>
+          <div class="att-item"><div class="att-num">${att.absent || 0}</div><div class="att-lbl">Absent</div></div>
+          <div class="att-item"><div class="att-num">${att.onLeave || 0}</div><div class="att-lbl">Leave</div></div>
+          <div class="att-item"><div class="att-num">${att.sickLeave || 0}</div><div class="att-lbl">Sick</div></div>
+          <div class="att-item"><div class="att-num">${att.hoursWorked || 0}</div><div class="att-lbl">Hours</div></div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;margin-bottom:6px;"><i class="bi bi-calculator me-1"></i>Pay Breakdown</div>
+          <div class="calc-summary">
+            <div class="calc-row"><span style="color:#64748b;">Basic Pay</span><span>${fmt(r.basicPay)}</span></div>
+            <div class="calc-row"><span style="color:#64748b;">Overtime Pay</span><span>${fmt(r.overtimePay)}</span></div>
+            ${allowHtml}
+            <div class="calc-row"><span style="color:#64748b;">Gross Pay</span><span style="font-weight:600;">${fmt(r.grossPay)}</span></div>
+            ${dedHtml}
+            <div class="calc-row"><span style="color:#64748b;">Total Deductions</span><span style="color:#ef4444;">-${fmt(r.totalDeductions)}</span></div>
+            <div class="calc-row total"><span>Net Pay</span><span style="color:#059669;">${fmt(r.netPay)}</span></div>
+          </div>
+        </div>
+
+        ${r.notes ? `<div style="margin-top:12px;font-size:0.82rem;color:#64748b;"><strong>Notes:</strong> ${esc(r.notes)}</div>` : ''}
+        ${paymentHtml}
+        ${auditHtml}
+      `;
+
+      new bootstrap.Modal(document.getElementById('viewPayrollModal')).show();
+    } catch(e) { showCalcMsg('Failed to load record.', 'error'); }
+  }
+
+  // ── Approve ───────────────────────────────────────────────────
+  function openApprove(id) {
+    const r = allRecords.find(x => x._id === id);
+    if (!r) return;
+    document.getElementById('approveModal').dataset.id = id;
+    const emp = r.employee || {};
+    document.getElementById('approveSummary').innerHTML = `<strong>${esc((emp.firstName||'') + ' ' + (emp.lastName||''))}</strong> — ${fmt(r.netPay)}<br/>Period: ${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}`;
+    new bootstrap.Modal(document.getElementById('approveModal')).show();
+  }
+
+  async function confirmApprove() {
+    const id = document.getElementById('approveModal').dataset.id;
+    try {
+      const res = await fetch(API + '/' + id + '/approve', { method: 'POST', credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Approval failed.', 'error'); return; }
+      bootstrap.Modal.getInstance(document.getElementById('approveModal')).hide();
+      loadRecords();
+      showCalcMsg('Payroll approved.', 'success');
+    } catch(e) { showCalcMsg('Failed to approve.', 'error'); }
+  }
+
+  // ── Paid ──────────────────────────────────────────────────────
+  function openPaid(id) {
+    const r = allRecords.find(x => x._id === id);
+    if (!r) return;
+    document.getElementById('paidPayrollId').value = id;
+    document.getElementById('paidMethod').value = '';
+    document.getElementById('paidDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('paidReference').value = '';
+    document.getElementById('paidProof').value = '';
+    const emp = r.employee || {};
+    document.getElementById('paidModalSub').textContent = `${(emp.firstName||'') + ' ' + (emp.lastName||'')} — ${fmt(r.netPay)}`;
+    new bootstrap.Modal(document.getElementById('paidModal')).show();
+  }
+
+  async function confirmPaid() {
+    const id = document.getElementById('paidPayrollId').value;
+    const method = document.getElementById('paidMethod').value;
+    if (!method) { showCalcMsg('Select a payment method.', 'error'); return; }
+    try {
+      const res = await fetch(API + '/' + id + '/paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          paymentMethod: method,
+          paymentDate: document.getElementById('paidDate').value,
+          paymentReference: document.getElementById('paidReference').value,
+          paymentProof: document.getElementById('paidProof').value,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Failed.', 'error'); return; }
+      bootstrap.Modal.getInstance(document.getElementById('paidModal')).hide();
+      loadRecords();
+      showCalcMsg('Payment recorded.', 'success');
+    } catch(e) { showCalcMsg('Failed to mark as paid.', 'error'); }
+  }
+
+  // ── Void ──────────────────────────────────────────────────────
+  function openVoid(id) {
+    document.getElementById('voidPayrollId').value = id;
+    document.getElementById('voidReason').value = '';
+    new bootstrap.Modal(document.getElementById('voidModal')).show();
+  }
+
+  async function confirmVoid() {
+    const id = document.getElementById('voidPayrollId').value;
+    const reason = document.getElementById('voidReason').value.trim();
+    if (!reason) { showCalcMsg('A reason is required to void.', 'error'); return; }
+    try {
+      const res = await fetch(API + '/' + id + '/void', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ reason })
+      });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Failed.', 'error'); return; }
+      bootstrap.Modal.getInstance(document.getElementById('voidModal')).hide();
+      loadRecords();
+      showCalcMsg('Payroll voided.', 'success');
+    } catch(e) { showCalcMsg('Failed to void.', 'error'); }
+  }
+
+  // ── Compensation ──────────────────────────────────────────────
+  function syncPayTypeRadio(val) {
+    document.querySelectorAll('input[name="compPayTypeRadio"]').forEach(r => {
+      r.checked = r.value === val;
+    });
+    document.getElementById('compPayType').value = val || '';
+  }
+
+  function getPayTypeFromRadio() {
+    const checked = document.querySelector('input[name="compPayTypeRadio"]:checked');
+    return checked ? checked.value : '';
+  }
+
+  function openAddComp() {
+    document.getElementById('compId').value = '';
+    document.getElementById('compModalTitle').textContent = 'Add Pay Rate';
+    document.getElementById('compEmployee').value = '';
+    document.getElementById('compEmployee').disabled = false;
+    syncPayTypeRadio('');
+    document.getElementById('compBaseRate').value = '';
+    document.getElementById('compOTRate').value = '0';
+    document.getElementById('compEffectiveFrom').value = new Date().toISOString().split('T')[0];
+    new bootstrap.Modal(document.getElementById('compModal')).show();
+  }
+
+  function editComp(id) {
+    const r = allComp.find(x => x._id === id);
+    if (!r) return;
+    document.getElementById('compId').value = id;
+    document.getElementById('compModalTitle').textContent = 'Edit Pay Rate';
+    document.getElementById('compEmployee').value = r.employee._id;
+    document.getElementById('compEmployee').disabled = true;
+    syncPayTypeRadio(r.payType);
+    document.getElementById('compBaseRate').value = r.baseRate;
+    document.getElementById('compOTRate').value = r.overtimeRate || 0;
+    document.getElementById('compEffectiveFrom').value = r.effectiveFrom ? new Date(r.effectiveFrom).toISOString().split('T')[0] : '';
+    new bootstrap.Modal(document.getElementById('compModal')).show();
+  }
+
+  async function saveCompensation() {
+    const id = document.getElementById('compId').value;
+    const emp = document.getElementById('compEmployee').value;
+    const payType = getPayTypeFromRadio();
+    const baseRate = document.getElementById('compBaseRate').value;
+    const effectiveFrom = document.getElementById('compEffectiveFrom').value;
+    if (!emp || !payType || !baseRate || !effectiveFrom) { showCalcMsg('Please fill in all required fields.', 'error'); return; }
+
+    const body = {
+      employee: emp,
+      payType,
+      baseRate: parseFloat(baseRate),
+      overtimeRate: parseFloat(document.getElementById('compOTRate').value) || 0,
+      effectiveFrom,
+    };
+
+    try {
+      const url = id ? API + '/compensation/' + id : API + '/compensation';
+      const method = id ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Save failed.', 'error'); return; }
+      bootstrap.Modal.getInstance(document.getElementById('compModal')).hide();
+      document.getElementById('compEmployee').disabled = false;
+      loadCompensation();
+      showCalcMsg(id ? 'Pay rate updated.' : 'Pay rate added.', 'success');
+    } catch(e) { showCalcMsg('Failed to save compensation.', 'error'); }
+  }
+
+  async function endComp(id) {
+    if (!confirm('End this compensation record?')) return;
+    try {
+      const res = await fetch(API + '/compensation/' + id + '/end', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (!res.ok) { showCalcMsg(data.error || 'Failed.', 'error'); return; }
+      loadCompensation();
+      showCalcMsg('Compensation ended.', 'success');
+    } catch(e) { showCalcMsg('Failed to end compensation.', 'error'); }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function esc(str) { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+
+  // Expose to onclick handlers
+  window._pw = {
+    viewRecord,
+    editRecord: (id) => editRecord(id),
+    openApprove,
+    openPaid,
+    openVoid,
+    editComp,
+    endComp,
+    updateSummary,
+    checkEmpty,
+    createDuePayroll,
+    loadDueToday,
+  };
+  window.pwGoStep = pwGoStep;
+})();
+</script>

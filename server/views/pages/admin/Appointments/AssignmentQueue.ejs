@@ -31,7 +31,7 @@
     .aq-stat-icon.amber { background: #fffbeb; color: #f59e0b; }
     .aq-stat-icon.red { background: #fef2f2; color: #ef4444; }
     .aq-stat-icon.green { background: #f0fdf4; color: #22c55e; }
-    .aq-stat-value { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
+    .aq-stat-value { font-size: 1.4rem; font-weight: 600; color: #1e293b; }
     .aq-stat-label { font-size: 0.75rem; color: #64748b; }
 
     .aq-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
@@ -326,7 +326,7 @@
         </div>
 
         <!-- Equipment & Materials -->
-        <div class="mt-4">
+        <div class="mt-4 d-none" aria-hidden="true">
           <h6 class="fw-bold mb-2"><i class="bi bi-tools me-2"></i>Equipment & Materials</h6>
           <div id="assignEquipmentRecommended" class="d-flex flex-wrap gap-2 mb-2"></div>
           <div id="assignEquipmentRecommendedEmpty" class="text-muted small mb-2 d-none">No AI tool recommendations for this service.</div>
@@ -721,53 +721,6 @@
     document.getElementById('techListContainer').innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
     document.getElementById('aiRepairRecommendationsSection').style.display = 'none';
 
-    const toolInput = document.getElementById('assignEquipmentToolInput');
-    const toolHidden = document.getElementById('assignEquipmentTool');
-    const toolList = document.getElementById('assignEquipmentDatalist');
-    const toolQty = document.getElementById('assignEquipmentQty');
-    if (toolInput) { toolInput.value = ''; toolInput.placeholder = 'Loading tools...'; toolInput.disabled = true; }
-    if (toolHidden) toolHidden.value = '';
-    if (toolList) toolList.innerHTML = '';
-    if (toolQty) toolQty.value = 1;
-    renderEquipmentList();
-
-    try {
-      const res = await fetch('/api/admin/appointments/tools/available?serviceName=' + encodeURIComponent(serviceName));
-      if (!res.ok) throw new Error();
-      const d = await res.json();
-      equipmentCache = d.tools || [];
-      const dl = document.getElementById('assignEquipmentDatalist');
-      const input = document.getElementById('assignEquipmentToolInput');
-      if (dl && input) {
-        if (!equipmentCache.length) {
-          input.disabled = false;
-          input.placeholder = 'No tools available';
-        } else {
-          dl.innerHTML = equipmentCache.map(t => '<option value="' + t.itemName + ' (avail ' + t.availableQuantity + ')">').join('');
-          input.disabled = false;
-          input.placeholder = 'Type tool name...';
-        }
-      }
-      renderRecommendedTools(d.recommended || []);
-    } catch (e) {
-      const dl = document.getElementById('assignEquipmentDatalist');
-      const input = document.getElementById('assignEquipmentToolInput');
-      if (dl) dl.innerHTML = '';
-      if (input) { input.disabled = false; input.placeholder = 'Tools unavailable'; }
-      renderRecommendedTools([]);
-    }
-
-    // Fetch AI parts/tools/inspection recommendations for repair services
-    try {
-      const aiRes = await fetch(`/api/admin/appointments/${bookingId}/ai-recommendations`);
-      if (aiRes.ok) {
-        const aiData = await aiRes.json();
-        renderAIRepairRecommendations(aiData.aiRecommendations);
-      }
-    } catch (e) {
-      console.warn('[AI Recommendations] Could not load:', e.message);
-    }
-
     document.getElementById('aiRecommendSection').style.display = 'none';
     document.getElementById('assignMapContainer').innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-geo-alt fs-1 d-block mb-2"></i>Loading map...</div>';
 
@@ -1062,7 +1015,6 @@
           technicianId: selectedTechId,
           priority: document.getElementById('assignPriority').value,
           notes: document.getElementById('assignNotes').value,
-          equipment: selectedEquipment,
         })
       });
       const data = await res.json();
@@ -1205,9 +1157,10 @@
       const totalPrice = b.totalPrice || b.estimatedFee || 0;
       const servicePrice = b.servicePrice || 0;
       const travelFare = b.travelFare || 0;
+      const isCOD = b.paymentMethod === 'cod';
       const downpayment = b.downpaymentAmount || 0;
       const amountPaid = b.amountPaid || 0;
-      const balanceAmount = b.balanceAmount || Math.max(0, totalPrice - amountPaid);
+      const balanceAmount = isCOD ? Math.max(0, totalPrice - downpayment) : Math.max(0, totalPrice - amountPaid);
 
       body.innerHTML = `
         <div class="pm-status-bar">
@@ -1484,8 +1437,28 @@
     }, duration);
   }
 
+  // Auto-open assign modal if navigated from attention queue Reassign
+  async function autoOpenAssignFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('assign');
+    if (!id) return;
+    try {
+      const res = await fetch('/api/admin/appointments/' + encodeURIComponent(id));
+      if (!res.ok) throw new Error('Booking not found');
+      const data = await res.json();
+      const b = data.booking;
+      if (!b) return;
+      const customerName = (b.customer?.name || 'Customer').replace(/'/g, "\\'");
+      const serviceName = (b.service?.name || (b.serviceModel === 'RepairService' ? 'Repair Service' : 'Service') || '').replace(/'/g, "\\'");
+      openAssignModal(String(b._id || b.id), customerName, serviceName, formatDate(b.bookingDate), formatTime(b.startTime));
+    } catch (e) {
+      console.warn('Auto-open assign failed:', e.message);
+    }
+  }
+
   loadStats();
   loadQueue(1);
+  autoOpenAssignFromQuery();
 
   // ═══ Repair Request Functions ═══
   let rqCurrentPage = 1;

@@ -183,8 +183,10 @@
           ${isEscalated ? '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Escalated</span>' : `<span class="badge bg-secondary">${b.status?.replace(/_/g, ' ') || 'N/A'}</span>`}
         </td>
         <td class="text-end pe-3">
-          <button class="btn btn-sm btn-outline-info" onclick="viewHistory('${b._id}')"><i class="bi bi-eye"></i></button>
-          <a href="/admin/appointments/queue" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-right"></i></a>
+          <div class="d-inline-flex gap-1">
+            <button class="btn btn-sm btn-outline-info d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0;border-radius:8px;" title="View history" onclick="viewHistory('${b._id}')"><i class="bi bi-eye"></i></button>
+            <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0;border-radius:8px;" title="Go to queue" onclick="window.location.href='/admin/appointments/queue'"><i class="bi bi-arrow-right"></i></button>
+          </div>
         </td>
       </tr>`;
     }).join('');

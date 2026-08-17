@@ -13,101 +13,327 @@
     </div>
   </div>
 
+  <style>
+    .payments-page .dash-card { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 20px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04); border: 1px solid rgba(226, 232, 240, 0.6); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); padding: 1.25rem; }
+    .payments-page .dash-card:hover { transform: translateY(-4px); box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 8px 20px rgba(15, 23, 42, 0.06); }
+    .payments-page .dash-card-header { padding: 0 0 12px 0; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .payments-page .dash-card-header h6 { font-size: 0.9rem; font-weight: 700; margin: 0; color: #0f172a; display: flex; align-items: center; }
+    .payments-page .dash-card-header .meta { font-size: 0.7rem; color: #94a3b8; font-weight: 500; }
+    .payments-page .dash-card-body { padding: 0; }
+    .payments-page .kpi-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .payments-page .kpi-icon i { color: #fff !important; }
+    .payments-page .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .payments-page .kpi-trend.up { background: rgba(16,185,129,0.12); color: #059669; }
+    .payments-page .kpi-trend.down { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .payments-page .kpi-trend.neutral { background: rgba(100,116,139,0.12); color: #64748b; }
+    .payments-page .chart-container { position: relative; height: 240px; }
+    .payments-page .chart-container canvas { width: 100% !important; height: 100% !important; }
+    .payments-page .stat-metric { display: flex; justify-content: space-around; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9; font-size: 0.75rem; }
+    .payments-page .stat-metric-item { text-align: center; }
+    .payments-page .stat-metric-val { color: #0f172a; font-weight: 600; }
+    .payments-page .stat-metric-lbl { color: #94a3b8; }
+    .payments-page .payment-status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .payments-page .status-paid { background: rgba(16,185,129,0.12); color: #059669; }
+    .payments-page .status-pending { background: rgba(245,158,11,0.12); color: #d97706; }
+    .payments-page .status-failed { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .payments-page .status-partial { background: rgba(59,130,246,0.12); color: #2563eb; }
+    .payments-page .table-hover tbody tr:hover { background: #f8fafc; }
+    .payments-page .table td { padding: 12px 16px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+    .payments-page .text-micro { font-size: 0.72rem; }
+  </style>
+
+  <!-- Executive KPI Summary -->
   <div class="row g-3 mb-4">
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Transactions</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="statTotalTx">1,876</span>
+    <!-- Total Revenue -->
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Total Revenue</h6>
+            <div class="d-flex align-items-baseline gap-2 mb-2">
+              <span class="h2 mb-0 fw-bold text-dark" id="kpiTotalRevenue">--</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7">All</div>
-            <small class="text-muted">Payment records</small>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-credit-card-2-front-fill text-white"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Collected (MTD)</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="statCollected">₱ 2.34M</span>
+            <small class="text-muted">All collected payments</small>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+              <div style="font-size:0.75rem;color:#94a3b8;">Monthly: <span id="kpiMonthlyRevenue" style="color:#0f172a;font-weight:600;">--</span></div>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7">MTD</div>
-            <small class="text-muted">Month-to-date</small>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669); margin-left: 12px;">
             <i class="bi bi-cash-stack text-white"></i>
           </div>
         </div>
       </div>
     </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Verification</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="statPending">86</span>
+
+    <!-- Collection Rate -->
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Collection Rate</h6>
+            <div class="d-flex align-items-baseline gap-2 mb-2">
+              <span class="h2 mb-0 fw-bold text-dark" id="kpiCollectionRate">--</span>
+              <span style="font-size:0.8rem;color:#059669;font-weight:600;">%</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Pending</div>
-            <small class="text-muted">Awaiting review</small>
+            <small class="text-muted">Paid vs Total</small>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+              <div style="font-size:0.75rem;color:#94a3b8;">Pending: <span id="kpiPendingAmount" style="color:#0f172a;font-weight:600;">--</span></div>
+            </div>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-hourglass-split text-white"></i>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb); margin-left: 12px;">
+            <i class="bi bi-percent text-white"></i>
           </div>
         </div>
       </div>
     </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Failed Payments</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="statFailed">21</span>
+
+    <!-- Payment Success Rate -->
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Success Rate</h6>
+            <div class="d-flex align-items-baseline gap-2 mb-2">
+              <span class="h2 mb-0 fw-bold text-dark" id="kpiSuccessRate">--</span>
+              <span style="font-size:0.8rem;color:#059669;font-weight:600;">%</span>
             </div>
-            <div class="badge bg-danger-subtle text-danger fs-7">Failed</div>
-            <small class="text-muted">Declined or errored</small>
+            <small class="text-muted">Successful transactions</small>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+              <div style="font-size:0.75rem;color:#94a3b8;">Failed: <span id="kpiFailedCount" style="color:#dc2626;font-weight:600;">--</span></div>
+            </div>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-            <i class="bi bi-exclamation-triangle-fill text-white"></i>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); margin-left: 12px;">
+            <i class="bi bi-check-circle text-white"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Average Transaction Value -->
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;">
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Avg Transaction</h6>
+            <div class="d-flex align-items-baseline gap-2 mb-2">
+              <span class="h2 mb-0 fw-bold text-dark" id="kpiAvgTransaction">--</span>
+            </div>
+            <small class="text-muted">Per payment</small>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+              <div style="font-size:0.75rem;color:#94a3b8;">Total Txns: <span id="kpiTotalTransactions" style="color:#0f172a;font-weight:600;">--</span></div>
+            </div>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-left: 12px;">
+            <i class="bi bi-graph-up text-white"></i>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Search</label
-          >
-          <div class="input-group">
-            <span class="input-group-text bg-light border-end-0"
-              ><i class="bi bi-search text-muted"></i
-            ></span>
-            <input
-              id="paymentsSearch"
-              type="text"
-              class="form-control border-start-0 bg-light"
-              placeholder="Booking reference, transaction ID, customer, or invoice #"
-            />
+  <!-- Secondary KPIs Row -->
+  <div class="row g-3 mb-4">
+    <!-- Payment Methods Breakdown -->
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+          <h6 style="font-size:0.85rem;font-weight:700;margin:0;color:#0f172a;"><i class="bi bi-credit-card me-1" style="color:#2563eb;"></i>Payment Methods</h6>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">GCash</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiGcashCount">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiGcashPercent">0%</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Cash (COD)</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiCashCount">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiCashPercent">0%</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Bank Transfer</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiBankCount">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiBankPercent">0%</span>
+            </div>
           </div>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Status</label
-          >
-          <select class="form-select" id="paymentsStatusFilter">
+      </div>
+    </div>
+
+    <!-- Outstanding Amounts -->
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+          <h6 style="font-size:0.85rem;font-weight:700;margin:0;color:#0f172a;"><i class="bi bi-exclamation-circle me-1" style="color:#f59e0b;"></i>Outstanding</h6>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Pending</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <span style="font-size:0.9rem;font-weight:600;color:#f59e0b;" id="kpiPendingCount">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiPendingValue">--</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Partial</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <span style="font-size:0.9rem;font-weight:600;color:#3b82f6;" id="kpiPartialCount">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiPartialValue">--</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Failed</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <span style="font-size:0.9rem;font-weight:600;color:#dc2626;" id="kpiFailedCountDetail">--</span>
+              <span style="font-size:0.7rem;color:#94a3b8;" id="kpiFailedValue">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="col-lg-4 col-md-6">
+      <div class="dash-card h-100">
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+          <h6 style="font-size:0.85rem;font-weight:700;margin:0;color:#0f172a;"><i class="bi bi-speedometer2 me-1" style="color:#059669;"></i>Performance</h6>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Avg Daily Revenue</span>
+            <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiAvgDailyRevenue">--</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Highest Single Txn</span>
+            <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiHighestTxn">--</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Lowest Single Txn</span>
+            <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiLowestTxn">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="dash-card h-100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-graph-up-arrow me-1" style="color:#2563eb;"></i>Payment Trend</h6>
+          <span class="meta">Last 30 days</span>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container">
+            <canvas id="chartPaymentTrend"></canvas>
+          </div>
+          <div class="stat-metric">
+            <div class="stat-metric-item">
+              <div class="stat-metric-val" id="paymentAvg">--</div>
+              <div class="stat-metric-lbl">Daily Avg</div>
+            </div>
+            <div class="stat-metric-item">
+              <div class="stat-metric-val" id="paymentPeak">--</div>
+              <div class="stat-metric-lbl">Peak Day</div>
+            </div>
+            <div class="stat-metric-item">
+              <div class="stat-metric-val" id="paymentGrowth">--</div>
+              <div class="stat-metric-lbl">Growth</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="dash-card h-100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-pie-chart-fill me-1" style="color:#8b5cf6;"></i>Payment Method Distribution</h6>
+          <span class="meta">All time</span>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container">
+            <canvas id="chartPaymentMethod"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Status Overview -->
+  <div class="dash-card mb-4">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-check2-circle me-1" style="color:#059669;"></i>Payment Status Overview</h6>
+      <span class="meta">This month</span>
+    </div>
+    <div class="dash-card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.8rem;">
+            <span style="color:#0f172a;font-weight:600;">Paid</span>
+            <span style="color:#059669;font-weight:600;" id="paidPercent">--</span>
+          </div>
+          <div style="height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
+            <div id="paidBar" style="height:100%;background:linear-gradient(90deg,#10b981,#059669);width:0%;transition:width 0.6s ease;"></div>
+          </div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:6px;" id="paidCount">0 transactions</div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.8rem;">
+            <span style="color:#0f172a;font-weight:600;">Pending</span>
+            <span style="color:#f59e0b;font-weight:600;" id="pendingPercent">--</span>
+          </div>
+          <div style="height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
+            <div id="pendingBar" style="height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);width:0%;transition:width 0.6s ease;"></div>
+          </div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:6px;" id="pendingCount">0 transactions</div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.8rem;">
+            <span style="color:#0f172a;font-weight:600;">Partial</span>
+            <span style="color:#3b82f6;font-weight:600;" id="partialPercent">--</span>
+          </div>
+          <div style="height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
+            <div id="partialBar" style="height:100%;background:linear-gradient(90deg,#60a5fa,#3b82f6);width:0%;transition:width 0.6s ease;"></div>
+          </div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:6px;" id="partialCount">0 transactions</div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.8rem;">
+            <span style="color:#0f172a;font-weight:600;">Failed</span>
+            <span style="color:#ef4444;font-weight:600;" id="failedPercent">--</span>
+          </div>
+          <div style="height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
+            <div id="failedBar" style="height:100%;background:linear-gradient(90deg,#f87171,#ef4444);width:0%;transition:width 0.6s ease;"></div>
+          </div>
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:6px;" id="failedCount">0 transactions</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Toolbar -->
+  <div class="dash-card mb-4">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-funnel-fill me-1" style="color:#64748b;"></i>Filter & Search</h6>
+    </div>
+    <div class="dash-card-body">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <label class="form-label small text-uppercase text-muted fw-bold">Search</label>
+          <div class="input-group" style="border-radius:10px;overflow:hidden;">
+            <span class="input-group-text" style="background:#f8fafc;border-color:#e2e8f0;"><i class="bi bi-search text-muted"></i></span>
+            <input id="paymentsSearch" type="text" class="form-control" style="border-color:#e2e8f0;background:#f8fafc;" placeholder="Booking ref, transaction ID, customer..." />
+          </div>
+        </div>
+        <div class="col-lg-2">
+          <label class="form-label small text-uppercase text-muted fw-bold">Status</label>
+          <select class="form-select" id="paymentsStatusFilter" style="border-color:#e2e8f0;background:#f8fafc;">
             <option>All</option>
             <option>Paid</option>
             <option>Partial</option>
@@ -115,48 +341,26 @@
             <option>Failed</option>
           </select>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Method</label
-          >
-          <select class="form-select" id="paymentsMethodFilter">
+        <div class="col-lg-2">
+          <label class="form-label small text-uppercase text-muted fw-bold">Method</label>
+          <select class="form-select" id="paymentsMethodFilter" style="border-color:#e2e8f0;background:#f8fafc;">
             <option>All</option>
             <option>GCash</option>
             <option>COD</option>
             <option>Other</option>
           </select>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Gateway</label
-          >
-          <select class="form-select" id="paymentsGatewayFilter">
+        <div class="col-lg-2">
+          <label class="form-label small text-uppercase text-muted fw-bold">Gateway</label>
+          <select class="form-select" id="paymentsGatewayFilter" style="border-color:#e2e8f0;background:#f8fafc;">
             <option>All</option>
             <option>GCash</option>
             <option>COD</option>
             <option>Other</option>
           </select>
         </div>
-        <div class="col-md-2">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Gateway status</label
-          >
-          <select class="form-select" id="paymentsGatewayStatusFilter">
-            <option>All</option>
-            <option>pending</option>
-            <option>verified</option>
-            <option>paid</option>
-            <option>failed</option>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small text-uppercase text-muted fw-bold"
-            >Date</label
-          >
-          <input type="date" class="form-control" id="paymentsDateFilter" />
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <button class="btn btn-light border w-100" id="paymentsFilterBtn">
+        <div class="col-lg-2 d-flex align-items-end">
+          <button class="btn w-100" id="paymentsFilterBtn" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#0f172a;font-weight:600;border-radius:10px;transition:all 0.25s ease;">
             <i class="bi bi-funnel me-2"></i>Filter
           </button>
         </div>
@@ -164,45 +368,50 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm">
-    <div
-      class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
-    >
-      <h6 class="mb-0 fw-bold">Payment Transactions</h6>
-      <span class="text-muted small">Manual GCash verification flow</span>
+  <!-- Payment Transactions Table -->
+  <div class="dash-card">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-table me-1" style="color:#2563eb;"></i>Payment Transactions</h6>
+      <span class="meta">All records</span>
     </div>
-    <div class="table-responsive">
-      <table class="table table-hover table-dense align-middle mb-0">
-        <thead class="bg-light">
-          <tr>
-            <th class="ps-4">Transaction</th>
-            <th>Customer</th>
-            <th>Booking Ref</th>
-            <th class="d-none">Method</th>
-            <th class="d-none">Reference</th>
-            <th class="d-none">Receipt</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Date / Time</th>
-            <th class="text-end pe-4">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="paymentsTableBody">
-          <tr>
-            <td colspan="10" class="text-center text-muted py-4">Loading payments...</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="dash-card-body" style="padding:0;">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size:0.85rem;">
+          <thead style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+            <tr>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Transaction ID</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Customer</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Booking Ref</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Amount</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Method</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Status</th>
+              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Date</th>
+              <th style="padding:12px 16px;text-align:right;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="paymentsTableBody">
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">Loading payments...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="card-footer bg-white py-3 border-top">
-      <ul class="pagination justify-content-end mb-0">
-        <li class="page-item disabled">
-          <a class="page-link" href="#">Previous</a>
-        </li>
-        <li class="page-item active"><a class="page-link" href="#">1</a></li>
-        <li class="page-item"><a class="page-link" href="#">2</a></li>
-        <li class="page-item"><a class="page-link" href="#">Next</a></li>
-      </ul>
+    <div style="padding:16px 22px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:0.75rem;color:#94a3b8;" id="paymentsPaginationInfo">Loading...</span>
+      <nav aria-label="Payment pagination">
+        <ul class="pagination mb-0" style="gap:4px;">
+          <li class="page-item disabled">
+            <a class="page-link" href="#" style="border-radius:8px;border:1px solid #e2e8f0;padding:6px 10px;font-size:0.8rem;">‹ Prev</a>
+          </li>
+          <li class="page-item active">
+            <span class="page-link" style="border-radius:8px;border:1px solid #2563eb;background:#2563eb;color:#fff;padding:6px 10px;font-size:0.8rem;">1</span>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="#" style="border-radius:8px;border:1px solid #e2e8f0;padding:6px 10px;font-size:0.8rem;">Next ›</a>
+          </li>
+        </ul>
+      </nav>
     </div>
   </div>
 </div>
@@ -293,4 +502,5 @@
     };
   });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/admin-payments.js"></script>

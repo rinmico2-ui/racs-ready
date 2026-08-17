@@ -30,6 +30,7 @@ const assignmentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    serviceItemId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 
     technicianId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -78,19 +79,41 @@ const assignmentSchema = new mongoose.Schema(
     enRouteAt: { type: Date },
     arrivedAt: { type: Date },
     startedAt: { type: Date },
+    startProofUrl: { type: String, trim: true },
+    startProofNotes: { type: String, trim: true, maxlength: 500 },
+    startProofCapturedAt: { type: Date },
     completedAt: { type: Date },
+    // technician proof-of-completion photo
+    proofPhoto: { type: String, trim: true },
     cancelledAt: { type: Date },
     expiredAt: { type: Date },
     expiredReason: { type: String, trim: true, maxlength: 500 },
 
     // ── Equipment lifecycle ──────────────────────────────────────────────────
+    resourcesReserved: { type: Boolean, default: false },
+    resourcesReservedAt: { type: Date },
+    preparationStatus: {
+      type: String,
+      enum: ["pending", "reserved", "ready_for_checkout", "checked_out", "issue"],
+      default: "pending",
+    },
+    preparationIssue: { type: String, trim: true },
     equipmentCheckedOut: { type: Boolean, default: false },
     equipmentCheckedOutAt: { type: Date },
     equipmentReturned: { type: Boolean, default: false },
     equipmentReturnedAt: { type: Date },
 
-    // ── Acceptance deadline ──────────────────────────────────────────────────
-    acceptanceDeadline: { type: Date, index: true },
+    // ── Acceptance deadline (30-minute default SLA; overridable per assignment)
+    acceptanceDeadline: {
+      type: Date,
+      index: true,
+      default: function () {
+        return new Date(Date.now() + 30 * 60 * 1000);
+      },
+    },
+
+    // ── SLA configuration ────────────────────────────────────────────────────
+    responseSLAMinutes: { type: Number, default: 30, min: 1 },
 
     // ── SLA Tracking ─────────────────────────────────────────────────────────
     slaDeadline: { type: Date, index: true },
@@ -121,6 +144,7 @@ const assignmentSchema = new mongoose.Schema(
 // ── Indexes ──────────────────────────────────────────────────────────────────
 assignmentSchema.index({ technicianId: 1, status: 1 });
 assignmentSchema.index({ technicianId: 1, bookingDate: -1 });
+assignmentSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
 assignmentSchema.index({ status: 1, assignedAt: -1 });
 assignmentSchema.index({ acceptanceDeadline: 1, status: 1 });
 assignmentSchema.index({ slaDeadline: 1, status: 1 });

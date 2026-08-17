@@ -44,6 +44,12 @@
   .premium-nav .nav-link:hover .nav-text, .premium-nav .nav-link.active .nav-text { color: #1d4ed8; font-weight: 700; }
   .premium-nav .nav-link:hover, .premium-nav .nav-link.active { transform: translateY(-1px); }
   .premium-nav .nav-link:hover i.nav-icon, .premium-nav .nav-link.active i.nav-icon { color: #2563eb; background: rgba(37,99,235,0.1); }
+  .premium-nav .nav-cart-count {
+    display: none; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    background: #1d4ed8; color: #fff; font-size: 0.65rem; font-weight: 800;
+    letter-spacing: 0; line-height: 1;
+  }
 
   /* ── Services dropdown ── */
   .premium-nav .nav-dropdown { position: relative; }
@@ -124,6 +130,12 @@
   .premium-nav #profileToggle i { color: #1d4ed8 !important; }
   .premium-nav .navbar-toggler { border-color: rgba(0,0,0,0.15); }
   .nav-greeting { color: #475569; font-size: 0.85rem; }
+
+  @media (min-width: 992px) and (max-width: 1199.98px) {
+    .premium-nav .navbar-nav .nav-item { margin-right: 0.35rem !important; }
+    .premium-nav .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
+    .premium-nav .nav-greeting { display: none !important; }
+  }
 
   /* ══ Mobile / responsive ══ */
   @media (max-width: 991.98px) {
@@ -221,7 +233,7 @@
   <div class="container">
     <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
       <i class="bi bi-snow2 fs-4 me-2"></i>
-      <span class="brand-text">CALIDRO RACS</span>
+      <span class="brand-text"><%= locals.companyName || 'CALIDRO RACS' %></span>
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
@@ -237,26 +249,11 @@
           </a>
         </li>
 
-        <li class="nav-item me-4 nav-dropdown">
+        <li class="nav-item me-4">
           <a class="nav-link" href="/services">
             <i class="bi bi-tools nav-icon"></i>
             <span class="nav-text">Services</span>
-            <i class="bi bi-chevron-down chevron"></i>
           </a>
-          <ul class="dropdown-menu-nav">
-            <li>
-              <a class="dropdown-item-nav" href="/services">
-                <i class="bi bi-tools"></i>
-                <span>Core Service</span>
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item-nav" href="/repair-request">
-                <i class="bi bi-wrench-adjustable"></i>
-                <span>Repair Request</span>
-              </a>
-            </li>
-          </ul>
         </li>
 
         <li class="nav-item me-4">
@@ -265,6 +262,16 @@
             <span class="nav-text">Products</span>
           </a>
         </li>
+
+        <% if (typeof user !== 'undefined' && user && String(user.role || '').toLowerCase() === 'customer') { %>
+          <li class="nav-item me-4">
+            <a class="nav-link" href="/aircon-cart" aria-label="Shopping cart">
+              <i class="bi bi-cart3 nav-icon"></i>
+              <span class="nav-text">Cart</span>
+              <span class="nav-cart-count" id="globalCartCount" aria-label="0 items in cart">0</span>
+            </a>
+          </li>
+        <% } %>
 
         <li class="nav-item me-4">
           <a class="nav-link" href="/about">
@@ -331,6 +338,20 @@
         var href = (link.getAttribute('href') || '').replace(/\/$/, '') || '/';
         if (href === path) link.classList.add('active');
       });
+
+      var cartCount = document.getElementById('globalCartCount');
+      if (cartCount) {
+        fetch('/api/aircon-cart', { credentials: 'same-origin' })
+          .then(function (response) { return response.ok ? response.json() : null; })
+          .then(function (data) {
+            var items = data && data.cart && Array.isArray(data.cart.items) ? data.cart.items : [];
+            var count = items.reduce(function (sum, item) { return sum + (Number(item.quantity) || 0); }, 0);
+            cartCount.textContent = count > 99 ? '99+' : String(count);
+            cartCount.setAttribute('aria-label', count + (count === 1 ? ' item in cart' : ' items in cart'));
+            cartCount.style.display = count > 0 ? 'inline-flex' : 'none';
+          })
+          .catch(function () { /* The cart remains usable even if the count cannot be loaded. */ });
+      }
 
       // Mobile: tap Services to expand its submenu (hover doesn't work on touch)
       var dd = nav.querySelector('.nav-dropdown');

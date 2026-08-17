@@ -10,6 +10,7 @@ const BookingState = {
   selectedServices: [],
   currentService: null,
   totalEstimatedPrice: 0,
+  downpaymentPercentage: 10,
   hasRepairServices: false,
   selectedTechnicianId: null,
   location: null,
@@ -34,6 +35,31 @@ const BookingState = {
   }
 };
 window.BookingState = BookingState;
+
+function calculateConfiguredDownpayment(total) {
+  const percentage = Number(BookingState.downpaymentPercentage) || 10;
+  return Math.round(Math.max(0, Number(total) || 0) * percentage / 100);
+}
+
+fetch('/api/services/payment-policy')
+  .then(response => response.ok ? response.json() : Promise.reject(new Error('Payment policy unavailable')))
+  .then(data => {
+    const percentage = Number(data.downpaymentPercentage);
+    if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
+      BookingState.downpaymentPercentage = percentage;
+      updatePaymentAmounts();
+    }
+  })
+  .catch(() => console.warn('Using the default 10% downpayment policy.'));
+const LARGE_SCALE_MIN_UNITS = 8;
+const MAX_BOOKING_UNITS = 40;
+let customerLocationRequestToken = 0;
+let routeRequestToken = 0;
+let addressGeocodeRequestToken = 0;
+function selectedUnitTotal() {
+  return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
+}
+function isLargeScaleSelection() { return selectedUnitTotal() >= LARGE_SCALE_MIN_UNITS; }
 
 // DOM elements cache
 const DOM = {
@@ -903,12 +929,28 @@ function resetStep4ForTechnicianChange() {
 
   // Clear distance and fare info
   const distanceElement = document.getElementById('mapInfoDistance');
+  const durationElement = document.getElementById('mapInfoDuration');
   const fareElement = document.getElementById('mapInfoFare');
   const distanceInfoElement = document.getElementById('mapDistanceInfo');
+  const routeMethodElement = document.getElementById('serviceRouteMethod');
+  const fitRouteButton = document.getElementById('fitServiceRouteBtn');
 
-  if (distanceElement) distanceElement.textContent = 'Detecting locations...';
-  if (fareElement) fareElement.innerHTML = '<strong>Estimated Fare:</strong> Calculating...';
-  if (distanceInfoElement) distanceInfoElement.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Waiting for location input...';
+  const selectionPanel = document.getElementById('serviceMapSelection');
+  const selectionStatus = document.getElementById('serviceMapSelectionStatus');
+  const selectionAddress = document.getElementById('serviceMapAddress');
+  const selectionCoordinates = document.getElementById('serviceMapCoordinates');
+  const selectionSource = document.getElementById('serviceMapSource');
+  if (distanceElement) { distanceElement.textContent = '—'; delete distanceElement.dataset.ready; }
+  if (durationElement) durationElement.textContent = '—';
+  if (fareElement) fareElement.textContent = '—';
+  if (distanceInfoElement) distanceInfoElement.textContent = 'Select a precise service location to calculate the road route.';
+  if (routeMethodElement) routeMethodElement.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Waiting for service pin';
+  if (fitRouteButton) fitRouteButton.disabled = true;
+  if (selectionPanel) selectionPanel.classList.remove('has-location');
+  if (selectionStatus) selectionStatus.textContent = 'Location not pinned';
+  if (selectionAddress) selectionAddress.textContent = 'Search for an address or select the exact point on the map.';
+  if (selectionCoordinates) selectionCoordinates.textContent = 'Not selected';
+  if (selectionSource) selectionSource.textContent = 'Waiting for location';
 
   // Clear and reinitialize map with proper timing
   if (typeof cleanupMap === 'function') {
@@ -1095,6 +1137,27 @@ function showStep(stepNumber) {
     }
   });
 
+  // When step 3 (Location) becomes visible, ensure map tiles render correctly
+  if (stepNumber === 3) {
+    setTimeout(function() {
+      if (BookingState && BookingState.map) {
+        try { BookingState.map.invalidateSize(); } catch(e) {}
+      }
+      // Also try re-initializing if map was never set up
+      if (!BookingState || !BookingState.map) {
+        var mapEl = document.getElementById('technicianMap');
+        if (mapEl && mapEl.offsetHeight > 0 && typeof initializeMap === 'function') {
+          initializeMap();
+        }
+      }
+    }, 300);
+    setTimeout(function() {
+      if (BookingState && BookingState.map) {
+        try { BookingState.map.invalidateSize(); } catch(e) {}
+      }
+    }, 1000);
+  }
+
   // Load content for specific steps
   if (stepNumber === 4) {
     console.log('🔧 Initializing Step 4 scheduling...');
@@ -1123,8 +1186,11 @@ function showStep(stepNumber) {
       const tryLoad = () => {
         attempts += 1;
         const serviceId = BookingState?.selectedServiceId;
+        const hasSelectedServices = Array.isArray(BookingState?.selectedServices) && BookingState.selectedServices.length > 0;
 
-        if (serviceId) {
+        // Core items have a DB serviceId; customer-created Repair items do
+        // not. Both are schedulable because the API also accepts duration.
+        if (serviceId || hasSelectedServices) {
           loadAvailableDates('manual');
           return;
         }
@@ -1224,8 +1290,22 @@ function setupLocationAutoProgress() {
   // Display selected technician details
   displayTechnicianDetails();
 
-  // Initialize map
-  initializeMap();
+  // Initialize map after the step is visible and DOM has reflowed
+  // Use multiple delays to ensure the container has dimensions
+  setTimeout(function() {
+    initializeMap();
+    // Invalidate size again after a longer delay for slow renders
+    setTimeout(function() {
+      if (BookingState && BookingState.map) {
+        try { BookingState.map.invalidateSize(); } catch(e) {}
+      }
+    }, 500);
+    setTimeout(function() {
+      if (BookingState && BookingState.map) {
+        try { BookingState.map.invalidateSize(); } catch(e) {}
+      }
+    }, 1500);
+  }, 200);
 
   // Setup address autocomplete
   setupAddressAutocomplete(newInput);
@@ -1249,21 +1329,6 @@ function setupLocationAutoProgress() {
         geocodeAddress(savedAddress, true);
       }, 500);
     }
-  } else if (navigator.geolocation) {
-    // If no saved address, try getting current location automatically
-    console.log('🌐 No saved address, attempting to auto-detect current location...');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        console.log('📍 Auto-detected coordinates:', lat, lng);
-        reverseGeocode(lat, lng);
-      },
-      (error) => {
-        console.log('ℹ️ Auto-detection of location declined/failed:', error.message);
-      },
-      { enableHighAccuracy: true, timeout: 5000 }
-    );
   }
 
   // Add listener for location input
@@ -1281,7 +1346,7 @@ function setupLocationAutoProgress() {
 
     if (value.length >= 10) { // Minimum address length
       debounceTimer = setTimeout(() => {
-        console.log('📍 Location entered, auto-advancing to Step 5');
+        console.log('📍 Location entered, waiting for Next Step button');
         newInput.classList.add('is-valid');
 
         // Store location
@@ -1292,7 +1357,7 @@ function setupLocationAutoProgress() {
         // Finalize map location
         geocodeAddress(value, true);
 
-        setTimeout(() => showStep(4), 1500); // Give extra time for map to load
+        // Next step is handled by the Next Step button
       }, 1500);
     }
   });
@@ -1336,7 +1401,12 @@ function setupAddressAutocomplete(input) {
  */
 function fetchAddressSuggestions(query) {
   const suggestContainer = document.getElementById('locationSuggest');
+  const searchButton = document.getElementById('serviceAddressSearchBtn');
   if (!suggestContainer) return;
+  if (searchButton) {
+    searchButton.disabled = true;
+    searchButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
+  }
 
   // Use backend proxy endpoint instead of direct Nominatim API
   const url = `/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`;
@@ -1347,12 +1417,20 @@ function fetchAddressSuggestions(query) {
       if (data && data.length > 0) {
         displaySuggestions(data);
       } else {
-        suggestContainer.classList.add('d-none');
+        suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-secondary"><i class="bi bi-search me-2"></i>No matching address found. Add a municipality or province.</div>';
+        suggestContainer.classList.remove('d-none');
       }
     })
     .catch(error => {
       console.error('Address suggestions error:', error);
-      suggestContainer.classList.add('d-none');
+      suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the point on the map.</div>';
+      suggestContainer.classList.remove('d-none');
+    })
+    .finally(() => {
+      if (searchButton) {
+        searchButton.disabled = false;
+        searchButton.innerHTML = '<i class="bi bi-search"></i>';
+      }
     });
 }
 
@@ -1381,15 +1459,22 @@ function displaySuggestions(suggestions) {
       displayName = parts.slice(0, 3).join(',') + '...';
     }
 
-    item.innerHTML = `
-      <div class="d-flex align-items-center">
-        <i class="bi bi-geo-alt text-muted me-2"></i>
-        <div>
-          <div class="fw-semibold">${parts[0]}</div>
-          <small class="text-muted">${parts.slice(1).join(', ').trim()}</small>
-        </div>
-      </div>
-    `;
+    const row = document.createElement('div');
+    row.className = 'd-flex align-items-start gap-2';
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-geo-alt-fill text-primary mt-1';
+    const copy = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'fw-semibold';
+    heading.textContent = parts[0] || 'Location';
+    const detail = document.createElement('small');
+    detail.className = 'text-muted';
+    detail.textContent = parts.slice(1).join(', ').trim();
+    copy.appendChild(heading);
+    copy.appendChild(detail);
+    row.appendChild(icon);
+    row.appendChild(copy);
+    item.appendChild(row);
 
     item.addEventListener('click', () => {
       locationInput.value = suggestion.display_name;
@@ -1417,29 +1502,7 @@ function displaySuggestions(suggestions) {
         // Update map immediately
         if (BookingState?.map) {
           BookingState.map.setView([lat, lng], 16);
-
-          // Remove existing user marker
-          if (BookingState.userMarker) {
-            BookingState.map.removeLayer(BookingState.userMarker);
-          }
-
-          // Add user marker
-          BookingState.userMarker = L.marker([lat, lng], {
-            icon: BookingState.userIcon
-          }).addTo(BookingState.map);
-
-          BookingState.userMarker.bindPopup(`
-            <div style="padding: 8px; min-width: 150px;">
-              <strong>🏠 Your Location</strong><br>
-              <small>${suggestion.display_name}</small><br>
-              <small>Click to zoom in</small>
-            </div>
-          `);
-
-          // Add click handler
-          BookingState.userMarker.on('click', function () {
-            BookingState.map.setView([lat, lng], 16);
-          });
+          setCustomerLocationMarker(lat, lng, suggestion.display_name, 'Address search result');
 
           // Draw route if company location exists
           if (BookingState.companyBaseCoordinates) {
@@ -1448,12 +1511,7 @@ function displaySuggestions(suggestions) {
         }
       }
 
-      // Trigger auto-advance after 1.5 seconds
-      setTimeout(() => {
-        if (locationInput.value.length >= 10) {
-          showStep(4);
-        }
-      }, 1500);
+      // Next step is handled by the Next Step button
     });
 
     suggestContainer.appendChild(item);
@@ -1535,15 +1593,19 @@ function initializeMap() {
     `;
 
     const checkLeafletInterval = setInterval(() => {
-      if (window.leafletLoaded && typeof L !== 'undefined') {
+      if (typeof L !== 'undefined') {
         clearInterval(checkLeafletInterval);
+        // Ensure container is clean before initializing
+        mapContainer.innerHTML = '';
+        mapContainer._leaflet_id = null;
+        window.leafletLoaded = true;
         initializeMapInternal(mapContainer);
       }
     }, 100);
 
     setTimeout(() => {
       clearInterval(checkLeafletInterval);
-      if (!window.leafletLoaded) {
+      if (typeof L === 'undefined') {
         mapContainer.innerHTML = `
           <div class="alert alert-warning m-3">
             <i class="bi bi-exclamation-triangle me-2"></i>
@@ -1727,7 +1789,10 @@ function initializeMapInternal(mapContainer) {
   try {
     map = L.map(mapContainer, {
       center: [technicianLat, technicianLng],
-      zoom: 13
+      zoom: 13,
+      zoomControl: false,
+      scrollWheelZoom: false,
+      preferCanvas: true
     });
     console.log('✅ Leaflet map instance created');
   } catch (error) {
@@ -1744,11 +1809,27 @@ function initializeMapInternal(mapContainer) {
     }
   }
 
-  // Add OpenStreetMap tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Match the product checkout map: detailed streets plus satellite imagery.
+  const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
+    maxNativeZoom: 19,
     maxZoom: 19
   }).addTo(map);
+  const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri',
+    maxZoom: 19
+  });
+  const satelliteLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Labels © Esri',
+    maxZoom: 19
+  });
+  const satelliteLayer = L.layerGroup([satelliteImagery, satelliteLabels]);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 120 }).addTo(map);
+  L.control.layers({
+    'Detailed streets': streetLayer,
+    'Satellite + labels': satelliteLayer
+  }, null, { position: 'topright', collapsed: true }).addTo(map);
 
   // Create custom technician icon (blue color)
   const technicianIcon = L.divIcon({
@@ -1826,8 +1907,8 @@ function initializeMapInternal(mapContainer) {
   // Popup with company location info
   const technicianPopupContent = `
     <div style="padding: 8px; min-width: 150px;">
-      <strong>🏢 Company Location</strong><br>
-      <small>${window._companyBaseLocation?.address || BookingState.companyBaseAddress || 'Company base location'}</small><br>
+      <strong style="color:#1d4ed8;">CALIDRO RACS</strong><br>
+      <small>${escapeServiceMapText(window._companyBaseLocation?.address || BookingState.companyBaseAddress || 'Company base location')}</small><br>
       <small style="color: #0d6efd; cursor: pointer;" onclick="zoomToTechnician()">Click to zoom in</small>
     </div>
   `;
@@ -1898,7 +1979,8 @@ function initializeMapInternal(mapContainer) {
 
 
   // Invalidate map size to ensure tiles load correctly when container transitions/displays
-  setTimeout(() => {
+  // Run multiple times to handle slow renders and transition animations
+  function invalidateMapSize() {
     try {
       if (map) {
         map.invalidateSize();
@@ -1907,7 +1989,30 @@ function initializeMapInternal(mapContainer) {
     } catch (err) {
       console.warn('Map invalidateSize failed:', err);
     }
-  }, 250);
+  }
+
+  // Immediate
+  setTimeout(invalidateMapSize, 100);
+  // After transition animation
+  setTimeout(invalidateMapSize, 500);
+  // Late fallback for slow connections
+  setTimeout(invalidateMapSize, 1500);
+  // Final safety net
+  setTimeout(invalidateMapSize, 3000);
+
+  // Tap the map to select customer location
+  map.on('click', function (e) {
+    const { lat, lng } = e.latlng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const requestToken = ++customerLocationRequestToken;
+    ++routeRequestToken;
+    // Move the one authoritative customer marker immediately. Reverse
+    // geocoding is asynchronous and must not create a second marker later.
+    setCustomerLocationMarker(lat, lng, '', 'Point selected on map');
+    BookingState.userCoordinates = { lat, lng };
+    reverseGeocode(lat, lng, requestToken);
+  });
+  technicianMarker.bindTooltip('CALIDRO RACS', { direction: 'top', offset: [0, -34] });
 
   console.log('✅ Leaflet map initialized with technician location:', {
     lat: technicianLat,
@@ -1971,12 +2076,14 @@ function geocodeAddress(address, finalize = false) {
     return;
   }
 
+  const activeGeocodeRequest = ++addressGeocodeRequestToken;
   // Use backend proxy for geocoding (avoids CORS issues)
   const geocodeUrl = `/api/geocoding/search?q=${encodeURIComponent(address)}&limit=1`;
 
   fetch(geocodeUrl)
     .then(response => response.json())
     .then(data => {
+      if (activeGeocodeRequest !== addressGeocodeRequestToken) return;
       if (data && data.error) {
         console.error('Geocoding API error:', data.error);
         if (finalize) {
@@ -1991,55 +2098,13 @@ function geocodeAddress(address, finalize = false) {
 
         // Update map center
         BookingState.map.setView([lat, lng], finalize ? 16 : 14);
+        const resolvedAddress = result.display_name || address;
+        setCustomerLocationMarker(lat, lng, resolvedAddress, finalize ? 'Confirmed address search' : 'Address preview');
 
-        // Remove existing user marker
-        if (BookingState.userMarker) {
-          BookingState.map.removeLayer(BookingState.userMarker);
-        }
-
-        // Add user location marker with enhanced click handler
-        BookingState.userMarker = L.marker([lat, lng], {
-          icon: BookingState.userIcon,
-          zIndexOffset: 1000
-        }).addTo(BookingState.map);
-
-        BookingState.userMarker.bindPopup(`
-          <div style="padding: 8px; min-width: 150px;">
-            <strong>🏠 Your Location</strong><br>
-            <small>${result.display_name}</small><br>
-            <small style="color: #198754; cursor: pointer;" onclick="zoomToUser()">Click to zoom in</small>
-          </div>
-        `, {
-          maxWidth: 250,
-          className: 'custom-popup'
-        });
-
-        // Enhanced click handler for user marker
-        BookingState.userMarker.on('click', function (e) {
-          console.log('🏠 User marker clicked');
-          BookingState.map.setView([lat, lng], 16);
-
-          // Open popup
-          this.openPopup();
-
-          // Add visual feedback
-          this.setIcon(createPulsingIcon('#198754'));
-          setTimeout(() => {
-            this.setIcon(BookingState.userIcon);
-          }, 1000);
-        });
-
-        // Make zoomToUser globally available
-        window.zoomToUser = function () {
-          console.log('🔍 Zooming to user location');
-          if (BookingState?.map && BookingState?.userMarker) {
-            const pos = BookingState.userMarker.getLatLng();
-            BookingState.map.setView(pos, 16);
-          }
-        };
-
-        // Store coordinates
+        // Store the same authoritative address and coordinates used by checkout.
         BookingState.userCoordinates = { lat, lng };
+        BookingState.customerLocation = { address: resolvedAddress, lat, lng };
+        BookingState.location = resolvedAddress;
 
         // Draw route if both company baseline and user coordinates exist and finalizing
         if (BookingState.companyBaseCoordinates && finalize) {
@@ -2112,9 +2177,13 @@ function drawRoute() {
   // Show loading indicator
   showRouteLoading();
 
+  // Only the newest route request may update the map. A slow response for a
+  // previously selected pin must never redraw the old route.
+  const activeRouteRequest = ++routeRequestToken;
   // Get actual route using OpenStreetMap routing API
   getActualRoute(companyPos, userPos)
     .then(routeData => {
+      if (activeRouteRequest !== routeRequestToken) return;
       hideRouteLoading();
 
       if (routeData && routeData.coordinates && routeData.coordinates.length > 2) {
@@ -2176,7 +2245,7 @@ function drawRoute() {
 
         // Update distance info with actual route data
         if (routeData.distance && routeData.duration) {
-          updateDistanceInfo(routeData.distance, Math.round(routeData.distance * 30), Math.round(routeData.duration));
+          updateDistanceInfo(routeData.distance, Math.round(routeData.distance * (Number(window._farePerKm) || 40)), Math.round(routeData.duration), true);
         }
 
         console.log('✅ Actual route drawn successfully');
@@ -2187,6 +2256,7 @@ function drawRoute() {
       }
     })
     .catch(error => {
+      if (activeRouteRequest !== routeRequestToken) return;
       hideRouteLoading();
       console.warn('❌ Route API failed, using straight line:', error);
       drawStraightLineRoute(companyPos, userPos);
@@ -2369,12 +2439,71 @@ function drawStraightLineRoute(technicianPos, userPos) {
 /**
  * Reverse geocode coordinates to address using backend proxy
  */
-function reverseGeocode(lat, lng) {
+function escapeServiceMapText(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[char]);
+}
+
+function updateServiceMapSelectionUI(lat, lng, address, source) {
+  const panel = document.getElementById('serviceMapSelection');
+  const status = document.getElementById('serviceMapSelectionStatus');
+  const addressEl = document.getElementById('serviceMapAddress');
+  const coordinatesEl = document.getElementById('serviceMapCoordinates');
+  const sourceEl = document.getElementById('serviceMapSource');
+  const locationStatus = document.getElementById('locationStatus');
+  const fitButton = document.getElementById('fitServiceRouteBtn');
+  const routeMethod = document.getElementById('serviceRouteMethod');
+  if (panel) panel.classList.add('has-location');
+  if (status) status.textContent = 'Service pin confirmed';
+  if (addressEl) addressEl.textContent = address || 'Resolving the selected street address...';
+  if (coordinatesEl) coordinatesEl.textContent = Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6);
+  if (sourceEl) sourceEl.textContent = source || 'Map selection';
+  if (locationStatus) locationStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1 text-success"></i>Exact service location confirmed for routing.';
+  if (fitButton) fitButton.disabled = false;
+  if (routeMethod) routeMethod.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Calculating road route';
+}
+
+function bindServiceCustomerMarkerDrag(marker) {
+  if (!marker) return;
+  marker.off('dragend');
+  marker.on('dragend', function() {
+    const point = marker.getLatLng();
+    const requestToken = ++customerLocationRequestToken;
+    ++routeRequestToken;
+    BookingState.userCoordinates = { lat: point.lat, lng: point.lng };
+    updateServiceMapSelectionUI(point.lat, point.lng, '', 'Dragged service pin');
+    reverseGeocode(point.lat, point.lng, requestToken);
+  });
+}
+
+function setCustomerLocationMarker(lat, lng, address, source) {
+  const map = BookingState.map;
+  if (!map) return null;
+  if (BookingState.userMarker && map.hasLayer(BookingState.userMarker)) {
+    BookingState.userMarker.setLatLng([lat, lng]);
+  } else {
+    if (BookingState.userMarker) {
+      try { map.removeLayer(BookingState.userMarker); } catch (_) {}
+    }
+    BookingState.userMarker = L.marker([lat, lng], { icon: BookingState.userIcon, zIndexOffset: 1000, draggable: true, keyboard: true, title: 'Service location' }).addTo(map);
+  }
+  BookingState.userMarker.unbindPopup();
+  BookingState.userMarker.bindPopup(`<div style="padding:6px;min-width:170px;"><strong style="color:#15803d;">Service Location</strong><br><small>${escapeServiceMapText(address || `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`)}</small><br><small>${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}</small></div>`, { maxWidth: 280, className: 'custom-popup' });
+  BookingState.userMarker.bindTooltip('Service location', { direction: 'top', offset: [0, -34] });
+  BookingState.userMarker.off('click');
+  BookingState.userMarker.on('click', function () { map.setView(this.getLatLng(), 16); this.openPopup(); });
+  bindServiceCustomerMarkerDrag(BookingState.userMarker);
+  updateServiceMapSelectionUI(lat, lng, address, source || 'Map selection');
+  return BookingState.userMarker;
+}
+
+function reverseGeocode(lat, lng, requestToken) {
+  const activeRequestToken = requestToken ?? ++customerLocationRequestToken;
   const reverseGeocodeUrl = `/api/geocoding/reverse?lat=${lat}&lon=${lng}`;
 
   fetch(reverseGeocodeUrl)
     .then(response => response.json())
     .then(data => {
+      if (activeRequestToken !== customerLocationRequestToken) return;
       if (data && data.error) {
         console.error('Reverse geocoding API error:', data.error);
         showError(data.error);
@@ -2404,38 +2533,7 @@ function reverseGeocode(lat, lng) {
           // Update map
           if (BookingState.map) {
             BookingState.map.setView([lat, lng], 16);
-
-            // Add user marker with enhanced click handler
-            BookingState.userMarker = L.marker([lat, lng], {
-              icon: BookingState.userIcon,
-              zIndexOffset: 1000
-            }).addTo(BookingState.map);
-
-            BookingState.userMarker.bindPopup(`
-              <div style="padding: 8px; min-width: 150px;">
-                <strong>🏠 Your Location</strong><br>
-                <small>${address}</small><br>
-                <small style="color: #198754; cursor: pointer;" onclick="zoomToUser()">Click to zoom in</small>
-              </div>
-            `, {
-              maxWidth: 250,
-              className: 'custom-popup'
-            });
-
-            // Enhanced click handler for user marker
-            BookingState.userMarker.on('click', function (e) {
-              console.log('🏠 User marker clicked (reverse geocode)');
-              BookingState.map.setView([lat, lng], 16);
-
-              // Open popup
-              this.openPopup();
-
-              // Add visual feedback
-              this.setIcon(createPulsingIcon('#198754'));
-              setTimeout(() => {
-                this.setIcon(BookingState.userIcon);
-              }, 1000);
-            });
+            setCustomerLocationMarker(lat, lng, address, 'Confirmed map location');
 
             // Update global zoomToUser function
             window.zoomToUser = function () {
@@ -2454,6 +2552,8 @@ function reverseGeocode(lat, lng) {
       }
     })
     .catch(error => {
+      if (activeGeocodeRequest !== addressGeocodeRequestToken) return;
+      if (activeRequestToken !== customerLocationRequestToken) return;
       console.error('Reverse geocoding error:', error);
       showError('Unable to get address from coordinates. Please enter manually.');
     });
@@ -2580,8 +2680,12 @@ function setupLocateButtons() {
   const locateCompanyBtn = document.getElementById('locateCompanyBtn');
   const locateCustomerBtn = document.getElementById('locateCustomerBtn');
   const focusCustomerBtn = document.getElementById('focusCustomerBtn');
+  const fitRouteBtn = document.getElementById('fitServiceRouteBtn');
+  const expandMapBtn = document.getElementById('expandServiceMapBtn');
+  const addressSearchBtn = document.getElementById('serviceAddressSearchBtn');
 
-  if (locateCompanyBtn) {
+  if (locateCompanyBtn && !locateCompanyBtn.dataset.mapBound) {
+    locateCompanyBtn.dataset.mapBound = 'true';
     locateCompanyBtn.addEventListener('click', () => {
       console.log('🔍 Locate company button clicked');
       if (BookingState?.technicianMarker && BookingState?.map) {
@@ -2594,7 +2698,8 @@ function setupLocateButtons() {
     });
   }
 
-  if (locateCustomerBtn) {
+  if (locateCustomerBtn && !locateCustomerBtn.dataset.mapBound) {
+    locateCustomerBtn.dataset.mapBound = 'true';
     locateCustomerBtn.addEventListener('click', () => {
       console.log('📍 Use My Location clicked');
       if (!navigator.geolocation) {
@@ -2630,7 +2735,8 @@ function setupLocateButtons() {
     });
   }
 
-  if (focusCustomerBtn) {
+  if (focusCustomerBtn && !focusCustomerBtn.dataset.mapBound) {
+    focusCustomerBtn.dataset.mapBound = 'true';
     focusCustomerBtn.addEventListener('click', () => {
       console.log('🔍 Focus customer button clicked');
       if (BookingState?.userMarker && BookingState?.map) {
@@ -2644,8 +2750,68 @@ function setupLocateButtons() {
     });
   }
 
+  if (fitRouteBtn && !fitRouteBtn.dataset.mapBound) {
+    fitRouteBtn.dataset.mapBound = 'true';
+    fitRouteBtn.addEventListener('click', () => {
+      if (!BookingState?.map) return;
+      if (BookingState.routeLine && typeof BookingState.routeLine.getBounds === 'function') {
+        const bounds = BookingState.routeLine.getBounds();
+        if (bounds && bounds.isValid()) {
+          BookingState.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+          return;
+        }
+      }
+      const markers = [BookingState.technicianMarker, BookingState.userMarker].filter(Boolean);
+      if (markers.length > 1) {
+        BookingState.map.fitBounds(L.featureGroup(markers).getBounds(), { padding: [50, 50], maxZoom: 16 });
+      }
+    });
+  }
+
+  if (expandMapBtn && !expandMapBtn.dataset.mapBound) {
+    expandMapBtn.dataset.mapBound = 'true';
+    expandMapBtn.addEventListener('click', () => {
+      const card = document.getElementById('serviceCheckoutMapCard');
+      if (!card) return;
+      const expanded = card.classList.toggle('map-expanded');
+      expandMapBtn.innerHTML = expanded
+        ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>'
+        : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
+      setTimeout(() => { if (BookingState?.map) BookingState.map.invalidateSize(); }, 280);
+    });
+  }
+
+  if (addressSearchBtn && !addressSearchBtn.dataset.mapBound) {
+    addressSearchBtn.dataset.mapBound = 'true';
+    addressSearchBtn.addEventListener('click', () => {
+      const input = document.getElementById('locationInput');
+      const query = input ? input.value.trim() : '';
+      if (query.length < 3) {
+        showError('Enter at least 3 characters to search for an address');
+        return;
+      }
+      fetchAddressSuggestions(query);
+    });
+  }
+
   console.log('✅ Locate buttons setup complete');
 }
+
+window.continueServiceBookingFromMap = function() {
+  const location = BookingState && BookingState.customerLocation;
+  const distanceElement = document.getElementById('mapInfoDistance');
+  const routeReady = distanceElement && distanceElement.dataset.ready === 'true';
+  if (!location || !Number.isFinite(Number(location.lat)) || !Number.isFinite(Number(location.lng))) {
+    showError('Select an address result, use My Location, or pin the exact service point on the map.');
+    return;
+  }
+  if (!routeReady) {
+    showError('Please wait for the route and travel fare to finish calculating.');
+    return;
+  }
+  showStep(4);
+  updateStepper(4);
+};
 
 /**
  * Calculate distance and travel fare with realistic duration
@@ -2708,7 +2874,7 @@ function calculateDistanceAndFare() {
       const fare = Math.round(adjustedDistance * farePerKm);
 
       // Update UI with realistic data
-      updateDistanceInfo(distance, fare, travelDurationMinutes);
+      updateDistanceInfo(distance, fare, travelDurationMinutes, true);
 
       // Store in booking state
       if (typeof BookingState !== 'undefined') {
@@ -2753,7 +2919,7 @@ function calculateDistanceAndFare() {
       const fallbackRouteData = { distance: distance };
       const travelDurationMinutes = calculateRealisticDuration(fallbackRouteData, trafficFactor);
 
-      updateDistanceInfo(distance, fare, travelDurationMinutes);
+      updateDistanceInfo(distance, fare, travelDurationMinutes, false);
 
       if (typeof BookingState !== 'undefined') {
         BookingState.distance = distance;
@@ -3028,51 +3194,36 @@ function getWeatherMultiplier(currentTime) {
 /**
  * Update distance information in the UI
  */
-function updateDistanceInfo(distance, fare, duration) {
+function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
   const distanceElement = document.getElementById('mapInfoDistance');
+  const durationElement = document.getElementById('mapInfoDuration');
   const fareElement = document.getElementById('mapInfoFare');
   const distanceInfoElement = document.getElementById('mapDistanceInfo');
+  const routeMethodElement = document.getElementById('serviceRouteMethod');
+  const fitRouteButton = document.getElementById('fitServiceRouteBtn');
 
   console.log('📍 Updating distance info:', { distance, fare, duration });
 
-  if (distanceElement) {
-    distanceElement.textContent = `Distance: ${distance.toFixed(1)} km (approx.)`;
-    console.log('✅ Distance element updated');
-  }
+  const durationText = duration > 60
+    ? `${Math.floor(duration / 60)}h ${duration % 60}min`
+    : `${duration} min`;
+  const rate = Number(window._farePerKm) || 40;
 
-  if (fareElement) {
-    fareElement.innerHTML = `<strong>Estimated Fare:</strong> ₱${fare.toLocaleString()}`;
-    console.log('✅ Fare element updated');
+  if (distanceElement) {
+    distanceElement.textContent = `${distance.toFixed(1)} km`;
+    distanceElement.dataset.ready = 'true';
   }
+  if (durationElement) durationElement.textContent = durationText;
+  if (fareElement) fareElement.textContent = `₱${fare.toLocaleString()}`;
+  if (routeMethodElement) {
+    routeMethodElement.innerHTML = isRoadRoute
+      ? '<i class="bi bi-diagram-3 me-1"></i>Road route calculated'
+      : '<i class="bi bi-calculator me-1"></i>Estimated route';
+  }
+  if (fitRouteButton) fitRouteButton.disabled = false;
 
   if (distanceInfoElement) {
-    const durationText = duration > 60
-      ? `${Math.floor(duration / 60)}h ${duration % 60}min`
-      : `${duration} min`;
-
-    distanceInfoElement.innerHTML = `
-      <i class="bi bi-route me-1"></i>
-      <strong>Travel Distance:</strong> ${distance.toFixed(1)} km<br>
-      <i class="bi bi-clock me-1"></i>
-      <strong>Travel Duration:</strong> ${durationText} (considering traffic)
-    `;
-    console.log('✅ Distance info element updated');
-  }
-
-  // Also update the main distance panel to include duration
-  const mainDistancePanel = document.querySelector('#mapInfoPanel .small.text-muted');
-  if (mainDistancePanel) {
-    const durationText = duration > 60
-      ? `${Math.floor(duration / 60)}h ${duration % 60}min`
-      : `${duration} min`;
-    const rate = window._farePerKm || 40;
-
-    mainDistancePanel.innerHTML = `
-      <i class="bi bi-info-circle me-1"></i>
-      Distance: ${distance.toFixed(1)} km • Duration: ${durationText} • 
-      Distance meter fare is calculated at <strong>₱${rate} per kilometer</strong> based on the road distance between the company and your location, considering current traffic conditions.
-    `;
-    console.log('✅ Main distance panel updated');
+    distanceInfoElement.textContent = `${distance.toFixed(1)} km × ₱${rate.toFixed(2)}/km = ₱${fare.toLocaleString()} ${isRoadRoute ? 'road-route' : 'estimated'} travel fare`;
   }
 
   // Enhanced auto-advance detection
@@ -3124,44 +3275,16 @@ function autoAdvanceToNextStep() {
     const distanceElement = document.getElementById('mapInfoDistance');
     const fareElement = document.getElementById('mapInfoFare');
 
-    const hasDistanceContent = distanceElement && distanceElement.textContent &&
-      distanceElement.textContent.includes('Distance:');
+    const hasDistanceContent = distanceElement && distanceElement.dataset.ready === 'true';
     const hasFareContent = fareElement && fareElement.textContent &&
       fareElement.textContent.includes('₱');
     const isNotDetecting = distanceElement &&
       !distanceElement.textContent.includes('Detecting');
 
     if (hasDistanceContent && hasFareContent && isNotDetecting) {
-
-      console.log('🚀 Auto-advancing from Step 3 to Step 4');
-
-      showStep(4);
-      updateStepper(4);
-
-      if (typeof showError !== 'undefined') {
-        const successMsg = document.createElement('div');
-        successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed';
-        successMsg.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        successMsg.innerHTML = `
-          <i class="bi bi-check-circle me-2"></i>
-          <strong>Location confirmed!</strong> Proceeding to schedule selection.
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.body.appendChild(successMsg);
-
-        setTimeout(() => {
-          if (successMsg.parentNode) {
-            successMsg.parentNode.removeChild(successMsg);
-          }
-        }, 3000);
-      }
-
+      console.log('⏹ Step 3 location set; waiting for Next Step button');
     } else {
       console.log('⏳ Distance calculation not yet complete, waiting...');
-
-      setTimeout(() => {
-        autoAdvanceToNextStep();
-      }, 1000);
     }
   } else {
     console.log('ℹ️ Not on Step 3, skipping auto-advance');
@@ -3185,29 +3308,6 @@ function showLocationStepComplete() {
   if (distancePanel) {
     distancePanel.style.borderColor = '#198754';
     distancePanel.style.backgroundColor = '#f8fff9';
-
-    // Add success badge
-    const successBadge = document.createElement('div');
-    successBadge.className = 'alert alert-success alert-sm mt-2';
-    successBadge.innerHTML = `
-      <i class="bi bi-check-circle me-1"></i>
-      <strong>Location confirmed!</strong> Distance and fare calculated. Proceeding to next step...
-    `;
-
-    // Remove existing success badge if any
-    const existingBadge = distancePanel.querySelector('.alert-success');
-    if (existingBadge) {
-      existingBadge.remove();
-    }
-
-    distancePanel.appendChild(successBadge);
-
-    // Remove badge after auto-advance
-    setTimeout(() => {
-      if (successBadge.parentNode) {
-        successBadge.remove();
-      }
-    }, 3000);
   }
 
   console.log('✅ Location step completion feedback shown');
@@ -3333,7 +3433,11 @@ async function loadAvailableDates(modeOverride = null) {
   // be the frontend-generated unique "id" (not a DB id).  The actual DB id
   // lives in selectedServices[].serviceId.  Try that first.
   let serviceId = null;
+  let totalSelectedDuration = 0;
   if (typeof BookingState !== 'undefined') {
+    totalSelectedDuration = (BookingState.selectedServices || []).reduce((sum, service) => {
+      return sum + Math.max(1, Number(service.duration) || (service.type === 'repair' ? 90 : 60)) * Math.max(1, Number(service.quantity) || 1);
+    }, 0);
     // Best source: the real DB id stored on the service item
     if (!serviceId && Array.isArray(BookingState.selectedServices) && BookingState.selectedServices.length > 0) {
       serviceId = BookingState.selectedServices[0].serviceId || null;
@@ -3350,7 +3454,7 @@ async function loadAvailableDates(modeOverride = null) {
 
   console.log('🔍 loadAvailableDates resolved serviceId:', serviceId);
 
-  if (!serviceId) {
+  if (!serviceId && totalSelectedDuration <= 0) {
     console.warn('⚠️ Technician or service not selected:', {
       technicianId,
       serviceId,
@@ -3379,7 +3483,14 @@ async function loadAvailableDates(modeOverride = null) {
 
     console.log(`📅 Loading dates in ${mode} mode`);
 
-    const params = new URLSearchParams({ serviceId, mode });
+    // Explicit aggregate duration is authoritative for Core-only,
+    // Repair-only, and Mixed carts. quantity=1 prevents double counting.
+    const params = new URLSearchParams({ mode });
+    if (serviceId) params.set('serviceId', serviceId);
+    if (totalSelectedDuration > 0) {
+      params.set('duration', String(totalSelectedDuration));
+      params.set('quantity', '1');
+    }
     if (technicianId) params.set('technicianId', technicianId);
     const response = await fetch(`/api/schedule/available-dates?${params.toString()}`);
 
@@ -3591,7 +3702,8 @@ function formatTime12h(time24) {
  * Load time slots for selected date
  */
 async function loadTimeSlots(date) {
-  if (!BookingState.selectedServiceId) {
+  const totalDuration = selectedBookingDurationMinutes();
+  if (!BookingState.selectedServiceId && totalDuration <= 0) {
     console.warn('⚠️ Service not selected');
     return;
   }
@@ -3599,13 +3711,10 @@ async function loadTimeSlots(date) {
   console.log('🕐 Loading time slots for date:', date);
 
   try {
-    let url;
-    if (BookingState.selectedTechnicianId) {
-      url = `/api/schedule/time-slots?technicianId=${BookingState.selectedTechnicianId}&serviceId=${BookingState.selectedServiceId}&date=${date}`;
-    } else {
-      // Capacity mode: aggregate across all technicians
-      url = `/api/schedule/time-slots?serviceId=${BookingState.selectedServiceId}&date=${date}`;
-    }
+    const params = new URLSearchParams({ date, duration: String(totalDuration), quantity: '1' });
+    if (BookingState.selectedServiceId) params.set('serviceId', BookingState.selectedServiceId);
+    if (BookingState.selectedTechnicianId) params.set('technicianId', BookingState.selectedTechnicianId);
+    const url = `/api/schedule/time-slots?${params.toString()}`;
 
     const response = await fetch(url);
 
@@ -3832,7 +3941,7 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
   }
 
   // Validate selections
-  if (!BookingState.selectedServiceId) {
+  if (!BookingState.selectedServiceId && selectedBookingDurationMinutes() <= 0) {
     timeSelection.classList.add('d-none');
     if (timeNotice) {
       timeNotice.textContent = "Please select a service first.";
@@ -3870,6 +3979,11 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
 
     if (BookingState.selectedServiceId) {
       url.searchParams.set("serviceId", BookingState.selectedServiceId);
+    }
+    const totalDuration = selectedBookingDurationMinutes();
+    if (totalDuration > 0) {
+      url.searchParams.set("duration", String(totalDuration));
+      url.searchParams.set("quantity", "1");
     }
 
     if (BookingState.selectedTechnicianId) {
@@ -5608,6 +5722,7 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
   card.dataset.hp = hpOption.hp;
   card.dataset.price = hpOption.price;
   card.dataset.description = hpOption.description;
+  card.dataset.durationMinutes = hpOption.durationMinutes || 60;
   card.dataset.type = airconType.type;
   card.dataset.selected = 'false';
   card.style.cssText = `
@@ -5750,6 +5865,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
         price: parseInt(hpOption.price),
         quantity: 1,
         description: hpOption.description,
+        durationMinutes: Number(hpOption.durationMinutes) || 60,
         airconType: airconType.type,
         airconTypeName: airconType.name
       };
@@ -5845,6 +5961,7 @@ function createProfessionalHpCard(hpOption, index) {
   card.dataset.hp = hpOption.hp;
   card.dataset.price = hpOption.price;
   card.dataset.description = hpOption.description;
+  card.dataset.durationMinutes = hpOption.durationMinutes || 60;
   card.dataset.selected = 'false';
   card.style.cssText = `
     border-radius: 12px !important;
@@ -5952,7 +6069,8 @@ function addHpCardEventListeners(card, hpOption) {
         hp: parseFloat(hpOption.hp),
         price: parseInt(hpOption.price),
         quantity: 1,
-        description: hpOption.description
+        description: hpOption.description,
+        durationMinutes: Number(hpOption.durationMinutes) || 60
       };
 
       const existing = BookingState.selectedHps.find(hp => hp.hp === parseFloat(hpOption.hp));
@@ -7111,6 +7229,7 @@ function showHpModal(service, quantity) {
     hpCard.dataset.hp = hpOption.hp;
     hpCard.dataset.price = hpOption.price;
     hpCard.dataset.description = hpOption.description;
+    hpCard.dataset.durationMinutes = hpOption.durationMinutes || 60;
     hpCard.dataset.selected = 'false';
     hpCard.style.cssText = `
       border-radius: 12px !important;
@@ -7522,7 +7641,8 @@ function confirmHpSelection() {
   const hpData = {
     hp: parseFloat(selectedHpCard.dataset.hp),
     price: parseInt(selectedHpCard.dataset.price),
-    description: selectedHpCard.dataset.description
+    description: selectedHpCard.dataset.description,
+    durationMinutes: Number(selectedHpCard.dataset.durationMinutes) || 60
   };
 
   // Add service with HP selection
@@ -7649,6 +7769,7 @@ function confirmQuantitySelection() {
               price: price,
               quantity: quantity,
               description: card.dataset.description || '',
+              durationMinutes: Number(card.dataset.durationMinutes) || 60,
               airconType: type,
               airconTypeName: typeName
             };
@@ -7697,6 +7818,7 @@ function confirmQuantitySelection() {
           hp: hpSelection.hp,
           price: hpSelection.price,
           description: hpSelection.description,
+          durationMinutes: hpSelection.durationMinutes,
           airconType: hpSelection.airconType,
           airconTypeName: hpSelection.airconTypeName
         });
@@ -7892,6 +8014,10 @@ function addServiceToBooking(service, quantity, hpData = null) {
     quantity: quantity,
     hpData: hpData
   });
+  if (selectedUnitTotal() + Number(quantity || 1) > MAX_BOOKING_UNITS) {
+    showError(`You can add a maximum of ${MAX_BOOKING_UNITS} units across all Core and Repair services.`);
+    return;
+  }
 
   const serviceItem = {
     id: generateUniqueId(),
@@ -7909,7 +8035,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     applianceTypeName: BookingState.applianceTypeName || null,
     brand: BookingState.selectedBrand || null,
     repairIssue: hpData && hpData.repairIssue ? hpData.repairIssue : null, // Handle individual repair issues
-    duration: service.durationMinutes || service.duration || 60,
+    duration: Number(hpData?.durationMinutes) || service.durationMinutes || service.duration || 60,
     icon: service.icon || (service.type === 'repair' ? 'bi-tools' : 'bi-gear-fill'),
     isAirconService: service.isAirconService || false,
     // Initial cost for repair services (technician will update to final cost after diagnosis)
@@ -8009,6 +8135,7 @@ function validateStep(stepNumber) {
     case 4:
       // Check if schedule is selected
       const _isProject =
+        isLargeScaleSelection() ||
         (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
         BookingState.isProject === true ||
         !!BookingState.projectScheduling;
@@ -8097,25 +8224,46 @@ function updateSelectedServicesDisplay() {
   if (BookingState.selectedServices.length === 0) {
     DOM.selectedServicesList.innerHTML = '<p class="text-muted mb-0">No services selected yet</p>';
   } else {
-    const servicesHtml = BookingState.selectedServices.map(service => `
+    const esc = v => String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const servicesHtml = BookingState.selectedServices.map((service, idx) => {
+      const isRepair = service.type === 'repair';
+      const iconClass = isRepair ? 'bi-tools text-warning' : (service.icon || 'bi-gear-wide-connected text-primary');
+      const badge = isRepair
+        ? '<span class="badge bg-warning bg-opacity-10 text-warning ms-2" style="font-size:0.65rem;">REPAIR</span>'
+        : '<span class="badge bg-primary bg-opacity-10 text-primary ms-2" style="font-size:0.65rem;">CORE</span>';
+
+      let detailsHtml = '';
+      if (isRepair) {
+        const parts = [];
+        parts.push(`Qty: ${service.quantity}`);
+        if (service.model) parts.push(`Model: ${esc(service.model)}`);
+        detailsHtml = `<div class="text-muted small">${parts.join(' · ')}</div>`;
+        if (service.problemDescription || service.repairIssue) {
+          const issue = service.problemDescription || service.repairIssue;
+          detailsHtml += `<div class="text-warning small mt-1" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(issue)}</div>`;
+        }
+      } else {
+        detailsHtml = `<div class="text-muted small">
+          Qty: ${service.quantity} ${getServiceUnitText(service)}
+          ${service.airconTypeName ? `| <span class="badge bg-info bg-opacity-10 text-info">${esc(service.airconTypeName)}</span>` : ''}
+          ${service.hp ? `| ${service.hp} HP` : ''}
+          ${service.hpDescription ? `(${esc(service.hpDescription)})` : ''}
+        </div>`;
+      }
+
+      const editBtn = isRepair
+        ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="editRepairItem(${idx})" title="Edit"><i class="bi bi-pencil"></i></button>`
+        : '';
+
+      return `
       <div class="selected-service-item d-flex justify-content-between align-items-center mb-2 p-2 bg-white rounded border">
         <div class="d-flex align-items-center">
           <div class="service-icon me-2">
-            <i class="${service.icon} fs-5 text-primary"></i>
+            <i class="${iconClass} fs-5"></i>
           </div>
           <div>
-            <div class="fw-semibold">${service.name}</div>
-            <div class="text-muted small">
-              Quantity: ${service.quantity} ${getServiceUnitText(service)}
-              ${service.airconTypeName ? `| <span class="badge bg-info bg-opacity-10 text-info">${service.airconTypeName}</span>` : ''}
-              ${service.hp ? `| ${service.hp} HP` : ''}
-              ${service.hpDescription ? `(${service.hpDescription})` : ''}
-            </div>
-            ${service.repairIssue ? `
-            <div class="text-warning small mt-1" style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              <i class="bi bi-exclamation-triangle-fill me-1"></i>
-              Issue: ${service.repairIssue}
-            </div>` : ''}
+            <div class="fw-semibold">${esc(service.name)}${badge}</div>
+            ${detailsHtml}
           </div>
         </div>
         <div class="d-flex align-items-center">
@@ -8123,43 +8271,37 @@ function updateSelectedServicesDisplay() {
             <div class="fw-bold text-primary">₱${service.totalPrice.toLocaleString()}</div>
             <div class="text-muted small">₱${service.unitPrice.toLocaleString()} each</div>
           </div>
+          ${editBtn}
           <button class="btn btn-sm btn-outline-danger remove-service-btn" data-service-id="${service.id}">
             <i class="bi bi-trash"></i>
           </button>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
     DOM.selectedServicesList.innerHTML = servicesHtml;
 
-    // Add event listeners to remove buttons
     DOM.selectedServicesList.querySelectorAll('.remove-service-btn').forEach(btn => {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
 
         const serviceId = this.dataset.serviceId;
-
-        // Find and remove service
         const index = BookingState.selectedServices.findIndex(s => s.id === serviceId);
         if (index > -1) {
           const removedService = BookingState.selectedServices[index];
           BookingState.selectedServices.splice(index, 1);
 
-
-          // Update UI displays
           updateSelectedServicesDisplay();
           updatePricingDisplay();
           updateContinueButtonState();
 
-          // Show feedback
           showSuccess(`${removedService.name} removed from booking`);
         }
       });
     });
   }
 
-  // Show/hide total pricing section
   const totalPricingSection = document.getElementById('totalPricingSection');
   if (totalPricingSection) {
     if (BookingState.selectedServices.length > 0) {
@@ -8251,7 +8393,7 @@ function decreaseQuantity() {
 
 function increaseQuantity() {
   const current = parseInt(DOM.quantityModalInput.value);
-  if (current < 20) {
+  if (current < MAX_BOOKING_UNITS) {
     DOM.quantityModalInput.value = current + 1;
     updateCombinedPrice();
   }
@@ -8313,6 +8455,32 @@ function showError(message) {
     // Fallback to alert
     alert(message);
   }
+}
+
+/** Unified notification helper used by the combined Core/Repair selector. */
+function showAlert(message, type = 'info') {
+  if (type === 'success') return showSuccess(message);
+  if (type === 'error' || type === 'danger') return showError(message);
+  if (typeof Swal !== 'undefined') {
+    return Swal.fire({
+      icon: type === 'warning' ? 'warning' : 'info',
+      title: type === 'warning' ? 'Check Service Details' : 'Service Booking',
+      text: message,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+    });
+  }
+  window.alert(message);
+}
+window.showAlert = showAlert;
+
+function selectedBookingDurationMinutes() {
+  return (BookingState?.selectedServices || []).reduce((sum, service) => {
+    const perUnit = Math.max(1, Number(service.duration) || (service.type === 'repair' ? 90 : 60));
+    return sum + perUnit * Math.max(1, Number(service.quantity) || 1);
+  }, 0);
 }
 
 function showModalError(message) {
@@ -8476,8 +8644,7 @@ function switchSchedulingMode(mode) {
   if (!BookingState.selectedServiceId && BookingState.selectedServices?.length > 0) {
     // Service items store the actual service ID in the 'serviceId' property
     BookingState.selectedServiceId = BookingState.selectedServices[0].serviceId ||
-      BookingState.selectedServices[0]._id ||
-      BookingState.selectedServices[0].id;
+      BookingState.selectedServices[0]._id || null;
     console.log('📝 Set selectedServiceId from selectedServices:', BookingState.selectedServiceId);
     console.log('📝 First service object:', BookingState.selectedServices[0]);
   }
@@ -9233,9 +9400,11 @@ async function renderTimeSlotsProfessional(date) {
 
     // When no technician is selected (capacity mode), use server-side aggregation
     // to properly account for ALL technicians' bookings
-    if (!BookingState.selectedTechnicianId && BookingState.selectedServiceId) {
+    if (!BookingState.selectedTechnicianId && (BookingState.selectedServiceId || totalDuration > 0)) {
       try {
-        const apiUrl = `/api/schedule/time-slots?serviceId=${BookingState.selectedServiceId}&date=${formatDateKey(date)}`;
+        const slotParams = new URLSearchParams({ date: formatDateKey(date), duration: String(totalDuration), quantity: '1' });
+        if (BookingState.selectedServiceId) slotParams.set('serviceId', BookingState.selectedServiceId);
+        const apiUrl = `/api/schedule/time-slots?${slotParams.toString()}`;
         const apiResponse = await fetch(apiUrl);
         if (apiResponse.ok) {
           const apiData = await apiResponse.json();
@@ -9650,34 +9819,62 @@ function displayTotalFee() {
   // Calculate services total
   let servicesTotal = 0;
   let hasRepairServices = false;
-  let serviceDetailsHTML = '<div class="mb-2"><strong>Selected Services:</strong></div><ul class="mb-0">';
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let serviceDetailsHTML = '';
 
   if (BookingState.selectedServices && BookingState.selectedServices.length > 0) {
+    serviceDetailsHTML += '<div class="d-flex flex-column gap-2">';
     BookingState.selectedServices.forEach(service => {
       const quantity = service.quantity || 1;
       const unitPrice = service.unitPrice || service.price || 0;
       const serviceTotal = unitPrice * quantity;
       servicesTotal += serviceTotal;
+      const isRepair = service.type === 'repair';
 
-      // Check if it's a repair service
-      if (service.type === 'repair' || service.isRepair) {
-        hasRepairServices = true;
+      if (isRepair) hasRepairServices = true;
+
+      const badge = isRepair
+        ? '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.6rem;font-weight:700;">REPAIR</span>'
+        : '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.6rem;font-weight:700;">CORE</span>';
+
+      let details = '';
+      if (isRepair) {
+        const parts = [];
+        if (service.brand) parts.push(esc(service.brand));
+        if (service.unitType) parts.push(esc(service.unitType));
+        if (service.model) parts.push('Model: ' + esc(service.model));
+        details = `<div class="text-muted" style="font-size:0.78rem;">${parts.join(' · ')}</div>`;
+        if (service.problemDescription || service.repairIssue) {
+          details += `<div class="mt-1" style="font-size:0.75rem;color:#d97706;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(service.problemDescription || service.repairIssue)}</div>`;
+        }
+      } else {
+        const parts = [];
+        if (service.hp) parts.push(service.hp + ' HP');
+        if (service.airconTypeName) parts.push(esc(service.airconTypeName));
+        parts.push('Qty: ' + quantity);
+        details = `<div class="text-muted" style="font-size:0.78rem;">${parts.join(' · ')}</div>`;
       }
 
-      // Add to details
       serviceDetailsHTML += `
-        <li>
-          ${service.name} 
-          ${quantity > 1 ? `(${quantity}x ₱${unitPrice.toLocaleString()})` : ''} 
-          - ₱${serviceTotal.toLocaleString()}
-          ${service.hp ? ` <span class="badge bg-secondary">${service.hp} HP</span>` : ''}
-        </li>
-      `;
+        <div class="d-flex justify-content-between align-items-start p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;">
+          <div>
+            <div class="d-flex align-items-center gap-1 mb-1">
+              ${badge}
+              <span class="fw-semibold" style="font-size:0.82rem;color:#0f172a;">${esc(service.name)}</span>
+            </div>
+            ${details}
+          </div>
+          <div class="text-end">
+            <div class="fw-bold" style="color:${isRepair ? '#b45309' : '#059669'};font-size:0.85rem;">₱${serviceTotal.toLocaleString()}</div>
+            ${isRepair ? '<div style="margin-top:2px;color:#b45309;font-size:0.65rem;font-weight:800;white-space:nowrap;">INSPECTION FEE ONLY</div>' : ''}
+            ${quantity > 1 ? `<div class="text-muted" style="font-size:0.7rem;">${quantity}x ₱${unitPrice.toLocaleString()}${isRepair ? ' inspection fee' : ''}</div>` : ''}
+          </div>
+        </div>`;
     });
+    serviceDetailsHTML += '</div>';
   } else {
-    serviceDetailsHTML += '<li class="text-muted">No services selected</li>';
+    serviceDetailsHTML += '<div class="text-muted" style="font-size:0.82rem;">No services selected</div>';
   }
-  serviceDetailsHTML += '</ul>';
 
   // Get travel fare
   const travelFare = BookingState.travelFare || BookingState.fare || 0;
@@ -9691,14 +9888,55 @@ function displayTotalFee() {
   totalFeeDisplay.textContent = `₱${totalFee.toLocaleString()}`;
   feeServiceDetails.innerHTML = serviceDetailsHTML;
 
+  const serviceCount = (BookingState.selectedServices || []).length;
+  const unitCount = (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
+  const countEl = document.getElementById('feeServiceCount');
+  if (countEl) countEl.textContent = `${serviceCount} ${serviceCount === 1 ? 'service' : 'services'} · ${unitCount} ${unitCount === 1 ? 'unit' : 'units'}`;
+
+  const locationEl = document.getElementById('feeLocationDisplay');
+  const scheduleEl = document.getElementById('feeScheduleDisplay');
+  const distanceEl = document.getElementById('feeDistanceContext');
+  const locationText = BookingState.customerLocation?.address || BookingState.location || 'Not selected';
+  if (locationEl) locationEl.textContent = locationText;
+
+  let scheduleText = 'Not selected';
+  if (BookingState.selectedDate) {
+    const date = new Date(BookingState.selectedDate);
+    const dateText = Number.isNaN(date.getTime())
+      ? String(BookingState.selectedDate)
+      : date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeText = BookingState.selectedTimeSlot?.label || BookingState.selectedTime || '';
+    scheduleText = dateText + (timeText ? ` · ${timeText}` : '');
+  }
+  if (scheduleEl) scheduleEl.textContent = scheduleText;
+  if (distanceEl) {
+    const distance = Number(BookingState.distance) || 0;
+    const duration = Number(BookingState.travelDuration) || 0;
+    distanceEl.textContent = distance > 0 ? `${distance.toFixed(1)} km${duration ? ` · ${duration} min` : ''}` : 'Route unavailable';
+  }
+
   // Show repair quotation note for repair services
   const repairQuotationNote = document.getElementById('repairQuotationNote');
+  const servicesSubtotalLabel = document.getElementById('servicesSubtotalLabel');
+  const bookingTotalLabel = document.getElementById('bookingTotalLabel');
+  const bookingReviewNote = document.getElementById('bookingReviewNote');
   if (repairQuotationNote) {
     if (hasRepairServices) {
       repairQuotationNote.classList.remove('d-none');
     } else {
       repairQuotationNote.classList.add('d-none');
     }
+  }
+  if (servicesSubtotalLabel) {
+    servicesSubtotalLabel.textContent = hasRepairServices ? 'Core services + inspection fees' : 'Services subtotal';
+  }
+  if (bookingTotalLabel) {
+    bookingTotalLabel.textContent = hasRepairServices ? 'Initial booking total' : 'Current total';
+  }
+  if (bookingReviewNote) {
+    bookingReviewNote.textContent = hasRepairServices
+      ? 'This initial total includes Core service charges, Repair inspection fees, and travel fare. Final Repair labor and parts are quoted separately after diagnosis.'
+      : 'Your configured downpayment and remaining balance are shown before booking confirmation.';
   }
 
   // Update GCash amount display
@@ -9768,6 +10006,10 @@ function initializePaymentStep() {
     confirmBookingBtn.addEventListener('click', handleBookingSubmission);
   }
 
+  // Populate every payment amount as soon as the step is opened, including
+  // fields inside the payment method that is currently hidden.
+  updatePaymentAmounts();
+
   console.log('✅ Payment step initialized');
 }
 
@@ -9776,20 +10018,25 @@ function initializePaymentStep() {
  */
 function updatePaymentAmounts() {
   const totalFee = BookingState.totalFee || 0;
+  const downpayment = calculateConfiguredDownpayment(totalFee);
+  const balance = Math.max(0, totalFee - downpayment);
   const gcashAmountDisplay = document.getElementById('gcashAmountDisplay');
   const cashTotalDisplay = document.getElementById('cashTotalDisplay');
   const cashDownDisplay = document.getElementById('cashDownDisplay');
   const cashBalanceDisplay = document.getElementById('cashBalanceDisplay');
   const cashBreakdown = document.getElementById('cashBreakdown');
+  const amountInput = document.getElementById('downpaymentAmt');
+  const cashPolicyText = document.getElementById('cashPolicyText');
+  const cashDownLabel = document.getElementById('cashDownLabel');
+
+  // Keep the readonly amount field and breakdown sourced from the same value.
+  if (amountInput) amountInput.value = String(downpayment);
 
   if (gcashAmountDisplay) {
     gcashAmountDisplay.textContent = `₱${totalFee.toLocaleString()}`;
   }
 
   if (cashTotalDisplay && cashDownDisplay && cashBalanceDisplay) {
-    const downpayment = 400;
-    const balance = totalFee - downpayment;
-
     cashTotalDisplay.textContent = `₱${totalFee.toLocaleString()}`;
     cashDownDisplay.textContent = `₱${downpayment.toLocaleString()}`;
     cashBalanceDisplay.textContent = `₱${balance.toLocaleString()}`;
@@ -9798,6 +10045,8 @@ function updatePaymentAmounts() {
       cashBreakdown.style.display = 'block';
     }
   }
+  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via GCash now to secure your schedule, then pay the remaining balance after the service.`;
+  if (cashDownLabel) cashDownLabel.textContent = `Downpayment now (${BookingState.downpaymentPercentage || 10}%)`;
 }
 
 /**
@@ -9818,7 +10067,7 @@ async function handleBookingSubmission() {
   // Disable button to prevent double submission
   if (confirmBtn) {
     confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+    confirmBtn.innerHTML = 'Confirming booking...';
   }
 
   try {
@@ -9907,7 +10156,7 @@ async function handleBookingSubmission() {
 
     } else {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create booking');
+      throw new Error(errorData.details || errorData.error || 'Failed to create booking');
     }
 
   } catch (error) {
@@ -9986,6 +10235,9 @@ function validateBookingData() {
   if (!BookingState.selectedServices || BookingState.selectedServices.length === 0) {
     return { valid: false, error: 'Please select at least one service' };
   }
+  if (selectedUnitTotal() > MAX_BOOKING_UNITS) {
+    return { valid: false, error: `A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.` };
+  }
 
   // Check technician
   if (false && !BookingState.selectedTechnicianId) {
@@ -10005,6 +10257,7 @@ function validateBookingData() {
   // In large-scale / project mode only a start date is chosen (no fixed time
   // slot), so skip the time-slot requirement there.
   const isProjectMode =
+    isLargeScaleSelection() ||
     (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
     BookingState.isProject === true ||
     !!BookingState.projectScheduling;
@@ -10027,15 +10280,18 @@ function validateBookingData() {
     }
   } else if (BookingState.paymentMethod === 'cod') {
     const cashNumber = document.getElementById('cashNumber')?.value;
+    const cashProof = document.getElementById('cashProof')?.files[0];
 
     if (!cashNumber) {
-      return { valid: false, error: 'Please fill in all cash payment fields' };
+      return { valid: false, error: 'Please enter your mobile number for cash payment' };
+    }
+    if (!cashProof) {
+      return { valid: false, error: 'Please upload your downpayment receipt to confirm your booking' };
     }
   }
 
   return { valid: true };
 }
-
 /**
  * Helper to convert file to base64
  */
@@ -10052,25 +10308,40 @@ const toBase64 = file => new Promise((resolve, reject) => {
 async function prepareBookingData() {
   const bookingData = {
     // Multi-service booking
-    isMultiService: true,
-    services: BookingState.selectedServices.map(service => ({
-      serviceId: service.serviceId || service._id,
-      name: service.name,
-      type: service.type || (service.isRepair ? 'repair' : 'core'),
-      quantity: service.quantity || 1,
-      unitPrice: service.unitPrice || service.price || 0,
-      totalPrice: (service.unitPrice || service.price || 0) * (service.quantity || 1),
-      hp: service.hp,
-      hpDescription: service.hpDescription,
-      airconType: service.airconType,
-      airconTypeName: service.airconTypeName,
-      applianceType: service.applianceType,
-      applianceTypeName: service.applianceTypeName,
-      brand: service.brand,
-      duration: service.duration,
-      isAirconService: service.isAirconService,
-      repairIssue: service.repairIssue,
-      initialCost: service.type === 'repair' ? (service.unitPrice || service.price || 0) : undefined
+    isMultiService: BookingState.selectedServices.length > 1,
+    services: await Promise.all(BookingState.selectedServices.map(async service => {
+      const svc = {
+        serviceId: service.serviceId || service._id || null,
+        name: service.name,
+        type: service.type || (service.isRepair ? 'repair' : 'core'),
+        quantity: service.quantity || 1,
+        unitPrice: service.unitPrice || service.price || 0,
+        totalPrice: (service.unitPrice || service.price || 0) * (service.quantity || 1),
+        hp: service.hp,
+        hpDescription: service.hpDescription,
+        airconType: service.airconType,
+        airconTypeName: service.airconTypeName,
+        applianceType: service.applianceType || service.unitType || null,
+        applianceTypeName: service.applianceTypeName || service.unitType || null,
+        brand: service.brand,
+        model: service.model || null,
+        duration: service.duration,
+        isAirconService: service.isAirconService,
+        repairIssue: service.repairIssue || service.problemDescription || null,
+        problemDescription: service.problemDescription || service.repairIssue || null,
+        unitType: service.unitType || null,
+        initialCost: service.type === 'repair' ? (service.unitPrice || service.price || 0) : undefined
+      };
+      // Convert repair photos to base64 if present
+      if (service.type === 'repair' && service.photos && service.photos.length > 0) {
+        try {
+          svc.photos = await Promise.all(service.photos.map(async (file) => {
+            if (typeof file === 'string') return file;
+            return await toBase64(file);
+          }));
+        } catch (e) { svc.photos = []; }
+      }
+      return svc;
     })),
 
     // Totals
@@ -10124,11 +10395,12 @@ async function prepareBookingData() {
 
   // ── Large-scale / project scheduling ──────────────────────────────────
   const isProjectMode =
+    isLargeScaleSelection() ||
     (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
     BookingState.isProject === true ||
     !!BookingState.projectScheduling;
-  if (isProjectMode && BookingState.projectScheduling) {
-    const ps = BookingState.projectScheduling;
+  if (isProjectMode) {
+    const ps = BookingState.projectScheduling || { preferredStartDate: BookingState.selectedDate, date: BookingState.selectedDate, preferences: {} };
     bookingData.isProject = true;
     bookingData.status = 'pending_project_scheduling';
     bookingData.bookingDate = formatDateKey(new Date(ps.preferredStartDate || ps.date));
@@ -10146,8 +10418,7 @@ async function prepareBookingData() {
     // Default to the customer's actual selected service quantities so the
     // per-service quantity entered in the UI is never lost.
     const customerQtySum = BookingState.selectedServices?.reduce((t, s) => t + (Number(s.quantity) || 1), 0) || 0;
-    const psUnits = ps.preferences && ps.preferences.totalUnits ? parseInt(ps.preferences.totalUnits, 10) : 0;
-    bookingData.quantity = psUnits > 0 ? psUnits : (customerQtySum > 0 ? customerQtySum : 1);
+    bookingData.quantity = customerQtySum > 0 ? customerQtySum : 1;
   }
 
   // Add payment-specific fields
@@ -10165,7 +10436,6 @@ async function prepareBookingData() {
     }
   } else if (BookingState.paymentMethod === 'cod') {
     bookingData.gcashNumber = document.getElementById('cashNumber')?.value;
-    bookingData.downpaymentAmount = 400;
     bookingData.paymentNotes = document.getElementById('cashNotes')?.value;
 
     // Process Cash proof file upload
@@ -10212,22 +10482,34 @@ function showBookingSuccessModal(result) {
     const fmt = (n) => `₱${Number(n || 0).toLocaleString()}`;
     const rows = BookingState.selectedServices.map((s, i) => {
       const brand = s.brand ? s.brand : '—';
-      const type = s.applianceTypeName || (s.applianceType ? s.applianceType : '—');
+      const type = s.applianceTypeName || s.unitType || (s.applianceType ? s.applianceType : '—');
       const qty = s.quantity || 1;
+      const isRepair = s.type === 'repair';
+      const badge = isRepair
+        ? '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.6rem;font-weight:700;">REPAIR</span>'
+        : '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.6rem;font-weight:700;">CORE</span>';
       const unit = s.totalPrice ? fmt(s.totalPrice / qty) : fmt(s.totalPrice || 0);
       const durMin = (s.duration || 60) * qty;
       const durH = durMin >= 60 ? `${(durMin / 60).toFixed(1)} hr` : `${durMin} min`;
+      const modelLine = s.model ? `<div><i class="bi bi-upc me-1 text-primary"></i><strong>Model:</strong> ${s.model}</div>` : '';
+      const issue = s.problemDescription || s.repairIssue;
+      const issueLine = issue ? `<div style="color:#d97706;margin-top:4px;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${issue}</div>` : '';
       return `
         <div class="receipt-svc-item border rounded p-2 mb-2" style="background:#f8fafc;">
           <div class="d-flex justify-content-between align-items-center">
-            <span class="fw-semibold" style="font-size:0.9rem;color:#0f172a;">${i + 1}. ${s.name}</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              ${badge}
+              <span class="fw-semibold" style="font-size:0.9rem;color:#0f172a;">${s.name}</span>
+            </div>
             <span class="fw-bold" style="color:#059669;">${fmt(s.totalPrice || 0)}</span>
           </div>
           <div class="text-muted small mt-1" style="font-size:0.78rem;line-height:1.6;">
             <div><i class="bi bi-upc-scan me-1 text-primary"></i><strong>Brand:</strong> ${brand}</div>
             <div><i class="bi bi-tag-fill me-1 text-primary"></i><strong>Type:</strong> ${type}</div>
+            ${modelLine}
             <div><i class="bi bi-hash me-1 text-primary"></i><strong>Quantity:</strong> ${qty} &nbsp;·&nbsp; <strong>Unit Price:</strong> ${unit}</div>
             <div><i class="bi bi-clock me-1 text-primary"></i><strong>Est. Service Duration:</strong> ${durH}</div>
+            ${issueLine}
           </div>
         </div>`;
     }).join('');
@@ -10256,7 +10538,7 @@ function showBookingSuccessModal(result) {
   // Show payment breakdown
   const totalFee = BookingState.totalFee || 0;
   const isCOD = BookingState.paymentMethod === 'cod';
-  const downpayment = 400;
+  const downpayment = calculateConfiguredDownpayment(totalFee);
   const balance = Math.max(0, totalFee - downpayment);
 
   const breakdownEl = document.getElementById('receiptPaymentBreakdown');
@@ -10419,3 +10701,376 @@ window.continueToServices = continueToServices;
 window.loadTechnicianOptions = loadTechnicianOptions;
 window.showModeSelection = showModeSelection;
 window.viewBookingHistory = viewBookingHistory;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPAIR ITEM INTEGRATION (merged from repair-request.js)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const unitTypesByCategory = {};
+(window._serviceCategories || []).forEach(cat => {
+  unitTypesByCategory[cat.slug] = (cat.unitTypes || []).map(ut => ({
+    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label
+  }));
+});
+if (!Object.keys(unitTypesByCategory).length) {
+  unitTypesByCategory.aircon = [
+    { value: 'Split Type Aircon', icon: 'bi-window', label: 'Split Type' },
+    { value: 'Window Type Aircon', icon: 'bi-window', label: 'Window Type' },
+    { value: 'Floor Mounted Aircon', icon: 'bi-arrows-expand', label: 'Floor Mounted' },
+    { value: 'Cassette Type Aircon', icon: 'bi-grid-3x3', label: 'Cassette Type' },
+    { value: 'Central Aircon', icon: 'bi-buildings', label: 'Central' },
+  ];
+  unitTypesByCategory.appliance = [
+    { value: 'Refrigerator', icon: 'bi-reception-4', label: 'Refrigerator' },
+    { value: 'Freezer', icon: 'bi-snow', label: 'Freezer' },
+    { value: 'Washing Machine', icon: 'bi-droplet-half', label: 'Washing Machine' },
+    { value: 'Dryer', icon: 'bi-wind', label: 'Dryer' },
+    { value: 'Microwave Oven', icon: 'bi-circle', label: 'Microwave' },
+    { value: 'Electric Fan', icon: 'bi-fan', label: 'Electric Fan' },
+    { value: 'Rice Cooker', icon: 'bi-fire', label: 'Rice Cooker' },
+    { value: 'Water Dispenser', icon: 'bi-cup-straw', label: 'Water Dispenser' },
+    { value: 'Electric Kettle', icon: 'bi-cup-hot', label: 'Electric Kettle' },
+  ];
+  unitTypesByCategory.other = [
+    { value: 'Other', icon: 'bi-plus-circle', label: 'Other (specify in problem)' },
+  ];
+}
+
+function selectUnitCategory(category) {
+  document.querySelectorAll('.unit-category-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.category === category);
+  });
+  const unitTypeInput = document.getElementById('unitType');
+  if (unitTypeInput) { unitTypeInput.value = ''; }
+  const subSection = document.getElementById('subUnitSection');
+  const chipsContainer = document.getElementById('subUnitChips');
+  if (!chipsContainer || !subSection) return;
+  chipsContainer.innerHTML = '';
+  const types = unitTypesByCategory[category] || [];
+  types.forEach(type => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'sub-unit-chip';
+    chip.innerHTML = `<i class="bi ${type.icon}"></i>${type.label}`;
+    chip.dataset.value = type.value;
+    chip.onclick = function () { selectSubUnit(type.value, this); };
+    chipsContainer.appendChild(chip);
+  });
+  subSection.classList.remove('d-none');
+}
+window.selectUnitCategory = selectUnitCategory;
+
+function selectSubUnit(value, element) {
+  document.querySelectorAll('.sub-unit-chip').forEach(c => c.classList.remove('active'));
+  element.classList.add('active');
+  const unitTypeInput = document.getElementById('unitType');
+  if (unitTypeInput) unitTypeInput.value = value;
+}
+window.selectSubUnit = selectSubUnit;
+
+function toggleSymptom(element, symptom) {
+  element.classList.toggle('active');
+  const textarea = document.getElementById('repairProblemDescription');
+  if (!textarea) return;
+  const current = textarea.value.trim();
+  if (element.classList.contains('active')) {
+    if (!current.includes(symptom)) {
+      textarea.value = current ? current + ', ' + symptom : symptom;
+    }
+  } else {
+    let updated = current.replace(new RegExp(',?\\s*' + symptom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '').trim();
+    if (updated.startsWith(', ')) updated = updated.substring(2);
+    if (updated.startsWith(',')) updated = updated.substring(1);
+    textarea.value = updated;
+  }
+  updateRepairCharCount();
+}
+window.toggleSymptom = toggleSymptom;
+
+function updateRepairCharCount() {
+  const textarea = document.getElementById('repairProblemDescription');
+  const counter = document.getElementById('repairCharCount');
+  if (!textarea || !counter) return;
+  const len = textarea.value.length;
+  counter.textContent = `${len} / 500`;
+  counter.style.color = len > 500 ? 'var(--color-danger)' : 'var(--gray-400)';
+}
+
+function getCurrentRepairItem() {
+  return {
+    type: 'repair',
+    unitType: (document.getElementById('unitType') || {}).value || '',
+    brand: (document.getElementById('unitBrand') || {}).value || '',
+    model: (document.getElementById('unitModel') || {}).value || '',
+    problemDescription: (document.getElementById('repairProblemDescription') || {}).value || '',
+    quantity: Number((document.getElementById('repairUnitQuantity') || {}).value || 1),
+  };
+}
+
+function repairItemIsComplete(item) {
+  return Boolean(item.unitType && item.brand && item.problemDescription.length >= 10);
+}
+
+function addCurrentRepairItem() {
+  const item = getCurrentRepairItem();
+  if (!item.unitType) return showAlert('Please select a service category and unit type.', 'warning');
+  if (!item.brand) return showAlert('Please enter the brand name.', 'warning');
+  if (item.problemDescription.length < 10) return showAlert('Please describe the problem in at least 10 characters.', 'warning');
+  if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`You can add a maximum of ${MAX_BOOKING_UNITS} units across all Core and Repair services.`, 'warning');
+
+  const diagnosticFee = 500;
+  const serviceItem = {
+    id: 'repair-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+    serviceId: null,
+    name: item.brand + ' ' + item.unitType,
+    type: 'repair',
+    quantity: item.quantity,
+    unitPrice: diagnosticFee,
+    totalPrice: diagnosticFee * item.quantity,
+    hp: null,
+    hpDescription: null,
+    airconType: null,
+    airconTypeName: null,
+    applianceType: item.unitType,
+    applianceTypeName: item.unitType,
+    brand: item.brand,
+    model: item.model,
+    repairIssue: item.problemDescription,
+    duration: 90,
+    icon: 'bi-tools',
+    isAirconService: false,
+    initialCost: diagnosticFee,
+    finalCost: null,
+    costUpdatedByTechnician: false,
+    diagnosisNotes: null,
+    unitType: item.unitType,
+    problemDescription: item.problemDescription,
+    photos: [...repairPhotos],
+  };
+
+  BookingState.selectedServices.push(serviceItem);
+  updateSelectedServicesDisplay();
+  updatePricingDisplay();
+  updateContinueButtonState();
+  resetRepairForm();
+  showAlert('Repair service added to cart!', 'success');
+}
+window.addCurrentRepairItem = addCurrentRepairItem;
+
+function editRepairItem(index) {
+  const item = BookingState.selectedServices[index];
+  if (!item || item.type !== 'repair') return;
+  const category = Object.keys(unitTypesByCategory).find(key =>
+    unitTypesByCategory[key].some(type => type.value === item.unitType)
+  );
+  if (category) {
+    selectUnitCategory(category);
+    setTimeout(() => {
+      const chip = [...document.querySelectorAll('.sub-unit-chip')].find(c => c.dataset.value === item.unitType);
+      if (chip) selectSubUnit(item.unitType, chip);
+    }, 50);
+  } else {
+    const unitTypeInput = document.getElementById('unitType');
+    if (unitTypeInput) unitTypeInput.value = item.unitType;
+  }
+  const brandEl = document.getElementById('unitBrand');
+  const modelEl = document.getElementById('unitModel');
+  const problemEl = document.getElementById('repairProblemDescription');
+  const qtyEl = document.getElementById('repairUnitQuantity');
+  if (brandEl) brandEl.value = item.brand || '';
+  if (modelEl) modelEl.value = item.model || '';
+  if (problemEl) problemEl.value = item.problemDescription || '';
+  if (qtyEl) qtyEl.value = item.quantity || 1;
+  // Restore photos from the item being edited
+  repairPhotos = item.photos ? [...item.photos] : [];
+  renderRepairPhotoPreview();
+  BookingState.selectedServices.splice(index, 1);
+  updateSelectedServicesDisplay();
+  updatePricingDisplay();
+  updateContinueButtonState();
+  updateRepairCharCount();
+}
+window.editRepairItem = editRepairItem;
+
+function removeRepairItem(index) {
+  const item = BookingState.selectedServices[index];
+  if (!item) return;
+  BookingState.selectedServices.splice(index, 1);
+  updateSelectedServicesDisplay();
+  updatePricingDisplay();
+  updateContinueButtonState();
+}
+window.removeRepairItem = removeRepairItem;
+
+function resetRepairForm() {
+  ['unitType', 'unitBrand', 'unitModel', 'repairProblemDescription'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const qty = document.getElementById('repairUnitQuantity');
+  if (qty) qty.value = 1;
+  document.querySelectorAll('.unit-category-card,.sub-unit-chip,.symptom-chip').forEach(el => el.classList.remove('active'));
+  const subSection = document.getElementById('subUnitSection');
+  if (subSection) subSection.classList.add('d-none');
+  const chips = document.getElementById('subUnitChips');
+  if (chips) chips.innerHTML = '';
+  repairPhotos = [];
+  const preview = document.getElementById('repairPhotoPreview');
+  if (preview) preview.innerHTML = '';
+  const photoInput = document.getElementById('repairUnitPhotos');
+  if (photoInput) photoInput.value = '';
+  updateRepairCharCount();
+}
+
+function renderRepairServiceItems() {
+  const host = document.getElementById('repairServiceItems');
+  if (!host) return;
+  const repairItems = BookingState.selectedServices.filter(s => s.type === 'repair');
+  const esc = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  if (repairItems.length === 0) {
+    host.innerHTML = '<div class="text-center border border-2 rounded-3 p-4 bg-white"><i class="bi bi-plus-square fs-3 text-muted"></div><div class="fw-semibold mt-2">No repair service added</div><div class="small text-muted">Configure the appliance above, then click Add Repair Service.</div></div>';
+  } else {
+    host.innerHTML = repairItems.map((item, idx) => {
+      const globalIdx = BookingState.selectedServices.indexOf(item);
+      return `<div class="d-flex justify-content-between gap-3 bg-white border border-primary-subtle rounded-3 p-3 mb-2">
+        <div>
+          <div class="small fw-bold text-primary text-uppercase mb-1">Repair Service ${idx + 1}</div>
+          <strong>${esc(item.brand)} ${esc(item.unitType)}</strong>
+          <div class="small text-muted">${esc(item.model || 'Model not specified')} · Qty ${item.quantity}</div>
+          <div class="small mt-1">${esc(item.problemDescription)}</div>
+        </div>
+        <div class="d-flex gap-1 align-items-start">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="editRepairItem(${globalIdx})">Edit</button>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRepairItem(${globalIdx})">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const count = document.getElementById('repairServiceCount');
+  if (count) {
+    const n = repairItems.length;
+    count.textContent = `${n} service${n === 1 ? '' : 's'} added`;
+  }
+}
+
+function setupRepairQuantityControls() {
+  const qtyInput = document.getElementById('repairUnitQuantity');
+  const minus = document.getElementById('repairQtyMinus');
+  const plus = document.getElementById('repairQtyPlus');
+  if (!qtyInput) return;
+  const clamp = () => {
+    let v = parseInt(qtyInput.value, 10);
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > MAX_BOOKING_UNITS) v = MAX_BOOKING_UNITS;
+    qtyInput.value = v;
+  };
+  if (minus) minus.addEventListener('click', () => { qtyInput.value = Math.max(1, (parseInt(qtyInput.value, 10) || 1) - 1); clamp(); });
+  if (plus) plus.addEventListener('click', () => { qtyInput.value = Math.min(MAX_BOOKING_UNITS, (parseInt(qtyInput.value, 10) || 1) + 1); clamp(); });
+  qtyInput.addEventListener('change', clamp);
+}
+
+function setupRepairPhotoUpload() {
+  const input = document.getElementById('repairUnitPhotos');
+  const preview = document.getElementById('repairPhotoPreview');
+  if (!input || !preview) return;
+  input.addEventListener('change', function () {
+    handleRepairPhotoFiles(Array.from(this.files));
+  });
+  const zone = document.getElementById('repairPhotoUploadZone');
+  if (zone) {
+    ['dragenter', 'dragover'].forEach(evt => {
+      zone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      zone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('dragover'); });
+    });
+    zone.addEventListener('drop', (e) => {
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length > 0) handleRepairPhotoFiles(files);
+    });
+  }
+}
+
+let repairPhotos = [];
+function handleRepairPhotoFiles(files) {
+  const preview = document.getElementById('repairPhotoPreview');
+  if (!preview) return;
+  const allowed = 5 - repairPhotos.length;
+  const toAdd = files.slice(0, allowed);
+  repairPhotos = [...repairPhotos, ...toAdd];
+  renderRepairPhotoPreview();
+}
+
+function renderRepairPhotoPreview() {
+  const preview = document.getElementById('repairPhotoPreview');
+  if (!preview) return;
+  preview.innerHTML = '';
+  repairPhotos.forEach((file, index) => {
+    const item = document.createElement('div');
+    item.className = 'photo-preview-item';
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.alt = `Photo ${index + 1}`;
+      item.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'photo-preview-remove';
+    removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+    removeBtn.onclick = function (e) {
+      e.stopPropagation();
+      repairPhotos.splice(index, 1);
+      renderRepairPhotoPreview();
+    };
+    item.appendChild(removeBtn);
+    preview.appendChild(item);
+  });
+}
+
+function showRepairLoadingModal() {
+  try {
+    const modal = document.getElementById('repairLoadingModal');
+    if (!modal) return;
+    if (typeof bootstrap !== 'undefined') {
+      const existing = bootstrap.Modal.getInstance(modal);
+      if (existing) existing.dispose();
+      new bootstrap.Modal(modal, { backdrop: 'static', keyboard: false }).show();
+    } else {
+      modal.classList.add('show');
+      modal.style.display = 'block';
+    }
+  } catch (err) { console.error('Error showing loading modal:', err); }
+}
+
+function hideRepairLoadingModal() {
+  try {
+    const modal = document.getElementById('repairLoadingModal');
+    if (!modal) return;
+    if (document.activeElement && modal.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    if (typeof bootstrap !== 'undefined') {
+      const bsModal = bootstrap.Modal.getInstance(modal);
+      if (bsModal) { bsModal.hide(); return; }
+    }
+    modal.classList.remove('show');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    document.querySelectorAll('.modal-backdrop').forEach(bd => bd.remove());
+  } catch (err) { console.error('Error hiding loading modal:', err); }
+}
+
+// Initialize repair form controls when DOM is ready
+document.addEventListener('DOMContentLoaded', function () {
+  setupRepairQuantityControls();
+  setupRepairPhotoUpload();
+  const problemEl = document.getElementById('repairProblemDescription');
+  if (problemEl) problemEl.addEventListener('input', updateRepairCharCount);
+});

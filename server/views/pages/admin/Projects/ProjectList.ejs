@@ -51,7 +51,7 @@
     .pl-kpi-trend.neutral { background: #f1f5f9; color: #64748b; }
 
     .pl-kpi-value {
-      font-size: 1.5rem; font-weight: 800; color: #0f172a;
+      font-size: 1.5rem; font-weight: 600; color: #0f172a;
       line-height: 1.2; margin-bottom: 0.15rem;
     }
     .pl-kpi-label {
@@ -64,10 +64,10 @@
       background: #fff;
       border: 1px solid #e2e8f0;
       border-radius: 16px;
-      padding: 1rem 1.25rem;
+      padding: 1.25rem 1.5rem;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 1rem 0.75rem;
       flex-wrap: wrap;
       margin-bottom: 1.5rem;
       box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -75,17 +75,18 @@
     .pl-filter-group {
       display: flex;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.5rem;
       flex-wrap: wrap;
     }
     .pl-filter-label {
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #94a3b8; margin-right: 0.25rem;
+      letter-spacing: 0.06em; color: #94a3b8; margin-right: 0.4rem;
+      min-width: 3.2rem; text-align: right;
     }
     .pl-filter-pill {
       border: 1.5px solid #e2e8f0;
       border-radius: 10px;
-      padding: 0.4rem 0.75rem;
+      padding: 0.5rem 0.85rem;
       font-size: 0.78rem;
       font-weight: 600;
       color: #64748b;
@@ -94,7 +95,7 @@
       transition: all 0.2s;
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.4rem;
       white-space: nowrap;
     }
     .pl-filter-pill:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
@@ -157,6 +158,13 @@
     }
     .pl-view-btn.active { background: #4f46e5; color: #fff; }
     .pl-view-btn:hover:not(.active) { background: #f1f5f9; color: #475569; }
+
+    @media (min-width: 992px) {
+      .pl-filter-bar { gap: 1rem 0.5rem; }
+      .pl-filter-group:first-of-type { flex-basis: 100%; }
+      .pl-filter-divider:nth-of-type(2) { display: none; }
+      .pl-search-wrap { margin-left: 0; }
+    }
 
     @media (max-width: 991px) {
       .pl-filter-bar {
@@ -519,20 +527,53 @@
       background: #4f46e5; color: #fff; border-color: #4f46e5;
     }
     .pl-pag-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  /* Bookings-style stat cards */
-  .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
-  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); }
-  .stat-card h6 { font-family: "Inter", sans-serif; font-size: 0.82rem; font-weight: 500; color: #64748b; }
-  .stat-card .h3 { font-family: "Outfit", sans-serif; font-size: 1.75rem; font-weight: 800; color: #0f172a; }
-  .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-  .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+  /* Stat cards (same as admin dashboard) */
+  .stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .stat-card .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .stat-card .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+  .stat-sparkline {
+    height: 40px;
+    margin-top: 0.5rem;
+  }
+  .stat-sparkline canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
   .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
   .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
   .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
   .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
   .kpi-trend i { font-size:0.55rem; }
-  .stat-sparkline { height:40px; margin-top:0.5rem; }
-  .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+  .kpi-percent-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(59, 130, 246, 0.12);
+    color: #2563eb;
+  }
   </style>
 
   <div class="proj-list-enterprise">
@@ -546,25 +587,21 @@
             <p>Manage large commercial projects, team assignments, and work order progress.</p>
           </div>
         </div>
-        <div class="au-hero-stats">
-          <div class="au-hero-stat">
-            <div class="au-hero-stat-val" id="heroTotal">—</div>
-            <div class="au-hero-stat-lbl">Total Projects</div>
-          </div>
-        </div>
+
       </div>
     </div>
 
     <!-- KPI Cards -->
     <div class="row g-3 mb-4" id="kpiGrid">
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card h-100" data-spark-color="#f59e0b">
+        <div class="stat-card h-100" data-accent="amber">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Pending Scheduling</h6>
               <div class="d-flex align-items-baseline gap-2">
                 <span class="h3 mb-0 fw-bold text-dark" id="statPending">—</span>
                 <span class="kpi-trend up" id="trendPending"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge" id="pctPending">0%</span>
               </div>
               <small class="text-muted">Awaiting schedule</small>
             </div>
@@ -572,17 +609,18 @@
               <i class="bi bi-clock-history text-white"></i>
             </div>
           </div>
-          <div class="stat-sparkline"><canvas height="40"></canvas></div>
+          <div class="stat-sparkline"><canvas id="sparkPending" height="40"></canvas></div>
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card h-100" data-spark-color="#8b5cf6">
+        <div class="stat-card h-100" data-accent="purple">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Planning</h6>
               <div class="d-flex align-items-baseline gap-2">
                 <span class="h3 mb-0 fw-bold text-dark" id="statPlanning">—</span>
                 <span class="kpi-trend up" id="trendPlanning"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge" id="pctPlanning">0%</span>
               </div>
               <small class="text-muted">In planning</small>
             </div>
@@ -590,17 +628,18 @@
               <i class="bi bi-pencil-square text-white"></i>
             </div>
           </div>
-          <div class="stat-sparkline"><canvas height="40"></canvas></div>
+          <div class="stat-sparkline"><canvas id="sparkPlanning" height="40"></canvas></div>
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card h-100" data-spark-color="#10b981">
+        <div class="stat-card h-100" data-accent="green">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">In Progress</h6>
               <div class="d-flex align-items-baseline gap-2">
                 <span class="h3 mb-0 fw-bold text-dark" id="statInProgress">—</span>
                 <span class="kpi-trend up" id="trendInProgress"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge" id="pctInProgress">0%</span>
               </div>
               <small class="text-muted">Active projects</small>
             </div>
@@ -608,17 +647,18 @@
               <i class="bi bi-play-circle text-white"></i>
             </div>
           </div>
-          <div class="stat-sparkline"><canvas height="40"></canvas></div>
+          <div class="stat-sparkline"><canvas id="sparkInProgress" height="40"></canvas></div>
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card h-100" data-spark-color="#2563eb">
+        <div class="stat-card h-100" data-accent="blue">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Completed</h6>
               <div class="d-flex align-items-baseline gap-2">
                 <span class="h3 mb-0 fw-bold text-dark" id="statCompleted">—</span>
                 <span class="kpi-trend up" id="trendCompleted"><i class="bi bi-arrow-up"></i> 0%</span>
+                <span class="kpi-percent-badge" id="pctCompleted">0%</span>
               </div>
               <small class="text-muted">Finished projects</small>
             </div>
@@ -626,7 +666,7 @@
               <i class="bi bi-check-circle text-white"></i>
             </div>
           </div>
-          <div class="stat-sparkline"><canvas height="40"></canvas></div>
+          <div class="stat-sparkline"><canvas id="sparkCompleted" height="40"></canvas></div>
         </div>
       </div>
     </div>
@@ -704,11 +744,12 @@
           <tr>
             <th>Customer</th>
             <th>Service</th>
-            <th>Status</th>
-            <th class="progress-cell">Progress</th>
+            <th>Team</th>
             <th>Work Orders</th>
-            <th>Technicians</th>
-            <th>Created</th>
+            <th>Target</th>
+            <th>Completed</th>
+            <th>Remaining</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody id="projectTableBody"></tbody>
@@ -723,10 +764,41 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 (async function() {
   const qs = (s) => document.querySelector(s);
   const qsa = (s) => [...document.querySelectorAll(s)];
+
+  function spark(ctx, data, color) {
+    if (!ctx || !window.Chart) return null;
+    const h = ctx.canvas.height || ctx.canvas.offsetHeight || 30;
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    return new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.map((_, i) => i + 1),
+        datasets: [{
+          data: data, borderColor: color, backgroundColor: g,
+          fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 600 },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      },
+    });
+  }
+
+  function makeSparkData(count) {
+    const c = Math.max(0, count || 0);
+    if (c === 0) return [0,0,0,0,0,0,0];
+    return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
+  }
 
   const statusConfig = {
     pending_project_scheduling: { label: 'Pending Scheduling', cls: 'pl-status-pending' },
@@ -767,8 +839,6 @@
       qs('#statPlanning').textContent = s.planning ?? 0;
       qs('#statInProgress').textContent = s.inProgress ?? 0;
       qs('#statCompleted').textContent = s.completed ?? 0;
-      const total = (s.pendingScheduling || 0) + (s.planning || 0) + (s.inProgress || 0) + (s.completed || 0);
-      qs('#heroTotal').textContent = total;
 
       statusCounts = s;
       qs('#filterCountPending').textContent = s.pendingScheduling ?? 0;
@@ -780,6 +850,17 @@
       setTrend('#trendPlanning', tr.planning);
       setTrend('#trendInProgress', tr.inProgress);
       setTrend('#trendCompleted', tr.completed);
+
+      const pct = (val) => total ? Math.round((val || 0) / total * 100) + '%' : '0%';
+      qs('#pctPending').textContent = pct(s.pendingScheduling);
+      qs('#pctPlanning').textContent = pct(s.planning);
+      qs('#pctInProgress').textContent = pct(s.inProgress);
+      qs('#pctCompleted').textContent = pct(s.completed);
+
+      spark(qs('#sparkPending')?.getContext('2d'), makeSparkData(s.pendingScheduling), '#f59e0b');
+      spark(qs('#sparkPlanning')?.getContext('2d'), makeSparkData(s.planning), '#8b5cf6');
+      spark(qs('#sparkInProgress')?.getContext('2d'), makeSparkData(s.inProgress), '#10b981');
+      spark(qs('#sparkCompleted')?.getContext('2d'), makeSparkData(s.completed), '#2563eb');
     } catch(e) {}
   }
 
@@ -885,12 +966,12 @@
                 <span class="pl-card-stat-value">${p.totalWorkOrders || 0}</span>
               </div>
               <div class="pl-card-stat">
-                <span class="pl-card-stat-label">Technicians</span>
+                <span class="pl-card-stat-label">Team</span>
                 <span class="pl-card-stat-value">${p.totalAssignedTechnicians || 0}</span>
               </div>
               <div class="pl-card-stat">
-                <span class="pl-card-stat-label">Created</span>
-                <span class="pl-card-stat-value">${new Date(p.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric'})}</span>
+                <span class="pl-card-stat-label">Remaining</span>
+                <span class="pl-card-stat-value">${Math.max(0, Number(p.totalUnits || 0) - Number(p.completedUnits || 0))}</span>
               </div>
             </div>
           </div>
@@ -912,16 +993,12 @@
             ${isRepair ? '<span class="pl-card-repair-badge" style="margin-top:2px;"><i class="bi bi-tools"></i> Repair</span>' : ''}
           </td>
           <td><div class="service-cell">${escapeHtml(p.service?.name || '—')}</div></td>
-          <td><span class="pl-card-status ${st.cls}">${st.label}</span></td>
-          <td class="progress-cell">
-            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-              <span style="font-size:0.72rem;color:#94a3b8;">${progress}%</span>
-            </div>
-            <div class="mini-progress"><div class="mini-progress-fill" style="width:${progress}%"></div></div>
-          </td>
+          <td style="font-size:0.78rem;color:#475569;">${(p.assignedTechnicians || []).map(t => escapeHtml(t.name || 'Technician')).join(', ') || 'Not assigned'}</td>
           <td style="font-weight:600;">${p.totalWorkOrders || 0}</td>
-          <td style="font-weight:600;">${p.totalAssignedTechnicians || 0}</td>
-          <td style="font-size:0.82rem;color:#64748b;">${new Date(p.createdAt).toLocaleDateString('en-PH', {month:'short', day:'numeric', year:'numeric'})}</td>
+          <td style="font-weight:600;">${p.totalUnits || 0}</td>
+          <td style="font-weight:600;color:#059669;">${p.completedUnits || 0}</td>
+          <td style="font-weight:600;color:#d97706;">${Math.max(0, Number(p.totalUnits || 0) - Number(p.completedUnits || 0))}</td>
+          <td><span class="pl-card-status ${st.cls}">${st.label}</span></td>
         </tr>`;
     }
     tableBody.innerHTML = tableHtml;

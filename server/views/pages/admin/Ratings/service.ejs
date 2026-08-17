@@ -1,12 +1,33 @@
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
+  <style>
+    /* Enterprise KPI cards (matches Appointments) */
+    .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); }
+    .stat-card h6 { font-family: "Inter", sans-serif; font-size: 0.82rem; font-weight: 500; color: #64748b; }
+    .stat-card .h3 { font-family: "Outfit", sans-serif; font-size: 1.75rem; font-weight: 600; color: #0f172a; }
+    .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .stat-icon i { color: #fff !important; font-size: 1.2rem; }
+    .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+    .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+    .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+    .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+    .kpi-trend i { font-size:0.55rem; }
+    .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
+    .stat-sparkline { height:40px; margin-top:0.5rem; }
+    .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+    /* Customer Ratings tabs */
+    .nav-pills .nav-link { color: #64748b; font-weight: 600; border-radius: 10px; padding: 0.6rem 1.1rem; }
+    .nav-pills .nav-link.active { background: #fff; color: #0f172a; box-shadow: inset -4px 0 0 0 #2563eb, 0 2px 6px rgba(0,0,0,0.06); }
+    .nav-pills .nav-link:not(.active):hover { background: #f1f5f9; color: #334155; }
+  </style>
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-wrench-adjustable"></i></div>
         <div>
-          <h1>Service Ratings</h1>
+          <h1>Customer Ratings</h1>
           <p>Customer feedback and ratings for service quality</p>
         </div>
       </div>
@@ -21,106 +42,95 @@
     </div>
   </div>
 
+  <!-- Customer Ratings Tabs -->
+  <ul class="nav nav-pills mb-4">
+    <li class="nav-item"><a class="nav-link active" href="/admin/ratings/service"><i class="bi bi-wrench-adjustable me-2"></i>Services</a></li>
+    <li class="nav-item"><a class="nav-link" href="/admin/ratings/aircons"><i class="bi bi-snow2 me-2"></i>Aircon Products</a></li>
+  </ul>
+
   <!-- Service Rating Stats -->
-  <div class="row mb-4">
-    <div class="col-lg-4 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <h6 class="text-muted mb-3">Service Performance</h6>
-          <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span>Overall Rating</span>
-              <span class="fw-bold" id="serviceAvgRating">4.5</span>
+  <div class="row g-3 mb-4" id="serviceKpiCards">
+    <div class="col-lg-3 col-md-6">
+      <div class="stat-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-1">Overall Rating</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiOverallRating">-</span>
+              <span class="kpi-trend neutral" id="kpiOverallTrend"><i class="bi bi-dash"></i> —</span>
+              <span class="kpi-percent-badge" id="kpiOverallPercent">—</span>
             </div>
-            <div class="progress" style="height: 8px;">
-              <div class="progress-bar bg-success" style="width: 90%"></div>
-            </div>
+            <small class="text-muted">Average across all reviews</small>
           </div>
-          <div class="row text-center">
-            <div class="col-4">
-              <div class="text-success fw-bold">92%</div>
-              <small class="text-muted">Satisfaction</small>
-            </div>
-            <div class="col-4">
-              <div class="text-primary fw-bold">4.8</div>
-              <small class="text-muted">Response</small>
-            </div>
-            <div class="col-4">
-              <div class="text-info fw-bold">24h</div>
-              <small class="text-muted">Avg Time</small>
-            </div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);">
+            <i class="bi bi-star-fill"></i>
           </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="sparkOverall" height="40"></canvas>
         </div>
       </div>
     </div>
-    
-    <div class="col-lg-4 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <h6 class="text-muted mb-3">Rating Breakdown</h6>
-          <div class="rating-breakdown">
-            <div class="d-flex align-items-center mb-2">
-              <span class="me-2">5★</span>
-              <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                <div class="progress-bar bg-success" style="width: 65%"></div>
-              </div>
-              <span class="small">65%</span>
+    <div class="col-lg-3 col-md-6">
+      <div class="stat-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-1">Satisfaction Rate</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiSatisfactionRate">-</span>
+              <span class="kpi-trend neutral" id="kpiSatisfactionTrend"><i class="bi bi-dash"></i> —</span>
+              <span class="kpi-percent-badge" id="kpiSatisfactionPercent">—</span>
             </div>
-            <div class="d-flex align-items-center mb-2">
-              <span class="me-2">4★</span>
-              <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                <div class="progress-bar bg-primary" style="width: 20%"></div>
-              </div>
-              <span class="small">20%</span>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-              <span class="me-2">3★</span>
-              <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                <div class="progress-bar bg-info" style="width: 10%"></div>
-              </div>
-              <span class="small">10%</span>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-              <span class="me-2">2★</span>
-              <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                <div class="progress-bar bg-warning" style="width: 3%"></div>
-              </div>
-              <span class="small">3%</span>
-            </div>
-            <div class="d-flex align-items-center">
-              <span class="me-2">1★</span>
-              <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                <div class="progress-bar bg-danger" style="width: 2%"></div>
-              </div>
-              <span class="small">2%</span>
-            </div>
+            <small class="text-muted">4-star and 5-star reviews</small>
           </div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
+            <i class="bi bi-emoji-smile-fill"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="sparkSatisfaction" height="40"></canvas>
         </div>
       </div>
     </div>
-    
-    <div class="col-lg-4 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <h6 class="text-muted mb-3">Service Categories</h6>
-          <div class="service-categories">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span><i class="bi bi-gear text-primary me-1"></i> Installation</span>
-              <span class="badge bg-success">4.7</span>
+    <div class="col-lg-3 col-md-6">
+      <div class="stat-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-1">5-Star Reviews</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiFiveStars">-</span>
+              <span class="kpi-trend neutral" id="kpiFiveTrend"><i class="bi bi-dash"></i> —</span>
+              <span class="kpi-percent-badge" id="kpiFivePercent">—</span>
             </div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span><i class="bi bi-wrench text-info me-1"></i> Repair</span>
-              <span class="badge bg-primary">4.5</span>
-            </div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span><i class="bi bi-arrow-clockwise text-warning me-1"></i> Maintenance</span>
-              <span class="badge bg-info">4.6</span>
-            </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-shield-check text-success me-1"></i> Inspection</span>
-              <span class="badge bg-warning">4.4</span>
-            </div>
+            <small class="text-muted">Top rating received</small>
           </div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+            <i class="bi bi-trophy-fill"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="sparkFive" height="40"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="stat-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h6 class="mb-1">Total Reviews</h6>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="h3 mb-0 fw-bold text-dark" id="kpiTotalReviews">-</span>
+              <span class="kpi-trend neutral" id="kpiTotalTrend"><i class="bi bi-dash"></i> —</span>
+              <span class="kpi-percent-badge" id="kpiTotalPercent">All time</span>
+            </div>
+            <small class="text-muted">All collected ratings</small>
+          </div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);">
+            <i class="bi bi-people-fill"></i>
+          </div>
+        </div>
+        <div class="stat-sparkline">
+          <canvas id="sparkTotal" height="40"></canvas>
         </div>
       </div>
     </div>
@@ -344,12 +354,49 @@
   }
 
   function initializeServiceCharts(data) {
-    var starBreakdown = data.starBreakdown || [45, 30, 15, 7, 3];
-    var categories = data.categories || ['Installation', 'Repair', 'Maintenance', 'Inspection'];
-    var categoryRatings = data.categoryRatings || [4.7, 4.5, 4.6, 4.4];
-    var monthlyTrend = data.monthlyTrend || {};
-    var trendLabels = monthlyTrend.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    var trendData = monthlyTrend.data || [4.3, 4.4, 4.5, 4.4, 4.6, 4.7];
+    // Destroy existing charts before recreating
+    Object.keys(serviceCharts).forEach(function(key) {
+      if (serviceCharts[key]) {
+        serviceCharts[key].destroy();
+        serviceCharts[key] = null;
+      }
+    });
+
+    // API returns starBreakdown as {"5":N,"4":N,"3":N,"2":N,"1":N} — convert to array [5stars,4stars,...,1star]
+    var rawSB = data.starBreakdown || {};
+    var starBreakdown = [rawSB["5"]||0, rawSB["4"]||0, rawSB["3"]||0, rawSB["2"]||0, rawSB["1"]||0];
+
+    // API returns categories as [{name, rating, count}] — extract names and ratings
+    var catData = data.categories || [];
+    var categories = catData.length > 0 ? catData.map(function(c) { return c.name || c; }) : ['Installation', 'Repair', 'Maintenance', 'Inspection'];
+    var categoryRatings = catData.length > 0 ? catData.map(function(c) { return c.rating || 0; }) : [4.7, 4.5, 4.6, 4.4];
+
+    // Build monthly trend from ratings data if not provided
+    var monthlyTrend = data.monthlyTrend;
+    var trendLabels, trendData;
+    if (monthlyTrend && monthlyTrend.labels && monthlyTrend.data) {
+      trendLabels = monthlyTrend.labels;
+      trendData = monthlyTrend.data;
+    } else {
+      // Aggregate ratings by month from the ratings array
+      var monthMap = {};
+      var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      (data.ratings || []).forEach(function(r) {
+        var d = new Date(r.date || r.createdAt);
+        var key = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+        if (!monthMap[key]) monthMap[key] = { total: 0, count: 0, month: d.getMonth() };
+        monthMap[key].total += r.rating;
+        monthMap[key].count++;
+      });
+      var sorted = Object.entries(monthMap).sort(function(a,b) { return a[1].month - b[1].month; });
+      if (sorted.length > 0) {
+        trendLabels = sorted.map(function(e) { return e[0]; });
+        trendData = sorted.map(function(e) { return +(e[1].total / e[1].count).toFixed(1); });
+      } else {
+        trendLabels = ['No Data'];
+        trendData = [0];
+      }
+    }
 
     var starLabels = ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
     var starColors = ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'];
@@ -491,6 +538,64 @@
       );
     };
     serviceCharts.category = new Chart(catCtx, categoryCfg);
+    renderServiceKPIs(data);
+  }
+
+  function renderServiceKPIs(data) {
+    var rawSB = data.starBreakdown || {};
+    var starBreakdown = [rawSB["5"]||0, rawSB["4"]||0, rawSB["3"]||0, rawSB["2"]||0, rawSB["1"]||0];
+    var total = starBreakdown.reduce(function(a, b) { return a + b; }, 0);
+    var fiveStar = starBreakdown[0];
+    var overall = (data.stats && data.stats.overallRating) ? data.stats.overallRating : 0;
+    var satisfaction = (data.stats && data.stats.satisfactionRate) ? data.stats.satisfactionRate : 0;
+
+    document.getElementById('kpiOverallRating').textContent = overall.toFixed(1);
+    document.getElementById('kpiSatisfactionRate').textContent = satisfaction + '%';
+    document.getElementById('kpiFiveStars').textContent = fiveStar.toLocaleString();
+    document.getElementById('kpiTotalReviews').textContent = total.toLocaleString();
+
+    document.getElementById('kpiOverallPercent').textContent = satisfaction + '%';
+    document.getElementById('kpiSatisfactionPercent').textContent = 'Satisfied';
+    document.getElementById('kpiFivePercent').textContent = total > 0 ? Math.round((fiveStar / total) * 100) + '%' : '—';
+    document.getElementById('kpiTotalPercent').textContent = 'All time';
+
+    var labels = [];
+    var values = [];
+    var monthly = data.monthlyTrend || {};
+    if (monthly.labels && monthly.data && monthly.data.length > 1) {
+      labels = monthly.labels;
+      values = monthly.data;
+    } else {
+      var monthMap = {};
+      var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      (data.ratings || []).forEach(function(r) {
+        var d = new Date(r.date || r.createdAt);
+        var key = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+        monthMap[key] = (monthMap[key] || 0) + 1;
+      });
+      var sorted = Object.entries(monthMap).sort(function(a, b) { return a[0].localeCompare(b[0]); });
+      sorted.forEach(function(e) { labels.push(e[0]); values.push(e[1]); });
+    }
+
+    if (values.length > 1) {
+      renderSparkline('sparkOverall', labels, values, '#2563eb', 'rgba(37,99,235,0.08)');
+      renderSparkline('sparkSatisfaction', labels, values, '#10b981', 'rgba(16,185,129,0.08)');
+      renderSparkline('sparkFive', labels, values, '#f59e0b', 'rgba(245,158,11,0.08)');
+      renderSparkline('sparkTotal', labels, values, '#8b5cf6', 'rgba(139,92,246,0.08)');
+    }
+  }
+
+  function renderSparkline(canvasId, labels, data, color, bg) {
+    var ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    var sparklineCharts = window.sparklineCharts = window.sparklineCharts || {};
+    if (sparklineCharts[canvasId]) { sparklineCharts[canvasId].destroy(); sparklineCharts[canvasId] = null; }
+    if (!data || data.length === 0) return;
+    sparklineCharts[canvasId] = new Chart(ctx.getContext('2d'), {
+      type: 'line',
+      data: { labels: labels, datasets: [{ data: data, borderColor: color, backgroundColor: bg, pointRadius: 0, borderWidth: 2, tension: 0.4, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false, beginAtZero: true } } }
+    });
   }
 
   function renderServiceRatings() {

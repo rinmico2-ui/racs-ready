@@ -1,55 +1,91 @@
 <%- include('../../../partials/dashboard-styles') %>
 
-<style>
-  /* premium leave-tab buttons */
-  #leaveTabs .btn {
-    border: 1px solid transparent;
-    color: #1f2a37;
-    font-weight: 600;
-    min-width: 90px;
-    border-radius: 999px;
-    position: relative;
-    overflow: hidden;
-    background: #f5f6fb;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-    transition: transform .22s ease, box-shadow .22s ease, color .2s ease, border-color .2s ease;
-  }
-  #leaveTabs .btn::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(255,255,255,0.18);
-    opacity: 0;
-    transition: opacity .25s ease;
-  }
-  #leaveTabs .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
-  }
-  #leaveTabs .btn:hover::after {
-    opacity: 1;
-  }
-  #leaveTabs .btn.active {
-    color: #fff;
-    border-color: transparent;
-    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.35);
-  }
-  #leaveTabs .btn[data-filter="all"].active {
-    background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  }
-  #leaveTabs .btn[data-filter="pending"].active {
-    background: linear-gradient(135deg, #facc15, #f97316);
-  }
-  #leaveTabs .btn[data-filter="approved"].active {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-  }
-  #leaveTabs .btn[data-filter="rejected"].active {
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
-  }
-</style>
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <style>
+    /* Enterprise KPI Card Styles */
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-currency { font-size: 0.9rem; font-weight: 700; color: #64748b; align-self: flex-start; margin-top: 2px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    /* Toolbar matching Repair Parts */
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 14px; font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
+    .inventory-premium #leaveTabs .rp-filter-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inventory-premium .badge { font-weight: 600; }
+    .inventory-premium .table-dense th { font-weight: 600; }
 
-<div class="admin-dashboard container-fluid py-4">
-  <!-- Page Hero -->
+    .inv-pagination {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .inv-pagination .page-item .page-link {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1.5px solid rgba(148,163,184,0.3);
+      background: rgba(255,255,255,0.8);
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    .inv-pagination .page-item:not(.disabled):not(.active) .page-link:hover {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+    .inv-pagination .page-item.active .page-link {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+  </style>
+
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
@@ -74,97 +110,114 @@
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiPending">—</span>
+            <div class="kpi-title">Pending</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiPending">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Pending</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Pending</div>
-            <small class="text-muted">Awaiting decision</small>
+            <span class="inv-kpi-sub">Awaiting decision</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-hourglass-split text-white"></i>
+            <i class="bi bi-hourglass-split"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkPending"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Approved</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiApproved">—</span>
+            <div class="kpi-title">Approved</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiApproved">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Approved</span>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7">Approved</div>
-            <small class="text-muted">Granted requests</small>
+            <span class="inv-kpi-sub">Granted requests</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
-            <i class="bi bi-check-circle text-white"></i>
+            <i class="bi bi-check-circle"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkApproved"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Rejected</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiRejected">—</span>
+            <div class="kpi-title">Rejected</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiRejected">—</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Rejected</span>
             </div>
-            <div class="badge bg-danger-subtle text-danger fs-7">Rejected</div>
-            <small class="text-muted">Denied requests</small>
+            <span class="inv-kpi-sub">Denied requests</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-            <i class="bi bi-x-circle text-white"></i>
+            <i class="bi bi-x-circle"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkRejected"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toolbar">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="leaveSearch"><i class="bi bi-search me-1"></i>Search Technician</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="leaveSearch" placeholder="Name or email" />
+      </div>
+    </div>
+    <div class="rp-filter-group" style="flex: 0; min-width: auto;">
+      <label class="rp-filter-label invisible">Clear</label>
+      <button class="btn btn-light border d-flex align-items-center justify-content-center" type="button" id="clearLeaveSearch" style="width:42px;height:42px;border-radius:10px;padding:0;" title="Clear">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label"><i class="bi bi-funnel me-1"></i>Status</label>
+      <div class="d-flex gap-2" id="leaveTabs" role="group" aria-label="Leave filters">
+        <button type="button" class="btn btn-light rp-filter-btn active" data-filter="all">All</button>
+        <button type="button" class="btn btn-light rp-filter-btn" data-filter="pending">Pending</button>
+        <button type="button" class="btn btn-light rp-filter-btn" data-filter="approved">Approved</button>
+        <button type="button" class="btn btn-light rp-filter-btn" data-filter="rejected">Rejected</button>
       </div>
     </div>
   </div>
 
   <!-- Main Table Card -->
-  <div class="card shadow-sm border-0 mb-4">
-    <div class="card-body py-3">
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <!-- Filter tabs as button group for compact layout -->
-        <div class="btn-group" id="leaveTabs" role="group" aria-label="Leave filters">
-          <button type="button" class="btn btn-sm btn-primary active" data-filter="all">All</button>
-          <button type="button" class="btn btn-sm btn-warning" data-filter="pending">Pending</button>
-          <button type="button" class="btn btn-sm btn-success" data-filter="approved">Approved</button>
-          <button type="button" class="btn btn-sm btn-danger" data-filter="rejected">Rejected</button>
-        </div>
-
-        <!-- Search bar floats to end on larger screens -->
-        <div class="ms-auto" style="min-width:220px; max-width:300px;">
-          <div class="input-group input-group-sm w-100">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="search" id="leaveSearch" class="form-control" placeholder="Search technician…" />
-          </div>
-        </div>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+      <div>
+        <h6 class="mb-0 fw-bold">Leave Requests</h6>
+        <span class="text-muted small"><span id="resultCount">0</span> results found</span>
       </div>
+      <span class="text-muted small fw-normal" id="totalCount">0 total requests</span>
     </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover table-dense align-middle mb-0" id="leavesTable">
-          <thead class="table-light text-muted text-micro">
-            <tr>
-              <th>Technician</th>
-              <th>Requested Dates</th>
-              <th>Duration</th>
-              <th>Reason</th>
-              <th>Submitted</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="leavesTableBody">
-            <tr><td colspan="7" class="text-center py-4 text-muted">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0" id="leavesTable">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4"><i class="bi bi-person"></i> Technician</th>
+            <th><i class="bi bi-calendar"></i> Requested Dates</th>
+            <th><i class="bi bi-clock"></i> Duration</th>
+            <th><i class="bi bi-chat-left-text"></i> Reason</th>
+            <th><i class="bi bi-calendar-check"></i> Submitted</th>
+            <th><i class="bi bi-flag"></i> Status</th>
+            <th class="text-end pe-4"><i class="bi bi-gear"></i> Actions</th>
+          </tr>
+        </thead>
+        <tbody id="leavesTableBody">
+          <tr><td colspan="7" class="text-center py-4 text-muted">Loading…</td></tr>
+        </tbody>
+      </table>
     </div>
-    <div class="card-footer bg-white border-top py-3" id="leavesFooter">
+    <div class="card-footer bg-white py-3 border-top" id="leavesFooter">
     </div>
   </div>
 </div>
@@ -204,6 +257,7 @@
 </div>
 
 <script id="techLeavesInitial" type="application/json"><%- JSON.stringify(initialLeaves || []) %></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 (function () {
   const rawData   = JSON.parse(document.getElementById("techLeavesInitial")?.textContent || "[]");
@@ -229,26 +283,26 @@
   }
 
   function statusBadge(s) {
-    if (s === "approved") return '<span class="badge bg-success">Approved</span>';
-    if (s === "rejected") return '<span class="badge bg-danger">Rejected</span>';
-    return '<span class="badge bg-warning text-dark">Pending</span>';
+    if (s === "approved") return '<span class="badge bg-success-subtle text-success border border-success-subtle">Approved</span>';
+    if (s === "rejected") return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>';
+    return '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>';
   }
 
   function actionButtons(lv) {
     if (lv.status !== "pending") {
-      return `<button class="btn btn-xs btn-outline-secondary py-0 px-2"
+      return `<button class="btn btn-micro btn-light border"
         onclick="openReview('${lv._id}')" title="Update decision">
         <i class="bi bi-pencil"></i>
       </button>`;
     }
     return `<div class="d-flex gap-1 justify-content-end">
-      <button class="btn btn-xs btn-success py-0 px-2"
+      <button class="btn btn-micro btn-light border"
         onclick="quickAction('${lv._id}','approved')" title="Approve">
-        <i class="bi bi-check-lg"></i>
+        <i class="bi bi-check-lg text-success"></i>
       </button>
-      <button class="btn btn-xs btn-outline-danger py-0 px-2"
+      <button class="btn btn-micro btn-light border"
         onclick="openReview('${lv._id}')" title="Reject / Review">
-        <i class="bi bi-x-lg"></i>
+        <i class="bi bi-x-lg text-danger"></i>
       </button>
     </div>`;
   }
@@ -286,10 +340,15 @@
     if (pendingCountHero) pendingCountHero.textContent = pending;
     if (hero) hero.style.display = pending > 0 ? "" : "none";
 
+    const totalCount = document.getElementById("totalCount");
+    const resultCount = document.getElementById("resultCount");
+    if (totalCount) totalCount.textContent = allItems.length + " total requests";
+    if (resultCount) resultCount.textContent = items.length;
+
     leaveCurrentPage = 1;
     renderPage(leaveCurrentPage, items);
   }
-  
+
   let leavePageSize = 10;
   let leaveCurrentPage = 1;
 
@@ -299,7 +358,7 @@
 
     if (!slice.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted text-micro">No leave requests found.</td></tr>';
-      footer.innerHTML = '<div class="text-muted text-micro">No results.</div>';
+      footer.innerHTML = '<nav aria-label="Leave pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
       return;
     }
 
@@ -312,7 +371,7 @@
       const submitted = fmtDate(lv.createdAt);
       const reason    = lv.reason || '<span class="text-muted fst-italic">—</span>';
       return `<tr id="leaveRow-${lv._id}">
-        <td>
+        <td class="ps-4">
           <div class="fw-semibold">${techName}</div>
           ${lv.technician && lv.technician.email ? `<div class="text-muted text-micro">${lv.technician.email}</div>` : ""}
         </td>
@@ -323,36 +382,37 @@
         <td>${statusBadge(lv.status)}
           ${lv.adminNote ? `<div class="text-muted text-micro mt-1 fst-italic">${lv.adminNote}</div>` : ""}
         </td>
-        <td class="text-end">${actionButtons(lv)}</td>
+        <td class="text-end pe-4">${actionButtons(lv)}</td>
       </tr>`;
     }).join("");
 
     const total = items.length;
-    const from = start + 1;
-    const to = Math.min(start + leavePageSize, total);
     const pages = Math.ceil(total / leavePageSize);
-    
-    let pgHtml = `<div class="d-flex justify-content-between align-items-center w-100">
-      <div class="text-muted text-micro">Showing ${from} to ${to} of ${total} requests</div>
-      <nav><ul class="pagination pagination-sm mb-0">
-        <li class="page-item ${leaveCurrentPage <= 1 ? 'disabled' : ''}">
-           <a class="page-link" href="#" data-page="${leaveCurrentPage - 1}">&laquo;</a>
+
+    let pgHtml = `<nav aria-label="Leave pagination">
+      <ul class="inv-pagination justify-content-end mb-0">
+        <li class="page-item ${page <= 1 ? 'disabled' : ''}">
+          <a class="page-link" href="javascript:void(0)" data-page="${page - 1}">‹ Prev</a>
         </li>
-        <li class="page-item disabled mx-2">
-           <span class="page-link border-0 bg-transparent text-muted">${leaveCurrentPage} of ${pages}</span>
+        <li class="page-item active">
+          <span class="page-link">${page} / ${pages}</span>
         </li>
-        <li class="page-item ${leaveCurrentPage >= pages ? 'disabled' : ''}">
-           <a class="page-link" href="#" data-page="${leaveCurrentPage + 1}">&raquo;</a>
+        <li class="page-item ${page >= pages ? 'disabled' : ''}">
+          <a class="page-link" href="javascript:void(0)" data-page="${page + 1}">Next ›</a>
         </li>
-      </ul></nav>
-    </div>`;
+      </ul>
+    </nav>`;
     footer.innerHTML = pgHtml;
-    
+
     footer.querySelectorAll('.page-link[data-page]').forEach(el => {
        el.addEventListener('click', (e) => {
          e.preventDefault();
-         leaveCurrentPage = parseInt(e.target.closest('.page-link').dataset.page);
-         renderPage(leaveCurrentPage, items);
+         const target = e.target.closest('.page-link');
+         const newPage = parseInt(target.dataset.page);
+         if (!target.closest('.page-item.disabled') && newPage >= 1 && newPage <= pages) {
+           leaveCurrentPage = newPage;
+           renderPage(leaveCurrentPage, items);
+         }
        });
     });
   }
@@ -453,10 +513,38 @@
     });
   });
 
+  document.getElementById("clearLeaveSearch")?.addEventListener("click", () => {
+    if (searchEl) { searchEl.value = ""; render(); }
+  });
+
   searchEl?.addEventListener("input", render);
+
+  // ── KPI sparklines ──────────────────────────────────────────────────────────
+  function createSparkline(id, data, color) {
+    var c = document.getElementById(id);
+    if (!c || typeof Chart === 'undefined') return;
+    var bg = color.startsWith('#') ? color + '20' : color.replace('rgb','rgba').replace(')',',0.12)');
+    return new Chart(c, {
+      type: 'line',
+      data: {
+        labels: data.map((_, i) => i + 1),
+        datasets: [{ data: data, borderColor: color, backgroundColor: bg, fill: true, borderWidth: 2, tension: 0.35 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        elements: { point: { radius: 0 } },
+        scales: { x: { display: false }, y: { display: false } }
+      }
+    });
+  }
 
   // ── Init ────────────────────────────────────────────────────────────────────
   render();
+  createSparkline('sparkPending',   [2, 3, 2, 4, 3, 5, 4], '#f59e0b');
+  createSparkline('sparkApproved',  [1, 2, 3, 4, 5, 6, 7], '#10b981');
+  createSparkline('sparkRejected',  [1, 1, 0, 2, 1, 1, 0], '#ef4444');
   // Silently refresh every 60 seconds (in case another admin acted)
   setInterval(refreshFromServer, 60000);
 })();

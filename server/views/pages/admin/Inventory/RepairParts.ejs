@@ -3,24 +3,74 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <style>
+    :root {
+      --rp-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --rp-heading: 'Outfit', 'Inter', sans-serif;
+      --rp-slate-900: #0f172a;
+      --rp-slate-800: #1e293b;
+      --rp-slate-700: #334155;
+      --rp-slate-600: #475569;
+      --rp-slate-500: #64748b;
+      --rp-slate-400: #94a3b8;
+      --rp-slate-300: #cbd5e1;
+      --rp-slate-200: #e2e8f0;
+      --rp-slate-100: #f1f5f9;
+      --rp-slate-50: #f8fafc;
+      --rp-blue-500: #3b82f6;
+      --rp-blue-700: #1d4ed8;
+      --rp-blue-800: #1e40af;
+      --rp-green-500: #22c55e;
+      --rp-green-600: #16a34a;
+      --rp-green-700: #15803d;
+      --rp-amber-500: #f59e0b;
+      --rp-amber-700: #b45309;
+      --rp-amber-800: #92400e;
+      --rp-red-500: #ef4444;
+      --rp-red-600: #dc2626;
+      --rp-purple-500: #7c3aed;
+    }
+
     .rp-inner { max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; }
 
     /* Stats */
-    .rp-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
-    .rp-stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
-    .rp-stat:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-    .rp-stat-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
-    .rp-stat-icon.blue { background: #eff6ff; color: #3b82f6; }
-    .rp-stat-icon.green { background: #f0fdf4; color: #22c55e; }
-    .rp-stat-icon.amber { background: #fffbeb; color: #f59e0b; }
-    .rp-stat-icon.red { background: #fef2f2; color: #ef4444; }
-    .rp-stat-icon.purple { background: #f5f3ff; color: #7c3aed; }
-    .rp-stat-value { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
-    .rp-stat-label { font-size: 0.72rem; color: #64748b; }
+    .rp-stats { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 24px; }
+    .rp-stat { flex: 1 1 260px; min-width: 260px; max-width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; transition: all 0.2s; position: relative; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .rp-stat:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); }
+    .rp-stat-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .rp-stat-title { font-size: 0.72rem; color: #64748b; font-weight: 600; }
+    .rp-stat-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .rp-stat-icon.blue { background: #3b82f6; color: #fff; }
+    .rp-stat-icon.green { background: #22c55e; color: #fff; }
+    .rp-stat-icon.amber { background: #f59e0b; color: #fff; }
+    .rp-stat-icon.red { background: #ef4444; color: #fff; }
+    .rp-stat-icon.purple { background: #7c3aed; color: #fff; }
+    .rp-stat-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+    .rp-stat-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .rp-stat-pct { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .rp-stat-pct.blue { background: #eff6ff; color: #3b82f6; }
+    .rp-stat-pct.green { background: #f0fdf4; color: #22c55e; }
+    .rp-stat-pct.amber { background: #fffbeb; color: #f59e0b; }
+    .rp-stat-pct.red { background: #fef2f2; color: #ef4444; }
+    .rp-stat-pct.purple { background: #f5f3ff; color: #7c3aed; }
+    .rp-stat-sub { font-size: 0.74rem; color: #94a3b8; font-weight: 500; }
+    .rp-stat-line { width: 100%; height: 40px; box-sizing: border-box; padding: 0; margin-top: auto; }
+    .rp-stat-canvas { width: 100%; height: 100%; display: block; }
 
     /* Toolbar */
-    .rp-toolbar { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .rp-filter-group.search { flex: 1.8; }
+    .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: var(--rp-slate-400); text-transform: uppercase; letter-spacing: 0.6px; }
+    .rp-filter-input { border-radius: 10px; border-color: var(--rp-slate-200); }
     .rp-search { flex: 1; min-width: 220px; }
+    .rp-search .input-group-text { background: #fff; color: var(--rp-slate-400); border-color: var(--rp-slate-200); }
+    .rp-search .form-control { border-color: var(--rp-slate-200); }
+    .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+
+    /* Quick Actions */
+    .rp-actions-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .rp-actions-bar .btn { border-radius: 10px; font-size: 0.85rem; font-weight: 600; padding: 8px 14px; }
+    .rp-actions-bar .btn i { margin-right: 6px; }
 
     /* Category Filter */
     .rp-cat-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
@@ -29,13 +79,24 @@
     .rp-cat-pill.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 
     /* Parts Table */
-    .rp-table-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
-    .rp-table { width: 100%; border-collapse: collapse; }
+    .rp-table-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow-x: auto; }
+    .rp-table { width: 100%; min-width: 1300px; border-collapse: collapse; }
     .rp-table thead th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 12px 16px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; text-align: left; white-space: nowrap; }
     .rp-table tbody td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; color: #1e293b; vertical-align: middle; }
     .rp-table tbody tr { transition: background 0.15s; }
     .rp-table tbody tr:hover { background: #f8fafc; }
+    .rp-table tbody tr:hover td:last-child { background: #f8fafc; }
     .rp-table tbody tr:last-child td { border-bottom: none; }
+    .rp-table th:last-child,
+    .rp-table td:last-child { position: sticky; right: 0; background: #fff; z-index: 2; box-shadow: -2px 0 6px rgba(0,0,0,0.05); text-align: center; }
+    .rp-table th:last-child { background: #f8fafc; }
+
+    .rp-table-footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fff; flex-wrap: wrap; gap: 10px; }
+    .rp-table-footer .pagination { margin: 0; }
+    .rp-table-footer .page-link { border-radius: 8px; margin: 0 3px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; color: var(--rp-slate-600); border: 1px solid var(--rp-slate-200); }
+    .rp-table-footer .page-item.active .page-link { background: var(--rp-blue-500); border-color: var(--rp-blue-500); color: #fff; }
+    .rp-table-footer .page-item.disabled .page-link { color: var(--rp-slate-300); }
+    .rp-pag-info { font-size: 0.8rem; color: var(--rp-slate-500); }
 
     /* Part Name */
     .rp-name { font-weight: 700; color: #0f172a; }
@@ -51,6 +112,18 @@
     .rp-cat-badge.pipe { background: #fff7ed; color: #c2410c; }
     .rp-cat-badge.electrical { background: #fef2f2; color: #dc2626; }
     .rp-cat-badge.general { background: #f1f5f9; color: #475569; }
+    .rp-type-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; }
+    .rp-type-badge.rp-type-equipment { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .rp-type-badge.rp-type-part { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+    .rp-type-badge.rp-type-consumable { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .rp-type-badge.rp-type-tool { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .rp-class-badge { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:.68rem;font-weight:700;white-space:nowrap; }
+    .rp-class-badge.merchandise { background:#ecfdf5;color:#047857;border:1px solid #a7f3d0; }
+    .rp-class-badge.operational_asset { background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe; }
+    .rp-class-picker { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+    .rp-class-option { border:2px solid var(--rp-slate-200);border-radius:12px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start;background:#fff; }
+    .rp-class-option:has(input:checked) { border-color:var(--rp-blue-500);background:#eff6ff; }
+    .rp-class-option small { display:block;color:var(--rp-slate-500);font-size:.7rem; }
 
     /* Stock Badge */
     .rp-stock { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.85rem; }
@@ -76,14 +149,54 @@
     .rp-profit-margin.low { background: #fee2e2; color: #991b1b; }
 
     /* Actions */
-    .rp-actions { display: flex; gap: 6px; }
-    .rp-actions .btn { padding: 5px 10px; font-size: 0.75rem; border-radius: 8px; }
+    .rp-actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: nowrap; }
+    .rp-actions .btn { width: 30px; height: 30px; padding: 0; font-size: 0.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
 
     /* Modal */
     .rp-modal .modal-content { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
-    .rp-modal .modal-header { background: linear-gradient(135deg, #0f172a, #1e40af); color: #fff; border: none; padding: 20px 24px; }
+    .rp-modal .modal-header { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; border: none; padding: 20px 24px; }
     .rp-modal .modal-body { padding: 24px; }
     .rp-modal .modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+
+    /* Stock update toast (POS-style) */
+    .rp-toast-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
+    .rp-toast-overlay.show { display: flex; }
+    .rp-toast-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: rp-toast-in 0.2s ease; }
+    @keyframes rp-toast-in { from { opacity: 0; transform: translateY(-20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .rp-toast-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .rp-toast-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .rp-toast-close:hover { background: rgba(255,255,255,0.15); }
+    .rp-toast-body { padding: 24px; text-align: center; }
+    .rp-toast-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .rp-toast-icon.success { background: #dcfce7; color: #16a34a; }
+    .rp-toast-icon.error { background: #fee2e2; color: #ef4444; }
+    .rp-toast-icon.warning { background: #fef3c7; color: #f59e0b; }
+    .rp-toast-icon.info { background: #dbeafe; color: #3b82f6; }
+    .rp-toast-message { font-size: 0.95rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .rp-toast-ok { padding: 10px 36px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .rp-toast-ok:hover { background: #cbd5e1; }
+
+    /* Custom confirm modal (POS-style header) */
+    .rp-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
+    .rp-confirm-overlay.show { display: flex; }
+    .rp-confirm-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: rp-toast-in 0.2s ease; }
+    .rp-confirm-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .rp-confirm-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .rp-confirm-close:hover { background: rgba(255,255,255,0.15); }
+    .rp-confirm-body { padding: 24px; text-align: center; }
+    .rp-confirm-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .rp-confirm-icon.warning { background: #fef3c7; color: #f59e0b; }
+    .rp-confirm-icon.success { background: #dcfce7; color: #16a34a; }
+    .rp-confirm-icon.error { background: #fee2e2; color: #ef4444; }
+    .rp-confirm-icon.info { background: #dbeafe; color: #3b82f6; }
+    .rp-confirm-message { font-size: 1rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .rp-confirm-message strong { color: #0f172a; display: block; margin-bottom: 6px; }
+    .rp-confirm-message small { color: #64748b; }
+    .rp-confirm-actions { display: flex; justify-content: center; gap: 10px; }
+    .rp-confirm-cancel { padding: 10px 24px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .rp-confirm-cancel:hover { background: #cbd5e1; }
+    .rp-confirm-delete { padding: 10px 24px; border-radius: 10px; border: none; background: #dc2626; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .rp-confirm-delete:hover { background: #b91c1c; }
 
     /* Empty State */
     .rp-empty { text-align: center; padding: 60px 20px; color: #64748b; }
@@ -96,9 +209,52 @@
 
     @media (max-width: 767px) {
       .rp-table-wrap { overflow-x: auto; }
-      .rp-table { min-width: 700px; }
+      .rp-table { min-width: 1300px; }
       .rp-inner { padding: 0 1rem; }
     }
+
+    /* Modal Form Cards */
+    .rp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rp-form-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; }
+    .rp-form-card-header { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 18px; }
+    .rp-form-card-icon { width: 40px; height: 40px; border-radius: 11px; background: #eff6ff; color: #2563eb; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .rp-form-label { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .rp-form-label i { color: #2563eb; font-size: 0.85rem; }
+    .rp-stock-summary-label i { font-size: 0.9rem; }
+    .rp-modal .form-control, .rp-modal .form-select { border-radius: 10px; border-color: #e2e8f0; }
+    .rp-modal .form-control:focus, .rp-modal .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); }
+    .rp-modal .form-control::placeholder { color: #94a3b8; }
+    .rp-modal textarea { resize: none; }
+
+    .rp-stock-summary { display: flex; align-items: center; gap: 10px; padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; margin-bottom: 20px; }
+    .rp-stock-summary-label { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 0.7rem; color: #64748b; margin-bottom: 4px; }
+    .rp-stock-summary-value { font-size: 1.6rem; font-weight: 600; color: #166534; line-height: 1; }
+    .rp-stock-summary-value.after { color: #1e293b; }
+    .rp-stock-summary-arrow { font-size: 1.4rem; color: #94a3b8; }
+    .rp-stock-toggle { border-radius: 10px; font-weight: 600; padding: 10px; border: 2px solid #e2e8f0; background: #fff; color: #64748b; }
+    .rp-stock-toggle.active-in { border-color: #22c55e; background: #f0fdf4; color: #16a34a; }
+    .rp-stock-toggle.active-out { border-color: #ef4444; background: #fef2f2; color: #dc2626; }
+
+    @media (max-width: 767px) {
+      .rp-form-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Consistency overrides */
+    .rp-inner { font-family: var(--rp-font); }
+    .rp-inner h1, .rp-inner h2, .rp-inner h3 { font-family: var(--rp-heading); }
+    .rp-stat-value, .rp-name, .rp-price { color: var(--rp-slate-900); }
+    .rp-stat-title, .rp-stat-sub, .rp-spec, .rp-min-stock, .rp-empty, .rp-stock.discontinued, .rp-table thead th { color: var(--rp-slate-500); }
+    .rp-table tbody td { color: var(--rp-slate-800); }
+    .rp-barcode { font-family: var(--rp-font); font-variant-numeric: tabular-nums; }
+    .rp-profit, .rp-stock.in_stock, .rp-profit-margin.high { color: var(--rp-green-700); }
+    .rp-stock.low_stock, .rp-profit-margin.medium { color: var(--rp-amber-700); }
+    .rp-stock.out_of_stock, .rp-profit-margin.low, .rp-price-cost { color: var(--rp-red-600); }
+    .rp-cat-pill { color: var(--rp-slate-500); border-color: var(--rp-slate-200); }
+    .rp-cat-pill:hover { color: var(--rp-blue-500); border-color: var(--rp-blue-500); }
+    .rp-cat-pill.active { background: var(--rp-blue-500); color: #fff; border-color: var(--rp-blue-500); }
+    /* Font weight consistency */
+    .rp-stat-value { font-weight: 700; }
+    .rp-name, .rp-price, .rp-stock, .rp-profit, .rp-table thead th, .rp-cat-badge, .rp-profit-margin, .rp-stat-pct { font-weight: 600; }
   </style>
 
   <div class="rp-inner">
@@ -107,59 +263,153 @@
         <div class="au-hero-left">
           <div class="au-hero-icon"><i class="bi bi-box-seam"></i></div>
           <div>
-            <h1>Parts &amp; Tools Catalog</h1>
+            <h1 style="color:#2563eb;">Parts &amp; Tools Catalog</h1>
             <p>Manage inventory, pricing, and stock levels for service parts, tools, and equipment used in projects and repairs</p>
           </div>
         </div>
-        <div class="au-hero-actions">
-          <a href="/admin/inventory/pos" class="btn btn-success btn-sm fw-semibold me-2" style="border-radius:10px;">
-            <i class="bi bi-shop me-1"></i>Open POS
-          </a>
-          <button class="btn btn-outline-warning btn-sm fw-semibold me-2" onclick="generateBarcodes()" style="border-radius:10px;">
-            <i class="bi bi-upc-scan me-1"></i>Generate Barcodes
-          </button>
-          <button class="btn btn-outline-info btn-sm fw-semibold me-2" onclick="generateAirconBarcodes()" style="border-radius:10px;">
-            <i class="bi bi-snow me-1"></i>Aircon Barcodes
-          </button>
-          <button class="btn btn-light btn-sm fw-semibold" onclick="openPartModal()" style="border-radius:10px;">
-            <i class="bi bi-plus-lg me-1"></i>Add Item
-          </button>
-        </div>
+
       </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="rp-actions-bar">
+      <a href="/admin/inventory/pos" class="btn btn-outline-primary btn-sm fw-semibold">
+        <i class="bi bi-shop"></i>Open POS
+      </a>
+      <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="generateBarcodes()">
+        <i class="bi bi-upc-scan"></i>Generate Barcodes
+      </button>
+      <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="generateAirconBarcodes()">
+        <i class="bi bi-snow"></i>Aircon Barcodes
+      </button>
+      <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="openPartModal()">
+        <i class="bi bi-plus-lg"></i>Add Item
+      </button>
     </div>
 
     <!-- Stats -->
     <div class="rp-stats" id="rpStats">
-      <div class="rp-stat"><div class="rp-stat-icon blue"><i class="bi bi-box"></i></div><div><div class="rp-stat-value" id="statTotal">-</div><div class="rp-stat-label">Total Parts</div></div></div>
-      <div class="rp-stat"><div class="rp-stat-icon green"><i class="bi bi-check-circle"></i></div><div><div class="rp-stat-value" id="statInStock">-</div><div class="rp-stat-label">In Stock</div></div></div>
-      <div class="rp-stat"><div class="rp-stat-icon amber"><i class="bi bi-exclamation-triangle"></i></div><div><div class="rp-stat-value" id="statLowStock">-</div><div class="rp-stat-label">Low Stock</div></div></div>
-      <div class="rp-stat"><div class="rp-stat-icon red"><i class="bi bi-x-circle"></i></div><div><div class="rp-stat-value" id="statOutOf">-</div><div class="rp-stat-label">Out of Stock</div></div></div>
-      <div class="rp-stat"><div class="rp-stat-icon purple"><i class="bi bi-cash"></i></div><div><div class="rp-stat-value" id="statValue">-</div><div class="rp-stat-label">Total Value</div></div></div>
-      <div class="rp-stat"><div class="rp-stat-icon green"><i class="bi bi-graph-up-arrow"></i></div><div><div class="rp-stat-value" id="statProfit" style="color:#16a34a;">-</div><div class="rp-stat-label">Profit Potential</div></div></div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">Total Parts</div>
+          <div class="rp-stat-icon blue"><i class="bi bi-box"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statTotal">-</div>
+          <div class="rp-stat-pct blue" id="statTotalPct">100%</div>
+        </div>
+        <div class="rp-stat-sub" id="statTotalSub">- active parts</div>
+        <div class="rp-stat-line"><canvas id="statTotalSpark" class="rp-stat-canvas" data-color="#3b82f6"></canvas></div>
+      </div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">In Stock</div>
+          <div class="rp-stat-icon green"><i class="bi bi-check-circle"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statInStock">-</div>
+          <div class="rp-stat-pct green" id="statInStockPct">-</div>
+        </div>
+        <div class="rp-stat-sub" id="statInStockSub">- in stock</div>
+        <div class="rp-stat-line"><canvas id="statInStockSpark" class="rp-stat-canvas" data-color="#22c55e"></canvas></div>
+      </div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">Low Stock</div>
+          <div class="rp-stat-icon amber"><i class="bi bi-exclamation-triangle"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statLowStock">-</div>
+          <div class="rp-stat-pct amber" id="statLowStockPct">-</div>
+        </div>
+        <div class="rp-stat-sub" id="statLowStockSub">- low stock</div>
+        <div class="rp-stat-line"><canvas id="statLowStockSpark" class="rp-stat-canvas" data-color="#f59e0b"></canvas></div>
+      </div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">Out of Stock</div>
+          <div class="rp-stat-icon red"><i class="bi bi-x-circle"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statOutOf">-</div>
+          <div class="rp-stat-pct red" id="statOutOfPct">-</div>
+        </div>
+        <div class="rp-stat-sub" id="statOutOfSub">- out of stock</div>
+        <div class="rp-stat-line"><canvas id="statOutOfSpark" class="rp-stat-canvas" data-color="#ef4444"></canvas></div>
+      </div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">Total Value</div>
+          <div class="rp-stat-icon purple"><i class="bi bi-cash"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statValue">-</div>
+          <div class="rp-stat-pct purple" id="statValuePct">100%</div>
+        </div>
+        <div class="rp-stat-sub" id="statValueSub">- total value</div>
+        <div class="rp-stat-line"><canvas id="statValueSpark" class="rp-stat-canvas" data-color="#7c3aed"></canvas></div>
+      </div>
+      <div class="rp-stat">
+        <div class="rp-stat-top">
+          <div class="rp-stat-title">Profit Potential</div>
+          <div class="rp-stat-icon green"><i class="bi bi-graph-up-arrow"></i></div>
+        </div>
+        <div class="rp-stat-main">
+          <div class="rp-stat-value" id="statProfit">-</div>
+          <div class="rp-stat-pct green" id="statProfitPct">-</div>
+        </div>
+        <div class="rp-stat-sub" id="statProfitSub">- profit margin</div>
+        <div class="rp-stat-line"><canvas id="statProfitSpark" class="rp-stat-canvas" data-color="#22c55e"></canvas></div>
+      </div>
     </div>
 
     <!-- Toolbar -->
     <div class="rp-toolbar">
-      <div class="rp-search">
+      <div class="rp-filter-group search">
+        <label class="rp-filter-label" for="rpSearch"><i class="bi bi-search me-1"></i>Search Parts</label>
         <div class="input-group">
-          <span class="input-group-text" style="border-radius:10px 0 0 10px;background:#f8fafc;border-color:#e2e8f0;"><i class="bi bi-search"></i></span>
-          <input type="text" class="form-control" id="rpSearch" placeholder="Search parts, barcodes, suppliers..." style="border-radius:0 10px 10px 0;border-color:#e2e8f0;">
+          <span class="input-group-text" style="border-radius:10px 0 0 10px;"><i class="bi bi-search"></i></span>
+          <input type="text" class="form-control" id="rpSearch" placeholder="Part name, code, or supplier..." style="border-radius:0 10px 10px 0;">
         </div>
       </div>
-      <select class="form-select form-select-sm" id="rpStatusFilter" style="width:auto;border-radius:10px;border-color:#e2e8f0;">
-        <option value="">All Status</option>
-        <option value="in_stock">In Stock</option>
-        <option value="low_stock">Low Stock</option>
-        <option value="out_of_stock">Out of Stock</option>
-        <option value="discontinued">Discontinued</option>
-      </select>
-      <select class="form-select form-select-sm" id="rpSort" style="width:auto;border-radius:10px;border-color:#e2e8f0;">
-        <option value="itemName">Name A-Z</option>
-        <option value="-itemName">Name Z-A</option>
-        <option value="quantity">Stock Low-High</option>
-        <option value="-quantity">Stock High-Low</option>
-        <option value="-createdAt">Newest</option>
-      </select>
+      <div class="rp-filter-group">
+        <label class="rp-filter-label" for="rpClassFilter"><i class="bi bi-building-gear me-1"></i>Inventory Class</label>
+        <select class="form-select rp-filter-input" id="rpClassFilter" style="height:42px;">
+          <option value="">All Classes</option>
+          <option value="merchandise">Merchandise</option>
+          <option value="operational_asset">Operational Assets</option>
+        </select>
+      </div>
+      <div class="rp-filter-group">
+        <label class="rp-filter-label" for="rpStatusFilter"><i class="bi bi-funnel me-1"></i>Status</label>
+        <select class="form-select rp-filter-input" id="rpStatusFilter" style="height:42px;">
+          <option value="">All Status</option>
+          <option value="in_stock">In Stock</option>
+          <option value="low_stock">Low Stock</option>
+          <option value="out_of_stock">Out of Stock</option>
+          <option value="discontinued">Discontinued</option>
+        </select>
+      </div>
+      <div class="rp-filter-group">
+        <label class="rp-filter-label" for="rpTypeFilter"><i class="bi bi-tag me-1"></i>Type</label>
+        <select class="form-select rp-filter-input" id="rpTypeFilter" style="height:42px;">
+          <option value="">All Types</option>
+          <option value="equipment">Equipment</option>
+          <option value="part">Repair Parts</option>
+          <option value="consumable">Consumables</option>
+        </select>
+      </div>
+      <div class="rp-filter-group">
+        <label class="rp-filter-label" for="rpSort"><i class="bi bi-arrow-down-up me-1"></i>Sort By</label>
+        <select class="form-select rp-filter-input" id="rpSort" style="height:42px;">
+          <option value="itemName">Name A-Z</option>
+          <option value="-itemName">Name Z-A</option>
+          <option value="quantity">Stock Low-High</option>
+          <option value="-quantity">Stock High-Low</option>
+          <option value="-createdAt">Newest</option>
+        </select>
+      </div>
+      <button class="btn btn-primary rp-filter-btn" type="button" onclick="applyFilters()" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
     </div>
 
     <!-- Category Filter -->
@@ -171,21 +421,32 @@
         <thead>
           <tr>
             <th>Part Name</th>
+            <th>Type</th>
+            <th>Inventory Class</th>
             <th>Category</th>
-            <th>Stock</th>
+            <th title="Physical units currently on the shelf">On Hand</th>
+            <th title="On hand minus units reserved for active work">Available</th>
+            <th>Reserved</th>
+            <th>Consumed</th>
             <th>Purchase Price</th>
             <th>Selling Price</th>
             <th>Profit</th>
             <th>Supplier</th>
             <th>Serial #</th>
             <th>Barcode</th>
-            <th style="width:120px;">Actions</th>
+            <th style="min-width:150px; text-align: center;">Actions</th>
           </tr>
         </thead>
         <tbody id="rpTableBody">
-          <tr><td colspan="10"><div class="rp-loading"><div class="spinner-border" role="status"></div><p class="mt-2 text-muted small">Loading parts...</p></div></td></tr>
+          <tr><td colspan="15"><div class="rp-loading"><div class="spinner-border" role="status"></div><p class="mt-2 text-muted small">Loading parts...</p></div></td></tr>
         </tbody>
       </table>
+      <div class="rp-table-footer">
+        <small class="rp-pag-info" id="rpPaginationInfo">Showing 0 of 0</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0" id="rpPagination"></ul>
+        </nav>
+      </div>
     </div>
   </div>
 </div>
@@ -208,79 +469,110 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="partEditId">
-        <div class="row g-3">
-          <div class="col-md-8">
-            <label class="form-label fw-semibold">Part Name <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="partName" placeholder="e.g. Capacitor 40uF 440V" style="border-radius:10px;" required>
+        <div class="rp-form-card mb-3">
+          <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-building-gear"></i></div>Inventory Classification <span class="text-danger">*</span></div>
+          <div class="rp-class-picker">
+            <label class="rp-class-option"><input class="form-check-input mt-1" type="radio" name="partInventoryClass" value="merchandise" checked onchange="updateInventoryClassForm()"><span><strong>Merchandise</strong><small>Sellable through POS and reservable for repair quotations.</small></span></label>
+            <label class="rp-class-option"><input class="form-check-input mt-1" type="radio" name="partInventoryClass" value="operational_asset" onchange="updateInventoryClassForm()"><span><strong>Operational Asset</strong><small>Company-owned; assignable to technicians and never sold.</small></span></label>
           </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Unit</label>
-            <select class="form-select" id="partUnit" style="border-radius:10px;">
-              <option value="pcs">Pieces</option>
-              <option value="rolls">Rolls</option>
-              <option value="meters">Meters</option>
-              <option value="liters">Liters</option>
-              <option value="kg">Kilograms</option>
-              <option value="sets">Sets</option>
-              <option value="bottles">Bottles</option>
-              <option value="tubes">Tubes</option>
-            </select>
+        </div>
+        <div class="rp-form-grid">
+          <div class="rp-form-card">
+            <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-box-seam"></i></div>Basic Info</div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-tag"></i>Part Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="partName" placeholder="e.g. Capacitor 40uF 440V" required>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-diagram-3"></i>Type</label>
+              <select class="form-select" id="partType">
+                <option value="equipment">Equipment (Reusable)</option>
+                <option value="part">Repair Part</option>
+                <option value="consumable">Consumable</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-folder"></i>Category</label>
+              <select class="form-select" id="partCategory">
+                <option value="Capacitor">Capacitor</option>
+                <option value="Compressor">Compressor</option>
+                <option value="Fan Motor">Fan Motor</option>
+                <option value="Refrigerant">Refrigerant</option>
+                <option value="Copper Pipe">Copper Pipe</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Filter">Filter</option>
+                <option value="Coil">Coil</option>
+                <option value="Board">Board / PCB</option>
+                <option value="Bearing">Bearing</option>
+                <option value="Sealant">Sealant / Adhesive</option>
+                <option value="Wire">Wire / Cable</option>
+                <option value="Valve">Valve</option>
+                <option value="Equipment">Equipment</option>
+                <option value="Consumable">Consumable</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-card-text"></i>Specification</label>
+              <input type="text" class="form-control" id="partSpec" placeholder="e.g. 40uF 440V Round">
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-upc-scan"></i>Serial Number</label>
+              <input type="text" class="form-control" id="partSerialNumber" placeholder="e.g. SN-2024-001">
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-truck"></i>Supplier</label>
+              <input type="text" class="form-control" id="partSupplier" placeholder="e.g. HVAC Parts PH">
+            </div>
+            <div class="mb-0">
+              <label class="rp-form-label"><i class="bi bi-file-text"></i>Description</label>
+              <textarea class="form-control" id="partDesc" rows="3" placeholder="Additional details about this part..."></textarea>
+            </div>
+            <div id="assetFields" class="mt-3" hidden>
+              <hr>
+              <div class="mb-3"><label class="rp-form-label"><i class="bi bi-upc"></i>Asset Code</label><input class="form-control" id="partAssetCode" placeholder="Auto-generated when blank"></div>
+              <div class="mb-3"><label class="rp-form-label"><i class="bi bi-shield-check"></i>Condition</label><select class="form-select" id="partAssetCondition"><option value="good">Good</option><option value="fair">Fair</option><option value="needs_repair">Needs Repair</option><option value="damaged">Damaged</option></select></div>
+              <div class="mb-3"><label class="rp-form-label"><i class="bi bi-activity"></i>Maintenance Status</label><select class="form-select" id="partAssetStatus"><option value="available">Available</option><option value="reserved">Reserved</option><option value="checked_out">Checked Out</option><option value="under_maintenance">Under Maintenance</option><option value="damaged">Damaged</option><option value="retired">Retired</option></select></div>
+              <div class="mb-3"><label class="rp-form-label"><i class="bi bi-calendar3"></i>Maintenance Interval (days)</label><input type="number" class="form-control" id="partMaintenanceInterval" min="0" value="180"></div>
+              <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="partAssignable" checked><label class="form-check-label" for="partAssignable">Assignable to technicians</label></div>
+            </div>
           </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">Category</label>
-            <select class="form-select" id="partCategory" style="border-radius:10px;">
-              <option value="Capacitor">Capacitor</option>
-              <option value="Compressor">Compressor</option>
-              <option value="Fan Motor">Fan Motor</option>
-              <option value="Refrigerant">Refrigerant</option>
-              <option value="Copper Pipe">Copper Pipe</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Filter">Filter</option>
-              <option value="Coil">Coil</option>
-              <option value="Board">Board / PCB</option>
-              <option value="Bearing">Bearing</option>
-              <option value="Sealant">Sealant / Adhesive</option>
-              <option value="Wire">Wire / Cable</option>
-              <option value="Valve">Valve</option>
-              <option value="General">General</option>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">Specification</label>
-            <input type="text" class="form-control" id="partSpec" placeholder="e.g. 40uF 440V Round" style="border-radius:10px;">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Purchase Price (₱)</label>
-            <input type="number" class="form-control" id="partCostPrice" min="0" step="0.01" value="0" style="border-radius:10px;">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Selling Price (₱)</label>
-            <input type="number" class="form-control" id="partSellingPrice" min="0" step="0.01" value="0" style="border-radius:10px;">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Margin</label>
-            <div class="form-control" id="partMargin" style="border-radius:10px;background:#f1f5f9;font-weight:700;color:#16a34a;">₱0 (0%)</div>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
-            <input type="number" class="form-control" id="partQty" min="0" value="0" style="border-radius:10px;">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Min Stock Level</label>
-            <input type="number" class="form-control" id="partMinStock" min="0" value="3" style="border-radius:10px;">
-            <small class="text-muted" style="font-size:0.7rem;">Alert when stock falls below this</small>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Supplier</label>
-            <input type="text" class="form-control" id="partSupplier" placeholder="e.g. HVAC Parts PH" style="border-radius:10px;">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Serial Number</label>
-            <input type="text" class="form-control" id="partSerialNumber" placeholder="e.g. SN-2024-001" style="border-radius:10px;">
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold">Description</label>
-            <textarea class="form-control" id="partDesc" rows="2" placeholder="Additional details about this part..." style="border-radius:10px;"></textarea>
+          <div class="rp-form-card">
+            <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-cash-coin"></i></div>Pricing &amp; Stock</div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-box"></i>Unit</label>
+              <select class="form-select" id="partUnit">
+                <option value="pcs">Pieces</option>
+                <option value="rolls">Rolls</option>
+                <option value="meters">Meters</option>
+                <option value="liters">Liters</option>
+                <option value="kg">Kilograms</option>
+                <option value="sets">Sets</option>
+                <option value="bottles">Bottles</option>
+                <option value="tubes">Tubes</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Purchase Price (₱)</label>
+              <input type="number" class="form-control" id="partCostPrice" min="0" step="0.01" value="0">
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-cash"></i>Selling Price (₱)</label>
+              <input type="number" class="form-control" id="partSellingPrice" min="0" step="0.01" value="0">
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-graph-up-arrow"></i>Margin</label>
+              <div class="form-control" id="partMargin" style="background:#f1f5f9;font-weight:700;color:#16a34a;">₱0 (0%)</div>
+            </div>
+            <div class="mb-3">
+              <label class="rp-form-label"><i class="bi bi-123"></i>Quantity <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="partQty" min="0" value="0">
+            </div>
+            <div class="mb-0">
+              <label class="rp-form-label"><i class="bi bi-bell"></i>Min Stock Level</label>
+              <input type="number" class="form-control" id="partMinStock" min="0" value="3">
+              <small class="text-muted" style="font-size:0.7rem;">Alert when stock falls below this</small>
+            </div>
           </div>
         </div>
       </div>
@@ -298,7 +590,7 @@
 <div class="modal fade rp-modal" id="stockModal" tabindex="-1">
   <div class="modal-dialog modal-md modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header" style="background:linear-gradient(135deg,#065f46,#16a34a);">
+      <div class="modal-header">
         <div class="d-flex align-items-center gap-3">
           <div style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
             <i class="bi bi-arrow-left-right" style="font-size:1.1rem;"></i>
@@ -312,46 +604,49 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="stockPartId">
-        <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0;">
-          <div class="text-center flex-fill">
-            <div style="font-size:0.7rem;color:#64748b;">Current Stock</div>
-            <div style="font-size:1.5rem;font-weight:800;color:#166534;" id="stockCurrentQty">0</div>
+        <div class="rp-form-card">
+          <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-arrow-left-right"></i></div>Stock Adjustment</div>
+          <div class="rp-stock-summary">
+            <div class="text-center flex-fill">
+              <div class="rp-stock-summary-label"><i class="bi bi-box"></i>Current Stock</div>
+              <div class="rp-stock-summary-value" id="stockCurrentQty">0</div>
+            </div>
+            <div class="rp-stock-summary-arrow"><i class="bi bi-arrow-right"></i></div>
+            <div class="text-center flex-fill">
+              <div class="rp-stock-summary-label"><i class="bi bi-box-arrow-in-right"></i>After Adjustment</div>
+              <div class="rp-stock-summary-value after" id="stockAfterQty">0</div>
+            </div>
           </div>
-          <div style="font-size:1.5rem;color:#94a3b8;"><i class="bi bi-arrow-right"></i></div>
-          <div class="text-center flex-fill">
-            <div style="font-size:0.7rem;color:#64748b;">After Adjustment</div>
-            <div style="font-size:1.5rem;font-weight:800;color:#1e293b;" id="stockAfterQty">0</div>
+          <div class="mb-3">
+            <label class="rp-form-label"><i class="bi bi-plus-slash-minus"></i>Adjustment Type</label>
+            <div class="d-flex gap-2">
+              <button class="btn flex-fill fw-semibold rp-stock-toggle" id="stockInBtn" onclick="setStockType('in')" style="border:2px solid #22c55e;background:#f0fdf4;color:#16a34a;">
+                <i class="bi bi-plus-circle me-1"></i>Stock In
+              </button>
+              <button class="btn flex-fill fw-semibold rp-stock-toggle" id="stockOutBtn" onclick="setStockType('out')" style="border:2px solid #e2e8f0;background:#fff;color:#64748b;">
+                <i class="bi bi-dash-circle me-1"></i>Stock Out
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Adjustment Type</label>
-          <div class="d-flex gap-2">
-            <button class="btn flex-fill fw-semibold" id="stockInBtn" onclick="setStockType('in')" style="border:2px solid #22c55e;background:#f0fdf4;color:#16a34a;border-radius:10px;">
-              <i class="bi bi-plus-circle me-1"></i>Stock In
-            </button>
-            <button class="btn flex-fill fw-semibold" id="stockOutBtn" onclick="setStockType('out')" style="border:2px solid #e2e8f0;background:#fff;color:#64748b;border-radius:10px;">
-              <i class="bi bi-dash-circle me-1"></i>Stock Out
-            </button>
+          <div class="mb-3">
+            <label class="rp-form-label"><i class="bi bi-123"></i>Quantity</label>
+            <input type="number" class="form-control" id="stockAdjustQty" min="1" value="1" oninput="updateAfterQty()">
           </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Quantity</label>
-          <input type="number" class="form-control" id="stockAdjustQty" min="1" value="1" style="border-radius:10px;" oninput="updateAfterQty()">
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Reason</label>
-          <select class="form-select" id="stockReason" style="border-radius:10px;">
-            <option value="purchase">New Purchase</option>
-            <option value="return">Customer Return</option>
-            <option value="repair_used">Used in Repair</option>
-            <option value="damaged">Damaged / Defective</option>
-            <option value="adjustment">Inventory Adjustment</option>
-            <option value="transfer">Transfer</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Notes <small class="text-muted">(optional)</small></label>
-          <input type="text" class="form-control" id="stockNotes" placeholder="e.g. PO #12345, Job #WO-001..." style="border-radius:10px;">
+          <div class="mb-3">
+            <label class="rp-form-label"><i class="bi bi-funnel"></i>Reason</label>
+            <select class="form-select" id="stockReason">
+              <option value="purchase">New Purchase</option>
+              <option value="return">Customer Return</option>
+              <option value="repair_used">Used in Repair</option>
+              <option value="damaged">Damaged / Defective</option>
+              <option value="adjustment">Inventory Adjustment</option>
+              <option value="transfer">Transfer</option>
+            </select>
+          </div>
+          <div class="mb-0">
+            <label class="rp-form-label"><i class="bi bi-journal-text"></i>Notes <small class="text-muted">(optional)</small></label>
+            <input type="text" class="form-control" id="stockNotes" placeholder="e.g. PO #12345, Job #WO-001...">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -370,22 +665,40 @@
   let categories = [];
   let selectedCategory = '';
   let stockType = 'in';
+  let currentPage = 1;
+  const partsPerPage = 10;
+  let lastFiltered = [];
+
+  const effectiveClass = (p) => p.inventoryClass || (['equipment', 'tool'].includes(p.type) ? 'operational_asset' : 'merchandise');
 
   // ── Load Parts ────────────────────────────────────────────────────────
   window.loadParts = async function() {
     const tbody = document.getElementById('rpTableBody');
-    tbody.innerHTML = '<tr><td colspan="10"><div class="rp-loading"><div class="spinner-border" role="status"></div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14"><div class="rp-loading"><div class="spinner-border" role="status"></div></div></td></tr>';
     try {
       const res = await fetch('/api/admin/tools', { credentials: 'same-origin' });
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await res.json() : null;
+      if (!res.ok) {
+        throw new Error(data?.error || `Unable to load the parts catalog (HTTP ${res.status})`);
+      }
       allParts = data.items || data.tools || data || [];
       if (Array.isArray(data)) allParts = data;
+      if (!Array.isArray(allParts)) {
+        throw new Error('The parts catalog returned an invalid response.');
+      }
+      console.log('[Parts] Loaded', allParts.length, 'items. Types:', allParts.reduce((acc, p) => { const t = p.type || 'undefined'; acc[t] = (acc[t] || 0) + 1; return acc; }, {}));
       extractCategories();
       renderStats();
+      loadSnapshots();
       renderCatPills();
+      currentPage = 1;
       renderTable();
     } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="10"><div class="rp-empty"><i class="bi bi-exclamation-triangle"></i><p>Failed to load parts</p></div></td></tr>';
+      console.error('[Parts] Load failed:', e);
+      const message = String(e?.message || 'Failed to load parts')
+        .replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+      tbody.innerHTML = `<tr><td colspan="14"><div class="rp-empty"><i class="bi bi-exclamation-triangle"></i><p>${message}</p><button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="loadParts()"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button></div></td></tr>`;
     }
   };
 
@@ -432,13 +745,17 @@
   // ── Render Stats ──────────────────────────────────────────────────────
   function renderStats() {
     const active = allParts.filter(p => p.active !== false);
+    const merchandise = active.filter(p => effectiveClass(p) === 'merchandise');
     const total = active.length;
     const inStock = active.filter(p => p.status === 'in_stock').length;
     const lowStock = active.filter(p => p.status === 'low_stock').length;
     const outOf = active.filter(p => p.status === 'out_of_stock').length;
-    const totalValue = active.reduce((sum, p) => sum + ((p.sellingPrice || 0) * (p.quantity || 0)), 0);
-    const totalCost = active.reduce((sum, p) => sum + ((p.costPrice || 0) * (p.quantity || 0)), 0);
+    const totalValue = merchandise.reduce((sum, p) => sum + ((p.sellingPrice || 0) * (p.quantity || 0)), 0);
+    const totalCost = merchandise.reduce((sum, p) => sum + ((p.costPrice || 0) * (p.quantity || 0)), 0);
     const totalProfit = totalValue - totalCost;
+
+    const pct = (n) => total ? Math.round((n / total) * 100) + '%' : '0%';
+    const marginPct = totalValue > 0 ? Math.round((totalProfit / totalValue) * 100) : 0;
 
     document.getElementById('statTotal').textContent = total;
     document.getElementById('statInStock').textContent = inStock;
@@ -446,6 +763,81 @@
     document.getElementById('statOutOf').textContent = outOf;
     document.getElementById('statValue').textContent = '₱' + totalValue.toLocaleString();
     document.getElementById('statProfit').textContent = '₱' + totalProfit.toLocaleString();
+
+    document.getElementById('statInStockPct').textContent = pct(inStock);
+    document.getElementById('statLowStockPct').textContent = pct(lowStock);
+    document.getElementById('statOutOfPct').textContent = pct(outOf);
+    document.getElementById('statProfitPct').textContent = marginPct + '%';
+
+    document.getElementById('statTotalSub').textContent = total + ' active parts';
+    document.getElementById('statInStockSub').textContent = inStock + ' in stock';
+    document.getElementById('statLowStockSub').textContent = lowStock + ' low stock';
+    document.getElementById('statOutOfSub').textContent = outOf + ' out of stock';
+    document.getElementById('statValueSub').textContent = merchandise.length + ' sellable SKUs only';
+    document.getElementById('statProfitSub').textContent = marginPct + '% merchandise margin';
+  }
+
+  // ── Load & Draw KPI Snapshots ─────────────────────────────────────────
+  function hexToRgba(hex, alpha) {
+    hex = String(hex || '#3b82f6').replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  const _rpSparkCharts = {};
+
+  function drawSpark(id, values, color) {
+    if (typeof Chart === 'undefined') return;
+    const c = document.getElementById(id);
+    if (!c || !values || values.length < 2) { if (c) c.style.display = 'none'; return; }
+    c.style.display = 'block';
+    if (_rpSparkCharts[id]) { _rpSparkCharts[id].destroy(); delete _rpSparkCharts[id]; }
+    c.width = (c.clientWidth || c.parentNode.clientWidth || 300);
+    c.height = (c.clientHeight || 40);
+    const ctx = c.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+    grad.addColorStop(0, hexToRgba(color, 0.2));
+    grad.addColorStop(1, hexToRgba(color, 0));
+    _rpSparkCharts[id] = new Chart(c, {
+      type: 'line',
+      data: { labels: values.map((_, i) => i + 1), datasets: [{ data: values, borderColor: color, backgroundColor: grad, fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0 }] },
+      options: { responsive: false, animation: { duration: 800 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+    });
+  }
+
+  async function waitForChart(timeout = 10000) {
+    if (typeof Chart !== 'undefined') return;
+    if (!document.querySelector('script[src*="chart.js"]')) {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+    const start = Date.now();
+    while (typeof Chart === 'undefined' && Date.now() - start < timeout) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  async function loadSnapshots() {
+    try {
+      await waitForChart();
+      const res = await fetch('/api/inventory/snapshots?days=7', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const snapshots = data.snapshots || [];
+      if (!snapshots.length) return;
+
+      drawSpark('statTotalSpark', snapshots.map(s => s.total), '#3b82f6');
+      drawSpark('statInStockSpark', snapshots.map(s => s.inStock), '#22c55e');
+      drawSpark('statLowStockSpark', snapshots.map(s => s.lowStock), '#f59e0b');
+      drawSpark('statOutOfSpark', snapshots.map(s => s.outOfStock), '#ef4444');
+      drawSpark('statValueSpark', snapshots.map(s => s.totalValue), '#7c3aed');
+      drawSpark('statProfitSpark', snapshots.map(s => s.totalProfit), '#22c55e');
+    } catch (e) { console.error('Snapshot load error:', e); }
   }
 
   // ── Render Category Pills ─────────────────────────────────────────────
@@ -460,6 +852,7 @@
 
   window.filterCategory = function(cat) {
     selectedCategory = cat;
+    currentPage = 1;
     renderCatPills();
     renderTable();
   };
@@ -469,14 +862,20 @@
     const tbody = document.getElementById('rpTableBody');
     const search = document.getElementById('rpSearch').value.toLowerCase();
     const statusFilter = document.getElementById('rpStatusFilter').value;
+    const typeFilter = document.getElementById('rpTypeFilter').value;
+    const classFilter = document.getElementById('rpClassFilter').value;
     const sort = document.getElementById('rpSort').value;
 
     let filtered = allParts.filter(p => {
       if (p.active === false) return false;
       if (selectedCategory && p.category !== selectedCategory) return false;
       if (statusFilter && p.status !== statusFilter) return false;
+      if (typeFilter && (p.type || 'part') !== typeFilter) return false;
+      if (classFilter && effectiveClass(p) !== classFilter) return false;
       if (search) {
-        const haystack = [p.itemName, p.specification, p.supplier, p.barcode, p.category, p.description, p.serialNumber].filter(Boolean).join(' ').toLowerCase();
+        const typeLabels = { equipment: 'equipment', part: 'part', consumable: 'consumable', tool: 'equipment' };
+        const typeLabel = typeLabels[p.type] || 'part';
+        const haystack = [p.itemName, p.specification, p.supplier, p.barcode, p.category, p.description, p.serialNumber, typeLabel].filter(Boolean).join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
       }
       return true;
@@ -491,33 +890,49 @@
       if (typeof aVal === 'number') return (aVal - bVal) * sortDir;
       return String(aVal).localeCompare(String(bVal)) * sortDir;
     });
+    lastFiltered = filtered;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10"><div class="rp-empty"><i class="bi bi-inbox"></i><p>No parts found</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="15"><div class="rp-empty"><i class="bi bi-inbox"></i><p>No inventory items found</p></div></td></tr>';
+      renderPagination(0);
       return;
     }
 
-    tbody.innerHTML = filtered.map(p => {
+    const start = (currentPage - 1) * partsPerPage;
+    const paginated = filtered.slice(start, start + partsPerPage);
+
+    tbody.innerHTML = paginated.map(p => {
       const catClass = (p.category || 'general').toLowerCase().replace(/\s+/g, '');
       const profit = (p.sellingPrice || 0) - (p.costPrice || 0);
       const margin = p.sellingPrice > 0 && p.costPrice > 0 ? Math.round(((p.sellingPrice - p.costPrice) / p.sellingPrice) * 100) : 0;
       const marginClass = margin >= 30 ? 'high' : margin >= 15 ? 'medium' : 'low';
+      const typeLabels = { equipment: 'Equipment', part: 'Repair Part', consumable: 'Consumable', tool: 'Equipment' };
+      const typeClasses = { equipment: 'rp-type-equipment', part: 'rp-type-part', consumable: 'rp-type-consumable', tool: 'rp-type-equipment' };
+      const rawType = p.type || 'part';
+      const typeLabel = typeLabels[rawType] || 'Part';
+      const typeBadgeClass = typeClasses[rawType] || 'rp-type-part';
+      const inventoryClass = effectiveClass(p);
+      const classLabel = inventoryClass === 'operational_asset' ? 'Operational Asset' : 'Merchandise';
 
       return `<tr>
         <td>
           <div class="rp-name">${esc(p.itemName)}</div>
           ${p.specification ? `<div class="rp-spec">${esc(p.specification)}</div>` : ''}
         </td>
+        <td><span class="rp-type-badge ${typeBadgeClass}">${typeLabel}</span></td>
+        <td><span class="rp-class-badge ${inventoryClass}"><i class="bi ${inventoryClass === 'operational_asset' ? 'bi-tools' : 'bi-bag-check'}"></i>${classLabel}</span>${inventoryClass === 'operational_asset' ? `<div class="rp-min-stock mt-1">${esc((p.assetStatus || 'available').replaceAll('_', ' '))}</div>` : ''}</td>
         <td><span class="rp-cat-badge ${catClass}">${esc(p.category || 'General')}</span></td>
         <td>
           <div class="rp-stock ${p.status}"><span class="rp-stock-dot"></span>${p.quantity || 0} ${p.unit || 'pcs'}</div>
           <div class="rp-min-stock">Min: ${p.minStockLevel || 0}</div>
         </td>
+        <td><span class="rp-stock in_stock"><span class="rp-stock-dot"></span>${p.available != null ? p.available : Math.max(0, (p.quantity || 0) - (p.reservedQuantity || 0))} ${p.unit || 'pcs'}</span></td>
+        <td><span class="rp-stock low_stock"><span class="rp-stock-dot"></span>${p.reserved != null ? p.reserved : (p.reservedQuantity || 0)} ${p.unit || 'pcs'}</span></td>
+        <td><span class="rp-stock out_of_stock"><span class="rp-stock-dot"></span>${p.consumed != null ? p.consumed : 0} ${p.unit || 'pcs'}</span></td>
         <td><span class="rp-price-cost">₱${Number(p.costPrice || 0).toLocaleString()}</span></td>
-        <td><span class="rp-price">₱${Number(p.sellingPrice || 0).toLocaleString()}</span></td>
+        <td>${inventoryClass === 'merchandise' ? `<span class="rp-price">₱${Number(p.sellingPrice || 0).toLocaleString()}</span>` : '<span class="text-muted">Not sellable</span>'}</td>
         <td>
-          <span class="rp-profit">₱${profit.toLocaleString()}</span>
-          ${profit > 0 ? `<br><span class="rp-profit-margin ${marginClass}">${margin}%</span>` : ''}
+          ${inventoryClass === 'merchandise' ? `<span class="rp-profit">₱${profit.toLocaleString()}</span>${profit > 0 ? `<br><span class="rp-profit-margin ${marginClass}">${margin}%</span>` : ''}` : '<span class="text-muted">N/A</span>'}
         </td>
         <td>${esc(p.supplier || '-')}</td>
         <td><span class="rp-barcode">${esc(p.serialNumber || '-')}</span></td>
@@ -531,12 +946,66 @@
         </td>
       </tr>`;
     }).join('');
+    renderPagination(filtered.length);
   }
 
+  // ── Pagination ─────────────────────────────────────────────────────────
+  function renderPagination(total) {
+    const info = document.getElementById('rpPaginationInfo');
+    const nav = document.getElementById('rpPagination');
+    if (!info || !nav) return;
+
+    if (total === 0) {
+      info.textContent = 'Showing 0 of 0';
+      nav.innerHTML = '';
+      return;
+    }
+
+    const totalPages = Math.ceil(total / partsPerPage);
+    const start = (currentPage - 1) * partsPerPage + 1;
+    const end = Math.min(currentPage * partsPerPage, total);
+    info.textContent = `Showing ${start}-${end} of ${total} parts`;
+
+    if (totalPages <= 1) {
+      nav.innerHTML = '';
+      return;
+    }
+
+    let html = '<li class="page-item' + (currentPage === 1 ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage - 1) + '); return false;">&laquo;</a></li>';
+    for (let i = 1; i <= totalPages; i++) {
+      html += '<li class="page-item' + (i === currentPage ? ' active' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + i + '); return false;">' + i + '</a></li>';
+    }
+    html += '<li class="page-item' + (currentPage === totalPages ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage + 1) + '); return false;">&raquo;</a></li>';
+    nav.innerHTML = html;
+  }
+
+  function goToPage(page) {
+    const totalPages = Math.max(1, Math.ceil(lastFiltered.length / partsPerPage));
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    renderTable();
+  }
+
+  window.goToPage = goToPage;
+
+  // Expose renderTable for inline filter button
+  window.renderTable = renderTable;
+  window.applyFilters = function() { currentPage = 1; renderTable(); };
+
   // ── Event Listeners ───────────────────────────────────────────────────
-  document.getElementById('rpSearch').addEventListener('input', renderTable);
-  document.getElementById('rpStatusFilter').addEventListener('change', renderTable);
-  document.getElementById('rpSort').addEventListener('change', renderTable);
+  document.getElementById('rpSearch').addEventListener('input', () => { currentPage = 1; renderTable(); });
+  document.getElementById('rpStatusFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
+  document.getElementById('rpClassFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
+  document.getElementById('rpTypeFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
+  document.getElementById('rpSort').addEventListener('change', () => { currentPage = 1; renderTable(); });
+
+  window.updateInventoryClassForm = function() {
+    const inventoryClass = document.querySelector('input[name="partInventoryClass"]:checked')?.value || 'merchandise';
+    const operational = inventoryClass === 'operational_asset';
+    document.getElementById('assetFields').hidden = !operational;
+    document.getElementById('partSellingPrice').closest('.mb-3').hidden = operational;
+    document.getElementById('partMargin').closest('.mb-3').hidden = operational;
+    if (operational) document.getElementById('partSellingPrice').value = '0';
+  };
 
   // ── Margin Calculator ─────────────────────────────────────────────────
   ['partCostPrice', 'partSellingPrice'].forEach(id => {
@@ -558,12 +1027,20 @@
     document.getElementById('partModalSub').textContent = 'Fill in the item details below';
     document.getElementById('partSaveBtn').innerHTML = '<i class="bi bi-plus-lg me-1"></i>Add Item';
     ['partName','partSpec','partSupplier','partDesc','partSerialNumber'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('partType').value = 'part';
     document.getElementById('partUnit').value = 'pcs';
     document.getElementById('partCategory').value = 'General';
     document.getElementById('partCostPrice').value = '0';
     document.getElementById('partSellingPrice').value = '0';
     document.getElementById('partQty').value = '0';
     document.getElementById('partMinStock').value = '3';
+    document.querySelector('input[name="partInventoryClass"][value="merchandise"]').checked = true;
+    document.getElementById('partAssetCode').value = '';
+    document.getElementById('partAssetCondition').value = 'good';
+    document.getElementById('partAssetStatus').value = 'available';
+    document.getElementById('partMaintenanceInterval').value = '180';
+    document.getElementById('partAssignable').checked = true;
+    updateInventoryClassForm();
     document.getElementById('partMargin').textContent = '₱0 (0%)';
     new bootstrap.Modal(document.getElementById('partModal')).show();
   };
@@ -577,6 +1054,7 @@
     document.getElementById('partModalSub').textContent = p.itemName;
     document.getElementById('partSaveBtn').innerHTML = '<i class="bi bi-check-lg me-1"></i>Update Item';
     document.getElementById('partName').value = p.itemName || '';
+    document.getElementById('partType').value = (p.type === 'tool' ? 'equipment' : p.type) || 'part';
     document.getElementById('partUnit').value = p.unit || 'pcs';
     document.getElementById('partCategory').value = p.category || 'General';
     document.getElementById('partSpec').value = p.specification || '';
@@ -587,6 +1065,14 @@
     document.getElementById('partSupplier').value = p.supplier || '';
     document.getElementById('partSerialNumber').value = p.serialNumber || '';
     document.getElementById('partDesc').value = p.description || '';
+    const inventoryClass = effectiveClass(p);
+    document.querySelector(`input[name="partInventoryClass"][value="${inventoryClass}"]`).checked = true;
+    document.getElementById('partAssetCode').value = p.assetCode || '';
+    document.getElementById('partAssetCondition').value = p.assetCondition || 'good';
+    document.getElementById('partAssetStatus').value = p.assetStatus || 'available';
+    document.getElementById('partMaintenanceInterval').value = p.maintenanceIntervalDays ?? 180;
+    document.getElementById('partAssignable').checked = p.assignable !== false;
+    updateInventoryClassForm();
     document.getElementById('partMargin').dispatchEvent(new Event('input'));
     new bootstrap.Modal(document.getElementById('partModal')).show();
   };
@@ -596,10 +1082,12 @@
   window.savePart = async function() {
     const id = document.getElementById('partEditId').value;
     const name = document.getElementById('partName').value.trim();
-    if (!name) { Swal.fire('Required', 'Part name is required.', 'warning'); return; }
+    if (!name) { Swal.fire({ icon: 'warning', title: 'Required', text: 'Part name is required.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK' }); return; }
 
     const body = {
       itemName: name,
+      inventoryClass: document.querySelector('input[name="partInventoryClass"]:checked')?.value || 'merchandise',
+      type: document.getElementById('partType').value,
       unit: document.getElementById('partUnit').value,
       category: document.getElementById('partCategory').value,
       specification: document.getElementById('partSpec').value.trim(),
@@ -610,6 +1098,11 @@
       supplier: document.getElementById('partSupplier').value.trim(),
       serialNumber: document.getElementById('partSerialNumber').value.trim(),
       description: document.getElementById('partDesc').value.trim(),
+      assetCode: document.getElementById('partAssetCode').value.trim() || null,
+      assetCondition: document.getElementById('partAssetCondition').value,
+      assetStatus: document.getElementById('partAssetStatus').value,
+      maintenanceIntervalDays: parseInt(document.getElementById('partMaintenanceInterval').value) || 0,
+      assignable: document.getElementById('partAssignable').checked,
       isStockItem: true,
       active: true,
     };
@@ -631,16 +1124,16 @@
       if (res.ok) {
         _procurePartSaved = true;
         bootstrap.Modal.getInstance(document.getElementById('partModal'))?.hide();
-        Swal.fire({ icon: 'success', title: id ? 'Part Updated' : 'Part Added', text: name, timer: 2000, showConfirmButton: false });
+        showRpToast(`${id ? 'Updated' : 'Added'}: ${name}`, 'success');
         await loadParts();
         if (_procureBookingId && _currentProcurePart && data.tool) {
           await window.linkProcuredPart(_procureBookingId, data.tool._id, _currentProcurePart.name || data.tool.itemName, data.tool.quantity);
         }
       } else {
-        Swal.fire('Error', data.error || 'Failed to save.', 'error');
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to save.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
       }
     } catch (e) {
-      Swal.fire('Error', 'Network error.', 'error');
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
     }
     btn.disabled = false;
     btn.innerHTML = id ? '<i class="bi bi-check-lg me-1"></i>Update Item' : '<i class="bi bi-plus-lg me-1"></i>Add Item';
@@ -650,26 +1143,115 @@
   window.deletePart = async function(id) {
     const p = allParts.find(x => x._id === id);
     if (!p) return;
-    const result = await Swal.fire({
-      title: 'Delete Item?',
-      html: `<strong>${esc(p.itemName)}</strong><br><small style="color:#64748b;">This action cannot be undone.</small>`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      confirmButtonText: 'Delete',
-    });
-    if (!result.isConfirmed) return;
+    const result = await showRpConfirm('Delete Item?', `<div style="font-size:1rem;"><strong>${esc(p.itemName)}</strong><br><small>This action cannot be undone.</small></div>`, 'Delete', 'Cancel', 'warning');
+    if (!result) return;
     try {
       const res = await fetch(`/api/admin/tools/${id}`, { method: 'DELETE', credentials: 'same-origin' });
       if (res.ok) {
-        Swal.fire({ icon: 'success', title: 'Deleted', timer: 1500, showConfirmButton: false });
+        showRpToast('Deleted: ' + p.itemName, 'success');
         loadParts();
       } else {
         const data = await res.json();
-        Swal.fire('Error', data.error || 'Failed to delete.', 'error');
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to delete.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
       }
-    } catch (e) { Swal.fire('Error', 'Network error.', 'error'); }
+    } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' }); }
   };
+
+  // ── POS-style toast for stock update feedback ─────────────────────────
+  let _rpToastTimer;
+  function createRpToastModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'rpToastModal';
+    overlay.className = 'rp-toast-overlay';
+    overlay.innerHTML = `
+      <div class="rp-toast-modal">
+        <div class="rp-toast-header">
+          <span class="rp-toast-title">Success</span>
+          <button class="rp-toast-close" onclick="closeRpToast()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="rp-toast-body">
+          <div class="rp-toast-icon success"><i class="bi bi-check-circle-fill"></i></div>
+          <p class="rp-toast-message"></p>
+          <button class="rp-toast-ok" onclick="closeRpToast()">OK</button>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeRpToast(); });
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function showRpToast(msg, type = 'info') {
+    let overlay = document.getElementById('rpToastModal');
+    if (!overlay) overlay = createRpToastModal();
+    const titleMap = { success: 'Success', error: 'Error', warning: 'Warning', info: 'Info' };
+    const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+    const typeClass = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+    const t = titleMap[type] ? type : 'info';
+    overlay.querySelector('.rp-toast-title').textContent = titleMap[t];
+    overlay.querySelector('.rp-toast-icon').className = `rp-toast-icon ${typeClass[t]}`;
+    overlay.querySelector('.rp-toast-icon i').className = `bi ${iconMap[t]}`;
+    overlay.querySelector('.rp-toast-message').textContent = msg;
+    overlay.classList.add('show');
+    if (_rpToastTimer) clearTimeout(_rpToastTimer);
+    _rpToastTimer = setTimeout(() => closeRpToast(), 2500);
+  }
+
+  function closeRpToast() {
+    const overlay = document.getElementById('rpToastModal');
+    if (overlay) overlay.classList.remove('show');
+    if (_rpToastTimer) clearTimeout(_rpToastTimer);
+  }
+
+  let _rpConfirmResolve;
+  function showRpConfirm(title, message, confirmText, cancelText, type = 'warning') {
+    return new Promise((resolve) => {
+      _rpConfirmResolve = resolve;
+      let overlay = document.getElementById('rpConfirmModal');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'rpConfirmModal';
+        overlay.className = 'rp-confirm-overlay';
+        overlay.innerHTML = `
+          <div class="rp-confirm-modal">
+            <div class="rp-confirm-header">
+              <span class="rp-confirm-title"></span>
+              <button class="rp-confirm-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="rp-confirm-body">
+              <div class="rp-confirm-icon"><i class="bi"></i></div>
+              <div class="rp-confirm-message"></div>
+              <div class="rp-confirm-actions">
+                <button class="rp-confirm-cancel"></button>
+                <button class="rp-confirm-delete"></button>
+              </div>
+            </div>
+          </div>
+        `;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeRpConfirm(false); });
+        overlay.querySelector('.rp-confirm-close').addEventListener('click', () => closeRpConfirm(false));
+        document.body.appendChild(overlay);
+      }
+      const typeMap = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+      const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+      const t = typeMap[type] ? type : 'warning';
+      overlay.querySelector('.rp-confirm-title').textContent = title;
+      overlay.querySelector('.rp-confirm-icon').className = `rp-confirm-icon ${t}`;
+      overlay.querySelector('.rp-confirm-icon i').className = `bi ${iconMap[t]}`;
+      overlay.querySelector('.rp-confirm-message').innerHTML = message;
+      overlay.querySelector('.rp-confirm-cancel').textContent = cancelText || 'Cancel';
+      overlay.querySelector('.rp-confirm-delete').textContent = confirmText || 'Delete';
+      overlay.querySelector('.rp-confirm-cancel').onclick = () => closeRpConfirm(false);
+      overlay.querySelector('.rp-confirm-delete').onclick = () => closeRpConfirm(true);
+      overlay.classList.add('show');
+    });
+  }
+
+  function closeRpConfirm(value) {
+    const overlay = document.getElementById('rpConfirmModal');
+    if (overlay) overlay.classList.remove('show');
+    if (_rpConfirmResolve) { _rpConfirmResolve(value); _rpConfirmResolve = null; }
+  }
 
   // ── Stock Adjustment Modal ────────────────────────────────────────────
   window.openStockModal = function(id) {
@@ -715,7 +1297,7 @@
   window.submitStockAdjustment = async function() {
     const partId = document.getElementById('stockPartId').value;
     const qty = parseInt(document.getElementById('stockAdjustQty').value) || 0;
-    if (qty <= 0) { Swal.fire('Required', 'Enter a quantity.', 'warning'); return; }
+    if (qty <= 0) { Swal.fire({ icon: 'warning', title: 'Required', text: 'Enter a quantity.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#f59e0b' }); return; }
 
     const reason = document.getElementById('stockReason').value;
     const notes = document.getElementById('stockNotes').value.trim();
@@ -737,16 +1319,16 @@
         const t = data.tool;
         _procureStockAdjusted = true;
         bootstrap.Modal.getInstance(document.getElementById('stockModal'))?.hide();
-        Swal.fire({ icon: 'success', title: 'Stock Updated', text: `${stockType === 'in' ? '+' : '-'}${qty} → ${t.quantity} ${t.unit || 'pcs'}`, timer: 2000, showConfirmButton: false });
+        showRpToast(`${stockType === 'in' ? '+' : '-'}${qty} → ${t.quantity} ${t.unit || 'pcs'}`, 'success');
         await loadParts();
         if (_procureBookingId && _currentProcurePart && t) {
           await window.linkProcuredPart(_procureBookingId, t._id, _currentProcurePart.name || t.itemName, t.quantity);
         }
       } else {
         const data = await res.json();
-        Swal.fire('Error', data.error || 'Failed.', 'error');
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
       }
-    } catch (e) { Swal.fire('Error', 'Network error.', 'error'); }
+    } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' }); }
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirm Adjustment'; }
   };
 
@@ -759,6 +1341,7 @@
   let _procureQueue = [];
   let _currentProcurePart = null;
   let _procureProcessing = false;
+  let _procureFinalizing = false;
 
   // ── Project-procure mode ──────────────────────────────────────────────
   let _procureProjectId = null;
@@ -805,6 +1388,12 @@
     document.getElementById('partDesc').value = _procureProjectId
       ? `Reserved resource for project ${_procureProjectId}`
       : `Needed for repair service${_procureBookingId ? ` (Booking: ${_procureBookingId})` : ''}`;
+    document.getElementById('partType').value = 'part';
+    const merchandiseClass = document.querySelector('input[name="partInventoryClass"][value="merchandise"]');
+    if (merchandiseClass) merchandiseClass.checked = true;
+    document.getElementById('partAssetCode').value = '';
+    document.getElementById('partSerialNumber').value = '';
+    updateInventoryClassForm();
     document.getElementById('partMargin').dispatchEvent(new Event('input'));
     new bootstrap.Modal(document.getElementById('partModal')).show();
   }
@@ -821,7 +1410,7 @@
         banner.innerHTML = `
           <i class="bi bi-check-circle-fill" style="font-size:1.2rem;color:#16a34a;"></i>
           <div style="flex:1;">
-            <div style="font-weight:700;color:#166534;font-size:0.85rem;">Procurement Items Processed</div>
+            <div style="font-weight:600;color:#166534;font-size:0.85rem;">Procurement Items Processed</div>
             <div style="font-size:0.78rem;color:#16a34a;" id="procureFinalMsg">${isProject ? 'Items checked. Click below when ready to return to your project.' : 'Reserving stock and updating booking...'}</div>
           </div>
           <button class="btn btn-sm btn-primary fw-semibold" id="returnToQueueBtn" onclick="${returnAction}" style="border-radius:8px;">
@@ -830,6 +1419,10 @@
         `;
         banner.style.background = '#f0fdf4';
         banner.style.borderColor = '#bbf7d0';
+      }
+      if (!_procureProjectId && _procureBookingId && !_procureFinalizing) {
+        _procureFinalizing = true;
+        setTimeout(window.finalizeProcurement, 150);
       }
     }
   }
@@ -854,7 +1447,7 @@
           _procureQueue.unshift(part);
           _procureProcessing = false;
           updateProcureBanner();
-          Swal.fire({ icon: 'warning', title: 'Part Skipped', html: '<strong>' + esc(part.name) + '</strong> was not added to inventory.<br>The procurement queue will wait for this part.', confirmButtonText: 'Re-open Form', showCancelButton: true, cancelButtonText: 'Skip for Now' }).then(result => {
+          Swal.fire({ icon: 'warning', title: 'Part Skipped', html: '<strong>' + esc(part.name) + '</strong> was not added to inventory.<br>The procurement queue will wait for this part.', confirmButtonText: '<i class="bi bi-arrow-repeat"></i> Re-open Form', showCancelButton: true, cancelButtonText: '<i class="bi bi-x-lg"></i> Skip for Now', confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b', iconColor: '#f59e0b', reverseButtons: true }).then(result => {
             if (result.isConfirmed) { processNextProcure(); } else { _procureProcessing = false; processNextProcure(); }
           });
         } else { _procureProcessing = false; processNextProcure(); }
@@ -875,7 +1468,7 @@
         document.getElementById('stockModal').removeEventListener('hidden.bs.modal', onStockModalClose);
         if (!_procureStockAdjusted) {
           _procureQueue.unshift(part); _procureProcessing = false; updateProcureBanner();
-          Swal.fire({ icon: 'warning', title: 'Stock Not Adjusted', html: '<strong>' + esc(part.name) + '</strong> stock was not updated.<br>Current: ' + (existing.quantity || 0) + ', Needed: ' + neededQty, confirmButtonText: 'Re-open Adjustment', showCancelButton: true, cancelButtonText: 'Skip for Now' }).then(result => {
+          Swal.fire({ icon: 'warning', title: 'Stock Not Adjusted', html: '<strong>' + esc(part.name) + '</strong> stock was not updated.<br>Current: ' + (existing.quantity || 0) + ', Needed: ' + neededQty, confirmButtonText: '<i class="bi bi-arrow-repeat"></i> Re-open Adjustment', showCancelButton: true, cancelButtonText: '<i class="bi bi-x-lg"></i> Skip for Now', confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b', iconColor: '#f59e0b', reverseButtons: true }).then(result => {
             if (result.isConfirmed) { processNextProcure(); } else { _procureProcessing = false; processNextProcure(); }
           });
         } else { _procureProcessing = false; processNextProcure(); }
@@ -903,6 +1496,7 @@
 
   // ── Finalize Procurement ──────────────────────────────────────────────
   window.finalizeProcurement = async function() {
+    _procureFinalizing = true;
     const btn = document.getElementById('returnToQueueBtn');
     const msg = document.getElementById('procureFinalMsg');
     if (btn) btn.disabled = true;
@@ -932,11 +1526,18 @@
         });
         data = await res.json();
         if (res.ok) {
+          const isAiPreparation = data.workflowPhase === 'phase_1_ai_preparation';
           if (msg) msg.textContent = data.allReady
-            ? 'Stock reserved. Redirecting back to scheduling queue...'
-            : 'Parts request created. Redirecting back to scheduling queue...';
+            ? (isAiPreparation
+                ? 'Stock reserved. Returning to Repair Parts & Scheduling; the technician workflow is ready to continue...'
+                : 'Stock reserved. Returning to Repair Parts & Scheduling for phase 2...')
+            : 'Some parts still require procurement. Returning to Repair Parts & Scheduling...';
           if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Redirecting...'; }
-          setTimeout(() => { window.location.href = '/admin/appointments/repair-scheduling'; }, 1500);
+          // Replace the procurement URL so Back does not reopen the completed
+          // stock-adjustment flow and accidentally process the same part again.
+          setTimeout(() => {
+            window.location.replace('/admin/appointments/repair-scheduling');
+          }, 700);
         } else {
           if (msg) msg.textContent = 'Error: ' + (data.error || 'Failed to finalize');
           if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-left me-1"></i>Try Again'; }
@@ -999,7 +1600,7 @@
         banner.innerHTML = `
           <i class="bi bi-box-seam" style="font-size:1.2rem;color:#2563eb;"></i>
           <div style="flex:1;">
-            <div style="font-weight:700;color:#1e40af;font-size:0.85rem;">Procuring Resources for Project</div>
+            <div style="font-weight:600;color:#1e40af;font-size:0.85rem;">Procuring Resources for Project</div>
             <div style="font-size:0.78rem;color:#1e40af;">
               <span id="procureCount">${materials.length}</span> resource(s) need to be added to inventory.
               Missing parts will auto-open the Add Part form.
@@ -1030,7 +1631,7 @@
         banner.innerHTML = `
           <i class="bi bi-truck" style="font-size:1.2rem;color:#b45309;"></i>
           <div style="flex:1;">
-            <div style="font-weight:700;color:#92400e;font-size:0.85rem;">Procuring Parts for Booking</div>
+            <div style="font-weight:600;color:#92400e;font-size:0.85rem;">Procuring Parts for Booking</div>
             <div style="font-size:0.78rem;color:#92400e;">
               <span id="procureCount">${parts.length}</span> part(s) need to be added to inventory.
               Missing parts will auto-open the Add Part form.
@@ -1042,6 +1643,9 @@
         `;
         container.insertBefore(banner, container.firstChild);
         setTimeout(processNextProcure, 500);
+      } else if (parts) {
+        _procureFinalizing = true;
+        window.finalizeProcurement();
       }
     });
   } else {

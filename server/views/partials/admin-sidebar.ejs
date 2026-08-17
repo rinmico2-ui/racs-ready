@@ -96,7 +96,6 @@
         <span class="nav-label">Dashboard</span>
       </a>
     </li>
-
     <!-- ═══ OPERATIONS ═══ -->
     <div class="nav-section">
       <span class="section-label">Operations</span>
@@ -114,16 +113,38 @@
       </button>
       <div class="collapse" id="appointment-mgmt-collapse">
         <ul class="btn-toggle-nav list-unstyled">
+          <!-- Core Management -->
+          <li style="padding-top: 8px; padding-bottom: 4px; margin-left: 12px;">
+            <span style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Core</span>
+          </li>
           <li>
             <a href="/admin/appointments" class="nav-link">
               <i class="bi bi-grid-3x3-gap nav-icon"></i>
-              <span class="nav-label">All Bookings</span>
+              <span class="nav-label">Bookings</span>
               <span class="nav-badge badge bg-primary ms-auto" id="appointmentsBadge" style="display:none;">0</span>
             </a>
           </li>
-          <li><a href="/admin/appointments/orders" class="nav-link"><i class="bi bi-receipt nav-icon"></i><span class="nav-label">All Orders</span></a></li>
+          <li><a href="/admin/appointments/orders" class="nav-link"><i class="bi bi-receipt nav-icon"></i><span class="nav-label">Orders</span></a></li>
+          
+          <!-- Planning & Scheduling -->
+          <li style="padding-top: 12px; padding-bottom: 4px; margin-left: 12px; margin-top: 8px; border-top: 1px solid rgba(37, 99, 235, 0.08);">
+            <span style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Planning</span>
+          </li>
           <li><a href="/admin/appointments/calendar" class="nav-link"><i class="bi bi-calendar3 nav-icon"></i><span class="nav-label">Calendar</span></a></li>
           <li><a href="/admin/appointments/walk-in" class="nav-link"><i class="bi bi-person-plus nav-icon"></i><span class="nav-label">Walk-in</span></a></li>
+          <li><a href="/admin/appointments/reschedule" class="nav-link"><i class="bi bi-arrow-repeat nav-icon"></i><span class="nav-label">Reschedule</span></a></li>
+          
+          <!-- Operations & Resources -->
+          <li style="padding-top: 12px; padding-bottom: 4px; margin-left: 12px; margin-top: 8px; border-top: 1px solid rgba(37, 99, 235, 0.08);">
+            <span style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Operations</span>
+          </li>
+          <li>
+            <a href="/admin/appointments/repair-scheduling" class="nav-link">
+              <i class="bi bi-wrench nav-icon"></i>
+              <span class="nav-label">Repair &amp; Scheduling</span>
+              <span class="nav-badge badge bg-purple ms-auto" id="repairSchedBadge" style="display:none;background:#7c3aed !important;color:#fff !important;">0</span>
+            </a>
+          </li>
           <li>
             <a href="/admin/appointments/expenses" class="nav-link">
               <i class="bi bi-receipt nav-icon"></i>
@@ -132,13 +153,24 @@
             </a>
           </li>
           <li>
-            <a href="/admin/appointments/repair-scheduling" class="nav-link">
-              <i class="bi bi-wrench nav-icon"></i>
-              <span class="nav-label">Repair Scheduling</span>
-              <span class="nav-badge badge bg-purple ms-auto" id="repairSchedBadge" style="display:none;background:#7c3aed !important;color:#fff !important;">0</span>
+            <a href="/admin/projects" class="nav-link">
+              <i class="bi bi-building nav-icon"></i>
+              <span class="nav-label">Projects</span>
+              <span class="nav-badge badge bg-indigo ms-auto" id="projectsBadge" style="display:none;background:#6366f1 !important;color:#fff !important;">0</span>
             </a>
           </li>
-          <li><a href="/admin/appointments/reschedule" class="nav-link"><i class="bi bi-arrow-repeat nav-icon"></i><span class="nav-label">Reschedule</span></a></li>
+          
+          <!-- Monitoring & Compliance -->
+          <li style="padding-top: 12px; padding-bottom: 4px; margin-left: 12px; margin-top: 8px; border-top: 1px solid rgba(37, 99, 235, 0.08);">
+            <span style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Monitoring</span>
+          </li>
+          <li>
+            <a href="/admin/appointments/attention" class="nav-link">
+              <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+              <span class="nav-label">Attention Required</span>
+              <span class="nav-badge badge bg-warning text-dark ms-auto" id="attentionBadge" style="display:none;">0</span>
+            </a>
+          </li>
           <li>
             <a href="/admin/appointments/cancellation-log" class="nav-link">
               <i class="bi bi-clock-history nav-icon"></i>
@@ -148,15 +180,6 @@
           </li>
         </ul>
       </div>
-    </li>
-
-    <!-- Projects -->
-    <li class="nav-item">
-      <a href="/admin/projects" class="nav-link">
-        <i class="bi bi-building nav-icon"></i>
-        <span class="nav-label">Projects</span>
-        <span class="nav-badge badge bg-indigo ms-auto" id="projectsBadge" style="display:none;background:#6366f1 !important;color:#fff !important;">0</span>
-      </a>
     </li>
 
     <!-- Services -->
@@ -170,7 +193,7 @@
       <div class="collapse" id="services-collapse">
         <ul class="btn-toggle-nav list-unstyled">
           <li><a href="/admin/services/core" class="nav-link"><i class="bi bi-gear nav-icon"></i><span class="nav-label">Core Services</span></a></li>
-          <li><a href="/admin/services/repair" class="nav-link"><i class="bi bi-wrench nav-icon"></i><span class="nav-label">Repair Services</span></a></li>
+          <li><a href="/admin/services/service-categories" class="nav-link"><i class="bi bi-grid-3x3-gap nav-icon"></i><span class="nav-label">Repair</span></a></li>
         </ul>
       </div>
     </li>
@@ -246,48 +269,29 @@
       </div>
     </li>
 
+    <!-- ═══ FINANCE ═══ -->
+    <div class="nav-section">
+      <span class="section-label">Finance</span>
+      <span class="section-line"></span>
+    </div>
+    <li class="nav-item"><a href="/admin/payments" class="nav-link"><i class="bi bi-credit-card nav-icon"></i><span class="nav-label">Payments</span></a></li>
+    <li class="nav-item"><a href="/admin/payments/remittance" class="nav-link"><i class="bi bi-cash-stack nav-icon"></i><span class="nav-label">Payment Remittance</span></a></li>
+    <li class="nav-item"><a href="/admin/payroll" class="nav-link"><i class="bi bi-wallet2 nav-icon"></i><span class="nav-label">Payroll</span></a></li>
+    <li class="nav-item"><a href="/admin/refunds" class="nav-link"><i class="bi bi-arrow-counterclockwise nav-icon"></i><span class="nav-label">Refunds</span></a></li>
+    <li class="nav-item"><a href="/admin/invoices" class="nav-link"><i class="bi bi-receipt-cutoff nav-icon"></i><span class="nav-label">Invoices</span></a></li>
+
     <!-- ═══ ANALYTICS ═══ -->
     <div class="nav-section">
       <span class="section-label">Analytics</span>
       <span class="section-line"></span>
     </div>
 
-    <!-- Reports -->
-    <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#reports-collapse"
-        aria-expanded="false">
-        <i class="bi bi-bar-chart-line nav-icon"></i>
-        <span class="nav-label">Reports</span>
-        <i class="bi bi-chevron-down ms-auto"></i>
-      </button>
-      <div class="collapse" id="reports-collapse">
-        <ul class="btn-toggle-nav list-unstyled">
-          <li><a href="/admin/reports/service" class="nav-link"><i class="bi bi-bar-chart nav-icon"></i><span class="nav-label">Service Reports</span></a></li>
-          <li><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Inventory Reports</span></a></li>
-          <li><a href="/admin/reports/revenue" class="nav-link"><i class="bi bi-currency-dollar nav-icon"></i><span class="nav-label">Revenue Reports</span></a></li>
-        </ul>
-      </div>
-    </li>
-
-    <!-- Reviews & Ratings -->
-    <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#ratings-collapse"
-        aria-expanded="false">
-        <i class="bi bi-star-half nav-icon"></i>
-        <span class="nav-label">Reviews &amp; Ratings</span>
-        <span class="nav-badge badge bg-warning text-dark" id="ratingsCount" style="display:none;">0</span>
-        <i class="bi bi-chevron-down ms-auto"></i>
-      </button>
-      <div class="collapse" id="ratings-collapse">
-        <ul class="btn-toggle-nav list-unstyled">
-          <li><a href="/admin/ratings/overview" class="nav-link"><i class="bi bi-graph-up nav-icon"></i><span class="nav-label">Overview</span></a></li>
-          <li><a href="/admin/ratings/service" class="nav-link"><i class="bi bi-wrench-adjustable nav-icon"></i><span class="nav-label">Service Ratings</span></a></li>
-          <li><a href="/admin/ratings/aircons" class="nav-link"><i class="bi bi-snow2 nav-icon"></i><span class="nav-label">Aircon Ratings</span></a></li>
-          <li><a href="/admin/ratings/technicians" class="nav-link"><i class="bi bi-person-workspace nav-icon"></i><span class="nav-label">Technician Ratings</span></a></li>
-          <li><a href="/admin/ratings/analytics" class="nav-link"><i class="bi bi-bar-chart-line nav-icon"></i><span class="nav-label">Analytics</span></a></li>
-        </ul>
-      </div>
-    </li>
+    <li class="nav-item"><a href="/admin/reports/revenue" class="nav-link"><i class="bi bi-currency-dollar nav-icon"></i><span class="nav-label">Revenue</span></a></li>
+    <li class="nav-item"><a href="/admin/reports/service" class="nav-link"><i class="bi bi-wrench-adjustable nav-icon"></i><span class="nav-label">Services</span></a></li>
+    <li class="nav-item"><a href="/admin/reports/orders" class="nav-link"><i class="bi bi-bag-check nav-icon"></i><span class="nav-label">Orders</span></a></li>
+    <li class="nav-item"><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Inventory</span></a></li>
+    <li class="nav-item"><a href="/admin/ratings/service" class="nav-link"><i class="bi bi-star-half nav-icon"></i><span class="nav-label">Customer Ratings</span></a></li>
+    <li class="nav-item"><a href="/admin/ratings/technicians" class="nav-link"><i class="bi bi-person-workspace nav-icon"></i><span class="nav-label">Technician Ratings</span></a></li>
 
     <!-- ═══ SYSTEM ═══ -->
     <div class="nav-section">
@@ -322,14 +326,16 @@
       </a>
     </li>
 
-    <!-- System Logs -->
+    <!-- Audit Trail -->
     <li class="nav-item">
-      <a href="/admin/logs" class="nav-link">
-        <i class="bi bi-file-text nav-icon"></i>
-        <span class="nav-label">System Logs</span>
+      <a href="/admin/audit-trail" class="nav-link">
+        <i class="bi bi-clipboard2-check nav-icon"></i>
+        <span class="nav-label">Audit Trail</span>
+        <span class="nav-badge badge bg-primary ms-auto" id="auditTodayBadge" style="display:none;">0</span>
       </a>
     </li>
-  </ul>
+
+    </ul>
 
   <!-- Footer Profile -->
   <div class="sidebar-footer">
@@ -353,6 +359,7 @@
             { id: 'expensesBadge', key: 'pendingExpenses' },
             { id: 'escalatedBadge', key: 'escalatedBookings' },
             { id: 'leavesBadge', key: 'pendingLeaveRequests' },
+            { id: 'auditTodayBadge', key: 'auditToday' },
           ];
 
           // Combined appointments badge (pending + queue + active)

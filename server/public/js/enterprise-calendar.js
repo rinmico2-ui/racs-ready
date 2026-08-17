@@ -20,6 +20,7 @@ const EnterpriseCalendar = (() => {
   let _projectsData = []; // active commercial-project bars
   let _projectCapacityData = null; // per-date tech capacity for project mode
   let _serviceId = null;
+  let _technicianId = null;
   let _duration = 90;
   let _quantity = 1;
   let _onSelectCb = null;
@@ -72,9 +73,16 @@ const EnterpriseCalendar = (() => {
 
   async function init(opts = {}) {
     _serviceId = opts.serviceId;
+    _technicianId = opts.technicianId || null;
     _duration = opts.duration || 90;
-    _quantity = Math.max(1, Number(opts.quantity) || 1);
+    // Project classification is based on the total units in the complete
+    // Core + Repair request, not only the last service card opened.
+    _quantity = Math.min(40, Math.max(1, Number(opts.quantity) || 1, getCustomerUnitTotal()));
     _onSelectCb = typeof opts.onSelect === 'function' ? opts.onSelect : null;
+    if (opts.resetSelection === true) {
+      _selectedDate = null;
+      _selectedSlot = null;
+    }
     if (typeof opts.nextStep === 'number') _nextStep = opts.nextStep;
     _currentMonth = new Date();
     _currentMonth.setDate(1);
@@ -530,8 +538,17 @@ const EnterpriseCalendar = (() => {
         return;
       }
 
-      const WORK_START = 8 * 60;  // 8:00 AM
-      const WORK_END = 19 * 60;   // 7:00 PM (includes overtime)
+      // Fetch working hours from admin-configured schedules
+      let WORK_START = 8 * 60;
+      let WORK_END = 19 * 60;
+      try {
+        const whResp = await fetch('/api/schedule/working-hours', { cache: 'no-store' });
+        if (whResp.ok) {
+          const wh = await whResp.json();
+          WORK_START = wh.startMinutes || WORK_START;
+          WORK_END = wh.endMinutes || WORK_END;
+        }
+      } catch (_) { /* keep defaults */ }
       const SLOT_INTERVAL = 30;   // 30-minute intervals
 
       const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
@@ -549,7 +566,7 @@ const EnterpriseCalendar = (() => {
       const capacityPerSlot = _duration || 90;
 
       const slots = [];
-      for (let slotStart = WORK_START; slotStart + capacityPerSlot <= WORK_END; slotStart += SLOT_INTERVAL) {
+      for (let slotStart = WORK_START; slotStart < WORK_END; slotStart += SLOT_INTERVAL) {
         // Block past time on the current day (respecting advance-notice)
         if (isToday) {
           const cutoff = Math.max(currentMinutes + 30, advanceCutoff);
@@ -579,7 +596,8 @@ const EnterpriseCalendar = (() => {
       if (_serviceId) params.set('serviceId', _serviceId);
       if (_duration) params.set('duration', _duration);
       if (_quantity > 1) params.set('quantity', _quantity);
-      const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`);
+      if (_technicianId) params.set('technicianId', _technicianId);
+      const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`, { cache: 'no-store' });
       if (!resp.ok) return null;
       const data = await resp.json();
 
@@ -610,8 +628,16 @@ const EnterpriseCalendar = (() => {
   }
 
   function timeToMinutes(t) {
-    const [h, m] = t.split(':').map(Number);
-    return h * 60 + m;
+    const match = String(t || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    if (!match) return NaN;
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const period = String(match[3] || '').toUpperCase();
+    if (period) {
+      hours %= 12;
+      if (period === 'PM') hours += 12;
+    }
+    return hours * 60 + minutes;
   }
 
   function renderTimeSlotsUI(container, slots) {
@@ -1144,8 +1170,8 @@ const EnterpriseCalendar = (() => {
 
         <div class="ent-pref-group">
           <label class="ent-pref-label" for="prefTotalUnits">Total Units <span class="text-muted fw-normal">(e.g. rooms, floors, buildings)</span></label>
-          <input type="number" class="form-control form-control-sm" id="prefTotalUnits" min="1" value="${getCustomerUnitTotal()}" style="max-width:240px;border-radius:10px;">
-          <div class="ent-project-prefs-note mt-1">Defaults to the quantity you entered per service. Used to scope the project and auto-scale suggested tools &amp; resources.</div>
+          <input type="number" class="form-control form-control-sm" id="prefTotalUnits" min="8" max="40" value="${Math.min(40, Math.max(8, getCustomerUnitTotal()))}" readonly style="max-width:240px;border-radius:10px;">
+          <div class="ent-project-prefs-note mt-1">Calculated from the quantities entered for all Core and Repair services.</div>
         </div>
 
         <div id="projectPrefsError" class="text-danger small mt-2 d-none"></div>
@@ -1166,7 +1192,7 @@ const EnterpriseCalendar = (() => {
       });
     });
     const units = prefsHost.querySelector('#prefTotalUnits');
-    if (units) units.addEventListener('input', syncProjectSelection);
+    if (units) units.addEventListener('change', syncProjectSelection);
   }
 
   function readProjectPrefs() {
@@ -1185,7 +1211,7 @@ const EnterpriseCalendar = (() => {
     const units = document.getElementById('prefTotalUnits');
     if (units && units.value) {
       const n = parseInt(units.value, 10);
-      prefs.totalUnits = Number.isFinite(n) && n > 0 ? n : 1;
+      prefs.totalUnits = Number.isFinite(n) ? Math.min(40, Math.max(8, n)) : 8;
     }
     return prefs;
   }

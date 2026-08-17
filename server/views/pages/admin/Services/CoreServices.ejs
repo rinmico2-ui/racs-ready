@@ -23,12 +23,14 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     }
 
-    .core-services-page .form-label {
+    .core-services-page .form-label,
+    .core-services-page .modal-label {
       color: #64748b !important;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-      font-size: 0.72rem;
+      font-size: 0.65rem;
+      margin-bottom: 0.25rem;
     }
     .core-services-page .form-control,
     .core-services-page .form-select,
@@ -78,14 +80,14 @@
       font-weight: 600;
     }
     .core-services-page .new-core-service {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: #fff;
-      border: 0;
-      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+      background: #fff;
+      color: #2563eb;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
     .core-services-page .new-core-service:hover {
-      background: linear-gradient(135deg, #1d4ed8, #1e40af);
-      color: #fff;
+      background: #f1f5f9;
+      color: #1d4ed8;
       transform: translateY(-1px);
     }
     .core-services-page .btn.btn-light.border {
@@ -238,156 +240,189 @@
       border: 1px solid #e2e8f0;
       background: #f8fafc !important;
     }
-    .core-services-page .core-hp-panel {
-      border-radius: 14px;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    /* Aircon type cards inside modal */
+    .core-services-page .aircon-type-card {
+      border: 1px solid #e2e8f0 !important;
+      border-left: 4px solid #06b6d4 !important;
+      border-radius: 12px !important;
+      background: #fff !important;
+      box-shadow: 0 4px 16px rgba(15,23,42,0.06) !important;
+      margin-bottom: 16px !important;
       overflow: hidden;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-    }
-    .core-services-page .core-hp-panel .card-header {
-      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-      border-bottom: 1px solid rgba(37, 99, 235, 0.12);
-    }
-    .core-services-page .core-hp-panel-title {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      font-size: 0.92rem;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: -0.01em;
-    }
-    .core-services-page .core-hp-panel-title i {
-      color: #2563eb;
-    }
-    .core-services-page .core-hp-subtext {
-      font-size: 0.76rem;
-      color: #64748b;
-      margin-top: 0.2rem;
     }
     .core-services-page .aircon-type-card .card-header {
-      padding: 0.65rem 0.8rem;
-      background: #ffffff;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
+      border-bottom: 1px solid #bae6fd !important;
     }
     .core-services-page .aircon-type-card .card-body {
-      padding: 0.85rem;
+      padding: 18px;
+      background: #f8fafc;
     }
-    .core-services-page .core-type-head {
+    .core-type-head {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 10px;
       flex-wrap: wrap;
-      width: 100%;
+      flex: 1;
+      min-width: 0;
     }
-    .core-services-page .core-type-head .form-select,
-    .core-services-page .core-type-head .form-control {
-      min-height: 38px;
-      background: #f8fafc;
-      border-color: #d5dee9;
+    .core-type-head .form-select,
+    .core-type-head .form-control {
+      min-height: 40px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
       font-weight: 600;
-    }
-    .core-services-page .core-type-head .form-select {
-      min-width: 210px;
-    }
-    .core-services-page .core-type-head .form-control {
-      flex: 1 1 260px;
-    }
-    .core-services-page .core-type-remove {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      border: 1px solid rgba(239, 68, 68, 0.14);
-      background: #fff5f5;
-      color: #dc2626;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .core-services-page .core-type-remove:hover {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-    .core-services-page .core-type-description {
-      width: 100%;
-      margin-top: 0.25rem;
+      color: #0f172a;
       background: #fff;
-      border: 1px solid #d5dee9;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(15,23,42,0.05);
+      transition: all 0.15s ease;
+    }
+    .core-type-head .form-select:focus,
+    .core-type-head .form-control:focus {
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 4px rgba(6,182,212,0.10);
+      background: #fff;
+    }
+    .core-type-head .form-select {
+      min-width: 180px;
+      flex: 0 0 auto;
+    }
+    .core-type-head .form-control {
+      flex: 1 1 200px;
+      min-width: 120px;
+    }
+    .core-type-remove {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(239,68,68,0.2);
+      background: #fef2f2;
+      color: #dc2626;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(239,68,68,0.1);
+      transition: all 0.15s ease;
+    }
+    .core-type-remove i { font-size: 1rem; }
+    .core-type-remove:hover {
+      background: #fee2e2; color: #b91c1c;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(239,68,68,0.15);
+    }
+    .core-type-description {
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      background: #fff;
+      border: 1px solid #cbd5e1;
       border-radius: 10px;
       min-height: 40px;
+      padding: 0.6rem 0.85rem;
+      transition: all 0.15s ease;
     }
-    .core-services-page .core-hp-section {
-      margin-top: 0.9rem;
-      padding-top: 0.75rem;
-      border-top: 1px dashed #d5dee9;
+    .core-type-description:focus {
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 4px rgba(6,182,212,0.10);
     }
-    .core-services-page .core-hp-section-label {
-      display: flex;
+    .core-hp-section {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e1;
+    }
+    .core-hp-section-label {
+      font-family: 'Outfit', sans-serif;
+      display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: 8px;
       font-size: 0.74rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #64748b;
+      color: #475569;
+      margin-bottom: 12px;
     }
-    .core-services-page .core-hp-section-label i {
-      color: #2563eb;
+    .core-hp-section-label i {
+      flex-shrink: 0;
+      width: 24px; height: 24px; border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.82rem;
+      background: rgba(6,182,212,0.12); color: #0891b2;
     }
-    .core-services-page .core-add-hp {
+    .core-add-hp {
+      font-family: 'Inter', sans-serif;
       border-radius: 10px;
-      background: #ffffff;
-      border: 1px solid rgba(37, 99, 235, 0.18);
-      color: #1d4ed8;
+      background: #fff;
+      border: 1px dashed #06b6d4;
+      color: #0891b2;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.55rem 1rem;
+      box-shadow: 0 2px 8px rgba(6,182,212,0.08);
+      transition: all 0.15s ease;
+    }
+    .core-add-hp:hover {
+      background: #ecfeff;
+      border-color: #06b6d4;
+      border-style: solid;
+      color: #0e7490;
+    }
+    .core-services-page .core-hp-table {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .core-services-page .core-hp-table thead th {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.65rem;
       font-weight: 700;
-      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.08);
-    }
-    .core-services-page .core-add-hp:hover {
-      background: #eff6ff;
-      border-color: rgba(37, 99, 235, 0.3);
-      color: #1e40af;
-    }
-    .core-services-page .core-hp-row {
-      border: 1px solid #dbe4ef;
-      border-radius: 12px;
-      background: #ffffff;
-      padding: 0.75rem;
-      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
-    }
-    .core-services-page .core-hp-row .form-control,
-    .core-services-page .core-hp-row .input-group-text {
-      min-height: 36px;
-      border-color: #d5dee9;
-      background: #f8fafc;
-      font-size: 0.9rem;
-    }
-    .core-services-page .core-hp-row .input-group-text {
-      color: #64748b;
-      font-weight: 700;
-    }
-    .core-services-page .core-hp-label {
-      font-size: 0.69rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
       text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: #64748b;
-      margin-bottom: 0.35rem;
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0.4rem 0.5rem;
     }
-    .core-services-page .core-hp-label i {
-      color: #2563eb;
+    .core-services-page .core-hp-table tbody td {
+      padding: 0.4rem 0.5rem;
+      vertical-align: middle;
+      border-bottom: 1px solid #f1f5f9;
     }
-    .core-services-page .core-type-select {
-      min-width: 156px;
+    .core-services-page .core-hp-table tbody tr:last-child td { border-bottom: none; }
+    .core-services-page .core-hp-table .form-control,
+    .core-services-page .core-hp-table .form-select {
+      min-height: 34px;
+      font-size: 0.85rem;
+      border-color: #e2e8f0;
+      border-radius: 8px;
+    }
+    .core-services-page .core-hp-table .input-group-text {
+      background: #f1f5f9;
+      color: #64748b;
+      font-weight: 700;
+      border-color: #e2e8f0;
+      font-size: 0.85rem;
+    }
+    .core-services-page .core-hp-table .btn-outline-danger {
+      width: 34px; height: 34px;
+      padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      border-color: rgba(239,68,68,0.3);
+      color: #dc2626;
+    }
+    .core-services-page .core-hp-table .btn-outline-danger:hover {
+      background: #fee2e2; border-color: #f87171; color: #b91c1c;
+    }
+    .core-type-select {
+      min-width: 180px;
       max-width: 100%;
     }
-    .core-services-page .core-aircon-grid-row {
-      margin-left: 0;
-      margin-right: 0;
-      border-radius: 8px;
+    .core-aircon-grid-row {
+      --bs-gutter-x: 1rem;
+      --bs-gutter-y: 0.75rem;
     }
     .core-services-page .core-table-card {
       border-radius: 16px;
@@ -414,6 +449,14 @@
       padding-top: 0.9rem;
       padding-bottom: 0.9rem;
     }
+    .core-services-page .core-table-footer {
+      display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid rgba(148, 163, 184, 0.18); background: #fff; flex-wrap: wrap; gap: 10px;
+    }
+    .core-services-page .core-table-footer .pagination { margin: 0; }
+    .core-services-page .core-table-footer .page-link { border-radius: 8px; margin: 0 3px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; color: #64748b; border: 1px solid #e2e8f0; }
+    .core-services-page .core-table-footer .page-item.active .page-link { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .core-services-page .core-table-footer .page-item.disabled .page-link { color: #cbd5e1; }
+    .core-services-page .core-pag-info { font-size: 0.8rem; color: #64748b; }
     .core-services-page .core-service-cell {
       display: flex;
       align-items: flex-start;
@@ -547,6 +590,163 @@
         max-width: none;
       }
     }
+    .core-services-page .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
+    .core-services-page .kpi-trend.up { background:rgba(16,185,129,0.1); color:#059669; }
+    .core-services-page .kpi-trend.down { background:rgba(239,68,68,0.1); color:#dc2626; }
+    .core-services-page .kpi-trend.neutral { background:rgba(100,116,139,0.1); color:#64748b; }
+    .core-services-page .kpi-trend i { font-size:0.55rem; }
+    .core-services-page .kpi-percent-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 3px;
+      background: rgba(59, 130, 246, 0.12); color: #2563eb;
+    }
+    .core-services-page .stat-sparkline { height: 40px; margin-top: 0.5rem; }
+    .core-services-page .stat-sparkline canvas { width: 100% !important; height: 100% !important; }
+
+    /* Booking-style detail cards inside modal */
+    .ent-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .ent-detail-card {
+      display: flex; align-items: flex-start; gap: 12px; padding: 18px;
+      background: #f8fafc; border-radius: 14px; border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+    .ent-detail-card:hover { border-color: #cbd5e1; background: #f1f5f9; }
+    .ent-detail-card-wide { grid-column: span 2; }
+    .ent-detail-card-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(15,23,42,0.08);
+    }
+    .ent-detail-card-content { display: flex; flex-direction: column; gap: 12px; min-width: 0; width: 100%; }
+    .ent-detail-label {
+      font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8;
+    }
+    .ent-detail-sub { display: none; }
+
+    /* ═══ CORE SERVICE MODAL ═══ */
+    .core-services-page #coreServiceModal .modal-dialog {
+      max-width: min(960px, 95vw);
+    }
+    .core-services-page #coreServiceModal .modal-content {
+      border: none;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 30px 60px rgba(15, 23, 42, 0.2);
+    }
+    .core-services-page #coreServiceModal .modal-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%) !important;
+      border-bottom: none;
+      padding: 1.25rem 1.5rem;
+    }
+    .core-services-page #coreServiceModal .modal-title-area {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .core-services-page #coreServiceModal .modal-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .core-services-page #coreServiceModal .modal-title,
+    .core-services-page #coreServiceModal .modal-subtitle {
+      color: #fff !important;
+    }
+    .core-services-page #coreServiceModal .modal-title {
+      font-family: 'Outfit', 'Inter', sans-serif;
+      font-weight: 700;
+    }
+    .core-services-page #coreServiceModal .modal-subtitle {
+      opacity: 0.85;
+      font-size: 0.85rem;
+      margin: 0;
+    }
+    .core-services-page #coreServiceModal .modal-header .btn-close {
+      filter: invert(1) grayscale(100%) brightness(200%);
+    }
+    .core-services-page #coreServiceModal .input-group-text {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+      color: #64748b;
+      justify-content: center;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.85rem;
+    }
+    .core-services-page #coreServiceModal .core-input-icon {
+      width: 42px;
+      text-align: center;
+    }
+    .core-services-page #coreServiceModal .input-group > .input-group-text:first-child {
+      border-radius: 10px 0 0 10px;
+    }
+    .core-services-page #coreServiceModal .input-group > .input-group-text:last-child {
+      border-radius: 0 10px 10px 0;
+    }
+    .core-services-page #coreServiceModal .input-group .form-control,
+    .core-services-page #coreServiceModal .input-group .form-select,
+    .core-services-page #coreServiceModal .input-group textarea {
+      border-color: #e2e8f0;
+      min-height: 40px;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    .core-services-page #coreServiceModal .input-group > .form-control:first-child,
+    .core-services-page #coreServiceModal .input-group > .form-select:first-child,
+    .core-services-page #coreServiceModal .input-group > textarea:first-child {
+      border-radius: 10px 0 0 10px;
+    }
+    .core-services-page #coreServiceModal .input-group > .form-control:last-child,
+    .core-services-page #coreServiceModal .input-group > .form-select:last-child,
+    .core-services-page #coreServiceModal .input-group > textarea:last-child {
+      border-radius: 0 10px 10px 0;
+    }
+    .core-services-page #coreServiceModal .input-group .form-control:focus,
+    .core-services-page #coreServiceModal .input-group .form-select:focus,
+    .core-services-page #coreServiceModal .input-group textarea:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
+      z-index: 3;
+      background: #fff;
+    }
+
+    /* ═══ MODAL BODY & FOOTER ═══ */
+    .core-services-page #coreServiceModal .modal-body {
+      padding: 24px 28px;
+    }
+    .core-services-page #coreServiceModal .modal-footer {
+      padding: 18px 28px;
+      border-top: 1px solid #f1f5f9;
+      background: #f8fafc;
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+    .core-services-page #coreServiceModal .modal-footer .btn {
+      font-family: 'Inter', sans-serif; font-weight: 600;
+      padding: 0.55rem 1.4rem; border-radius: 10px; font-size: 0.9rem;
+      transition: all 0.15s ease;
+    }
+    .core-services-page #coreServiceModal .modal-footer .btn-outline-secondary {
+      border-color: #cbd5e1; color: #475569;
+    }
+    .core-services-page #coreServiceModal .modal-footer .btn-outline-secondary:hover {
+      background: #f1f5f9; border-color: #94a3b8;
+    }
+    .core-services-page #coreServiceModal .modal-footer .btn-primary {
+      background: #2563eb; border-color: #2563eb;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+    }
+    .core-services-page #coreServiceModal .modal-footer .btn-primary:hover {
+      background: #1d4ed8; border-color: #1d4ed8;
+      box-shadow: 0 6px 16px rgba(37,99,235,0.35);
+    }
+    @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
   </style>
 
   <div class="au-hero mb-4">
@@ -577,71 +777,79 @@
   <% const avgTime = coreServices && coreServices.length ? (coreServices.reduce((sum,s)=>sum + (s.durationMinutes||0),0) / coreServices.length) : 0; %>
   <div class="row g-3 mb-4">
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+      <div class="dash-card h-100" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Core Services</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statTotalCore"><%= totalCount %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalCount ? 100 : 0 %>%</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7">All services</div>
             <small class="text-muted">Registered catalog items</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
             <i class="bi bi-clipboard-data text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkCoreTotal" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+      <div class="dash-card h-100" data-accent="green" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Active Services</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statActive"><%= activeCount %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalCount ? Math.round((activeCount/totalCount)*100) : 0 %>%</span>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7">Live</div>
             <small class="text-muted">Available for booking</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
             <i class="bi bi-check-circle text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkCoreActive" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+      <div class="dash-card h-100" data-accent="amber" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Needs Review</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statReview"><%= reviewCount %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge"><%= totalCount ? Math.round((reviewCount/totalCount)*100) : 0 %>%</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Pending</div>
             <small class="text-muted">Inactive or draft</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
             <i class="bi bi-pencil-square text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkCoreReview" height="40"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+      <div class="dash-card h-100" data-accent="purple" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Avg Completion Time</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="statAvgTimeCore"><%= fmtDuration(Math.round(avgTime)) %></span>
+              <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
+              <span class="kpi-percent-badge">AVG</span>
             </div>
-            <div class="badge bg-secondary-subtle text-secondary fs-7">Avg</div>
             <small class="text-muted">Across all services</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
             <i class="bi bi-clock text-white"></i>
           </div>
         </div>
+        <div class="stat-sparkline"><canvas id="sparkCoreAvg" height="40"></canvas></div>
       </div>
     </div>
   </div>
@@ -729,7 +937,7 @@
             <th class="text-end pe-4"><i class="bi bi-gear"></i>Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="coreTableBody">
           <% if (coreServices && coreServices.length) { %>
             <% coreServices.forEach(function(svc) { %>
               <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
@@ -772,131 +980,178 @@
           <% } %>
         </tbody>
       </table>
+      <div class="core-table-footer">
+        <small class="core-pag-info" id="corePaginationInfo">Showing 0 of 0</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0" id="corePagination"></ul>
+        </nav>
+      </div>
     </div>
   </div>
-</div>
+
 
 <!-- modal to create/edit core service -->
-<div class="modal fade core-service-modal" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <form id="coreServiceForm" class="modal-content border-0 shadow core-modal-shell">
-      <div class="modal-header bg-light border-bottom-0 pb-3 core-modal-header">
-        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="coreServiceModalLabel"><i class="bi bi-gear-fill text-primary"></i><span>Core Service</span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div class="modal fade" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form id="coreServiceForm" class="modal-content">
+      <div class="modal-header au-hero text-white" style="background: linear-gradient(135deg,#0f172a 0%,#1d4ed8 50%,#2563eb 100%) !important;">
+        <div class="d-flex align-items-center gap-3">
+          <div class="modal-icon"><i class="bi bi-gear"></i></div>
+          <div>
+            <h5 class="modal-title mb-0" id="coreServiceModalLabel">Core Service</h5>
+            <small class="text-white-50">Configure service catalog details</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body py-4 core-modal-body">
+      <div class="modal-body core-modal-body">
         <div class="row g-3">
-          <div class="col-md-6">
-            <h6 class="core-section-title"><i class="bi bi-card-text"></i>Basic Info</h6>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-card-heading me-1"></i>Service Name</label>
-              <div class="core-field-wrap">
-                <input type="text" name="name" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. Standard Cleaning" />
-                <i class="bi bi-tools core-field-icon"></i>
+          <div class="col-12 col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white border-bottom-0 p-3">
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-card-text text-primary"></i> Basic Info</h6>
               </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-hash me-1"></i>Slug / Code</label>
-              <div class="core-field-wrap">
-                <input type="text" name="slug" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. std-cleaning" />
-                <i class="bi bi-upc-scan core-field-icon"></i>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-tag me-1"></i>Category</label>
-              <div class="core-field-wrap">
-                <input type="text" name="category" class="form-control bg-light core-input core-input-icon" required placeholder="e.g. Cleaning" />
-                <i class="bi bi-tags core-field-icon"></i>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-file-text me-1"></i>Description</label>
-              <div class="core-field-wrap">
-                <textarea name="description" class="form-control bg-light core-input core-input-icon" rows="4" placeholder="Describe the core service..."></textarea>
-                <i class="bi bi-chat-square-text core-field-icon top"></i>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <h6 class="core-section-title"><i class="bi bi-cash-coin"></i>Pricing & Details</h6>
-            
-            <div class="card border-0 bg-light mb-3 core-aircon-toggle-card">
-              <div class="card-body p-3">
-                <div class="form-check form-switch mb-2">
-                  <input type="checkbox" name="isAirconService" class="form-check-input" id="isAirconServiceCheckCore" />
-                  <label class="form-check-label fw-bold ms-2 text-dark" for="isAirconServiceCheckCore">Is Aircon Service?</label>
+              <div class="card-body p-3 d-flex flex-column">
+                <div class="mb-3">
+                  <label for="coreServiceName" class="form-label">Service Name</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-card-heading"></i></span>
+                    <input type="text" id="coreServiceName" name="name" class="form-control" required placeholder="e.g. Standard Cleaning" />
+                  </div>
                 </div>
-                <div class="text-muted small lh-sm">
-                  Enables aircon specific workflows like HP pricing categories.
+                <div class="mb-3">
+                  <label for="coreServiceSlug" class="form-label">Slug / Code</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-hash"></i></span>
+                    <input type="text" id="coreServiceSlug" name="slug" class="form-control" required placeholder="e.g. std-cleaning" />
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label for="coreServiceCategory" class="form-label">Category</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-folder"></i></span>
+                    <input type="text" id="coreServiceCategory" name="category" class="form-control" required placeholder="e.g. Cleaning" />
+                  </div>
+                </div>
+                <div class="mb-0">
+                  <label for="coreServiceDescription" class="form-label">Description</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-file-text"></i></span>
+                    <textarea id="coreServiceDescription" name="description" class="form-control" rows="3" style="resize: none;" placeholder="Describe the core service..."></textarea>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <h6 class="core-section-title"><i class="bi bi-journal-richtext"></i>Service Contents</h6>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-list-stars me-1"></i>Features (Comma separated)</label>
-              <div class="core-field-wrap">
-                <textarea name="features" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Feature 1, Feature 2..."></textarea>
-                <i class="bi bi-list-check core-field-icon top"></i>
+          <div class="col-12 col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white border-bottom-0 p-3">
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-cash-coin text-success"></i> Pricing &amp; Details</h6>
               </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-box2-heart me-1"></i>Included Items (Comma separated)</label>
-              <div class="core-field-wrap">
-                <textarea name="includedItems" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Item 1, Item 2..."></textarea>
-                <i class="bi bi-basket2 core-field-icon top"></i>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label core-label"><i class="bi bi-x-octagon me-1"></i>Exclusions (Comma separated)</label>
-              <div class="core-field-wrap">
-                <textarea name="exclusions" class="form-control bg-light core-input core-input-icon" rows="3" placeholder="Exclusion 1, Exclusion 2..."></textarea>
-                <i class="bi bi-slash-circle core-field-icon top"></i>
-              </div>
-            </div>
+              <div class="card-body p-3 d-flex flex-column">
+                <div class="card border-0 bg-light rounded mb-3">
+                  <div class="card-body py-2 px-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" name="isAirconService" id="isAirconServiceCheckCore" />
+                      <label class="form-check-label fw-semibold" for="isAirconServiceCheckCore">Is Aircon Service?</label>
+                      <div class="form-text small text-muted mb-0">Enables aircon specific workflows like HP pricing categories.</div>
+                    </div>
+                  </div>
+                </div>
 
-            <div class="form-check form-switch mt-4">
-              <input type="checkbox" name="active" class="form-check-input bg-success border-success" id="activeCheck" checked />
-              <label class="form-check-label fw-bold ms-2" for="activeCheck">Active in Catalog</label>
+                <div class="mb-3">
+                  <label for="coreServiceFeatures" class="form-label">Features (Comma separated)</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-list-stars"></i></span>
+                    <textarea id="coreServiceFeatures" name="features" class="form-control" rows="2" maxlength="100" style="resize: none;" placeholder="Feature 1, Feature 2..."></textarea>
+                  </div>
+                  <div class="form-text small">Maximum 100 characters</div>
+                </div>
+                <div class="mb-3">
+                  <label for="coreServiceIncluded" class="form-label">Included Items (Comma separated)</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-box2-heart"></i></span>
+                    <textarea id="coreServiceIncluded" name="includedItems" class="form-control" rows="2" maxlength="100" style="resize: none;" placeholder="Item 1, Item 2..."></textarea>
+                  </div>
+                  <div class="form-text small">Maximum 100 characters</div>
+                </div>
+                <div class="mb-3">
+                  <label for="coreServiceExclusions" class="form-label">Exclusions (Comma separated)</label>
+                  <div class="input-group">
+                    <span class="input-group-text core-input-icon"><i class="bi bi-x-octagon"></i></span>
+                    <textarea id="coreServiceExclusions" name="exclusions" class="form-control" rows="2" maxlength="100" style="resize: none;" placeholder="Exclusion 1, Exclusion 2..."></textarea>
+                  </div>
+                  <div class="form-text small">Maximum 100 characters</div>
+                </div>
+
+                <div class="card border-0 bg-light rounded mt-3">
+                  <div class="card-body py-2 px-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" name="active" id="activeCheck" checked />
+                      <label class="form-check-label fw-semibold" for="activeCheck">Active in Catalog</label>
+                      <div class="form-text small text-muted mb-0">Make this service available for booking.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <!-- AIRCON TYPES CONFIGURATION (Dynamic) -->
+
           <div class="col-12 d-none" id="airconConfigSection">
-            <div class="card core-hp-panel">
-              <div class="card-header d-flex justify-content-between align-items-center py-3">
-                <div>
-                  <div class="core-hp-panel-title"><i class="bi bi-snow"></i>Aircon Types & HP Matrix</div>
-                  <div class="core-hp-subtext">Define each aircon type, then add structured HP pricing tiers below.</div>
-                </div>
-                <button type="button" class="btn btn-sm core-add-hp fw-bold" id="btnAddAirconType"><i class="bi bi-plus-lg me-1"></i>Add Type</button>
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 p-3">
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-snow text-info"></i> Aircon Types &amp; HP Matrix</h6>
+                <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAddAirconType"><i class="bi bi-plus-lg me-1"></i>Add Type</button>
               </div>
-              <div class="card-body bg-light" id="airconTypesContainer">
-                <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
-                  <i class="bi bi-layers fs-4 d-block mb-2 text-primary"></i>
-                  No aircon types configured. Click "Add Type" to start defining HP prices.
+              <div class="card-body p-3">
+                <p class="text-muted small mb-3">Define each aircon type, then add structured HP pricing tiers below.</p>
+                <div id="airconTypesContainer">
+                  <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
+                    <i class="bi bi-layers fs-4 d-block mb-2 text-primary"></i>
+                    No aircon types configured. Click "Add Type" to start defining HP prices.
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          
         </div>
       </div>
-      <div class="modal-footer border-top-0 pt-0 pb-4 px-4 core-modal-footer">
-        <button type="button" class="btn core-cancel-btn px-4" data-bs-dismiss="modal"><i class="bi bi-x-lg me-2"></i>Cancel</button>
-        <button type="submit" class="btn core-save-btn px-4"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
+      <div class="modal-footer bg-light border-top-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-2"></i>Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
       </div>
     </form>
   </div>
 </div>
 
+<!-- Success Modal -->
+<div class="modal fade" id="saveSuccessModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+    <div class="modal-content border-0 shadow" style="border-radius: 18px; overflow: hidden;">
+      <div class="modal-header border-0" style="background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%); color: #fff;">
+        <h6 class="modal-title d-flex align-items-center gap-2 m-0"><i class="bi bi-check-circle-fill"></i> Saved Successfully</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="location.reload();"></button>
+      </div>
+      <div class="modal-body text-center py-4 px-4">
+        <div class="d-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px; border-radius: 50%; background: rgba(37,99,235,0.12); color: #2563eb; font-size: 1.8rem; margin: 0 auto;">
+          <i class="bi bi-check-lg"></i>
+        </div>
+        <h5 class="mb-1" style="font-weight: 600; color: #0f172a;">Service saved!</h5>
+        <p class="text-muted mb-0" style="font-size: 0.85rem;">The core service has been saved to the catalog.</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pb-4 pt-0">
+        <button type="button" class="btn btn-primary px-4" onclick="location.reload();" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // make sure modal is moved to document.body and above other elements
     const modalEl = document.getElementById('coreServiceModal');
-    if (modalEl && modalEl.parentElement !== document.body) {
-      document.body.appendChild(modalEl);
-    }
     const css = document.createElement('style');
     css.textContent = ".modal { z-index: 2050 !important; } .modal-backdrop { z-index: 2040 !important; }";
     document.head.appendChild(css);
@@ -945,38 +1200,46 @@
 
       currentAirconTypes.forEach((ac, i) => {
         const card = document.createElement('div');
-        card.className = 'card border-0 shadow-sm mb-3 aircon-type-card';
+        card.className = 'aircon-type-card card border-0 shadow-sm';
         
+        const typeLabels = { split:'Split Type', window:'Window Type', floor_mounted:'Floor Mounted', split_suspended:'Split Suspended', cassette:'Cassette', central:'Central' };
+        const defaultName = typeLabels[ac.type] || '';
+        const displayName = (ac.name && ac.name !== defaultName) ? ac.name : '';
+
         let hpRows = '';
+        hpRows += `
+          <div class="table-responsive">
+            <table class="table table-hover table-sm table-dense align-middle mb-0 core-hp-table">
+              <thead class="bg-light">
+                <tr>
+                  <th style="width: 110px;"><i class="bi bi-speedometer2 me-1"></i>Capacity</th>
+                  <th style="width: 160px;"><i class="bi bi-cash-coin me-1"></i>Price</th>
+                  <th style="width: 120px;"><i class="bi bi-stopwatch me-1"></i>Duration</th>
+                  <th><i class="bi bi-chat-text me-1"></i>Notes</th>
+                  <th class="text-center" style="width: 60px;">Action</th>
+                </tr>
+              </thead>
+              <tbody>`;
         ac.hpPricing.forEach((hpObj, j) => {
           hpRows += `
-            <div class="row g-2 align-items-end mb-2 core-hp-row core-aircon-grid-row">
-              <div class="col-12 col-md-2">
-                <label class="core-hp-label"><i class="bi bi-speedometer2"></i>Capacity</label>
-                <input type="number" step="0.1" class="form-control form-control-sm" placeholder="1.0" value="${hpObj.hp||''}" oninput="updateHP(${i}, ${j}, 'hp', this.value)">
-              </div>
-              <div class="col-12 col-md-3">
-                <label class="core-hp-label"><i class="bi bi-cash-coin"></i>Selling Price</label>
-                <div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" step="0.01" class="form-control" placeholder="0.00" value="${hpObj.price||''}" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div>
-              </div>
-              <div class="col-12 col-md-3">
-                <label class="core-hp-label"><i class="bi bi-stopwatch"></i>Duration</label>
-                <div class="input-group input-group-sm"><input type="number" class="form-control" placeholder="Mins" value="${hpObj.durationMinutes||''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div>
-              </div>
-              <div class="col-12 col-md-3">
-                <label class="core-hp-label"><i class="bi bi-chat-text"></i>Notes</label>
-                <input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)">
-              </div>
-              <div class="col-12 col-md-1 text-end">
-                <button type="button" class="core-type-remove" onclick="removeHP(${i}, ${j})" aria-label="Remove HP tier"><i class="bi bi-trash"></i></button>
-              </div>
-            </div>`;
+                <tr>
+                  <td><input type="number" step="0.1" class="form-control form-control-sm" placeholder="1.0" value="${hpObj.hp||''}" oninput="updateHP(${i}, ${j}, 'hp', this.value)"></td>
+                  <td><div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" value="${hpObj.price||''}" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div></td>
+                  <td><div class="input-group input-group-sm"><input type="number" class="form-control form-control-sm" placeholder="Min" value="${hpObj.durationMinutes||''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div></td>
+                  <td><input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)"></td>
+                  <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHP(${i}, ${j})" aria-label="Remove HP tier"><i class="bi bi-trash3"></i></button></td>
+                </tr>`;
         });
+        hpRows += `
+              </tbody>
+            </table>
+          </div>`;
 
         card.innerHTML = `
-          <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
-            <div class="core-type-head">
-              <select class="form-select form-select-sm fw-bold core-type-select" onchange="updateAC(${i}, 'type', this.value)">
+          <div class="card-header d-flex gap-2 align-items-end border-bottom-0 p-3">
+            <div class="flex-grow-1">
+              <label class="form-label modal-label mb-1">Type</label>
+              <select class="form-select core-type-select" onchange="updateAC(${i}, 'type', this.value)">
                 <option value="split" ${ac.type==='split'?'selected':''}>Split Type</option>
                 <option value="window" ${ac.type==='window'?'selected':''}>Window Type</option>
                 <option value="floor_mounted" ${ac.type==='floor_mounted'?'selected':''}>Floor Mounted</option>
@@ -984,19 +1247,26 @@
                 <option value="cassette" ${ac.type==='cassette'?'selected':''}>Cassette</option>
                 <option value="central" ${ac.type==='central'?'selected':''}>Central</option>
               </select>
-              <input type="text" class="form-control form-control-sm" placeholder="Display Name" value="${ac.name||''}" oninput="updateAC(${i}, 'name', this.value)">
             </div>
-            <button type="button" class="core-type-remove" onclick="removeAC(${i})" aria-label="Remove aircon type"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="core-type-remove" onclick="removeAC(${i})" aria-label="Remove aircon type"><i class="bi bi-trash3"></i></button>
           </div>
-          <div class="card-body p-3 bg-light">
-            <div class="mb-3">
-              <label class="core-hp-label"><i class="bi bi-file-earmark-text"></i>Type Description</label>
-              <input type="text" class="form-control form-control-sm core-type-description" placeholder="Short description of this type..." value="${ac.description||''}" oninput="updateAC(${i}, 'description', this.value)">
+          <div class="card-body p-3">
+            <div class="mb-2">
+              <label class="form-label modal-label mb-1">Display Name</label>
+              <input type="text" class="form-control" placeholder="Display name" value="${displayName}" oninput="updateAC(${i}, 'name', this.value)">
             </div>
-            <div class="core-hp-section px-0 px-md-2">
-              <div class="core-hp-section-label mb-2"><i class="bi bi-layers"></i>HP Pricing Tiers</div>
-              ${hpRows}
-              <button type="button" class="btn btn-sm core-add-hp w-100 mt-1" onclick="addHP(${i})"><i class="bi bi-plus-circle me-1"></i>Add HP Tier</button>
+            <div class="mb-3">
+              <label class="form-label modal-label mb-1"><i class="bi bi-file-earmark-text me-1"></i>Type Description</label>
+              <input type="text" class="form-control" placeholder="Short description of this type..." value="${ac.description||''}" oninput="updateAC(${i}, 'description', this.value)">
+            </div>
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 p-3">
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-layers text-info"></i>HP Pricing Tiers (${ac.hpPricing.length})</h6>
+                <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="addHP(${i})"><i class="bi bi-plus me-1"></i>Add HP Tier</button>
+              </div>
+              <div class="card-body p-0 pt-2">
+                ${hpRows}
+              </div>
             </div>
           </div>
         `;
@@ -1004,7 +1274,7 @@
       });
     }
 
-    window.updateAC = (i, field, val) => { currentAirconTypes[i][field] = val; };
+    window.updateAC = (i, field, val) => { currentAirconTypes[i][field] = val; if (field === 'type') renderMatrix(); };
     window.removeAC = (i) => { currentAirconTypes.splice(i, 1); renderMatrix(); };
     window.addHP = (i) => { currentAirconTypes[i].hpPricing.push({hp: '', price: '', durationMinutes: '', description: ''}); renderMatrix(); };
     window.updateHP = (i, j, field, val) => { currentAirconTypes[i].hpPricing[j][field] = val; };
@@ -1089,7 +1359,10 @@
           body: JSON.stringify(payload),
         });
         if (r.ok) {
-          location.reload();
+          const mainModal = bootstrap.Modal.getInstance(modalEl);
+          if (mainModal) mainModal.hide();
+          const saveSuccessModal = new bootstrap.Modal(document.getElementById('saveSuccessModal'));
+          saveSuccessModal.show();
         } else {
           const j = await r.json();
           alert(j.error || 'Save failed');
@@ -1098,5 +1371,95 @@
         alert('Save failed');
       }
     });
+  })();
+</script>
+
+<div id="coreSparkData" class="d-none" data-total="<%= totalCount %>" data-active="<%= activeCount %>" data-review="<%= reviewCount %>" data-avg="<%= Math.round(avgTime) %>"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function() {
+    const qs = (s) => document.querySelector(s);
+
+    function spark(ctx, data, color) {
+      if (!ctx || !window.Chart) return null;
+      const h = ctx.canvas.height || ctx.canvas.offsetHeight || 30;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map((_, i) => i + 1),
+          datasets: [{
+            data: data, borderColor: color, backgroundColor: g,
+            fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 600 },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } },
+        },
+      });
+    }
+
+    function makeSparkData(count) {
+      const c = Math.max(0, count || 0);
+      if (c === 0) return [0,0,0,0,0,0,0];
+      return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
+    }
+
+    const sparkDataEl = document.getElementById('coreSparkData');
+    const sd = sparkDataEl ? sparkDataEl.dataset : {};
+    spark(qs('#sparkCoreTotal')?.getContext('2d'), makeSparkData(Number(sd.total || 0)), '#2563eb');
+    spark(qs('#sparkCoreActive')?.getContext('2d'), makeSparkData(Number(sd.active || 0)), '#10b981');
+    spark(qs('#sparkCoreReview')?.getContext('2d'), makeSparkData(Number(sd.review || 0)), '#f59e0b');
+    spark(qs('#sparkCoreAvg')?.getContext('2d'), makeSparkData(Number(sd.avg || 0)), '#8b5cf6');
+  })();
+</script>
+
+<script>
+  (function() {
+    const tbody = document.getElementById('coreTableBody');
+    const rows = tbody ? Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.dataset.svc) : [];
+    const info = document.getElementById('corePaginationInfo');
+    const nav = document.getElementById('corePagination');
+    const perPage = 10;
+    let currentPage = 1;
+
+    function renderPagination(total, pages) {
+      if (!info || !nav) return;
+      if (total === 0) { info.textContent = 'Showing 0 of 0'; nav.innerHTML = ''; return; }
+      const start = (currentPage - 1) * perPage + 1;
+      const end = Math.min(currentPage * perPage, total);
+      info.textContent = `Showing ${start}-${end} of ${total} services`;
+      if (pages <= 1) { nav.innerHTML = ''; return; }
+      let h = '<li class="page-item' + (currentPage === 1 ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToCorePage(' + (currentPage - 1) + '); return false;">&laquo;</a></li>';
+      for (let i = 1; i <= pages; i++) {
+        h += '<li class="page-item' + (i === currentPage ? ' active' : '') + '"><a class="page-link" href="#" onclick="goToCorePage(' + i + '); return false;">' + i + '</a></li>';
+      }
+      h += '<li class="page-item' + (currentPage === pages ? ' disabled' : '') + '"><a class="page-link" href="#" onclick="goToCorePage(' + (currentPage + 1) + '); return false;">&raquo;</a></li>';
+      nav.innerHTML = h;
+    }
+
+    function goToCorePage(page) {
+      const pages = Math.max(1, Math.ceil(rows.length / perPage));
+      currentPage = Math.max(1, Math.min(page, pages));
+      render();
+    }
+    window.goToCorePage = goToCorePage;
+
+    function render() {
+      const pages = Math.ceil(rows.length / perPage) || 1;
+      rows.forEach((row, idx) => {
+        const start = (currentPage - 1) * perPage;
+        row.style.display = (idx >= start && idx < start + perPage) ? '' : 'none';
+      });
+      renderPagination(rows.length, pages);
+    }
+
+    render();
   })();
 </script>

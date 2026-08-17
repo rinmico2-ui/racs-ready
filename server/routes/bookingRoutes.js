@@ -3,6 +3,7 @@ const router = express.Router();
 const BookingService = require('../models/BookingService');
 const auth = require('../middleware/authenticate');
 const { assertCompanyCapacity } = require('../utils/bookingPolicy');
+const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -222,7 +223,12 @@ router.post('/create', async (req, res) => {
     if (paymentMethod === 'gcash') {
       bookingData.gcashNumber = gcashNumber;
     } else if (paymentMethod === 'cod') {
-      bookingData.downpaymentAmount = downpaymentAmount || 400;
+      const percentage = await getDownpaymentPercentage();
+      const breakdown = calculatePaymentBreakdown(Number(totalPrice) || 0, percentage);
+      bookingData.downpaymentPercentage = breakdown.downpaymentPercentage;
+      bookingData.downpaymentAmount = breakdown.downpaymentAmount;
+      bookingData.balanceAmount = breakdown.balanceAmount;
+      bookingData.amountPaid = 0;
       bookingData.paymentNotes = paymentNotes;
     }
     

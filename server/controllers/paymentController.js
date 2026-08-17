@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const Payment = require("../models/Payment");
+const { calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const BookingService = require("../models/BookingService");
 const audit = require("../utils/audit");
-const paymongo = require("../utils/paymongo");
 
 // helper to log audit events for payments
 async function logPaymentAction(actorId, paymentId, action, req, details) {
@@ -111,54 +111,9 @@ exports.listPayments = async (req, res, next) => {
       if (req.query.endDate) q.submittedAt.$lte = new Date(req.query.endDate);
     }
 
-    const shouldSyncGateway = ["1", "true", "yes"].includes(
-      String(req.query.syncGateway || "").toLowerCase(),
-    );
-
     const docs = await Payment.find(q)
       .sort({ submittedAt: -1 })
       .limit(1000);
-
-    if (shouldSyncGateway) {
-      for (const payment of docs) {
-        try {
-          const isPaymongoCandidate =
-            payment.gateway === "paymongo" ||
-            payment.method === "gcash" ||
-            (typeof payment.gatewayId === "string" && payment.gatewayId.length > 0);
-          if (!isPaymongoCandidate || !payment.gatewayId) continue;
-
-          let remoteStatus = "";
-          if (String(payment.gatewayId).startsWith("src_")) {
-            const src = await paymongo.getSource(String(payment.gatewayId));
-            remoteStatus = src?.attributes?.status || "";
-          } else if (String(payment.gatewayId).startsWith("pay_")) {
-            const p = await paymongo.getPayment(String(payment.gatewayId));
-            remoteStatus = p?.attributes?.status || "";
-          }
-
-          if (!remoteStatus) continue;
-
-          payment.gateway = "paymongo";
-          payment.gatewayStatus = remoteStatus;
-          if (["paid", "succeeded"].includes(remoteStatus)) {
-            payment.status = "paid";
-            if (!payment.completedAt) payment.completedAt = new Date();
-          } else if (["failed", "cancelled", "expired"].includes(remoteStatus)) {
-            payment.status = "failed";
-          } else {
-            payment.status = "pending";
-          }
-          await payment.save();
-        } catch (syncErr) {
-          console.warn(
-            "payment sync with PayMongo failed",
-            payment && String(payment._id),
-            syncErr && syncErr.message,
-          );
-        }
-      }
-    }
 
     let payments = docs.map((d) => d.toObject());
     // normalize legacy statuses
@@ -267,7 +222,11 @@ exports.updatePayment = async (req, res, next) => {
           const prevPaymentStatus = booking.paymentStatus;
           const st = String(payment.status || "").toLowerCase();
           if (["paid", "verified", "completed"].includes(st)) {
-            booking.paymentStatus = "paid";
+            const isDownpayment = payment.type === "downpayment";
+            const totalAmount = Number(booking.totalPrice || booking.estimatedFee || 0);
+            booking.paymentStatus = isDownpayment ? "partial" : "paid";
+            booking.amountPaid = isDownpayment ? Number(payment.amount || booking.downpaymentAmount || 0) : totalAmount;
+            booking.balanceAmount = isDownpayment ? Math.max(0, totalAmount - booking.amountPaid) : 0;
             // if booking still pending, treat this as approval and move to scheduled
             if (booking.status === "pending") {
               booking.status = "scheduled";
@@ -332,15 +291,17 @@ exports.updatePayment = async (req, res, next) => {
         if (order) {
           const st = String(payment.status || "").toLowerCase();
           if (["paid", "verified", "completed"].includes(st)) {
-            order.paymentStatus = "paid";
+            const isDownpayment = payment.type === "downpayment";
+            order.paymentStatus = isDownpayment ? "partial" : "paid";
+            if (!isDownpayment) order.balanceAmount = 0;
             // if product order is waiting for payment validation, move it to processing phase
             if (order.status === "pending_payment") {
-              order.status = "technician_assigned"; // after payment it is ready for deployment
-              order.pushStatus("technician_assigned", "Payment verified by administrator");
+              order.status = "preparing_unit";
+              order.pushStatus("preparing_unit", isDownpayment ? "Downpayment verified by administrator" : "Payment verified by administrator", { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
             }
           } else if (st === "failed") {
             order.paymentStatus = "failed";
-            order.pushStatus("cancelled", "Payment verification failed: " + (req.body.notes || "No reason given"));
+            order.pushStatus("cancelled", "Payment verification failed: " + (req.body.notes || "No reason given"), { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
           } else if (st === "partial") {
             order.paymentStatus = "partial";
           }
@@ -371,7 +332,7 @@ exports.getPayment = async (req, res, next) => {
     const booking = payment.bookingId
       ? await BookingService.findById(payment.bookingId)
         .select(
-          "_id bookingReference bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentStatus gcashNumber paymentReference downpaymentAmount paymentNotes paymentProof estimatedFee travelFare travelTime issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
+          "_id bookingReference bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentStatus gcashNumber paymentReference downpaymentPercentage downpaymentAmount balanceAmount paymentNotes paymentProof estimatedFee totalPrice travelFare travelTime issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
         )
         .lean()
       : null;
@@ -408,7 +369,11 @@ exports.getPayment = async (req, res, next) => {
       estimatedFee: booking?.estimatedFee || order?.total || payment?.amount || 0,
       travelFare: booking?.travelFare || order?.transportationFee || 0,
       travelTime: booking?.travelTime || order?.routeDurationMin || 0,
-      downpaymentAmount: booking?.downpaymentAmount || (order?.paymentMethod?.includes('downpayment') ? order.total / 2 : 0),
+      downpaymentAmount: booking?.downpaymentAmount || order?.downpaymentAmount || (
+        order?.paymentMethod?.includes('downpayment')
+          ? calculatePaymentBreakdown(order.total, order.downpaymentPercentage).downpaymentAmount
+          : 0
+      ),
       technicianName: booking?.technician?.name || order?.technician?.name || "-",
       technicianPhone: booking?.technician?.phone || order?.technician?.phone || "-",
       bookingCreatedAt: booking?.createdAt || order?.createdAt || null,

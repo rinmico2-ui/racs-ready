@@ -1,0 +1,946 @@
+﻿<div class="pos-container">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body.pos-body { background: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; height: 100vh; color: #0f172a; }
+
+    .pos-layout { display: grid; grid-template-columns: 1fr 400px; height: 100vh; overflow: hidden; }
+
+    /* â”€â”€ Left: Product Grid â”€â”€ */
+    .pos-products { display: flex; flex-direction: column; background: #f8fafc; overflow: hidden; }
+    .pos-header { display: flex; align-items: center; padding: 18px 36px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-bottom: none; border-radius: 0; flex-shrink: 0; position: relative; overflow: hidden; }
+    .pos-header::before { content:''; position:absolute; top:-60%; right:-20%; width:400px; height:400px; background:radial-gradient(circle,rgba(59,130,246,0.15) 0%,transparent 70%); pointer-events:none; }
+    .pos-header::after { content:''; position:absolute; bottom:-40%; left:-10%; width:300px; height:300px; background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%); pointer-events:none; }
+    .pos-header-left { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
+    .pos-header-icon { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); width: 56px; height: 56px; border-radius: 16px; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .pos-header-title { display: flex; flex-direction: column; gap: 3px; }
+    .pos-header h5 { color: #fff; font-weight: 700; font-size: 1.4rem; margin: 0; white-space: nowrap; font-family: "Outfit", "Inter", sans-serif; letter-spacing: -0.02em; line-height: 1.2; }
+    .pos-header-title small { font-size: 0.85rem; color: rgba(255,255,255,0.65); font-weight: 400; line-height: 1.4; }
+
+    .pos-search-bar { display: flex; align-items: center; gap: 16px; padding: 12px 36px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; }
+
+    .pos-search-box { flex: 1; position: relative; }
+    .pos-search-box input { width: 100%; height: 44px; padding: 10px 14px 10px 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #ffffff; color: #0f172a; font-size: 0.9rem; outline: none; transition: border 0.2s; }
+    .pos-search-box input:focus { border-color: #3b82f6; }
+    .pos-search-box input::placeholder { color: #64748b; }
+    .pos-search-box i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.9rem; }
+
+    .pos-barcode-box { position: relative; width: 260px; }
+    .pos-barcode-box input { width: 100%; height: 44px; padding: 10px 14px 10px 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #ffffff; color: #0f172a; font-size: 0.9rem; font-family: monospace; outline: none; transition: border 0.2s; }
+    .pos-barcode-box input:focus { border-color: #22c55e; }
+    .pos-barcode-box input::placeholder { color: #64748b; }
+    .pos-barcode-box i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #22c55e; font-size: 0.9rem; }
+
+    .pos-categories { display: flex; gap: 8px; padding: 16px 20px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid #e2e8f0; }
+    .pos-categories::-webkit-scrollbar { height: 3px; }
+    .pos-categories::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+    .pos-cat-btn { padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; border: 1.5px solid #e2e8f0; background: #ffffff; color: #64748b; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+    .pos-cat-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-cat-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+    .pos-grid { flex: 1; overflow-y: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; align-content: start; }
+    .pos-grid::-webkit-scrollbar { width: 6px; }
+    .pos-grid::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+
+    .pos-item { background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; position: relative; }
+    .pos-item:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(59,130,246,0.15); }
+    .pos-item.oos { opacity: 0.4; pointer-events: none; }
+    .pos-item-img { width: 100%; height: 100px; object-fit: contain; border-radius: 8px; background: #f1f5f9; margin-bottom: 8px; }
+    .pos-item-name { font-weight: 700; font-size: 0.85rem; color: #0f172a; line-height: 1.3; }
+    .pos-item-cat { font-size: 0.68rem; color: #64748b; }
+    .pos-item-price { font-size: 1.1rem; font-weight: 600; color: #22c55e; }
+    .pos-item-stock { font-size: 0.7rem; color: #94a3b8; }
+    .pos-item-stock strong { color: #f59e0b; }
+    .pos-item-barcode { font-size: 0.7rem; color: #64748b; font-family: monospace; margin: 4px 0; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
+
+    .pos-tabs { display: flex; gap: 8px; padding: 16px 16px 8px; }
+    .pos-tab { flex: 1; padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .pos-tab:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-tab.active { background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 60%, #2563eb 100%); border: 1px solid transparent; color: #fff; }
+
+    .pos-aircon-card { background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 8px; position: relative; }
+    .pos-aircon-card:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(59,130,246,0.15); }
+    .pos-aircon-card.oos { opacity: 0.4; pointer-events: none; }
+    .pos-aircon-img { width: 100%; height: 100px; object-fit: contain; border-radius: 8px; background: #f1f5f9; margin-bottom: 8px; }
+    .pos-aircon-name { font-weight: 700; font-size: 0.85rem; color: #0f172a; line-height: 1.3; }
+    .pos-aircon-cat { font-size: 0.68rem; color: #64748b; }
+    .pos-aircon-price { font-size: 1.1rem; font-weight: 600; color: #22c55e; }
+    .pos-aircon-stock { font-size: 0.7rem; color: #94a3b8; }
+    .pos-aircon-stock strong { color: #f59e0b; }
+    .pos-aircon-barcode { font-size: 0.7rem; color: #64748b; font-family: monospace; margin: 4px 0; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
+
+    .pos-empty { text-align: center; padding: 60px 20px; color: #64748b; grid-column: 1 / -1; }
+    .pos-empty i { font-size: 3rem; color: #94a3b8; display: block; margin-bottom: 12px; }
+
+    /* â”€â”€ Right: Cart Panel â”€â”€ */
+    .pos-cart { display: flex; flex-direction: column; background: #f8fafc; border-left: 1px solid #e2e8f0; overflow: hidden; }
+    .pos-cart-header { padding: 20px 36px; background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 60%, #2563eb 100%); border-bottom: 1px solid rgba(255,255,255,0.1); border-radius: 0; display: flex; align-items: center; flex-shrink: 0; }
+    .pos-cart-header-left { display: flex; align-items: center; gap: 16px; }
+    .pos-cart-header-icon { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); width: 48px; height: 48px; border-radius: 14px; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+    .pos-cart-header-title { display: flex; flex-direction: column; gap: 3px; }
+    .pos-cart-header h6 { font-weight: 600; font-size: 1.15rem; color: #fff; margin: 0; font-family: "Outfit", "Inter", sans-serif; letter-spacing: -0.02em; }
+    .pos-cart-header-title small { font-size: 0.8rem; color: rgba(255,255,255,0.65); font-weight: 400; }
+    .pos-cart-count { background: #fff; color: #2563eb; font-size: 0.8rem; font-weight: 700; padding: 3px 9px; border-radius: 10px; }
+    .pos-cart-meta { padding: 10px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+    .pos-cart-meta-label { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #0f172a; }
+    .pos-cart-meta-label i { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+    .pos-cart-meta .pos-cart-count { background: #2563eb; color: #fff; }
+
+    .pos-customer-bar { padding: 12px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .pos-customer-bar input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; background: #f8fafc; outline: none; transition: border 0.2s; }
+    .pos-customer-bar input:focus { border-color: #3b82f6; }
+
+    .pos-cart-items { flex: 1; overflow-y: auto; padding: 12px 20px; }
+    .pos-cart-items::-webkit-scrollbar { width: 4px; }
+    .pos-cart-items::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+    .pos-cart-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .pos-cart-item:last-child { border-bottom: none; }
+    .pos-cart-item-info { flex: 1; min-width: 0; }
+    .pos-cart-item-name { font-weight: 600; font-size: 0.82rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pos-cart-item-price { font-size: 0.72rem; color: #64748b; }
+    .pos-cart-item-qty { display: flex; align-items: center; gap: 6px; }
+    .pos-cart-item-qty button { width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid #e2e8f0; background: #fff; color: #0f172a; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .pos-cart-item-qty button:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-cart-item-qty span { font-weight: 700; font-size: 0.85rem; min-width: 20px; text-align: center; }
+    .pos-cart-item-total { font-weight: 700; font-size: 0.85rem; color: #0f172a; white-space: nowrap; }
+    .pos-cart-item-remove { color: #ef4444; cursor: pointer; font-size: 0.85rem; padding: 4px; border-radius: 6px; transition: background 0.15s; }
+    .pos-cart-item-remove:hover { background: #fef2f2; }
+
+    .pos-cart-empty { text-align: center; padding: 40px 20px; color: #94a3b8; }
+    .pos-cart-empty i { font-size: 2.5rem; color: #e2e8f0; display: block; margin-bottom: 8px; }
+    .pos-cart-empty p { font-size: 0.82rem; }
+
+    /* â”€â”€ Cart Summary â”€â”€ */
+    .pos-cart-summary { background: #fff; border-top: 2px solid #e2e8f0; padding: 16px 20px; flex-shrink: 0; }
+    .pos-summary-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .pos-summary-row .label { font-size: 0.8rem; color: #64748b; }
+    .pos-summary-row .value { font-weight: 600; font-size: 0.85rem; color: #0f172a; }
+    .pos-summary-row.discount .value { color: #ef4444; }
+    .pos-summary-row.total { margin-top: 10px; padding-top: 10px; border-top: 2px dashed #e2e8f0; }
+    .pos-summary-row.total .label { font-weight: 700; font-size: 0.9rem; color: #0f172a; }
+    .pos-summary-row.total .value { font-size: 1.3rem; font-weight: 600; color: #0f172a; }
+
+    .pos-discount-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .pos-discount-row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 0.82rem; outline: none; }
+    .pos-discount-row input:focus { border-color: #3b82f6; }
+
+    /* â”€â”€ Payment Section â”€â”€ */
+    .pos-payment { padding: 14px 20px; background: #fff; border-top: 1px solid #e2e8f0; flex-shrink: 0; }
+    .pos-payment-methods { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .pos-pay-btn { padding: 7px 14px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+    .pos-pay-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-pay-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+    .pos-amount-input { display: flex; gap: 8px; margin-bottom: 12px; }
+    .pos-amount-input label { font-size: 0.75rem; color: #64748b; font-weight: 600; align-self: center; }
+    .pos-amount-input input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 1rem; font-weight: 700; outline: none; text-align: right; }
+    .pos-amount-input input:focus { border-color: #3b82f6; }
+
+    .pos-change-row { display: flex; justify-content: space-between; padding: 8px 12px; background: #f0fdf4; border-radius: 8px; margin-bottom: 12px; }
+    .pos-change-row .label { font-size: 0.78rem; color: #16a34a; font-weight: 600; }
+    .pos-change-row .value { font-size: 1rem; font-weight: 600; color: #16a34a; }
+
+    .pos-checkout-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .pos-checkout-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
+    .pos-checkout-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* â”€â”€ Receipt Modal â”€â”€ */
+    .pos-receipt-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; }
+    .pos-receipt-overlay.show { display: flex; }
+    .pos-receipt { background: #fff; border-radius: 16px; width: 420px; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.3); }
+    .pos-receipt-header { padding: 20px 24px; background: linear-gradient(135deg, #0f172a, #1e40af); color: #fff; border-radius: 16px 16px 0 0; text-align: center; }
+    .pos-receipt-header h4 { font-weight: 700; font-size: 1rem; margin: 0; }
+    .pos-receipt-header p { font-size: 0.75rem; opacity: 0.8; margin: 4px 0 0; }
+    .pos-receipt-body { padding: 20px 24px; }
+    .pos-receipt-divider { border: none; border-top: 2px dashed #e2e8f0; margin: 16px 0; }
+    .pos-receipt-footer { padding: 16px 24px; background: #f8fafc; border-radius: 0 0 16px 16px; text-align: center; }
+    .pos-receipt-footer p { font-size: 0.72rem; color: #64748b; margin: 2px 0; }
+    .pos-receipt-actions { display: flex; gap: 8px; padding: 16px 24px; }
+    .pos-receipt-actions button { flex: 1; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 0.82rem; cursor: pointer; border: none; transition: all 0.15s; }
+    .pos-receipt-print { background: #3b82f6; color: #fff; }
+    .pos-receipt-print:hover { background: #2563eb; }
+    .pos-receipt-close { background: #e2e8f0; color: #475569; }
+    .pos-receipt-close:hover { background: #cbd5e1; }
+
+    /* â”€â”€ POS Toast/Modal â”€â”€ */
+    .pos-toast-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
+    .pos-toast-overlay.show { display: flex; }
+    .pos-toast-modal { background: #fff; border-radius: 16px; width: 420px; max-width: 90%; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: pos-toast-in 0.2s ease; }
+    @keyframes pos-toast-in { from { opacity: 0; transform: translateY(-20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .pos-toast-header { padding: 18px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); color: #fff; font-weight: 700; font-size: 1.05rem; text-align: center; position: relative; }
+    .pos-toast-close { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); background: none; border: none; color: #fff; font-size: 1.15rem; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+    .pos-toast-close:hover { background: rgba(255,255,255,0.15); }
+    .pos-toast-body { padding: 24px; text-align: center; }
+    .pos-toast-icon { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
+    .pos-toast-icon.success { background: #dcfce7; color: #16a34a; }
+    .pos-toast-icon.error { background: #fee2e2; color: #ef4444; }
+    .pos-toast-icon.warning { background: #fef3c7; color: #f59e0b; }
+    .pos-toast-icon.info { background: #dbeafe; color: #3b82f6; }
+    .pos-toast-message { font-size: 0.95rem; color: #334155; margin: 0 0 20px; line-height: 1.5; }
+    .pos-toast-ok { padding: 10px 36px; border-radius: 10px; border: none; background: #e2e8f0; color: #0f172a; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.15s; }
+    .pos-toast-ok:hover { background: #cbd5e1; }
+
+    /* â”€â”€ Sales History â”€â”€ */
+    .pos-history-toggle { background: #ffffff; border: 1.5px solid #ffffff; color: #0f172a; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; font-size: 1.1rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .pos-history-toggle:hover { border-color: #3b82f6; color: #3b82f6; }
+    .pos-history-modal { display: flex; flex-direction: column; max-height: 85vh; overflow: hidden; }
+    .pos-history-controls { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 10px; background: #fff; }
+    .pos-history-controls input, .pos-history-controls select { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #0f172a; font-size: 0.85rem; outline: none; }
+    .pos-history-controls input:focus, .pos-history-controls select:focus { border-color: #3b82f6; }
+    .pos-history-list { flex: 1; overflow-y: auto; padding: 16px 24px; min-height: 0; }
+    .pos-history-pagination { padding: 12px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 6px; align-items: center; background: #fff; }
+    .pos-history-page { padding: 6px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #f1f5f9; color: #0f172a; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .pos-history-page:hover:not(:disabled) { background: #e2e8f0; border-color: #3b82f6; color: #3b82f6; }
+    .pos-history-page.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .pos-history-page:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* â”€â”€ Responsive â”€â”€ */
+    @media print {
+      body * { visibility: hidden; }
+      .pos-receipt, .pos-receipt * { visibility: visible; }
+      .pos-receipt { position: absolute; left: 0; top: 0; width: 100%; border-radius: 0; box-shadow: none; }
+      .pos-receipt-actions { display: none !important; }
+    }
+  </style>
+
+  <div class="pos-layout">
+    <!-- Left: Products -->
+    <div class="pos-products">
+      <div class="pos-header">
+        <div class="pos-header-left">
+          <div class="pos-header-icon"><i class="bi bi-shop"></i></div>
+          <div class="pos-header-title">
+            <h5>Point of Sale</h5>
+            <small>Scan, search, and process sales in one place.</small>
+          </div>
+        </div>
+      </div>
+      <div class="pos-search-bar">
+        <div class="pos-search-box">
+          <i class="bi bi-search"></i>
+          <input type="text" id="posSearch" placeholder="Search parts, tools..." autocomplete="off">
+        </div>
+        <div class="pos-barcode-box">
+          <i class="bi bi-upc-scan"></i>
+          <input type="text" id="posBarcode" placeholder="Scan barcode or type item name..." autocomplete="off">
+        </div>
+        <button class="pos-history-toggle" onclick="toggleSalesHistory()" title="Sales History">
+          <i class="bi bi-clock-history"></i>
+        </button>
+      </div>
+      <div id="barcodeNotice" style="display:none;background:#f59e0b10;border:1px solid #f59e0b40;color:#f59e0b;padding:8px 16px;font-size:0.8rem;border-radius:8px;margin:0 16px 8px 16px;align-items:center;"></div>
+      <div class="pos-tabs">
+        <button class="pos-tab active" onclick="switchTab('tools', this)"><i class="bi bi-box-seam"></i> Parts &amp; Tools</button>
+        <button class="pos-tab" onclick="switchTab('aircons', this)"><i class="bi bi-snow"></i> Aircons</button>
+      </div>
+      <div class="pos-categories" id="posCategories"></div>
+      <div class="pos-grid" id="posGrid">
+        <div class="pos-empty"><i class="bi bi-box-seam"></i><p>Loading parts...</p></div>
+      </div>
+      <div class="pos-grid" id="posAirconGrid" style="display:none;">
+        <div class="pos-empty"><i class="bi bi-snow"></i><p>Loading aircons...</p></div>
+      </div>
+    </div>
+
+    <!-- Right: Cart -->
+    <div class="pos-cart">
+      <div class="pos-cart-header">
+        <div class="pos-cart-header-left">
+          <div class="pos-cart-header-icon"><i class="bi bi-cart3"></i></div>
+          <div class="pos-cart-header-title">
+            <h6>Current Sale</h6>
+            <small>Review items and proceed to checkout</small>
+          </div>
+        </div>
+      </div>
+      <div class="pos-cart-meta">
+        <span class="pos-cart-meta-label"><i class="bi bi-bag"></i>Items in cart</span>
+        <span class="pos-cart-count" id="cartCount">0</span>
+      </div>
+      <div class="pos-customer-bar">
+        <input type="text" id="customerName" placeholder="Customer name (optional)" style="margin-bottom:6px;">
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="text" id="customerPhone" placeholder="Phone (optional)" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
+          <input type="text" id="customerTin" placeholder="TIN (optional)" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
+        </div>
+        <input type="text" id="customerAddress" placeholder="Address (optional)" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#f8fafc;outline:none;">
+      </div>
+      <div class="pos-cart-items" id="cartItems">
+        <div class="pos-cart-empty">
+          <i class="bi bi-cart-x"></i>
+          <p>No items in cart</p>
+        </div>
+      </div>
+      <div class="pos-cart-summary" id="cartSummary" style="display:none;">
+        <div class="pos-summary-row"><span class="label">Subtotal</span><span class="value" id="summarySubtotal">â‚±0.00</span></div>
+        <div class="pos-discount-row">
+          <input type="number" id="discountInput" placeholder="Discount (â‚±)" min="0" step="0.01" oninput="recalcCart()">
+        </div>
+        <div class="pos-summary-row discount"><span class="label">Discount</span><span class="value" id="summaryDiscount">-â‚±0.00</span></div>
+        <div class="pos-summary-row total"><span class="label">TOTAL</span><span class="value" id="summaryTotal">â‚±0.00</span></div>
+      </div>
+      <div class="pos-payment" id="posPayment" style="display:none;">
+        <div class="pos-payment-methods">
+          <button class="pos-pay-btn active" data-method="cash" onclick="selectPayment('cash')"><i class="bi bi-cash"></i>Cash</button>
+          <button class="pos-pay-btn" data-method="gcash" onclick="selectPayment('gcash')"><i class="bi bi-phone"></i>GCash</button>
+          <button class="pos-pay-btn" data-method="maya" onclick="selectPayment('maya')"><i class="bi bi-phone"></i>Maya</button>
+          <button class="pos-pay-btn" data-method="card" onclick="selectPayment('card')"><i class="bi bi-credit-card"></i>Card</button>
+        </div>
+        <div class="pos-amount-input" id="cashInputRow">
+          <label>Amount Received</label>
+          <input type="number" id="amountPaid" placeholder="0.00" min="0" step="0.01" oninput="calcChange()">
+        </div>
+        <div class="pos-change-row" id="changeRow" style="display:none;">
+          <span class="label">Change</span>
+          <span class="value" id="changeValue">â‚±0.00</span>
+        </div>
+        <button class="pos-checkout-btn" id="checkoutBtn" onclick="processCheckout()" disabled>
+          <i class="bi bi-check-circle"></i>Complete Sale
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receipt Overlay -->
+  <div class="pos-receipt-overlay" id="receiptOverlay">
+    <div class="pos-receipt" id="receiptContent"></div>
+  </div>
+
+  <!-- Sales History Overlay -->
+  <div class="pos-receipt-overlay" id="historyOverlay" onclick="if(event.target===this)toggleSalesHistory()">
+    <div class="pos-history-modal" style="background:#fff;border-radius:16px;width:700px;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
+      <div style="padding:20px 24px;background:linear-gradient(135deg,#0f172a,#1e40af);color:#fff;display:flex;justify-content:space-between;align-items:center;">
+        <h5 style="margin:0;font-weight:700;"><i class="bi bi-clock-history me-2"></i>Sales History</h5>
+        <button onclick="toggleSalesHistory()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="pos-history-controls">
+        <input type="text" id="historySearch" placeholder="Search invoice / customer...">
+        <select id="historyCategory"><option value="">All Categories</option></select>
+      </div>
+      <div class="pos-history-list" id="historyList">
+        <p class="text-muted text-center">Loading...</p>
+      </div>
+      <div class="pos-history-pagination" id="historyPagination"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+let cart = [];
+let selectedPayment = "cash";
+let allTools = [];
+let currentCategory = "";
+let historyPage = 1;
+let historyTotalPages = 1;
+const historyLimit = 10;
+
+// â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+document.addEventListener("DOMContentLoaded", () => {
+  loadCategories();
+  loadTools();
+
+  document.getElementById("posSearch").addEventListener("input", debounce(() => { if (currentTab === "tools") loadTools(); else loadAircons(); }, 300));
+  document.getElementById("historySearch").addEventListener("input", debounce(() => { historyPage = 1; loadSalesHistory(); }, 300));
+  document.getElementById("historyCategory").addEventListener("change", () => { historyPage = 1; loadSalesHistory(); });
+
+  // Barcode scanner: buffer characters, fire on terminator (Enter/Tab) or timeout
+  let barcodeBuffer = "";
+  let barcodeTimer = null;
+  const barcodeInput = document.getElementById("posBarcode");
+
+  function processBarcode() {
+    const val = barcodeBuffer.replace(/[\r\n\x00-\x1f]/g, "").trim();
+    barcodeBuffer = "";
+    barcodeInput.value = "";
+    if (val) {
+      console.log("[POS] Barcode scanned:", val);
+      lookupBarcode(val);
+    }
+  }
+
+  barcodeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      clearTimeout(barcodeTimer);
+      barcodeBuffer = barcodeInput.value.trim();
+      processBarcode();
+      return;
+    }
+  });
+
+  barcodeInput.addEventListener("input", (e) => {
+    const val = e.target.value;
+    if (!val) { barcodeBuffer = ""; clearTimeout(barcodeTimer); return; }
+    barcodeBuffer = val;
+    clearTimeout(barcodeTimer);
+    // Fallback: if scanner doesn't send Enter/Tab, fire after 300ms of silence
+    barcodeTimer = setTimeout(() => processBarcode(), 300);
+  });
+
+  // Focus barcode input on page load
+  barcodeInput.focus();
+});
+
+// â”€â”€ API Calls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function loadCategories() {
+  try {
+    const res = await fetch("/api/pos/categories");
+    const data = await res.json();
+    const container = document.getElementById("posCategories");
+    let html = '<button class="pos-cat-btn active" onclick="filterCategory(\'\', this)">All</button>';
+    (data.categories || []).forEach(c => {
+      html += `<button class="pos-cat-btn" onclick="filterCategory('${c.replace(/'/g, "\\'")}', this)">${escapeHtml(c)}</button>`;
+    });
+    container.innerHTML = html;
+
+    const historyCategory = document.getElementById("historyCategory");
+    if (historyCategory) {
+      historyCategory.innerHTML = '<option value="">All Categories</option>';
+      (data.categories || []).forEach(c => {
+        historyCategory.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+      });
+    }
+  } catch (e) { console.error("Categories load error:", e); }
+}
+
+async function loadTools() {
+  try {
+    const q = document.getElementById("posSearch").value.trim();
+    const params = new URLSearchParams({ limit: 200 });
+    if (q) params.set("q", q);
+    if (currentCategory) params.set("category", currentCategory);
+
+    const res = await fetch(`/api/pos/tools?${params}`);
+    const data = await res.json();
+    allTools = data.tools || [];
+    renderTools();
+    checkBarcodeStatus();
+  } catch (e) { console.error("Tools load error:", e); }
+}
+
+function checkBarcodeStatus() {
+  const withBarcode = allTools.filter(t => t.barcode && t.barcode.trim());
+  const withoutBarcode = allTools.filter(t => !t.barcode || !t.barcode.trim());
+  const notice = document.getElementById("barcodeNotice");
+  if (withoutBarcode.length > 0 && withBarcode.length < allTools.length) {
+    notice.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${withoutBarcode.length} item(s) missing barcodes. <button onclick="generateBarcodesPOS()" style="background:#f59e0b;color:#000;border:none;padding:2px 10px;border-radius:4px;font-weight:700;cursor:pointer;margin-left:8px;font-size:0.75rem;">Generate Now</button>`;
+    notice.style.display = "flex";
+  } else {
+    notice.style.display = "none";
+  }
+}
+
+async function generateBarcodesPOS() {
+  try {
+    const res = await fetch("/api/pos/tools/generate-barcodes", { method: "POST", credentials: "same-origin" });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || `Generated ${data.updated} barcodes`, "success");
+      loadTools();
+    } else {
+      showToast(data.error || "Failed", "error");
+    }
+  } catch (e) { showToast("Failed to generate barcodes", "error"); }
+}
+
+// â”€â”€ Tab Switching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+let currentTab = "tools";
+let allAircons = [];
+
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll(".pos-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+
+  const toolsGrid = document.getElementById("posGrid");
+  const airconGrid = document.getElementById("posAirconGrid");
+  const catsEl = document.getElementById("posCategories");
+  const searchEl = document.getElementById("posSearch");
+
+  if (tab === "tools") {
+    toolsGrid.style.display = "";
+    airconGrid.style.display = "none";
+    catsEl.style.display = "";
+    searchEl.placeholder = "Search parts, tools...";
+  } else {
+    toolsGrid.style.display = "none";
+    airconGrid.style.display = "";
+    catsEl.style.display = "none";
+    searchEl.placeholder = "Search aircon models...";
+    loadAircons();
+  }
+  searchEl.value = "";
+}
+
+async function loadAircons() {
+  try {
+    const q = document.getElementById("posSearch").value.trim();
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    const res = await fetch(`/api/pos/aircons?${params}`);
+    const data = await res.json();
+    allAircons = data.items || [];
+    renderAircons();
+  } catch (e) { console.error("Aircons load error:", e); }
+}
+
+function renderAircons() {
+  const grid = document.getElementById("posAirconGrid");
+  if (!allAircons.length) {
+    grid.innerHTML = '<div class="pos-empty"><i class="bi bi-snow"></i><p>No aircons in stock</p></div>';
+    return;
+  }
+  let html = "";
+  allAircons.forEach((a, idx) => {
+    const oos = a.available <= 0;
+    html += `
+      <div class="pos-aircon-card${oos ? " oos" : ""}" data-aircon-idx="${idx}">
+        ${a.imageUrl ? `<img class="pos-aircon-img" src="${escapeHtml(a.imageUrl)}" alt="" onerror="this.style.display='none'">` : `<div class="pos-aircon-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:2rem;"><i class="bi bi-snow"></i></div>`}
+        <div class="pos-aircon-name">${escapeHtml(a.itemName || a.modelLine)}</div>
+        <div class="pos-aircon-cat">${escapeHtml(a.brand || "")}</div>
+        <div class="pos-aircon-barcode"><i class="bi bi-snow"></i> ${escapeHtml((a.capacity || "") + (a.capacityUnit || "HP"))} ${a.inverter !== undefined ? (a.inverter ? "Inverter" : "Non-Inverter") : ""} ${a.btu ? a.btu + " BTU" : ""}</div>
+        <div class="pos-aircon-price">â‚±${Number(a.sellingPrice || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <div class="pos-aircon-stock">${oos ? "Out of stock" : `<strong>${a.available}</strong> unit(s) available`}</div>
+      </div>`;
+  });
+  grid.innerHTML = html;
+  // Bind click handlers after render
+  grid.querySelectorAll("[data-aircon-idx]").forEach(el => {
+    el.addEventListener("click", () => {
+      const a = allAircons[parseInt(el.dataset.airconIdx)];
+      if (a && a.available > 0) {
+        addToCart({ _id: a._id, itemName: a.itemName, category: a.category, unit: a.unit, barcode: a.barcode, sellingPrice: a.sellingPrice, costPrice: a.costPrice, available: a.available, source: "aircon" });
+      }
+    });
+  });
+}
+
+async function lookupBarcode(barcode) {
+  if (!barcode) return;
+  showToast(`Scanned: ${barcode}`, "info");
+  try {
+    const res = await fetch(`/api/pos/tools/barcode/${encodeURIComponent(barcode)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || "Item not found â€” try Manual Add", "error");
+      return;
+    }
+    addToCart(data);
+  } catch (e) {
+    console.error("[POS] Barcode lookup error:", e);
+    showToast("Barcode lookup failed â€” check connection", "error");
+  }
+}
+
+// â”€â”€ Render Products â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function renderTools() {
+  const grid = document.getElementById("posGrid");
+  if (!allTools.length) {
+    grid.innerHTML = '<div class="pos-empty"><i class="bi bi-box-seam"></i><p>No parts found</p></div>';
+    return;
+  }
+  let html = "";
+  allTools.forEach((t, idx) => {
+    const oos = t.available <= 0;
+    html += `
+      <div class="pos-item${oos ? " oos" : ""}" data-tool-idx="${idx}">
+        ${t.imageUrl ? `<img class="pos-item-img" src="${escapeHtml(t.imageUrl)}" alt="" onerror="this.style.display='none'">` : `<div class="pos-item-img" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:2rem;"><i class="bi bi-box-seam"></i></div>`}
+        <div class="pos-item-name">${escapeHtml(t.itemName)}</div>
+        <div class="pos-item-cat">${escapeHtml(t.category || "")}</div>
+        ${t.serialNumber ? `<div class="pos-item-barcode"><i class="bi bi-qr-code"></i> SN: ${escapeHtml(t.serialNumber)}</div>` : ""}
+        ${t.barcode ? `<div class="pos-item-barcode"><i class="bi bi-upc-scan"></i> ${escapeHtml(t.barcode)}</div>` : ""}
+        <div class="pos-item-price">â‚±${Number(t.sellingPrice || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <div class="pos-item-stock">${oos ? "Out of stock" : `<strong>${t.available}</strong> ${t.unit || "pcs"} available`}</div>
+      </div>`;
+  });
+  grid.innerHTML = html;
+  grid.querySelectorAll("[data-tool-idx]").forEach(el => {
+    el.addEventListener("click", () => {
+      const t = allTools[parseInt(el.dataset.toolIdx)];
+      if (t && t.available > 0) addToCart(t);
+    });
+  });
+}
+
+function filterCategory(cat, btn) {
+  currentCategory = cat;
+  document.querySelectorAll(".pos-cat-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  loadTools();
+}
+
+// â”€â”€ Cart Operations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function addToCart(tool) {
+  const existing = cart.find(i => i.toolId === tool._id);
+  if (existing) {
+    if (existing.quantity >= tool.available) { showToast("No more stock available", "warning"); return; }
+    existing.quantity++;
+    existing.totalPrice = existing.unitPrice * existing.quantity;
+  } else {
+    cart.push({
+      toolId: tool._id,
+      itemName: tool.itemName,
+      category: tool.category || "",
+      unit: tool.unit || "pcs",
+      unitPrice: tool.sellingPrice || 0,
+      costPrice: tool.costPrice || 0,
+      available: tool.available,
+      source: tool.source || "tool",
+      quantity: 1,
+      totalPrice: tool.sellingPrice || 0,
+    });
+  }
+  renderCart();
+  showToast(`Added "${tool.itemName}"`, "success");
+}
+
+function updateQty(idx, delta) {
+  const item = cart[idx];
+  if (!item) return;
+  const newQty = item.quantity + delta;
+  if (newQty <= 0) { cart.splice(idx, 1); }
+  else if (newQty > item.available) { showToast("Insufficient stock", "warning"); return; }
+  else { item.quantity = newQty; item.totalPrice = item.unitPrice * newQty; }
+  renderCart();
+}
+
+function removeItem(idx) { cart.splice(idx, 1); renderCart(); }
+
+function renderCart() {
+  const itemsEl = document.getElementById("cartItems");
+  const summaryEl = document.getElementById("cartSummary");
+  const paymentEl = document.getElementById("posPayment");
+  const countEl = document.getElementById("cartCount");
+
+  countEl.textContent = cart.reduce((s, i) => s + i.quantity, 0);
+
+  if (!cart.length) {
+    itemsEl.innerHTML = '<div class="pos-cart-empty"><i class="bi bi-cart-x"></i><p>No items in cart</p></div>';
+    summaryEl.style.display = "none";
+    paymentEl.style.display = "none";
+    return;
+  }
+
+  let html = "";
+  cart.forEach((item, idx) => {
+    html += `
+      <div class="pos-cart-item">
+        <div class="pos-cart-item-info">
+          <div class="pos-cart-item-name">${escapeHtml(item.itemName)}</div>
+          <div class="pos-cart-item-price">â‚±${item.unitPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })} Ã— ${item.quantity}</div>
+        </div>
+        <div class="pos-cart-item-qty">
+          <button onclick="updateQty(${idx}, -1)">âˆ’</button>
+          <span>${item.quantity}</span>
+          <button onclick="updateQty(${idx}, 1)">+</button>
+        </div>
+        <div class="pos-cart-item-total">â‚±${item.totalPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <div class="pos-cart-item-remove" onclick="removeItem(${idx})"><i class="bi bi-trash3"></i></div>
+      </div>`;
+  });
+  itemsEl.innerHTML = html;
+  summaryEl.style.display = "block";
+  paymentEl.style.display = "block";
+  recalcCart();
+}
+
+function recalcCart() {
+  const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
+  const discount = Math.max(0, parseFloat(document.getElementById("discountInput").value) || 0);
+  const total = Math.max(0, subtotal - discount);
+
+  document.getElementById("summarySubtotal").textContent = "â‚±" + subtotal.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  document.getElementById("summaryDiscount").textContent = "-â‚±" + discount.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  document.getElementById("summaryTotal").textContent = "â‚±" + total.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  calcChange();
+}
+
+function selectPayment(method) {
+  selectedPayment = method;
+  document.querySelectorAll(".pos-pay-btn").forEach(b => b.classList.toggle("active", b.dataset.method === method));
+  const cashRow = document.getElementById("cashInputRow");
+  cashRow.style.display = method === "cash" ? "flex" : "none";
+  if (method !== "cash") {
+    document.getElementById("amountPaid").value = cart.reduce((s, i) => s + i.totalPrice, 0) - (parseFloat(document.getElementById("discountInput").value) || 0);
+  }
+  calcChange();
+}
+
+function calcChange() {
+  const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
+  const discount = Math.max(0, parseFloat(document.getElementById("discountInput").value) || 0);
+  const total = Math.max(0, subtotal - discount);
+  const paid = parseFloat(document.getElementById("amountPaid").value) || 0;
+  const change = paid - total;
+
+  const changeRow = document.getElementById("changeRow");
+  const checkoutBtn = document.getElementById("checkoutBtn");
+
+  if (selectedPayment === "cash" && paid > 0) {
+    changeRow.style.display = "flex";
+    document.getElementById("changeValue").textContent = "â‚±" + Math.max(0, change).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+    changeRow.style.background = change >= 0 ? "#f0fdf4" : "#fef2f2";
+    document.getElementById("changeValue").style.color = change >= 0 ? "#16a34a" : "#dc2626";
+  } else {
+    changeRow.style.display = "none";
+  }
+
+  checkoutBtn.disabled = cart.length === 0 || (selectedPayment === "cash" && paid < total);
+}
+
+// â”€â”€ Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function processCheckout() {
+  if (!cart.length) return;
+  const btn = document.getElementById("checkoutBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div>Processing...';
+
+  const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
+  const discount = parseFloat(document.getElementById("discountInput").value) || 0;
+  const total = subtotal - discount;
+  const paid = parseFloat(document.getElementById("amountPaid").value) || 0;
+
+  try {
+    const res = await fetch("/api/pos/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerName: document.getElementById("customerName").value.trim(),
+        customerPhone: document.getElementById("customerPhone").value.trim(),
+        customerTin: document.getElementById("customerTin").value.trim(),
+        customerAddress: document.getElementById("customerAddress").value.trim(),
+        items: cart.map(i => ({ toolId: i.toolId, quantity: i.quantity, source: i.source || "tool" })),
+        paymentMethod: selectedPayment,
+        amountPaid: selectedPayment === "cash" ? paid : total,
+        discount,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Checkout failed");
+
+    showReceipt(data.sale);
+    cart = [];
+    document.getElementById("discountInput").value = "";
+    document.getElementById("amountPaid").value = "";
+    document.getElementById("customerName").value = "";
+    document.getElementById("customerPhone").value = "";
+    document.getElementById("customerTin").value = "";
+    document.getElementById("customerAddress").value = "";
+    renderCart();
+    if (currentTab === "tools") loadTools(); else loadAircons();
+    showToast("Sale completed!", "success");
+  } catch (e) {
+    showToast(e.message || "Checkout failed", "error");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle"></i>Complete Sale';
+  }
+}
+
+// â”€â”€ Receipt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function showReceipt(sale) {
+  const el = document.getElementById("receiptContent");
+  const date = new Date(sale.completedAt || sale.createdAt);
+  const itemsHtml = (sale.items || []).map(i =>
+    `<tr>
+      <td style="padding:6px 0;font-size:0.82rem;color:#0f172a;">${escapeHtml(i.itemName)}${i.serialNumber ? `<br><span style="font-size:0.65rem;color:#94a3b8;">SN: ${escapeHtml(i.serialNumber)}</span>` : ""}</td>
+      <td style="padding:6px 0;font-size:0.82rem;text-align:center;color:#64748b;">${i.quantity} ${i.unit || "pcs"}</td>
+      <td style="padding:6px 0;font-size:0.82rem;text-align:right;color:#0f172a;">â‚±${Number(i.totalPrice).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+    </tr>`
+  ).join("");
+
+  el.innerHTML = `
+    <div class="pos-receipt-header">
+      <h4>CALIDRO RACS</h4>
+      <p>Parts & Tools Point of Sale</p>
+      <p style="margin-top:8px;font-size:0.7rem;opacity:0.7;">${date.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${date.toLocaleTimeString("en-PH")}</p>
+    </div>
+    <div class="pos-receipt-body">
+      <div style="font-size:0.78rem;color:#64748b;margin-bottom:4px;">
+        <strong style="color:#0f172a;">${sale.invoiceNumber}</strong>
+      </div>
+      <div style="font-size:0.82rem;font-weight:600;color:#0f172a;margin-bottom:4px;">${sale.customerName || "Walk-In Customer"}</div>
+      ${sale.customerPhone ? `<div style="font-size:0.72rem;color:#64748b;">Phone: ${escapeHtml(sale.customerPhone)}</div>` : ""}
+      ${sale.customerTin ? `<div style="font-size:0.72rem;color:#64748b;">TIN: ${escapeHtml(sale.customerTin)}</div>` : ""}
+      ${sale.customerAddress ? `<div style="font-size:0.72rem;color:#64748b;">Address: ${escapeHtml(sale.customerAddress)}</div>` : ""}
+      <hr class="pos-receipt-divider">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <th style="padding:6px 0;font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#64748b;text-align:left;">Item</th>
+            <th style="padding:6px 0;font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#64748b;text-align:center;">Qty</th>
+            <th style="padding:6px 0;font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#64748b;text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <hr class="pos-receipt-divider">
+      <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;">
+        <span style="color:#64748b;">Subtotal</span>
+        <span style="font-weight:600;">â‚±${Number(sale.subtotal).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+      </div>
+      ${sale.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;color:#ef4444;">
+        <span>Discount</span><span style="font-weight:600;">-â‚±${Number(sale.discount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+      </div>` : ""}
+      <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:600;margin-top:10px;padding-top:10px;border-top:2px solid #0f172a;">
+        <span>TOTAL</span><span>â‚±${Number(sale.totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-top:8px;">
+        <span style="color:#64748b;">Payment (${sale.paymentMethod.toUpperCase()})</span>
+        <span>â‚±${Number(sale.amountPaid).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+      </div>
+      ${sale.change > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#16a34a;font-weight:700;">
+        <span>Change</span><span>â‚±${Number(sale.change).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+      </div>` : ""}
+    </div>
+    <div class="pos-receipt-footer">
+      <div style="margin-bottom:16px;padding-top:4px;text-align:center;">
+        <div style="font-size:0.85rem;font-weight:600;color:#0f172a;margin-bottom:2px;">_______________________</div>
+        <div style="font-size:0.72rem;color:#64748b;">Authorized Signature</div>
+      </div>
+      <p style="font-weight:700;color:#0f172a;">Thank you for your purchase!</p>
+      <p>Processed by: ${escapeHtml(sale.processedByName || "Admin")}</p>
+    </div>
+    <div class="pos-receipt-actions">
+      <button class="pos-receipt-print" onclick="printReceipt()"><i class="bi bi-printer me-1"></i>Print Receipt</button>
+      <button class="pos-receipt-close" onclick="closeReceipt()"><i class="bi bi-x-lg me-1"></i>Close</button>
+    </div>`;
+
+  document.getElementById("receiptOverlay").classList.add("show");
+}
+
+function printReceipt() { window.print(); }
+function closeReceipt() { document.getElementById("receiptOverlay").classList.remove("show"); }
+
+// â”€â”€ Sales History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function toggleSalesHistory() {
+  const overlay = document.getElementById("historyOverlay");
+  overlay.classList.toggle("show");
+  if (overlay.classList.contains("show")) loadSalesHistory();
+}
+
+async function loadSalesHistory() {
+  const el = document.getElementById("historyList");
+  const pagination = document.getElementById("historyPagination");
+  el.innerHTML = '<p class="text-muted text-center">Loading...</p>';
+  try {
+    const q = document.getElementById("historySearch")?.value.trim() || "";
+    const category = document.getElementById("historyCategory")?.value || "";
+    const params = new URLSearchParams({ page: historyPage, limit: historyLimit });
+    if (q) params.set("q", q);
+    if (category) params.set("category", category);
+    const res = await fetch(`/api/pos/sales?${params}`);
+    const data = await res.json();
+    historyTotalPages = data.pages || 1;
+    if (!data.sales?.length) { el.innerHTML = '<p class="text-muted text-center">No sales found</p>'; pagination.innerHTML = ''; return; }
+
+    let html = `<div style="margin-bottom:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <div style="background:#f0fdf4;padding:12px;border-radius:10px;text-align:center;">
+        <i class="bi bi-cash-stack" style="display:block;font-size:1.3rem;color:#16a34a;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#16a34a;">â‚±${Number(data.todayStats?.revenue || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <div style="font-size:0.7rem;color:#64748b;">Today's Revenue</div>
+      </div>
+      <div style="background:#eff6ff;padding:12px;border-radius:10px;text-align:center;">
+        <i class="bi bi-receipt" style="display:block;font-size:1.3rem;color:#3b82f6;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#3b82f6;">${data.todayStats?.count || 0}</div>
+        <div style="font-size:0.7rem;color:#64748b;">Today's Sales</div>
+      </div>
+      <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center;">
+        <i class="bi bi-graph-up-arrow" style="display:block;font-size:1.3rem;color:#b45309;margin-bottom:4px;"></i>
+        <div style="font-size:1.2rem;font-weight:600;color:#b45309;">â‚±${Number(data.todayStats?.profit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+        <div style="font-size:0.7rem;color:#64748b;">Today's Profit</div>
+      </div>
+    </div>`;
+
+    data.sales.forEach(s => {
+      const d = new Date(s.createdAt);
+      const statusBadge = s.status === "completed" ? '<span style="color:#16a34a;font-weight:600;">Completed</span>' :
+        s.status === "voided" ? '<span style="color:#ef4444;font-weight:600;">Voided</span>' : '<span style="color:#f59e0b;">Pending</span>';
+      html += `
+        <div style="padding:12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700;font-size:0.85rem;color:#0f172a;">${s.invoiceNumber}</div>
+            <div style="font-size:0.72rem;color:#64748b;">${d.toLocaleDateString("en-PH")} ${d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div style="font-size:0.72rem;color:#64748b;">${escapeHtml(s.customerName || "Walk-In")} Â· ${s.items?.length || 0} item(s)</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;font-size:0.95rem;color:#0f172a;">â‚±${Number(s.totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
+            ${statusBadge}
+          </div>
+        </div>`;
+    });
+    el.innerHTML = html;
+    renderHistoryPagination(data.page, data.pages, data.total);
+  } catch (e) { el.innerHTML = '<p class="text-danger text-center">Failed to load history</p>'; }
+}
+
+function renderHistoryPagination(page, pages, total) {
+  const el = document.getElementById("historyPagination");
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const start = Math.floor((page - 1) / 10) * 10 + 1;
+  const end = Math.min(start + 9, pages);
+  let html = `<button class="pos-history-page" ${page === 1 ? 'disabled' : ''} onclick="changeHistoryPage(${page - 1})">Prev</button>`;
+  for (let i = start; i <= end; i++) {
+    html += `<button class="pos-history-page ${i === page ? 'active' : ''}" onclick="changeHistoryPage(${i})">${i}</button>`;
+  }
+  html += `<button class="pos-history-page" ${page >= pages ? 'disabled' : ''} onclick="changeHistoryPage(${page + 1})">Next</button>`;
+  el.innerHTML = html;
+}
+
+function changeHistoryPage(p) {
+  if (p < 1 || p > historyTotalPages) return;
+  historyPage = p;
+  loadSalesHistory();
+}
+
+// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function escapeHtml(str) { return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+let posToastTimer;
+function createPosToastModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'posToastModal';
+  overlay.className = 'pos-toast-overlay';
+  overlay.innerHTML = `
+    <div class="pos-toast-modal">
+      <div class="pos-toast-header">
+        <span class="pos-toast-title">Success</span>
+        <button class="pos-toast-close" onclick="closePosToast()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="pos-toast-body">
+        <div class="pos-toast-icon success"><i class="bi bi-check-circle-fill"></i></div>
+        <p class="pos-toast-message"></p>
+        <button class="pos-toast-ok" onclick="closePosToast()">OK</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closePosToast(); });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+function showToast(msg, type = "info") {
+  let overlay = document.getElementById('posToastModal');
+  if (!overlay) overlay = createPosToastModal();
+  const titleMap = { success: 'Success', error: 'Error', warning: 'Warning', info: 'Info' };
+  const iconMap = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+  const typeClass = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+  const t = titleMap[type] ? type : 'info';
+  overlay.querySelector('.pos-toast-title').textContent = titleMap[t];
+  overlay.querySelector('.pos-toast-icon').className = `pos-toast-icon ${typeClass[t]}`;
+  overlay.querySelector('.pos-toast-icon i').className = `bi ${iconMap[t]}`;
+  overlay.querySelector('.pos-toast-message').textContent = msg;
+  overlay.classList.add('show');
+  if (posToastTimer) clearTimeout(posToastTimer);
+  posToastTimer = setTimeout(() => closePosToast(), 2500);
+}
+function closePosToast() {
+  const overlay = document.getElementById('posToastModal');
+  if (overlay) overlay.classList.remove('show');
+  if (posToastTimer) clearTimeout(posToastTimer);
+}
+</script>
+

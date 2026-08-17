@@ -1,25 +1,31 @@
 <div class="technician-page">
-  <div class="container-fluid px-4 py-4">
+  <div class="container-fluid px-3 px-md-4 py-3 py-md-4">
 
-    <!-- Hero -->
-    <div class="td-hero mb-4">
-      <div class="row align-items-center">
-        <div class="col-md-7">
-          <h1 class="td-hero-title"><i class="bi bi-person-check me-2"></i>Attendance</h1>
-          <p class="td-hero-sub">Scan QR to check in, track your work hours.</p>
+    <!-- Enterprise Hero Header -->
+    <div class="td-hero">
+      <div class="td-hero-content">
+        <div class="td-hero-left">
+          <div class="td-hero-icon">
+            <i class="bi bi-person-check"></i>
+          </div>
+          <div>
+            <h1 class="td-hero-title">Attendance</h1>
+            <p class="td-hero-sub">Scan QR to check in, track your work hours.</p>
+          </div>
         </div>
-        <div class="col-md-5 text-md-end mt-3 mt-md-0">
-          <div class="td-hero-actions">
-            <span class="td-date-badge"><i class="bi bi-calendar3 me-1"></i><span id="todayDate">—</span></span>
+        <div class="td-hero-right">
+          <div class="td-hero-clock">
+            <i class="bi bi-clock"></i>
+            <span id="todayDate">--:--</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="row g-4">
+    <div class="att-main-row row g-4">
 
       <!-- ═══ LEFT COLUMN: Status + QR ═══ -->
-      <div class="col-lg-5">
+      <div class="col-12 col-lg-5">
 
         <!-- Current Attendance Card -->
         <div class="att-status-card" id="statusCard">
@@ -78,7 +84,7 @@
       </div>
 
       <!-- ═══ RIGHT COLUMN: QR Scanner ═══ -->
-      <div class="col-lg-7">
+      <div class="col-12 col-lg-7">
 
         <!-- QR Code Check-In -->
         <div class="att-panel">
@@ -103,7 +109,7 @@
                 <p>Camera preview</p>
               </div>
               <div id="reader" style="display:none;border-radius:12px;overflow:hidden;"></div>
-              <div class="mt-3 d-flex justify-content-center gap-2">
+              <div class="mt-3 att-scanner-controls">
                 <button id="btnStartScanner" class="att-sm-btn green" onclick="startScanner()">
                   <i class="bi bi-qr-code-scan"></i> Scan QR
                 </button>
@@ -241,13 +247,15 @@
   .att-timer-card {
     background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; border-radius: 14px;
     padding: 20px; display: flex; align-items: center; gap: 16px; margin-top: 12px;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.08);
   }
   .att-timer-icon { font-size: 1.5rem; color: #3b82f6; }
   .att-timer-value { font-size: 2rem; font-weight: 800; color: #1e40af; font-variant-numeric: tabular-nums; }
   .att-timer-label { font-size: 0.78rem; color: #3b82f6; font-weight: 600; }
 
   /* Panel */
-  .att-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+  .att-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04); transition: box-shadow 0.25s ease, transform 0.25s ease; }
+  .att-panel:hover { box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); transform: translateY(-2px); }
   .att-panel-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 20px; border-bottom: 1px solid #f1f5f9; background: #fafbfc;
@@ -264,6 +272,9 @@
   .att-scanner-box i { font-size: 2rem; color: #94a3b8; }
   .att-scanner-box p { color: #94a3b8; font-size: 0.82rem; margin: 0; }
 
+  #reader { max-width: 100%; margin: 0 auto; }
+  #reader video, #reader canvas, #reader img { max-width: 100% !important; height: auto !important; }
+
   .att-sm-btn {
     padding: 10px 20px; border-radius: 10px; border: none; font-size: 0.85rem; font-weight: 600;
     display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;
@@ -272,6 +283,10 @@
   .att-sm-btn.green:hover { background: #bbf7d0; }
   .att-sm-btn.red { background: #fee2e2; color: #dc2626; }
   .att-sm-btn.red:hover { background: #fecaca; }
+
+  .att-scanner-controls {
+    display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;
+  }
 
   /* Timeline */
   .att-timeline { padding-left: 24px; border-left: 2px solid #e2e8f0; }
@@ -296,22 +311,73 @@
   .att-history-table { width: 100%; border-collapse: collapse; }
   .att-history-table th {
     background: #fafbfc; color: #64748b; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: left;
+    letter-spacing: 0.04em; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: left; white-space: nowrap;
   }
   .att-history-table td { padding: 12px 16px; font-size: 0.85rem; color: #334155; border-bottom: 1px solid #f1f5f9; }
   .att-history-table tr:hover td { background: #fafbfc; }
 
-  .td-date-badge {
-    display: inline-flex; align-items: center; gap: 4px; padding: 5px 14px; border-radius: 20px;
-    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
-    font-size: 0.82rem; font-weight: 600; color: #fff;
+  /* Page background (matches My Work) */
+  .technician-page { background: #f1f5f9; min-height: 100vh; }
+  .technician-page .container-fluid { display: block !important; }
+
+  /* Main row */
+  .att-main-row { display: flex; flex-wrap: wrap; }
+  @media (max-width: 991px) {
+    .att-main-row { flex-direction: column; }
   }
+
+  /* Hero (matches My Work assignments) */
+  .td-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #2563eb 100%);
+    border-radius: 16px;
+    padding: 28px 32px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 24px;
+  }
+  .td-hero::before {
+    content: '';
+    position: absolute; top: -80%; right: -20%; width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(96,165,250,0.12) 0%, transparent 70%);
+    border-radius: 50%; pointer-events: none;
+  }
+  .td-hero::after {
+    content: '';
+    position: absolute; bottom: -60%; left: -10%; width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+    border-radius: 50%; pointer-events: none;
+  }
+  .td-hero-content {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  }
+  .td-hero-left { display: flex; align-items: center; gap: 18px; }
+  .td-hero-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+  }
+  .td-hero-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+  .td-hero-sub { font-size: 0.82rem; opacity: 0.8; margin: 0; font-weight: 400; }
+  .td-hero-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .td-hero-clock {
+    padding: 10px 16px; background: rgba(255,255,255,0.1); border-radius: 12px;
+    backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12);
+    font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; gap: 8px;
+  }
+  .td-hero-clock i { opacity: 0.8; }
 
   /* Responsive Design */
   @media (max-width: 991px) {
-    .td-hero { padding: 1.25rem; }
-    .td-hero-title { font-size: 1.25rem; }
-    .td-hero-sub { font-size: 0.85rem; }
+    .td-hero { padding: 24px 28px; margin-bottom: 24px; }
+    .td-hero-content { flex-direction: column; align-items: flex-start; gap: 1.75rem; }
+    .td-hero-title { font-size: 1.45rem; }
+    .td-hero-sub { font-size: 0.88rem; line-height: 1.5; }
+    .td-hero-right { width: 100%; flex-direction: column; align-items: flex-start; }
     .att-status-card { padding: 1.25rem; }
     .att-status-header { gap: 12px; margin-bottom: 1rem; }
     .att-status-icon { width: 48px; height: 48px; font-size: 1.3rem; }
@@ -332,11 +398,12 @@
 
   @media (max-width: 767px) {
     .container-fluid { padding-left: 0.75rem; padding-right: 0.75rem; }
-    .td-hero { padding: 1rem; border-radius: 12px; }
-    .td-hero-title { font-size: 1.1rem; }
-    .td-hero-sub { font-size: 0.8rem; }
-    .td-hero-actions { width: 100%; justify-content: flex-start; }
-    .td-date-badge { font-size: 0.75rem; padding: 4px 12px; }
+    .td-hero { padding: 1.75rem 1.5rem; border-radius: 16px; margin-bottom: 1.5rem; }
+    .td-hero-content { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+    .td-hero-title { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .td-hero-sub { font-size: 0.88rem; line-height: 1.5; opacity: 0.85; }
+    .td-hero-icon { width: 52px; height: 52px; font-size: 1.4rem; border-radius: 14px; }
+    .td-hero-right { width: 100%; flex-direction: column; align-items: flex-start; }
     .att-status-card { padding: 1rem; border-radius: 12px; }
     .att-status-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
     .att-status-icon { width: 44px; height: 44px; font-size: 1.2rem; }
@@ -356,9 +423,9 @@
     .att-panel-header { padding: 0.875rem 1rem; }
     .att-panel-title { font-size: 0.78rem; }
     .att-panel-body { padding: 0.875rem 1rem; }
-    .att-scanner-box { max-width: 200px; aspect-ratio: 1; }
-    .att-scanner-box i { font-size: 1.5rem; }
-    .att-scanner-box p { font-size: 0.75rem; }
+    .att-scanner-box { max-width: 280px; aspect-ratio: 1; }
+    .att-scanner-box i { font-size: 1.6rem; }
+    .att-scanner-box p { font-size: 0.78rem; }
     .att-sm-btn { padding: 0.5rem 0.875rem; font-size: 0.72rem; }
     .att-timeline { padding-left: 1.25rem; }
     .att-timeline-item { padding: 0.625rem 0 0.625rem 0.75rem; }
@@ -368,24 +435,90 @@
     .att-timeline-detail { font-size: 0.72rem; }
     .att-history-table th { padding: 0.625rem 0.75rem; font-size: 0.65rem; }
     .att-history-table td { padding: 0.625rem 0.75rem; font-size: 0.78rem; }
+    #leaveContainer .d-flex {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 0.5rem;
+      padding: 0.75rem 0;
+    }
+    #leaveContainer .badge { align-self: flex-start; }
   }
 
   @media (max-width: 480px) {
-    .td-hero-title { font-size: 1rem; }
-    .td-hero-sub { font-size: 0.75rem; }
+    .container-fluid { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .td-hero {
+      padding: 1.5rem 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+    }
+    .td-hero-content { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .td-hero-icon { width: 48px; height: 48px; font-size: 1.3rem; border-radius: 12px; }
+    .td-hero-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .td-hero-sub { font-size: 0.85rem; line-height: 1.5; opacity: 0.85; }
+    .td-hero-right { width: 100%; flex-direction: column; align-items: flex-start; }
+    .td-hero-clock { padding: 8px 14px; font-size: 0.8rem; }
     .att-status-icon { width: 40px; height: 40px; font-size: 1.1rem; }
     .att-status-title { font-size: 0.9rem; }
     .att-status-sub { font-size: 0.72rem; }
     .att-detail-row { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
     .att-detail-value { text-align: left; }
     .att-timer-value { font-size: 1.25rem; }
-    .att-scanner-box { max-width: 180px; }
-    .att-sm-btn { width: 100%; justify-content: center; }
+    .att-scanner-box { max-width: 260px; }
+    .att-scanner-controls { flex-direction: column; align-items: center; }
+    .att-sm-btn { width: 100%; max-width: 260px; justify-content: center; }
     .att-timeline { padding-left: 1rem; }
     .att-timeline-item::before { left: -16px; width: 8px; height: 8px; }
     .att-history-table { font-size: 0.72rem; }
     .att-history-table th, .att-history-table td { padding: 0.5rem; }
   }
+
+  @media (max-width: 400px) {
+    .td-hero { padding: 1.25rem 0.875rem; border-radius: 12px; }
+    .td-hero-content { gap: 0.75rem; }
+    .td-hero-icon { width: 44px; height: 44px; font-size: 1.1rem; }
+    .td-hero-title { font-size: 1.2rem; }
+    .td-hero-sub { font-size: 0.78rem; }
+    .td-hero-clock { font-size: 0.75rem; padding: 6px 12px; }
+    .att-status-icon { width: 38px; height: 38px; font-size: 1rem; }
+    .att-status-title { font-size: 0.85rem; }
+    .att-status-sub { font-size: 0.7rem; }
+    .att-sm-btn { padding: 0.625rem 1rem; font-size: 0.75rem; }
+    .att-history-table th, .att-history-table td { padding: 0.5rem 0.35rem; font-size: 0.68rem; }
+  }
+
+  /* Mobile: attendance history as labeled cards (like orders) */
+  @media (max-width: 767px) {
+    .att-history-table { border: 0; }
+    .att-history-table thead { display: none; }
+    .att-history-table tbody, .att-history-table tr { display: block; }
+    .att-history-table tr {
+      margin-bottom: 0.75rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    }
+    .att-history-table td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.85rem;
+    }
+    .att-history-table td:last-child { border-bottom: none; }
+    .att-history-table td::before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #64748b;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .att-history-table td .badge { font-size: 0.7rem; }
+  }
+
 </style>
 
 <script>
@@ -395,7 +528,7 @@
   let checkInTime = null;
 
   // ── Init ──────────────────────────────────────────────────────────────
-  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
   document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   document.getElementById('leaveStart').min = new Date().toISOString().split('T')[0];
   document.getElementById('leaveEnd').min = new Date().toISOString().split('T')[0];
@@ -564,6 +697,34 @@
       });
       const data = await res.json();
 
+      if (!res.ok && data.code === 'EXPENSE_CONFIRMATION_REQUIRED') {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
+        const hasCompletedJobs = data.completedJobsToday > 0;
+        const choice = await Swal.fire({
+          icon: hasCompletedJobs ? 'warning' : 'question',
+          title: hasCompletedJobs ? 'Expenses required' : 'Any expenses today?',
+          html: `<div style="font-size:.9rem;color:#475569;">You have not logged any expenses today.${data.completedJobsToday ? `<br><strong>You completed ${data.completedJobsToday} booking${data.completedJobsToday === 1 ? '' : 's'}.</strong>` : ''}</div>`,
+          showCancelButton: true,
+          showDenyButton: !hasCompletedJobs,
+          confirmButtonText: '<i class="bi bi-receipt me-1"></i> Log Expenses',
+          denyButtonText: 'No Expenses Today',
+          cancelButtonText: 'Cancel',
+          confirmButtonColor: '#2563eb',
+          denyButtonColor: '#059669'
+        });
+        if (choice.isConfirmed) window.location.href = '/technician/expenses?new=1';
+        if (choice.isDenied) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking Out...';
+          const confirmedRes = await fetch('/api/technician/attendance/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ noExpensesToday:true }) });
+          const confirmedData = await confirmedRes.json();
+          if (!confirmedRes.ok) { showToast(confirmedData.error || 'Check-out failed', 'danger'); btn.disabled=false; btn.innerHTML='<i class="bi bi-box-arrow-right"></i> Check Out'; return; }
+          showToast('No expenses recorded. Checked out successfully!', 'success'); stopTimer(); checkInTime=null; loadStatus();
+        }
+        return;
+      }
+
       if (!res.ok) {
         showToast(data.error || 'Check-out failed', 'danger');
         btn.disabled = false;
@@ -659,7 +820,7 @@
         return;
       }
 
-      container.innerHTML = `<table class="att-history-table">
+      container.innerHTML = `<div class="table-responsive"><table class="att-history-table">
         <thead><tr><th>Date</th><th>Check-In</th><th>Check-Out</th><th>Hours</th><th>Status</th></tr></thead>
         <tbody>${data.records.map(r => {
           const date = new Date(r.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -671,14 +832,14 @@
           }
           const badgeClass = r.status === 'Present' ? 'bg-success' : r.status === 'Late' ? 'bg-warning text-dark' : 'bg-secondary';
           return `<tr>
-            <td><strong>${date}</strong></td>
-            <td>${cin}</td>
-            <td>${cout}</td>
-            <td><span class="fw-semibold">${hours}</span></td>
-            <td><span class="badge ${badgeClass}">${r.status}</span></td>
+            <td data-label="Date"><strong>${date}</strong></td>
+            <td data-label="In">${cin}</td>
+            <td data-label="Out">${cout}</td>
+            <td data-label="Hours"><span class="fw-semibold">${hours}</span></td>
+            <td data-label="Status"><span class="badge ${badgeClass}">${r.status}</span></td>
           </tr>`;
         }).join('')}</tbody>
-      </table>`;
+      </table></div>`;
     } catch(e) {
       document.getElementById('historyContainer').innerHTML = '<div class="text-center text-danger py-4">Failed to load history</div>';
     }

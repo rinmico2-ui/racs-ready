@@ -575,7 +575,7 @@
   .rq-stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; }
   .rq-stat-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
   .rq-stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
-  .rq-stat-value { font-size: 1.3rem; font-weight: 800; color: #1e293b; }
+  .rq-stat-value { font-size: 1.3rem; font-weight: 600; color: #1e293b; }
   .rq-stat-label { font-size: 0.72rem; color: #64748b; }
   .rq-badge-repair_requested { background: #fef3c7; color: #92400e; }
   .rq-badge-pending_inspection { background: #fef3c7; color: #92400e; }
@@ -595,7 +595,7 @@
 <script>
   let currentPage = 1;
   let totalPages = 1;
-  const LIMIT = 15;
+  const LIMIT = 10;
   let allBookings = []; // stores all fetched bookings for client-side filtering
 
   async function loadPendingBookings(page = 1) {
@@ -715,7 +715,7 @@
       const isCOD = b.paymentMethod === 'cod';
       const total = b.totalPrice || b.estimatedFee || 0;
       const downpayment = b.downpaymentAmount || (isCOD ? 400 : 0);
-      const balance = b.balanceAmount > 0 ? b.balanceAmount : (isCOD ? Math.max(0, total - downpayment) : 0);
+      const balance = isCOD ? Math.max(0, total - downpayment) : 0;
       const paymentLabel = b.paymentStatus === 'paid' ? 'Paid in Full' : b.paymentStatus === 'partial' ? 'Downpayment Only' : 'Pending';
       const paymentClass = b.paymentStatus === 'paid' ? 'payment-paid' : b.paymentStatus === 'partial' ? 'payment-partial' : 'payment-pending';
       return `<tr>
@@ -848,7 +848,7 @@
                 const total = b.totalPrice || b.estimatedFee || 0;
                 const isCOD = b.paymentMethod === 'cod';
                 const downpayment = b.downpaymentAmount || (isCOD ? 400 : 0);
-                const balance = b.balanceAmount > 0 ? b.balanceAmount : (isCOD ? Math.max(0, total - downpayment) : 0);
+                const balance = isCOD ? Math.max(0, total - downpayment) : 0;
                 if (!isCOD) return '';
                 return `
               <div style="margin-top:6px;padding:6px 8px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;">
@@ -881,6 +881,35 @@
               <span class="ent-detail-label">Unit Information</span>
               <span class="ent-detail-value">${b.unitInfo.unitType || ''} ${b.unitInfo.brand || ''} ${b.unitInfo.model || ''}</span>
               ${b.unitInfo.problemDescription ? `<span class="ent-detail-sub">${b.unitInfo.problemDescription}</span>` : ''}
+            </div>
+          </div>` : ''}
+          ${Array.isArray(b.services) && b.services.length > 0 ? `<div class="ent-detail-card ent-detail-card-wide">
+            <div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-box-seam text-info"></i></div>
+            <div class="ent-detail-card-content" style="width:100%;">
+              <span class="ent-detail-label">Unit Details (${b.services.length} item${b.services.length>1?'s':''})</span>
+              ${b.services.map(function(s,i){
+                var t=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'—';
+                var bnd=s.brand||'—';
+                var q=Number(s.quantity)||1;
+                var h=s.hpDescription||(s.hp?s.hp+' HP':'—');
+                var sn=s.name||('Service '+(i+1));
+                var model=s.model||'—';
+                var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+                var stBadge=s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+                return '<div style="padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+                  '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+                    '<div style="font-weight:600;font-size:0.82rem;color:#1e293b;">'+sn+'</div>'+
+                    '<span style="'+stBadge+'padding:3px 8px;border-radius:6px;font-size:0.65rem;font-weight:600;">'+(s.type||'core').toUpperCase()+'</span>'+
+                  '</div>'+
+                  '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px;">'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Type</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+t+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Brand</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+bnd+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">Model</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+model+'</div></div>'+
+                    '<div><span style="font-size:0.65rem;color:#64748b;">HP / Qty</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+h+' / '+q+'</div></div>'+
+                  '</div>'+
+                  (issue?'<div style="margin-top:6px;"><span style="font-size:0.65rem;color:#64748b;">Problem</span><div style="font-size:0.75rem;color:#475569;line-height:1.4;">'+issue+'</div></div>':'')+
+                '</div>';
+              }).join('')}
             </div>
           </div>` : ''}
           ${b.issueDescription ? `<div class="ent-detail-card ent-detail-card-wide">

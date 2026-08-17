@@ -1,5 +1,84 @@
-<div class="admin-dashboard container-fluid py-4">
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    /* ── Enterprise KPI Card Styles (matching InventoryList page) ── */
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 40px; margin-top: auto; }
+    .inventory-premium .inv-kpi-spark { width: 100% !important; height: 100% !important; display: block; }
+    /* Toolbar matching InventoryList */
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    /* Premium Pagination */
+    .inventory-premium .inv-pagination {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .inventory-premium .inv-pagination .page-item .page-link {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1.5px solid rgba(148,163,184,0.3);
+      background: rgba(255,255,255,0.8);
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    .inventory-premium .inv-pagination .page-item:not(.disabled) .page-link:hover {
+      background: #fff;
+      border-color: #2563eb;
+      color: #2563eb;
+    }
+    .inventory-premium .inv-pagination .page-item.active .page-link {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .inventory-premium .inv-pagination .page-item.disabled .page-link {
+      opacity: 0.5;
+    }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+  </style>
 
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
@@ -19,106 +98,104 @@
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Stock In (Today)</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiStockIn">0</span>
+            <div class="kpi-title">Stock In (Today)</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiStockIn">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success" id="kpiStockInCount">Inflow</span>
             </div>
-            <div class="badge bg-success-subtle text-success fs-7" id="kpiStockInCount">Inflow</div>
-            <small class="text-muted">Units received</small>
+            <span class="inv-kpi-sub">Units received</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
-            <i class="bi bi-plus-circle-fill text-white"></i>
+            <i class="bi bi-plus-circle-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiStockInSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Stock Out (Today)</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiStockOut">0</span>
+            <div class="kpi-title">Stock Out (Today)</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiStockOut">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary" id="kpiStockOutCount">Outflow</span>
             </div>
-            <div class="badge bg-primary-subtle text-primary fs-7" id="kpiStockOutCount">Outflow</div>
-            <small class="text-muted">Units dispatched</small>
+            <span class="inv-kpi-sub">Units dispatched</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-box-arrow-up-right text-white"></i>
+            <i class="bi bi-box-arrow-up-right"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiStockOutSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Adjustments (Today)</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiAdjCount">0</span>
+            <div class="kpi-title">Adjustments (Today)</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiAdjCount">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Adjusted</span>
             </div>
-            <div class="badge bg-warning-subtle text-warning fs-7">Adjusted</div>
-            <small class="text-muted">Manual corrections</small>
+            <span class="inv-kpi-sub">Manual corrections</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-exclamation-triangle-fill text-white"></i>
+            <i class="bi bi-exclamation-triangle-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiAdjSpark"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Transactions</h6>
-            <div class="d-flex align-items-baseline gap-2">
-              <span class="h3 mb-0 fw-bold text-dark" id="kpiTotal">0</span>
+            <div class="kpi-title">Total Transactions</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiTotal">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
+              <span class="badge inv-kpi-pill bg-secondary-subtle text-secondary">All</span>
             </div>
-            <div class="badge bg-secondary-subtle text-secondary fs-7">All</div>
-            <small class="text-muted">Today's movements</small>
+            <span class="inv-kpi-sub">Today's movements</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
-            <i class="bi bi-people-fill text-white"></i>
+            <i class="bi bi-people-fill"></i>
           </div>
         </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiTotalSpark"></canvas></div>
       </div>
     </div>
   </div>
 
-  <!-- Filters -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Transaction Type</label>
-          <select class="form-select" id="filterType" style="border-radius:10px;">
-            <option value="">All Types</option>
-            <option value="stock_in">Stock In</option>
-            <option value="stock_out">Stock Out</option>
-            <option value="job_usage">Job Usage</option>
-            <option value="adjustment">Adjustment</option>
-            <option value="return">Return</option>
-            <option value="damage">Damage</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">From Date</label>
-          <input type="date" class="form-control" id="filterFrom" style="border-radius:10px;">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">To Date</label>
-          <input type="date" class="form-control" id="filterTo" style="border-radius:10px;">
-        </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-          <button class="btn btn-primary flex-fill fw-semibold" onclick="loadHistory()" style="border-radius:10px;">
-            <i class="bi bi-search me-1"></i>Filter
-          </button>
-          <button class="btn btn-light border" onclick="resetFilters()" style="border-radius:10px;">
-            <i class="bi bi-arrow-repeat"></i>
-          </button>
-        </div>
-      </div>
+  <!-- Premium Filters -->
+  <div class="rp-toolbar">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="filterType"><i class="bi bi-funnel me-1"></i>Transaction Type</label>
+      <select class="form-select rp-filter-input" id="filterType" style="height:42px;">
+        <option value="">All Types</option>
+        <option value="stock_in">Stock In</option>
+        <option value="stock_out">Stock Out</option>
+        <option value="job_usage">Job Usage</option>
+        <option value="adjustment">Adjustment</option>
+        <option value="return">Return</option>
+        <option value="damage">Damage</option>
+      </select>
     </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="filterFrom"><i class="bi bi-calendar me-1"></i>From Date</label>
+      <input type="date" class="form-control rp-filter-input" id="filterFrom" style="height:42px;">
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="filterTo"><i class="bi bi-calendar me-1"></i>To Date</label>
+      <input type="date" class="form-control rp-filter-input" id="filterTo" style="height:42px;">
+    </div>
+    <button class="btn btn-primary rp-filter-btn" type="button" onclick="loadHistory()" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
+    <button class="btn btn-light border rp-filter-btn" type="button" onclick="resetFilters()" title="Reset filters"><i class="bi bi-arrow-repeat"></i></button>
   </div>
 
   <!-- History Table -->
@@ -149,7 +226,7 @@
     </div>
     <div class="card-footer bg-white py-3 border-top">
       <nav aria-label="Page navigation">
-        <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination"></ul>
+        <ul class="inv-pagination justify-content-end mb-0" id="pagination"></ul>
       </nav>
     </div>
   </div>
@@ -158,7 +235,43 @@
 <script>
 (function() {
   let currentPage = 1;
-  const perPage = 25;
+  const perPage = 10;
+  const _sparkCharts = {};
+
+  function makeSparkData(count) {
+    const c = Math.max(0, count || 0);
+    if (c === 0) return [0,0,0,0,0,0,0];
+    return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
+  }
+
+  async function waitForChart(timeout = 10000) {
+    if (typeof Chart !== 'undefined') return;
+    if (!document.querySelector('script[src*="chart.js"]')) {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      document.head.appendChild(s);
+    }
+    const start = Date.now();
+    while (typeof Chart === 'undefined' && Date.now() - start < timeout) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  function drawSpark(id, data, color) {
+    if (typeof Chart === 'undefined') return;
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    if (_sparkCharts[id]) _sparkCharts[id].destroy();
+    const h = canvas.clientHeight || 40;
+    const g = canvas.getContext('2d').createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    _sparkCharts[id] = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+    });
+  }
 
   const TYPE_META = {
     stock_in:   { label: 'Stock In',      cls: 'bg-success-subtle text-success', icon: 'bi-arrow-down-circle' },
@@ -243,7 +356,7 @@
   function renderPagination(p) {
     if (!p || p.pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
     let html = '';
-    html += `<li class="page-item ${p.page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page - 1});return false;">Prev</a></li>`;
+    html += `<li class="page-item ${p.page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page - 1});return false;"><i class="bi bi-chevron-left"></i></a></li>`;
     for (let i = 1; i <= p.pages; i++) {
       if (p.pages > 7 && i > 3 && i < p.pages - 2 && Math.abs(i - p.page) > 1) {
         if (i === 4 || i === p.pages - 3) html += '<li class="page-item disabled"><a class="page-link">…</a></li>';
@@ -251,18 +364,27 @@
       }
       html += `<li class="page-item ${i === p.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadHistory(${i});return false;">${i}</a></li>`;
     }
-    html += `<li class="page-item ${p.page >= p.pages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page + 1});return false;">Next</a></li>`;
+    html += `<li class="page-item ${p.page >= p.pages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="loadHistory(${p.page + 1});return false;"><i class="bi bi-chevron-right"></i></a></li>`;
     document.getElementById('pagination').innerHTML = html;
   }
 
-  function updateKPIs(kpi, total) {
-    document.getElementById('kpiStockIn').textContent = (kpi?.todayIn || 0).toLocaleString();
+  async function updateKPIs(kpi, total) {
+    const todayIn = kpi?.todayIn || 0;
+    const todayOut = kpi?.todayOut || 0;
+    const todayAdj = kpi?.todayAdjCount || 0;
+    document.getElementById('kpiStockIn').textContent = todayIn.toLocaleString();
     document.getElementById('kpiStockInCount').innerHTML = `<span class="text-muted">${kpi?.todayInCount || 0} transactions</span>`;
-    document.getElementById('kpiStockOut').textContent = (kpi?.todayOut || 0).toLocaleString();
+    document.getElementById('kpiStockOut').textContent = todayOut.toLocaleString();
     document.getElementById('kpiStockOutCount').innerHTML = `<span class="text-muted">${kpi?.todayOutCount || 0} transactions</span>`;
-    document.getElementById('kpiAdjCount').textContent = (kpi?.todayAdjCount || 0).toLocaleString();
+    document.getElementById('kpiAdjCount').textContent = todayAdj.toLocaleString();
     document.getElementById('kpiTotal').textContent = total.toLocaleString();
     document.getElementById('totalRecords').textContent = `${total} total records`;
+
+    await waitForChart();
+    drawSpark('kpiStockInSpark', makeSparkData(todayIn), '#10b981');
+    drawSpark('kpiStockOutSpark', makeSparkData(todayOut), '#2563eb');
+    drawSpark('kpiAdjSpark', makeSparkData(todayAdj), '#f59e0b');
+    drawSpark('kpiTotalSpark', makeSparkData(total), '#8b5cf6');
   }
 
   window.resetFilters = function() {

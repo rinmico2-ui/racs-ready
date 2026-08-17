@@ -107,11 +107,11 @@ const projectSchema = new mongoose.Schema({
   scheduleLocked: { type: Boolean, default: false },
 
   estimatedTotalHours: { type: Number, required: true },
-  totalUnits: { type: Number, required: true },
+  totalUnits: { type: Number, required: true, min: 1, max: 40 },
   // Per-service unit count the customer entered in the booking UI (sum of
   // services[].quantity). Mirrors BookingService.quantity and is the source
   // for totalUnits unless the customer overrides it via scheduling prefs.
-  quantity: { type: Number, default: 1 },
+  quantity: { type: Number, default: 1, min: 1, max: 40 },
   estimatedDurationPerUnit: { type: Number },
 
   preferredStartDate: { type: Date },
@@ -119,6 +119,23 @@ const projectSchema = new mongoose.Schema({
   preferredWorkingHours: {
     start: String,
     end: String,
+  },
+  schedulePlan: {
+    status: { type: String, enum: ["not_generated", "preview", "ready", "blocked", "confirmed"], default: "not_generated" },
+    startDate: Date,
+    estimatedEndDate: Date,
+    targetEndDate: Date,
+    executionEndDate: Date,
+    workingDays: [Number],
+    workingHours: { start: String, end: String },
+    bufferDays: { type: Number, default: 0, min: 0, max: 10 },
+    qualityScore: { type: Number, default: 0, min: 0, max: 100 },
+    conflicts: [mongoose.Schema.Types.Mixed],
+    dailySummary: [mongoose.Schema.Types.Mixed],
+    manualOverrides: { type: mongoose.Schema.Types.Mixed, default: {} },
+    generatedAt: Date,
+    generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    confirmedAt: Date,
   },
   preferredCompletionDeadline: { type: Date },
 
@@ -132,6 +149,87 @@ const projectSchema = new mongoose.Schema({
 
   notes: { type: String, trim: true },
   adminNotes: { type: String, trim: true },
+
+  // Planning may be prepared before the assigned team accepts. These values
+  // are advisory only: they do not reserve inventory or create daily work.
+  planningDraft: {
+    resources: [{
+      toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+      itemName: String,
+      // `type` is reserved in Mongoose schema definitions; wrap it so this
+      // remains a resource field instead of defining the whole item as String.
+      type: { type: String },
+      scope: String,
+      quantity: Number,
+      unit: String,
+      reason: String,
+      available: Number,
+      owned: { type: Number, default: 0 },
+      assignedElsewhere: { type: Number, default: 0 },
+      shortage: { type: Number, default: 0 },
+      readinessStatus: { type: String, default: "optional" },
+      source: { type: String, default: "ai" },
+      recommendationState: { type: String, default: "recommended" },
+      requirementRule: { type: String, default: "fixed" },
+      baseQuantity: { type: Number, default: 1 },
+      originalQuantity: { type: Number, default: 1 },
+      confidence: { type: String, default: "medium" },
+      affectedWorkOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
+      affectedWorkOrders: [{
+        _id: { type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" },
+        number: String,
+        title: String,
+        unitCount: Number,
+      }],
+      purchaseCost: { type: Number, default: 0 },
+      sellingPrice: { type: Number, default: 0 },
+      estimatedCost: { type: Number, default: 0 },
+      adjustmentReason: String,
+      changedAt: Date,
+      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      procurementRequestId: { type: mongoose.Schema.Types.ObjectId, ref: "PartsRequest", default: null },
+      purchaseRecordId: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectResourcePurchase", default: null },
+      purchaseStatus: String,
+      orderedQuantity: { type: Number, default: 0 },
+      receivedQuantity: { type: Number, default: 0 },
+      supplier: String,
+      expectedDelivery: Date,
+      unitPurchaseCost: { type: Number, default: 0 },
+    }],
+    schedulePreview: [{
+      date: Date,
+      technicians: [{ _id: mongoose.Schema.Types.ObjectId, name: String }],
+      shortfall: Number,
+      conflicts: [mongoose.Schema.Types.Mixed],
+    }],
+    updatedAt: Date,
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    readiness: {
+      status: { type: String, default: "not_checked" },
+      checkedAt: Date,
+      total: { type: Number, default: 0 },
+      available: { type: Number, default: 0 },
+      partial: { type: Number, default: 0 },
+      procurement: { type: Number, default: 0 },
+      conflicts: { type: Number, default: 0 },
+      optional: { type: Number, default: 0 },
+      blockers: [String],
+      estimatedDirectMaterialCost: { type: Number, default: 0 },
+    },
+    resourceHistory: [{
+      resourceId: mongoose.Schema.Types.ObjectId,
+      itemName: String,
+      action: String,
+      before: mongoose.Schema.Types.Mixed,
+      after: mongoose.Schema.Types.Mixed,
+      reason: String,
+      changedAt: { type: Date, default: Date.now },
+      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    }],
+    baselineLocked: { type: Boolean, default: false },
+    confirmedAt: Date,
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
 
   assignedTechnicians: [
     {
@@ -198,7 +296,7 @@ const projectSchema = new mongoose.Schema({
     balanceAmount: { type: Number, default: 0 },
     totalAmount: { type: Number, default: 0 },
     paymentMethod: { type: String, trim: true },
-    paymentStatus: { type: String, enum: ["unpaid", "partial", "paid", "refunded"], default: "unpaid" },
+    paymentStatus: { type: String, enum: ["unpaid", "pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "partial", "paid", "refunded"], default: "unpaid" },
     proofUrl: { type: String, trim: true },
     proofNote: { type: String, trim: true },
     completionProofUrl: { type: String, trim: true },
@@ -256,6 +354,7 @@ const projectSchema = new mongoose.Schema({
         cost: Number,
         quantity: Number,
         toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" },
+        itemType: { type: String, default: "part" },
         currentStock: Number,
         stockStatus: String,
       }],
@@ -270,6 +369,7 @@ const projectSchema = new mongoose.Schema({
       quantity: Number,
       unitCost: Number,
       toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" },
+      itemType: { type: String, default: "part" },
       usedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
       usedAt: Date,
     }],
@@ -330,6 +430,7 @@ const projectSchema = new mongoose.Schema({
         cost: Number,
         quantity: Number,
         toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" },
+        itemType: { type: String, default: "part" },
         currentStock: Number,
         stockStatus: String,
       }],
@@ -344,6 +445,7 @@ const projectSchema = new mongoose.Schema({
       quantity: Number,
       unitCost: Number,
       toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" },
+      itemType: { type: String, default: "part" },
       usedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
       usedAt: Date,
     }],
@@ -376,6 +478,9 @@ const projectSchema = new mongoose.Schema({
 });
 
 projectSchema.pre("save", function () {
+  // Business classification is quantity-based and cannot be overridden by a
+  // stale client flag or by duration estimates.
+  this.isLargeScale = Number(this.totalUnits || this.quantity || 0) >= 8;
   this.updatedAt = new Date();
 });
 

@@ -7,6 +7,7 @@ const CoreService = require("../models/CoreService");
 const RepairService = require("../models/RepairService");
 const BookingService = require("../models/BookingService");
 const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/bookingPolicy");
+const { getDownpaymentPercentage } = require("../utils/paymentPolicy");
 
 async function fetchJsonWithTimeout(url, timeoutMs = 7000) {
   const controller = new AbortController();
@@ -52,6 +53,19 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("GET /api/services failed", err && err.message);
     return res.status(500).json({ error: "Failed to load services" });
+  }
+});
+
+// --- GET /api/services/categories
+// Returns active service categories (for repair unit type selection in booking edit modal)
+router.get("/categories", async (req, res) => {
+  try {
+    const ServiceCategory = require("../models/ServiceCategory");
+    const categories = await ServiceCategory.find({ active: true }).sort({ order: 1 }).lean();
+    return res.json({ categories });
+  } catch (err) {
+    console.error("GET /api/services/categories failed", err && err.message);
+    return res.status(500).json({ error: "Failed to load service categories" });
   }
 });
 
@@ -863,8 +877,8 @@ function minutesTo12HourLabel(totalMinutes) {
   return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-const COMPANY_WORK_START = 8 * 60;  // 08:00
-const COMPANY_WORK_END = 19 * 60;   // 19:00 (7 PM, includes overtime)
+const COMPANY_WORK_START = 8 * 60;  // 08:00 (fallback default)
+const COMPANY_WORK_END = 19 * 60;   // 19:00 (fallback default, includes overtime)
 
 /**
  * Company-wide capacity for the customer-facing standard flow.
@@ -950,6 +964,10 @@ async function computeCompanyWindows(dateStr, params) {
   }
   if (!workable.length) return [];
 
+  // Derive company-wide working-hours bounds from admin-configured schedules
+  const DAY_START = Math.min(...workable.map(w => w.blockStart));
+  const DAY_END   = Math.max(...workable.map(w => w.blockEnd));
+
   // Existing active bookings for the day (assigned + unassigned).
   const busyStatuses = [
     "pending", "payment_verified", "awaiting_assignment", "assigned",
@@ -998,8 +1016,8 @@ async function computeCompanyWindows(dateStr, params) {
     const winStart = win.startMin;
     const winEnd = winStart + reservationMinutes;
 
-    // Must finish before company closing.
-    if (winEnd > COMPANY_WORK_END) continue;
+    // Must start by admin-configured end of day; jobs may extend into overtime.
+    if (winStart > DAY_END) continue;
 
     // Past / advance-notice filtering for today.
     if (isToday) {
@@ -1013,7 +1031,7 @@ async function computeCompanyWindows(dateStr, params) {
     // re-dispatched until the earlier job is done).
     let freeTechs = 0;
     for (const w of workable) {
-      if (winStart < w.blockStart || winEnd > w.blockEnd) continue;
+      if (winStart < w.blockStart) continue;
       const booked = bookedTechsByWindow.get(w.id);
       const blockedEarlier = booked && Array.from(booked).some((s) => s < winStart);
       if (!booked || (!booked.has(winStart) && !blockedEarlier)) freeTechs++;
@@ -1065,12 +1083,13 @@ async function computeAvailability(
 
     const duration = await resolveServiceDuration(serviceId, manualDuration);
     const qty = Math.max(1, Number(quantity) || 1);
+    const engine = require("../utils/enterpriseSchedulingEngine");
+    if (qty > engine.MAX_BOOKING_UNITS) throw new Error(`Maximum quantity is ${engine.MAX_BOOKING_UNITS} units.`);
     const effectiveServiceDuration = duration * qty;
     const tt = Math.max(0, Number(travelTime) || 0);
 
     // Full reservation via the shared engine (service×qty + travel + traffic
     // + prep + completion + operational buffer) — single source of truth.
-    const engine = require("../utils/enterpriseSchedulingEngine");
     const reservation = engine.computeReservationMinutes({
       totalEstimatedMinutes: effectiveServiceDuration,
       travelTime: tt,
@@ -1128,6 +1147,7 @@ router.get("/availability", async (req, res) => {
     const qty = Math.max(1, Number(quantity) || 1);
 
     const engine = require("../utils/enterpriseSchedulingEngine");
+    if (qty > engine.MAX_BOOKING_UNITS) return res.status(400).json({ error: `Maximum quantity is ${engine.MAX_BOOKING_UNITS} units.` });
     const workload = await engine.calculateWorkload({
       serviceId,
       quantity: qty,
@@ -1135,7 +1155,7 @@ router.get("/availability", async (req, res) => {
       travelTime: tt,
     });
 
-    if (!workload.fitsInStandardAppointment) {
+    if (qty >= engine.LARGE_SCALE_MIN_UNITS) {
       return res.json({
         date,
         slots: [],
@@ -1230,6 +1250,17 @@ router.get("/fare-per-km", async (req, res) => {
   } catch (err) {
     console.error("GET /api/services/fare-per-km failed", err && err.message);
     return res.json({ farePerKm: 40, airconInstallFee: 1500 });
+  }
+});
+
+// Public read-only payment policy used by product checkout and service booking.
+router.get("/payment-policy", async (_req, res) => {
+  try {
+    const downpaymentPercentage = await getDownpaymentPercentage();
+    return res.json({ downpaymentPercentage });
+  } catch (err) {
+    logger.warn("Failed to load payment policy", { error: err && err.message });
+    return res.json({ downpaymentPercentage: 10 });
   }
 });
 
@@ -1424,7 +1455,8 @@ router.get("/enterprise/estimate", async (req, res) => {
     const { calculateTotalEstimatedDuration, isLargeProject, getProjectThresholdHours } = require("../utils/enterpriseSchedulingEngine");
 
     const estimate = await calculateTotalEstimatedDuration(serviceId, quantity, serviceModel, hp, airconType);
-    const large = await isLargeProject({ totalEstimatedMinutes: estimate.totalMinutes });
+    if (estimate.quantity > 40) return res.status(400).json({ error: "Maximum quantity is 40 units." });
+    const large = await isLargeProject({ totalUnits: estimate.quantity, totalEstimatedMinutes: estimate.totalMinutes });
     const thresholdHours = await getProjectThresholdHours();
 
     res.json({
@@ -1449,6 +1481,7 @@ router.get("/enterprise/dates", async (req, res) => {
     const { calculateTotalEstimatedDuration, generateAvailableDates } = require("../utils/enterpriseSchedulingEngine");
 
     const estimate = await calculateTotalEstimatedDuration(serviceId, quantity, serviceModel, hp, airconType);
+    if (estimate.quantity > 40) return res.status(400).json({ error: "Maximum quantity is 40 units." });
     const result = await generateAvailableDates({
       totalEstimatedMinutes: estimate.totalMinutes,
       serviceId,

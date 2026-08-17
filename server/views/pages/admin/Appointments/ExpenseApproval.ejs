@@ -11,6 +11,24 @@
   .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
   .stat-sparkline { height:40px; margin-top:0.5rem; }
   .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+
+  /* Enterprise Expense Details Modal */
+  .expense-detail-modal .modal-content { border-radius: 18px; border: none; overflow: hidden; box-shadow: 0 25px 80px rgba(0,0,0,0.18); }
+  .expense-detail-modal .modal-header { background: linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; border-bottom:none; padding:1.25rem 1.5rem; }
+  .expense-detail-modal .modal-header .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+  .expense-detail-modal .modal-title { font-size:1.15rem; font-weight:700; letter-spacing:-0.02em; }
+  .expense-detail-modal .modal-body { background:#f8fafc; padding:1.5rem; }
+  .expense-detail-modal .modal-footer { background:#fff; border-top:1px solid #e2e8f0; padding:1rem 1.5rem; }
+  .expense-detail-section { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .expense-detail-section h6 { font-size:0.85rem; color:#1e293b; }
+  .expense-detail-label { font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.3rem; }
+  .expense-detail-value { font-size:0.92rem; font-weight:600; color:#0f172a; line-height:1.4; }
+  .expense-amount-card { background: linear-gradient(135deg,#eff6ff,#dbeafe); border:1px solid #bfdbfe; border-radius:14px; padding:1.25rem; text-align:center; }
+  .expense-amount-card .amount { font-size:2rem; font-weight:800; color:#1d4ed8; letter-spacing:-0.03em; }
+  .expense-receipt-wrap { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; }
+  .expense-receipt { max-height:320px; border-radius:10px; border:1px solid #e2e8f0; object-fit:contain; width:100%; }
+  .expense-empty-state { color:#94a3b8; font-size:0.85rem; padding:1rem 0; text-align:center; }
+  .expense-empty-state i { font-size:2rem; display:block; margin-bottom:0.5rem; }
 </style>
 
 <div class="main-content">
@@ -154,9 +172,114 @@
   </div>
 </div>
 
+<!-- Expense Details Modal -->
+<div class="modal fade expense-detail-modal" id="expenseDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-receipt me-2"></i>Expense Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-4">
+          <!-- Left column: details -->
+          <div class="col-lg-8">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="expense-detail-section">
+                  <div class="expense-detail-label">Description</div>
+                  <div class="expense-detail-value" id="viewDescription">—</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="expense-detail-section">
+                  <div class="expense-detail-label"><i class="bi bi-person me-1"></i>Technician</div>
+                  <div class="expense-detail-value" id="viewTechName">—</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="expense-detail-section">
+                  <div class="expense-detail-label"><i class="bi bi-tag me-1"></i>Expense Type</div>
+                  <div class="expense-detail-value" id="viewType">—</div>
+                </div>
+              </div>
+              <div class="col-12" id="viewFuelSection" style="display:none;">
+                <div class="expense-detail-section">
+                  <h6 class="fw-bold mb-3"><i class="bi bi-fuel-pump me-2 text-primary"></i>Fuel Details</h6>
+                  <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                      <div class="expense-detail-label">Liters</div>
+                      <div class="expense-detail-value" id="viewFuelLiters">—</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <div class="expense-detail-label">Price / Liter</div>
+                      <div class="expense-detail-value" id="viewPricePerLiter">—</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <div class="expense-detail-label">Odometer</div>
+                      <div class="expense-detail-value" id="viewOdometer">—</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <div class="expense-detail-label">Gas Station</div>
+                      <div class="expense-detail-value" id="viewGasStation">—</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="expense-detail-section">
+                  <div class="expense-detail-label"><i class="bi bi-link-45deg me-1"></i>Linked Service</div>
+                  <div class="expense-detail-value" id="viewLinked">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right column: summary -->
+          <div class="col-lg-4">
+            <div class="expense-amount-card mb-3">
+              <div class="expense-detail-label">Amount</div>
+              <div class="amount" id="viewAmount">₱0</div>
+            </div>
+            <div class="expense-detail-section mb-3">
+              <div class="expense-detail-label">Status</div>
+              <div id="viewStatus">—</div>
+            </div>
+            <div class="expense-detail-section mb-3">
+              <div class="expense-detail-label">Expense Date</div>
+              <div class="expense-detail-value" id="viewExpenseDate">—</div>
+              <div class="expense-detail-label mt-2">Submitted</div>
+              <div class="expense-detail-value" id="viewCreated">—</div>
+            </div>
+            <div class="expense-detail-section mb-3">
+              <div class="expense-detail-label">Rejection Reason</div>
+              <div class="expense-detail-value" id="viewRejectionReason">—</div>
+              <div class="expense-detail-label mt-2">Approved At</div>
+              <div class="expense-detail-value" id="viewApprovedAt">—</div>
+            </div>
+          </div>
+
+          <!-- Full-width receipt -->
+          <div class="col-12">
+            <div class="expense-receipt-wrap">
+              <div class="expense-detail-label mb-2"><i class="bi bi-image me-1"></i>Receipt / Proof</div>
+              <div id="viewReceiptEmpty" class="expense-empty-state"><i class="bi bi-image"></i>No receipt attached</div>
+              <img id="viewReceiptImage" src="" alt="Receipt" class="expense-receipt" style="display:none;">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   let currentFilter = '';
+  let _expenseData = {};
 
   const TYPE_LABELS = { fuel: 'Fuel', material: 'Material', transport: 'Transport', meal: 'Meal', other: 'Other' };
   const STATUS_CLASSES = { pending: 'bg-warning text-dark', approved: 'bg-success', rejected: 'bg-danger' };
@@ -191,6 +314,7 @@
 
   function renderTable(expenses) {
     const tbody = document.getElementById('tableBody');
+    _expenseData = Object.fromEntries(expenses.map(e => [e._id, e]));
     if (!expenses?.length) {
       tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:2.5rem;"></i><div class="mt-2">No expenses found</div></td></tr>`;
       return;
@@ -200,9 +324,10 @@
       let serviceLink = '<span class="text-muted small">—</span>';
       if (e.bookingId && typeof e.bookingId === 'object') {
         const bk = e.bookingId;
-        const ref = bk.bookingReference || '';
-        const cust = bk.customerName || '';
-        const svc = bk.service || '';
+        const ref = bk.bookingReference || bk.workOrderNumber || '';
+        const cust = (bk.customer && bk.customer.name) || '';
+        const firstSvc = (bk.services && bk.services[0] && bk.services[0].name) || '';
+        const svc = (bk.service && bk.service.name) || (bk.serviceId && bk.serviceId.name) || firstSvc || '';
         const label = [cust, svc].filter(Boolean).join(' - ') || ref || 'Linked';
         serviceLink = `<span class="badge bg-light text-dark border" style="font-size:0.72rem;" title="${ref}"><i class="bi bi-link-45deg me-1"></i>${label}</span>`;
       }
@@ -215,12 +340,13 @@
         <td class="small">${date}</td>
         <td><span class="badge ${STATUS_CLASSES[e.status] || ''}">${e.status}</span></td>
         <td class="text-center">
-          ${e.status === 'pending' ? `
-            <div class="d-flex gap-1 justify-content-center">
+          <div class="d-flex gap-1 justify-content-center">
+            <button class="btn btn-sm btn-outline-info" onclick="viewExpense('${e._id}')" title="View Details"><i class="bi bi-eye"></i></button>
+            ${e.status === 'pending' ? `
               <button class="btn btn-sm btn-outline-success" onclick="approveExpense('${e._id}')" title="Approve"><i class="bi bi-check-lg"></i></button>
               <button class="btn btn-sm btn-outline-danger" onclick="rejectExpense('${e._id}')" title="Reject"><i class="bi bi-x-lg"></i></button>
-            </div>
-          ` : '<span class="text-muted small">—</span>'}
+            ` : ''}
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -243,6 +369,86 @@
       showNotification({ type: 'success', title: 'Expense Rejected', message: 'The expense has been rejected.', duration: 3000 });
       loadList(); loadStats();
     } catch (e) { showNotification({ type: 'error', title: 'Error', message: 'Failed to reject expense.', duration: 5000 }); }
+  }
+
+  function viewExpense(id) {
+    const e = _expenseData[id];
+    if (!e) return showToast('Expense details not found', 'error');
+
+    document.getElementById('viewTechName').textContent = e.technicianName || 'N/A';
+    document.getElementById('viewType').textContent = (TYPE_LABELS[e.type] || e.type || 'N/A');
+    document.getElementById('viewAmount').textContent = '₱' + (e.amount || 0).toLocaleString();
+    document.getElementById('viewStatus').innerHTML = `<span class="badge ${STATUS_CLASSES[e.status] || 'bg-secondary'}">${e.status}</span>`;
+    document.getElementById('viewDescription').textContent = e.description || '—';
+    document.getElementById('viewCreated').textContent = e.createdAt ? new Date(e.createdAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+    document.getElementById('viewExpenseDate').textContent = e.expenseDate ? new Date(e.expenseDate).toLocaleDateString('en-PH') : '—';
+
+    const linked = document.getElementById('viewLinked');
+    if (e.bookingId && typeof e.bookingId === 'object') {
+      const bk = e.bookingId;
+      const ref = bk.bookingReference || bk.workOrderNumber;
+      const cust = (bk.customer && bk.customer.name) || '—';
+      const firstServiceName = (bk.services && bk.services[0] && bk.services[0].name) ? bk.services[0].name : '';
+      const serviceName = (bk.service && bk.service.name) || (bk.serviceId && bk.serviceId.name) || firstServiceName || '—';
+      const serviceModelRaw = (bk.serviceModel || '').replace(/([A-Z])/g, ' $1').trim();
+      const serviceType = serviceModelRaw ? serviceModelRaw.replace('Service', 'Service') : 'Unknown';
+      const typeBadge = serviceType.toLowerCase().includes('repair')
+        ? `<span class="badge bg-danger-subtle text-danger border" style="font-size:0.72rem;"><i class="bi bi-wrench me-1"></i>${serviceType}</span>`
+        : `<span class="badge bg-primary-subtle text-primary border" style="font-size:0.72rem;"><i class="bi bi-gear me-1"></i>${serviceType}</span>`;
+      linked.innerHTML = `
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="expense-detail-label">Reference</div>
+            <div class="expense-detail-value">${ref || '—'}</div>
+          </div>
+          <div class="col-md-6">
+            <div class="expense-detail-label">Customer</div>
+            <div class="expense-detail-value">${cust}</div>
+          </div>
+          <div class="col-md-6">
+            <div class="expense-detail-label">Service Type</div>
+            <div class="mt-1">${typeBadge}</div>
+          </div>
+          <div class="col-md-6">
+            <div class="expense-detail-label">Service</div>
+            <div class="expense-detail-value">${serviceName}</div>
+          </div>
+          <div class="col-12">
+            <div class="expense-detail-label">Booking Date</div>
+            <div class="expense-detail-value">${bk.bookingDate ? new Date(bk.bookingDate).toLocaleDateString('en-PH') : '—'}</div>
+          </div>
+        </div>`;
+    } else {
+      linked.innerHTML = '<span class="text-muted">—</span>';
+    }
+
+    const fuelSection = document.getElementById('viewFuelSection');
+    if (e.type === 'fuel') {
+      fuelSection.style.display = '';
+      document.getElementById('viewFuelLiters').textContent = e.fuelLiters || '—';
+      document.getElementById('viewPricePerLiter').textContent = e.pricePerLiter ? '₱' + Number(e.pricePerLiter).toLocaleString() : '—';
+      document.getElementById('viewOdometer').textContent = e.odometerReading || '—';
+      document.getElementById('viewGasStation').textContent = e.gasStation || '—';
+    } else {
+      fuelSection.style.display = 'none';
+    }
+
+    const receiptImg = document.getElementById('viewReceiptImage');
+    if (e.receiptImage) {
+      receiptImg.src = e.receiptImage;
+      receiptImg.style.display = '';
+      document.getElementById('viewReceiptEmpty').style.display = 'none';
+    } else {
+      receiptImg.style.display = 'none';
+      document.getElementById('viewReceiptEmpty').style.display = '';
+    }
+
+    document.getElementById('viewRejectionReason').textContent = e.rejectionReason || '—';
+    document.getElementById('viewApprovedAt').textContent = e.approvedAt ? new Date(e.approvedAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+    const modalEl = document.getElementById('expenseDetailModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
   }
 
   function showToast(msg, type = 'success') {

@@ -52,6 +52,7 @@
 .cdm-chart-panel {
   flex: 0 0 42%;
   max-width: 42%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e2e8f0;
@@ -163,8 +164,7 @@
 /* ── Detail Table ── */
 .cdm-table-wrap {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
   padding: 0;
 }
 .cdm-table {

@@ -1,0 +1,332 @@
+<div class="main-content"><div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <style>
+    /* KPI cards */
+    .inventory-premium .dash-card {
+      background: #fff; border-radius: 18px; padding: 1.25rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid #f1f5f9; transition: transform .2s ease, box-shadow .2s ease;
+      height: 100%;
+    }
+    .inventory-premium .dash-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .kpi-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.12); flex-shrink: 0; }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .dash-card { display: flex; flex-direction: column; }
+
+    /* Toolbar */
+    .inventory-premium .rp-toolbar {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;
+      padding: 16px 20px; margin-bottom: 20px;
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px;
+    }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-group .form-select { background-position: right .6rem center; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+
+    /* Subtle badges */
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+
+    /* Dense table */
+    .inventory-premium .table-dense th, .inventory-premium .table-dense td { padding: 0.65rem 0.85rem; font-size: 0.85rem; vertical-align: middle; }
+    .inventory-premium .table-dense thead th { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #475569; }
+    .inventory-premium .table-dense .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+    /* Pagination */
+    .inv-pagination {
+      display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none;
+    }
+    .inv-pagination .page-item .page-link {
+      padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3);
+      background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+  </style>
+
+  <div class="au-hero">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-cash-coin"></i></div>
+        <div>
+          <h1>Payment Verification &amp; Remittance</h1>
+          <p>Review technician-submitted remittances. No online payment is processed automatically.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg col-md-6">
+      <div class="dash-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Total Remittances</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiTotal">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
+            </div>
+            <span class="inv-kpi-sub">All remittance records</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+            <i class="bi bi-cash-coin"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark1"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Pending Technician</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiPending">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Pending</span>
+            </div>
+            <span class="inv-kpi-sub">Awaiting technician remittance</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <i class="bi bi-hourglass-split"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark2"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Verified</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiVerified">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Verified</span>
+            </div>
+            <span class="inv-kpi-sub">Confirmed payments</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <i class="bi bi-check-circle-fill"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark3"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Rejected</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiRejected">0</span>
+              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Rejected</span>
+            </div>
+            <span class="inv-kpi-sub">Declined or disputed</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
+            <i class="bi bi-x-circle-fill"></i>
+          </div>
+        </div>
+        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark4"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toolbar">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="statusFilter">Filter by Status</label>
+      <select id="statusFilter" class="form-select rp-filter-input" onchange="loadRemittances()">
+        <option value="all">All records</option>
+        <option value="waiting_for_remittance">Waiting for Technician</option>
+        <option value="remitted">Submitted / Remitted</option>
+        <option value="verified">Verified</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="remSearch">Search</label>
+      <input id="remSearch" type="text" class="form-control rp-filter-input" placeholder="Reference, customer, technician…" oninput="filterRemittanceRows()">
+    </div>
+    <button class="btn btn-outline-primary rp-filter-btn" onclick="loadRemittances()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-list-check me-2"></i>Remittance Records</h5>
+      <span class="badge bg-secondary-subtle text-secondary" id="tableCount">0</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-dense align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th><i class="bi bi-hash me-1"></i>Reference</th>
+              <th><i class="bi bi-person me-1"></i>Customer</th>
+              <th><i class="bi bi-wrench me-1"></i>Technician</th>
+              <th><i class="bi bi-cash-coin me-1"></i>Amount</th>
+              <th><i class="bi bi-credit-card me-1"></i>Method</th>
+              <th><i class="bi bi-calendar me-1"></i>Collected</th>
+              <th><i class="bi bi-paperclip me-1"></i>Evidence</th>
+              <th><i class="bi bi-flag me-1"></i>Status</th>
+              <th><i class="bi bi-gear me-1"></i>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="remittanceRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer bg-white py-3 border-top" id="remittanceFooter"></div>
+  </div>
+</div></div>
+<script>
+const escR=v=>String(v??'—').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const remStatusColor=s=>({waiting_for_remittance:'warning',remitted:'info',verified:'success',rejected:'danger'}[s]||'secondary');
+let currentPayments=[];
+let currentPage=1;
+const pageSize=10;
+let remFiltered=[];
+const remFooter=document.getElementById('remittanceFooter');
+
+async function loadRemittances(){
+  const s=document.getElementById('statusFilter').value;
+  const r=await fetch('/api/admin/remittances?status='+encodeURIComponent(s));
+  const d=await r.json();
+  currentPayments=d.payments||[];
+  updateKPIs(currentPayments);
+  renderPayments(currentPayments);
+}
+
+function updateKPIs(payments){
+  const counts={waiting_for_remittance:0,remitted:0,verified:0,rejected:0};
+  payments.forEach(p=>{if(counts[p.status]!==undefined)counts[p.status]++;});
+  document.getElementById('kpiTotal').textContent=payments.length.toLocaleString();
+  document.getElementById('kpiPending').textContent=counts.waiting_for_remittance.toLocaleString();
+  document.getElementById('kpiVerified').textContent=counts.verified.toLocaleString();
+  document.getElementById('kpiRejected').textContent=counts.rejected.toLocaleString();
+}
+
+function renderPayments(payments){
+  const q=(document.getElementById('remSearch')?.value||'').toLowerCase();
+  const rows=q?payments.filter(p=>{
+    const ref=String(p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||'').toLowerCase();
+    const subject=p.bookingId||p.orderId||p.projectId||{};
+    const c=String(subject.customer?.name||'').toLowerCase();
+    const t=String(p.collectedByName||p.collectedBy?.name||'').toLowerCase();
+    return ref.includes(q)||c.includes(q)||t.includes(q);
+  }):payments;
+  document.getElementById('tableCount').textContent=rows.length.toLocaleString();
+  remFiltered=rows;
+  currentPage=1;
+  renderPage(1, rows);
+}
+
+function renderPage(page, items){
+  const start=(page-1)*pageSize;
+  const slice=items.slice(start, start+pageSize);
+  if(!slice.length){
+    document.getElementById('remittanceRows').innerHTML='<tr><td colspan="9" class="text-center text-muted py-5">No remittance records found.</td></tr>';
+    remFooter.innerHTML='<nav aria-label="Remittance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+    return;
+  }
+  document.getElementById('remittanceRows').innerHTML=slice.map(p=>{
+    const subject=p.bookingId||p.orderId||p.projectId||{};
+    const ref=p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||String(p._id).slice(-8);
+    const color=remStatusColor(p.status);
+    let actions='<div class="d-flex gap-1">';
+    if(p.status==='waiting_for_remittance') actions+=`<span class="badge bg-warning-subtle text-warning align-self-center">Awaiting technician</span>`;
+    if(p.status==='remitted') actions+=`<button class="btn btn-sm btn-success" onclick="actR('${p._id}','verify')">Verify</button>`;
+    if(['waiting_for_remittance','remitted'].includes(p.status)) actions+=`<button class="btn btn-sm btn-outline-danger" onclick="actR('${p._id}','reject')">Reject</button>`;
+    actions+='</div>';
+    return `<tr><td class="fw-semibold">${escR(ref)}</td><td>${escR(subject.customer?.name)}</td><td>${escR(p.collectedByName||p.collectedBy?.name)}</td><td>₱${Number(p.amount||0).toLocaleString()}</td><td>${escR(p.method).toUpperCase()}<div class="small text-muted">${escR(p.reference)}</div></td><td class="small">${p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'}</td><td>${p.proofUrl?`<a class="btn btn-sm btn-outline-primary" target="_blank" href="${escR(p.proofUrl)}">Receipt</a>`:'—'} ${p.customerSignature?'<span class="badge bg-success">Signed</span>':''} ${p.remittanceProofUrl?`<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${escR(p.remittanceProofUrl)}">Remittance Proof</a>`:''}</td><td><span class="badge bg-${color}-subtle text-${color}">${escR(p.status).replaceAll('_',' ')}</span></td><td>${actions}</td></tr>`;
+  }).join('');
+  renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);
+}
+
+function renderPagination(page, pages, total){
+  const disabled = total===0;
+  const nav = `<nav aria-label="Remittance pagination">
+  <ul class="inv-pagination justify-content-end mb-0">
+    <li class="page-item ${page<=1||disabled?'disabled':''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page-1}">‹ Prev</a>
+    </li>
+    <li class="page-item active">
+      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
+    </li>
+    <li class="page-item ${page>=pages||disabled?'disabled':''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page+1}">Next ›</a>
+    </li>
+  </ul>
+</nav>`;
+  remFooter.innerHTML=nav;
+  remFooter.querySelectorAll('.page-link[data-page]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.preventDefault();
+      const target=e.target.closest('.page-link');
+      const newPage=parseInt(target?.dataset.page);
+      if(!target?.closest('.page-item.disabled') && newPage>=1 && newPage<=pages){
+        currentPage=newPage;
+        renderPage(currentPage, remFiltered);
+      }
+    });
+  });
+}
+
+function filterRemittanceRows(){renderPayments(currentPayments);}
+
+async function actR(id,action){let reason='';if(action==='reject'){reason=prompt('Rejection reason:')||'';if(!reason)return;}if(!confirm(`Confirm ${action}? This action is audit logged.`))return;const r=await fetch(`/api/admin/remittances/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,reason})}),d=await r.json();if(!r.ok)return alert(d.error||'Action failed');loadRemittances()}
+function createSparkline(canvasId,data,color){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas || !data || data.length<2) return;
+  const ctx=canvas.getContext('2d');
+  const wrap=canvas.parentElement;
+  const dpr=window.devicePixelRatio||1;
+  const w=(wrap.clientWidth||150);
+  const h=40;
+  canvas.width=Math.floor(w*dpr);
+  canvas.height=Math.floor(h*dpr);
+  canvas.style.width=w+'px';
+  canvas.style.height=h+'px';
+  ctx.scale(dpr,dpr);
+  const min=Math.min(...data), max=Math.max(...data), range=(max-min)||1;
+  const pad=2;
+  const step=(w-2*pad)/(data.length-1);
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x=pad+i*step;
+    const y=h-pad-((v-min)/range)*(h-2*pad);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle=color||'#2563eb';
+  ctx.lineWidth=2;
+  ctx.lineJoin='round';
+  ctx.lineCap='round';
+  ctx.stroke();
+}
+
+const remitSparkData=[
+  [10,15,12,18,22,19,25],
+  [8,11,9,14,13,16,14],
+  [5,9,12,15,18,22,24],
+  [3,5,4,7,6,8,6]
+];
+const remitSparkColors=['#2563eb','#f59e0b','#10b981','#ef4444'];
+remitSparkData.forEach((d,i)=>createSparkline('remitSpark'+(i+1),d,remitSparkColors[i]));
+
+loadRemittances();
+</script>

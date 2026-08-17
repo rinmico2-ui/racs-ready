@@ -5,6 +5,12 @@ const auth = require('../middleware/authenticate');
 const { getBufferMinutes, assertCompanyCapacity, getInspectionDurationMinutes } = require('../utils/bookingPolicy');
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
 const { sendRepairRequestSubmittedEmail } = require('../utils/mailer');
+const CoreService = require('../models/CoreService');
+const RepairService = require('../models/RepairService');
+const { createNotification } = require('../utils/notify');
+const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
+const audit = require('../utils/audit');
+const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -15,6 +21,7 @@ router.use(auth.requireRole("customer"));
  * Simplified booking creation endpoint
  */
 router.post('/create-new', async (req, res) => {
+  let savedBooking = null;
   try {
     console.log('📝 Creating new booking (simplified)...');
     console.log('Request body keys:', Object.keys(req.body));
@@ -46,7 +53,7 @@ router.post('/create-new', async (req, res) => {
       endTime,
       paymentMethod,
       paymentReference,
-      downpaymentAmount,
+      downpaymentAmount: _clientDownpaymentAmount,
       paymentNotes,
       gcashNumber,
       proofImageBase64,
@@ -84,6 +91,15 @@ router.post('/create-new', async (req, res) => {
     if (!parsedServices || !Array.isArray(parsedServices) || parsedServices.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
     }
+    const normalizedQuantities = parsedServices.map(service => Number(service.quantity));
+    if (normalizedQuantities.some(value => !Number.isInteger(value) || value < 1)) {
+      return res.status(400).json({ error: 'Every service quantity must be a whole number of at least 1.' });
+    }
+    const totalBookingUnits = normalizedQuantities.reduce((sum, value) => sum + value, 0);
+    if (totalBookingUnits > schedulingEngine.MAX_BOOKING_UNITS) {
+      return res.status(400).json({ error: `A booking can contain at most ${schedulingEngine.MAX_BOOKING_UNITS} units across all Core and Repair services.` });
+    }
+    const effectiveIsProject = totalBookingUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS;
     
     if (!location || !location.lat || !location.lng) {
       return res.status(400).json({ error: 'Valid location is required' });
@@ -94,7 +110,7 @@ router.post('/create-new', async (req, res) => {
     }
 
     // Large-scale / project bookings have no fixed time slot — only a start date.
-    if (!isProject && !startTime) {
+    if (!effectiveIsProject && !startTime) {
       return res.status(400).json({ error: 'Date and start time are required' });
     }
     
@@ -189,10 +205,11 @@ router.post('/create-new', async (req, res) => {
     // future bookings), NOT a guaranteed completion time.
     // Project (large-scale) bookings have no fixed time slot, so capacity
     // overlap checks are skipped — they are scheduled later by admin.
-    const serviceDurationMin = parsedServices[0].duration || 60;
+    const inspectionDurationMinutes = await getInspectionDurationMinutes();
+    const serviceDurationMin = capacityMinutes(parsedServices, inspectionDurationMinutes);
     const travelDurationMin = Number(travelDurationMinutes) || Number(distanceKm) * 2 || 0;
     const bufferMin = await getBufferMinutes();
-    const startMin = isProject ? null : parseTimeToMinutes(startTime);
+    const startMin = effectiveIsProject ? null : parseTimeToMinutes(startTime);
     const capacityEndMinutes = startMin == null ? null : startMin + serviceDurationMin + travelDurationMin + bufferMin;
     const capacityEndTime = capacityEndMinutes == null ? undefined : minutesToTimeString(capacityEndMinutes);
 
@@ -200,7 +217,7 @@ router.post('/create-new', async (req, res) => {
     // For standard bookings: check single time slot.
     // For project bookings: validate the ENTIRE date range has sufficient
     // technician capacity for every working day.
-    if (isProject) {
+    if (effectiveIsProject) {
       const ps = projectScheduling || {};
       const projStartDate = ps.preferredStartDate || bookingDate;
       const projEndDate = ps.preferredCompletionDeadline || ps.preferredStartDate || bookingDate;
@@ -210,9 +227,9 @@ router.post('/create-new', async (req, res) => {
           ? parsedServices.reduce((s, sv) => s + (Number(sv.quantity) || 0), 0)
           : 0;
         const totalQty = Number(quantity) > 0 ? Number(quantity) : (sumQty > 0 ? sumQty : 1);
-        const estHours = ps.estimatedTotalHours || 0;
+        const estHours = Number(ps.estimatedTotalHours) || (serviceDurationMin / 60);
         const rangeDays = Math.max(1, Math.ceil((new Date(projEndDate) - new Date(projStartDate)) / 86400000) + 1);
-        const requiredTechs = Math.max(1, Math.ceil((estHours || (totalQty * 8)) / (rangeDays * 8)));
+        const requiredTechs = Math.max(1, Math.ceil(estHours / (rangeDays * 8)));
 
         const rangeCheck = await schedulingEngine.validateProjectDateRange({
           startDate: projStartDate,
@@ -240,6 +257,49 @@ router.post('/create-new', async (req, res) => {
     // Generate booking reference
     const bookingReference = `RACS-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
     
+    // ── Build services array with clean, serializable objects ──────────────
+    // Deep-clone via JSON round-trip to strip any prototype methods,
+    // getters, or non-serializable values that could confuse Mongoose.
+    const cleanServices = JSON.parse(JSON.stringify(parsedServices.map(svc => ({
+      serviceId: svc.serviceId || null,
+      name: svc.name || '',
+      type: svc.type || 'core',
+      quantity: Number(svc.quantity) || 1,
+      unitPrice: Number(svc.unitPrice) || 0,
+      totalPrice: Number(svc.totalPrice) || 0,
+      hp: svc.hp != null ? Number(svc.hp) : null,
+      hpDescription: svc.hpDescription || null,
+      airconType: svc.airconType || null,
+      airconTypeName: svc.airconTypeName || null,
+      applianceType: svc.applianceType || null,
+      applianceTypeName: svc.applianceTypeName || null,
+      brand: svc.brand || null,
+      duration: svc.duration != null ? Number(svc.duration) : null,
+      isAirconService: Boolean(svc.isAirconService),
+      repairIssue: svc.repairIssue || null,
+      problemDescription: svc.problemDescription || svc.repairIssue || null,
+      model: svc.model || null,
+      status: svc.type === 'repair' ? 'inspection_pending' : 'pending',
+      phase: svc.type === 'repair' ? 'repair_phase_1' : 'core',
+      schedule: {
+        date: bookingDate ? new Date(bookingDate) : undefined,
+        startTime,
+        endTime: capacityEndTime,
+        durationMinutes: svc.type === 'repair' ? inspectionDurationMinutes : (Number(svc.duration) || 60),
+        kind: svc.type === 'repair' ? 'inspection' : 'service',
+      },
+      initialCost: svc.initialCost != null ? Number(svc.initialCost) : null,
+    }))));
+
+    // Rebuild the amount used for the payment policy from the submitted
+    // service lines and fare, then calculate the server-authoritative deposit.
+    const serviceTotal = cleanServices.reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0);
+    const authoritativeTotal = Math.max(0, serviceTotal + Math.max(0, Number(travelFare) || 0));
+    const downpaymentPercentage = await getDownpaymentPercentage();
+    const paymentBreakdown = calculatePaymentBreakdown(authoritativeTotal, downpaymentPercentage);
+
+    console.log('✅ cleanServices type:', typeof cleanServices, 'isArray:', Array.isArray(cleanServices), 'length:', cleanServices.length);
+
     // Create comprehensive booking data with REAL user and technician data
     const bookingData = {
       bookingReference,
@@ -269,6 +329,7 @@ router.post('/create-new', async (req, res) => {
       // Service data (single service for simplicity)
       serviceId: parsedServices[0].serviceId,
       serviceModel: parsedServices[0].type === 'core' ? 'CoreService' : 'RepairService',
+      serviceType: aggregateBookingType(cleanServices),
       service: {
         _id: parsedServices[0].serviceId,
         name: parsedServices[0].name,
@@ -282,24 +343,23 @@ router.post('/create-new', async (req, res) => {
       brand: parsedServices[0].brand || null,
       applianceType: parsedServices[0].applianceType || null,
       applianceTypeName: parsedServices[0].applianceTypeName || null,
+      hp: parsedServices[0].hp || null,
+      hpDescription: parsedServices[0].hpDescription || null,
 
-      // Use single service fields only (the BookingService.services[] path is
-      // an [String] array in the compiled model, so per-item subdocs are
-      // persisted via the legacy /create route; brand/applianceType are kept
-      // here as top-level fields).
-      isMultiService: false,
-      totalPrice: totalPrice || parsedServices[0].totalPrice,
-      totalInitialCost: parsedServices[0].initialCost || 0,
+      // Multi-service support — persist the full services array so HP and
+      // per-service data are preserved for admin view details.
+      isMultiService: cleanServices.length > 1,
+      services: cleanServices,
 
       // Large-scale / project support
-      isProject: Boolean(isProject) || false,
-      quantity: Number(quantity) || 1,
-      projectScheduling: projectScheduling ? {
-        preferredStartDate: projectScheduling.preferredStartDate ? new Date(projectScheduling.preferredStartDate) : undefined,
-        preferredWorkingDays: Array.isArray(projectScheduling.preferredWorkingDays) ? projectScheduling.preferredWorkingDays : undefined,
-        preferredWorkingHours: projectScheduling.preferredWorkingHours || undefined,
-        preferredCompletionDeadline: projectScheduling.preferredCompletionDeadline ? new Date(projectScheduling.preferredCompletionDeadline) : undefined,
-        estimatedTotalHours: projectScheduling.estimatedTotalHours ? Number(projectScheduling.estimatedTotalHours) : undefined,
+      isProject: effectiveIsProject,
+      quantity: totalBookingUnits,
+      projectScheduling: effectiveIsProject ? {
+        preferredStartDate: projectScheduling?.preferredStartDate ? new Date(projectScheduling.preferredStartDate) : new Date(bookingDate),
+        preferredWorkingDays: Array.isArray(projectScheduling?.preferredWorkingDays) ? projectScheduling.preferredWorkingDays : undefined,
+        preferredWorkingHours: projectScheduling?.preferredWorkingHours || undefined,
+        preferredCompletionDeadline: projectScheduling?.preferredCompletionDeadline ? new Date(projectScheduling.preferredCompletionDeadline) : undefined,
+        estimatedTotalHours: projectScheduling?.estimatedTotalHours ? Number(projectScheduling.estimatedTotalHours) : Number((serviceDurationMin / 60).toFixed(1)),
       } : undefined,
       
       // Location with coordinates
@@ -320,33 +380,32 @@ router.post('/create-new', async (req, res) => {
       endTime: capacityEndTime,
       selectedTimeLabel: startTime, // preferred start time only
 
+      // Pricing and travel
+      totalPrice: authoritativeTotal,
+      estimatedFee: authoritativeTotal,
+      totalInitialCost: parsedServices[0].initialCost || 0,
+      travelFare: travelFare || 0,
+      travelTime: travelDurationMinutes || 0,
+      distanceKm: distanceKm || 0,
+      travelDurationMinutes: travelDurationMinutes || 0,
+
       // Payment
       paymentMethod: bookingPaymentMethod,
       paymentStatus: 'pending',
       paymentReference: null,
       gcashNumber: gcashNumber || null,
-      downpaymentAmount: bookingPaymentMethod === 'cod' ? (parseFloat(downpaymentAmount) || 400) : 0,
-      balanceAmount: bookingPaymentMethod === 'cod'
-        ? Math.max(0, (totalPrice || parsedServices[0].totalPrice || 0) - (parseFloat(downpaymentAmount) || 400))
-        : 0,
-      amountPaid: bookingPaymentMethod === 'cod' ? (parseFloat(downpaymentAmount) || 0) : 0,
+      downpaymentPercentage: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentPercentage : 100,
+      downpaymentAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal,
+      balanceAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.balanceAmount : 0,
+      amountPaid: 0,
       paymentNotes: paymentNotes || null,
       paymentProof: proofImageBase64 || null,
 
       // Status
       status: 'pending',
       
-      // Pricing and travel
-      totalPrice: totalPrice || parsedServices[0].totalPrice || 0,
-      estimatedFee: totalPrice || parsedServices[0].totalPrice,
-      travelFare: travelFare || 0,
-      travelTime: travelDurationMinutes || 0,
-      distanceKm: distanceKm || 0,
-      travelDurationMinutes: travelDurationMinutes || 0,
-      
       // Legacy payment fields
       gateway: paymentMethod,
-      paymentProof: null,
       
       // Timestamps
       createdAt: new Date(),
@@ -381,9 +440,10 @@ router.post('/create-new', async (req, res) => {
     // using customerId and technicianId
     console.log('\nSaving booking (pre-save hooks will fetch real data)...');
     await booking.save();
+    savedBooking = booking;
 
     // ── Large-Scale / Project detection ───────────────────────────────────
-    if (req.body.isProject || (req.body.projectScheduling && req.body.projectScheduling.estimatedTotalHours)) {
+    if (effectiveIsProject) {
       const sumServiceQty = Array.isArray(bookingData.services)
         ? bookingData.services.reduce((s, sv) => s + (Number(sv.quantity) || 0), 0)
         : 0;
@@ -424,8 +484,10 @@ router.post('/create-new', async (req, res) => {
     try {
       const Payment = require('../models/Payment');
 
-      const paymentAmount = bookingPaymentMethod === 'cod' ? (downpaymentAmount || 400) : (totalPrice || parsedServices[0].totalPrice);
-      const paymentSchemaMethod = bookingPaymentMethod === 'cash' ? 'cod' : bookingPaymentMethod;
+      const paymentAmount = bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal;
+      // Both choices use a manual GCash transfer at booking time. "cod"
+      // describes how the remaining balance will be collected, not the deposit channel.
+      const paymentSchemaMethod = bookingPaymentMethod === 'cod' ? 'gcash' : bookingPaymentMethod;
 
       const paymentDoc = new Payment({
         bookingId: booking._id,
@@ -578,6 +640,41 @@ router.post('/create-new', async (req, res) => {
   } catch (error) {
     console.error('❌ Booking creation error:', error);
     console.error('Error stack:', error.stack);
+    // A committed booking is successful even if later notification/payment
+    // follow-up fails. Returning 500 here would invite a duplicate retry.
+    if (savedBooking && !res.headersSent) {
+      return res.status(201).json({
+        success: true,
+        message: 'Booking created successfully. Follow-up processing will continue in the background.',
+        warning: error.message,
+        bookingReference: savedBooking.bookingReference,
+        serviceName: savedBooking.service?.name || req.body?.services?.[0]?.name || 'Selected Service',
+        serviceNames: Array.isArray(req.body?.services) ? req.body.services.map(s => s.name).filter(Boolean) : [],
+        isProject: Boolean(savedBooking.isProject),
+        projectScheduling: savedBooking.projectScheduling || undefined,
+        dateLabel: savedBooking.bookingDate ? new Date(savedBooking.bookingDate).toLocaleDateString('en-PH', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }) : '',
+        timeLabel: savedBooking.startTime,
+        locationAddress: savedBooking.location?.address || '',
+        customerName: savedBooking.customer?.name || '',
+        customerEmail: savedBooking.customer?.email || '',
+        technicianName: savedBooking.technician?.name || 'Pending Assignment',
+        technicianEmail: savedBooking.technician?.email || '',
+        estimatedFee: savedBooking.estimatedFee || savedBooking.totalPrice || 0,
+        paymentMethod: savedBooking.paymentMethod,
+        _id: savedBooking._id,
+        booking: {
+          bookingReference: savedBooking.bookingReference,
+          status: savedBooking.status,
+          paymentStatus: savedBooking.paymentStatus,
+          totalPrice: savedBooking.estimatedFee || savedBooking.totalPrice || 0,
+          bookingDate: savedBooking.bookingDate,
+          startTime: savedBooking.startTime,
+          endTime: savedBooking.endTime,
+        },
+      });
+    }
     res.status(500).json({
       error: 'Failed to create booking',
       details: error.message
@@ -614,6 +711,80 @@ function minutesToTimeString(minutes) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function ownsBooking(booking, user) {
+  return String(booking.customerId || booking.customer?._id || "") === String(user?._id || "");
+}
+
+async function validatedServiceItems(inputItems, booking) {
+  if (!Array.isArray(inputItems) || inputItems.length < 1 || inputItems.length > 20) {
+    const error = new Error("A booking must contain between 1 and 20 service items.");
+    error.status = 400;
+    throw error;
+  }
+  const existingServices = bookingServices(booking);
+  const existing = new Map(existingServices.map(item => [String(item._id || ""), item]));
+  const existingByServiceId = new Map(existingServices.filter(item => item.serviceId).map(item => [String(item.serviceId), item]));
+  return Promise.all(inputItems.map(async (input) => {
+    const type = input.type === "repair" ? "repair" : "core";
+    const Catalog = type === "repair" ? RepairService : CoreService;
+    const prior = (input._id ? existing.get(String(input._id)) : null) || existingByServiceId.get(String(input.serviceId || ""));
+    const catalog = prior
+      ? await Catalog.findOne({ _id: input.serviceId }).lean()
+      : await Catalog.findOne({ _id: input.serviceId, active: { $ne: false } }).lean();
+    if (!catalog && prior) {
+      return {
+        ...prior,
+        _id: prior._id,
+        quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(input.quantity) || Number(prior.quantity) || 1)),
+        brand: String(input.brand || prior.brand || "").trim().slice(0, 100),
+        model: String(input.model || prior.model || "").trim().slice(0, 100),
+        repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.repairIssue || "").trim().slice(0, 2000) : prior.repairIssue || "",
+        problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.problemDescription || "").trim().slice(0, 2000) : prior.problemDescription || "",
+      };
+    }
+    if (!catalog) {
+      const error = new Error(`Selected ${type} service is unavailable.`);
+      error.status = 400;
+      throw error;
+    }
+    const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(input.quantity) || 1));
+    const hp = Number(input.hp) || null;
+    const airconType = input.airconType || input.applianceType || "";
+    const typeTier = (catalog.airconTypes || []).find(row => row.type === airconType);
+    const hpTier = (typeTier?.hpPricing || catalog.hpPricing || []).find(row => Number(row.hp) === hp);
+    const unitPrice = type === "repair"
+      ? Number(hpTier?.price || catalog.initialPrice || catalog.basePrice || 0)
+      : Number(hpTier?.price || catalog.basePrice || 0);
+    const duration = type === "repair"
+      ? await getInspectionDurationMinutes()
+      : Number(hpTier?.durationMinutes || catalog.durationMinutes || catalog.durationRange?.max || 60);
+    return {
+      ...(prior || {}),
+      _id: prior?._id,
+      serviceId: catalog._id,
+      name: catalog.name,
+      type,
+      quantity,
+      unitPrice,
+      totalPrice: unitPrice * quantity,
+      duration,
+      hp,
+      hpDescription: input.hpDescription || (hp ? `${hp} HP` : ""),
+      airconType,
+      airconTypeName: input.airconTypeName || input.applianceTypeName || typeTier?.name || "",
+      applianceType: input.applianceType || airconType,
+      applianceTypeName: input.applianceTypeName || input.airconTypeName || typeTier?.name || "",
+      brand: String(input.brand || "").trim().slice(0, 100),
+      model: String(input.model || "").trim().slice(0, 100),
+      repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
+      problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
+      status: prior?.status || (type === "repair" ? "inspection_pending" : "pending"),
+      phase: prior?.phase || (type === "repair" ? "repair_phase_1" : "core"),
+      schedule: prior?.schedule || { date: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime, durationMinutes: duration, kind: type === "repair" ? "inspection" : "service" },
+    };
+  }));
 }
 
 /**
@@ -683,9 +854,7 @@ async function applyProjectScheduling(booking, req, opts = {}) {
           lat: booking.location.lat,
           lng: booking.location.lng,
         } : undefined,
-        isLargeScale: await require('../utils/enterpriseSchedulingEngine')
-          .isLargeProject({ totalEstimatedMinutes: Math.round((estimatedTotalHours || 0) * 60) })
-          .catch(() => false),
+        isLargeScale: totalUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS,
       };
 
       // ── Populate repair data from BookingService ──
@@ -918,11 +1087,24 @@ router.post('/create-repair', (req, res, next) => {
       diagnosticFee, paymentMethod,
       gcashNumber, cashNumber, downpaymentAmount,
       preferredDate, preferredTime,
-      quantity, isProject, projectScheduling
+      quantity, isProject, projectScheduling, serviceItems
     } = req.body;
+
+    let repairItems = [];
+    try { repairItems = serviceItems ? JSON.parse(serviceItems) : []; } catch { repairItems = []; }
+    if (!Array.isArray(repairItems) || !repairItems.length) repairItems = [{ unitType, brand, model, problemDescription, quantity }];
+    repairItems = repairItems.slice(0, 20).map(item => ({
+      unitType: String(item.unitType || item.applianceTypeName || '').trim(),
+      brand: String(item.brand || '').trim(), model: String(item.model || '').trim(),
+      problemDescription: String(item.problemDescription || item.repairIssue || '').trim(),
+      quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(item.quantity) || 1)),
+    }));
+    const totalRepairUnits = repairItems.reduce((sum, item) => sum + item.quantity, 0);
+    const repairIsProject = totalRepairUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS;
 
     // ── Step 1: Input Validation ──────────────────────────────────────────
     const errors = [];
+    if (totalRepairUnits > schedulingEngine.MAX_BOOKING_UNITS) errors.push(`A repair booking can contain at most ${schedulingEngine.MAX_BOOKING_UNITS} units.`);
     if (!unitType || unitType.trim().length < 2) errors.push('Unit type is required');
     if (!brand || brand.trim().length < 2) errors.push('Brand is required');
     if (!problemDescription || problemDescription.trim().length < 10) {
@@ -935,10 +1117,11 @@ router.post('/create-repair', (req, res, next) => {
     if (!paymentMethod || !['gcash', 'cod'].includes(paymentMethod)) {
       errors.push('Valid payment method is required (gcash or cod)');
     }
-    if (paymentMethod === 'cod' && (!downpaymentAmount || parseFloat(downpaymentAmount) < 0)) {
-      errors.push('Downpayment amount is required for cash on delivery');
-    }
-
+    repairItems.forEach((item, index) => {
+      if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);
+      if (item.brand.length < 2) errors.push(`Appliance ${index + 1}: brand is required`);
+      if (item.problemDescription.length < 10) errors.push(`Appliance ${index + 1}: problem description must be at least 10 characters`);
+    });
     if (errors.length > 0) {
       console.error('Repair validation failed:', errors, {
         unitType, brand, problemDescription: problemDescription?.substring(0, 30),
@@ -978,7 +1161,7 @@ router.post('/create-repair', (req, res, next) => {
     }
 
     // Compute capacity end point: inspection duration + travel + buffer
-    const capacityEndMinutes = preferredTimeMinutes + inspectionDuration + travelTimeDefault + bufferTime;
+    const capacityEndMinutes = preferredTimeMinutes + (inspectionDuration * totalRepairUnits) + travelTimeDefault + bufferTime;
     
     // Parse preferred date
     const parsedPreferredDate = (() => {
@@ -991,14 +1174,14 @@ router.post('/create-repair', (req, res, next) => {
     const inspectionDate = parsedPreferredDate || new Date();
 
     // Company-wide capacity check
-    if (isProject) {
+    if (repairIsProject) {
       // For large-scale repair projects: validate the ENTIRE date range
       const ps = projectScheduling ? (typeof projectScheduling === 'string' ? JSON.parse(projectScheduling) : projectScheduling) : {};
       const projStartDate = ps.preferredStartDate || preferredDate;
       const projEndDate = ps.preferredCompletionDeadline || ps.preferredStartDate || preferredDate;
 
       if (projStartDate && projEndDate) {
-        const estHours = ps.estimatedTotalHours || (Number(quantity) || 1) * 1.5;
+        const estHours = Number(ps.estimatedTotalHours) || ((inspectionDuration * totalRepairUnits) / 60);
         const rangeDays = Math.max(1, Math.ceil((new Date(projEndDate) - new Date(projStartDate)) / 86400000) + 1);
         const requiredTechs = Math.max(1, Math.ceil(estHours / (rangeDays * 8)));
 
@@ -1036,7 +1219,10 @@ router.post('/create-repair', (req, res, next) => {
     const cashProofUrl = req.files?.cashProof?.[0] ? '/uploads/repairs/' + req.files.cashProof[0].filename : '';
 
     const diagFee = diagnosticFee ? parseFloat(diagnosticFee) : 500;
+    const totalDiagnosticFee = diagFee * totalRepairUnits;
     const tFare = travelFare ? parseFloat(travelFare) : 0;
+    const repairDownpaymentPercentage = await getDownpaymentPercentage();
+    const repairPaymentBreakdown = calculatePaymentBreakdown(totalDiagnosticFee + tFare, repairDownpaymentPercentage);
 
     // Compute capacity end time string for the booking record
     const capacityEndTimeStr = (() => {
@@ -1052,6 +1238,28 @@ router.post('/create-repair', (req, res, next) => {
       // Enterprise: Initial status is 'repair_requested' — an inspection request,
       // NOT a repair job. Full diagnosis requires on-site inspection first.
       status: 'repair_requested',
+
+      // Store even a single repair as a service item so it can later coexist
+      // with core services or additional repair appliances.
+      isMultiService: repairItems.length > 1,
+      services: repairItems.map(item => ({
+        name: `${item.unitType} Repair`,
+        type: 'repair',
+        quantity: item.quantity,
+        unitPrice: diagFee,
+        totalPrice: diagFee * item.quantity,
+        initialCost: diagFee,
+        duration: inspectionDuration,
+        applianceType: item.unitType.toLowerCase().replace(/\s+/g, '_'),
+        applianceTypeName: item.unitType,
+        brand: item.brand,
+        model: item.model,
+        repairIssue: item.problemDescription,
+        problemDescription: item.problemDescription,
+        status: 'inspection_pending',
+        phase: 'repair_phase_1',
+        schedule: { date: inspectionDate, startTime: preferredTime || '', endTime: capacityEndTimeStr, durationMinutes: inspectionDuration, kind: 'inspection' },
+      })),
 
       // Unit information
       unitInfo: {
@@ -1072,8 +1280,8 @@ router.post('/create-repair', (req, res, next) => {
       travelFare: tFare,
 
       // Fees — diagnostic fee + travel fare (inspection cost only)
-      initialCost: diagFee,
-      estimatedFee: diagFee + tFare,
+      initialCost: totalDiagnosticFee,
+      estimatedFee: totalDiagnosticFee + tFare,
 
       // Enterprise: Show notice that inspection fee covers diagnostic visit
       // Actual repair cost will be quoted after inspection
@@ -1083,14 +1291,14 @@ router.post('/create-repair', (req, res, next) => {
       gcashNumber: gcashNumber || '',
       paymentProof: bookingPaymentMethod === 'gcash' ? gcashProofUrl : cashProofUrl,
       paymentStatus: 'pending',
-      downpaymentAmount: bookingPaymentMethod === 'cod' ? (parseFloat(downpaymentAmount) || 0) : 0,
-      balanceAmount: bookingPaymentMethod === 'cod'
-        ? Math.max(0, (diagFee + tFare) - (parseFloat(downpaymentAmount) || 0))
-        : 0,
-      amountPaid: bookingPaymentMethod === 'cod' ? (parseFloat(downpaymentAmount) || 0) : 0,
+      downpaymentPercentage: bookingPaymentMethod === 'cod' ? repairPaymentBreakdown.downpaymentPercentage : 100,
+      downpaymentAmount: bookingPaymentMethod === 'cod' ? repairPaymentBreakdown.downpaymentAmount : repairPaymentBreakdown.total,
+      balanceAmount: bookingPaymentMethod === 'cod' ? repairPaymentBreakdown.balanceAmount : 0,
+      amountPaid: 0,
       paymentNotes: bookingPaymentMethod === 'cod' ? `Mobile: ${cashNumber || ''}` : '',
 
       issueDescription: problemDescription.trim(),
+      repairIssues: repairItems.map(item => `${item.brand} ${item.unitType}: ${item.problemDescription}`).join(" | "),
 
       // Enterprise: preferredDate is the inspection date, NOT the repair date
       preferredDate: parsedPreferredDate,
@@ -1099,7 +1307,7 @@ router.post('/create-repair', (req, res, next) => {
       // Enterprise: Set scheduling fields so capacity checks can detect this booking
       // Only inspection duration reserves capacity (not the full repair)
       startTime: preferredTime || '',
-      serviceDurationMinutes: inspectionDuration, // configurable inspection duration
+      serviceDurationMinutes: inspectionDuration * totalRepairUnits,
       travelTime: travelTimeDefault, // default travel buffer in minutes
       endTime: capacityEndTimeStr, // capacity end point for overlap detection
 
@@ -1108,9 +1316,11 @@ router.post('/create-repair', (req, res, next) => {
       bookingDate: inspectionDate,
 
       // Large-scale / project support (multi-unit repair)
-      quantity: Number(quantity) || 1,
-      isProject: Boolean(isProject) || false,
-      projectScheduling: projectScheduling ? (typeof projectScheduling === 'string' ? JSON.parse(projectScheduling) : projectScheduling) : undefined,
+      quantity: totalRepairUnits,
+      isProject: repairIsProject,
+      projectScheduling: repairIsProject
+        ? (projectScheduling ? (typeof projectScheduling === 'string' ? JSON.parse(projectScheduling) : projectScheduling) : { preferredStartDate: preferredDate, estimatedTotalHours: (inspectionDuration * totalRepairUnits) / 60 })
+        : undefined,
 
       customer: {
         _id: req.user._id,
@@ -1135,8 +1345,26 @@ router.post('/create-repair', (req, res, next) => {
     await booking.save();
     console.log(`  ✅ Repair request created: ${booking.workOrderNumber || booking._id}`);
 
+    const submittedProof = bookingPaymentMethod === 'gcash' ? gcashProofUrl : cashProofUrl;
+    if (submittedProof) {
+      const Payment = require('../models/Payment');
+      await Payment.create({
+        bookingId: booking._id,
+        amount: bookingPaymentMethod === 'cod' ? repairPaymentBreakdown.downpaymentAmount : repairPaymentBreakdown.total,
+        method: 'gcash',
+        type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'inspection',
+        gateway: 'gcash',
+        reference: bookingPaymentMethod === 'cod' ? cashNumber : gcashNumber,
+        proofUrl: submittedProof,
+        status: 'pending',
+        notes: bookingPaymentMethod === 'cod'
+          ? `${repairPaymentBreakdown.downpaymentPercentage}% repair inspection downpayment submitted for verification`
+          : 'Repair inspection payment submitted for verification',
+      });
+    }
+
     // ── Large-Scale / Project detection (multi-unit repair) ──────────────
-    if (booking.isProject || (booking.projectScheduling && booking.projectScheduling.estimatedTotalHours)) {
+    if (repairIsProject) {
       const projectInfo = await applyProjectScheduling(booking, req, {
         estimatedTotalHours: booking.projectScheduling?.estimatedTotalHours,
         totalUnits: booking.quantity || 1,
@@ -1232,6 +1460,159 @@ router.post('/create-repair', (req, res, next) => {
 // CUSTOMER QUOTATION ACTIONS (Enterprise with Audit Trail)
 // ═════════════════════════════════════════════════════════════════════════════
 
+// GET /api/bookings/:id/service-items
+// Customer-safe service-item view used by booking history/edit screens.
+router.get('/:id/service-items', async (req, res) => {
+  try {
+    const booking = await BookingService.findById(req.params.id).lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    return res.json({
+      bookingId: booking._id,
+      bookingReference: booking.bookingReference,
+      status: booking.status,
+      policy: mutationPolicy(booking),
+      services: bookingServices(booking),
+      changeRequests: (booking.serviceChangeRequests || []).map(row => ({
+        _id: row._id, status: row.status, requestedAt: row.requestedAt,
+        summary: row.summary, reason: row.reason, proposedSchedule: row.proposedSchedule,
+        adminDecision: row.adminDecision,
+      })),
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'Unable to load service items' });
+  }
+});
+
+// POST /api/bookings/:id/service-change-requests
+// Before assignment this applies immediately; once operationally committed it
+// records an immutable before/proposed snapshot for admin review.
+router.post('/:id/service-change-requests', async (req, res) => {
+  try {
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    if ((booking.serviceChangeRequests || []).some(row => ["pending", "schedule_proposed"].includes(row.status))) {
+      return res.status(409).json({ error: 'This booking already has a service change awaiting a decision.' });
+    }
+
+    const beforeServices = bookingServices(booking);
+    const proposedServices = await validatedServiceItems(req.body.services, booking);
+    const summary = summarizeChanges(beforeServices, proposedServices);
+    if (!summary.added && !summary.edited && !summary.removed) {
+      return res.status(400).json({ error: 'No service changes were detected.' });
+    }
+    const policy = mutationPolicy(booking);
+    const requestRecord = {
+      requestedBy: req.user._id,
+      requestedByName: req.user.fullName || req.user.name || req.user.email,
+      reason: String(req.body.reason || '').trim(),
+      status: policy.direct ? 'approved' : 'pending',
+      changeType: policy.direct ? 'direct_edit' : 'change_request',
+      beforeServices,
+      proposedServices,
+      summary,
+      adminDecision: policy.direct ? { decidedBy: req.user._id, decidedByName: 'System policy', decidedAt: new Date(), reason: policy.reason } : undefined,
+    };
+
+    if (policy.direct) {
+      const inspectionDuration = await getInspectionDurationMinutes();
+      const buffer = await getBufferMinutes();
+      const startMinutes = parseTimeToMinutes(booking.startTime);
+      const endMinutes = startMinutes + capacityMinutes(proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
+      if (booking.bookingDate && Number.isFinite(startMinutes)) {
+        await assertCompanyCapacity(booking.bookingDate, startMinutes, endMinutes, booking._id);
+        booking.endTime = minutesToTimeString(endMinutes);
+      }
+      booking.services = proposedServices;
+      booking.isMultiService = proposedServices.length > 1;
+      booking.serviceType = aggregateBookingType(proposedServices);
+      const totals = booking.calculateTotalCosts();
+      booking.totalInitialCost = totals.totalInitialCost;
+      booking.totalFinalCost = totals.totalFinalCost;
+      booking.totalPrice = totals.totalPrice;
+      if (booking.paymentMethod === 'cod' && booking.totalPrice > 0) {
+        const dp = Number(booking.downpaymentAmount) || 0;
+        booking.balanceAmount = Math.max(0, booking.totalPrice - dp);
+        booking.amountPaid = dp;
+      }
+    }
+    booking.serviceChangeRequests.push(requestRecord);
+    await booking.save();
+
+    await createNotification({
+      type: policy.direct ? 'booking_change_approved' : 'booking_change_requested',
+      title: policy.direct ? 'Booking services updated' : 'Booking service change requested',
+      message: `${booking.bookingReference || booking._id}: ${summary.added} added, ${summary.edited} edited, ${summary.removed} removed.`,
+      role: 'admin', referenceId: booking._id, referenceModel: 'BookingService',
+      link: `/admin/appointments?booking=${booking._id}`, priority: policy.direct ? 'normal' : 'high', io: req.app.get('io'),
+    });
+    return res.status(policy.direct ? 200 : 202).json({ success: true, applied: policy.direct, policy, changeRequest: booking.serviceChangeRequests.at(-1) });
+  } catch (error) {
+    return res.status(error.status || 400).json({ error: error.message || 'Unable to change booking services' });
+  }
+});
+
+router.post('/:id/service-change-requests/:requestId/schedule-response', async (req, res) => {
+  try {
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    const change = booking.serviceChangeRequests.id(req.params.requestId);
+    if (!change || change.status !== 'schedule_proposed') return res.status(409).json({ error: 'No active schedule proposal was found.' });
+    const accepted = req.body.accept === true;
+    if (!accepted) {
+      change.status = 'customer_rejected_schedule';
+      await booking.save();
+      await createNotification({ type: 'booking_change_requested', title: 'Customer declined proposed schedule', message: `${booking.bookingReference || booking._id} requires another admin review.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: 'high', io: req.app.get('io') });
+      return res.json({ success: true, accepted: false });
+    }
+    const date = new Date(change.proposedSchedule.date);
+    const start = parseTimeToMinutes(change.proposedSchedule.startTime);
+    const end = parseTimeToMinutes(change.proposedSchedule.endTime);
+    await assertCompanyCapacity(date, start, end, booking._id);
+    booking.bookingDate = date; booking.startTime = change.proposedSchedule.startTime; booking.endTime = change.proposedSchedule.endTime;
+    booking.services = change.proposedServices;
+    booking.isMultiService = booking.services.length > 1;
+    booking.serviceType = aggregateBookingType(booking.services);
+    booking.services.forEach(item => { item.schedule = { ...(item.schedule?.toObject?.() || item.schedule || {}), date, startTime: booking.startTime, endTime: booking.endTime, kind: item.type === 'repair' ? 'inspection' : 'service' }; });
+    const totals = booking.calculateTotalCosts();
+    booking.totalInitialCost = totals.totalInitialCost; booking.totalFinalCost = totals.totalFinalCost; booking.totalPrice = totals.totalPrice;
+    change.status = 'customer_accepted_schedule';
+    change.adminDecision = { ...(change.adminDecision?.toObject?.() || change.adminDecision || {}), decidedAt: new Date(), reason: 'Customer accepted the proposed schedule.' };
+    await booking.save();
+    await Promise.all([
+      createNotification({ type: 'booking_change_approved', title: 'Customer accepted proposed schedule', message: `${booking.bookingReference || booking._id} was updated.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: 'normal', io: req.app.get('io') }),
+      booking.technicianId ? createNotification({ type: 'booking_update_acknowledgement', title: 'Assigned booking updated', message: `Services and schedule changed for ${booking.bookingReference || booking._id}.`, userId: booking.technicianId, role: 'technician', referenceId: booking._id, referenceModel: 'BookingService', link: '/technician/assignments', priority: 'high', io: req.app.get('io') }) : Promise.resolve(),
+    ]);
+    return res.json({ success: true, accepted: true, booking });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'Unable to process schedule response' });
+  }
+});
+
+router.post('/:id/service-items/:itemId/quotation-decision', async (req, res) => {
+  try {
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    const item = booking.services.id(req.params.itemId);
+    if (!item || item.type !== 'repair' || item.quotation?.status !== 'submitted') return res.status(409).json({ error: 'No submitted quotation is awaiting a decision for this service item.' });
+    const approved = req.body.approved === true;
+    item.quotation.status = approved ? 'approved' : 'declined';
+    item.quotation.decidedAt = new Date();
+    item.status = approved ? 'repair_approved' : 'repair_declined';
+    item.phase = approved ? 'repair_phase_2' : 'repair_phase_1';
+    item.statusHistory.push({ status: item.status, changedAt: new Date(), changedBy: req.user._id, changedByName: req.user.fullName || req.user.email, reason: approved ? 'Customer approved item quotation' : 'Customer declined item quotation' });
+    await booking.save();
+    await audit.logEvent({ actor: req.user._id, target: booking._id, action: approved ? 'booking.quotation_item_approve' : 'booking.quotation_item_decline', module: 'bookings', req, details: { bookingId: booking._id, itemId: item._id, itemName: item.name } }).catch(() => {});
+    await createNotification({ type: 'system', title: approved ? 'Item quotation approved' : 'Item quotation declined', message: `${item.name} on ${booking.bookingReference || booking._id} was ${approved ? 'approved' : 'declined'} by the customer.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: approved ? 'normal' : 'high', io: req.app.get('io') });
+    return res.json({ success: true, serviceItem: item });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'Unable to record quotation decision' });
+  }
+});
+
 // POST /api/bookings/:id/approve-quotation
 router.post('/:id/approve-quotation', async (req, res) => {
   try {
@@ -1264,6 +1645,8 @@ router.post('/:id/approve-quotation', async (req, res) => {
     });
     booking.status = 'repair_approved';
     await booking.save();
+
+    await audit.logEvent({ actor: req.user._id, target: booking._id, action: 'booking.quotation_approve', module: 'bookings', req, details: { bookingId: booking._id, quotationTotal: booking.quotation?.totalCost || 0 } }).catch(() => {});
 
     // Notify admin + technician
     if (global.io) {
@@ -1330,6 +1713,8 @@ router.post('/:id/decline-quotation', async (req, res) => {
     });
     booking.status = 'repair_declined';
     await booking.save();
+
+    await audit.logEvent({ actor: req.user._id, target: booking._id, action: 'booking.quotation_decline', module: 'bookings', req, details: { bookingId: booking._id, reason: reason || 'Declined by customer' } }).catch(() => {});
 
     if (global.io) {
       global.io.to('admin').emit('booking:updated', {
@@ -1401,6 +1786,8 @@ router.post('/:id/warranty-claim', async (req, res) => {
     });
     booking.status = 'warranty_claim';
     await booking.save();
+
+    await audit.logEvent({ actor: req.user._id, target: booking._id, action: 'booking.warranty_claim', module: 'bookings', req, details: { bookingId: booking._id, issue: issue.trim() } }).catch(() => {});
 
     if (global.io) {
       global.io.to('admin').emit('booking:updated', {

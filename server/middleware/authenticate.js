@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
 // Sliding session: keep relatively short expiry and rotate on activity
 const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000; // 30 minutes
 const ROTATE_THRESHOLD_MS =
@@ -25,13 +25,6 @@ module.exports = {
     try {
       const cookies = parseCookies(req.headers.cookie || "");
       const token = cookies["auth_token"];
-      // diagnostic logging for location tracker / other API calls
-      if (req.path && req.path.includes("technician/location")) {
-        console.log(
-          "authenticate middleware: incoming cookies",
-          req.headers.cookie,
-        );
-      }
 
       let user = null;
       let payload = null;
@@ -74,15 +67,6 @@ module.exports = {
       }
 
       if (!user) {
-        if (req.path && req.path.includes("technician/location")) {
-          console.warn(
-            "authenticate: unable to identify user from token/session",
-          );
-          return res.status(401).json({
-            error: "Not authenticated",
-            debug: { cookieHeader: req.headers.cookie || null },
-          });
-        }
         return res.status(401).json({ error: "Not authenticated" });
       }
 
@@ -118,18 +102,24 @@ module.exports = {
       if (payload) {
         const expMs = (payload.exp || 0) * 1000;
         if (expMs - Date.now() < ROTATE_THRESHOLD_MS) {
-          // Preserve sessionId when rotating token
+          // Preserve sessionId and rememberMe flag when rotating token.
+          // If the original token was issued with rememberMe, keep the
+          // extended 30-day expiry so the user stays logged in.
+          const isRememberMe = !!payload.rememberMe;
+          const rotationMaxAge = isRememberMe
+            ? 30 * 24 * 60 * 60 * 1000  // 30 days
+            : MAX_AGE_MS;                // 30 minutes (default)
           const newToken = jwt.sign(
-            { id: user._id, role: user.role, sessionId: user.currentSessionId },
+            { id: user._id, role: user.role, sessionId: user.currentSessionId, rememberMe: isRememberMe },
             JWT_SECRET,
-            { expiresIn: Math.floor(MAX_AGE_MS / 1000) + "s" },
+            { expiresIn: Math.floor(rotationMaxAge / 1000) + "s" },
           );
           const isProd = process.env.NODE_ENV === "production";
           res.cookie("auth_token", newToken, {
             httpOnly: true,
             secure: isProd,
             sameSite: "Strict",
-            maxAge: MAX_AGE_MS,
+            maxAge: rotationMaxAge,
             path: "/",
           });
         }

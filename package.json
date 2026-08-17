@@ -15,6 +15,8 @@
     "seed:test-user": "node server/scripts/seedUser.js",
     "seed:hvac": "node server/scripts/seedHVACProducts.js",
     "import-holidays": "node server/scripts/importNagerHolidays.js",
+    "migrate:inventory-classes": "node server/scripts/migrateInventoryClasses.js",
+    "migrate:booking-service-items": "node server/scripts/migrateBookingServiceItems.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -37,6 +39,7 @@
     "express": "^5.2.1",
     "express-ejs-layouts": "^2.5.1",
     "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.6.2",
     "express-session": "^1.19.0",
     "express-validator": "^7.3.1",
     "geoip-lite": "^2.0.3",

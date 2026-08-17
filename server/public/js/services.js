@@ -1,4 +1,13 @@
-﻿"use strict";
+"use strict";
+
+window.downpaymentPercentage = window.downpaymentPercentage || 10;
+fetch('/api/services/payment-policy')
+  .then(response => response.ok ? response.json() : null)
+  .then(data => {
+    const percentage = Number(data && data.downpaymentPercentage);
+    if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) window.downpaymentPercentage = percentage;
+  })
+  .catch(() => {});
 
 
 
@@ -12510,7 +12519,7 @@ async function handleConfirmBooking(e) {
 
 
 
-      payload.downpaymentAmount = 400;
+      payload.downpaymentAmount = Math.round((Number(payload.estimatedFee) || 0) * (window.downpaymentPercentage || 10) / 100);
 
 
 
@@ -15360,7 +15369,23 @@ function attemptMapMount() {
 
 
 
-  // mapState.map.on("click", ... ) intentionally omitted
+  // Tap the map to select a customer location
+  mapState.map.on('click', async function (e) {
+    const { lat, lng } = e.latlng;
+    locationState.userCoords = { lat, lng };
+    placeUserMarker({ lat, lng }, { pan: true });
+    setLocationStatus('Location selected from map.', 'success');
+    try { updateStepIndicators(); } catch (e) {}
+    try {
+      const resp = await fetch(`/api/geocoding/reverse?lat=${lat}&lon=${lng}`);
+      const data = await resp.json();
+      if (data && data.display_name) {
+        if (dom.locationInput) dom.locationInput.value = data.display_name;
+      }
+    } catch (err) {
+      console.warn('Reverse geocode failed:', err);
+    }
+  });
 
 
 

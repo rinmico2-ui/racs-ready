@@ -16,7 +16,7 @@ function parseCookies(header) {
 
 async function getUserFromToken(token) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (!payload || !payload.id) return null;
     const user = await User.findById(payload.id).select("-passwordHash");
     if (!user) return null;

@@ -917,7 +917,7 @@ async function tavilyDiagnosticSearch(unitInfo) {
 
   // Tertiary: parts and pricing
   if (unitType && brand) {
-    queries.push(`${brand} ${unitType} replacement parts price Philippines 2024 2025`);
+    queries.push(`${brand} ${unitType} replacement parts price Philippines ${new Date().getFullYear()}`);
   }
 
   if (queries.length === 0) {
@@ -940,8 +940,8 @@ async function tavilyDiagnosticSearch(unitInfo) {
           body: JSON.stringify({
             api_key: TAVILY_API_KEY,
             query,
-            search_depth: 'basic',
-            max_results: 3,
+            search_depth: 'advanced',
+            max_results: 4,
             include_answer: true,
             include_raw_content: false,
           }),
@@ -1033,6 +1033,7 @@ async function tavilyInspectionSearch(unitInfo, inspectionData) {
 
   try {
     const allResults = [];
+    const allSources = [];
 
     const searchPromises = queries.slice(0, 2).map(async (query) => {
       try {
@@ -1059,6 +1060,7 @@ async function tavilyInspectionSearch(unitInfo, inspectionData) {
       if (data.results) {
         for (const item of data.results) {
           if (item.content) allResults.push(item.content);
+          if (item.url) allSources.push(item.url);
         }
       }
     }
@@ -1068,7 +1070,7 @@ async function tavilyInspectionSearch(unitInfo, inspectionData) {
     const webContext = allResults.join('\n ').replace(/\s+/g, ' ').slice(0, 1500);
     return {
       webContext: `\n\n## WEB RESEARCH (specification data)\n${webContext}`,
-      sources: [],
+      sources: [...new Set(allSources)].slice(0, 5),
       searchUsed: true,
     };
   } catch (error) {
@@ -1313,7 +1315,7 @@ function buildAssistantPrompt(unitInfo, serviceHistory, webResearchContext = '')
 
   return `You are an expert AI Technician Assistant for **RACS (Repair and Appliance Care Services)**, a professional home appliance and HVAC repair company operating in the Philippines. Your role is to help field technicians prepare for on-site inspection by providing intelligent, accurate preliminary analysis based on customer-reported symptoms.
 
-LANGUAGE: The customer complaint may be in English, Tagalog/Filipino, or Taglish (mixed). You MUST understand and analyze all forms. Internally translate Tagalog/Taglish to English for analysis, but write your summary and additionalNotes in bilingual English-Tagalog so technicians understand easily.
+LANGUAGE: The customer complaint may be in English, Tagalog/Filipino, or Taglish (mixed). You MUST understand appliance terminology, spelling variations, and conversational descriptions in all three forms. Preserve standard English technical component names when they are clearer. If the complaint is Filipino or Taglish, write ALL user-facing descriptive fields (summary, probable-cause explanations, checklist actions, parts purposes, safety reminders, preventive-maintenance advice, and additionalNotes) in clear Filipino/Taglish matching the input style. If the complaint is English, respond in English. Never reject or weaken an analysis merely because the input is Filipino or mixed-language.
 
 IMPORTANT: You are providing decision-support recommendations, NOT a final diagnosis. The technician performs the final diagnosis on-site.
 
@@ -1375,7 +1377,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this structur
 
 {
   "technicianAssistant": {
-    "summary": "Brief bilingual overview of the likely issue — English + Tagalog. E.g.: 'The unit is likely experiencing a refrigerant issue. / Ang unit ay malamang may problema sa refrigerant.'",
+    "summary": "Brief overview of the likely issue using the language style required above",
 
     "probableCauses": [
       {
@@ -1417,10 +1419,10 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this structur
     "estimatedDurationMinutes": 60,
 
     "safetyReminders": [
-      "Specific safety instruction for this appliance and symptom (include Tagalog translation if helpful)"
+      "Specific safety instruction for this appliance and symptom using the required language style"
     ],
 
-    "additionalNotes": "Any additional preparation tips, brand-specific observations, or customer advisory (bilingual English-Tagalog)",
+    "additionalNotes": "Any additional preparation tips, brand-specific observations, or customer advisory using the required language style",
 
     "preventiveMaintenance": [
       "Specific maintenance recommendation to prevent this issue from recurring"
@@ -1438,7 +1440,7 @@ RULES:
 - Safety reminders must be specific to this appliance type — not generic
 - repairApproach: "immediate" if parts are commonly in stock and repair is straightforward; "scheduled" if specialist parts or skills needed
 - Include at least 3 preventive maintenance recommendations
-- If the complaint is in Tagalog/Taglish, still return properly structured JSON
+- If the complaint is in Tagalog/Taglish, still return properly structured JSON and keep every required JSON key in English
 - Do NOT wrap response in markdown code blocks — return raw JSON only
 ${webResearchContext}`;
 }
@@ -1690,9 +1692,9 @@ function fallbackAssistant(unitInfo) {
  * @returns {Object} technician assistant report
  */
 async function generateAssistantReport(unitInfo, serviceHistory = null) {
+  let webResearch = { webContext: '', sources: [], searchUsed: false };
   try {
     // Step 1: Augment with real-time web research via Tavily
-    let webResearch = { webContext: '', sources: [], searchUsed: false };
     try {
       webResearch = await tavilyDiagnosticSearch(unitInfo);
       if (webResearch.searchUsed) {
@@ -1739,7 +1741,12 @@ async function generateAssistantReport(unitInfo, serviceHistory = null) {
     };
   } catch (error) {
     console.error('[AI Technician Assistant] All AI APIs failed, using fallback:', error.message);
-    return fallbackAssistant(unitInfo);
+    const fallback = fallbackAssistant(unitInfo);
+    if (fallback?.technicianAssistant) {
+      fallback.technicianAssistant._webResearchUsed = webResearch.searchUsed;
+      fallback.technicianAssistant._webSources = webResearch.sources;
+    }
+    return fallback;
   }
 }
 

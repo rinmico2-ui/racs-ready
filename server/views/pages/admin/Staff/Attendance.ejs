@@ -1,6 +1,6 @@
 <script src="/js/qrcode.min.js"></script>
 
-<div class="admin-dashboard container-fluid py-4 staff-attendance-page">
+<div class="admin-dashboard container-fluid py-4 staff-attendance-page inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
 
   <style>
@@ -164,6 +164,64 @@
     }
   </style>
 
+  <style>
+    /* Premium inventory styles */
+    .inventory-premium { /* scope wrapper */ }
+
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+      display: flex;
+      flex-direction: column;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-currency { font-size: 0.9rem; font-weight: 700; color: #64748b; align-self: flex-start; margin-top: 2px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+    .inventory-premium .kpi-trend i { font-size: 0.7rem; }
+    .inventory-premium .inv-kpi-spark-wrap { width: 100%; height: 34px; margin-top: auto; overflow: hidden; }
+    .inventory-premium .inv-kpi-spark { display: block; width: 100%; height: 100%; }
+
+    /* Toolbar matching Repair Parts */
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+
+    /* Dense table */
+    .inventory-premium .table-dense th,
+    .inventory-premium .table-dense td { padding: .55rem .75rem; font-size: .8rem; }
+    .inv-pagination { display: flex; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,.3); background: rgba(255,255,255,.8); color: #475569; font-weight: 600; font-size: .85rem; transition: all .3s ease; }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: .5; }
+  </style>
+
   <!-- ═══ HERO ═══ -->
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
@@ -180,117 +238,250 @@
   <div class="row g-3">
     <!-- ═══ LEFT COLUMN: QR Code ═══ -->
     <div class="col-lg-5">
-      <div class="ss-card">
-        <div class="ss-card-head">
-          <div class="ch-title-wrap">
-            <div class="ch-icon sky"><i class="bi bi-qr-code"></i></div>
-            <h3>Daily Attendance QR</h3>
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <div class="kpi-title"><i class="bi bi-qr-code me-1"></i>Daily Attendance QR</div>
+            <span class="inv-kpi-sub">Technicians scan this code after login to check in.</span>
           </div>
-          <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Regenerate</button>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #0ea5e9, #38bdf8);">
+            <i class="bi bi-qr-code"></i>
+          </div>
         </div>
-        <div class="ss-card-body text-center py-4">
+
+        <div class="text-center py-2">
           <h5 class="text-secondary mb-1" id="lblTodayDate">-- -- --</h5>
-          <p class="text-muted small mb-4">Technicians scan this code after login to check in.</p>
-          
-          <div class="d-inline-block p-3 bg-white border rounded-3 mb-4 shadow-sm" style="min-height: 250px;">
+          <p class="text-muted small mb-3">Today's QR is valid until 9:00 AM cutoff.</p>
+
+          <div class="d-inline-block p-3 bg-white border rounded-3 mb-3 shadow-sm" style="min-height: 250px;">
             <img id="imgQrCode" alt="Daily Attendance QR Code" style="width: 220px; height: 220px; display: none;" />
             <div id="qrLoading" class="d-flex flex-column align-items-center justify-content-center" style="width: 220px; height: 220px;">
               <div class="spinner-border text-sky" role="status"></div>
               <span class="mt-2 text-muted small">Generating Token...</span>
             </div>
           </div>
-          
-          <div class="alert alert-info py-2 px-3 small text-start mx-auto mb-0" style="max-width: 320px;">
+
+          <div class="alert alert-info py-2 px-3 small text-start mx-auto mb-3" style="max-width: 320px;">
             <i class="bi bi-info-circle me-1"></i> Cutoff time is <strong>9:00 AM</strong>. Scans after 9:00 AM will be automatically marked as <strong>Late</strong>.
           </div>
+
+          <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Regenerate</button>
         </div>
       </div>
     </div>
 
     <!-- ═══ RIGHT COLUMN: Statistics ═══ -->
     <div class="col-lg-7">
-      <div class="ss-card">
-        <div class="ss-card-head">
-          <div class="ch-title-wrap">
-            <div class="ch-icon emerald"><i class="bi bi-bar-chart-line"></i></div>
-            <h3>Today's Attendance Statistics</h3>
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <div class="kpi-title"><i class="bi bi-bar-chart-line me-1"></i>Today's Attendance Statistics</div>
+            <span class="inv-kpi-sub">Live overview of staff check-ins and availability</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #059669, #10b981);">
+            <i class="bi bi-bar-chart-line"></i>
           </div>
         </div>
-        <div class="ss-card-body">
-          <div class="stats-grid mb-3">
-            <div class="stat-box">
-              <div class="stat-num" id="statTotal">0</div>
-              <div class="stat-label">Total Staff</div>
+
+        <div class="stats-grid mb-0">
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Total Staff</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value mb-0" id="statTotal">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+                <i class="bi bi-people"></i>
+              </div>
             </div>
-            <div class="stat-box">
-              <div class="stat-num text-success" id="statPresent">0</div>
-              <div class="stat-label">Present</div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkTotal"></canvas></div>
+          </div>
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Present</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value text-success mb-0" id="statPresent">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <i class="bi bi-check-circle"></i>
+              </div>
             </div>
-            <div class="stat-box">
-              <div class="stat-num text-warning" id="statLate">0</div>
-              <div class="stat-label">Late</div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkPresent"></canvas></div>
+          </div>
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Late</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value text-warning mb-0" id="statLate">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                <i class="bi bi-clock-history"></i>
+              </div>
             </div>
-            <div class="stat-box">
-              <div class="stat-num text-danger" id="statAbsent">0</div>
-              <div class="stat-label">Absent</div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkLate"></canvas></div>
+          </div>
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Absent</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value text-danger mb-0" id="statAbsent">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                <i class="bi bi-x-circle"></i>
+              </div>
             </div>
-            <div class="stat-box">
-              <div class="stat-num text-primary" id="statLeave">0</div>
-              <div class="stat-label">On Leave</div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkAbsent"></canvas></div>
+          </div>
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">On Leave</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value text-primary mb-0" id="statLeave">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                <i class="bi bi-calendar-check"></i>
+              </div>
             </div>
-            <div class="stat-box text-secondary">
-              <div class="stat-num" id="statHalf">0</div>
-              <div class="stat-label">Checked Out</div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkLeave"></canvas></div>
+          </div>
+          <div class="dash-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="kpi-title">Checked Out</div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="inv-kpi-value text-secondary mb-0" id="statHalf">0</span>
+                  <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+                </div>
+              </div>
+              <div class="kpi-icon" style="background: linear-gradient(135deg, #64748b, #475569);">
+                <i class="bi bi-box-arrow-right"></i>
+              </div>
             </div>
+            <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="attSparkHalf"></canvas></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- ═══ TOOLBAR ═══ -->
+  <div class="rp-toolbar mt-4">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="attendanceSearchInput"><i class="bi bi-search me-1"></i>Search Technician</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="attendanceSearchInput" placeholder="Name or email" />
+      </div>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="attendanceStatusFilter"><i class="bi bi-funnel me-1"></i>Attendance</label>
+      <select class="form-select rp-filter-input" id="attendanceStatusFilter">
+        <option value="all">All Status</option>
+        <option value="Present">Present</option>
+        <option value="Late">Late</option>
+        <option value="Absent">Absent</option>
+        <option value="On Leave">On Leave</option>
+        <option value="Sick Leave">Sick Leave</option>
+        <option value="Checked Out">Checked Out</option>
+      </select>
+    </div>
+    <button class="btn btn-primary rp-filter-btn" type="button" id="attendanceFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
+  </div>
+
   <!-- ═══ FULL WIDTH: TODAY'S LOG ═══ -->
-  <div class="ss-card">
-    <div class="ss-card-head">
-      <div class="ch-title-wrap">
-        <div class="ch-icon purple"><i class="bi bi-people"></i></div>
-        <h3>Today's Roster & Check-ins</h3>
-      </div>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 fw-bold">Today's Roster & Check-ins</h6>
+      <span class="text-muted small fw-normal" id="rosterRecordCount">0 total records</span>
     </div>
-    <div class="ss-card-body p-0">
-      <div class="table-responsive">
-        <table class="table align-middle table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4">Technician</th>
-              <th>Email</th>
-              <th>Attendance Status</th>
-              <th>Availability Status</th>
-              <th>Check-in Time</th>
-              <th>Method</th>
-              <th class="text-end pe-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tblRosterBody">
-            <tr>
-              <td colspan="7" class="text-center py-4 text-muted">
-                <div class="spinner-border spinner-border-sm text-sky me-2" role="status"></div>
-                Loading roster...
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">Technician</th>
+            <th>Email</th>
+            <th>Attendance Status</th>
+            <th>Availability Status</th>
+            <th>Check-in Time</th>
+            <th>Method</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tblRosterBody">
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">
+              <div class="spinner-border spinner-border-sm text-sky me-2" role="status"></div>
+              Loading roster...
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+    <div class="card-footer bg-white py-3 border-top" id="attendanceFooter"></div>
   </div>
 </div>
 
 <script>
+  let currentPage = 1;
+  const pageSize = 10;
+  let rosterData = [];
+  let rosterFiltered = [];
+  const attendanceFooter = document.getElementById('attendanceFooter');
+
+  function createSparkline(canvas, data, color, lineWidth) {
+    if (!canvas || !Array.isArray(data) || data.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    if (!w || !h) return;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    ctx.scale(dpr, dpr);
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
+    ctx.clearRect(0, 0, w, h);
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 4) - 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = color || '#0ea5e9';
+    ctx.lineWidth = lineWidth || 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const lblTodayDate = document.getElementById("lblTodayDate");
     const imgQrCode = document.getElementById("imgQrCode");
     const qrLoading = document.getElementById("qrLoading");
     const btnRegenerate = document.getElementById("btnRegenerate");
     const tblRosterBody = document.getElementById("tblRosterBody");
+    const rosterRecordCount = document.getElementById("rosterRecordCount");
+    const attendanceSearchInput = document.getElementById("attendanceSearchInput");
+    const attendanceStatusFilter = document.getElementById("attendanceStatusFilter");
+    const attendanceFilterBtn = document.getElementById("attendanceFilterBtn");
 
     // Stat boxes
     const statTotal = document.getElementById("statTotal");
@@ -385,68 +576,56 @@
       }
     }
 
-    // Render table and stats
-    function renderRoster(roster) {
-      if (!roster || roster.length === 0) {
-        tblRosterBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No technicians registered in the system.</td></tr>`;
-        return;
-      }
+    // Client-side roster filtering
+    function applyFilters() {
+      const term = attendanceSearchInput.value.trim().toLowerCase();
+      const att = attendanceStatusFilter.value.toLowerCase();
+      rosterFiltered = rosterData.filter(tech => {
+        const haystack = ((tech.name || "") + " " + (tech.email || "")).toLowerCase();
+        const matchTerm = !term || haystack.includes(term);
+        const matchAtt = att === "all" || (tech.attendanceStatus || "").toLowerCase() === att;
+        return matchTerm && matchAtt;
+      });
+      currentPage = 1;
+      renderPage(1, rosterFiltered);
+    }
 
-      // Calculate stats
-      let total = roster.length;
-      let present = 0;
-      let late = 0;
-      let absent = 0;
-      let leave = 0;
-      let checkedOutCount = 0;
+    function renderRow(tech) {
+      let attBadgeClass = "badge-absent";
+      if (tech.attendanceStatus === "Present") attBadgeClass = "badge-present";
+      else if (tech.attendanceStatus === "Late") attBadgeClass = "badge-late";
+      else if (["On Leave", "Sick Leave"].includes(tech.attendanceStatus)) attBadgeClass = "badge-leave";
+      else if (tech.attendanceStatus === "Checked Out") attBadgeClass = "badge-half";
 
-      let html = "";
-      roster.forEach(tech => {
-        // Increment stats
-        switch(tech.attendanceStatus) {
-          case "Present": present++; break;
-          case "Late": late++; break;
-          case "Absent": absent++; break;
-          case "On Leave":
-          case "Sick Leave": leave++; break;
-          case "Checked Out": checkedOutCount++; break;
-        }
+      let availBadgeClass = "badge-offline";
+      if (tech.availabilityStatus === "Available") availBadgeClass = "badge-avail";
+      else if (tech.availabilityStatus === "Assigned") availBadgeClass = "badge-assigned";
+      else if (tech.availabilityStatus === "On The Way") availBadgeClass = "badge-otw";
+      else if (tech.availabilityStatus === "In Progress") availBadgeClass = "badge-progress";
+      else if (tech.availabilityStatus === "Unavailable") availBadgeClass = "badge-unavail";
 
-        // Badges
-        let attBadgeClass = "badge-absent";
-        if (tech.attendanceStatus === "Present") attBadgeClass = "badge-present";
-        else if (tech.attendanceStatus === "Late") attBadgeClass = "badge-late";
-        else if (["On Leave", "Sick Leave"].includes(tech.attendanceStatus)) attBadgeClass = "badge-leave";
-        else if (tech.attendanceStatus === "Checked Out") attBadgeClass = "badge-half";
+      const checkInStr = tech.checkInTime 
+        ? new Date(tech.checkInTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+        : "—";
 
-        let availBadgeClass = "badge-offline";
-        if (tech.availabilityStatus === "Available") availBadgeClass = "badge-avail";
-        else if (tech.availabilityStatus === "Assigned") availBadgeClass = "badge-assigned";
-        else if (tech.availabilityStatus === "On The Way") availBadgeClass = "badge-otw";
-        else if (tech.availabilityStatus === "In Progress") availBadgeClass = "badge-progress";
-        else if (tech.availabilityStatus === "Unavailable") availBadgeClass = "badge-unavail";
+      const checkOutStr = tech.checkOutTime 
+        ? new Date(tech.checkOutTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+        : "";
 
-        // Check-in Time
-        const checkInStr = tech.checkInTime 
-          ? new Date(tech.checkInTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-          : "—";
+      const timeDisplay = checkOutStr ? `${checkInStr} / ${checkOutStr}` : checkInStr;
 
-        // Check-out Time
-        const checkOutStr = tech.checkOutTime 
-          ? new Date(tech.checkOutTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-          : "";
+      const methodStr = tech.method === "qr_scan" 
+        ? '<span class="text-success"><i class="bi bi-qr-code"></i> Scan</span>'
+        : tech.method === "manual"
+        ? '<span class="text-primary"><i class="bi bi-pencil-square"></i> Manual</span>'
+        : "—";
 
-        const timeDisplay = checkOutStr ? `${checkInStr} / ${checkOutStr}` : checkInStr;
+      const safeName = (tech.name || "").toLowerCase().replace(/"/g, '&quot;');
+      const safeEmail = (tech.email || "").toLowerCase().replace(/"/g, '&quot;');
+      const safeAtt = (tech.attendanceStatus || "").toLowerCase().replace(/"/g, '&quot;');
 
-        // Method label
-        const methodStr = tech.method === "qr_scan" 
-          ? '<span class="text-success"><i class="bi bi-qr-code"></i> Scan</span>'
-          : tech.method === "manual"
-          ? '<span class="text-primary"><i class="bi bi-pencil-square"></i> Manual</span>'
-          : "—";
-
-        html += `
-          <tr>
+      return `
+          <tr data-name="${safeName}" data-email="${safeEmail}" data-attendance="${safeAtt}">
             <td class="ps-4 fw-semibold">${tech.name}</td>
             <td class="text-muted small">${tech.email || "—"}</td>
             <td>
@@ -482,19 +661,20 @@
             </td>
           </tr>
         `;
-      });
+    }
 
-      tblRosterBody.innerHTML = html;
+    function renderPage(page, items) {
+      const start = (page - 1) * pageSize;
+      const slice = items.slice(start, start + pageSize);
+      if (!slice.length) {
+        tblRosterBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No matching records.</td></tr>`;
+        attendanceFooter.innerHTML = '<nav aria-label="Attendance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+        return;
+      }
+      tblRosterBody.innerHTML = slice.map(renderRow).join("");
+      rosterRecordCount.textContent = items.length + " records";
+      renderPagination(page, Math.ceil(items.length / pageSize) || 1, items.length);
 
-      // Update counters
-      statTotal.textContent = total;
-      statPresent.textContent = present;
-      statLate.textContent = late;
-      statAbsent.textContent = absent;
-      statLeave.textContent = leave;
-      statHalf.textContent = checkedOutCount;
-
-      // Attach event listeners for updates
       document.querySelectorAll(".attendance-select").forEach(select => {
         select.addEventListener("change", async (e) => {
           const techId = e.target.getAttribute("data-tech-id");
@@ -512,6 +692,81 @@
       });
     }
 
+    function renderPagination(page, pages, total) {
+      const disabled = total === 0;
+      const nav = `<nav aria-label="Attendance pagination">
+  <ul class="inv-pagination justify-content-end mb-0">
+    <li class="page-item ${page <= 1 || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page - 1}">‹ Prev</a>
+    </li>
+    <li class="page-item active">
+      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
+    </li>
+    <li class="page-item ${page >= pages || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page + 1}">Next ›</a>
+    </li>
+  </ul>
+</nav>`;
+      attendanceFooter.innerHTML = nav;
+      attendanceFooter.querySelectorAll('.page-link[data-page]').forEach(el => {
+        el.addEventListener('click', e => {
+          e.preventDefault();
+          const target = e.target.closest('.page-link');
+          const newPage = parseInt(target?.dataset.page);
+          if (!target?.closest('.page-item.disabled') && newPage >= 1 && newPage <= pages) {
+            currentPage = newPage;
+            renderPage(currentPage, rosterFiltered);
+          }
+        });
+      });
+    }
+
+    // Render table and stats
+    function renderRoster(roster) {
+      if (!roster || roster.length === 0) {
+        tblRosterBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No technicians registered in the system.</td></tr>`;
+        rosterRecordCount.textContent = "0 total records";
+        statTotal.textContent = 0;
+        statPresent.textContent = 0;
+        statLate.textContent = 0;
+        statAbsent.textContent = 0;
+        statLeave.textContent = 0;
+        statHalf.textContent = 0;
+        attendanceFooter.innerHTML = '<nav aria-label="Attendance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+        return;
+      }
+
+      rosterData = roster;
+
+      // Calculate stats
+      let total = roster.length;
+      let present = 0;
+      let late = 0;
+      let absent = 0;
+      let leave = 0;
+      let checkedOutCount = 0;
+      roster.forEach(tech => {
+        switch(tech.attendanceStatus) {
+          case "Present": present++; break;
+          case "Late": late++; break;
+          case "Absent": absent++; break;
+          case "On Leave":
+          case "Sick Leave": leave++; break;
+          case "Checked Out": checkedOutCount++; break;
+        }
+      });
+
+      // Update counters
+      statTotal.textContent = total;
+      statPresent.textContent = present;
+      statLate.textContent = late;
+      statAbsent.textContent = absent;
+      statLeave.textContent = leave;
+      statHalf.textContent = checkedOutCount;
+
+      // Render paged rows
+      applyFilters();
+    }
     // Call API to update status
     async function updateTechnician(techId, body) {
       try {
@@ -533,8 +788,21 @@
       }
     }
 
+    // Toolbar filter listeners
+    attendanceSearchInput.addEventListener("input", applyFilters);
+    attendanceStatusFilter.addEventListener("change", applyFilters);
+    attendanceFilterBtn.addEventListener("click", applyFilters);
+
     // Initialize
     loadQrToken();
     loadRoster();
+
+    // Sparkline charts for KPI cards
+    createSparkline(document.getElementById('attSparkTotal'), [12, 15, 13, 18, 20, 19, 22], '#0ea5e9');
+    createSparkline(document.getElementById('attSparkPresent'), [8, 10, 12, 14, 16, 18, 20], '#16a34a');
+    createSparkline(document.getElementById('attSparkLate'), [1, 2, 0, 3, 1, 2, 1], '#d97706');
+    createSparkline(document.getElementById('attSparkAbsent'), [3, 2, 4, 1, 2, 3, 2], '#dc2626');
+    createSparkline(document.getElementById('attSparkLeave'), [0, 1, 1, 2, 1, 0, 1], '#4f46e5');
+    createSparkline(document.getElementById('attSparkHalf'), [0, 0, 1, 1, 2, 2, 3], '#64748b');
   });
 </script>

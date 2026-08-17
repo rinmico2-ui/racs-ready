@@ -26,7 +26,7 @@ module.exports = async function (req, res, next) {
       try {
         const payload = jwt.verify(
           token,
-          process.env.JWT_SECRET || "dev-secret",
+          process.env.JWT_SECRET,
         );
         if (payload && payload.id) {
           const user = await User.findById(payload.id).select("-passwordHash");

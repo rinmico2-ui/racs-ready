@@ -81,19 +81,6 @@
             <span class="input-group-text">/ km</span>
           </div>
         </div>
-        
-        <h5 class="fw-semibold mb-1 mt-4"><i class="bi bi-tools me-2 text-primary"></i>Aircon Installation Fee</h5>
-        <p class="small text-muted mb-3">
-          The standard flat fee charged to users when checking out an aircon with the "Delivery + Installation" fulfillment option.
-        </p>
-        <div class="mb-4">
-          <label for="installFeeInput" class="form-label fw-semibold">Installation Fee</label>
-          <div class="input-group">
-            <span class="input-group-text">₱</span>
-            <input type="number" id="installFeeInput" class="form-control" min="0" max="50000" step="1" placeholder="e.g. 1500" />
-            <span class="input-group-text">flat</span>
-          </div>
-        </div>
 
         <button type="button" id="saveFareBtn" class="btn btn-primary" style="min-width:140px;">
           <i class="bi bi-floppy-disk me-1"></i>Save Pricing
@@ -222,20 +209,43 @@
       </div>
     </div>
   </div>
+
+  <div class="row g-4 mt-2">
+    <div class="col-12">
+      <div class="card p-4">
+        <h5 class="fw-semibold mb-1"><i class="bi bi-receipt me-2 text-primary"></i>Customer Repair Labor Fees</h5>
+        <p class="small text-muted mb-3">Official customer-facing fees for appliance and aircon repair quotations. AI recommends a category; the technician confirms it; the system applies the fee below.</p>
+        <div class="row g-3">
+          <% [['Minor','repairLaborMinorInput','Simple adjustment, cleaning, minor correction, no replacement part, or short work.'],['Standard','repairLaborStandardInput','One straightforward component replacement or normal-duration basic repair.'],['Complex','repairLaborComplexInput','Multiple components, difficult access, extensive troubleshooting, or advanced electrical work.'],['Major Overhaul','repairLaborMajorInput','Major component replacement, extensive disassembly, or long-duration overhaul.']].forEach(function(item) { %>
+          <div class="col-md-6 col-xl-3">
+            <label for="<%= item[1] %>" class="form-label fw-semibold"><%= item[0] %></label>
+            <div class="input-group"><span class="input-group-text">&#8369;</span><input type="number" id="<%= item[1] %>" class="form-control customer-repair-labor-input" min="1" max="100000" step="1"></div>
+            <div class="form-text"><%= item[2] %></div>
+          </div>
+          <% }); %>
+        </div>
+        <button type="button" id="saveCustomerRepairLaborBtn" class="btn btn-primary mt-4" style="min-width:180px;"><i class="bi bi-floppy-disk me-1"></i>Save Labor Fees</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 (function () {
   const inputFare = document.getElementById("farePerKmInput");
-  const inputInstall = document.getElementById("installFeeInput");
   const inputProjLabor = document.getElementById("projLaborInput");
   const inputRepairStd = document.getElementById("repairStdInput");
   const inputRepairCpx = document.getElementById("repairCpxInput");
   const inputRepairMaj = document.getElementById("repairMajInput");
+  const customerRepairInputs = {
+    minor: document.getElementById('repairLaborMinorInput'), standard: document.getElementById('repairLaborStandardInput'),
+    complex: document.getElementById('repairLaborComplexInput'), major: document.getElementById('repairLaborMajorInput')
+  };
   
   const saveBtn = document.getElementById("saveFareBtn");
   const saveProjBtn = document.getElementById("saveProjFeesBtn");
   const saveRepairBtn = document.getElementById("saveRepairFeesBtn");
+  const saveCustomerRepairLaborBtn = document.getElementById('saveCustomerRepairLaborBtn');
   const alertEl = document.getElementById("fareAlert");
 
   function updatePreview() {
@@ -283,23 +293,24 @@
   Promise.all([
     fetch("/api/admin/settings/fare", { credentials: "same-origin" }).then(r => r.json()),
     fetch("/api/admin/settings/project-fees", { credentials: "same-origin" }).then(r => r.json()),
-  ]).then(([fareData, projData]) => {
+    fetch('/api/admin/settings/repair-labor-fees', { credentials: 'same-origin' }).then(r => r.json()),
+  ]).then(([fareData, projData, laborData]) => {
     inputFare.value = fareData.farePerKm ?? 40;
-    inputInstall.value = fareData.airconInstallFee ?? 1500;
     inputProjLabor.value = projData.laborRatePerDay ?? 0;
     inputRepairStd.value = projData.repairLaborStandard ?? 0;
     inputRepairCpx.value = projData.repairLaborComplex ?? 0;
     inputRepairMaj.value = projData.repairLaborMajor ?? 0;
+    Object.entries(customerRepairInputs).forEach(([category, input]) => { input.value = laborData.fees?.[category] ?? ({ minor:300, standard:500, complex:800, major:1500 })[category]; });
     updatePreview();
     updateProjPreview();
     updateRepairPreview();
   }).catch(() => {
     inputFare.value = 40;
-    inputInstall.value = 1500;
     inputProjLabor.value = 0;
     inputRepairStd.value = 0;
     inputRepairCpx.value = 0;
     inputRepairMaj.value = 0;
+    Object.entries(customerRepairInputs).forEach(([category, input]) => { input.value = ({ minor:300, standard:500, complex:800, major:1500 })[category]; });
     updatePreview();
     updateProjPreview();
     updateRepairPreview();
@@ -312,17 +323,27 @@
   inputRepairCpx.addEventListener("input", updateRepairPreview);
   inputRepairMaj.addEventListener("input", updateRepairPreview);
 
+  saveCustomerRepairLaborBtn.addEventListener('click', async () => {
+    const fees = Object.fromEntries(Object.entries(customerRepairInputs).map(([category, input]) => [category, Number(input.value)]));
+    if (Object.values(fees).some(value => !Number.isFinite(value) || value <= 0 || value > 100000)) {
+      showAlert('Each customer repair labor fee must be between 1 and 100,000.', 'danger'); return;
+    }
+    saveCustomerRepairLaborBtn.disabled = true;
+    try {
+      const resp = await fetch('/api/admin/settings/repair-labor-fees', { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body:JSON.stringify({ fees }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Save failed');
+      showAlert('Customer repair labor fees updated successfully.', 'success');
+    } catch (err) { showAlert('Error: ' + err.message, 'danger'); }
+    finally { saveCustomerRepairLaborBtn.disabled = false; }
+  });
+
   // Save fare settings
   saveBtn.addEventListener("click", async () => {
     const fareVal = parseFloat(inputFare.value);
-    const installVal = parseFloat(inputInstall.value);
     
     if (!Number.isFinite(fareVal) || fareVal < 0 || fareVal > 10000) {
       showAlert("Please enter a valid rate between 0 and 10,000.", "danger");
-      return;
-    }
-    if (!Number.isFinite(installVal) || installVal < 0 || installVal > 50000) {
-      showAlert("Please enter a valid installation fee between 0 and 50,000.", "danger");
       return;
     }
     
@@ -333,7 +354,7 @@
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ farePerKm: fareVal, airconInstallFee: installVal }),
+        body: JSON.stringify({ farePerKm: fareVal }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Save failed");

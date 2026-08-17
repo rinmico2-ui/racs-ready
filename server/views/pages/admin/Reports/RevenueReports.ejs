@@ -1,1230 +1,1452 @@
-<div class="admin-dashboard container-fluid py-4">
+<div class="revenue-report container-fluid px-0 py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
+  <style>
+    .rr-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}.rr-card{background:#fff;border:1px solid #e5ebf3;border-radius:16px;box-shadow:0 3px 18px rgba(15,23,42,.045)}.rr-kpi{padding:18px;position:relative;overflow:hidden}.rr-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--a,#2563eb)}.rr-kpi-top{display:flex;justify-content:space-between;align-items:center}.rr-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;color:var(--a);background:color-mix(in srgb,var(--a) 12%,white)}.rr-delta{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:999px;background:#ecfdf5;color:#047857}.rr-delta.down{background:#fef2f2;color:#b91c1c}.rr-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.055em;color:#64748b;margin-top:13px}.rr-value{font:700 1.38rem/1.2 Outfit,Inter,sans-serif;color:#0f172a;margin-top:4px}.rr-meta{font-size:.68rem;color:#94a3b8;margin-top:5px;line-height:1.4}.rr-section{display:flex;align-items:center;justify-content:space-between;margin:28px 0 12px}.rr-section h2{font:700 .9rem Outfit,Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#334155;border-left:4px solid #2563eb;padding-left:10px;margin:0}.rr-two{display:grid;grid-template-columns:2fr 1fr;gap:16px}.rr-equal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.rr-three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.rr-head{padding:15px 18px;border-bottom:1px solid #edf1f6;display:flex;justify-content:space-between;align-items:center}.rr-head h3{font-size:.82rem;font-weight:700;color:#1e293b;margin:0}.rr-body{padding:16px 18px}.rr-chart{height:280px;padding:16px}.rr-badge{font-size:.63rem;font-weight:700;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#475569}.rr-source{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rr-source-card{padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #edf2f7}.rr-source-card.service{border-top:4px solid #2563eb}.rr-source-card.orders{border-top:4px solid #10b981}.rr-source-card.pos{border-top:4px solid #f59e0b}.rr-source-title{font-size:.75rem;font-weight:700;color:#334155}.rr-source-value{font:700 1.5rem Outfit,Inter,sans-serif;margin:8px 0 4px;color:#0f172a}.rr-progress{height:7px;background:#e9eef5;border-radius:99px;overflow:hidden;margin-top:12px}.rr-progress>span{display:block;height:100%;border-radius:99px}.rr-insight{padding:16px;display:flex;gap:11px}.rr-insight-icon{width:36px;height:36px;flex:none;border-radius:10px;display:grid;place-items:center;background:#eff6ff;color:#2563eb}.rr-insight.warning .rr-insight-icon{background:#fffbeb;color:#d97706}.rr-insight.danger .rr-insight-icon{background:#fef2f2;color:#dc2626}.rr-insight.success .rr-insight-icon{background:#ecfdf5;color:#059669}.rr-insight h4{font-size:.78rem;font-weight:700;margin:1px 0 4px;color:#1e293b}.rr-insight p{font-size:.7rem;line-height:1.45;color:#64748b;margin:0}.rr-table{width:100%;border-collapse:collapse;font-size:.78rem}.rr-table th{padding:9px 8px;border-bottom:1px solid #e2e8f0;color:#94a3b8;font-size:.63rem;text-transform:uppercase;letter-spacing:.05em}.rr-table td{padding:11px 8px;border-bottom:1px solid #f1f5f9;color:#475569}.rr-table tr:last-child td{border:0}.rr-type{font-size:.62rem;font-weight:700;border-radius:99px;padding:4px 8px;background:#eff6ff;color:#2563eb}.rr-type.order{background:#ecfdf5;color:#047857}.rr-type.pos{background:#fffbeb;color:#b45309}.rr-status{font-size:.62rem;font-weight:700;border-radius:99px;padding:4px 8px;background:#fffbeb;color:#b45309}.rr-status.paid,.rr-status.verified,.rr-status.remitted,.rr-status.completed{background:#ecfdf5;color:#047857}.rr-note{padding:13px 16px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;font-size:.7rem;color:#92400e;line-height:1.5}.rr-actions{display:flex;gap:8px}.rr-btn{padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.3);font-size:.72rem;font-weight:700;text-decoration:none;color:#fff}.rr-btn.light{background:#fff;color:#1d4ed8}.rr-empty{text-align:center;color:#94a3b8;padding:24px}
+    .rr-cost-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.rr-cost-metric{padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #edf2f7}.rr-cost-metric .rr-value{font-size:1.08rem}.rr-service-detail summary{cursor:pointer;list-style:none}.rr-service-detail summary::-webkit-details-marker{display:none}.rr-resource-list{font-size:.68rem;color:#64748b;margin:6px 0 0;padding-left:16px}
+    /* --- Enterprise KPI Cards (matching Service Report) --- */
+    .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:1.5rem}
+    @media(max-width:1199px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:767px){.kpi-grid{grid-template-columns:repeat(2,1fr);gap:12px}}
+    @media(max-width:480px){.kpi-grid{grid-template-columns:1fr}}
+    .kpi-enterprise{position:relative;background:#fff;border-radius:16px;padding:18px 18px 14px;box-shadow:0 1px 3px rgba(15,23,42,0.04),0 4px 16px rgba(15,23,42,0.04);border:1px solid rgba(226,232,240,0.6);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1),box-shadow 0.25s cubic-bezier(0.4,0,0.2,1);overflow:hidden;display:flex;flex-direction:column;cursor:default}
+    .kpi-enterprise:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(15,23,42,0.08),0 2px 8px rgba(15,23,42,0.04)}
+    .kpi-enterprise::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:0;transition:opacity 0.3s ease}
+    .kpi-enterprise:hover::before{opacity:1}
+    .kpi-enterprise[data-accent="blue"]::before{background:linear-gradient(90deg,#1d4ed8,#3b82f6)}
+    .kpi-enterprise[data-accent="amber"]::before{background:linear-gradient(90deg,#d97706,#fbbf24)}
+    .kpi-enterprise[data-accent="purple"]::before{background:linear-gradient(90deg,#7c3aed,#a855f7)}
+    .kpi-enterprise[data-accent="green"]::before{background:linear-gradient(90deg,#059669,#10b981)}
+    .kpi-enterprise[data-accent="cyan"]::before{background:linear-gradient(90deg,#06b6d4,#0891b2)}
+    .kpi-enterprise[data-accent="red"]::before{background:linear-gradient(90deg,#ef4444,#dc2626)}
+    .kpi-enterprise-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
+    .kpi-enterprise-icon{width:38px;height:38px;min-width:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;box-shadow:0 4px 10px rgba(0,0,0,0.08);flex-shrink:0}
+    .kpi-enterprise-icon.blue{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff}
+    .kpi-enterprise-icon.amber{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+    .kpi-enterprise-icon.purple{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff}
+    .kpi-enterprise-icon.green{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+    .kpi-enterprise-icon.cyan{background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff}
+    .kpi-enterprise-icon.red{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}
+    .kpi-enterprise-icon.orange{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff}
+    .kpi-enterprise-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.6rem;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:999px;white-space:nowrap}
+    .kpi-enterprise-badge.blue{background:rgba(59,130,246,0.10);color:#2563eb}
+    .kpi-enterprise-badge.amber{background:rgba(245,158,11,0.10);color:#d97706}
+    .kpi-enterprise-badge.purple{background:rgba(168,85,247,0.10);color:#7c3aed}
+    .kpi-enterprise-badge.green{background:rgba(16,185,129,0.10);color:#059669}
+    .kpi-enterprise-badge.cyan{background:rgba(6,182,212,0.10);color:#0891b2}
+    .kpi-enterprise-badge.red{background:rgba(239,68,68,0.10);color:#dc2626}
+    .kpi-enterprise-body{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+    .kpi-enterprise-label{font-size:0.72rem;font-weight:500;color:#64748b;margin:0 0 2px;line-height:1.3}
+    .kpi-enterprise-value{font-size:1.4rem;font-weight:700;color:#0f172a;line-height:1.2;letter-spacing:-0.02em;margin-bottom:6px}
+    .kpi-enterprise-sparkline{margin-top:4px;height:28px;position:relative}
+    .kpi-enterprise-sparkline canvas{width:100%!important;height:100%!important}
+    @media(max-width:767px){.kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}.kpi-enterprise-value{font-size:1.15rem}}
+    @media(max-width:1199px){.rr-grid,.rr-cost-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:900px){.rr-two,.rr-equal{grid-template-columns:1fr}.rr-three{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rr-grid,.rr-cost-grid{grid-template-columns:repeat(2,1fr)}.rr-three,.rr-source{grid-template-columns:1fr}.rr-value{font-size:1.15rem}.rr-actions{width:100%}.rr-btn{flex:1;text-align:center}}
+    /* --- Report Section Navigation --- */
+    .report-nav{position:fixed;right:1.5rem;top:9rem;transform:translateX(calc(100% + 1.5rem));opacity:0;pointer-events:none;z-index:110;display:flex;flex-direction:column;gap:8px;padding:10px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,240,0.8);border-radius:14px;box-shadow:0 4px 20px rgba(15,23,42,0.06);overflow-y:auto;max-height:calc(100vh - 11rem);scrollbar-width:none;-webkit-overflow-scrolling:touch;backdrop-filter:blur(8px);transition:all 0.25s ease;width:fit-content}
+    .report-nav.open{transform:translateX(0);opacity:1;pointer-events:auto}
+    .report-nav::-webkit-scrollbar{display:none}
+    .report-nav .report-nav-btn{display:none}
+    .report-nav.open .report-nav-btn{display:flex}
+    .report-nav-btn{align-items:center;gap:8px;padding:8px 14px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;font-size:0.76rem;font-weight:600;color:#475569;white-space:nowrap;cursor:pointer;transition:all 0.2s ease;text-align:left}
+    .report-nav-btn:hover{background:#f8fafc;border-color:#cbd5e1;color:#0f172a}
+    .report-nav-btn.active{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(37,99,235,0.25)}
+    .report-nav-btn i{font-size:0.85rem}
+    .report-nav-trigger{position:fixed;top:5.5rem;right:1.5rem;z-index:1200;display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:2px solid rgba(255,255,255,0.9);background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:999px;color:#fff;font-size:0.88rem;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 0 0 2px rgba(37,99,235,0.15),0 6px 20px rgba(37,99,235,0.4);white-space:nowrap}
+    .report-nav-trigger:hover{filter:brightness(1.1);box-shadow:0 0 0 4px rgba(37,99,235,0.2),0 8px 24px rgba(37,99,235,0.5)}
+    @media(max-width:767px){.report-nav{right:0.75rem;top:8.5rem;padding:6px;gap:4px;max-height:calc(100vh - 10rem)}.report-nav-btn{padding:5px 8px;font-size:0.68rem;gap:4px}.report-nav-trigger{top:4.75rem;right:0.75rem;padding:8px 12px;font-size:0.78rem}}
+    /* --- Chart Detail Modal --- */
+    .cdm-body{display:grid;grid-template-columns:1.1fr 1fr;gap:0;height:70vh;min-height:480px}
+    .cdm-left{padding:24px;border-right:1px solid #edf1f6;display:flex;flex-direction:column;overflow:hidden}
+    .cdm-right{padding:24px;overflow-y:auto;display:flex;flex-direction:column}
+    .cdm-chart-wrap{flex:1;position:relative;min-height:300px}
+    .cdm-title{font:700 .92rem Outfit,Inter,sans-serif;color:#0f172a;margin-bottom:4px}
+    .cdm-subtitle{font-size:.74rem;color:#64748b;margin-bottom:16px}
+    .cdm-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+    .cdm-stat{padding:12px 14px;border-radius:10px;background:#f8fafc;border:1px solid #edf2f7}
+    .cdm-stat-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:3px}
+    .cdm-stat-value{font:700 1.05rem Outfit,Inter,sans-serif;color:#0f172a}
+    .cdm-table{width:100%;font-size:.76rem;border-collapse:collapse}
+    .cdm-table th{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;padding:8px 10px;border-bottom:2px solid #edf1f6;text-align:left;position:sticky;top:0;background:#fff;z-index:1}
+    .cdm-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;color:#334155}
+    .cdm-table tr:hover td{background:#f8fafc}
+    .cdm-empty{text-align:center;padding:40px 20px;color:#94a3b8;font-size:.82rem}
+    .cdm-badge{display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+    @media(max-width:767px){.cdm-body{grid-template-columns:1fr;height:auto}.cdm-left{border-right:none;border-bottom:1px solid #edf1f6;min-height:250px}.cdm-right{max-height:40vh}}
+    .rr-chart canvas{cursor:pointer}
+    .rr-chart{position:relative}
+    .rr-chart::after{content:'Click chart for details';position:absolute;bottom:6px;right:8px;font-size:.6rem;color:#94a3b8;pointer-events:none;opacity:0;transition:opacity .2s}
+    .rr-chart:hover::after{opacity:1}
+  </style>
+  <% const A=analytics||{}; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); %>
 
-    <div class="au-hero mb-4">
-      <div class="au-hero-inner">
-        <div class="au-hero-left">
-          <div class="au-hero-icon"><i class="bi bi-graph-up"></i></div>
-          <div>
-            <h1>Revenue Analytics</h1>
-            <p>Analyze earnings, margins, and payment performance across services and channels</p>
-          </div>
+  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Revenue Intelligence</h1><p>Services, online orders, and point-of-sale performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/admin/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="/admin/inventory/pos"><i class="bi bi-shop me-1"></i> POS</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Export</button></div></div></div>
+
+  <button class="report-nav-trigger" id="reportNavTrigger"><i class="bi bi-list" id="reportNavTriggerIcon"></i><span id="reportNavTriggerLabel">Sections</span></button>
+
+  <!-- --- SECTION NAV --- -->
+  <div class="report-nav" id="reportNav">
+    <button class="report-nav-btn active" data-target="top"><i class="bi bi-speedometer2"></i>Overview</button>
+    <button class="report-nav-btn" data-target="section-executive"><i class="bi bi-lightbulb"></i>Executive</button>
+    <button class="report-nav-btn" data-target="section-performance"><i class="bi bi-bar-chart-line"></i>Performance</button>
+    <button class="report-nav-btn" data-target="section-collection"><i class="bi bi-bank"></i>Collection</button>
+    <button class="report-nav-btn" data-target="section-cost"><i class="bi bi-calculator"></i>Cost</button>
+    <button class="report-nav-btn" data-target="section-service-profit"><i class="bi bi-clipboard-check"></i>Services</button>
+    <button class="report-nav-btn" data-target="section-pos"><i class="bi bi-shop"></i>POS &amp; Products</button>
+    <button class="report-nav-btn" data-target="section-activity"><i class="bi bi-journal-text"></i>Activity</button>
+  </div>
+
+  <!-- ═══ FILTER BAR ═══ -->
+  <div id="revenueFilterBar" class="rr-card" style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:14px;">
+    <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <!-- Period Preset -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Period</label>
+        <select id="filterPeriod" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:140px;">
+          <option value="last_12_months" selected>Rolling 12 Months</option>
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="last_3_months">Last 3 Months</option>
+          <option value="last_6_months">Last 6 Months</option>
+          <option value="ytd">Year to Date</option>
+          <option value="custom">Custom Range</option>
+        </select>
+      </div>
+      <!-- Custom Date Range (hidden by default) -->
+      <div id="customDateRange" style="display:none;gap:8px;align-items:flex-end;">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">From</label>
+          <input type="date" id="filterFrom" class="form-control form-control-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;" />
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">To</label>
+          <input type="date" id="filterTo" class="form-control form-control-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;" />
+        </div>
+      </div>
+      <!-- Revenue Source -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Source</label>
+        <select id="filterSource" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:130px;">
+          <option value="all" selected>All Sources</option>
+          <option value="service">Services / Projects</option>
+          <option value="order">Online Orders</option>
+          <option value="pos">POS Sales</option>
+        </select>
+      </div>
+      <!-- Service Type -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Service Type</label>
+        <select id="filterServiceType" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:120px;">
+          <option value="all" selected>All Types</option>
+          <option value="core">Core</option>
+          <option value="repair">Repair</option>
+        </select>
+      </div>
+      <!-- Payment Method -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Payment</label>
+        <select id="filterPayment" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:120px;">
+          <option value="all" selected>All Methods</option>
+          <option value="gcash">GCash</option>
+          <option value="cod">Cash / COD</option>
+          <option value="bank">Bank Transfer</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <!-- Payment Status -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Status</label>
+        <select id="filterStatus" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:120px;">
+          <option value="all" selected>All Status</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="partial">Partial</option>
+        </select>
+      </div>
+      <!-- Technician -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">Technician</label>
+        <select id="filterTechnician" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:140px;">
+          <option value="all" selected>All Technicians</option>
+        </select>
+      </div>
+      <!-- Apply / Reset -->
+      <div style="display:flex;gap:6px;align-items:flex-end;">
+        <button id="applyFilters" class="btn btn-primary btn-sm" style="border-radius:8px;font-size:0.78rem;font-weight:600;padding:6px 16px;"><i class="bi bi-funnel me-1"></i> Apply</button>
+        <button id="resetFilters" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;font-size:0.78rem;padding:6px 12px;"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset</button>
+      </div>
+      <div id="filterStatusBadge" style="margin-left:auto;font-size:0.72rem;color:#64748b;display:none;">
+        <i class="bi bi-info-circle me-1"></i><span id="filterStatusText"></span>
       </div>
     </div>
+  </div>
 
-    <div class="section-label">Key Metrics</div>
-    <style>
-      /* remove built‑in container padding so KPI cards start at the left edge of the main area */
-      .admin-dashboard.container-fluid {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-      }
-
-      /* also strip the default padding from the main wrapper on this page */
-      .admin-content>main.p-4 {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-      }
-
-      /* tighten spacing around KPI row and cards specifically for this report */
-      .admin-dashboard .kpi-row {
-        gap: 12px !important;
-        margin-bottom: 0 !important;
-        justify-content: flex-start !important;
-        margin-left: 0 !important;
-        padding-left: 0 !important;
-        width: 100% !important;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
-      }
-
-      /* KPI card overrides for reports page */
-      .admin-dashboard .dash-card {
-        padding: 1.25rem !important;
-      }
-
-      /* make KPI cards expand to fill available space so they stretch edge‑to‑edge */
-      .admin-dashboard .kpi-row .kpi-card {
-        flex: 1 1 0 !important;
-        min-width: 200px !important;
-        /* prevent collapse at very small widths */
-        max-width: none !important;
-      }
-
-      /* override some card colours for reports page */
-      .admin-dashboard .card {
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      }
-
-      /* provide vertical space between KPI row and following cards */
-      .admin-dashboard .kpi-row {
-        margin-bottom: 1.5rem !important;
-      }
-
-      /* reduce the page container min-height so content doesn't stretch to full viewport */
-      .admin-dashboard {
-        min-height: auto !important;
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
-      }
-
-      /* ensure no large top margin on cards in this page */
-      .admin-dashboard .card {
-        margin-top: 0 !important;
-      }
-
-      .admin-dashboard .card-header {
-        background: #fff;
-        font-weight: 600;
-      }
-
-      /* filter controls smaller, consistent margin */
-      .admin-dashboard .card-body.row .form-label {
-        font-size: 0.75rem;
-        letter-spacing: 0.03em;
-      }
-
-      .admin-dashboard .card-body.row .form-select {
-        font-size: 0.875rem;
-      }
-
-      /* table styling */
-      .admin-dashboard table {
-        font-size: 0.875rem;
-      }
-
-      .admin-dashboard table thead {
-        background: #f8f9fa;
-        text-transform: uppercase;
-      }
-
-      .admin-dashboard table tbody tr:hover {
-        background: rgba(0, 0, 0, 0.03);
-      }
-
-      /* enterprise chart and modal enhancements */
-      canvas {
-        cursor: pointer;
-        transition: transform .2s ease;
-      }
-
-      canvas:hover {
-        transform: scale(1.02);
-      }
-
-      /* Enterprise KPI Card Styles */
-      .dash-card {
-        background: #fff;
-        border-radius: 12px;
-        padding: 1.25rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-      }
-      .dash-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-      }
-      .kpi-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-      }
-      .kpi-icon i { color: #fff !important; font-size: 1.2rem; }
-      .kpi-sparkline-container {
-        height: 40px;
-        margin-top: 0.5rem;
-      }
-      .kpi-sparkline-container canvas {
-        width: 100% !important;
-        height: 100% !important;
-      }
-      .bg-success-subtle {
-        background-color: rgba(16, 185, 129, 0.15);
-      }
-      .bg-info-subtle {
-        background-color: rgba(8, 145, 178, 0.15);
-      }
-      .bg-warning-subtle {
-        background-color: rgba(245, 158, 11, 0.15);
-      }
-      .bg-danger-subtle {
-        background-color: rgba(220, 38, 38, 0.15);
-      }
-      .fs-7 {
-        font-size: 0.75rem;
-      }
-    </style>
-    <div class="row g-3 mb-4">
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Total Revenue (12mo)</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.totalRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
-              </div>
-              <div class="badge bg-primary-subtle text-primary fs-7"><%= analytics ? analytics.totalTransactions.toLocaleString() : 0 %> transactions</div>
-              <small class="text-muted">Gross revenue</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
-              <i class="bi bi-currency-dollar text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="revSparkGross" height="40"></canvas>
-          </div>
-        </div>
+  <!-- --- KPI GRID (Enterprise style matching Service Report) --- -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon blue"><i class="bi bi-cash-stack"></i></div>
+        <span class="kpi-enterprise-badge blue"><%= A.totalTransactions||0 %> txns</span>
       </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Cost of Parts Used</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.totalPartsCost / 1000).toFixed(1) : "0.0" %>K</span>
-              </div>
-              <div class="badge bg-danger-subtle text-danger fs-7"><%= analytics ? Math.round((analytics.totalPartsCost / (analytics.totalRevenue || 1)) * 100) : 0 %>% of revenue</div>
-              <small class="text-muted">Parts & tool usage</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-              <i class="bi bi-tools text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="revSparkPartsCost" height="40"></canvas>
-          </div>
-        </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Approved Booked Value</p>
+        <div class="kpi-enterprise-value"><span id="kpiTotalRevenue"><%= peso(A.totalRevenue) %></span></div>
+        <small style="color:#64748b;">Approved services/projects + active orders + completed POS</small>
       </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Gross Profit</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark">₱<%= analytics ? (analytics.grossProfit / 1000000).toFixed(2) : "0.00" %>M</span>
-              </div>
-              <div class="badge bg-success-subtle text-success fs-7"><%= analytics ? analytics.grossProfitMargin : "0.0" %>% margin</div>
-              <small class="text-muted">Revenue minus costs</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
-              <i class="bi bi-graph-up-arrow text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="revSparkProfit" height="40"></canvas>
-          </div>
-        </div>
+      <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkRevenue"></canvas></div>
+    </div>
+    <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="50">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon cyan"><i class="bi bi-bank"></i></div>
+        <span class="kpi-enterprise-badge cyan"><%= pct(A.collectionRate) %></span>
       </div>
-      <div class="col-lg col-md-6">
-        <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Paid Bookings</h6>
-              <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark"><%= analytics ? Math.round((analytics.paidBookings / (analytics.totalTransactions || 1)) * 100) : 0 %>%</span>
-              </div>
-              <div class="badge bg-secondary-subtle text-secondary fs-7"><%= analytics ? analytics.pendingPayments : 0 %> pending</div>
-              <small class="text-muted">Collection rate</small>
-            </div>
-            <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
-              <i class="bi bi-speedometer2 text-white"></i>
-            </div>
-          </div>
-          <div class="kpi-sparkline-container">
-            <canvas id="revSparkEfficiency" height="40"></canvas>
-          </div>
-        </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Cash Recorded</p>
+        <div class="kpi-enterprise-value"><span id="kpiCashRecorded"><%= peso(A.paymentRevenue) %></span></div>
+        <small style="color:#64748b;">Accepted payment records + completed POS</small>
+      </div>
+      <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkCash"></canvas></div>
+    </div>
+    <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Outstanding Value</p>
+        <div class="kpi-enterprise-value"><span style="color:#d97706"><%= peso(A.outstandingValue) %></span></div>
+        <small style="color:#64748b;">Approved value − collected cash</small>
       </div>
     </div>
-
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body row g-3">
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Period</label><select class="form-select">
-            <option>This Month</option>
-            <option>Last Month</option>
-            <option>Quarterly</option>
-            <option>Year-to-Date</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Revenue Source</label><select
-            class="form-select">
-            <option>All Sources</option>
-            <option>Core Services</option>
-            <option>Repair Services</option>
-            <option>Products</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small text-uppercase text-muted fw-bold">Payment Channel</label><select
-            class="form-select">
-            <option>All Channels</option>
-            <option>GCash</option>
-            <option>Cash</option>
-          </select>
-        </div>
-        <div class="col-md-3 d-flex align-items-end">
-          <button class="btn btn-light border w-100">
-            <i class="bi bi-funnel me-2"></i>Apply
-          </button>
-        </div>
+    <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon red"><i class="bi bi-boxes"></i></div>
+        <span class="kpi-enterprise-badge red"><%= pct(A.directCostCoverage) %></span>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Known Direct Costs</p>
+        <div class="kpi-enterprise-value"><span><%= peso(A.totalPartsCost) %></span></div>
+        <small style="color:#64748b;">Parts & tool usage</small>
       </div>
     </div>
-
-    <div class="row g-3 mb-4">
-      <div class="col-lg-8" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue Trend (Daily)</h6>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 260px">
-              <canvas id="revenueTrendChart"></canvas>
-            </div>
-          </div>
-        </div>
+    <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon green"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="kpi-enterprise-badge green"><%= A.grossProfit >= 0 ? 'Profitable' : 'Check costs' %></span>
       </div>
-      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="300">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue by Channel</h6>
-          </div>
-          <div class="card-body px-4 pb-4 d-flex flex-column justify-content-center">
-            <div style="height: 180px">
-              <canvas id="revenueChannelChart"></canvas>
-            </div>
-            <ul class="list-unstyled small mb-0 mt-3 px-2">
-              <li class="d-flex justify-content-between py-2 border-bottom"
-                style="border-color: rgba(226, 232, 240, 0.4) !important;">
-                <span class="text-muted"><i class="bi bi-circle-fill me-2"
-                    style="color: #1d4ed8; font-size: 0.6rem;"></i>GCash</span><strong
-                  style="color: #1d4ed8;">41%</strong>
-              </li>
-              <li class="d-flex justify-content-between py-2">
-                <span class="text-muted"><i class="bi bi-circle-fill me-2"
-                    style="color: #eab308; font-size: 0.6rem;"></i>Cash</span><strong
-                  style="color: #1d4ed8;">26%</strong>
-              </li>
-            </ul>
-          </div>
-        </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Indicative Contribution</p>
+        <div class="kpi-enterprise-value"><span style="color:<%= A.grossProfit >= 0 ? '#059669' : '#dc2626' %>"><%= peso(A.grossProfit) %></span></div>
+        <small style="color:#64748b;"><%= pct(A.grossProfitMargin) %> indicative margin</small>
       </div>
     </div>
+    <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon purple"><i class="bi bi-receipt"></i></div>
+        <% if(typeof A.growthRate === 'number' || typeof A.growthRate === 'string') { %>
+        <span class="kpi-enterprise-badge <%= Number(A.growthRate) >= 0 ? 'green' : 'red' %>"><i class="bi <%= Number(A.growthRate) >= 0 ? 'bi-arrow-up' : 'bi-arrow-down' %>"></i> <%= Math.abs(Number(A.growthRate||0)).toFixed(1) %>%</span>
+        <% } %>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Average Transaction</p>
+        <div class="kpi-enterprise-value"><span id="kpiAvgTxn"><%= peso(A.avgTransactionValue) %></span></div>
+        <small style="color:#64748b;">Across all sources</small>
+      </div>
+      <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkAvgTxn"></canvas></div>
+    </div>
+  </div>
 
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Gross vs Net Margin Trend</h6>
+  <!-- ═══ SECTION 1: EXECUTIVE SUMMARY & STRATEGIC INSIGHTS ═══ -->
+  <div id="section-executive" class="rr-section"><h2><i class="bi bi-lightbulb me-2" style="color:#d97706;"></i>Executive Summary</h2><span class="text-muted small">Strategic signals and decision-ready interpretations from current data</span></div>
+  <div class="rr-three"><% (A.executiveInsights||[]).forEach(function(x){ %><article class="rr-card rr-insight <%= x.tone %>"><div class="rr-insight-icon"><i class="bi <%= x.tone==='danger'?'bi-exclamation-triangle':x.tone==='warning'?'bi-wallet2':x.tone==='success'?'bi-graph-up-arrow':'bi-pie-chart' %>"></i></div><div><h4><%= x.title %></h4><p><%= x.text %></p></div></article><% }); %></div>
+
+  <!-- ═══ SECTION 2: REVENUE PERFORMANCE — THE REVENUE STORY ═══ -->
+  <div id="section-performance" class="rr-section"><h2><i class="bi bi-bar-chart-line me-2" style="color:#2563eb;"></i>Approved Value Performance</h2><span class="text-muted small">Booked commercial value by creation month; cash collection is reported separately</span></div>
+  <div class="rr-two">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-graph-up me-2 text-primary"></i>Monthly Approved Value by Business Line</h3><span class="rr-badge">Booked month · 12 months</span></div>
+      <div class="rr-chart"><canvas id="revenueTrend"></canvas></div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-pie-chart me-2 text-primary"></i>Business Mix</h3><span class="rr-badge">Revenue share</span></div>
+      <div class="rr-chart"><canvas id="sourceMix"></canvas></div>
+    </article>
+  </div>
+  <div class="rr-source mt-3">
+    <article class="rr-source-card service">
+      <div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div>
+      <div class="rr-source-value"><%= peso(A.serviceRevenue) %></div>
+      <div class="rr-meta"><%= A.serviceTransactions||0 %> bookings · <%= peso(A.avgServiceTicket) %> avg ticket</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,A.serviceShare||0) %>%;background:#2563eb"></span></div>
+      <div class="rr-meta"><%= pct(A.serviceShare) %> of total · Core <%= peso(A.coreRevenue) %> · Repair <%= peso(A.repairRevenue) %></div>
+    </article>
+    <article class="rr-source-card orders">
+      <div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Online Product Orders</div>
+      <div class="rr-source-value"><%= peso(A.orderRevenue) %></div>
+      <div class="rr-meta"><%= A.orderTransactions||0 %> orders · <%= peso(A.avgOrderValue) %> avg order</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,A.orderShare||0) %>%;background:#10b981"></span></div>
+      <div class="rr-meta"><%= pct(A.orderShare) %> of total · Products <%= peso(A.productRevenue) %> · Delivery <%= peso(A.deliveryRevenue) %> · Install <%= peso(A.installationRevenue) %></div>
+    </article>
+    <article class="rr-source-card pos">
+      <div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Point of Sale</div>
+      <div class="rr-source-value"><%= peso(A.posRevenue) %></div>
+      <div class="rr-meta"><%= A.posTransactions||0 %> sales · <%= peso(A.avgPosSale) %> avg sale</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,A.posShare||0) %>%;background:#f59e0b"></span></div>
+      <div class="rr-meta"><%= pct(A.posShare) %> of total · COGS <%= peso(A.posCost) %> · Profit <%= peso(A.posProfit) %> (<%= pct(A.posMargin) %> margin)</div>
+    </article>
+  </div>
+
+  <!-- ═══ SECTION 3: CASH COLLECTION & PAYMENT INTELLIGENCE ═══ -->
+  <div id="section-collection" class="rr-section"><h2><i class="bi bi-bank me-2" style="color:#0891b2;"></i>Cash Collection & Payment Intelligence</h2><span class="text-muted small">How revenue converts to actual cash — collection health and payment channel mix</span></div>
+  <div class="rr-equal">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-credit-card me-2 text-info"></i>Recorded Payments by Method</h3><span class="rr-badge"><%= peso(A.paymentRevenue) %> collected · <%= pct(A.collectionRate) %> rate</span></div>
+      <div class="rr-chart"><canvas id="paymentMix"></canvas></div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-hourglass-split me-2 text-warning"></i>Collection Health</h3></div>
+      <div class="rr-body" id="collectionHealthBody" style="padding:20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:10px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#059669;margin-bottom:4px;">Collected</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#059669;"><%= peso(A.paymentRevenue) %></div>
           </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 220px">
-              <canvas id="marginTrendChart"></canvas>
-            </div>
+          <div style="text-align:center;padding:12px;background:#fefce8;border-radius:10px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#92400e;margin-bottom:4px;">Outstanding</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#d97706;"><%= peso(A.outstandingValue) %></div>
           </div>
+          <div style="text-align:center;padding:12px;background:#eff6ff;border-radius:10px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#1d4ed8;margin-bottom:4px;">Approved Value</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#2563eb;"><%= peso(A.totalRevenue) %></div>
+          </div>
+        </div>
+        <div style="font-size:.78rem;color:#475569;line-height:1.6;">
+          <div style="margin-bottom:6px;"><strong>Collection Rate:</strong> <%= pct(A.collectionRate) %> of approved booked value has an accepted payment record.</div>
+          <div style="margin-bottom:6px;"><strong>GCash:</strong> <%= peso(A.gcashRevenue) %> · <strong>Cash/COD:</strong> <%= peso(A.codRevenue) %> · <strong>Bank:</strong> <%= peso(A.bankRevenue) %></div>
+          <div><strong>Outstanding Receivable:</strong> <%= peso(A.outstandingValue) %> remains between approved value and accepted collections.</div>
         </div>
       </div>
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">Revenue by Service Segment</h6>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 220px">
-              <canvas id="revenueSegmentChart"></canvas>
-            </div>
-          </div>
+    </article>
+  </div>
+
+  <!-- ═══ SECTION 4: COST INTELLIGENCE & MARGIN ANALYSIS ═══ -->
+  <div id="section-cost" class="rr-section"><h2><i class="bi bi-calculator me-2" style="color:#7c3aed;"></i>Cost Intelligence & Margin Analysis</h2><span class="text-muted small">Direct cost structure, contribution margins, and profitability trend</span></div>
+  <div class="rr-equal">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Revenue vs Known Direct Cost</h3><span class="rr-badge">Indicative contribution margin</span></div>
+      <div class="rr-chart"><canvas id="marginTrend"></canvas></div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-boxes me-2 text-danger"></i>Cost Breakdown Summary</h3><span class="rr-badge">Completed services only</span></div>
+      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>This card only counts <strong>completed</strong> service jobs, so its "Service Revenue" figure will be lower than the "Services" KPI above, which counts all approved (not-yet-completed) bookings too.</div>
+      <div class="rr-body">
+        <% const C=A.serviceCosts||{}; %>
+        <div class="rr-cost-grid" id="costBreakdownGrid" style="grid-template-columns:repeat(3,1fr);">
+          <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Service Revenue</div><div class="rr-value"><%= peso(C.revenue) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Repair Parts</div><div class="rr-value"><%= peso(C.partsCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Consumables</div><div class="rr-value"><%= peso(C.consumablesCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Local Purchases</div><div class="rr-value"><%= peso(C.localPurchaseCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Actual Direct Labor</div><div class="rr-value"><%= peso(C.laborCost) %></div><div class="rr-meta">Recorded internal cost only</div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:<%= C.grossProfit>=0?'#059669':'#dc2626' %>;"><%= peso(C.grossProfit) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Gross Margin</div><div class="rr-value"><%= pct(C.grossProfitMargin) %></div></div>
         </div>
+      </div>
+    </article>
+  </div>
+  <div class="rr-note mt-3"><i class="bi bi-info-circle-fill me-2"></i><strong>Management note:</strong> "Contribution after known costs" subtracts recorded service parts, consumables, local purchases, and actual direct labor only when the internal labor expense is explicitly recorded. Customer quotation labor fees remain in revenue; missing internal labor cost defaults to zero. Historical order items do not store acquisition cost, so this is not an audited accounting gross-profit or net-income figure.</div>
+
+  <!-- ═══ SECTION 5: SERVICE PROFITABILITY DEEP DIVE ═══ -->
+  <div id="section-service-profit" class="rr-section"><h2><i class="bi bi-clipboard-check me-2" style="color:#2563eb;"></i>Service Profitability Deep Dive</h2><span class="text-muted small">Per-service financial breakdown with resource detail — core vs repair contribution</span></div>
+  <article class="rr-card">
+    <div class="rr-head"><h3><i class="bi bi-list-check me-2 text-primary"></i>Completed Service Profitability</h3><div class="d-flex align-items-center gap-2"><span class="rr-badge" id="serviceProfitabilityBadge">Latest 5 of <%= (A.completedServiceCosts||[]).length %></span><button class="btn btn-primary btn-sm" id="serviceProfitabilityViewAllBtn" data-bs-toggle="modal" data-bs-target="#serviceProfitabilityModal" style="display:<%= (A.completedServiceCosts||[]).length>5?'inline-flex':'none' %>;"><i class="bi bi-arrows-angle-expand me-1"></i>View All</button></div></div>
+    <div class="rr-body table-responsive">
+      <table class="rr-table"><thead><tr><th>Service</th><th class="text-end">Revenue</th><th class="text-end">Repair Parts</th><th class="text-end">Consumables</th><th class="text-end">Labor</th><th class="text-end">Gross Profit</th></tr></thead><tbody id="serviceProfitabilityBody"><% if(!(A.completedServiceCosts||[]).length){ %><tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr><% } (A.completedServiceCosts||[]).slice(0,5).forEach(function(s){ %><tr><td><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div>Technician: <%= s.technician %> · Duration: <%= s.laborHours.toFixed(1) %>h</div><div>Consumables: <%= s.consumables.length ? s.consumables.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div><div>Repair parts: <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table>
+    </div>
+  </article>
+  <div class="rr-equal mt-3">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-diagram-3 me-2 text-primary"></i>Core vs Repair Contribution</h3><span class="rr-badge">Revenue mix</span></div>
+      <div class="rr-chart"><canvas id="serviceEconomics"></canvas></div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-people me-2 text-primary"></i>Top Technician Revenue Contributors</h3><span class="rr-badge">Ranked by contribution</span></div>
+      <div class="rr-body table-responsive">
+        <table class="rr-table"><thead><tr><th>Technician</th><th class="text-center">Jobs</th><th class="text-end">Approved Value</th><th class="text-end">Known Cost</th><th class="text-end">Contribution</th></tr></thead><tbody id="topTechniciansBody"><% if(!(A.topTechnicians||[]).length){ %><tr><td colspan="5" class="rr-empty">No technician value in this period.</td></tr><% } (A.topTechnicians||[]).forEach(function(t){ %><tr><td class="fw-bold"><%= t.name %></td><td class="text-center"><%= t.bookings %></td><td class="text-end"><%= peso(t.revenue) %></td><td class="text-end"><%= peso(t.partsCost) %></td><td class="text-end fw-bold <%= t.profit>=0?'text-success':'text-danger' %>"><%= peso(t.profit) %></td></tr><% }); %></tbody></table>
+      </div>
+    </article>
+  </div>
+
+  <!-- ═══ SECTION 6: POS & PRODUCT PERFORMANCE ═══ -->
+  <div id="section-pos" class="rr-section"><h2><i class="bi bi-shop me-2" style="color:#f59e0b;"></i>POS &amp; Product Performance</h2><span class="text-muted small">Counter sales, cross-channel product performance, and payment mix — completed sales only</span></div>
+  <div class="rr-equal">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-trophy me-2 text-warning"></i>Top POS Products</h3><span class="rr-badge" id="posSummaryBadge"><%= A.posTransactions||0 %> sales · <%= peso(A.posRevenue) %> total</span></div>
+      <div class="rr-body table-responsive">
+        <table class="rr-table"><thead><tr><th>Product</th><th class="text-center">Qty</th><th class="text-end">Revenue</th><th class="text-end">COGS</th><th class="text-end">Profit</th></tr></thead><tbody id="topPosProductsBody"><% if(!(A.topPosProducts||[]).length){ %><tr><td colspan="5" class="rr-empty">No completed POS sales in this period.</td></tr><% } (A.topPosProducts||[]).slice(0,5).forEach(function(p){ %><tr><td class="fw-bold"><%= p.name %><div class="rr-meta"><%= p.category %></div></td><td class="text-center"><%= p.quantity %></td><td class="text-end"><%= peso(p.revenue) %></td><td class="text-end"><%= peso(p.cost) %></td><td class="text-end fw-bold <%= p.profit>=0?'text-success':'text-danger' %>"><%= peso(p.profit) %></td></tr><% }); %></tbody></table>
+      </div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-credit-card me-2 text-warning"></i>POS Payment Mix</h3><span class="rr-badge"><%= pct(A.posMargin) %> margin</span></div>
+      <div class="rr-chart"><canvas id="posPaymentMix"></canvas></div>
+    </article>
+  </div>
+
+  <!-- Product Intelligence (merged under POS & Product Performance) -->
+  <div class="rr-section" style="margin:20px 0 12px;"><h2 style="font-size:.78rem;border-left-color:#0891b2;"><i class="bi bi-box-seam me-2" style="color:#0891b2;"></i>Cross-Channel Product Intelligence</h2><span class="text-muted small">Online orders and POS combined analysis</span></div>
+  <!-- Product KPIs (enterprise style) -->
+  <div class="kpi-grid" id="productKpiGrid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="0">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon cyan"><i class="bi bi-box-seam"></i></div>
+        <span class="kpi-enterprise-badge cyan"><%= (A.totalProductUnits||0).toLocaleString() %> units</span>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Total Units Sold</p>
+        <div class="kpi-enterprise-value"><%= (A.totalProductUnits||0).toLocaleString() %></div>
+        <small style="color:#64748b;">Across online orders + POS</small>
       </div>
     </div>
-
-    <!-- AI-Powered Revenue Insights Section -->
-    <div class="row g-3 mb-4">
-      <div class="col-12" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white" style="border-left: 4px solid #eab308;">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-robot me-2" style="color: #eab308;"></i>AI-Powered Financial Intelligence
-            </h6>
-            <span class="badge bg-warning-subtle border border-warning-subtle" style="color: #b45309;">Schema-Based Analysis</span>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div class="row g-4">
-              <!-- Revenue Breakdown -->
-              <div class="col-lg-3">
-                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-graph-up-arrow me-2" style="color: #eab308;"></i>
-                    <strong class="text-dark">Revenue Breakdown</strong>
-                  </div>
-                  <p class="small text-muted mb-2">
-                    Total: <strong>₱<%= analytics ? (analytics.totalRevenue / 1000000).toFixed(2) : "0.00" %>M</strong>
-                  </p>
-                  <div class="progress mb-2" style="height: 6px;">
-                    <div class="progress-bar" role="progressbar" data-revenue-progress
-                         data-value="<%= analytics ? Math.min((analytics.totalRevenue / 2000000) * 100, 100) : 0 %>"
-                         style="background-color: #eab308;"></div>
-                  </div>
-                  <small class="text-muted">
-                    <%= analytics ? analytics.totalTransactions.toLocaleString() : 0 %> transactions
-                  </small>
-                </div>
-              </div>
-              
-              <!-- Payment Method Analysis -->
-              <div class="col-lg-3">
-                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-wallet-fill text-primary me-2"></i>
-                    <strong class="text-dark">Payment Mix</strong>
-                  </div>
-                  <p class="small text-muted mb-2">
-                    GCash: <strong>₱<%= analytics ? (analytics.gcashRevenue / 1000).toFixed(1) : "0.0" %>K</strong> | 
-                    COD: <strong>₱<%= analytics ? (analytics.codRevenue / 1000).toFixed(1) : "0.0" %>K</strong>
-                  </p>
-                  <div class="progress mb-2" style="height: 6px;">
-                    <div class="progress-bar bg-primary" role="progressbar" data-gcash-share
-                         data-value="<%= analytics ? (analytics.gcashRevenue / (analytics.totalRevenue || 1)) * 100 : 0 %>"></div>
-                  </div>
-                  <small class="text-muted">
-                    <%= analytics ? Math.round((analytics.gcashRevenue / (analytics.totalRevenue || 1)) * 100) : 0 %>% digital payments
-                  </small>
-                </div>
-              </div>
-              
-              <!-- Service Type Revenue -->
-              <div class="col-lg-3">
-                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-tools text-danger me-2"></i>
-                    <strong class="text-dark">Service Revenue</strong>
-                  </div>
-                  <p class="small text-muted mb-2">
-                    Core: <strong>₱<%= analytics ? (analytics.coreRevenue / 1000).toFixed(1) : "0.0" %>K</strong> | 
-                    Repair: <strong>₱<%= analytics ? (analytics.repairRevenue / 1000).toFixed(1) : "0.0" %>K</strong>
-                  </p>
-                  <div class="progress mb-2" style="height: 6px;">
-                    <div class="progress-bar bg-danger" role="progressbar" data-core-share
-                         data-value="<%= analytics ? (analytics.coreRevenue / (analytics.totalRevenue || 1)) * 100 : 0 %>"></div>
-                  </div>
-                  <small class="text-muted">
-                    <%= analytics ? Math.round((analytics.coreRevenue / (analytics.totalRevenue || 1)) * 100) : 0 %>% core services
-                  </small>
-                </div>
-              </div>
-              
-              <!-- Top Performers -->
-              <div class="col-lg-3">
-                <div class="insight-card p-3 rounded-3 h-100" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-trophy-fill text-success me-2"></i>
-                    <strong class="text-dark">Top Performers</strong>
-                  </div>
-                  <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
-                    <p class="small text-muted mb-2">
-                      <strong><%= analytics.topTechnicians[0].name %></strong>: 
-                      ₱<%= (analytics.topTechnicians[0].revenue / 1000).toFixed(1) %>K
-                    </p>
-                    <div class="progress mb-2" style="height: 6px;">
-                      <div class="progress-bar bg-success" role="progressbar" data-top-tech
-                           data-value="<%= (analytics.topTechnicians[0].revenue / (analytics.totalRevenue || 1)) * 100 %>"></div>
-                    </div>
-                    <small class="text-muted">
-                      <%= analytics.topTechnicians[0].bookings %> bookings completed
-                    </small>
-                  <% } else { %>
-                    <p class="small text-muted mb-2">No technician data available</p>
-                  <% } %>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Data-Driven Recommendations -->
-            <div class="mt-4 p-3 rounded-3" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-              <h6 class="fw-bold mb-3" style="color: #1d4ed8;">
-                <i class="bi bi-currency-dollar me-2"></i>Strategic Financial Recommendations
-              </h6>
-              <div class="row g-3">
-                <% if (analytics && analytics.pendingPayments > 0) { %>
-                  <div class="col-md-6">
-                    <div class="d-flex align-items-start">
-                      <span class="badge bg-warning me-2 mt-1">1</span>
-                      <div>
-                        <strong>Address Pending Payments</strong>
-                        <p class="small text-muted mb-0">
-                          <%= analytics.pendingPayments %> bookings have pending payments. Follow up to improve cash flow.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                <% } %>
-                
-                <% if (analytics && analytics.gcashRevenue < analytics.codRevenue) { %>
-                  <div class="col-md-6">
-                    <div class="d-flex align-items-start">
-                      <span class="badge bg-warning me-2 mt-1">
-                        <%= analytics && analytics.pendingPayments > 0 ? "2" : "1" %>
-                      </span>
-                      <div>
-                        <strong>Promote Digital Payments</strong>
-                        <p class="small text-muted mb-0">
-                          GCash revenue (₱<%= (analytics.gcashRevenue / 1000).toFixed(1) %>K) is lower than COD. 
-                          Consider incentives for digital payments to reduce cash handling.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                <% } %>
-                
-                <div class="col-md-6">
-                  <div class="d-flex align-items-start">
-                    <span class="badge bg-warning me-2 mt-1">
-                      <%= (analytics && analytics.pendingPayments > 0 ? 1 : 0) + 
-                           (analytics && analytics.gcashRevenue < analytics.codRevenue ? 1 : 0) + 1 %>
-                    </span>
-                    <div>
-                      <strong>Service Mix Optimization</strong>
-                      <p class="small text-muted mb-0">
-                        Core services: ₱<%= analytics ? (analytics.coreRevenue / 1000).toFixed(1) : "0.0" %>K | 
-                        Repairs: ₱<%= analytics ? (analytics.repairRevenue / 1000).toFixed(1) : "0.0" %>K. 
-                        <%= analytics && analytics.repairRevenue > analytics.coreRevenue ? 
-                          "Repair demand is high - ensure parts inventory is stocked." : 
-                          "Core services are stable - consider maintenance packages." %>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="col-md-6">
-                  <div class="d-flex align-items-start">
-                    <span class="badge bg-warning me-2 mt-1">
-                      <%= (analytics && analytics.pendingPayments > 0 ? 1 : 0) + 
-                           (analytics && analytics.gcashRevenue < analytics.codRevenue ? 1 : 0) + 2 %>
-                    </span>
-                    <div>
-                      <strong>Revenue Per Transaction</strong>
-                      <p class="small text-muted mb-0">
-                        Current average: ₱<%= analytics ? Math.round(analytics.avgTransactionValue) : 0 %>.
-                        <%= analytics && analytics.avgTransactionValue < 1500 ? 
-                          "Consider upselling add-on services to increase ticket size." : 
-                          "Strong transaction values - maintain service quality." %>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="50">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon blue"><i class="bi bi-cash-stack"></i></div>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Product Revenue</p>
+        <div class="kpi-enterprise-value"><%= peso(A.totalProductRevenue) %></div>
+        <small style="color:#64748b;">Combined order + POS product sales</small>
       </div>
     </div>
-
-    <!-- Monthly Revenue Trend & Analysis -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-8" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-graph-up-arrow me-2"></i>12-Month Revenue Trend
-            </h6>
-            <div class="d-flex gap-2">
-              <span class="badge bg-success-subtle text-success border border-success-subtle">
-                <i class="bi bi-arrow-up me-1"></i><%= analytics ? analytics.growthRate : 0 %>% growth
-              </span>
-            </div>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 280px">
-              <canvas id="monthlyRevenueTrendChart"></canvas>
-            </div>
-          </div>
-        </div>
+    <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="100">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon green"><i class="bi bi-bag-check"></i></div>
+        <span class="kpi-enterprise-badge green"><%= A.orderTransactions||0 %> orders</span>
       </div>
-      
-      <!-- Revenue by Source Breakdown -->
-      <div class="col-lg-4" data-aos="fade-up" data-aos-delay="300">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-pie-chart me-2"></i>Revenue by Source
-            </h6>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 200px">
-              <canvas id="revenueSourceChart"></canvas>
-            </div>
-            <div class="mt-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="small text-muted">Services</span>
-                <span class="fw-bold">₱<%= analytics ? (analytics.serviceRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
-              </div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="small text-muted">Product Orders</span>
-                <span class="fw-bold">₱<%= analytics ? (analytics.orderRevenue / 1000000).toFixed(2) : "0.00" %>M</span>
-              </div>
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="small text-muted">Delivery Fees</span>
-                <span class="fw-bold">₱<%= analytics ? (analytics.deliveryRevenue / 1000).toFixed(1) : "0.0" %>K</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Online Order Units</p>
+        <div class="kpi-enterprise-value"><%= (A.orderTransactions||0) %></div>
+        <small style="color:#64748b;"><%= peso(A.orderRevenue) %> revenue</small>
       </div>
     </div>
+  </div>
 
-    <!-- Top Performers & Recent Transactions -->
-    <div class="row g-3 mb-4">
-      <!-- Top Technicians by Revenue -->
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-trophy me-2"></i>Top Revenue Generators
-            </h6>
-            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">By Technician</span>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
-              <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Technician</th>
-                      <th class="text-center">Bookings</th>
-                      <th class="text-center">Completed</th>
-                      <th class="text-end">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <% analytics.topTechnicians.forEach(function(tech, index) { %>
-                      <tr>
-                        <td>
-                          <% if (index === 0) { %>
-                            <i class="bi bi-trophy-fill text-warning"></i>
-                          <% } else if (index === 1) { %>
-                            <i class="bi bi-trophy-fill text-secondary"></i>
-                          <% } else if (index === 2) { %>
-                            <i class="bi bi-trophy-fill" style="color: #cd7f32;"></i>
-                          <% } else { %>
-                            <span class="badge bg-light text-dark">#<%= index + 1 %></span>
-                          <% } %>
-                        </td>
-                        <td class="fw-bold"><%= tech.name %></td>
-                        <td class="text-center"><%= tech.bookings %></td>
-                        <td class="text-center"><span class="badge bg-success-subtle text-success"><%= tech.completed || 0 %></span></td>
-                        <td class="text-end fw-bold text-success">₱<%= tech.revenue.toLocaleString() %></td>
-                      </tr>
-                    <% }); %>
-                  </tbody>
-                </table>
-              </div>
-            <% } else { %>
-              <div class="text-center py-4 text-muted">
-                <i class="bi bi-people fs-1"></i>
-                <p class="mt-2">No technician revenue data available</p>
-              </div>
-            <% } %>
-          </div>
-        </div>
+  <div class="rr-equal">
+    <!-- Top Selling Products (Combined) -->
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-trophy me-2" style="color:#0891b2;"></i>Top Selling Products — All Channels</h3><span class="rr-badge"><%= (A.combinedTopProducts||[]).length %> products</span></div>
+      <div class="rr-body table-responsive">
+        <table class="rr-table"><thead><tr><th>#</th><th>Product</th><th>Channel</th><th class="text-center">Qty</th><th class="text-end">Revenue</th><th class="text-end">Share</th></tr></thead><tbody>
+        <% if(!(A.combinedTopProducts||[]).length){ %><tr><td colspan="6" class="rr-empty">No product sales in this period.</td></tr><% } %>
+        <% var totalProdRev = A.totalProductRevenue || 1; %>
+        <% (A.combinedTopProducts||[]).slice(0,10).forEach(function(p,i){ %>
+        <tr>
+          <td><span class="rr-badge" style="background:<%= i<3?'rgba(8,145,178,0.1);color:#0891b2':'#f1f5f9;color:#475569' %>;"><%= i+1 %></span></td>
+          <td class="fw-bold"><%= p.name %><div class="rr-meta"><%= p.category %></div></td>
+          <td><span class="rr-badge" style="background:<%= p.channel==='POS'?'rgba(245,158,11,0.1);color:#d97706':'rgba(16,185,129,0.1);color:#059669' %>;"><%= p.channel %></span></td>
+          <td class="text-center"><%= p.quantity %></td>
+          <td class="text-end fw-bold"><%= peso(p.revenue) %></td>
+          <td class="text-end"><%= pct(p.revenue/totalProdRev*100) %></td>
+        </tr>
+        <% }); %>
+        </tbody></table>
       </div>
-      
-      <!-- Recent Transactions -->
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-clock-history me-2"></i>Recent Transactions
-            </h6>
-            <span class="badge bg-info-subtle text-info border border-info-subtle">
-              <%= analytics && analytics.recentTransactions ? analytics.recentTransactions.length : 0 %> recent
-            </span>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <% if (analytics && analytics.recentTransactions && analytics.recentTransactions.length > 0) { %>
-              <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
-                <table class="table table-sm table-hover">
-                  <thead class="sticky-top bg-white">
-                    <tr>
-                      <th>Type</th>
-                      <th>Reference</th>
-                      <th>Customer</th>
-                      <th class="text-end">Amount</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <% analytics.recentTransactions.slice(0, 10).forEach(function(tx) { %>
-                      <tr>
-                        <td>
-                          <span class="badge <%= tx.type === 'service' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success' %>">
-                            <%= tx.type === 'service' ? 'Service' : 'Order' %>
-                          </span>
-                        </td>
-                        <td class="font-monospace small"><%= tx.reference || 'N/A' %></td>
-                        <td><%= tx.customer %></td>
-                        <td class="text-end fw-bold">₱<%= tx.amount ? tx.amount.toLocaleString() : 0 %></td>
-                        <td>
-                          <% const paymentStatusColors = {
-                            'paid': 'success',
-                            'pending': 'warning',
-                            'partial': 'info',
-                            'failed': 'danger'
-                          }; %>
-                          <span class="badge bg-<%= paymentStatusColors[tx.status] || 'secondary' %>-subtle text-<%= paymentStatusColors[tx.status] || 'secondary' %>">
-                            <%= tx.status %>
-                          </span>
-                        </td>
-                      </tr>
-                    <% }); %>
-                  </tbody>
-                </table>
-              </div>
-            <% } else { %>
-              <div class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-1"></i>
-                <p class="mt-2">No recent transactions</p>
-              </div>
-            <% } %>
-          </div>
-        </div>
+    </article>
+
+    <!-- Product Channel Split Chart -->
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-pie-chart me-2" style="color:#0891b2;"></i>Product Revenue by Channel</h3><span class="rr-badge">Order vs POS</span></div>
+      <div class="rr-chart"><canvas id="productChannelMix"></canvas></div>
+    </article>
+  </div>
+
+  <!-- Online Order Product Deep Dive -->
+  <% if((A.topOrderProducts||[]).length){ %>
+  <div class="rr-equal mt-3">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-bag-check me-2 text-success"></i>Online Order Products</h3><span class="rr-badge"><%= A.orderTransactions||0 %> orders · <%= peso(A.orderRevenue) %> total</span></div>
+      <div class="rr-body table-responsive">
+        <table class="rr-table"><thead><tr><th>Model</th><th>Brand</th><th class="text-center">Capacity</th><th class="text-center">Units</th><th class="text-end">Revenue</th><th class="text-end">Avg Price</th></tr></thead><tbody>
+        <% (A.topOrderProducts||[]).slice(0,8).forEach(function(p){ %>
+        <tr>
+          <td class="fw-bold"><%= p.name %></td>
+          <td><span class="rr-badge"><%= p.brand %></span></td>
+          <td class="text-center"><%= p.capacity %></td>
+          <td class="text-center"><%= p.quantity %></td>
+          <td class="text-end fw-bold"><%= peso(p.revenue) %></td>
+          <td class="text-end"><%= peso(p.avgUnitPrice) %></td>
+        </tr>
+        <% }); %>
+        </tbody></table>
       </div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-building me-2 text-success"></i>Brand Performance</h3><span class="rr-badge"><%= (A.orderBrandAnalysis||[]).length %> brands</span></div>
+      <div class="rr-chart"><canvas id="brandRevenue"></canvas></div>
+    </article>
+  </div>
+
+  <div class="rr-equal mt-3">
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-speedometer me-2 text-success"></i>Capacity Breakdown</h3><span class="rr-badge">Revenue by tonnage</span></div>
+      <div class="rr-body table-responsive">
+        <table class="rr-table"><thead><tr><th>Capacity</th><th class="text-center">Units</th><th class="text-center">Orders</th><th class="text-end">Revenue</th><th class="text-end">Share</th></tr></thead><tbody>
+        <% var capTotal = (A.orderCapacityAnalysis||[]).reduce(function(s,c){return s+c.revenue},0) || 1; %>
+        <% (A.orderCapacityAnalysis||[]).forEach(function(c){ %>
+        <tr>
+          <td class="fw-bold"><%= c.capacity %></td>
+          <td class="text-center"><%= c.quantity %></td>
+          <td class="text-center"><%= c.orders %></td>
+          <td class="text-end fw-bold"><%= peso(c.revenue) %></td>
+          <td class="text-end"><%= pct(c.revenue/capTotal*100) %></td>
+        </tr>
+        <% }); %>
+        </tbody></table>
+      </div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><h3><i class="bi bi-truck me-2 text-success"></i>Fulfillment Mix</h3><span class="rr-badge">Delivery vs Pickup</span></div>
+      <div class="rr-chart"><canvas id="fulfillmentMix"></canvas></div>
+    </article>
+  </div>
+  <% } %>
+
+
+  <!-- ═══ SECTION 7: RECENT COMMERCIAL ACTIVITY ═══ -->
+  <div id="section-activity" class="rr-section"><h2><i class="bi bi-journal-text me-2" style="color:#334155;"></i>Recent Commercial Activity</h2><span class="text-muted small">Unified transaction ledger — services, online orders, and POS in chronological order</span></div>
+  <article class="rr-card">
+    <div class="rr-body table-responsive">
+      <table class="rr-table"><thead><tr><th>Created</th><th>Source</th><th>Reference</th><th>Customer</th><th>Method</th><th>Payment Status</th><th class="text-end">Approved Value</th></tr></thead><tbody id="recentTransactionsBody"><% if(!(A.recentTransactions||[]).length){ %><tr><td colspan="7" class="rr-empty">No commercial activity available.</td></tr><% } (A.recentTransactions||[]).forEach(function(t){ %><tr><td><%= new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) %></td><td><span class="rr-type <%= t.type==='order'?'order':t.type==='pos'?'pos':'' %>"><%= t.type %></span></td><td class="fw-bold"><%= t.reference||'—' %></td><td><%= t.customer %></td><td><%= String(t.method||'—').replaceAll('_',' ') %></td><td><span class="rr-status <%= t.status %>"><%= String(t.status||'pending').replaceAll('_',' ') %></span></td><td class="text-end fw-bold"><%= peso(t.amount) %></td></tr><% }); %></tbody></table>
     </div>
-
-    <!-- Payment Methods & Order Status -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-wallet2 me-2"></i>Payment Method Distribution
-            </h6>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 220px">
-              <canvas id="paymentMethodChart"></canvas>
-            </div>
-            <div class="row mt-3 g-2">
-              <div class="col-6">
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="small text-muted"><i class="bi bi-phone me-1"></i>GCash</span>
-                  <span class="fw-bold">₱<%= analytics ? (analytics.gcashRevenue / 1000).toFixed(1) : "0.0" %>K</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="small text-muted"><i class="bi bi-cash me-1"></i>COD</span>
-                  <span class="fw-bold">₱<%= analytics ? (analytics.codRevenue / 1000).toFixed(1) : "0.0" %>K</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
-        <div class="dash-card bg-white h-100">
-          <div class="card-header-custom border-0 pb-0 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold" style="color: #1d4ed8; font-size: 1.1rem;">
-              <i class="bi bi-check-circle me-2"></i>Payment Status Overview
-            </h6>
-          </div>
-          <div class="card-body px-4 pb-4">
-            <div style="height: 220px">
-              <canvas id="paymentStatusChart"></canvas>
-            </div>
-            <div class="row mt-3 text-center g-2">
-              <div class="col-3">
-                <div class="h5 mb-0 text-success"><%= analytics ? analytics.paidBookings : 0 %></div>
-                <small class="text-muted">Paid</small>
-              </div>
-              <div class="col-3">
-                <div class="h5 mb-0 text-warning"><%= analytics ? analytics.pendingPayments : 0 %></div>
-                <small class="text-muted">Pending</small>
-              </div>
-              <div class="col-3">
-                <div class="h5 mb-0 text-info"><%= analytics ? analytics.partialPayments : 0 %></div>
-                <small class="text-muted">Partial</small>
-              </div>
-              <div class="col-3">
-                <div class="h5 mb-0 text-danger"><%= analytics ? analytics.failedPayments : 0 %></div>
-                <small class="text-muted">Failed</small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script id="revenue-data" type="application/json">
-      {
-        "monthlyRevenue": <%- JSON.stringify(analytics && analytics.monthlyRevenue ? (() => { const o = {}; Object.entries(analytics.monthlyRevenue).forEach(([month, data]) => { o[month] = { month, service: data.service, orders: data.orders, total: data.total, partsCost: (analytics.monthlyPartsCost && analytics.monthlyPartsCost[month]) || 0 }; }); return o; })() : {}) %>,
-        "revenueSources": {
-          "service": <%= analytics ? analytics.serviceRevenue : 0 %>,
-          "orders": <%= analytics ? analytics.orderRevenue : 0 %>,
-          "delivery": <%= analytics ? analytics.deliveryRevenue : 0 %>,
-          "installation": <%= analytics ? analytics.installationRevenue : 0 %>
-        },
-        "paymentMethods": {
-          "gcash": <%= analytics ? analytics.gcashRevenue : 0 %>,
-          "cod": <%= analytics ? analytics.codRevenue : 0 %>,
-          "bank": <%= analytics ? analytics.bankRevenue : 0 %>,
-          "other": <%= analytics ? (analytics.paymentRevenue - analytics.gcashRevenue - analytics.codRevenue - analytics.bankRevenue) : 0 %>
-        },
-        "paymentStatus": {
-          "paid": <%= analytics ? analytics.paidBookings : 0 %>,
-          "pending": <%= analytics ? analytics.pendingPayments : 0 %>,
-          "partial": <%= analytics ? analytics.partialPayments : 0 %>,
-          "failed": <%= analytics ? analytics.failedPayments : 0 %>
-        },
-        "growthRate": <%= analytics ? analytics.growthRate : 0 %>
-      }
-    </script>
-    <script>
-      // @ts-nocheck
-      var revenueAnalytics = JSON.parse(document.getElementById('revenue-data').textContent);
-
-      function openDrill(title, subtitle, chartCfg, details, filters, ff, summary) {
-        if (typeof ChartDrilldown === 'undefined') return;
-        ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: ff || 'category', summary: summary || {} });
-      }
-
-      (function () {
-        if (typeof Chart === "undefined") return;
-
-        var trendCtx = document.getElementById("revenueTrendChart");
-        if (trendCtx) {
-          var gradientGross = trendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          gradientGross.addColorStop(0, 'rgba(29, 78, 216, 0.4)'); // Royal Blue
-          gradientGross.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
-
-          var gradientNet = trendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          gradientNet.addColorStop(0, 'rgba(52, 211, 153, 0.4)'); // Mint
-          gradientNet.addColorStop(1, 'rgba(52, 211, 153, 0.05)');
-
-          var monthlyDataObj = revenueAnalytics.monthlyRevenue || {};
-          var monthlyData = Object.keys(monthlyDataObj).map(function(k) { return monthlyDataObj[k]; }).reverse();
-          var trendLabels = monthlyData.length ? monthlyData.map(function(m) { return m.month ? m.month.slice(0,3) : ''; }) : ["M1","M2","M3","M4","M5","M6"];
-          var grossData = monthlyData.length ? monthlyData.map(function(m) { return m.total || 0; }) : [420, 468, 452, 501, 518, 542, 565].slice(0,6);
-          var netData = grossData.map(function(g) { return Math.round(g * 0.8); });
-
-          var trendChartCfg = {
-            type: "line",
-            data: {
-              labels: trendLabels,
-              datasets: [
-                {
-                  label: "Gross",
-                  data: grossData,
-                  borderColor: "#1d4ed8",
-                  backgroundColor: gradientGross,
-                  borderWidth: 3,
-                  fill: true,
-                  tension: 0.4,
-                  pointBackgroundColor: "#fff",
-                  pointBorderColor: "#1d4ed8",
-                  pointBorderWidth: 2,
-                  pointRadius: 4,
-                },
-                {
-                  label: "Net (est.)",
-                  data: netData,
-                  borderColor: "#34d399",
-                  backgroundColor: gradientNet,
-                  borderWidth: 3,
-                  fill: true,
-                  tension: 0.4,
-                  pointBackgroundColor: "#fff",
-                  pointBorderColor: "#34d399",
-                  pointBorderWidth: 2,
-                  pointRadius: 4,
-                },
-              ],
-            },
-            options: {
-              maintainAspectRatio: false,
-              animation: { duration: 2000, easing: 'easeOutQuart', delay: function(context) { return context.dataIndex * 100; } },
-              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
-              scales: {
-                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
-                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } }
-              },
-            },
-          };
-          var trendDetails = monthlyData.map(function(item, i) { var parts = item.partsCost || 0; return { category: trendLabels[i], value: grossData[i], subtext: 'Service: ₱' + (item.service || 0).toLocaleString() + ' | Orders: ₱' + (item.orders || 0).toLocaleString() + ' | Parts: ₱' + parts.toLocaleString() }; });
-          trendCtx.canvas.style.cursor = 'pointer';
-          trendCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue Trend', 'Month revenue breakdown', trendChartCfg, trendDetails, trendLabels.map(function(l) { return { key: l, label: l }; }), 'category', { total: '₱' + grossData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
-          new Chart(trendCtx, trendChartCfg);
-        }
-
-        var channelCtx = document.getElementById("revenueChannelChart");
-        if (channelCtx) {
-          var methods = revenueAnalytics.paymentMethods || { gcash: 0, cod: 0, bank: 0, other: 0 };
-          var channelLabels = [];
-          var channelData = [];
-          var channelColors = ["#1d4ed8", "#eab308", "#475569", "#6b7280"];
-          Object.keys(methods).forEach(function(k, i) {
-            var v = methods[k];
-            if (v > 0) { channelLabels.push(k.charAt(0).toUpperCase() + k.slice(1)); channelData.push(v); }
-          });
-          if (!channelData.length) { channelLabels = ["GCash", "Cash", "Other"]; channelData = [41, 33, 26]; }
-
-          var channelChartCfg = {
-            type: "doughnut",
-            data: {
-              labels: channelLabels,
-              datasets: [{ data: channelData, backgroundColor: channelColors.slice(0, channelData.length), borderWidth: 0, hoverOffset: 4 }],
-            },
-            options: {
-              maintainAspectRatio: false,
-              animation: { duration: 2000, easing: 'easeOutElastic' },
-              plugins: { legend: { display: false } },
-              cutout: "75%",
-            },
-          };
-          var channelDetails = Object.keys(methods).map(function(k){ return { category: k.charAt(0).toUpperCase() + k.slice(1), value: methods[k] }; });
-          channelCtx.canvas.style.cursor = 'pointer';
-          channelCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue by Channel', 'Payment method breakdown', channelChartCfg, channelDetails, channelLabels.map(function(l){ return { id: l, label: l, active: true }; }), 'category', { total: '₱' + channelData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
-          new Chart(channelCtx, channelChartCfg);
-        }
-
-        var marginCtx = document.getElementById("marginTrendChart");
-        if (marginCtx) {
-          var gradientGrossMar = marginCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          gradientGrossMar.addColorStop(0, 'rgba(29, 78, 216, 0.4)'); // Royal Blue
-          gradientGrossMar.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
-
-          var gradientProfit = marginCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          gradientProfit.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); // Emerald
-          gradientProfit.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
-
-          // Build real monthly data from analytics
-          var monthLabels = Object.keys(revenueAnalytics.monthlyRevenue || {}).reverse();
-          var revenueData = monthLabels.map(function(m) { return (revenueAnalytics.monthlyRevenue[m] || {}).total || 0; });
-          var partsCostData = monthLabels.map(function(m) { return (revenueAnalytics.monthlyPartsCost ? revenueAnalytics.monthlyPartsCost[m] : 0) || 0; });
-          var profitData = revenueData.map((r, i) => r - partsCostData[i]);
-
-          var marginChartCfg = {
-            type: "line",
-            data: {
-              labels: monthLabels.length > 0 ? monthLabels : ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-              datasets: [
-                {
-                  label: "Revenue",
-                  data: revenueData.length > 0 ? revenueData : [0, 0, 0, 0, 0, 0],
-                  borderColor: "#1d4ed8",
-                  backgroundColor: gradientGrossMar,
-                  borderWidth: 3,
-                  fill: true,
-                  tension: 0.4,
-                  pointBackgroundColor: "#fff",
-                  pointBorderColor: "#1d4ed8",
-                  pointBorderWidth: 2,
-                  pointRadius: 4,
-                },
-                {
-                  label: "Gross Profit",
-                  data: profitData.length > 0 ? profitData : [0, 0, 0, 0, 0, 0],
-                  borderColor: "#10b981",
-                  backgroundColor: gradientProfit,
-                  borderWidth: 3,
-                  fill: true,
-                  tension: 0.4,
-                  pointBackgroundColor: "#fff",
-                  pointBorderColor: "#10b981",
-                  pointBorderWidth: 2,
-                  pointRadius: 4,
-                },
-              ],
-            },
-            options: {
-              maintainAspectRatio: false,
-              animation: { duration: 2000, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 100 },
-              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
-              scales: {
-                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
-                y: { min: 0, grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' }, callback: function(v) { return '₱' + (v/1000).toFixed(0) + 'K'; } }, border: { display: false } }
-              },
-            },
-          };
-          var marginDetails = monthLabels.map(function(m, i) { return { category: m, value: revenueData[i] || 0, subtext: 'Profit: ₱' + (profitData[i] || 0).toLocaleString() }; });
-          marginCtx.canvas.style.cursor = 'pointer';
-          marginCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Margin Trend', 'Revenue vs gross profit breakdown', marginChartCfg, marginDetails, monthLabels.map(function(l) { return { key: l, label: l }; }), 'category', { total: '₱' + revenueData.reduce(function(a,b){return a+b;},0).toLocaleString() }); } };
-          new Chart(marginCtx, marginChartCfg);
-        }
-
-        var segmentCtx = document.getElementById("revenueSegmentChart");
-        if (segmentCtx) {
-          var corePartsCost = <%= analytics ? analytics.corePartsCost || 0 : 0 %>;
-          var repairPartsCost = <%= analytics ? analytics.repairPartsCost || 0 : 0 %>;
-          var coreRevenue = <%= analytics ? analytics.coreRevenue || 0 : 0 %>;
-          var repairRevenue = <%= analytics ? analytics.repairRevenue || 0 : 0 %>;
-          var coreProfit = coreRevenue - corePartsCost;
-          var repairProfit = repairRevenue - repairPartsCost;
-
-          var segmentChartCfg = {
-            type: "bar",
-            data: {
-              labels: ["Core Services", "Repair Services"],
-              datasets: [
-                {
-                  label: "Revenue",
-                  data: [coreRevenue / 1000, repairRevenue / 1000],
-                  backgroundColor: "#1d4ed8",
-                  borderRadius: 6,
-                  barThickness: 20,
-                },
-                {
-                  label: "Parts Cost",
-                  data: [corePartsCost / 1000, repairPartsCost / 1000],
-                  backgroundColor: "#ef4444",
-                  borderRadius: 6,
-                  barThickness: 20,
-                },
-                {
-                  label: "Gross Profit",
-                  data: [coreProfit / 1000, repairProfit / 1000],
-                  backgroundColor: "#10b981",
-                  borderRadius: 6,
-                  barThickness: 20,
-                },
-              ],
-            },
-            options: {
-              maintainAspectRatio: false,
-              animation: { duration: 1800, easing: 'easeOutQuart', delay: (context) => context.dataIndex * 150 },
-              plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8 } } },
-              scales: {
-                x: { grid: { display: false }, ticks: { color: '#829ab1', font: { weight: 'bold' } }, border: { display: false } },
-                y: { grid: { color: '#CBDDE9', borderDash: [5, 5] }, ticks: { color: '#829ab1', font: { weight: 'bold' }, callback: function(v) { return '₱' + v.toFixed(0) + 'K'; } }, border: { display: false } }
-              },
-            },
-          };
-          var segLabels = ['Core Services', 'Repair Services'];
-          var segRevenues = [coreRevenue, repairRevenue];
-          var segCosts = [corePartsCost, repairPartsCost];
-          var segProfits = [coreProfit, repairProfit];
-          var segmentDetails = segLabels.map(function(s, i) { return { category: s, value: segRevenues[i], subtext: 'Profit: ₱' + segProfits[i].toLocaleString() }; });
-          segmentCtx.canvas.style.cursor = 'pointer';
-          segmentCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Service Segment', 'Revenue, parts cost, and gross profit', segmentChartCfg, segmentDetails, segLabels.map(function(s) { return { key: s, label: s }; }), 'category', { total: '₱' + (coreRevenue + repairRevenue).toLocaleString() }); } };
-          new Chart(segmentCtx, segmentChartCfg);
-        }
-
-        // Enterprise Charts - Monthly Revenue Trend
-        var monthlyTrendCtx = document.getElementById("monthlyRevenueTrendChart");
-        if (monthlyTrendCtx && revenueAnalytics.monthlyRevenue.length > 0) {
-          var serviceGradient = monthlyTrendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          serviceGradient.addColorStop(0, 'rgba(234, 179, 8, 0.5)');
-          serviceGradient.addColorStop(1, 'rgba(234, 179, 8, 0.05)');
-          var ordersGradient = monthlyTrendCtx.getContext('2d').createLinearGradient(0, 0, 0, 300);
-          ordersGradient.addColorStop(0, 'rgba(29, 78, 216, 0.5)');
-          ordersGradient.addColorStop(1, 'rgba(29, 78, 216, 0.05)');
-          
-          var monthlyTrendChartCfg = {
-            type: "line",
-            data: {
-              labels: revenueAnalytics.monthlyRevenue.map(function(m) { return m.month; }),
-              datasets: [
-                {
-                  label: "Service Revenue",
-                  data: revenueAnalytics.monthlyRevenue.map(function(m) { return m.service / 1000; }),
-                  borderColor: "#eab308",
-                  backgroundColor: serviceGradient,
-                  borderWidth: 3,
-                  tension: 0.4,
-                  fill: true
-                },
-                {
-                  label: "Order Revenue",
-                  data: revenueAnalytics.monthlyRevenue.map(function(m) { return m.orders / 1000; }),
-                  borderColor: "#1d4ed8",
-                  backgroundColor: ordersGradient,
-                  borderWidth: 3,
-                  tension: 0.4,
-                  fill: true
-                }
-              ]
-            },
-            options: {
-              maintainAspectRatio: false,
-              interaction: { mode: 'index', intersect: false },
-              plugins: {
-                legend: { position: 'top', align: 'end', labels: { usePointStyle: true } }
-              },
-              scales: {
-                x: { grid: { display: false }, ticks: { color: '#6b7280' } },
-                y: { grid: { color: '#e5e7eb' }, ticks: { color: '#6b7280' }, title: { display: true, text: 'Revenue (₱K)' } }
-              }
-            }
-          };
-          var monthlyTrendDetails = revenueAnalytics.monthlyRevenue.map(function(m) { return { category: m.month, value: (m.total || 0) / 1000, subtext: 'Service: ₱' + ((m.service || 0) / 1000).toFixed(1) + 'K | Orders: ₱' + ((m.orders || 0) / 1000).toFixed(1) + 'K' }; });
-          monthlyTrendCtx.canvas.style.cursor = 'pointer';
-          monthlyTrendCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Monthly Trend', 'Service vs order revenue', monthlyTrendChartCfg, monthlyTrendDetails, revenueAnalytics.monthlyRevenue.map(function(m) { return { key: m.month, label: m.month }; }), 'category', { total: '₱' + (revenueAnalytics.monthlyRevenue.reduce(function(a, m) { return a + (m.total || 0); }, 0) / 1000).toFixed(1) + 'K' }); } };
-          new Chart(monthlyTrendCtx, monthlyTrendChartCfg);
-        }
-
-        // Revenue Source Chart
-        var sourceCtx = document.getElementById("revenueSourceChart");
-        if (sourceCtx) {
-          var sourceChartCfg = {
-            type: "doughnut",
-            data: {
-              labels: ["Services", "Products", "Delivery", "Installation"],
-              datasets: [{
-                data: [
-                  revenueAnalytics.revenueSources.service / 1000,
-                  revenueAnalytics.revenueSources.orders / 1000,
-                  revenueAnalytics.revenueSources.delivery / 1000,
-                  revenueAnalytics.revenueSources.installation / 1000
-                ],
-                backgroundColor: ["#eab308", "#1d4ed8", "#10b981", "#8b5cf6"],
-                borderWidth: 2,
-                borderColor: "#fff"
-              }]
-            },
-            options: {
-              maintainAspectRatio: false,
-              cutout: "50%",
-              plugins: {
-                legend: { position: "right", labels: { boxWidth: 12, font: { size: 10 } } }
-              }
-            }
-          };
-          var sourceLabels = ['Services', 'Products', 'Delivery', 'Installation'];
-          var sourceData = [revenueAnalytics.revenueSources.service, revenueAnalytics.revenueSources.orders, revenueAnalytics.revenueSources.delivery, revenueAnalytics.revenueSources.installation];
-          sourceCtx.canvas.style.cursor = 'pointer';
-          sourceCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Revenue Sources', 'Revenue by source type', sourceChartCfg, sourceLabels.map(function(l, i) { return { category: l, value: sourceData[i] }; }), sourceLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: '₱' + sourceData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() }); } };
-          new Chart(sourceCtx, sourceChartCfg);
-        }
-
-        // Payment Method Chart with real data
-        var payMethodCtx = document.getElementById("paymentMethodChart");
-        if (payMethodCtx) {
-          var pmLabels = ['GCash', 'COD', 'Bank', 'Other'];
-          var pmData = [revenueAnalytics.paymentMethods.gcash, revenueAnalytics.paymentMethods.cod, revenueAnalytics.paymentMethods.bank, revenueAnalytics.paymentMethods.other];
-          var pmChartCfg = {
-            type: "doughnut",
-            data: {
-              labels: pmLabels,
-              datasets: [{
-                data: pmData.map(function(v) { return v / 1000; }),
-                backgroundColor: ["#1d4ed8", "#eab308", "#10b981", "#6b7280"],
-                borderWidth: 0,
-                hoverOffset: 4
-              }]
-            },
-            options: {
-              maintainAspectRatio: false,
-              cutout: "65%",
-              plugins: {
-                legend: { position: "right", labels: { usePointStyle: true, boxWidth: 8 } }
-              }
-            }
-          };
-          payMethodCtx.canvas.style.cursor = 'pointer';
-          payMethodCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Payment Methods', 'Revenue by payment method', pmChartCfg, pmLabels.map(function(l, i) { return { category: l, value: pmData[i] }; }), pmLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: '₱' + pmData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() }); } };
-          new Chart(payMethodCtx, pmChartCfg);
-        }
-
-        // Payment Status Chart
-        var payStatusCtx = document.getElementById("paymentStatusChart");
-        if (payStatusCtx) {
-          var psLabels = ['Paid', 'Pending', 'Partial', 'Failed'];
-          var psData = [revenueAnalytics.paymentStatus.paid, revenueAnalytics.paymentStatus.pending, revenueAnalytics.paymentStatus.partial, revenueAnalytics.paymentStatus.failed];
-          var psChartCfg = {
-            type: "doughnut",
-            data: {
-              labels: psLabels,
-              datasets: [{
-                data: psData,
-                backgroundColor: ["#10b981", "#f59e0b", "#3b82f6", "#ef4444"],
-                borderWidth: 2,
-                borderColor: "#fff"
-              }]
-            },
-            options: {
-              maintainAspectRatio: false,
-              cutout: "60%",
-              plugins: {
-                legend: { display: false }
-              }
-            }
-          };
-          payStatusCtx.canvas.style.cursor = 'pointer';
-          payStatusCtx.onclick = function() { if (typeof ChartDrilldown !== 'undefined') { openDrill('Payment Status', 'Bookings by payment status', psChartCfg, psLabels.map(function(l, i) { return { category: l, value: psData[i] }; }), psLabels.map(function(l) { return { id: l, label: l, active: true }; }), 'category', { total: psData.reduce(function(a, b) { return a + b; }, 0) + ' bookings' }); } };
-          new Chart(payStatusCtx, psChartCfg);
-        }
-
-        // draw waves for revenue KPIs
-        function createSparkline(id, data, color) {
-          var c = document.getElementById(id);
-          if (!c) return null;
-          var ctx = c.getContext('2d');
-          var height = c.height || c.offsetHeight || 50;
-          var grad = ctx.createLinearGradient(0, 0, 0, height);
-          grad.addColorStop(0, color);
-          grad.addColorStop(1, 'rgba(255,255,255,0)');
-          return new Chart(c, {
-            type: 'line',
-            data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: grad, fill: true, tension: 0.35 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, elements: { point: { radius: 0 } }, scales: { x: { display: false }, y: { display: false } } }
-          });
-        }
-        createSparkline('revSparkGross', [50, 60, 55, 65, 70, 75, 80], '#212529');
-        createSparkline('revSparkPartsCost', [20, 25, 22, 28, 24, 30, 26], '#ef4444');
-        createSparkline('revSparkProfit', [30, 35, 33, 37, 46, 45, 54], '#10b981');
-        createSparkline('revSparkEfficiency', [90, 92, 91, 93, 94, 96, 95], '#7b2d8b');
-      })();
-    </script>
-    <script src="/js/chart-drilldown.js"></script>
-
-    <%- include('../../../partials/chart-drilldown-modal') %>
-
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white py-3 border-bottom">
-        <h6 class="mb-0 fw-bold">Top Revenue Drivers</h6>
-      </div>
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th class="ps-4">Technician</th>
-              <th>Jobs</th>
-              <th>Revenue</th>
-              <th>Parts Cost</th>
-              <th>Gross Profit</th>
-              <th>Margin</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (analytics && analytics.topTechnicians && analytics.topTechnicians.length > 0) { %>
-              <% analytics.topTechnicians.forEach(function(tech) { %>
-                <% var margin = tech.revenue > 0 ? Math.round((tech.profit / tech.revenue) * 100) : 0; %>
-                <tr>
-                  <td class="ps-4 fw-semibold"><%= tech.name %></td>
-                  <td><%= tech.completed %>/<%= tech.bookings %></td>
-                  <td>₱<%= (tech.revenue / 1000).toFixed(1) %>K</td>
-                  <td>₱<%= (tech.partsCost / 1000).toFixed(1) %>K</td>
-                  <td class="<%= tech.profit >= 0 ? 'text-success' : 'text-danger' %> fw-bold">₱<%= (tech.profit / 1000).toFixed(1) %>K</td>
-                  <td><span class="badge <%= margin >= 50 ? 'bg-success' : (margin >= 20 ? 'bg-warning' : 'bg-danger') %>"><%= margin %>%</span></td>
-                </tr>
-              <% }); %>
-            <% } else { %>
-              <tr>
-                <td colspan="6" class="text-center text-muted py-4">No technician revenue data available</td>
-              </tr>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  </article>
 </div>
-</div> <!-- end admin-dashboard container -->
+
+<div class="modal fade" id="serviceProfitabilityModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content border-0" style="border-radius:16px;overflow:hidden"><div class="modal-header"><div><h5 class="modal-title"><i class="bi bi-calculator me-2"></i>All Completed Service Profitability</h5><div class="small text-white-50">Financial and resource detail · 10 services per page</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><div class="table-responsive"><table class="rr-table mb-0"><thead><tr><th class="ps-4">Service</th><th class="text-end">Revenue</th><th class="text-end">Repair Parts</th><th class="text-end">Consumables</th><th class="text-end">Labor</th><th class="text-end pe-4">Gross Profit</th></tr></thead><tbody id="serviceProfitabilityRows"><% (A.completedServiceCosts||[]).forEach(function(s,index){ %><tr class="profitability-modal-row" data-row-index="<%= index %>"><td class="ps-4"><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Consumables:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div><div><strong>Repair parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end pe-4 fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table></div></div><div class="modal-footer d-flex justify-content-between"><span class="small text-muted" id="profitabilityPageInfo"></span><nav aria-label="Completed service profitability pages"><ul class="pagination pagination-sm mb-0" id="profitabilityPagination"></ul></nav></div></div></div>
+</div>
+
+<!-- Chart Detail Modal -->
+<div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:16px;overflow:hidden">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1e293b,#0f172a);border:0;padding:16px 24px">
+        <div>
+          <h5 class="modal-title text-white" id="cdmTitle"><i class="bi bi-bar-chart-line me-2"></i>Chart Detail</h5>
+          <div class="small text-white-50" id="cdmSubtitle">Click a data point to filter</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="cdm-body">
+          <div class="cdm-left">
+            <div class="cdm-title" id="cdmChartTitle">Chart</div>
+            <div class="cdm-subtitle" id="cdmChartSubtitle"></div>
+            <div class="cdm-chart-wrap"><canvas id="cdmChart"></canvas></div>
+          </div>
+          <div class="cdm-right">
+            <div class="cdm-title" id="cdmDataTitle">Data</div>
+            <div class="cdm-subtitle" id="cdmDataSubtitle">Click a chart element to filter</div>
+            <div class="cdm-summary" id="cdmSummary"></div>
+            <div style="flex:1;overflow-y:auto">
+              <table class="cdm-table" id="cdmTable"><thead id="cdmTableHead"></thead><tbody id="cdmTableBody"></tbody></table>
+              <div class="cdm-empty" id="cdmEmpty" style="display:none;">No data for this selection.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(()=>{
+  const A=<%- JSON.stringify(analytics||{}).replace(/</g,'\\u003c') %>;
+  const labels=Object.keys(A.monthlyRevenue||{}).reverse();
+  const months=Object.values(A.monthlyRevenue||{}).reverse();
+  const costs=Object.values(A.monthlyPartsCost||{}).reverse();
+  document.getElementById('exportRevenue')?.addEventListener('click',()=>{
+    const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+    const rows=[['Month','Service Revenue','Online Order Revenue','POS Revenue','POS COGS','Total Revenue','Known Direct Cost'],
+      ...months.map((m,i)=>[labels[i],m.service||0,m.orders||0,m.pos||0,m.posCost||0,m.total||0,(costs[i]||0)+(m.posCost||0)])];
+    const b=new Blob([rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='revenue-intelligence.csv';a.click();URL.revokeObjectURL(a.href);
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+  const pageSize = 10;
+  let rows = Array.from(document.querySelectorAll('.profitability-modal-row'));
+  const pagination = document.getElementById('profitabilityPagination');
+  const pageInfo = document.getElementById('profitabilityPageInfo');
+  let currentPage = 1;
+  function showProfitabilityPage(page) {
+    rows = Array.from(document.querySelectorAll('.profitability-modal-row'));
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    currentPage = Math.min(Math.max(1, page), totalPages);
+    rows.forEach((row, index) => { row.style.display = Math.floor(index / pageSize) + 1 === currentPage ? '' : 'none'; });
+    const first = rows.length ? ((currentPage - 1) * pageSize) + 1 : 0;
+    const last = Math.min(currentPage * pageSize, rows.length);
+    pageInfo.textContent = `Showing ${first}–${last} of ${rows.length} completed services`;
+    pagination.innerHTML = '';
+    const addButton = (label, page, disabled, active) => {
+      const item = document.createElement('li'); item.className = `page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}`;
+      const button = document.createElement('button'); button.className = 'page-link'; button.type = 'button'; button.innerHTML = label;
+      button.disabled = disabled; button.addEventListener('click', () => showProfitabilityPage(page)); item.appendChild(button); pagination.appendChild(item);
+    };
+    addButton('<i class="bi bi-chevron-left"></i>', currentPage - 1, currentPage === 1, false);
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) addButton(String(pageNumber), pageNumber, false, pageNumber === currentPage);
+    addButton('<i class="bi bi-chevron-right"></i>', currentPage + 1, currentPage === totalPages, false);
+  }
+  document.getElementById('serviceProfitabilityModal')?.addEventListener('show.bs.modal', () => showProfitabilityPage(1));
+  showProfitabilityPage(1);
+  window.refreshProfitabilityPagination = () => showProfitabilityPage(1);
+})();
+</script>
+
+<!-- ═══ REVENUE FILTER LOGIC ═══ -->
+<script>
+(() => {
+  const peso = n => '\u20B1' + Math.round(Number(n || 0)).toLocaleString('en-PH');
+  const pct = n => Number(n || 0).toFixed(1) + '%';
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  let charts = {};
+
+  // ── Populate technician dropdown from initial analytics ──
+  const initA = <%- JSON.stringify(analytics || {}).replace(/</g, '\\u003c') %>;
+  if (initA.topTechnicians) {
+    const techSelect = document.getElementById('filterTechnician');
+    initA.topTechnicians.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name;
+      techSelect.appendChild(opt);
+    });
+  }
+
+  // ── Show/hide custom date range ──
+  document.getElementById('filterPeriod').addEventListener('change', function() {
+    const el = document.getElementById('customDateRange');
+    el.style.display = this.value === 'custom' ? 'flex' : 'none';
+  });
+
+  // ── Apply filters ──
+  document.getElementById('applyFilters').addEventListener('click', applyFilters);
+  document.getElementById('resetFilters').addEventListener('click', resetFilters);
+
+  async function applyFilters() {
+    const btn = document.getElementById('applyFilters');
+    btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Loading...';
+
+    const params = new URLSearchParams();
+    const period = document.getElementById('filterPeriod').value;
+    if (period !== 'custom' && period !== 'last_12_months') params.set('period', period);
+    if (period === 'custom') {
+      const from = document.getElementById('filterFrom').value;
+      const to = document.getElementById('filterTo').value;
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+    }
+    const source = document.getElementById('filterSource').value;
+    const serviceType = document.getElementById('filterServiceType').value;
+    const payment = document.getElementById('filterPayment').value;
+    const status = document.getElementById('filterStatus').value;
+    const tech = document.getElementById('filterTechnician').value;
+
+    if (source !== 'all') params.set('source', source);
+    if (serviceType !== 'all') params.set('serviceType', serviceType);
+    if (payment !== 'all') params.set('paymentMethod', payment);
+    if (status !== 'all') params.set('paymentStatus', status);
+    if (tech !== 'all') params.set('technician', tech);
+
+    try {
+      const resp = await fetch(`/api/admin/reports/revenue?${params.toString()}`, { credentials: 'same-origin' });
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        updateDashboard(data.analytics, data.technicians);
+        showFilterStatus(data.filters);
+      } else {
+        alert('Failed to load filtered data.');
+      }
+    } catch (e) {
+      console.error('Filter error:', e);
+      alert('Network error.');
+    }
+
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-funnel me-1"></i> Apply';
+  }
+
+  function resetFilters() {
+    document.getElementById('filterPeriod').value = 'last_12_months';
+    document.getElementById('filterSource').value = 'all';
+    document.getElementById('filterServiceType').value = 'all';
+    document.getElementById('filterPayment').value = 'all';
+    document.getElementById('filterStatus').value = 'all';
+    document.getElementById('filterTechnician').value = 'all';
+    document.getElementById('customDateRange').style.display = 'none';
+    document.getElementById('filterStatusBadge').style.display = 'none';
+    applyFilters();
+  }
+
+  function showFilterStatus(filters) {
+    const badge = document.getElementById('filterStatusBadge');
+    const text = document.getElementById('filterStatusText');
+    const parts = [];
+    if (filters.startDate) parts.push(new Date(filters.startDate).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) + ' – ' + new Date(filters.endDate).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }));
+    if (filters.source !== 'all') parts.push('Source: ' + filters.source);
+    if (filters.serviceType !== 'all') parts.push('Type: ' + filters.serviceType);
+    if (filters.paymentMethod !== 'all') parts.push('Payment: ' + filters.paymentMethod);
+    if (filters.paymentStatus !== 'all') parts.push('Status: ' + filters.paymentStatus);
+    if (filters.technician !== 'all') parts.push('Technician filtered');
+    text.textContent = parts.length ? 'Active filters: ' + parts.join(' · ') : 'Showing all data (rolling 12 months)';
+    badge.style.display = 'block';
+  }
+
+  // ── Update dashboard with new data ──
+  function updateDashboard(A, technicians) {
+    currentA = A;
+    // Update KPIs — enterprise card style matching Service Report
+    const kpiHtml = `
+      <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon blue"><i class="bi bi-cash-stack"></i></div>
+          <span class="kpi-enterprise-badge blue">${A.totalTransactions||0} txns</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Approved Booked Value</p>
+          <div class="kpi-enterprise-value"><span id="kpiTotalRevenue">${peso(A.totalRevenue)}</span></div>
+          <small style="color:#64748b;">Approved services/projects + active orders + completed POS</small>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkRevenue"></canvas></div>
+      </div>
+      <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="50">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon cyan"><i class="bi bi-bank"></i></div>
+          <span class="kpi-enterprise-badge cyan">${pct(A.collectionRate)}</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Cash Recorded</p>
+          <div class="kpi-enterprise-value"><span id="kpiCashRecorded">${peso(A.paymentRevenue)}</span></div>
+          <small style="color:#64748b;">Accepted payments + completed POS</small>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkCash"></canvas></div>
+      </div>
+      <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Outstanding Value</p>
+          <div class="kpi-enterprise-value"><span style="color:#d97706">${peso(A.outstandingValue)}</span></div>
+          <small style="color:#64748b;">Approved value − collected cash</small>
+        </div>
+      </div>
+      <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon red"><i class="bi bi-boxes"></i></div>
+          <span class="kpi-enterprise-badge red">${pct(A.directCostCoverage || (A.totalRevenue > 0 ? (A.totalPartsCost / A.totalRevenue * 100) : 0))}</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Known Direct Costs</p>
+          <div class="kpi-enterprise-value"><span>${peso(A.totalPartsCost)}</span></div>
+          <small style="color:#64748b;">Parts & tool usage</small>
+        </div>
+      </div>
+      <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon green"><i class="bi bi-graph-up-arrow"></i></div>
+          <span class="kpi-enterprise-badge green">${A.grossProfit >= 0 ? 'Profitable' : 'Check costs'}</span>
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Indicative Contribution</p>
+          <div class="kpi-enterprise-value"><span style="color:${A.grossProfit >= 0 ? '#059669' : '#dc2626'}">${peso(A.grossProfit)}</span></div>
+          <small style="color:#64748b;">${pct(A.grossProfitMargin)} indicative margin</small>
+        </div>
+      </div>
+      <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
+        <div class="kpi-enterprise-top">
+          <div class="kpi-enterprise-icon purple"><i class="bi bi-receipt"></i></div>
+          ${typeof A.growthRate === 'number' || typeof A.growthRate === 'string' ? `<span class="kpi-enterprise-badge ${Number(A.growthRate) >= 0 ? 'green' : 'red'}"><i class="bi ${Number(A.growthRate) >= 0 ? 'bi-arrow-up' : 'bi-arrow-down'}"></i> ${Math.abs(Number(A.growthRate||0)).toFixed(1)}%</span>` : ''}
+        </div>
+        <div class="kpi-enterprise-body">
+          <p class="kpi-enterprise-label">Average Transaction</p>
+          <div class="kpi-enterprise-value"><span id="kpiAvgTxn">${peso(A.avgTransactionValue)}</span></div>
+          <small style="color:#64748b;">Across all sources</small>
+        </div>
+        <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkAvgTxn"></canvas></div>
+      </div>`;
+    document.getElementById('kpiGrid').innerHTML = kpiHtml;
+
+    // Update source cards
+    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(A.serviceRevenue)}</div><div class="rr-meta">${A.serviceTransactions || 0} bookings · ${peso(A.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, A.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(A.serviceShare)} of combined revenue · Core ${peso(A.coreRevenue)} · Repair ${peso(A.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Online Product Orders</div><div class="rr-source-value">${peso(A.orderRevenue)}</div><div class="rr-meta">${A.orderTransactions || 0} orders · ${peso(A.avgOrderValue)} average order value</div><div class="rr-progress"><span style="width:${Math.min(100, A.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(A.orderShare)} of combined revenue · Products ${peso(A.productRevenue)} · Delivery ${peso(A.deliveryRevenue)} · Installation ${peso(A.installationRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Point of Sale</div><div class="rr-source-value">${peso(A.posRevenue)}</div><div class="rr-meta">${A.posTransactions || 0} completed sales · ${peso(A.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, A.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(A.posShare)} of combined revenue · COGS ${peso(A.posCost)} · Profit ${peso(A.posProfit)} (${pct(A.posMargin)})</div></article>`;
+    document.querySelector('.rr-source').innerHTML = sourceCards;
+
+    const collectionBody = document.getElementById('collectionHealthBody');
+    if (collectionBody) collectionBody.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px"><div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:10px"><div class="rr-label" style="color:#059669">Collected</div><div class="rr-value" style="color:#059669">${peso(A.paymentRevenue)}</div></div><div style="text-align:center;padding:12px;background:#fefce8;border-radius:10px"><div class="rr-label" style="color:#92400e">Outstanding</div><div class="rr-value" style="color:#d97706">${peso(A.outstandingValue)}</div></div><div style="text-align:center;padding:12px;background:#eff6ff;border-radius:10px"><div class="rr-label" style="color:#1d4ed8">Approved Value</div><div class="rr-value" style="color:#2563eb">${peso(A.totalRevenue)}</div></div></div><div style="font-size:.78rem;color:#475569;line-height:1.6"><div><strong>Collection Rate:</strong> ${pct(A.collectionRate)} of approved booked value has an accepted payment record.</div><div><strong>GCash:</strong> ${peso(A.gcashRevenue)} · <strong>Cash/COD:</strong> ${peso(A.codRevenue)} · <strong>Bank:</strong> ${peso(A.bankRevenue)}</div><div><strong>Outstanding Receivable:</strong> ${peso(A.outstandingValue)}</div></div>`;
+
+    const technicianBody = document.getElementById('topTechniciansBody');
+    if (technicianBody) technicianBody.innerHTML = (A.topTechnicians || []).length
+      ? A.topTechnicians.map(t => `<tr><td class="fw-bold">${esc(t.name)}</td><td class="text-center">${Number(t.bookings||0)}</td><td class="text-end">${peso(t.revenue)}</td><td class="text-end">${peso(t.partsCost)}</td><td class="text-end fw-bold ${Number(t.profit||0)>=0?'text-success':'text-danger'}">${peso(t.profit)}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="rr-empty">No technician value in this period.</td></tr>';
+
+    const transactionBody = document.getElementById('recentTransactionsBody');
+    if (transactionBody) transactionBody.innerHTML = (A.recentTransactions || []).length
+      ? A.recentTransactions.map(t => { const type=String(t.type||'service'); const status=String(t.status||'pending'); return `<tr><td>${new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}</td><td><span class="rr-type ${type==='order'?'order':type==='pos'?'pos':''}">${esc(type)}</span></td><td class="fw-bold">${esc(t.reference||'—')}</td><td>${esc(t.customer||'Unknown')}</td><td>${esc(String(t.method||'—').replaceAll('_',' '))}</td><td><span class="rr-status ${esc(status)}">${esc(status.replaceAll('_',' '))}</span></td><td class="text-end fw-bold">${peso(t.amount)}</td></tr>`; }).join('')
+      : '<tr><td colspan="7" class="rr-empty">No commercial activity available.</td></tr>';
+
+    // Update cost breakdown summary
+    const costGrid = document.getElementById('costBreakdownGrid');
+    if (costGrid) {
+      const C = A.serviceCosts || {};
+      costGrid.innerHTML = `
+        <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Service Revenue</div><div class="rr-value">${peso(C.revenue)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Repair Parts</div><div class="rr-value">${peso(C.partsCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Consumables</div><div class="rr-value">${peso(C.consumablesCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Local Purchases</div><div class="rr-value">${peso(C.localPurchaseCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Actual Direct Labor</div><div class="rr-value">${peso(C.laborCost)}</div><div class="rr-meta">Recorded internal cost only</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:${(C.grossProfit||0)>=0?'#059669':'#dc2626'};">${peso(C.grossProfit)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Gross Margin</div><div class="rr-value">${pct(C.grossProfitMargin)}</div></div>`;
+    }
+
+    // Update service profitability deep dive
+    const profitBody = document.getElementById('serviceProfitabilityBody');
+    const completedServiceCosts = A.completedServiceCosts || [];
+    if (profitBody) {
+      profitBody.innerHTML = completedServiceCosts.length
+        ? completedServiceCosts.slice(0, 5).map(s => `<tr><td><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div>Technician: ${esc(s.technician)} · Duration: ${Number(s.laborHours||0).toFixed(1)}h</div><div>Consumables: ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div><div>Repair parts: ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('')
+        : '<tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr>';
+    }
+    const profitBadge = document.getElementById('serviceProfitabilityBadge');
+    if (profitBadge) profitBadge.textContent = `Latest 5 of ${completedServiceCosts.length}`;
+    const viewAllBtn = document.getElementById('serviceProfitabilityViewAllBtn');
+    if (viewAllBtn) viewAllBtn.style.display = completedServiceCosts.length > 5 ? 'inline-flex' : 'none';
+    const modalBody = document.getElementById('serviceProfitabilityRows');
+    if (modalBody) {
+      modalBody.innerHTML = completedServiceCosts.map((s, index) => `<tr class="profitability-modal-row" data-row-index="${index}"><td class="ps-4"><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> ${esc(s.technician)} · <strong>Duration:</strong> ${Number(s.laborHours||0).toFixed(1)}h</div><div><strong>Consumables:</strong> ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div><div><strong>Repair parts:</strong> ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end pe-4 fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('');
+      if (window.refreshProfitabilityPagination) window.refreshProfitabilityPagination();
+    }
+
+    // Update top POS products
+    const posBody = document.getElementById('topPosProductsBody');
+    if (posBody) {
+      const topPosProducts = A.topPosProducts || [];
+      posBody.innerHTML = topPosProducts.length
+        ? topPosProducts.slice(0, 5).map(p => `<tr><td class="fw-bold">${esc(p.name)}<div class="rr-meta">${esc(p.category)}</div></td><td class="text-center">${p.quantity}</td><td class="text-end">${peso(p.revenue)}</td><td class="text-end">${peso(p.cost)}</td><td class="text-end fw-bold ${Number(p.profit||0)>=0?'text-success':'text-danger'}">${peso(p.profit)}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="rr-empty">No completed POS sales in this period.</td></tr>';
+    }
+    const posBadge = document.getElementById('posSummaryBadge');
+    if (posBadge) posBadge.textContent = `${A.posTransactions||0} sales · ${peso(A.posRevenue)} total`;
+
+    // Update product intelligence section
+    updateProductSection(A);
+
+    // Update charts
+    updateCharts(A);
+    renderSparklines(A);
+
+    // Update technician list if provided
+    if (technicians) {
+      const techSelect = document.getElementById('filterTechnician');
+      const currentVal = techSelect.value;
+      techSelect.innerHTML = '<option value="all">All Technicians</option>';
+      technicians.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id; opt.textContent = t.name;
+        techSelect.appendChild(opt);
+      });
+      techSelect.value = currentVal;
+    }
+  }
+
+  // ── Update product intelligence section ──
+  function updateProductSection(A) {
+    // Update product KPIs (enterprise style)
+    const totalProdRev = A.totalProductRevenue || 1;
+    const productKpiGrid = document.getElementById('productKpiGrid');
+    if (productKpiGrid) {
+      productKpiGrid.innerHTML = `
+        <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="0">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon cyan"><i class="bi bi-box-seam"></i></div>
+            <span class="kpi-enterprise-badge cyan">${Number(A.totalProductUnits||0).toLocaleString()} units</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Total Units Sold</p>
+            <div class="kpi-enterprise-value">${Number(A.totalProductUnits||0).toLocaleString()}</div>
+            <small style="color:#64748b;">Across online orders + POS</small>
+          </div>
+        </div>
+        <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="50">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon blue"><i class="bi bi-cash-stack"></i></div>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Product Revenue</p>
+            <div class="kpi-enterprise-value">${peso(A.totalProductRevenue)}</div>
+            <small style="color:#64748b;">Combined order + POS product sales</small>
+          </div>
+        </div>
+        <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="100">
+          <div class="kpi-enterprise-top">
+            <div class="kpi-enterprise-icon green"><i class="bi bi-bag-check"></i></div>
+            <span class="kpi-enterprise-badge green">${A.orderTransactions||0} orders</span>
+          </div>
+          <div class="kpi-enterprise-body">
+            <p class="kpi-enterprise-label">Online Order Units</p>
+            <div class="kpi-enterprise-value">${A.orderTransactions||0}</div>
+            <small style="color:#64748b;">${peso(A.orderRevenue)} revenue</small>
+          </div>
+        </div>`;
+    }
+
+    // Update combined products table
+    document.querySelectorAll('.rr-equal .rr-table tbody').forEach(tbody => {
+      const headers = tbody.closest('table')?.querySelector('thead');
+      if (headers && headers.textContent.includes('Channel')) {
+        tbody.innerHTML = (A.combinedTopProducts||[]).slice(0,10).map((p,i) => `
+          <tr>
+            <td><span class="rr-badge" style="background:${i<3?'rgba(8,145,178,0.1);color:#0891b2':'#f1f5f9;color:#475569'};">${i+1}</span></td>
+            <td class="fw-bold">${esc(p.name)}<div class="rr-meta">${esc(p.category)}</div></td>
+            <td><span class="rr-badge" style="background:${p.channel==='POS'?'rgba(245,158,11,0.1);color:#d97706':'rgba(16,185,129,0.1);color:#059669'};">${esc(p.channel)}</span></td>
+            <td class="text-center">${p.quantity}</td>
+            <td class="text-end fw-bold">${peso(p.revenue)}</td>
+            <td class="text-end">${pct(p.revenue/totalProdRev*100)}</td>
+          </tr>`).join('') || '<tr><td colspan="6" class="rr-empty">No product sales in this period.</td></tr>';
+      }
+    });
+
+    // Update order products table
+    document.querySelectorAll('.rr-equal .rr-table tbody').forEach(tbody => {
+      const headers = tbody.closest('table')?.querySelector('thead');
+      if (headers && headers.textContent.includes('Capacity')) {
+        tbody.innerHTML = (A.topOrderProducts||[]).slice(0,8).map(p => `
+          <tr>
+            <td class="fw-bold">${esc(p.name)}</td>
+            <td><span class="rr-badge">${esc(p.brand)}</span></td>
+            <td class="text-center">${esc(p.capacity)}</td>
+            <td class="text-center">${p.quantity}</td>
+            <td class="text-end fw-bold">${peso(p.revenue)}</td>
+            <td class="text-end">${peso(p.avgUnitPrice)}</td>
+          </tr>`).join('') || '<tr><td colspan="6" class="rr-empty">No order products in this period.</td></tr>';
+      }
+    });
+
+    // Update capacity table
+    document.querySelectorAll('.rr-equal .rr-table tbody').forEach(tbody => {
+      const headers = tbody.closest('table')?.querySelector('thead');
+      if (headers && headers.textContent.includes('Orders') && headers.textContent.includes('Capacity')) {
+        const capTotal = (A.orderCapacityAnalysis||[]).reduce((s,c) => s + c.revenue, 0) || 1;
+        tbody.innerHTML = (A.orderCapacityAnalysis||[]).map(c => `
+          <tr>
+            <td class="fw-bold">${esc(c.capacity)}</td>
+            <td class="text-center">${c.quantity}</td>
+            <td class="text-center">${c.orders}</td>
+            <td class="text-end fw-bold">${peso(c.revenue)}</td>
+            <td class="text-end">${pct(c.revenue/capTotal*100)}</td>
+          </tr>`).join('') || '<tr><td colspan="5" class="rr-empty">No capacity data.</td></tr>';
+      }
+    });
+  }
+
+  // ── Chart management ──
+  function destroyCharts() {
+    Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+    ['revenueTrend', 'sourceMix', 'paymentMix', 'posPaymentMix', 'marginTrend', 'serviceEconomics', 'productChannelMix', 'brandRevenue', 'fulfillmentMix', 'kpiSparkRevenue', 'kpiSparkCash', 'kpiSparkAvgTxn'].forEach(id => {
+      const existing = typeof Chart !== 'undefined' ? Chart.getChart(id) : null;
+      if (existing) { try { existing.destroy(); } catch (e) {} }
+    });
+    charts = {};
+  }
+
+  function updateCharts(A) {
+    destroyCharts();
+    const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
+    Chart.defaults.font.family = 'Inter,sans-serif';
+    Chart.defaults.color = '#64748b';
+
+    const labels = Object.keys(A.monthlyRevenue || {}).reverse();
+    const months = Object.values(A.monthlyRevenue || {}).reverse();
+    const costs = Object.values(A.monthlyPartsCost || {}).reverse();
+    const scales = {
+      x: { stacked: false, grid: { display: false }, ticks: { font: { size: 10 } } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => '\u20B1' + Number(v).toLocaleString() } }
+    };
+    const legendOpts = { labels: { usePointStyle: true, boxWidth: 7, font: { size: 11 } } };
+    const pesoFmt = v => '\u20B1' + Number(v).toLocaleString('en-PH');
+    const tooltipFmt = { callbacks: { label: ctx => `${ctx.dataset.label || ctx.label}: ${pesoFmt(ctx.parsed.y ?? ctx.parsed)}` } };
+
+    charts.revenueTrend = new Chart(document.getElementById('revenueTrend'), {
+      type: 'bar', data: { labels, datasets: [
+        { label: 'Services', data: months.map(x => x.service || 0), backgroundColor: '#2563eb', borderRadius: 5 },
+        { label: 'Online Orders', data: months.map(x => x.orders || 0), backgroundColor: '#10b981', borderRadius: 5 },
+        { label: 'POS', data: months.map(x => x.pos || 0), backgroundColor: '#f59e0b', borderRadius: 5 },
+      ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.revenueTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales: { x: { ...scales.x, stacked: true }, y: { ...scales.y, stacked: true } }, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
+    });
+
+    function donut(id, lbls, data) {
+      const cfg = chartConfigs[id];
+      charts[id] = new Chart(document.getElementById(id), {
+        type: 'doughnut', data: { labels: lbls, datasets: [{ data, backgroundColor: colors, borderColor: '#fff', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: cfg ? (e, els) => { if (els.length > 0) showChartDetail(cfg, els[0].index, els[0].datasetIndex); } : undefined, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
+      });
+    }
+
+    donut('sourceMix', ['Services', 'Online Orders', 'POS'], [A.serviceRevenue || 0, A.orderRevenue || 0, A.posRevenue || 0]);
+    donut('paymentMix', ['GCash', 'COD / Cash', 'Bank', 'Other'], [A.gcashRevenue || 0, A.codRevenue || 0, A.bankRevenue || 0, A.otherRevenue || 0]);
+
+    const posMethods = A.posPaymentMethods || {};
+    donut('posPaymentMix', Object.keys(posMethods).map(x => x.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())), Object.values(posMethods));
+
+    charts.marginTrend = new Chart(document.getElementById('marginTrend'), {
+      type: 'line', data: { labels, datasets: [
+        { label: 'Revenue', data: months.map(x => x.total || 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
+        { label: 'Known Direct Cost', data: months.map((x, i) => (costs[i] || 0) + (x.posCost || 0)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
+      ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.marginTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
+    });
+
+    // Service economics chart — computed from completedServiceCosts for consistency with modal table
+    const completedByCat = { core: [], repair: [], mix: [] };
+    (A.completedServiceCosts || []).forEach(s => { if (completedByCat[s.serviceCategory]) completedByCat[s.serviceCategory].push(s); });
+    const catRevenue = c => completedByCat[c].reduce((sum, s) => sum + (s.revenue || 0), 0);
+    const catPartsCost = c => completedByCat[c].reduce((sum, s) => sum + (s.partsCost || 0), 0);
+    charts.serviceEconomics = new Chart(document.getElementById('serviceEconomics'), {
+      type: 'bar', data: { labels: ['Core', 'Repair', 'Mix'], datasets: [
+        { label: 'Revenue', data: [catRevenue('core'), catRevenue('repair'), catRevenue('mix')], backgroundColor: '#2563eb', borderRadius: 5 },
+        { label: 'Known Parts Cost', data: [catPartsCost('core'), catPartsCost('repair'), catPartsCost('mix')], backgroundColor: '#ef4444', borderRadius: 5 },
+      ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.serviceEconomics, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
+    });
+
+    // Product channel mix
+    const productChannelEl = document.getElementById('productChannelMix');
+    if (productChannelEl) {
+      const orderProdRev = (A.topOrderProducts || []).reduce((s, p) => s + p.revenue, 0);
+      const posProdRev = (A.topPosProducts || []).reduce((s, p) => s + p.revenue, 0);
+      charts.productChannelMix = new Chart(productChannelEl, {
+        type: 'doughnut', data: { labels: ['Online Orders', 'POS Sales'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.productChannelMix, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
+      });
+    }
+
+    // Brand revenue chart
+    const brandEl = document.getElementById('brandRevenue');
+    if (brandEl && A.orderBrandAnalysis && A.orderBrandAnalysis.length) {
+      charts.brandRevenue = new Chart(brandEl, {
+        type: 'bar', data: {
+          labels: A.orderBrandAnalysis.map(b => b.brand),
+          datasets: [
+            { label: 'Revenue', data: A.orderBrandAnalysis.map(b => b.revenue), backgroundColor: '#10b981', borderRadius: 5 },
+            { label: 'Units', data: A.orderBrandAnalysis.map(b => b.quantity), backgroundColor: '#06b6d4', borderRadius: 5, yAxisID: 'y1' }
+          ]
+        }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.brandRevenue, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => '\u20B1' + Number(v).toLocaleString() } }, y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: legendOpts, tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'Units' ? `${ctx.dataset.label}: ${ctx.parsed.y} units` : `${ctx.dataset.label}: ${pesoFmt(ctx.parsed.y)}` } } } }
+      });
+    }
+
+    // Fulfillment mix chart
+    const fulfillEl = document.getElementById('fulfillmentMix');
+    if (fulfillEl && A.orderFulfillmentMap) {
+      const fm = A.orderFulfillmentMap;
+      charts.fulfillmentMix = new Chart(fulfillEl, {
+        type: 'doughnut', data: {
+          labels: ['Delivery Only', 'Delivery + Installation', 'Customer Pickup'],
+          datasets: [{ data: [fm.delivery_only?.revenue || 0, fm.delivery_installation?.revenue || 0, fm.customer_pickup?.revenue || 0], backgroundColor: ['#2563eb', '#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }]
+        }, options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.fulfillmentMix, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
+      });
+    }
+  }
+
+  // ── Render KPI sparklines ──
+  function renderSparklines(A) {
+    const months = Object.values(A.monthlyRevenue || {}).reverse();
+    const sparkData = {
+      kpiSparkRevenue: months.map(x => x.total || 0),
+      kpiSparkCash: months.map(x => (x.service || 0) * 0.7 + (x.pos || 0) * 0.3),
+      kpiSparkAvgTxn: months.map(x => (x.total || 0) / Math.max(1, (x.service || 0) + (x.orders || 0) + (x.pos || 0))),
+    };
+    const sparkColors = { kpiSparkRevenue: '#2563eb', kpiSparkCash: '#06b6d4', kpiSparkAvgTxn: '#8b5cf6' };
+    Object.entries(sparkData).forEach(([id, data]) => {
+      const el = document.getElementById(id);
+      if (!el || !data.length) return;
+      const existing = Chart.getChart(el);
+      if (existing) existing.destroy();
+      new Chart(el, {
+        type: 'line',
+        data: { labels: data.map((_, i) => i), datasets: [{ data, borderColor: sparkColors[id], borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true, backgroundColor: sparkColors[id] + '15' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, elements: { line: { borderCapStyle: 'round' } } }
+      });
+    });
+  }
+
+  // ── Chart Detail Modal ──
+  let currentA = initA;
+  let cdmChart = null;
+  let cdmModal = null;
+
+  function pesoFmt(v) { return '\u20B1' + Math.round(Number(v || 0)).toLocaleString('en-PH'); }
+
+  function showChartDetail(config, initialIndex, initialDataset) {
+    if (!cdmModal) {
+      try { cdmModal = new bootstrap.Modal(document.getElementById('chartDetailModal')); } catch(e) { console.error('Modal init error:', e); return; }
+    }
+    document.getElementById('cdmTitle').innerHTML = `<i class="bi bi-${config.icon} me-2"></i>${config.title}`;
+    document.getElementById('cdmSubtitle').textContent = config.subtitle;
+    document.getElementById('cdmChartTitle').textContent = config.chartTitle;
+    document.getElementById('cdmChartSubtitle').textContent = config.chartSubtitle;
+    document.getElementById('cdmDataTitle').textContent = config.dataTitle;
+    document.getElementById('cdmDataSubtitle').textContent = 'Click a chart element to filter';
+    document.getElementById('cdmTableHead').innerHTML = `<tr>${config.headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    if (cdmChart) { try { cdmChart.destroy(); } catch(e){} }
+    const chartOpts = {
+      responsive: true, maintainAspectRatio: false,
+      onClick: (e, els) => {
+        if (els.length > 0) updateDetailTable(config, els[0].index, els[0].datasetIndex);
+        else updateDetailTable(config, null, null);
+      },
+      onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; },
+      plugins: {
+        legend: { labels: { usePointStyle: true, boxWidth: 7, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => config.tooltipFn ? config.tooltipFn(ctx) : `${ctx.dataset.label || ctx.label}: ${pesoFmt(ctx.parsed.y ?? ctx.parsed)}` } }
+      }
+    };
+    if (config.scales) chartOpts.scales = config.scales;
+    if (config.cutout) chartOpts.cutout = config.cutout;
+
+    cdmChart = new Chart(document.getElementById('cdmChart'), { type: config.type, data: typeof config.chartData === 'function' ? config.chartData() : config.chartData, options: chartOpts });
+    const initIdx = (initialIndex !== undefined && initialIndex !== null) ? initialIndex : null;
+    const initDs = (initialDataset !== undefined && initialDataset !== null) ? initialDataset : null;
+    updateDetailTable(config, initIdx, initDs);
+    if (cdmModal) {
+      cdmModal.show();
+      document.getElementById('chartDetailModal').addEventListener('shown.bs.modal', function onShown() {
+        if (cdmChart) cdmChart.resize();
+        document.getElementById('chartDetailModal').removeEventListener('shown.bs.modal', onShown);
+      }, { once: true });
+    }
+  }
+
+  function updateDetailTable(config, filterIndex, datasetIndex) {
+    const rows = config.getRows(filterIndex, datasetIndex, currentA);
+    const summary = config.getSummary(filterIndex, datasetIndex, currentA);
+    const summaryEl = document.getElementById('cdmSummary');
+    if (summary && summary.length) {
+      summaryEl.innerHTML = summary.map(s => `<div class="cdm-stat"><div class="cdm-stat-label">${s.label}</div><div class="cdm-stat-value">${s.value}</div></div>`).join('');
+      summaryEl.style.display = 'grid';
+    } else { summaryEl.style.display = 'none'; }
+
+    const tbody = document.getElementById('cdmTableBody');
+    const empty = document.getElementById('cdmEmpty');
+    if (rows && rows.length) {
+      tbody.innerHTML = rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('');
+      empty.style.display = 'none';
+      document.getElementById('cdmTable').style.display = '';
+    } else {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('cdmTable').style.display = 'none';
+    }
+
+    if (filterIndex !== null) {
+      document.getElementById('cdmDataSubtitle').textContent = `Filtered: ${config.getFilterLabel(filterIndex, datasetIndex, currentA)}`;
+    } else {
+      document.getElementById('cdmDataSubtitle').textContent = 'Click a chart element to filter';
+    }
+  }
+
+  // ── Chart detail configs ──
+  const chartConfigs = {
+    revenueTrend: {
+      icon: 'bar-chart-line', title: 'Monthly Approved Value', subtitle: 'Revenue by business line — click a month to see transactions',
+      chartTitle: 'Monthly Revenue Breakdown', chartSubtitle: 'Services · Online Orders · POS',
+      dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Method','Amount'],
+      type: 'bar',
+      chartData: () => {
+        const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
+        const months = Object.values(currentA.monthlyRevenue || {}).reverse();
+        return { labels, datasets: [
+          { label: 'Services', data: months.map(x => x.service||0), backgroundColor: '#2563eb', borderRadius: 5 },
+          { label: 'Online Orders', data: months.map(x => x.orders||0), backgroundColor: '#10b981', borderRadius: 5 },
+          { label: 'POS', data: months.map(x => x.pos||0), backgroundColor: '#f59e0b', borderRadius: 5 },
+        ]};
+      },
+      scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } }, y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
+      getFilterLabel: (i) => { const labels = Object.keys(currentA.monthlyRevenue || {}).reverse(); return labels[i] || 'Unknown'; },
+      getSummary: (i) => {
+        const months = Object.values(currentA.monthlyRevenue || {}).reverse();
+        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Transactions',value:(currentA.totalTransactions||0)}];
+        const m = months[i] || {};
+        return [{label:'Month Revenue',value:pesoFmt(m.total||0)},{label:'Services',value:pesoFmt(m.service||0)},{label:'Orders',value:pesoFmt(m.orders||0)},{label:'POS',value:pesoFmt(m.pos||0)}];
+      },
+      getRows: (i) => {
+        const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
+        let txns = currentA.recentTransactions || [];
+        if (i !== null) { const monthKey = labels[i]; txns = txns.filter(t => { const d = new Date(t.date); const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); return monthKey === key; }); }
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
+      }
+    },
+    sourceMix: {
+      icon: 'pie-chart', title: 'Business Mix', subtitle: 'Revenue share by source — click a slice to see transactions',
+      chartTitle: 'Revenue by Source', chartSubtitle: 'Services · Online Orders · POS',
+      dataTitle: 'Transactions', headers: ['Date','Reference','Customer','Method','Amount'],
+      type: 'doughnut', cutout: '68%',
+      chartData: () => ({ labels: ['Services','Online Orders','POS'], datasets: [{ data: [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
+      getFilterLabel: (i) => ['Services','Online Orders','POS'][i] || 'All',
+      getSummary: (i) => {
+        const vals = [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0];
+        const counts = [currentA.serviceTransactions||0, currentA.orderTransactions||0, currentA.posTransactions||0];
+        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Total Txns',value:(currentA.totalTransactions||0)}];
+        return [{label:'Revenue',value:pesoFmt(vals[i])},{label:'Transactions',value:counts[i]},{label:'Avg',value:pesoFmt(vals[i]/Math.max(1,counts[i]))}];
+      },
+      getRows: (i) => {
+        const types = ['service','order','pos'];
+        let txns = currentA.recentTransactions || [];
+        if (i !== null) txns = txns.filter(t => t.type === types[i]);
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
+      }
+    },
+    paymentMix: {
+      icon: 'credit-card', title: 'Payment Method Mix', subtitle: 'Recorded payments by method — click a slice to see transactions',
+      chartTitle: 'Payments by Method', chartSubtitle: 'GCash · COD/Cash · Bank · Other',
+      dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Amount'],
+      type: 'doughnut', cutout: '68%',
+      chartData: () => ({ labels: ['GCash','COD / Cash','Bank','Other'], datasets: [{ data: [currentA.gcashRevenue||0, currentA.codRevenue||0, currentA.bankRevenue||0, currentA.otherRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'], borderColor: '#fff', borderWidth: 3 }] }),
+      getFilterLabel: (i) => ['GCash','COD / Cash','Bank','Other'][i] || 'All',
+      getSummary: (i) => {
+        const vals = [currentA.gcashRevenue||0, currentA.codRevenue||0, currentA.bankRevenue||0, currentA.otherRevenue||0];
+        if (i === null) return [{label:'Total Collected',value:pesoFmt(currentA.paymentRevenue)},{label:'Collection Rate',value:pct(currentA.collectionRate)}];
+        return [{label:'Method Total',value:pesoFmt(vals[i])},{label:'Share',value:pct(vals[i]/Math.max(1,currentA.paymentRevenue)*100)}];
+      },
+      getRows: (i) => {
+        const methodGroups = [['gcash'],['cash'],['bank'],['other']];
+        let txns = currentA.recentTransactions || [];
+        if (i !== null) { const target = methodGroups[i]; txns = txns.filter(t => target.includes(String(t.method||'other').toLowerCase())); }
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), pesoFmt(t.amount)]);
+      }
+    },
+    posPaymentMix: {
+      icon: 'credit-card', title: 'POS Payment Mix', subtitle: 'Counter sales payment methods — click a slice to see POS sales',
+      chartTitle: 'POS Payment Methods', chartSubtitle: 'Payment channel distribution',
+      dataTitle: 'POS Products', headers: ['Product','Category','Qty','Revenue','Profit'],
+      type: 'doughnut', cutout: '68%',
+      chartData: () => {
+        const pm = currentA.posPaymentMethods || {};
+        const labels = Object.keys(pm).map(x => x.replaceAll('_',' ').replace(/\b\w/g, c => c.toUpperCase()));
+        return { labels, datasets: [{ data: Object.values(pm), backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ef4444'], borderColor: '#fff', borderWidth: 3 }] };
+      },
+      getFilterLabel: (i) => { const pm = currentA.posPaymentMethods || {}; return Object.keys(pm).map(x => x.replaceAll('_',' ').replace(/\b\w/g, c => c.toUpperCase()))[i] || 'All'; },
+      getSummary: (i) => {
+        const prods = currentA.topPosProducts || [];
+        if (i === null) return [{label:'POS Revenue',value:pesoFmt(currentA.posRevenue)},{label:'POS Sales',value:(currentA.posTransactions||0)},{label:'Margin',value:pct(currentA.posMargin)}];
+        return [{label:'Products',value:prods.length},{label:'POS Revenue',value:pesoFmt(currentA.posRevenue)}];
+      },
+      getRows: (i) => {
+        const prods = currentA.topPosProducts || [];
+        return prods.map(p => [esc(p.name), esc(p.category||''), p.quantity, pesoFmt(p.revenue), `<span style="color:${(p.profit||0)>=0?'#059669':'#dc2626'}">${pesoFmt(p.profit)}</span>`]);
+      }
+    },
+    marginTrend: {
+      icon: 'graph-up-arrow', title: 'Revenue vs Cost Trend', subtitle: 'Monthly revenue and direct cost — click a month for breakdown',
+      chartTitle: 'Revenue vs Known Direct Cost', chartSubtitle: 'Monthly trend',
+      dataTitle: 'Monthly Breakdown', headers: ['Month','Revenue','Direct Cost','Contribution'],
+      type: 'line',
+      chartData: () => {
+        const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
+        const months = Object.values(currentA.monthlyRevenue || {}).reverse();
+        const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
+        return { labels, datasets: [
+          { label: 'Revenue', data: months.map(x => x.total||0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
+          { label: 'Known Direct Cost', data: months.map((x,i) => (costs[i]||0) + (x.posCost||0)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
+        ]};
+      },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
+      getFilterLabel: (i) => { const labels = Object.keys(currentA.monthlyRevenue || {}).reverse(); return labels[i] || 'Unknown'; },
+      getSummary: (i) => {
+        const months = Object.values(currentA.monthlyRevenue || {}).reverse();
+        const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
+        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Total Cost',value:pesoFmt(currentA.totalPartsCost)},{label:'Contribution',value:pesoFmt(currentA.grossProfit)}];
+        const m = months[i]||{}; const c = (costs[i]||0) + (m.posCost||0);
+        return [{label:'Revenue',value:pesoFmt(m.total||0)},{label:'Direct Cost',value:pesoFmt(c)},{label:'Contribution',value:pesoFmt((m.total||0)-c)}];
+      },
+      getRows: (i) => {
+        const months = Object.values(currentA.monthlyRevenue || {}).reverse();
+        const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
+        if (i === null) {
+          const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
+          return labels.map((l, idx) => { const m = months[idx]||{}; const c = (costs[idx]||0)+(m.posCost||0); return [l, pesoFmt(m.total||0), pesoFmt(c), `<span style="color:${(m.total||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.total||0)-c)}</span>`]; });
+        }
+        const m = months[i]||{}; const c = (costs[i]||0) + (m.posCost||0);
+        return [
+          ['Service Revenue', pesoFmt(m.service||0), '', ''],
+          ['Online Order Revenue', pesoFmt(m.orders||0), '', ''],
+          ['POS Revenue', pesoFmt(m.pos||0), '', ''],
+          ['POS COGS', '', pesoFmt(m.posCost||0), ''],
+          ['Service Parts Cost', '', pesoFmt(costs[i]||0), ''],
+          ['Total Revenue', pesoFmt(m.total||0), '', ''],
+          ['Total Direct Cost', '', pesoFmt(c), ''],
+          ['Contribution', '', '', `<strong style="color:${(m.total||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.total||0)-c)}</strong>`]
+        ];
+      }
+    },
+    serviceEconomics: {
+      icon: 'diagram-3', title: 'Service Type Economics', subtitle: 'Revenue and parts cost by service type — click a bar for services',
+      chartTitle: 'Core vs Repair vs Mix', chartSubtitle: 'Revenue vs Known Parts Cost',
+      dataTitle: 'Completed Services', headers: ['Service','Customer','Revenue','Parts','Gross Profit'],
+      type: 'bar',
+      chartData: () => {
+        const cats = ['core','repair','mix'];
+        const svcs = currentA.completedServiceCosts || [];
+        const byCat = c => svcs.filter(s => s.serviceCategory === c);
+        const rev = c => byCat(c).reduce((sum, s) => sum + (s.revenue||0), 0);
+        const cost = c => byCat(c).reduce((sum, s) => sum + (s.partsCost||0), 0);
+        return { labels: ['Core','Repair','Mix'], datasets: [
+          { label: 'Revenue', data: cats.map(rev), backgroundColor: '#2563eb', borderRadius: 5 },
+          { label: 'Known Parts Cost', data: cats.map(cost), backgroundColor: '#ef4444', borderRadius: 5 },
+        ]};
+      },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
+      getFilterLabel: (i) => ['Core','Repair','Mix'][i] || 'All',
+      getSummary: (i) => {
+        const cats = ['core','repair','mix'];
+        let svcs = currentA.completedServiceCosts || [];
+        if (i !== null) svcs = svcs.filter(s => s.serviceCategory === cats[i]);
+        const rev = svcs.reduce((s,x) => s + (x.revenue||0), 0);
+        const cost = svcs.reduce((s,x) => s + (x.partsCost||0), 0);
+        const profit = rev - cost;
+        if (i === null) return [{label:'Total Revenue',value:pesoFmt(rev)},{label:'Parts Cost',value:pesoFmt(cost)},{label:'Gross Profit',value:pesoFmt(profit)}];
+        return [{label:'Revenue',value:pesoFmt(rev)},{label:'Parts Cost',value:pesoFmt(cost)},{label:'Gross Profit',value:pesoFmt(profit)},{label:'Services',value:svcs.length}];
+      },
+      getRows: (i) => {
+        let svcs = currentA.completedServiceCosts || [];
+        const cats = ['core','repair','mix'];
+        if (i !== null) svcs = svcs.filter(s => s.serviceCategory === cats[i]);
+        return svcs.map(s => [esc(s.serviceName), esc(s.customer||''), pesoFmt(s.revenue), pesoFmt(s.partsCost), `<span style="color:${(s.grossProfit||0)>=0?'#059669':'#dc2626'}">${pesoFmt(s.grossProfit)}</span>`]);
+      }
+    },
+    productChannelMix: {
+      icon: 'pie-chart', title: 'Product Revenue by Channel', subtitle: 'Online orders vs POS — click a slice for products',
+      chartTitle: 'Channel Split', chartSubtitle: 'Online Orders vs POS Sales',
+      dataTitle: 'Products', headers: ['Product','Category','Channel','Qty','Revenue'],
+      type: 'doughnut', cutout: '68%',
+      chartData: () => {
+        const orderRev = (currentA.topOrderProducts||[]).reduce((s,p) => s+p.revenue, 0);
+        const posRev = (currentA.topPosProducts||[]).reduce((s,p) => s+p.revenue, 0);
+        return { labels: ['Online Orders','POS Sales'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
+      },
+      getFilterLabel: (i) => ['Online Orders','POS Sales'][i] || 'All',
+      getSummary: (i) => {
+        const prods = currentA.combinedTopProducts || [];
+        if (i === null) return [{label:'Total Product Rev',value:pesoFmt(currentA.totalProductRevenue)},{label:'Total Units',value:(currentA.totalProductUnits||0).toLocaleString()}];
+        const ch = ['Online Order','POS'][i]; const filtered = prods.filter(p => p.channel === ch);
+        const rev = filtered.reduce((s,p) => s+p.revenue, 0);
+        return [{label:'Products',value:filtered.length},{label:'Revenue',value:pesoFmt(rev)},{label:'Units',value:filtered.reduce((s,p) => s+p.quantity, 0)}];
+      },
+      getRows: (i) => {
+        let prods = currentA.combinedTopProducts || [];
+        if (i === 0) prods = prods.filter(p => p.channel === 'Online Order');
+        else if (i === 1) prods = prods.filter(p => p.channel === 'POS');
+        return prods.slice(0,20).map(p => [esc(p.name), esc(p.category||''), `<span class="cdm-badge" style="background:${p.channel==='POS'?'rgba(245,158,11,0.1);color:#d97706':'rgba(16,185,129,0.1);color:#059669'}">${esc(p.channel)}</span>`, p.quantity, pesoFmt(p.revenue)]);
+      }
+    },
+    brandRevenue: {
+      icon: 'building', title: 'Brand Performance', subtitle: 'Revenue and units by brand — click a bar for products',
+      chartTitle: 'Brand Revenue & Units', chartSubtitle: 'Bar chart: revenue (left axis) · units (right axis)',
+      dataTitle: 'Products', headers: ['Model','Brand','Capacity','Units','Revenue','Avg Price'],
+      type: 'bar',
+      chartData: () => {
+        const brands = currentA.orderBrandAnalysis || [];
+        return { labels: brands.map(b => b.brand), datasets: [
+          { label: 'Revenue', data: brands.map(b => b.revenue), backgroundColor: '#10b981', borderRadius: 5 },
+          { label: 'Units', data: brands.map(b => b.quantity), backgroundColor: '#06b6d4', borderRadius: 5, yAxisID: 'y1' }
+        ]};
+      },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } }, y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { font: { size: 10 } } } },
+      tooltipFn: (ctx) => ctx.dataset.label === 'Units' ? `${ctx.dataset.label}: ${ctx.parsed.y} units` : `${ctx.dataset.label}: ${pesoFmt(ctx.parsed.y)}`,
+      getFilterLabel: (i) => { const brands = currentA.orderBrandAnalysis || []; return brands[i] ? brands[i].brand : 'All'; },
+      getSummary: (i) => {
+        const brands = currentA.orderBrandAnalysis || [];
+        if (i === null) return [{label:'Brands',value:brands.length},{label:'Total Revenue',value:pesoFmt(brands.reduce((s,b)=>s+b.revenue,0))},{label:'Total Units',value:brands.reduce((s,b)=>s+b.quantity,0)}];
+        const b = brands[i] || {};
+        return [{label:'Brand',value:esc(b.brand||'')},{label:'Revenue',value:pesoFmt(b.revenue)},{label:'Units',value:b.quantity||0}];
+      },
+      getRows: (i) => {
+        let prods = currentA.topOrderProducts || [];
+        if (i !== null) { const brands = currentA.orderBrandAnalysis || []; const brand = brands[i] ? brands[i].brand : ''; prods = prods.filter(p => p.brand === brand); }
+        return prods.map(p => [esc(p.name), esc(p.brand), esc(p.capacity||''), p.quantity, pesoFmt(p.revenue), pesoFmt(p.avgUnitPrice)]);
+      }
+    },
+    fulfillmentMix: {
+      icon: 'truck', title: 'Fulfillment Mix', subtitle: 'Delivery vs pickup — click a slice for order details',
+      chartTitle: 'Fulfillment Distribution', chartSubtitle: 'Delivery · Delivery+Install · Pickup',
+      dataTitle: 'Orders', headers: ['Model','Brand','Capacity','Units','Revenue'],
+      type: 'doughnut', cutout: '68%',
+      chartData: () => {
+        const fm = currentA.orderFulfillmentMap || {};
+        return { labels: ['Delivery Only','Delivery + Installation','Customer Pickup'], datasets: [{ data: [fm.delivery_only?.revenue||0, fm.delivery_installation?.revenue||0, fm.customer_pickup?.revenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
+      },
+      getFilterLabel: (i) => ['Delivery Only','Delivery + Installation','Customer Pickup'][i] || 'All',
+      getSummary: (i) => {
+        const fm = currentA.orderFulfillmentMap || {};
+        if (i === null) return [{label:'Total Order Rev',value:pesoFmt(currentA.orderRevenue)},{label:'Orders',value:(currentA.orderTransactions||0)}];
+        const keys = ['delivery_only','delivery_installation','customer_pickup'];
+        const k = keys[i]; const v = fm[k] || {};
+        return [{label:'Revenue',value:pesoFmt(v.revenue||0)},{label:'Orders',value:v.orders||0},{label:'Units',value:v.quantity||0}];
+      },
+      getRows: (i) => {
+        let prods = currentA.topOrderProducts || [];
+        return prods.map(p => [esc(p.name), esc(p.brand), esc(p.capacity||''), p.quantity, pesoFmt(p.revenue)]);
+      }
+    },
+  };
+
+  // Initialize charts on page load
+  updateCharts(initA);
+  renderSparklines(initA);
+})();
+</script>
+
+<script>
+function setupReportNav() {
+  var nav = document.getElementById('reportNav');
+  if (!nav) return;
+  var buttons = nav.querySelectorAll('.report-nav-btn');
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = btn.dataset.target;
+      if (target === 'top') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        var el = document.getElementById(target);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
+  var trigger = document.getElementById('reportNavTrigger');
+  var icon = document.getElementById('reportNavTriggerIcon');
+  var label = document.getElementById('reportNavTriggerLabel');
+  if (trigger) {
+    trigger.addEventListener('click', function() {
+      nav.classList.toggle('open');
+      if (icon) {
+        icon.classList.toggle('bi-list');
+        icon.classList.toggle('bi-x-lg');
+      }
+      if (label) {
+        label.textContent = nav.classList.contains('open') ? 'Close' : 'Sections';
+      }
+    });
+  }
+  // Scroll spy
+  var sectionIds = ['section-executive','section-performance','section-collection','section-cost','section-service-profit','section-pos','section-activity'];
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = 'top';
+    sectionIds.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && el.offsetTop <= scrollY) current = id;
+    });
+    buttons.forEach(function(b) {
+      b.classList.toggle('active', b.dataset.target === current);
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', setupReportNav); } else { setupReportNav(); }
+</script>

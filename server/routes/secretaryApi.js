@@ -98,6 +98,17 @@ router.get("/repair-services/:id", admin.getRepairService);
 router.post("/repair-services", admin.createRepairService);
 router.patch("/repair-services/:id", admin.editRepairService);
 
+// Service Categories (read-only for secretary)
+const ServiceCategory = require("../models/ServiceCategory");
+router.get("/service-categories", async (req, res) => {
+  try {
+    const categories = await ServiceCategory.find({}).sort({ order: 1 }).lean();
+    res.json({ success: true, categories });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Service Tracking
 router.get("/service-tracking", admin.getServiceTracking);
 router.get("/service-tracking/:id", admin.getServiceTrackingDetail);

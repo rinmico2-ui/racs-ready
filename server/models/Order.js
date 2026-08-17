@@ -10,6 +10,7 @@ const mongoose = require("mongoose");
 const ORDER_STATUSES = [
   "pending_payment",
   "preparing_unit",
+  "ready_for_pickup",
   "technician_assigned",
   "technician_accepted",
   "technician_declined",
@@ -201,9 +202,14 @@ const orderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed", "partial"],
+      enum: ["pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "refunded", "paid", "failed", "partial"],
       default: "pending",
     },
+    // Snapshot the policy used when the order was placed. This must not
+    // change when an admin updates the global percentage later.
+    downpaymentPercentage: { type: Number, min: 1, max: 100, default: null },
+    downpaymentAmount: { type: Number, min: 0, default: 0 },
+    balanceAmount: { type: Number, min: 0, default: 0 },
     gcashNumber: { type: String, trim: true, default: null },
     gcashProofUrl: { type: String, trim: true, default: null },
   },
@@ -285,13 +291,36 @@ orderSchema.pre("save", async function () {
 
 // ─── Instance Methods ───────────────────────────────────────────────────────
 
-orderSchema.methods.pushStatus = function (newStatus, note) {
+orderSchema.methods.pushStatus = function (newStatus, note, opts) {
   this.status = newStatus;
+  const timestamp = new Date();
   this.statusHistory.push({
     status: newStatus,
-    timestamp: new Date(),
+    timestamp,
     note: note || "",
   });
+
+  // ── Enterprise: mirror every order status change to the global audit log ──
+  try {
+    const { logEvent } = require("../utils/audit");
+    logEvent({
+      actor: opts && opts.actor ? opts.actor : null,
+      action: "order.status_change",
+      module: "Order",
+      details: {
+        toStatus: newStatus,
+        note: note || "",
+        orderReference: this.orderReference,
+        orderId: this._id ? this._id.toString() : null,
+        actorRole: (opts && opts.actorRole) || "System",
+        actorName: (opts && opts.actorName) || "System",
+      },
+      entityId: this._id || null,
+      entityType: "Order",
+      category: "order",
+      actionType: "status_change",
+    });
+  } catch (_) { /* non-fatal */ }
 };
 
 // ─── Export ─────────────────────────────────────────────────────────────────

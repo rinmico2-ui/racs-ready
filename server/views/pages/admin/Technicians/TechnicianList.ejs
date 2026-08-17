@@ -1,4 +1,4 @@
-<div class="admin-dashboard container-fluid">
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
@@ -15,16 +15,52 @@
   <div class="card shadow-sm mb-4">
     <div class="card-body p-2">
       <div style="position:relative;">
-        <div id="techListMap" class="mb-3" style="width:100%;height:300px;position:relative;">
+        <div id="techListMap" class="mb-3" style="position:relative;">
           <div id="techMapOverlay" class="w-100 h-100 d-flex justify-content-center align-items-center text-muted" style="position:absolute;top:0;left:0;">
             Loading map...
           </div>
         </div>
-        <div style="position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:8px;">
+        <div style="position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
           <button id="btnFitAllTechs" class="btn btn-sm shadow"
             title="Fit all technicians"
-            style="background:#2b7de9;color:#fff;border:2px solid #fff;border-radius:10px;padding:6px 14px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:6px;transition:all .2s;">
-            <span style="font-size:1.1rem;">▲</span> All Technicians
+            style="background:#fff;color:#0f172a;border:2px solid #fff;border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 6px rgba(0,0,0,.25);">
+            <i class="bi bi-geo-alt" style="font-size:1.2rem;color:#2b7de9;"></i>
+          </button>
+          <div id="techCompass" title="North" style="background:rgba(255,255,255,.95);border:2px solid #fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:default;">
+            <svg width="24" height="24" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+              <circle cx="20" cy="20" r="18" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+              <text x="20" y="11" text-anchor="middle" font-size="7" fill="#ef4444" font-family="Arial, sans-serif" font-weight="700">N</text>
+              <text x="20" y="32" text-anchor="middle" font-size="7" fill="#94a3b8" font-family="Arial, sans-serif" font-weight="600">S</text>
+              <text x="10" y="21.5" text-anchor="middle" font-size="6" fill="#64748b" font-family="Arial, sans-serif" font-weight="600">W</text>
+              <text x="30" y="21.5" text-anchor="middle" font-size="6" fill="#64748b" font-family="Arial, sans-serif" font-weight="600">E</text>
+              <path d="M20 6 L23 20 L20 18 L17 20 Z" fill="#ef4444"/>
+              <path d="M20 34 L17 20 L20 22 L23 20 Z" fill="#cbd5e1"/>
+              <circle cx="20" cy="20" r="2" fill="#fff"/>
+            </svg>
+          </div>
+        </div>
+        <div style="position:absolute;top:12px;left:12px;z-index:1000;">
+          <div style="background:rgba(255,255,255,.95);border:2px solid #fff;border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.25);width:36px;align-items:center;">
+            <button id="btnZoomIn" title="Zoom in" style="background:transparent;border:none;width:100%;padding:6px 0;font-size:1.1rem;color:#0f172a;font-weight:700;cursor:pointer;line-height:1;">+</button>
+            <div style="width:80%;height:1px;background:rgba(0,0,0,.12);"></div>
+            <button id="btnZoomOut" title="Zoom out" style="background:transparent;border:none;width:100%;padding:6px 0;font-size:1.1rem;color:#0f172a;font-weight:700;cursor:pointer;line-height:1;">−</button>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:12px;right:12px;z-index:1000;">
+          <button id="btnToggleExpand" class="btn btn-sm shadow"
+            title="Toggle map size"
+            style="background:#fff;color:#0f172a;border:2px solid #fff;border-radius:10px;padding:6px 10px;font-size:.85rem;font-weight:600;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 6px rgba(0,0,0,.25);">
+            <i class="bi bi-arrows-angle-expand" id="iconExpand"></i>
+          </button>
+        </div>
+        <div id="techLayerSelector" style="position:absolute;bottom:12px;left:12px;z-index:1000;background:rgba(15,23,42,0.88);backdrop-filter:blur(4px);border-radius:14px;padding:6px 10px;display:flex;gap:10px;box-shadow:0 4px 12px rgba(0,0,0,.35);">
+          <button class="tech-layer-btn active" data-layer="standard">
+            <div class="tech-layer-thumb thumb-standard"></div>
+            Standard
+          </button>
+          <button class="tech-layer-btn" data-layer="hybrid">
+            <div class="tech-layer-thumb thumb-hybrid"></div>
+            Hybrid
           </button>
         </div>
       </div>
@@ -32,120 +68,92 @@
   </div>
 
   <!-- Premium Filters -->
-  <div class="admin-filter-bar">
-    <div class="filter-group">
-      <div class="filter-item" style="flex: 1; min-width: 300px;">
-        <i class="bi bi-search"></i>
-        <input
-          id="techSearch"
-          type="search"
-          class="form-control"
-          placeholder="Search by name, email, phone, skill..."
-          aria-label="Search technicians"
-        />
-        <button
-          id="clearSearch"
-          class="btn btn-link text-muted p-0 me-2"
-          style="text-decoration: none;"
-          title="Clear"
-        >
-          <i class="bi bi-x-circle-fill"></i>
-        </button>
-      </div>
-      <div class="d-flex gap-2" role="group">
-        <button
-          id="filterAll"
-          class="btn btn-outline rounded-pill px-3 active"
-        >
-          All
-        </button>
-        <button id="filterActive" class="btn btn-outline rounded-pill px-3">
-          Active
-        </button>
-        <button id="filterInactive" class="btn btn-outline rounded-pill px-3">
-          Inactive
-        </button>
+  <div class="rp-toolbar">
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label" for="techSearch"><i class="bi bi-search me-1"></i>Search Technicians</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input id="techSearch" type="search" class="form-control" placeholder="Search by name, email, phone, skill..." aria-label="Search technicians" />
       </div>
     </div>
-    <div class="filter-actions">
-      <a href="/admin/technicians/new" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Add Technician
-      </a>
+    <div class="rp-filter-group" style="flex: 0; min-width: auto;">
+      <label class="rp-filter-label invisible">Clear</label>
+      <button id="clearSearch" class="btn btn-light border rp-filter-btn" type="button" title="Clear"><i class="bi bi-x-circle-fill"></i></button>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Status</label>
+      <div class="d-flex gap-2" role="group">
+        <button id="filterAll" class="btn btn-light rp-filter-btn active">All</button>
+        <button id="filterActive" class="btn btn-light rp-filter-btn">Active</button>
+        <button id="filterInactive" class="btn btn-light rp-filter-btn">Inactive</button>
+      </div>
+    </div>
+    <div class="rp-filter-group ms-auto">
+      <label class="rp-filter-label">Action</label>
+      <a href="/admin/technicians/new" class="btn btn-primary rp-filter-btn d-inline-flex align-items-center gap-1"><i class="bi bi-plus-lg"></i> Add Technician</a>
     </div>
   </div>
 
-  <!-- Technician Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="fw-bold" style="color: #1d4ed8;">
-          Technician Directory
-        </div>
-          <div>
-            <button
-              id="bulkDeactivate"
-              class="btn btn-sm btn-outline-danger me-2"
-              disabled
-            >
-              Deactivate Selected
-            </button>
-          </div>
-        </div>
-
-        <div class="table-responsive shadow-none">
-          <table class="table table-hover table-sm align-middle mb-0">
-            <thead class="table-light small text-muted">
-              <tr>
-                <th style="width: 36px">
-                  <input id="selectAll" type="checkbox" />
-                </th>
-                <th><i class="bi bi-person"></i> Name</th>
-                <th class="d-none d-md-table-cell">
-                  <i class="bi bi-envelope"></i> Contact
-                </th>
-                <th class="d-none d-lg-table-cell">
-                  <i class="bi bi-geo-alt"></i> Location
-                </th>
-                <th style="width: 220px"><i class="bi bi-tags"></i> Skills</th>
-                <th style="width: 100px"><i class="bi bi-star"></i> Rating</th>
-                <th style="width: 120px">
-                  <i class="bi bi-slash-circle"></i> Status
-                </th>
-                <th style="width: 160px"><i class="bi bi-gear"></i></th>
-              </tr>
-            </thead>
-            <tbody id="techTableBody">
-              <tr>
-                <td colspan="9" class="text-center small text-muted py-4">
-                  Loading technicians…
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div class="small text-muted" id="resultInfo">&nbsp;</div>
-          <div>
-            <button
-              id="prevPage"
-              class="btn btn-sm btn-outline-secondary me-1"
-              disabled
-            >
-              ‹ Prev
-            </button>
-            <span class="small text-muted" id="pageInfo">1 / 1</span>
-            <button
-              id="nextPage"
-              class="btn btn-sm btn-outline-secondary ms-1"
-              disabled
-            >
-              Next ›
-            </button>
-          </div>
-        </div>
+  <!-- Technician Directory Card -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+      <div>
+        <h6 class="mb-0 fw-bold">Technician Directory</h6>
+        <span id="resultInfo" class="text-muted small fw-normal">&nbsp;</span>
+      </div>
+      <div>
+        <button id="bulkDeactivate" class="btn btn-sm btn-outline-danger" disabled>Deactivate Selected</button>
       </div>
     </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-dense align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-4" style="width: 36px">
+                <input id="selectAll" type="checkbox" />
+              </th>
+              <th><i class="bi bi-person"></i> Name</th>
+              <th class="d-none d-md-table-cell">
+                <i class="bi bi-envelope"></i> Contact
+              </th>
+              <th class="d-none d-lg-table-cell">
+                <i class="bi bi-geo-alt"></i> Location
+              </th>
+              <th style="width: 220px"><i class="bi bi-tags"></i> Skills</th>
+              <th style="width: 100px"><i class="bi bi-star"></i> Rating</th>
+              <th style="width: 120px">
+                <i class="bi bi-slash-circle"></i> Status
+              </th>
+              <th class="text-end pe-4" style="width: 160px"><i class="bi bi-gear"></i></th>
+            </tr>
+          </thead>
+          <tbody id="techTableBody">
+            <tr>
+              <td colspan="8" class="text-center small text-muted py-4">
+                Loading technicians…
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer bg-white py-3 border-top">
+      <nav aria-label="Technician pagination">
+        <ul class="inv-pagination justify-content-end mb-0">
+          <li class="page-item">
+            <button id="prevPage" class="page-link" disabled>‹ Prev</button>
+          </li>
+          <li class="page-item active">
+            <span id="pageInfo" class="page-link">1 / 1</span>
+          </li>
+          <li class="page-item">
+            <button id="nextPage" class="page-link" disabled>Next ›</button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
 
   <style>
     .tech-avatar {
@@ -181,6 +189,49 @@
     .fc-month-cell {
       transition: background 0.12s ease;
     }
+    #techListMap { width: 100%; height: 300px; }
+    #techListMap.map-resized { height: 650px !important; }
+    .tech-layer-btn { background: transparent; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 3px; font-size: 0.62rem; font-weight: 600; min-width: 44px; cursor: pointer; }
+    .tech-layer-btn.active { color: #fff; }
+    .tech-layer-thumb { width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; overflow: hidden; transition: all .2s; }
+    .tech-layer-btn.active .tech-layer-thumb { border-color: #2b7de9; }
+    .thumb-standard { background: #e0f2fe; background-image: repeating-linear-gradient(0deg, #fff 0, #fff 1px, transparent 1px, transparent 7px), repeating-linear-gradient(90deg, #fff 0, #fff 1px, transparent 1px, transparent 7px); }
+    .thumb-hybrid { background: #14532d; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.2) 0, rgba(255,255,255,.2) 1px, transparent 1px, transparent 7px), repeating-linear-gradient(90deg, rgba(255,255,255,.2) 0, rgba(255,255,255,.2) 1px, transparent 1px, transparent 7px); }
+  </style>
+
+  <style>
+    /* Premium UI styles adapted from InventoryList */
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-input { border-radius: 10px; border-color: #e2e8f0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 16px; font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
+    .inventory-premium .rp-filter-btn.btn-light { background: #fff; border-color: #e2e8f0; color: #475569; }
+    .inventory-premium .rp-filter-btn.btn-light.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .inventory-premium .rp-filter-btn.btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inventory-premium .table { color: #334155; font-size: 0.85rem; }
+    .inventory-premium .table thead th { font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e2e8f0; }
+    .inventory-premium .table-dense tbody td { padding: 0.55rem 0.75rem; }
+    .inventory-premium .card { border-radius: 18px; }
+    .inventory-premium .card-header { border-radius: 18px 18px 0 0; }
+    .inventory-premium .card-footer { border-radius: 0 0 18px 18px; }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; }
+    .inv-pagination .page-item:not(.disabled):not(.active) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link,
+    .inv-pagination .page-item .page-link:disabled { opacity: 0.5; cursor: not-allowed; }
+    .inv-pagination .page-item.active .page-link { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .inventory-premium .badge { padding: 0.45em 0.85em; }
   </style>
 
   <script>
@@ -188,7 +239,7 @@
       const el = (id) => document.getElementById(id);
       const body = el("techTableBody");
       // map state must be defined before any functions use it
-      const techMapState = { map: null, markers: [] };
+      const techMapState = { map: null, markers: [], standardLayer: null, hybridGroup: null, activeLayer: null, activeLayerName: 'standard' };
       // we no longer need a custom icon; Leaflet's default marker provides a familiar map pin
       // kept techIcon variable for backwards compatibility if desired
       const techIcon = null; // default marker will be used
@@ -198,7 +249,7 @@
       let technicians = [];
       let filtered = [];
       let page = 1,
-        pageSize = 12;
+        pageSize = 10;
 
       function renderRow(t) {
         const tr = document.createElement("tr");
@@ -222,11 +273,11 @@
         <td class="d-none d-lg-table-cell small text-muted">${escapeHtml(locationStr)}</td>
         <td>${skillsArr || '<span class="text-muted">—</span>'}</td>
         <td class="small text-warning">${ratingStars}</td>
-        <td><span class="status-pill ${t.active ? "status-active" : "status-inactive"}">${t.active ? "Active" : "Inactive"}</span></td>
+        <td><span class="badge fs-7 fw-semibold px-2 py-1 ${t.active ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary"}">${t.active ? "Active" : "Inactive"}</span></td>
         <td class="text-end">
           <div class="d-flex justify-content-end gap-1">
-            <a href="/admin/technicians/${t._id}/schedules" class="btn btn-sm btn-light text-secondary border-0 shadow-sm" title="Schedules"><i class="bi bi-calendar-event-fill"></i></a>
-            <a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-primary border-0 shadow-sm" title="Edit"><i class="bi bi-pencil-fill"></i></a>
+            <a href="/admin/technicians/${t._id}/schedules" class="btn btn-sm btn-light text-muted border-0 shadow-sm d-flex align-items-center justify-content-center" style="width:30px;height:30px;padding:0;" title="Schedules"><i class="bi bi-calendar-event" style="font-size:0.85rem;"></i></a>
+            <a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-muted border-0 shadow-sm d-flex align-items-center justify-content-center" style="width:30px;height:30px;padding:0;" title="Edit"><i class="bi bi-pencil" style="font-size:0.85rem;"></i></a>
           </div>
         </td>
       `;
@@ -401,13 +452,27 @@
       function initLeafletMap() {
         const el = document.getElementById("techListMap");
         if (!el || !window.L) return;
-        techMapState.map = L.map(el).setView([14.676049, 121.043731], 12);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(techMapState.map);
+        techMapState.map = L.map(el, { zoomControl: false }).setView([14.676049, 121.043731], 12);
+        techMapState.standardLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 19
+        });
+        const hybridBase = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+          attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+          maxZoom: 18
+        });
+        const hybridLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
+          attribution: '&copy; Esri',
+          maxZoom: 18
+        });
+        techMapState.hybridGroup = L.layerGroup([hybridBase, hybridLabels]);
+        techMapState.activeLayer = techMapState.standardLayer;
+        techMapState.activeLayerName = 'standard';
+        techMapState.activeLayer.addTo(techMapState.map);
         techMapReady = true;
         const ol = document.getElementById('techMapOverlay');
-        if (ol) ol.style.display = 'none';
+        if (ol) { ol.classList.remove('d-flex'); ol.classList.add('d-none'); }
         updateMapMarkers();
       }
 
@@ -422,23 +487,17 @@
           const loc = t.location;
           if (loc && Array.isArray(loc.coordinates) && loc.coordinates.length === 2) {
             const [lng, lat] = loc.coordinates;
-            // 3D GPS cursor arrow icon for technician
+            // Apple Maps-style red pin for technician
             const techPinIcon = L.divIcon({
               className: "",
-              html: '<div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));animation:techPulse 2s ease-in-out infinite;">' +
-                '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 40 40">' +
-                '<defs><linearGradient id="al1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cacff"/><stop offset="100%" stop-color="#1a6ddb"/></linearGradient>' +
-                '<linearGradient id="al2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a6ddb"/><stop offset="100%" stop-color="#0f4a9e"/></linearGradient></defs>' +
-                '<ellipse cx="20" cy="36" rx="8" ry="2.5" fill="rgba(0,0,0,.18)"/>' +
-                '<path d="M20 2 L34 32 L20 26 Z" fill="url(#al2)"/>' +
-                '<path d="M20 2 L6 32 L20 26 Z" fill="url(#al1)"/>' +
-                '<path d="M20 2 L6 32 L20 26 L34 32 Z" stroke="#fff" stroke-width="1.2" fill="none" stroke-linejoin="round"/>' +
-                '<path d="M12 14 L20 4 L21 14 Z" fill="rgba(255,255,255,.3)"/>' +
-                '</svg></div>' +
-                '<style>@keyframes techPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}</style>',
-              iconSize: [32, 32],
-              iconAnchor: [16, 16],
-              popupAnchor: [0, -16],
+              html: '<div style="filter:drop-shadow(0 3px 5px rgba(0,0,0,.45));">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">' +
+                '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="#ff3b30"/>' +
+                '<circle cx="14" cy="14" r="5" fill="#fff"/>' +
+                '</svg></div>',
+              iconSize: [28, 40],
+              iconAnchor: [14, 40],
+              popupAnchor: [0, -36],
             });
             const marker = L.marker([lat, lng], { icon: techPinIcon }).addTo(techMapState.map);
             marker.bindPopup(`<strong>${escapeHtml(t.name)}</strong><br><span style="color:#2b7de9;font-size:.8rem;">Technician (live)</span>`);
@@ -455,6 +514,50 @@
             if (bounds.length && techMapState.map) techMapState.map.fitBounds(bounds, { padding: [40, 40] });
           };
         }
+      }
+
+      // Layer selector
+      document.querySelectorAll('#techLayerSelector .tech-layer-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const layer = btn.dataset.layer;
+          if (!layer || !techMapState.map || layer === techMapState.activeLayerName) return;
+          if (techMapState.activeLayer) techMapState.map.removeLayer(techMapState.activeLayer);
+          if (layer === 'standard') {
+            techMapState.activeLayer = techMapState.standardLayer;
+            techMapState.activeLayerName = 'standard';
+          } else if (layer === 'hybrid') {
+            techMapState.activeLayer = techMapState.hybridGroup;
+            techMapState.activeLayerName = 'hybrid';
+          }
+          techMapState.activeLayer.addTo(techMapState.map);
+          const ol = document.getElementById('techMapOverlay');
+          if (ol) { ol.classList.remove('d-flex'); ol.classList.add('d-none'); }
+          document.querySelectorAll('#techLayerSelector .tech-layer-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.layer === layer);
+          });
+        });
+      });
+
+      // Custom zoom controls
+      const btnZoomIn = document.getElementById('btnZoomIn');
+      const btnZoomOut = document.getElementById('btnZoomOut');
+      if (btnZoomIn && techMapState.map) {
+        btnZoomIn.addEventListener('click', function () { techMapState.map.setZoom(techMapState.map.getZoom() + 1); });
+      }
+      if (btnZoomOut && techMapState.map) {
+        btnZoomOut.addEventListener('click', function () { techMapState.map.setZoom(techMapState.map.getZoom() - 1); });
+      }
+
+      // Resize map height
+      const toggleExpand = document.getElementById('btnToggleExpand');
+      const mapEl = document.getElementById('techListMap');
+      const iconExpand = document.getElementById('iconExpand');
+      if (toggleExpand && mapEl) {
+        toggleExpand.addEventListener('click', function () {
+          const resized = mapEl.classList.toggle('map-resized');
+          if (iconExpand) iconExpand.className = resized ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+          if (techMapState.map) techMapState.map.invalidateSize();
+        });
       }
     })();
   </script>

@@ -277,24 +277,13 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
       if (!techBusy.has(tid)) techBusy.set(tid, []);
       techBusy.get(tid).push([bStart, bEnd]);
     } else {
-      // Unassigned booking: will block EVERY technician (collected below)
+      // Unassigned booking consumes one pooled technician for this interval.
       unassignedIntervals.push([bStart, bEnd]);
     }
   }
 
   // Fetch all active technicians once
   const allTechs = await Technician.find({ active: { $ne: false } }).select("_id").lean();
-
-  // Inject unassigned intervals into every technician's busy list
-  if (unassignedIntervals.length > 0) {
-    for (const tech of allTechs) {
-      const tid = String(tech._id);
-      if (!techBusy.has(tid)) techBusy.set(tid, []);
-      for (const interval of unassignedIntervals) {
-        techBusy.get(tid).push(interval);
-      }
-    }
-  }
 
   // A new booking needs at least one technician whose entire busy timeline
   // does NOT intersect [startMin, endMin]. Count how many techs are free.
@@ -305,6 +294,14 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
     const conflicts = ranges.some(([s, e]) => startMin < e && endMin > s);
     if (!conflicts) freeTechs++;
   }
+
+  // One unassigned booking reserves one capacity unit. It must not make every
+  // technician appear busy, which previously made a two-tech slot full after
+  // only one standard booking.
+  const overlappingUnassigned = unassignedIntervals.filter(
+    ([s, e]) => startMin < e && endMin > s
+  ).length;
+  freeTechs = Math.max(0, freeTechs - overlappingUnassigned);
 
   // ── 4. Subtract project-reserved technicians ─────────────────────────────
   // Large-scale commercial projects reserve technicians for their working

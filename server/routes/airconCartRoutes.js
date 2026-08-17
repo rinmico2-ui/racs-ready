@@ -41,8 +41,11 @@ router.get("/", async (req, res) => {
               capacity: variant.capacity,
               capacityUnit: variant.capacityUnit,
               sellingPrice: variant.sellingPrice,
+              quantity: variant.quantity,
+              status: variant.status,
               imageUrl: hvacDoc.imageUrl,
-              inverter: hvacDoc.inverter
+              inverter: hvacDoc.inverter,
+              productId: hvacDoc._id
             };
           } else {
             cart.items.splice(i, 1);
@@ -76,6 +79,10 @@ router.post("/add", async (req, res) => {
   try {
     const { inventoryId, quantity = 1 } = req.body;
     if (!inventoryId) return res.status(400).json({ error: "inventoryId is required" });
+    const quantityChange = Number(quantity);
+    if (!Number.isInteger(quantityChange) || quantityChange === 0) {
+      return res.status(400).json({ error: "Quantity change must be a non-zero whole number" });
+    }
 
     // Validate inventory exists
     const HVACProduct = require("../models/HVACProduct");
@@ -87,6 +94,7 @@ router.post("/add", async (req, res) => {
       }
     }
     if (!item) return res.status(404).json({ error: "Product not found" });
+    const availableStock = Number(item.quantity) || 0;
 
     let cart = await AirconCart.findOne({ userId: req.user._id });
 
@@ -97,11 +105,23 @@ router.post("/add", async (req, res) => {
     const existingItemIdx = cart.items.findIndex(
       (it) => it.inventoryId.toString() === inventoryId
     );
+    const currentQuantity = existingItemIdx > -1 ? Number(cart.items[existingItemIdx].quantity) || 0 : 0;
+    const nextQuantity = currentQuantity + quantityChange;
+    if (nextQuantity < 1) {
+      return res.status(400).json({ error: "Quantity cannot be less than one. Remove the item instead." });
+    }
+    const unavailable = availableStock < 1 || item.active === false || ["out_of_stock", "discontinued", "coming_soon"].includes(item.status);
+    if (quantityChange > 0 && unavailable) {
+      return res.status(409).json({ error: "This product is not currently available" });
+    }
+    if (quantityChange > 0 && nextQuantity > availableStock) {
+      return res.status(409).json({ error: `Only ${availableStock} unit${availableStock === 1 ? " is" : "s are"} currently available` });
+    }
 
     if (existingItemIdx > -1) {
-      cart.items[existingItemIdx].quantity += quantity;
+      cart.items[existingItemIdx].quantity = nextQuantity;
     } else {
-      cart.items.push({ inventoryId, quantity });
+      cart.items.push({ inventoryId, quantity: quantityChange });
     }
 
     await cart.save();
@@ -154,6 +174,10 @@ router.post("/buy-now", async (req, res) => {
   try {
     const { inventoryId, quantity = 1 } = req.body;
     if (!inventoryId) return res.status(400).json({ error: "inventoryId is required" });
+    const requestedQuantity = Number(quantity);
+    if (!Number.isInteger(requestedQuantity) || requestedQuantity < 1) {
+      return res.status(400).json({ error: "Quantity must be a positive whole number" });
+    }
 
     // Validate inventory exists
     const HVACProduct = require("../models/HVACProduct");
@@ -165,6 +189,10 @@ router.post("/buy-now", async (req, res) => {
       }
     }
     if (!item) return res.status(404).json({ error: "Product not found" });
+    const availableStock = Number(item.quantity) || 0;
+    if (availableStock < requestedQuantity || item.active === false || ["out_of_stock", "discontinued", "coming_soon"].includes(item.status)) {
+      return res.status(409).json({ error: availableStock > 0 ? `Only ${availableStock} unit${availableStock === 1 ? " is" : "s are"} currently available` : "This product is not currently available" });
+    }
 
     let cart = await AirconCart.findOne({ userId: req.user._id });
     if (!cart) {
@@ -172,7 +200,7 @@ router.post("/buy-now", async (req, res) => {
     }
 
     // Clear existing items and add only the selected one
-    cart.items = [{ inventoryId, quantity }];
+    cart.items = [{ inventoryId, quantity: requestedQuantity }];
     await cart.save();
 
     res.json({ message: "Order ready for checkout", redirect: "/aircon-cart?checkout=now" });

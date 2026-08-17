@@ -15,10 +15,54 @@ const Tool = require('../models/Tool');
 const Technician = require('../models/Technician');
 const { BookingStatus, PaymentStatus, FlowStages } = require('../models/BookingStatus');
 const { generateAssistantReport } = require('../utils/aiTechnicianAssistant');
+const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
 
 router.use(authenticate);
+
+/** Build an explainable, non-mutating assignment plan for standard bookings. */
+router.get('/assignment-plan', requireRole(['admin','secretary']), async (req,res) => {
+  try {
+    const statuses=String(req.query.status||'awaiting_assignment,pending_reassignment').split(',').filter(s=>['awaiting_assignment','pending_reassignment'].includes(s));
+    const bookings=await BookingService.find({status:{$in:statuses.length?statuses:['awaiting_assignment','pending_reassignment']},isProject:{$ne:true}}).sort({bookingDate:1,startTime:1}).limit(200).lean();
+    const {buildAssignmentPlan}=require('../utils/assignmentPlanner');
+    const plan=await buildAssignmentPlan(bookings);
+    res.json({plan,total:plan.length,assignable:plan.filter(p=>p.recommended).length,unmatched:plan.filter(p=>!p.recommended).length});
+  } catch(error){console.error('[AssignmentPlan] preview failed:',error);res.status(500).json({error:'Failed to build assignment plan'});}
+});
+
+router.get('/:id/assignment-recommendation', requireRole(['admin','secretary']), async (req,res) => {
+  try {
+    if(!mongoose.Types.ObjectId.isValid(req.params.id))return res.status(400).json({error:'Invalid booking id'});
+    const booking=await BookingService.findById(req.params.id).lean();
+    if(!booking)return res.status(404).json({error:'Booking not found'});
+    const {buildAssignmentPlan}=require('../utils/assignmentPlanner');
+    const recommendation=(await buildAssignmentPlan([booking],{reservePlan:false}))[0];
+    res.json({recommendation});
+  }catch(error){console.error('[AssignmentPlan] recommendation failed:',error);res.status(500).json({error:'Failed to recommend technician'});}
+});
+
+/** Confirm only the assignments the admin reviewed; eligibility is rechecked. */
+router.post('/assignment-plan/confirm', requireRole(['admin','secretary']), async (req,res) => {
+  const rows=Array.isArray(req.body.assignments)?req.body.assignments:[];
+  if(!rows.length)return res.status(400).json({error:'No reviewed assignments supplied'});
+  const responseMinutes=Math.min(720,Math.max(5,Number(req.body.responseMinutes)||30));
+  const {createReviewedAssignment}=require('../utils/assignmentPlanner');
+  const {createNotification}=require('../utils/notify');
+  const io=req.app.get('io'); const results=[]; const seen=new Set();
+  for(const row of rows){
+    if(!mongoose.Types.ObjectId.isValid(row.bookingId)||!mongoose.Types.ObjectId.isValid(row.technicianId)||seen.has(String(row.bookingId))){results.push({bookingId:row.bookingId,success:false,error:'Invalid or duplicate assignment'});continue;}
+    seen.add(String(row.bookingId));
+    try{
+      const result=await createReviewedAssignment(row.bookingId,row.technicianId,req.user,responseMinutes);
+      if(io)io.to(`tech:${result.technician._id}`).emit('assignment:new',{assignmentId:result.assignment._id,bookingId:result.booking._id,bookingReference:result.booking.bookingReference,serviceName:result.booking.service?.name,customerName:result.booking.customer?.name,bookingDate:result.booking.bookingDate,acceptanceDeadline:result.assignment.acceptanceDeadline});
+      await createNotification({type:'assignment_new',title:'New Assignment',message:`You have a new ${result.booking.service?.name||'service'} booking. Accept within ${responseMinutes} minutes.`,userId:result.technician.user,role:'technician',referenceId:result.assignment._id,referenceModel:'Assignment',link:'/technician/assignments',io}).catch(()=>{});
+      results.push({bookingId:row.bookingId,technicianId:row.technicianId,technicianName:result.technician.name,assignmentId:result.assignment._id,success:true});
+    }catch(error){results.push({bookingId:row.bookingId,technicianId:row.technicianId,success:false,error:error.message});}
+  }
+  res.status(results.some(r=>r.success)?200:409).json({success:results.every(r=>r.success),assigned:results.filter(r=>r.success).length,failed:results.filter(r=>!r.success).length,results});
+});
 
 // ── AI-driven repair recommendation helper ───────────────────────────────────
 async function generateRepairRecommendations(booking) {
@@ -51,43 +95,101 @@ async function generateRepairRecommendations(booking) {
 
 /**
  * GET /api/admin/appointments/flow-stats
- * Dashboard overview: counts for each flow stage
+ * Dashboard overview: counts for each flow stage + individual status counts
+ * Query: start (YYYY-MM-DD), end (YYYY-MM-DD) — optional date range filter
  */
 router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    const stats = {};
+    const { start, end } = req.query;
 
+    // Build date filter if provided
+    let dateFilter = {};
+    if (start || end) {
+      dateFilter.bookingDate = {};
+      if (start) {
+        const s = new Date(start); s.setHours(0, 0, 0, 0);
+        dateFilter.bookingDate.$gte = s;
+      }
+      if (end) {
+        const e = new Date(end); e.setHours(23, 59, 59, 999);
+        dateFilter.bookingDate.$lte = e;
+      }
+    }
+
+    // Flow stage counts (filtered by date if provided)
+    const stats = {};
     for (const [key, stage] of Object.entries(FlowStages)) {
-      const count = await BookingService.countDocuments({ status: { $in: stage.statuses } });
+      const count = await BookingService.countDocuments({ ...dateFilter, status: { $in: stage.statuses } });
       stats[key] = { ...stage, count };
     }
 
-    const totalBookings = await BookingService.countDocuments();
+    // Individual status counts for the pipeline UI
+    const allStatuses = [
+      'pending', 'awaiting_assignment', 'assigned', 'confirmed',
+      'on-the-way', 'in-progress', 'completed', 'expired'
+    ];
+    const statusCounts = {};
+    for (const status of allStatuses) {
+      statusCounts[status] = await BookingService.countDocuments({ ...dateFilter, status });
+    }
+
+    // Summary counts
+    const totalBookings = await BookingService.countDocuments(dateFilter);
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
     const todayBookings = await BookingService.countDocuments({
       createdAt: { $gte: todayStart, $lte: todayEnd }
     });
 
+    // Revenue: include both COMPLETED and REPAIR_COMPLETED statuses
+    const allCompletedStatuses = [
+      BookingStatus.COMPLETED,
+      BookingStatus.REPAIR_COMPLETED,
+      BookingStatus.UNDER_WARRANTY,
+      BookingStatus.WARRANTY_CLAIM,
+    ];
+    const revenueMatch = { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, ...dateFilter };
     const revenueResult = await BookingService.aggregate([
-      { $match: { status: BookingStatus.COMPLETED, paymentStatus: PaymentStatus.PAID } },
+      { $match: revenueMatch },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } }
     ]);
-    const totalRevenue = revenueResult[0]?.total || 0;
+    const filteredRevenue = revenueResult[0]?.total || 0;
+
+    const totalRevenueResult = await BookingService.aggregate([
+      { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID } },
+      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+    ]);
+    const totalRevenue = totalRevenueResult[0]?.total || 0;
 
     const todayRevenue = await BookingService.aggregate([
-      { $match: { status: BookingStatus.COMPLETED, paymentStatus: PaymentStatus.PAID, updatedAt: { $gte: todayStart, $lte: todayEnd } } },
+      { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, updatedAt: { $gte: todayStart, $lte: todayEnd } } },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } }
     ]);
     const todayRevenueAmount = todayRevenue[0]?.total || 0;
 
+    // Average rating from all completed jobs (including repair completed)
+    const ratingAgg = await BookingService.aggregate([
+      { $match: { status: { $in: allCompletedStatuses }, customerRating: { $gt: 0 } } },
+      { $group: { _id: null, avg: { $avg: '$customerRating' }, count: { $sum: 1 } } }
+    ]);
+    const avgRating = ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null;
+    const totalRatings = ratingAgg[0]?.count || 0;
+
+    // Count all bookings (no date filter) for "all time" reference
+    const allTimeBookings = await BookingService.countDocuments();
+
     res.json({
       stages: stats,
+      statusCounts,
       summary: {
         totalBookings,
+        allTimeBookings,
         todayBookings,
         totalRevenue,
+        filteredRevenue,
         todayRevenue: todayRevenueAmount,
+        avgRating,
+        totalRatings,
       }
     });
   } catch (error) {
@@ -111,11 +213,20 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     let query = {};
 
     // Stage-based filtering
-    const stageAlias = { 'active': 'ACTIVE_JOBS' };
-    const stageKey = stageAlias[(stage || '').toLowerCase()] || (stage || '').toUpperCase();
-    if (stageKey && FlowStages[stageKey]) {
-      query.status = { $in: FlowStages[stageKey].statuses };
-    } else if (status) {
+    // "completed" includes both standard completed and repair-completed statuses
+    const completedMergeAlias = { 'completed': ['COMPLETED', 'REPAIR_COMPLETED'] };
+    const mergedStageKeys = completedMergeAlias[(stage || '').toLowerCase()];
+    if (mergedStageKeys) {
+      const mergedStatuses = mergedStageKeys.flatMap(k => FlowStages[k]?.statuses || []);
+      query.status = { $in: mergedStatuses };
+    } else {
+      const stageAlias = { 'active': 'ACTIVE_JOBS' };
+      const stageKey = stageAlias[(stage || '').toLowerCase()] || (stage || '').toUpperCase();
+      if (stageKey && FlowStages[stageKey]) {
+        query.status = { $in: FlowStages[stageKey].statuses };
+      }
+    }
+    if (!query.status && status) {
       // Support comma-separated statuses (e.g., "awaiting_assignment,pending_reassignment")
       const statusList = status.split(',').map(s => s.trim()).filter(Boolean);
       if (statusList.length > 1) {
@@ -137,10 +248,12 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     if (search) {
       query.$or = [
         { bookingReference: { $regex: search, $options: 'i' } },
+        { workOrderNumber: { $regex: search, $options: 'i' } },
         { 'customer.name': { $regex: search, $options: 'i' } },
         { 'customer.email': { $regex: search, $options: 'i' } },
         { 'customer.phone': { $regex: search, $options: 'i' } },
         { 'service.name': { $regex: search, $options: 'i' } },
+        { 'services.name': { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -216,6 +329,10 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
   try {
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    const isRepair = booking.serviceModel === "RepairService" ||
+      booking.serviceType === "repair" ||
+      booking.services?.some(item => item?.type === "repair");
     if (booking.status !== BookingStatus.PENDING) {
       return res.status(400).json({ error: `Cannot verify payment for booking in "${booking.status}" status` });
     }
@@ -225,7 +342,7 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
 
     if (isCOD) {
       // COD: only downpayment is collected now; balance collected by technician after service
-      const downpayment = booking.downpaymentAmount || 400;
+      const downpayment = booking.downpaymentAmount || calculatePaymentBreakdown(totalAmount, booking.downpaymentPercentage).downpaymentAmount;
       booking.paymentStatus = 'partial';
       booking.amountPaid = downpayment;
       booking.balanceAmount = Math.max(0, totalAmount - downpayment);
@@ -245,7 +362,7 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
 
     // Update payment record
     const paymentUpdateData = isCOD
-      ? { status: 'partial', verifiedAt: new Date(), verifiedBy: req.user._id, amount: booking.downpaymentAmount || 400 }
+      ? { status: 'partial', verifiedAt: new Date(), verifiedBy: req.user._id, amount: booking.downpaymentAmount || calculatePaymentBreakdown(totalAmount, booking.downpaymentPercentage).downpaymentAmount }
       : { status: 'paid', verifiedAt: new Date(), verifiedBy: req.user._id };
     await Payment.findOneAndUpdate({ bookingId: booking._id }, paymentUpdateData);
 
@@ -310,9 +427,30 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const validAssignStatuses = [BookingStatus.AWAITING_ASSIGNMENT, BookingStatus.PENDING_REASSIGNMENT];
+    // Repair bookings created by the multi-service flow are represented by
+    // service items and may have serviceType="mixed". The old handler referred
+    // to `isRepair` without declaring it in this scope, so repair assignment
+    // always ended as a generic HTTP 500 response.
+    const serviceItems = Array.isArray(booking.services) ? booking.services : [];
+    const repairItems = serviceItems.filter(item => item?.type === 'repair');
+    const isRepair = booking.serviceModel === 'RepairService' ||
+      booking.serviceType === 'repair' ||
+      repairItems.length > 0;
+    const serviceName = booking.service?.name ||
+      serviceItems.map(item => item?.name).filter(Boolean).join(', ') ||
+      (isRepair ? 'Repair Inspection' : 'Service');
+
+    const validAssignStatuses = [BookingStatus.AWAITING_ASSIGNMENT, BookingStatus.PENDING_REASSIGNMENT, BookingStatus.RESCHEDULED];
     if (!validAssignStatuses.includes(booking.status)) {
       return res.status(400).json({ error: `Cannot assign technician from "${booking.status}" status` });
+    }
+
+    // Server-side eligibility guard: the UI list is advisory, but schedule,
+    // leave, capacity and overlap rules must still hold at confirmation time.
+    const { buildAssignmentPlan } = require('../utils/assignmentPlanner');
+    const eligibility = (await buildAssignmentPlan([booking], { reservePlan: false }))[0];
+    if (!eligibility?.candidates?.some(c => c.technicianId === String(technicianId))) {
+      return res.status(409).json({ error: 'This technician is no longer eligible for the requested schedule. Refresh recommendations and choose again.' });
     }
 
     // ── Safety: reject if technician already has a booking at this time ──
@@ -374,72 +512,11 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       return new Date(now.getTime() + 12 * 60 * 60 * 1000);
     }
 
-    // Validate selected equipment stock before creating assignment
-    const equipmentItems = [];
-    if (Array.isArray(req.body.equipment) && req.body.equipment.length > 0) {
-      for (const item of req.body.equipment) {
-        if (!item.equipmentId || !item.quantity || !mongoose.Types.ObjectId.isValid(item.equipmentId)) continue;
-        const tool = await Tool.findById(item.equipmentId);
-        if (!tool) continue;
-        const available = (tool.quantity || 0) - (tool.reservedQuantity || 0);
-        if (item.quantity > available) {
-          return res.status(400).json({ error: `Insufficient stock for ${tool.itemName}: requested ${item.quantity}, available ${available}` });
-        }
-        equipmentItems.push({ tool, quantity: item.quantity, notes: item.notes || '' });
-      }
-    }
-
     // ── Auto-generate AI recommendations for repair service assignments ──
-    const isRepair = booking.serviceModel === "RepairService" || booking.serviceType === "repair";
     let aiRecommendations = null;
     if (isRepair) {
       aiRecommendations = await generateRepairRecommendations(booking);
     }
-    if (isRepair && equipmentItems.length === 0) {
-      // Load all active tool inventory for matching
-      const toolInventory = await Tool.find({ active: true }).lean();
-      let wanted = [];
-      if (aiRecommendations && Array.isArray(aiRecommendations.suggestedTools) && aiRecommendations.suggestedTools.length > 0) {
-        wanted = aiRecommendations.suggestedTools
-          .map(t => (typeof t === 'string' ? t : t?.name || t?.tool || '').toLowerCase().trim())
-          .filter(Boolean);
-      }
-      // Fallback to common inspection-tool keywords if AI produced nothing usable
-      if (wanted.length === 0) {
-        wanted = ['multimeter', 'clamp', 'ladder', 'tool kit', 'toolkit', 'gauge', 'vacuum pump', 'leak detector', 'thermometer', 'flashlight', 'screwdriver', 'wrench'];
-      }
-      const matchedTools = [];
-      for (const name of wanted) {
-        const words = name.split(/\s+/).filter(w => w.length > 2);
-        if (words.length === 0) continue;
-        const scored = toolInventory
-          .filter(tool => {
-            const text = `${tool.itemName} ${tool.category || ''} ${tool.description || ''} ${tool.specification || ''}`.toLowerCase();
-            return words.some(w => text.includes(w));
-          })
-          .map(tool => {
-            const text = `${tool.itemName} ${tool.category || ''} ${tool.description || ''} ${tool.specification || ''}`.toLowerCase();
-            const score = words.reduce((s, w) => text.includes(w) ? s + 1 : s, 0);
-            const available = Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
-            return { tool, score, available };
-          })
-          .filter(x => x.available >= 1)
-          .sort((a, b) => b.score - a.score);
-        const best = scored[0];
-        if (best && !matchedTools.some(m => String(m.tool._id) === String(best.tool._id))) {
-          matchedTools.push(best);
-        }
-      }
-      const kit = matchedTools.slice(0, 6);
-      for (const { tool } of kit) {
-        equipmentItems.push({ tool, quantity: 1, notes: 'Auto-assigned inspection kit' });
-      }
-      console.log(`[Assignment] Auto-assigned ${kit.length} tools for repair booking ${booking.bookingReference}: ${kit.map(k => k.tool.itemName).join(', ') || 'none'}`);
-      if (kit.length === 0) {
-        console.warn(`[Assignment] No active tools matched for repair booking ${booking.bookingReference}; cannot auto-assign inspection kit. Inventory count: ${toolInventory.length}`);
-      }
-    }
-
     // Create assignment
     const slaDeadline = new Date();
     slaDeadline.setHours(slaDeadline.getHours() + 2);
@@ -451,7 +528,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       customerName: booking.customer?.name || '',
       customerPhone: booking.customer?.phone || '',
       customerEmail: booking.customer?.email || '',
-      serviceName: booking.service?.name || '',
+      serviceName,
       serviceType: booking.serviceType || (booking.serviceModel === "RepairService" ? "repair" : "core"),
       servicePrice: booking.totalPrice || booking.estimatedFee || 0,
       bookingDate: booking.bookingDate,
@@ -477,6 +554,24 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     booking.assignmentId = assignment._id;
 
     if (isRepair) {
+      // Keep the item-level lifecycle in sync for repair bookings created by
+      // the newer multi-appliance form. Do not overwrite an item that already
+      // has its own technician assignment.
+      for (const item of repairItems) {
+        if (item.technicianId && String(item.technicianId) !== String(technicianId)) continue;
+        item.technicianId = technicianId;
+        item.technicianName = eligibility.candidates.find(c => c.technicianId === String(technicianId))?.name || '';
+        item.assignmentId = assignment._id;
+        item.status = 'inspection_scheduled';
+        item.phase = 'repair_phase_1';
+        item.schedule = {
+          date: booking.bookingDate,
+          startTime: booking.startTime || '',
+          endTime: booking.endTime || '',
+          durationMinutes: Number(item.duration || booking.serviceDurationMinutes) || 60,
+          kind: 'inspection',
+        };
+      }
       booking.recordStatusHistory({
         fromStatus: previousStatus,
         toStatus: "inspection_scheduled",
@@ -493,7 +588,8 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
 
     // Create equipment assignments
     const equipmentAssignments = [];
-    for (const { tool, quantity, notes } of equipmentItems) {
+    for (const { tool, quantity, notes, itemType } of []) {
+      const legacyType = itemType || (tool.type === 'tool' ? 'equipment' : (tool.type || 'equipment'));
       const eqAssignment = new EquipmentAssignment({
         bookingId: booking._id,
         technicianId,
@@ -502,6 +598,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
         equipmentName: tool.itemName,
         equipmentCode: tool.barcode || '',
         quantity,
+        consumable: legacyType === 'consumable',
         status: 'reserved',
         notes,
         issuedBy: req.user._id,
@@ -532,7 +629,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       io.to(`tech:${technicianId}`).emit('assignment:new', {
         bookingId: booking._id,
         bookingReference: booking.bookingReference,
-        serviceName: booking.service?.name,
+        serviceName,
         customerName: booking.customer?.name,
         bookingDate: booking.bookingDate,
         priority,
@@ -545,8 +642,8 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     await createNotification({
       type: 'assignment_new',
       title: 'New Assignment',
-      message: `You have been assigned to ${booking.service?.name || 'a service'} for ${booking.customer?.name || 'a customer'} on ${new Date(booking.bookingDate).toLocaleDateString()}.`,
-      userId: technicianId,
+      message: `You have been assigned to ${serviceName} for ${booking.customer?.name || 'a customer'} on ${new Date(booking.bookingDate).toLocaleDateString()}.`,
+      userId: freshTech?.user || technicianId,
       role: 'technician',
       referenceId: assignment._id,
       referenceModel: 'Assignment',
@@ -573,7 +670,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
           technicianName: techName,
           customerName: booking.customer?.name || 'Customer',
           bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-          serviceName: booking.service?.name || 'Service',
+          serviceName,
           dateLabel,
           timeLabel,
           totalLabel: `₱${Number(booking.totalPrice || booking.estimatedFee || 0).toLocaleString()}`,
@@ -586,7 +683,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     }
 
     console.log(`👤 Technician ${technicianId} assigned to booking ${booking.bookingReference}`);
-    res.json({ success: true, booking, assignment, equipment: equipmentAssignments, aiRecommendations });
+    res.json({ success: true, booking, assignment, equipment: [], aiRecommendations });
   } catch (error) {
     console.error('❌ Error assigning technician:', error);
     res.status(500).json({ error: 'Failed to assign technician' });
@@ -691,11 +788,40 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
  * GET /api/admin/appointments/tools/available
  * List active inventory tools with available quantity and AI recommendations for a service.
  */
+function buildToolContextText(b, fallbackServiceName) {
+  const parts = [fallbackServiceName];
+  if (b.service?.name) parts.push(b.service.name);
+  if (b.service?.description) parts.push(b.service.description);
+  if (Array.isArray(b.services)) {
+    b.services.forEach((s) => {
+      if (s.name) parts.push(s.name);
+      if (s.repairIssue) parts.push(s.repairIssue);
+    });
+  }
+  if (b.issueDescription) parts.push(b.issueDescription);
+  if (Array.isArray(b.repairIssues) && b.repairIssues.length) parts.push(b.repairIssues.join(' '));
+  if (b.unitInfo) {
+    parts.push(b.unitInfo.unitType, b.unitInfo.brand, b.unitInfo.model, b.unitInfo.problemDescription);
+  }
+  if (b.applianceTypeName) parts.push(b.applianceTypeName);
+  if (b.applianceType) parts.push(b.applianceType);
+  if (b.brand) parts.push(b.brand);
+  if (b.serviceModel) parts.push(b.serviceModel);
+  if (b.serviceType) parts.push(b.serviceType);
+  return parts.filter(Boolean).join(' ').trim();
+}
+
 router.get('/tools/available', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    const serviceName = String(req.query.serviceName || '').toLowerCase();
-    const tools = await Tool.find({ active: true, isStockItem: true })
-      .select('_id itemName category description specification unit quantity reservedQuantity barcode')
+    const serviceNameRaw = req.query.serviceName || '';
+    const serviceName = String(serviceNameRaw).toLowerCase();
+    const bookingId = req.query.bookingId;
+    const tools = await Tool.find({
+      active: true, isStockItem: true, assignable: { $ne: false },
+      assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
+      $and: [Tool.operationalAssetFilter()],
+    })
+      .select('_id itemName type inventoryClass assetCode assetCondition assetStatus category description specification unit quantity reservedQuantity checkedOutQuantity barcode')
       .sort({ itemName: 1 })
       .lean();
 
@@ -704,41 +830,85 @@ router.get('/tools/available', requireRole(["admin", "secretary"]), async (req, 
       return { ...t, availableQuantity };
     });
 
+    // Only Equipment can be assigned to a technician up-front.
+    // Consumables are reserved/used by the technician; repair parts are quoted.
+    const legacyType = (t) => (t.type === 'tool' ? 'equipment' : t.type);
+    const assignable = prepared.filter((t) => {
+      const lt = legacyType(t);
+      return lt === 'equipment';
+    });
+
     let recommended = [];
-    if (serviceName) {
-      const tokens = serviceName.split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-      const conceptBoosts = [
-        { keys: ['clean', 'cleaning', 'wash'], terms: ['cleaner', 'coil', 'fin', 'brush', 'filter', 'vacuum'] },
-        { keys: ['repair', 'fix', 'troubleshoot'], terms: ['multimeter', 'gauge', 'refrigerant', 'leak', 'solder', 'vacuum pump', 'compressor'] },
-        { keys: ['install', 'installation', 'mount'], terms: ['drill', 'mount', 'bracket', 'copper', 'pipe', 'insulation', 'level'] },
-        { keys: ['gas', 'refrigerant', 'leak', 'refill'], terms: ['refrigerant', 'gas', 'gauge', 'vacuum pump', 'leak detector'] },
-        { keys: ['maintenance', 'checkup', 'pm', 'preventive'], terms: ['cleaner', 'filter', 'fin', 'multimeter', 'gauge'] },
-      ];
+    let contextText = serviceNameRaw;
+    let aiSuggestedTools = [];
+    let isRepair = false;
 
-      const scored = prepared.map((t) => {
-        const text = `${t.itemName} ${t.category || ''} ${t.description || ''} ${t.specification || ''}`.toLowerCase();
-        let score = 0;
-        tokens.forEach((tok) => {
-          if (text.includes(tok)) score += 2;
-        });
-        conceptBoosts.forEach((c) => {
-          if (c.keys.some((k) => serviceName.includes(k)) && c.terms.some((term) => text.includes(term))) score += 5;
-        });
-        if (t.availableQuantity <= 0) score -= 20;
-        return { ...t, score };
-      });
+    if (bookingId && mongoose.Types.ObjectId.isValid(bookingId)) {
+      const booking = await BookingService.findById(bookingId)
+        .select('serviceType serviceModel service services issueDescription repairIssues unitInfo applianceTypeName brand technicianAssistant')
+        .lean();
+      if (booking) {
+        isRepair = booking.serviceType === 'repair' || booking.serviceModel === 'RepairService';
+        contextText = buildToolContextText(booking, serviceNameRaw);
 
-      scored.sort((a, b) => b.score - a.score);
-      recommended = scored
-        .filter((t) => t.score > 0)
-        .slice(0, 5)
-        .map((t) => {
-          const { score, ...rest } = t;
-          return { ...rest, reason: `Suggested for ${req.query.serviceName}` };
-        });
+        // Use cached AI suggestions when available; otherwise generate for repairs
+        const cached = booking.technicianAssistant?.suggestedTools;
+        if (Array.isArray(cached) && cached.length) {
+          aiSuggestedTools = cached.map((t) => String(t).toLowerCase());
+        } else if (isRepair) {
+          const recs = await generateRepairRecommendations(booking);
+          aiSuggestedTools = (recs.suggestedTools || []).map((t) => String(t).toLowerCase());
+        }
+      }
     }
 
-    res.json({ success: true, tools: prepared, recommended });
+    const ctx = contextText.toLowerCase();
+    const tokens = ctx.split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+    const conceptBoosts = [
+      { keys: ['clean', 'cleaning', 'wash'], terms: ['cleaner', 'coil', 'fin', 'brush', 'filter', 'vacuum', 'foaming'] },
+      { keys: ['repair', 'fix', 'troubleshoot', 'no cooling', 'not cold', 'not working', 'broken', 'faulty', 'leak', 'leaking'], terms: ['multimeter', 'gauge', 'refrigerant', 'leak', 'solder', 'vacuum pump', 'compressor', 'capacitor', 'relay', 'pcb', 'fan motor', 'thermometer'] },
+      { keys: ['install', 'installation', 'mount'], terms: ['drill', 'mount', 'bracket', 'copper', 'pipe', 'insulation', 'level', 'wrench'] },
+      { keys: ['gas', 'refrigerant', 'leak', 'refill', 'charge'], terms: ['refrigerant', 'gas', 'gauge', 'vacuum pump', 'leak detector', 'manifold', 'charging'] },
+      { keys: ['maintenance', 'checkup', 'pm', 'preventive'], terms: ['cleaner', 'filter', 'fin', 'multimeter', 'gauge', 'brush', 'vacuum'] },
+    ];
+
+    const scored = assignable.map((t) => {
+      const text = `${t.itemName} ${t.category || ''} ${t.description || ''} ${t.specification || ''}`.toLowerCase();
+      let score = 0;
+      tokens.forEach((tok) => {
+        if (text.includes(tok)) score += 2;
+      });
+      conceptBoosts.forEach((c) => {
+        if (c.keys.some((k) => ctx.includes(k)) && c.terms.some((term) => text.includes(term))) score += 5;
+      });
+
+      // Strong boost for AI-suggested tool names
+      aiSuggestedTools.forEach((st) => {
+        if (st.length <= 2) return;
+        if (text.includes(st)) {
+          score += 20;
+        } else {
+          st.split(/[^a-z0-9]+/).filter((w) => w.length > 2).forEach((w) => {
+            if (text.includes(w)) score += 6;
+          });
+        }
+      });
+
+      if (t.availableQuantity <= 0) score -= 20;
+      return { ...t, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    recommended = scored
+      .filter((t) => t.score > 0)
+      .slice(0, 5)
+      .map((t) => {
+        const { score, ...rest } = t;
+        const legacy = t.type === 'tool' ? 'equipment' : t.type;
+        return { ...rest, reason: (legacy === 'equipment' ? 'Equipment' : 'Consumable') + (isRepair ? ' for this repair' : ` for ${serviceNameRaw}`) };
+      });
+
+    res.json({ success: true, tools: assignable, recommended });
   } catch (error) {
     console.error('[TOOLS] Error fetching available tools:', error);
     res.status(500).json({ error: 'Failed to load tools' });
@@ -992,7 +1162,16 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const filter = { status: 'assigned' };
+    // A pending Assignment is the source of truth. Repair inspections use an
+    // inspection status on the booking itself but still require technician
+    // acceptance and must therefore appear in this tab as well.
+    const pendingAssignmentIds = await Assignment.find({ status: 'pending_acceptance' }).distinct('_id');
+    const filter = {
+      $or: [
+        { status: 'assigned' },
+        { assignmentId: { $in: pendingAssignmentIds } },
+      ],
+    };
     const [bookings, total] = await Promise.all([
       BookingService.find(filter)
         .sort({ assignedAt: -1, bookingDate: -1 })
@@ -1100,6 +1279,29 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
     booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
     await booking.save();
 
+    // ── Cleanup: Release reserved equipment for this booking ─────────────
+    try {
+      const EquipmentAssignment = require('../models/EquipmentAssignment');
+      const Tool = require('../models/Tool');
+      const reserved = await EquipmentAssignment.find({
+        bookingId: booking._id,
+        status: 'reserved',
+      }).lean();
+      if (reserved.length) {
+        for (const eq of reserved) {
+          if (eq.equipmentId) {
+            await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
+          }
+        }
+        await EquipmentAssignment.deleteMany({
+          bookingId: booking._id,
+          status: 'reserved',
+        });
+      }
+    } catch (eqErr) {
+      console.warn('Equipment cleanup on force-reassign skipped:', eqErr.message);
+    }
+
     const io = req.app.get('io');
     if (io) io.to('admin-room').emit('booking:status-change', { bookingId: booking._id, status: booking.status, reason: 'Admin forced reassignment' });
 
@@ -1137,7 +1339,11 @@ router.get('/expenses/list', requireRole(["admin", "secretary"]), async (req, re
       .sort('-createdAt')
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('bookingId', 'bookingReference customerName service bookingDate startTime')
+      .populate({
+        path: 'bookingId',
+        select: 'bookingReference customer.name service.name serviceModel serviceId services.name bookingDate workOrderNumber',
+        populate: { path: 'serviceId', select: 'name' }
+      })
       .lean();
 
     res.json({
@@ -1166,6 +1372,13 @@ router.post('/expenses/:id/approve', requireRole("admin"), async (req, res) => {
     expense.approvedBy = req.user._id;
     expense.approvedAt = new Date();
     await expense.save();
+    if (expense.type === 'external_parts' && expense.bookingId) {
+      const booking = await BookingService.findById(expense.bookingId);
+      if (booking) {
+        const purchase = (booking.localPurchase || []).find(row => row.receiptUrl && row.receiptUrl === expense.receiptImage);
+        if (purchase) { purchase.adminVerificationStatus = 'approved'; purchase.purchaseStatus = 'verified'; await booking.save(); }
+      }
+    }
 
     console.log(`✅ Expense ${expense._id} approved by ${req.user.name || req.user.email}`);
 
@@ -1209,6 +1422,13 @@ router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
     expense.rejectedBy = req.user._id;
     expense.rejectedAt = new Date();
     await expense.save();
+    if (expense.type === 'external_parts' && expense.bookingId) {
+      const booking = await BookingService.findById(expense.bookingId);
+      if (booking) {
+        const purchase = (booking.localPurchase || []).find(row => row.receiptUrl && row.receiptUrl === expense.receiptImage);
+        if (purchase) { purchase.adminVerificationStatus = 'correction_requested'; purchase.purchaseStatus = 'rejected'; purchase.notes = `${purchase.notes || ''}${purchase.notes ? ' · ' : ''}Admin correction: ${expense.rejectionReason}`; await booking.save(); }
+      }
+    }
 
     console.log(`❌ Expense ${expense._id} rejected by ${req.user.name || req.user.email}`);
 
@@ -1269,23 +1489,153 @@ router.get('/expenses/stats', requireRole(["admin", "secretary"]), async (req, r
 });
 
 /**
+ * GET /api/admin/appointments/verification-warnings
+ * Enterprise queue health summary:
+ *  - overdue: queue bookings that passed their scheduled time without a
+ *    committed technician (flagged by the reschedule monitor).
+ *  - verify: upcoming bookings (within verify window) still needing payment
+ *    verification and/or technician assignment before their schedule time.
+ */
+router.get('/verification-warnings', requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    const { parseBookingDateTime } = require('../utils/overdueBookingScheduler');
+    const now = new Date();
+    const graceMin = 30;
+    const verifyHours = 3;
+    const windowEnd = new Date(now.getTime() + verifyHours * 3600 * 1000);
+    const queueStatuses = ['awaiting_assignment', 'assigned', 'pending_reassignment'];
+
+    const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus autoReschedulePending autoRescheduleAt';
+
+    const queueBookings = await BookingService.find({ status: { $in: queueStatuses } })
+      .select(select)
+      .lean();
+
+    const overdueItems = [];
+    for (const b of queueBookings) {
+      const sched = parseBookingDateTime(b.bookingDate, b.startTime);
+      if (!sched) continue;
+      const graceEnd = new Date(sched.getTime() + graceMin * 60000);
+      if (now <= graceEnd) continue;
+      overdueItems.push({
+        _id: b._id,
+        bookingReference: b.bookingReference,
+        customerName: b.customer ? b.customer.name : 'Customer',
+        serviceName: b.serviceName || (b.service && b.service.name) || 'Service',
+        status: b.status,
+        bookingDate: b.bookingDate,
+        startTime: b.startTime || '',
+        scheduleTime: sched.toISOString(),
+        overdueByMin: Math.round((now - sched) / 60000),
+        autoReschedulePending: !!b.autoReschedulePending,
+      });
+    }
+
+    const upcoming = await BookingService.find({
+      status: {
+        $in: [
+          'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
+          'pending_reassignment', 'confirmed', 'scheduled',
+        ],
+      },
+      verificationReminderAt: null,
+    })
+      .select(select)
+      .lean();
+
+    const verifyItems = [];
+    for (const b of upcoming) {
+      const sched = parseBookingDateTime(b.bookingDate, b.startTime);
+      if (!sched || sched <= now || sched > windowEnd) continue;
+      const issues = [];
+      if (b.status === 'pending' || ['pending', 'failed', 'partial'].includes(b.paymentStatus)) {
+        issues.push('payment');
+      }
+      if (queueStatuses.includes(b.status)) {
+        issues.push('assignment');
+      }
+      if (!issues.length) continue;
+      verifyItems.push({
+        _id: b._id,
+        bookingReference: b.bookingReference,
+        customerName: b.customer ? b.customer.name : 'Customer',
+        serviceName: b.serviceName || (b.service && b.service.name) || 'Service',
+        status: b.status,
+        bookingDate: b.bookingDate,
+        startTime: b.startTime || '',
+        scheduledBy: sched.toISOString(),
+        hoursAway: Math.round((sched - now) / 3600000 * 10) / 10,
+        issues,
+      });
+    }
+
+    res.json({
+      success: true,
+      overdueCount: overdueItems.length,
+      verifyCount: verifyItems.length,
+      overdueItems: overdueItems.slice(0, 50),
+      verifyItems: verifyItems.slice(0, 50),
+      now: now.toISOString(),
+    });
+  } catch (error) {
+    console.error('❌ Error fetching verification warnings:', error);
+    res.status(500).json({ error: 'Failed to fetch verification warnings' });
+  }
+});
+
+/**
  * GET /api/admin/appointments/:id
  * Get full booking details for admin view
  */
 router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const booking = await BookingService.findById(req.params.id)
-      .populate('technicianId', 'firstName lastName phone location')
+      .populate('technicianId', 'name userEmail phone location user')
+      .populate('customerId', 'firstName lastName email phone address')
+      .populate('serviceId', 'name description basePrice durationMinutes estimatedDurationMinutes')
       .lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    let assignment = null;
-    if (booking.assignmentId) {
-      assignment = await Assignment.findById(booking.assignmentId).lean();
+    if ((!booking.service || !booking.service.name) && booking.serviceId && typeof booking.serviceId === 'object') {
+      booking.service = {
+        _id: booking.serviceId._id,
+        name: booking.serviceId.name || '',
+        description: booking.serviceId.description || '',
+        basePrice: booking.serviceId.basePrice || 0,
+      };
     }
 
-    let payment = null;
-    payment = await Payment.findOne({ bookingId: booking._id }).lean();
+    let assignment = null;
+    if (booking.assignmentId) {
+      assignment = await Assignment.findById(booking.assignmentId)
+        .populate('technicianId', 'name userEmail phone user')
+        .lean();
+    }
+    // Older records and interrupted saves may have a valid Assignment without
+    // the denormalized booking.assignmentId pointer. Use the newest assignment
+    // so the detail modal still reports the real technician state.
+    if (!assignment) {
+      assignment = await Assignment.findOne({ bookingId: booking._id })
+        .sort({ createdAt: -1 })
+        .populate('technicianId', 'name userEmail phone user')
+        .lean();
+    }
+
+    const payments = await Payment.find({ bookingId: booking._id })
+      .sort({ submittedAt: 1, collectedAt: 1 })
+      .lean();
+    const payment = payments.length ? payments[0] : null;
+
+    // Use the payment ledger as the read-time source of truth. Booking
+    // snapshots from older online and walk-in flows may not have amountPaid or
+    // balanceAmount synchronized even though Payment rows exist.
+    const collectedStatuses = new Set(['paid', 'partial', 'verified', 'remitted', 'payment_collected', 'waiting_for_remittance']);
+    const ledgerPaid = payments.reduce((sum, row) => collectedStatuses.has(row.status) ? sum + (Number(row.amount) || 0) : sum, 0);
+    const totalDue = Number(booking.totalPrice || booking.estimatedFee || booking.servicePrice) || 0;
+    booking.amountPaid = Math.max(Number(booking.amountPaid) || 0, ledgerPaid);
+    booking.balanceAmount = Math.max(0, totalDue - booking.amountPaid);
+    if (totalDue > 0 && booking.amountPaid >= totalDue) booking.paymentStatus = 'paid';
+    else if (booking.amountPaid > 0) booking.paymentStatus = 'partial';
 
     // Attach technician current location for tracking
     let technicianLocation = null;
@@ -1298,7 +1648,36 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
       };
     }
 
-    res.json({ booking, assignment, payment, technicianLocation });
+    const reservedParts = await (require("../models/StockReservation")).find({ bookingId: booking._id })
+      .populate("toolId", "itemName quantity costPrice barcode")
+      .sort({ reservedAt: -1 })
+      .lean();
+
+    let financialSummary = null;
+    let operationalSummary = null;
+    if (booking.status === "completed") {
+      const costAnalytics = await require("../utils/serviceCostAnalytics").buildServiceCostAnalytics([booking]);
+      const serviceCost = costAnalytics.services[0];
+      if (serviceCost) {
+        financialSummary = {
+          revenue: serviceCost.revenue,
+          laborCost: serviceCost.laborCost,
+          repairPartsCost: serviceCost.partsCost,
+          consumablesCost: serviceCost.consumablesCost,
+          grossProfit: serviceCost.grossProfit,
+          grossProfitMargin: serviceCost.grossProfitMargin,
+        };
+        operationalSummary = {
+          equipmentUsed: serviceCost.equipment,
+          consumablesUsed: serviceCost.consumables,
+          repairPartsUsed: serviceCost.repairParts,
+          assignedTechnician: serviceCost.technician,
+          serviceDurationHours: serviceCost.laborHours,
+        };
+      }
+    }
+
+    res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary });
   } catch (error) {
     console.error('❌ Error fetching booking detail:', error);
     res.status(500).json({ error: 'Failed to fetch booking detail' });
@@ -1424,87 +1803,150 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
   * Body: { newDate, newTime, notifyCustomer: boolean }
   */
  router.post('/:id/admin-reschedule', requireRole(['admin', 'secretary']), async (req, res) => {
-   try {
-     const { id } = req.params;
-     const { newDate, newTime, notifyCustomer = true } = req.body;
+  try {
+    const { id } = req.params;
+    const { newDate, newTime, notifyCustomer = true, proposedTechnicianId } = req.body;
 
-     if (!newDate || !newTime) {
-       return res
-         .status(400)
-         .json({ error: 'newDate and newTime are required' });
-     }
+    if (!newDate || !newTime) {
+      return res
+        .status(400)
+        .json({ error: 'newDate and newTime are required' });
+    }
 
-     const booking = await BookingService.findById(id);
-     if (!booking) {
-       return res.status(404).json({ error: 'Booking not found' });
-     }
+    const booking = await BookingService.findById(id);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
 
-     if (booking.status !== BookingStatus.PENDING_REASSIGNMENT) {
-       return res
-         .status(400)
-         .json({ error: `Cannot reschedule booking in "${booking.status}" status` });
-     }
+    const validRescheduleStatuses = [BookingStatus.PENDING_REASSIGNMENT, BookingStatus.RESCHEDULED];
+    if (!validRescheduleStatuses.includes(booking.status)) {
+      return res
+        .status(400)
+        .json({ error: `Cannot reschedule booking in "${booking.status}" status` });
+    }
 
-     const newDateObj = new Date(newDate);
-     newDateObj.setHours(0, 0, 0, 0);
+    const newDateObj = new Date(newDate);
+    newDateObj.setHours(0, 0, 0, 0);
 
-     // Conflict check
-     const conflict = await BookingService.findOne({
-       _id: { $ne: id },
-       bookingDate: newDateObj,
-       startTime: newTime,
-       status: {
-         $in: [
-           'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
-           'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way',
-           'arrived', 'in-progress', 'ongoing', 'repair_requested',
-           'inspection_scheduled', 'inspection_in_progress', 'repair_approved',
-           'ready_for_repair', 'repair_scheduled', 'repair_in_progress',
-         ],
-       },
-     }).lean();
+    const conflict = await BookingService.findOne({
+      _id: { $ne: id },
+      bookingDate: newDateObj,
+      startTime: newTime,
+      status: {
+        $in: [
+          'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
+          'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way',
+          'arrived', 'in-progress', 'ongoing', 'repair_requested',
+          'inspection_scheduled', 'inspection_in_progress', 'repair_approved',
+          'ready_for_repair', 'repair_scheduled', 'repair_in_progress',
+        ],
+      },
+    }).lean();
 
-     if (conflict) {
+    if (conflict) {
        return res
          .status(409)
          .json({ error: 'This date and time slot is already booked by another appointment' });
      }
 
-     // Transition booking to re-scheduled
-     const previousStatus = booking.status;
-     booking.status = BookingStatus.RESCHEDULED;
-     booking.bookingDate = newDateObj;
-     booking.startTime = newTime;
-     booking.selectedTimeLabel = newTime;
-     booking.rescheduleReason = `Admin-rescheduled due to technician unavailability. Previous status: ${previousStatus}`;
-     booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
-     booking.cancellationHistory.push({
-       technicianId: booking.technicianId,
-       technicianName: booking.technician?.name || 'Unknown',
-       action: 'reassigned',
-       reason: 'Admin rescheduled due to technician unavailability',
-       timestamp: new Date(),
-     });
-     await booking.save();
+    // Transition booking to re-scheduled — DO NOT overwrite the active
+    // date/time. The proposed schedule is stored in `proposedReschedule`
+    // and applied only once the customer confirms (reschedule-action accept),
+    // so the booking keeps its original slot until confirmation.
+    const previousStatus = booking.status;
+    const originalBookingDate = booking.bookingDate;
+    const originalStartTime = booking.startTime;
+    booking.status = BookingStatus.RESCHEDULED;
+    booking.rescheduleReason = `Admin proposed reschedule due to technician unavailability. Previous status: ${previousStatus}`;
+    booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
+    booking.cancellationHistory.push({
+      technicianId: booking.technicianId,
+      technicianName: booking.technician?.name || 'Unknown',
+      action: 'reassigned',
+      reason: 'Admin proposed reschedule due to technician unavailability',
+      timestamp: new Date(),
+    });
 
-     // Update assignment if exists
-     if (booking.assignmentId) {
-       await Assignment.findByIdAndUpdate(booking.assignmentId, {
-         status: 'cancelled',
-         cancelledAt: new Date(),
-         notes: 'Cancelled due to admin reschedule',
-       });
-     }
+    // Invalidate any outstanding customer reschedule-request so the queue
+    // doesn't show a stale "customer requests new schedule" reminder next to
+    // this fresh proposal.
+    if (booking.rescheduleRequest && booking.rescheduleRequest.requested) {
+      booking.rescheduleRequest.status = 'superseded';
+      booking.rescheduleRequest.processedBy = req.user._id;
+      booking.rescheduleRequest.processedAt = new Date();
+    }
 
-     // Record status history
-     booking.recordStatusHistory({
-       fromStatus: previousStatus,
-       toStatus: BookingStatus.RESCHEDULED,
-       reason: 'Admin rescheduled due to technician unavailability',
-       changedBy: req.user._id,
-       changedByModel: 'User',
-       changedByName: req.user.name || req.user.email || 'Admin',
-     });
+    // Store the proposed schedule pending customer confirmation
+    let proposedTechnicianName = null;
+    if (proposedTechnicianId && mongoose.Types.ObjectId.isValid(proposedTechnicianId)) {
+      const tech = await Technician.findById(proposedTechnicianId).select('name').lean();
+      if (tech) proposedTechnicianName = tech.name;
+    }
+    booking.proposedReschedule = {
+      proposedAt: new Date(),
+      proposedBy: req.user._id,
+      proposedByName: req.user.name || req.user.email || 'Admin',
+      date: newDateObj,
+      time: newTime,
+      dateLabel: newDateObj.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      timeLabel: newTime,
+      originalDate: originalBookingDate ? new Date(originalBookingDate) : null,
+      originalTime: originalStartTime || null,
+      technicianId: proposedTechnicianName ? proposedTechnicianId : null,
+      technicianName: proposedTechnicianName,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: 'pending',
+    };
+    await booking.save();
+
+    // Update assignment if exists
+    if (booking.assignmentId) {
+      await Assignment.findByIdAndUpdate(booking.assignmentId, {
+        $set: { status: 'cancelled', cancelledAt: new Date() },
+        $push: {
+          notes: {
+            text: 'Cancelled due to admin reschedule',
+            by: req.user._id,
+            byName: req.user.name || req.user.email || 'Admin',
+            createdAt: new Date(),
+          },
+        },
+      });
+    }
+
+    // ── Cleanup: Release reserved equipment for this booking ─────────────
+    try {
+      const EquipmentAssignment = require('../models/EquipmentAssignment');
+      const Tool = require('../models/Tool');
+      const reserved = await EquipmentAssignment.find({
+        bookingId: booking._id,
+        status: 'reserved',
+      }).lean();
+      if (reserved.length) {
+        for (const eq of reserved) {
+          if (eq.equipmentId) {
+            await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
+          }
+        }
+        await EquipmentAssignment.deleteMany({
+          bookingId: booking._id,
+          status: 'reserved',
+        });
+      }
+    } catch (eqErr) {
+      console.warn('Equipment cleanup on reschedule skipped:', eqErr.message);
+    }
+
+    // Record status history
+    booking.recordStatusHistory({
+      fromStatus: previousStatus,
+      toStatus: BookingStatus.RESCHEDULED,
+      reason: 'Admin rescheduled due to technician unavailability',
+      changedBy: req.user._id,
+      changedByModel: 'User',
+      changedByName: req.user.name || req.user.email || 'Admin',
+    });
+    await booking.save();
 
      // Notify customer via socket
      const io = req.app.get('io');
@@ -1519,20 +1961,20 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
      }
 
      // Create notification for customer
-     const { createNotification } = require('../utils/notify');
-     if (notifyCustomer && booking.customerId) {
-       await createNotification({
-         type: 'booking_rescheduled',
-         title: 'Appointment Rescheduled',
-         message: `Your appointment for ${booking.service?.name || 'a service'} has been rescheduled to ${newDateObj.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })} at ${newTime}.`,
-         userId: booking.customerId,
-         role: 'customer',
-         referenceId: booking._id,
-         referenceModel: 'BookingService',
-         link: '/book-history',
-         io,
-       });
-     }
+    const { createNotification } = require('../utils/notify');
+    if (notifyCustomer && booking.customerId) {
+      await createNotification({
+        type: 'booking_rescheduled',
+        title: 'Proposed Reschedule – Action Required',
+        message: `We propose to reschedule your ${booking.service?.name || 'a service'} appointment to ${newDateObj.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })} at ${newTime}. Please review and confirm in your booking history.`,
+        userId: booking.customerId,
+        role: 'customer',
+        referenceId: booking._id,
+        referenceModel: 'BookingService',
+        link: `/tracking`,
+        io,
+      });
+    }
 
      // Email customer about the reschedule
      if (notifyCustomer && booking.customer?.email) {
@@ -1566,7 +2008,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
        }
      }
 
-     console.log(`[Reschedule] Booking ${booking.bookingReference} rescheduled to ${newDateLabel} at ${newTime}`);
+     console.log(`[Reschedule] Booking ${booking.bookingReference} rescheduled to ${newDateObj.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at ${newTime}`);
 
      res.json({
        success: true,
@@ -1575,7 +2017,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
      });
    } catch (error) {
      console.error('Error rescheduling booking:', error);
-     res.status(500).json({ error: 'Failed to reschedule booking' });
+     res.status(500).json({ error: error.message || 'Failed to reschedule booking' });
    }
  });
 
@@ -1635,8 +2077,10 @@ router.get('/waiting-reassignment/slots', requireRole(['admin', 'secretary']), a
 
     // Format windows as slot options
     const slots = windows.map(w => ({
-      value: w.start,
-      label: w.start + ' – ' + w.end,
+      value: w.displayStart || w.start,
+      end: w.displayEnd || w.end,
+      label: (w.displayStart || w.start) + ' – ' + (w.displayEnd || w.end),
+      remainingCapacity: w.remainingCapacity || 0,
     }));
 
     res.json({
@@ -1676,6 +2120,26 @@ router.get('/equipment-assignments', requireRole(['admin', 'secretary']), async 
   } catch (error) {
     console.error('Error fetching equipment assignments:', error);
     res.status(500).json({ error: 'Failed to fetch equipment assignments' });
+  }
+});
+
+/** Admin audit view of consolidated technician preparation. */
+router.get('/daily-kits', requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    const DailyKit = require('../models/DailyKit');
+    const { date } = req.query;
+    const start = date ? new Date(`${date}T00:00:00`) : new Date();
+    if (Number.isNaN(start.getTime())) return res.status(400).json({ error: 'Invalid date' });
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const kits = await DailyKit.find({ workDate: { $gte: start, $lt: end } })
+      .populate('technicianId', 'name')
+      .populate('items.bookingIds', 'bookingReference service services')
+      .sort({ status: 1 }).lean();
+    return res.json({ success: true, date: start, kits });
+  } catch (error) {
+    console.error('Error fetching daily kits:', error);
+    return res.status(500).json({ error: 'Failed to fetch daily kits' });
   }
 });
 
@@ -1727,9 +2191,13 @@ router.get('/equipment-bookings', requireRole(['admin', 'secretary']), async (re
 router.get('/tools/available', requireRole(['admin', 'secretary']), async (req, res) => {
   try {
     const { search = '' } = req.query;
-    const filter = { active: true, status: { $in: ['in_stock', 'low_stock'] } };
+    const filter = {
+      active: true, status: { $in: ['in_stock', 'low_stock'] }, assignable: { $ne: false },
+      assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
+      $and: [Tool.operationalAssetFilter()],
+    };
     if (search) filter.itemName = { $regex: search, $options: 'i' };
-    const items = await Tool.find(filter).select('itemName unit quantity barcode status minStockLevel').sort({ itemName: 1 }).limit(200).lean();
+    const items = await Tool.find(filter).select('itemName unit quantity barcode assetCode assetStatus checkedOutQuantity status minStockLevel inventoryClass').sort({ itemName: 1 }).limit(200).lean();
     res.json({ tools: items });
   } catch (error) {
     console.error('Error fetching tools:', error);
@@ -1752,10 +2220,17 @@ router.post('/:id/equipment', requireRole(['admin', 'secretary']), async (req, r
       Tool.findById(equipmentId).lean(),
     ]);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.serviceModel !== 'RepairService' && booking.serviceType !== 'repair') {
+      return res.status(403).json({ error: 'Standard booking preparation is managed by the assigned technician.' });
+    }
     if (!booking.technicianId) return res.status(400).json({ error: 'Booking has no assigned technician' });
     if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    if (Tool.effectiveInventoryClass(tool) !== 'operational_asset' || tool.assignable === false || ['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus)) {
+      return res.status(400).json({ error: 'Only available operational assets can be assigned' });
+    }
     const requestedQty = Math.max(1, parseInt(quantity) || 1);
-    if (tool.quantity < requestedQty) return res.status(400).json({ error: 'Insufficient stock for ' + tool.itemName });
+    const availableQuantity = Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
+    if (availableQuantity < requestedQty) return res.status(400).json({ error: 'Insufficient available stock for ' + tool.itemName });
     const assignment = await EquipmentAssignment.create({
       bookingId: booking._id,
       bookingReference: booking.bookingReference || '',
@@ -1766,10 +2241,12 @@ router.post('/:id/equipment', requireRole(['admin', 'secretary']), async (req, r
       equipmentCode: tool.barcode || '',
       quantity: requestedQty,
       status: 'reserved',
+      consumable: tool.type === 'consumable',
       notes,
       issuedBy: req.user?.name || String(req.user?._id),
       issuedAt: new Date(),
     });
+    await Tool.findByIdAndUpdate(tool._id, { $inc: { reservedQuantity: requestedQty } });
     res.status(201).json({ success: true, assignment });
   } catch (error) {
     console.error('Error assigning equipment:', error);
@@ -1788,6 +2265,9 @@ router.delete('/equipment-assignments/:assignmentId', requireRole(['admin', 'sec
     const assignment = await EquipmentAssignment.findById(assignmentId);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
     if (assignment.status !== 'reserved') return res.status(400).json({ error: 'Cannot remove a checked-out or returned assignment' });
+    await Tool.findByIdAndUpdate(assignment.equipmentId, [{
+      $set: { reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ['$reservedQuantity', 0] }, assignment.quantity || 1] }] } },
+    }]);
     await assignment.deleteOne();
     res.json({ success: true, message: 'Equipment assignment removed' });
   } catch (error) {

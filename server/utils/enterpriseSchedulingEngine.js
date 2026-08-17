@@ -16,6 +16,8 @@ const {
 const DEFAULT_WORK_START = 8 * 60;
 const DEFAULT_WORK_END = 19 * 60; // 7:00 PM (includes overtime)
 const DEFAULT_SLOT_INTERVAL = 30;
+const LARGE_SCALE_MIN_UNITS = 8;
+const MAX_BOOKING_UNITS = 40;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const WORK_START = DEFAULT_WORK_START;
@@ -28,6 +30,8 @@ const APPOINTMENT_WINDOWS = [
   { label: "8:00 AM Window", startMin: 8 * 60 },
   { label: "11:00 AM Window", startMin: 11 * 60 },
   { label: "1:00 PM Window", startMin: 13 * 60 },
+  { label: "3:00 PM Window", startMin: 15 * 60 },
+  { label: "4:00 PM Window", startMin: 16 * 60 },
 ];
 
 // The largest reservation that can still fit a standard appointment is one that
@@ -98,6 +102,10 @@ function classifyBooking(params) {
 }
 
 async function isLargeProject(params) {
+  const suppliedUnits = params.totalUnits ?? params.quantity;
+  if (suppliedUnits !== undefined && suppliedUnits !== null) {
+    return Number(suppliedUnits) >= LARGE_SCALE_MIN_UNITS;
+  }
   const { totalEstimatedMinutes } = params;
   const thresholdMinutes = (await getProjectThresholdHours()) * 60;
   return totalEstimatedMinutes > thresholdMinutes;
@@ -264,8 +272,7 @@ async function generateAvailableDates(params) {
     travelTime = 20,
   } = params;
 
-  const thresholdMinutes = (await getProjectThresholdHours()) * 60;
-  if (totalEstimatedMinutes > thresholdMinutes) {
+  if (Number(quantity) >= LARGE_SCALE_MIN_UNITS) {
     return {
       isLargeProject: true,
       dates: [],
@@ -1090,6 +1097,8 @@ async function reserveProjectCapacity(params) {
 }
 
 module.exports = {
+  LARGE_SCALE_MIN_UNITS,
+  MAX_BOOKING_UNITS,
   BookingType,
   APPOINTMENT_WINDOWS: APPOINTMENT_WINDOWS_EXPORT,
   classifyBooking,

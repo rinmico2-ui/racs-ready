@@ -27,7 +27,7 @@
         </button>
 
         <!-- Notification Dropdown Panel -->
-        <div id="notifPanel" class="d-none position-absolute" style="top: calc(100% + 8px); right: 0; width: 380px; max-height: 480px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); z-index: 9999; overflow: hidden;">
+        <div id="notifPanel" class="d-none position-absolute" style="top: calc(100% + 8px); right: 0; width: min(380px, 92vw); max-height: 480px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); z-index: 9999; overflow: hidden;">
           <!-- Header -->
           <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style="background: #f8fafc;">
             <span class="fw-bold" style="font-size: 0.85rem; color: #1e293b;">Notifications</span>
@@ -114,7 +114,7 @@
 
 <!-- Full Notifications Modal -->
 <div id="notifModal" class="d-none" style="position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;">
-  <div style="background: #fff; border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.2); width: 100%; max-width: 640px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
+  <div style="background: #fff; border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.2); width: 100%; max-width: min(640px, 94vw); max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
     <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style="background: #f8fafc;">
       <div class="d-flex align-items-center gap-2">
         <input type="checkbox" id="selectAllNotif" style="width:16px; height:16px; cursor: pointer;">
@@ -181,6 +181,101 @@
   .notif-modal-item.unread:hover { background: #dbeafe; }
   .notif-modal-item.hidden { display: none; }
   .notif-checkbox { width: 16px; height: 16px; cursor: pointer; margin-top: 8px; flex-shrink: 0; }
+
+  /* Mobile responsive styles for notification panel */
+  @media (max-width: 767px) {
+    #notifPanel {
+      right: -8px;
+      left: 8px;
+      width: calc(100% - 16px);
+      max-height: 70vh;
+    }
+    #notifList {
+      max-height: calc(70vh - 100px);
+    }
+    .notif-item {
+      padding: 12px 10px;
+    }
+    .notif-icon {
+      width: 28px;
+      height: 28px;
+      font-size: 0.75rem;
+    }
+    .notif-title {
+      font-size: 0.78rem;
+    }
+    .notif-msg {
+      font-size: 0.72rem;
+    }
+    .notif-time {
+      font-size: 0.65rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #notifPanel {
+      right: 0;
+      left: 0;
+      width: 100%;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+    }
+    .notif-item {
+      padding: 10px 12px;
+    }
+  }
+
+  /* Mobile responsive styles for notification modal */
+  @media (max-width: 767px) {
+    #notifModal {
+      padding: 8px;
+    }
+    #notifModal > div {
+      max-height: 90vh;
+    }
+    #notifModalList {
+      max-height: calc(90vh - 180px);
+    }
+    .notif-modal-item {
+      padding: 10px 12px;
+      gap: 10px;
+    }
+    .notif-checkbox {
+      width: 14px;
+      height: 14px;
+    }
+    .notif-icon {
+      width: 28px;
+      height: 28px;
+      font-size: 0.75rem;
+    }
+    .notif-title {
+      font-size: 0.78rem;
+    }
+    .notif-msg {
+      font-size: 0.72rem;
+    }
+    .notif-time {
+      font-size: 0.65rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #notifModal {
+      padding: 0;
+    }
+    #notifModal > div {
+      border-radius: 0;
+      max-height: 100vh;
+    }
+    #notifModalList {
+      max-height: calc(100vh - 200px);
+    }
+    .notif-modal-item {
+      padding: 12px;
+    }
+  }
 </style>
 
 <script>
@@ -510,23 +605,37 @@
     }
 
     function openNotifModal() {
+      // Close the dropdown panel first
+      panel.classList.add('d-none');
+      isOpen = false;
+      btn.style.background = 'transparent';
+      // Then open the modal
       notifModal.classList.remove('d-none');
+      notifModal.style.display = 'flex';
       loadAllNotifications();
     }
 
     function closeNotifModalFn() {
       notifModal.classList.add('d-none');
+      notifModal.style.display = 'none';
     }
 
     viewAllBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       openNotifModal();
     });
 
-    closeNotifModal.addEventListener('click', closeNotifModalFn);
+    closeNotifModal.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeNotifModalFn();
+    });
 
     notifModal.addEventListener('click', (e) => {
-      if (e.target === notifModal) closeNotifModalFn();
+      if (e.target === notifModal) {
+        e.stopPropagation();
+        closeNotifModalFn();
+      }
     });
 
     notifSearch.addEventListener('input', () => {

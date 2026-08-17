@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const QRCode = require("qrcode");
@@ -33,8 +33,15 @@ router.post("/staff/:id/reset-password", admin.resetStaffPassword);
 router.get("/staff/:id/logs", admin.viewStaffActivityLogs);
 router.get("/logs", admin.listLogs);
 
+// Enterprise Audit Trail
+router.get("/audit/stats", admin.auditStats);
+router.get("/audit", admin.listAuditTrail);
+
 // Dashboard KPI summary (counts used by admin dashboard)
 router.get("/analytics/summary", admin.analyticsSummary);
+
+// Debug — remove after verifying
+router.get("/debug/counts", admin.debugCounts);
 
 // Non-working days (day-offs) — admin can add/remove full-day blocked dates
 router.get("/dayoffs", admin.listNonWorkingDays);
@@ -61,6 +68,79 @@ router.get("/repair-services", admin.listRepairServices);
 router.get("/repair-services/:id", admin.getRepairService);
 router.post("/repair-services", admin.createRepairService);
 router.patch("/repair-services/:id", admin.editRepairService);
+
+// Service Categories (dynamic repair request categories & unit types)
+const ServiceCategory = require("../models/ServiceCategory");
+
+router.get("/service-categories", async (req, res) => {
+  try {
+    const categories = await ServiceCategory.find({}).sort({ order: 1 }).lean();
+    res.json({ success: true, categories });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post("/service-categories", async (req, res) => {
+  try {
+    const { name, slug, icon, iconColor, unitTypes, isCustom, order } = req.body;
+    if (!name || !slug) return res.status(400).json({ success: false, error: "Name and slug are required." });
+    const exists = await ServiceCategory.findOne({ $or: [{ name }, { slug }] });
+    if (exists) return res.status(409).json({ success: false, error: "Category name or slug already exists." });
+    const maxOrder = await ServiceCategory.findOne().sort({ order: -1 }).lean();
+    const category = await ServiceCategory.create({
+      name, slug, icon: icon || "bi-grid", iconColor: iconColor || "blue",
+      unitTypes: unitTypes || [], isCustom: !!isCustom, order: order ?? ((maxOrder?.order || 0) + 1)
+    });
+    res.status(201).json({ success: true, category });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch("/service-categories/:id", async (req, res) => {
+  try {
+    const { name, slug, icon, iconColor, unitTypes, active, order, isCustom } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (slug !== undefined) update.slug = slug;
+    if (icon !== undefined) update.icon = icon;
+    if (iconColor !== undefined) update.iconColor = iconColor;
+    if (unitTypes !== undefined) update.unitTypes = unitTypes;
+    if (active !== undefined) update.active = active;
+    if (order !== undefined) update.order = order;
+    if (isCustom !== undefined) update.isCustom = isCustom;
+    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
+    res.json({ success: true, category });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.delete("/service-categories/:id", async (req, res) => {
+  try {
+    const category = await ServiceCategory.findById(req.params.id);
+    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
+    if (category.isCustom) return res.status(400).json({ success: false, error: "Cannot delete the 'Other' category." });
+    category.active = false;
+    await category.save();
+    res.json({ success: true, message: "Category deactivated." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch("/service-categories/:id/reorder", async (req, res) => {
+  try {
+    const { order } = req.body;
+    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, { order }, { new: true });
+    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
+    res.json({ success: true, category });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Service Tracking
 router.get("/service-tracking", admin.getServiceTracking);
@@ -103,7 +183,7 @@ router.post("/tools", admin.createTool);
 router.patch("/tools/:id", admin.editTool);
 router.delete("/tools/:id", admin.deleteTool);
 
-// ─── Stock Adjustment (audit-logged inventory changes) ────────────────────────
+// â”€â”€â”€ Stock Adjustment (audit-logged inventory changes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post("/tools/:id/adjust-stock", async (req, res, next) => {
   try {
     const StockAdjustment = require("../models/StockAdjustment");
@@ -205,6 +285,137 @@ router.get("/payments", paymentController.listPayments);
 router.get("/payments/:id", paymentController.getPayment);
 router.post("/payments", paymentController.createPayment);
 router.patch("/payments/:id", paymentController.updatePayment);
+
+router.get("/remittances", async (req, res, next) => {
+  try {
+    const Payment = require("../models/Payment");
+    const status = req.query.status;
+    const requestedStatus = status && status !== "all" ? status : null;
+    const normalStatuses = requestedStatus ? [requestedStatus] : ["waiting_for_remittance", "remitted", "rejected", "verified"];
+    const includeLegacyCollections = !requestedStatus || requestedStatus === "waiting_for_remittance";
+    const filter = includeLegacyCollections
+      ? { $or: [{ status: { $in: normalStatuses } }, { status: "paid", collectedBy: { $exists: false }, bookingId: { $ne: null } }, { status: "paid", collectedBy: null, bookingId: { $ne: null } }] }
+      : { status: { $in: normalStatuses } };
+    const payments = await Payment.find(filter)
+      .populate("bookingId", "bookingReference customer status paymentStatus technicianId balanceCollected repairPaymentCollected inspectionFeeCollected")
+      .populate("orderId", "orderReference customer status paymentStatus total")
+      .populate("projectId", "projectReference customer status payment")
+      .populate("collectedBy", "name firstName lastName")
+      .sort({ collectedAt: -1, submittedAt: -1 }).lean();
+    const visiblePayments = payments.filter((payment) => {
+      if (payment.status !== "paid" || payment.collectedBy) return true;
+      const booking = payment.bookingId;
+      return Boolean(booking && (booking.balanceCollected || booking.repairPaymentCollected || booking.inspectionFeeCollected));
+    });
+    visiblePayments.forEach((payment) => {
+      if (payment.status === "paid" && !payment.collectedBy) {
+        payment.status = "waiting_for_remittance";
+        payment.collectedByName = payment.collectedByName || "Assigned technician (legacy record)";
+        payment.collectedAt = payment.collectedAt || payment.completedAt || payment.submittedAt;
+        payment.legacyCollection = true;
+      }
+    });
+
+    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+    const page = Math.max(0, Number(req.query.page) || 0);
+    const paged = visiblePayments.slice(page * limit, (page + 1) * limit);
+
+    res.json({ payments: paged, total: visiblePayments.length, page, limit });
+  } catch (err) { next(err); }
+});
+
+// Unified invoice register: service bookings/projects, ecommerce product
+// orders, and completed walk-in POS sales.
+router.get("/invoices", async (req, res, next) => {
+  try {
+    const Payment = require("../models/Payment");
+    const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const WalkInSale = require("../models/WalkInSale");
+    const [payments, legacyBookings, orders, posSales] = await Promise.all([
+      Payment.find({ status: { $in: ["verified", "paid"] } })
+        .populate("bookingId", "bookingReference customer service services status")
+        .populate("orderId", "orderReference customer items subtotal deliveryFee installationFee transportationFee total status")
+        .populate("projectId", "projectReference customer service status")
+        .sort({ verifiedAt: -1, submittedAt: -1 }).lean(),
+      BookingService.find({ paymentStatus: { $in: ["verified", "paid"] } })
+        .select("bookingReference customer service services totalPrice estimatedFee amountPaid paymentMethod paymentStatus completedAt createdAt").lean(),
+      Order.find({ $or: [{ paymentStatus: { $in: ["verified", "paid"] } }, { status: "completed" }] })
+        .select("orderReference customer items subtotal deliveryFee installationFee transportationFee total paymentMethod paymentStatus status createdAt updatedAt").lean(),
+      WalkInSale.find({ status: "completed" }).sort({ completedAt: -1, createdAt: -1 }).lean(),
+    ]);
+
+    const linkedBookingIds = new Set(payments.map(p => p.bookingId && String(p.bookingId._id)).filter(Boolean));
+    const linkedOrderIds = new Set(payments.map(p => p.orderId && String(p.orderId._id)).filter(Boolean));
+    const invoiceRows = payments.map(p => {
+      const subject = p.bookingId || p.orderId || p.projectId || {};
+      const source = p.orderId ? "Product Order" : p.projectId ? "Large Project" : "Service Booking";
+      const reference = p.bookingId?.bookingReference || p.orderId?.orderReference || p.projectId?.projectReference || `PAY-${String(p._id).slice(-8).toUpperCase()}`;
+      return { _id: `payment:${p._id}`, invoiceNumber: `INV-${String(p._id).slice(-8).toUpperCase()}`, source, reference,
+        customer: subject.customer || {}, amount: p.amount, paymentMethod: p.method, status: p.status,
+        issuedAt: p.verifiedAt || p.completedAt || p.submittedAt, paymentReference: p.reference,
+        items: p.orderId?.items || [{ description: p.bookingId?.service?.name || p.projectId?.service?.name || "Service payment", quantity: 1, totalPrice: p.amount }],
+        breakdown: p.orderId ? { subtotal: p.orderId.subtotal, deliveryFee: p.orderId.deliveryFee, installationFee: p.orderId.installationFee, transportationFee: p.orderId.transportationFee } : null };
+    });
+    for (const b of legacyBookings) if (!linkedBookingIds.has(String(b._id))) invoiceRows.push({
+      _id: `booking:${b._id}`, invoiceNumber: `INV-B-${String(b._id).slice(-7).toUpperCase()}`, source: "Service Booking", reference: b.bookingReference,
+      customer: b.customer || {}, amount: b.amountPaid || b.totalPrice || b.estimatedFee || 0, paymentMethod: b.paymentMethod, status: b.paymentStatus,
+      issuedAt: b.completedAt || b.createdAt, items: [{ description: b.service?.name || b.services?.map(s => s.name).filter(Boolean).join(", ") || "Service", quantity: 1, totalPrice: b.totalPrice || b.estimatedFee || 0 }]
+    });
+    for (const o of orders) if (!linkedOrderIds.has(String(o._id))) invoiceRows.push({
+      _id: `order:${o._id}`, invoiceNumber: `INV-O-${String(o._id).slice(-7).toUpperCase()}`, source: "Product Order", reference: o.orderReference,
+      customer: o.customer || {}, amount: o.total || 0, paymentMethod: o.paymentMethod, status: o.paymentStatus === "pending" && o.status === "completed" ? "completed" : o.paymentStatus,
+      issuedAt: o.updatedAt || o.createdAt, items: o.items || [], breakdown: { subtotal: o.subtotal, deliveryFee: o.deliveryFee, installationFee: o.installationFee, transportationFee: o.transportationFee }
+    });
+    for (const s of posSales) invoiceRows.push({
+      _id: `pos:${s._id}`, invoiceNumber: s.invoiceNumber, source: "POS Sale", reference: s.invoiceNumber,
+      customer: { name: s.customerName, phone: s.customerPhone, address: s.customerAddress, tin: s.customerTin }, amount: s.totalAmount,
+      paymentMethod: s.paymentMethod, status: s.status, issuedAt: s.completedAt || s.createdAt, items: s.items || [],
+      breakdown: { subtotal: s.subtotal, discount: s.discount, tax: s.tax, amountPaid: s.amountPaid, change: s.change }
+    });
+    invoiceRows.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
+
+    const counts = { total: invoiceRows.length, bookings: invoiceRows.filter(i => ["Service Booking", "Large Project"].includes(i.source)).length, orders: invoiceRows.filter(i => i.source === "Product Order").length, pos: invoiceRows.filter(i => i.source === "POS Sale").length };
+
+    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+    const page = Math.max(0, Number(req.query.page) || 0);
+    const paged = invoiceRows.slice(page * limit, (page + 1) * limit);
+
+    res.json({ invoices: paged, total: invoiceRows.length, page, limit, counts });
+  } catch (err) { next(err); }
+});
+
+router.patch("/remittances/:id/status", async (req, res, next) => {
+  try {
+    const Payment = require("../models/Payment");
+    const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const Project = require("../models/Project");
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    const action = String(req.body.action || "").toLowerCase();
+    const allowed = { verify: "verified", reject: "rejected", refund: "refunded" };
+    const nextStatus = allowed[action];
+    if (!nextStatus) return res.status(400).json({ error: "Action must be verify, reject, or refund." });
+    if (action === "verify" && payment.status !== "remitted") return res.status(409).json({ error: "The collecting technician must submit the remittance before verification." });
+    if (action === "reject" && !String(req.body.reason || "").trim()) return res.status(400).json({ error: "Rejection reason is required." });
+    if (action === "refund" && payment.status !== "verified") return res.status(409).json({ error: "Only verified payments can be refunded." });
+    if (action === "refund" && !String(req.body.reason || "").trim()) return res.status(400).json({ error: "Refund reason is required." });
+    const now = new Date();
+    payment.status = nextStatus;
+    if (action === "verify") { payment.verifiedBy = req.user._id; payment.verifiedAt = now; payment.completedAt = now; }
+    if (action === "reject") { payment.rejectedBy = req.user._id; payment.rejectedAt = now; payment.rejectionReason = String(req.body.reason).trim(); }
+    if (action === "refund") { payment.refundedBy = req.user._id; payment.refundedAt = now; payment.refundReason = String(req.body.reason).trim(); }
+    payment.events.push({ status: nextStatus, actor: req.user._id, actorName: req.user.name || req.user.email, actorRole: req.user.role, note: req.body.reason || req.body.notes, at: now });
+    await payment.save();
+    const update = { paymentStatus: nextStatus };
+    if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, update);
+    if (payment.orderId) await Order.findByIdAndUpdate(payment.orderId, update);
+    if (payment.projectId) await Project.findByIdAndUpdate(payment.projectId, { "payment.paymentStatus": nextStatus });
+    await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.${nextStatus}`, module: "payment", req, details: { reason: req.body.reason } }).catch(() => {});
+    res.json({ message: `Payment marked ${nextStatus.replace(/_/g, " ")}.`, payment });
+  } catch (err) { next(err); }
+});
 
 // Ordered products / purchases administration
 router.get("/purchases", admin.listPurchases);
@@ -318,8 +529,48 @@ router.delete("/tool-usage/:usageId", async (req, res, next) => {
   }
 });
 
-// ─── Fare / Pricing Settings ─────────────────────────────────────────────────
+// â”€â”€â”€ Fare / Pricing Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SiteSetting = require("../models/SiteSetting");
+const {
+  getDownpaymentPercentage,
+  normalizeDownpaymentPercentage,
+} = require("../utils/paymentPolicy");
+
+/** GET /api/admin/settings/payment-policy */
+router.get("/settings/payment-policy", async (_req, res, next) => {
+  try {
+    return res.json({ downpaymentPercentage: await getDownpaymentPercentage() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PUT /api/admin/settings/payment-policy */
+router.put("/settings/payment-policy", async (req, res, next) => {
+  try {
+    const raw = Number(req.body.downpaymentPercentage);
+    if (!Number.isFinite(raw) || raw < 1 || raw > 100) {
+      return res.status(400).json({ error: "Downpayment percentage must be between 1 and 100." });
+    }
+    const downpaymentPercentage = normalizeDownpaymentPercentage(raw);
+    await SiteSetting.findOneAndUpdate(
+      { key: "downpaymentPercentage" },
+      { value: downpaymentPercentage },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: req.user && req.user._id,
+      action: "settings.paymentPolicy.update",
+      module: "admin",
+      req,
+      details: { downpaymentPercentage },
+    }).catch(() => {});
+    return res.json({ message: "Payment policy saved successfully", downpaymentPercentage });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** GET /api/admin/settings/fare  — return the current pricing values */
 router.get("/settings/fare", async (req, res, next) => {
@@ -375,7 +626,33 @@ router.patch("/settings/fare", async (req, res, next) => {
   }
 });
 
-// ── Project Fee Defaults ─────────────────────────────────────────────────────
+const { DEFAULT_REPAIR_LABOR_FEES, SETTING_KEYS: REPAIR_LABOR_SETTING_KEYS, getRepairLaborFees } = require('../utils/repairLaborPricing');
+
+router.get('/settings/repair-labor-fees', async (req, res, next) => {
+  try { return res.json({ fees: await getRepairLaborFees() }); }
+  catch (err) { next(err); }
+});
+
+router.patch('/settings/repair-labor-fees', async (req, res, next) => {
+  try {
+    const supplied = req.body?.fees || req.body || {};
+    const fees = {};
+    for (const category of Object.keys(DEFAULT_REPAIR_LABOR_FEES)) {
+      const value = Number(supplied[category]);
+      if (!Number.isFinite(value) || value <= 0 || value > 100000) {
+        return res.status(400).json({ error: `${category} labor fee must be between 1 and 100,000.` });
+      }
+      fees[category] = value;
+    }
+    await Promise.all(Object.entries(fees).map(([category, value]) => SiteSetting.findOneAndUpdate(
+      { key: REPAIR_LABOR_SETTING_KEYS[category] }, { value }, { upsert: true, setDefaultsOnInsert: true }
+    )));
+    await audit.logEvent({ actor: req.user._id, target: req.user._id, action: 'settings.repair-labor-fees.update', module: 'admin', req, details: fees }).catch(() => {});
+    return res.json({ message: 'Customer repair labor fees updated successfully', fees });
+  } catch (err) { next(err); }
+});
+
+// â”€â”€ Project Fee Defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /** GET /api/admin/settings/project-fees  — return default rates for large-scale projects */
 router.get("/settings/project-fees", async (req, res, next) => {
   try {
@@ -495,7 +772,61 @@ router.post("/settings/inspection-duration", async (req, res, next) => {
   }
 });
 
-// ─── Leave Requests (admin review) ───────────────────────────────────────────
+// â”€â”€â”€ Store Open Hours (for customer pickup scheduling) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DEFAULT_STORE_HOURS = [
+  { dayOfWeek: 0, open: false, startMinutes: 0, endMinutes: 0 },
+  { dayOfWeek: 1, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 2, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 3, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 4, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 5, open: true,  startMinutes: 480, endMinutes: 1080 },
+  { dayOfWeek: 6, open: true,  startMinutes: 480, endMinutes: 1080 },
+];
+
+/** GET /api/admin/settings/store-open-hours */
+router.get("/settings/store-open-hours", async (req, res, next) => {
+  try {
+    const doc = await SiteSetting.findOne({ key: "storeOpenHours" }).lean();
+    const hours = (doc && Array.isArray(doc.value)) ? doc.value : DEFAULT_STORE_HOURS;
+    return res.json({ hours });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PUT /api/admin/settings/store-open-hours */
+router.put("/settings/store-open-hours", async (req, res, next) => {
+  try {
+    const { hours } = req.body;
+    if (!Array.isArray(hours) || hours.length !== 7) {
+      return res.status(400).json({ error: "hours must be an array of 7 day objects." });
+    }
+    const sanitized = hours.map((h, i) => ({
+      dayOfWeek: i,
+      open: !!h.open,
+      startMinutes: Number(h.startMinutes) || 0,
+      endMinutes: Number(h.endMinutes) || 0,
+    }));
+    await SiteSetting.findOneAndUpdate(
+      { key: "storeOpenHours" },
+      { value: sanitized },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+    await audit.logEvent({
+      actor: req.user._id,
+      target: req.user._id,
+      action: "settings.storeOpenHours.update",
+      module: "admin",
+      req,
+      details: { hours: sanitized },
+    }).catch(() => { });
+    return res.json({ message: "Store open hours saved successfully", hours: sanitized });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// â”€â”€â”€ Leave Requests (admin review) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LeaveRequest = require("../models/LeaveRequest");
 
 /**
@@ -575,7 +906,7 @@ router.patch("/leave-requests/:id", async (req, res, next) => {
   }
 });
 
-// ─── Roles & Permissions ─────────────────────────────────────────────────────
+// â”€â”€â”€ Roles & Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/roles", admin.listRoles);
 router.get("/roles/:id", admin.getRole);
 router.patch("/roles/:id", admin.updateRolePermissions);
@@ -584,20 +915,296 @@ router.patch("/users/:id/permissions", admin.setUserPermissions);
 router.delete("/users/:id/permissions", admin.clearUserPermissions);
 router.get("/permissions/all", admin.listAllPermissions);
 
-// ─── Ratings Management ─────────────────────────────────────────────────────
+// â”€â”€â”€ Combined Admin Dashboard Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get("/dashboard/overview", async (req, res, next) => {
+  try {
+    var BookingService = require("../models/BookingService");
+    var Payment = require("../models/Payment");
+    var Technician = require("../models/Technician");
+    var User = require("../models/User");
+    var Rating = require("../models/Rating");
+    var Inventory = require("../models/Inventory");
+    var Expense = require("../models/Expense");
+    var Order = require("../models/Order");
+
+    var safe = function(p, def){ return p.catch(function(e){ console.error('[DASHBOARD] query error:', e.message); return def; }); };
+
+    var now = new Date();
+    var startOfDay = new Date(now); startOfDay.setHours(0,0,0,0);
+    var endOfDay = new Date(now); endOfDay.setHours(23,59,59,999);
+    var startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    var lastMonthStart = new Date(startOfMonth); lastMonthStart.setMonth(lastMonthStart.getMonth()-1);
+    var lastMonthEnd = new Date(startOfMonth); lastMonthEnd.setDate(0); lastMonthEnd.setHours(23,59,59,999);
+
+    // â”€â”€ Parallel queries â”€â”€
+    var results = await Promise.all([
+      // 0: booking pipeline counts
+      safe(BookingService.aggregate([{$group:{_id:"$status",count:{$sum:1}}}]), []),
+      // 1: today's bookings
+      safe(BookingService.countDocuments({bookingDate:{$gte:startOfDay,$lte:endOfDay}}), 0),
+      // 2: total bookings
+      safe(BookingService.countDocuments({}), 0),
+      // 3: technician docs
+      safe(Technician.find({active:true}).select("name rating ratingCount availabilityStatus").lean(), []),
+      // 4: total customers
+      safe(User.countDocuments({role:"customer"}), 0),
+      // 5: new customers this month
+      safe(User.countDocuments({role:"customer",createdAt:{$gte:startOfMonth}}), 0),
+      // 6: this month's paid revenue (bookings)
+      safe(Payment.aggregate([{$match:{bookingId:{$ne:null},submittedAt:{$gte:startOfMonth,$lte:endOfDay},status:{$in:["paid","verified","payment_collected","remitted"]}}},{$group:{_id:null,total:{$sum:"$amount"}}}]), []),
+      // 7: last month's paid revenue (bookings)
+      safe(Payment.aggregate([{$match:{bookingId:{$ne:null},submittedAt:{$gte:lastMonthStart,$lte:lastMonthEnd},status:{$in:["paid","verified","payment_collected","remitted"]}}},{$group:{_id:null,total:{$sum:"$amount"}}}]), []),
+      // 8: pending/partial payments
+      safe(Payment.aggregate([{$match:{status:{$in:["pending","partial"]}}},{$group:{_id:null,total:{$sum:"$amount"}}}]), []),
+      // 9: expenses by type (approved, this month)
+      safe(Expense.aggregate([{$match:{status:"approved",expenseDate:{$gte:startOfMonth,$lte:endOfDay}}},{$group:{_id:"$type",total:{$sum:"$amount"},count:{$sum:1}}},{$sort:{total:-1}}]), []),
+      // 10: all ratings from Rating model
+      safe(Rating.find({}).populate("customerId","firstName lastName").lean(), []),
+      // 11: booking customer ratings
+      safe(BookingService.find({customerRating:{$ne:null}}).populate("customerId","firstName lastName").populate("technicianId","name").select("customerRating customerRatingComment createdAt technicianId service serviceType").lean(), []),
+      // 12: low stock inventory
+      safe(Inventory.find({active:true,quantity:{$lte:5}}).limit(10).lean(), []),
+      // 13: all active inventory
+      safe(Inventory.find({active:true}).populate("brand","name").lean(), []),
+      // 14: service distribution from bookings
+      safe(BookingService.aggregate([{$group:{_id:"$serviceType",count:{$sum:1}}},{$sort:{count:-1}}]), []),
+      // 15: 7-day revenue trend (single aggregation with date grouping)
+      safe(Payment.aggregate([
+        {$match:{submittedAt:{$gte:new Date(new Date().setDate(new Date().getDate()-6)).setHours(0,0,0,0)},status:{$in:["paid","verified","payment_collected","remitted"]}}},
+        {$group:{_id:{$dateToString:{format:"%Y-%m-%d",date:"$submittedAt"}},total:{$sum:"$amount"}}},
+        {$sort:{_id:1}}
+      ]), []),
+      // 16: orders count this month
+      safe(Order.countDocuments({createdAt:{$gte:startOfMonth,$lte:endOfDay}}), 0),
+      // 17: orders count last month
+      safe(Order.countDocuments({createdAt:{$gte:lastMonthStart,$lte:lastMonthEnd}}), 0),
+      // 18: total orders all time
+      safe(Order.countDocuments({}), 0),
+      // 19: order revenue this month (from orders with paid/verified payment status)
+      safe(Order.aggregate([{$match:{createdAt:{$gte:startOfMonth,$lte:endOfDay},paymentStatus:{$in:["paid","verified","payment_collected","remitted"]}}},{$group:{_id:null,total:{$sum:"$total"},count:{$sum:1}}}]), []),
+      // 20: orders by status
+      safe(Order.aggregate([{$match:{createdAt:{$gte:startOfMonth,$lte:endOfDay}}},{$group:{_id:"$status",count:{$sum:1}}},{$sort:{count:-1}}]), []),
+      // 21: recent orders (last 5)
+      safe(Order.find({}).sort({createdAt:-1}).limit(5).select("orderReference status total paymentStatus createdAt customer").lean(), []),
+      // 22: today's orders
+      safe(Order.countDocuments({createdAt:{$gte:startOfDay,$lte:endOfDay}}), 0),
+      // 23: bookings this month
+      safe(BookingService.countDocuments({createdAt:{$gte:startOfMonth,$lte:endOfDay}}), 0),
+      // 24: completed bookings this month
+      safe(BookingService.countDocuments({status:"completed",createdAt:{$gte:startOfMonth,$lte:endOfDay}}), 0),
+      // 25: cancelled bookings this month
+      safe(BookingService.countDocuments({status:"cancelled",createdAt:{$gte:startOfMonth,$lte:endOfDay}}), 0),
+      // 26: total order revenue all time
+      safe(Order.aggregate([{$match:{paymentStatus:{$in:["paid","verified","payment_collected","remitted"]}}},{$group:{_id:null,total:{$sum:"$total"}}}]), [])
+    ]);
+
+    // â”€â”€ Unpack results â”€â”€
+    var pipelineAgg = results[0];
+    var todayBookings = results[1];
+    var totalBookings = results[2];
+    var techDocs = results[3];
+    var userCount = results[4];
+    var newUsersMonth = results[5];
+    var monthRevenue = results[6];
+    var lastMonthRevenue = results[7];
+    var pendingPayAgg = results[8];
+    var expenseAgg = results[9];
+    var ratingDocs = results[10];
+    var bookingRatings = results[11];
+    var lowStock = results[12];
+    var inventoryDocs = results[13];
+    var serviceDist = results[14];
+    var trend7Raw = results[15];
+    var ordersThisMonth = results[16];
+    var ordersLastMonth = results[17];
+    var totalOrdersAllTime = results[18];
+    var orderRevenueAgg = results[19];
+    var ordersByStatusRaw = results[20];
+    var recentOrders = results[21];
+    var todayOrders = results[22];
+    var bookingsThisMonth = results[23];
+    var completedBookings = results[24];
+    var cancelledBookings = results[25];
+    var totalOrderRevenue = results[26];
+
+    // â”€â”€ Pipeline â”€â”€
+    var pipeMap = {};
+    pipelineAgg.forEach(function(p){ pipeMap[p._id] = p.count; });
+    var pipeline = {
+      pending: pipeMap.pending||0, confirmed: pipeMap.confirmed||0,
+      scheduled: pipeMap.scheduled||0, inProgress: (pipeMap["in-progress"]||0)+(pipeMap["on-the-way"]||0)+(pipeMap.arrived||0),
+      completed: pipeMap.completed||0, cancelled: pipeMap.cancelled||0
+    };
+
+    // â”€â”€ Revenue â”€â”€
+    var monthlyBookingRevenue = (monthRevenue&&monthRevenue[0])?monthRevenue[0].total:0;
+    var lastMonthBookingRevenue = (lastMonthRevenue&&lastMonthRevenue[0])?lastMonthRevenue[0].total:0;
+    var pendingPayments = (pendingPayAgg&&pendingPayAgg[0])?pendingPayAgg[0].total:0;
+    var monthlyExpenses = expenseAgg.reduce(function(s,e){return s+e.total;},0);
+    // Combined revenue: bookings + orders
+    var orderRevThisMonth = (orderRevenueAgg&&orderRevenueAgg[0])?orderRevenueAgg[0].total:0;
+    var monthlyRevenue = monthlyBookingRevenue + orderRevThisMonth;
+    var orderRevLastMonth = 0; // approximation: we track total order revenue separately
+    var lastMonthRev = lastMonthBookingRevenue + orderRevLastMonth;
+    var profitMargin = monthlyRevenue>0?Math.round(((monthlyRevenue-monthlyExpenses)/monthlyRevenue)*100):0;
+
+    // â”€â”€ 7-day revenue trend â”€â”€
+    var trendMap = {};
+    trend7Raw.forEach(function(t){ trendMap[t._id] = t.total; });
+    var revenueTrend = [];
+    for(var i=6;i>=0;i--){
+      var d = new Date(); d.setDate(d.getDate()-i);
+      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var dayLabel = d.toLocaleDateString("en",{weekday:"short"});
+      revenueTrend.push({date:dayLabel, amount:trendMap[key]||0});
+    }
+
+    // â”€â”€ Technicians â”€â”€
+    var totalTechs = techDocs.length;
+    var availableTechs = techDocs.filter(function(t){return t.availabilityStatus==="Available";}).length;
+    var busyTechs = techDocs.filter(function(t){return ["Assigned","On The Way","In Progress"].indexOf(t.availabilityStatus)!==-1;}).length;
+
+    // â”€â”€ Ratings â”€â”€
+    var allRatings = [];
+    ratingDocs.forEach(function(r){
+      var cust = "Customer";
+      if(r.customerId && r.customerId.firstName) cust = (r.customerId.firstName||"")+" "+(r.customerId.lastName||"");
+      cust = cust.trim()||"Customer";
+      allRatings.push({score:r.score, comment:r.comment||"", createdAt:r.createdAt, type:r.targetType,
+        customer:cust, serviceName:r.targetType==="inventory"?"Product":r.targetType, technicianName:""});
+    });
+    bookingRatings.forEach(function(b){
+      var cust = "Customer";
+      if(b.customerId && b.customerId.firstName) cust = (b.customerId.firstName||"")+" "+(b.customerId.lastName||"");
+      cust = cust.trim()||"Customer";
+      var svcName = "Service";
+      if(b.service && b.service.name) svcName = b.service.name;
+      else if(b.serviceType==="repair") svcName = "Repair";
+      var techName = "";
+      if(b.technicianId && b.technicianId.name) techName = b.technicianId.name;
+      allRatings.push({score:b.customerRating, comment:b.customerRatingComment||"", createdAt:b.createdAt, type:"booking",
+        customer:cust, serviceName:svcName, technicianName:techName});
+    });
+
+    // Also include order ratings
+    var orderRatings = await safe(Order.find({customerRating:{$ne:null}}).populate("userId","firstName lastName").select("customerRating customerRatingComment createdAt").lean(), []);
+    orderRatings.forEach(function(o){
+      var cust = "Customer";
+      if(o.userId && o.userId.firstName) cust = (o.userId.firstName||"")+" "+(o.userId.lastName||"");
+      cust = cust.trim()||"Customer";
+      allRatings.push({score:o.customerRating, comment:o.customerRatingComment||"", createdAt:o.createdAt, type:"order",
+        customer:cust, serviceName:"Order", technicianName:""});
+    });
+
+    var totalRatings = allRatings.length;
+    var avgRating = totalRatings>0?+(allRatings.reduce(function(s,r){return s+r.score;},0)/totalRatings).toFixed(1):0;
+    var positive=allRatings.filter(function(r){return r.score>=4;}).length;
+    var neutral=allRatings.filter(function(r){return r.score===3;}).length;
+    var negative=allRatings.filter(function(r){return r.score<=2;}).length;
+    var sentimentScore = totalRatings>0?Math.round(((positive*1+neutral*0.5+negative*0)/totalRatings)*100):0;
+
+    // Star distribution
+    var starDist = {"5":0,"4":0,"3":0,"2":0,"1":0};
+    allRatings.forEach(function(r){var k=String(Math.round(r.score));if(starDist[k]!==undefined)starDist[k]++;});
+
+    // Technician leaderboard
+    var techRatingMap = {};
+    ratingDocs.filter(function(r){return r.targetType==="technician";}).forEach(function(r){
+      var tid=String(r.targetId);if(!techRatingMap[tid])techRatingMap[tid]={total:0,count:0};techRatingMap[tid].total+=r.score;techRatingMap[tid].count++;
+    });
+    bookingRatings.forEach(function(b){
+      if(b.technicianId&&b.customerRating){var tid=String(b.technicianId._id||b.technicianId);if(!techRatingMap[tid])techRatingMap[tid]={total:0,count:0};techRatingMap[tid].total+=b.customerRating;techRatingMap[tid].count++;}
+    });
+    var techNames={};techDocs.forEach(function(t){techNames[String(t._id)]=t.name;});
+    var technicians=Object.entries(techRatingMap).map(function(e){var tid=e[0],g=e[1];return{id:tid,name:techNames[tid]||"Unknown",avgRating:+(g.total/g.count).toFixed(1),reviewCount:g.count};}).sort(function(a,b){return b.avgRating-a.avgRating;});
+    var topTechnicians=technicians.slice(0,5);
+    var lowestTechnicians=technicians.slice(-5).reverse();
+
+    // Service ratings
+    var svcGroups={};
+    allRatings.forEach(function(r){var s=r.serviceName||"Unknown";if(!svcGroups[s])svcGroups[s]={total:0,count:0};svcGroups[s].total+=r.score;svcGroups[s].count++;});
+    var serviceRatings=Object.entries(svcGroups).map(function(e){var n=e[0],v=e[1];return{name:n,avgRating:+(v.total/v.count).toFixed(1),count:v.count};}).sort(function(a,b){return b.avgRating-a.avgRating;});
+
+    // Recent reviews
+    var recentReviews=allRatings.slice().sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);}).slice(0,10).map(function(r){return{date:r.createdAt,type:r.type,customer:r.customer,score:r.score,comment:r.comment,serviceName:r.serviceName,technicianName:r.technicianName,priority:r.score<=2?"high":r.score===3?"medium":"low"};});
+
+    // Inventory stats
+    var inStockCount = inventoryDocs.filter(function(i){return i.quantity>5;}).length;
+    var lowStockCount = inventoryDocs.filter(function(i){return i.quantity>0&&i.quantity<=5;}).length;
+    var outOfStockCount = inventoryDocs.filter(function(i){return !i.quantity||i.quantity<=0;}).length;
+    var inventoryStats = {
+      totalProducts: inventoryDocs.length,
+      totalUnits: inventoryDocs.reduce(function(s,i){return s+(i.quantity||0);},0),
+      inStock: inStockCount,
+      lowStockCount: lowStockCount,
+      outOfStock: outOfStockCount,
+      lowStockItems: lowStock.map(function(i){return{name:i.modelLine||i.name,quantity:i.quantity||0,brand:i.brand&&i.brand.name?i.brand.name:""};})
+    };
+
+    // Service distribution
+    var serviceDistribution = serviceDist.map(function(s){return{name:s._id||"Other",count:s.count};});
+
+    // Expenses by type
+    var expenses = expenseAgg.map(function(e){return{type:e._id||"other",total:e.total,count:e.count};});
+
+    // Orders by status
+    var ordersByStatus = {};
+    ordersByStatusRaw.forEach(function(o){ordersByStatus[o._id]=o.count;});
+    var ordersStats = {
+      thisMonth: ordersThisMonth,
+      lastMonth: ordersLastMonth,
+      total: totalOrdersAllTime,
+      today: todayOrders,
+      revenue: (orderRevenueAgg&&orderRevenueAgg[0])?orderRevenueAgg[0].total:0,
+      byStatus: ordersByStatus,
+      recentOrders: recentOrders.map(function(o){
+        var cname = "Customer";
+        if(o.customer && o.customer.name) cname = o.customer.name;
+        return {ref:o.orderReference||"--", status:o.status, total:o.total||0, paymentStatus:o.paymentStatus||"pending", date:o.createdAt, customer:cname};
+      })
+    };
+
+    res.json({
+      monthlyRevenue: monthlyRevenue, lastMonthRevenue: lastMonthRev, pendingPayments: pendingPayments,
+      monthlyExpenses: monthlyExpenses, profitMargin: profitMargin, revenueTrend: revenueTrend, revenueTrend7: revenueTrend,
+      totalBookingsToday: todayBookings, totalBookingsAllTime: totalBookings, pipeline: pipeline,
+      totalTechnicians: totalTechs, availableTechnicians: availableTechs, busyTechnicians: busyTechs,
+      totalCustomers: userCount, newCustomersThisMonth: newUsersMonth,
+      avgRating: avgRating, totalRatings: totalRatings, sentimentScore: sentimentScore,
+      sentiment:{positive:positive,neutral:neutral,negative:negative}, starDistribution: starDist,
+      topTechnicians: topTechnicians, lowestTechnicians: lowestTechnicians, serviceRatings: serviceRatings,
+      recentReviews: recentReviews,
+      inventoryStats: inventoryStats, serviceDistribution: serviceDistribution,
+      expensesByType: expenses,
+      orders: ordersStats,
+      alerts: {
+        awaitingAssignment: pipeline.confirmed,
+        pendingPaymentReview: pendingPayAgg&&pendingPayAgg[0]?1:0,
+        lowStock: lowStock.length,
+        lowRatings: allRatings.filter(function(r){return r.score<=2;}).length
+      }
+    });
+  } catch (err) { console.error('[DASHBOARD] Overview error:', err.message, err.stack); next(err); }
+});
+
+// â”€â”€â”€ Ratings Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/ratings/dashboard", async (req, res, next) => {
   try {
     const Rating = require("../models/Rating");
     const BookingService = require("../models/BookingService");
+    const Technician = require("../models/Technician");
 
-    const [ratingDocs, bookingDocs] = await Promise.all([
+    const [ratingDocs, bookingDocs, allTechDocs] = await Promise.all([
       Rating.find({}).populate("customerId", "firstName lastName").lean(),
       BookingService.find({ customerRating: { $ne: null } })
         .populate("customerId", "firstName lastName")
-        .select("customerRating customerRatingComment createdAt customerId")
+        .populate("technicianId", "name")
+        .select("customerRating customerRatingComment createdAt customerId technicianId service serviceType status")
         .lean(),
+      Technician.find({ active: true }).select("name rating ratingCount").lean(),
     ]);
 
+    // Merge all ratings into a unified array
     const allRatings = [
       ...ratingDocs.map(r => ({
         score: r.score,
@@ -605,6 +1212,9 @@ router.get("/ratings/dashboard", async (req, res, next) => {
         createdAt: r.createdAt,
         type: r.targetType,
         customer: r.customerId ? `${r.customerId.firstName || ""} ${r.customerId.lastName || ""}`.trim() || "Customer" : "Customer",
+        serviceName: r.targetType === "inventory" ? "Product" : r.targetType,
+        technicianName: "",
+        hasComment: !!(r.comment && r.comment.trim()),
       })),
       ...bookingDocs.map(b => ({
         score: b.customerRating,
@@ -612,31 +1222,45 @@ router.get("/ratings/dashboard", async (req, res, next) => {
         createdAt: b.createdAt,
         type: "booking",
         customer: b.customerId ? `${b.customerId.firstName || ""} ${b.customerId.lastName || ""}`.trim() || "Customer" : "Customer",
+        serviceName: b.service?.name || (b.serviceType === "repair" ? "Repair" : "Service"),
+        technicianName: b.technicianId?.name || b.technician?.name || "",
+        hasComment: !!(b.customerRatingComment && b.customerRatingComment.trim()),
+        bookingId: String(b._id),
+        status: b.status,
       })),
     ];
 
+    // â”€â”€ KPI Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const totalRatings = allRatings.length;
     const avgRating = totalRatings > 0
       ? +(allRatings.reduce((s, r) => s + r.score, 0) / totalRatings).toFixed(1)
       : 0;
-    const serviceRatings = allRatings.filter(r => r.type === "booking").length;
-    const productRatings = allRatings.filter(r => r.type === "inventory").length;
+    const lowRatingCount = allRatings.filter(r => r.score <= 2).length;
+    const respondedCount = allRatings.filter(r => r.hasComment).length;
+    const responseRate = totalRatings > 0 ? Math.round((respondedCount / totalRatings) * 100) : 0;
 
-    const recentRatings = allRatings
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 10)
-      .map(r => ({
-        id: r._id || r.score,
-        date: r.createdAt,
-        type: r.type,
-        customer: r.customer,
-        score: r.score,
-        comment: r.comment,
-      }));
-
+    // Previous period comparison (same duration before current month)
     const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthRatings = allRatings.filter(r => new Date(r.createdAt) >= currentMonthStart);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthRatings = allRatings.filter(r => {
+      const d = new Date(r.createdAt);
+      return d >= prevMonthStart && d < prevMonthEnd;
+    });
+    const currentMonthAvg = currentMonthRatings.length > 0
+      ? +(currentMonthRatings.reduce((s, r) => s + r.score, 0) / currentMonthRatings.length).toFixed(1)
+      : 0;
+    const prevMonthAvg = prevMonthRatings.length > 0
+      ? +(prevMonthRatings.reduce((s, r) => s + r.score, 0) / prevMonthRatings.length).toFixed(1)
+      : 0;
+    const ratingChange = +(currentMonthAvg - prevMonthAvg).toFixed(1);
+
+    // â”€â”€ Rating Trend (6 months) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const trendLabels = [];
     const trendData = [];
+    const trendCounts = [];
     for (let m = 5; m >= 0; m--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - m + 1, 1);
@@ -648,25 +1272,184 @@ router.get("/ratings/dashboard", async (req, res, next) => {
       trendData.push(monthRatings.length > 0
         ? +(monthRatings.reduce((s, r) => s + r.score, 0) / monthRatings.length).toFixed(1)
         : 0);
+      trendCounts.push(monthRatings.length);
     }
 
+    // â”€â”€ Star Distribution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const distribution = { "5": 0, "4": 0, "3": 0, "2": 0, "1": 0 };
     for (const r of allRatings) {
       const key = String(Math.round(r.score));
       if (distribution[key] !== undefined) distribution[key]++;
     }
 
-    const categoryBreakdown = { booking: 0, technician: 0, inventory: 0, order: 0 };
+    // â”€â”€ Sentiment Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const positive = allRatings.filter(r => r.score >= 4).length;
+    const neutral = allRatings.filter(r => r.score === 3).length;
+    const negative = allRatings.filter(r => r.score <= 2).length;
+    const sentimentScore = totalRatings > 0
+      ? Math.round(((positive * 1 + neutral * 0.5 + negative * 0) / totalRatings) * 100)
+      : 0;
+
+    // â”€â”€ Technician Leaderboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Build from technician-targeted ratings + booking ratings with technicianId
+    const techRatingMap = {};
+    for (const r of ratingDocs) {
+      if (r.targetType === "technician") {
+        const tid = String(r.targetId);
+        if (!techRatingMap[tid]) techRatingMap[tid] = { total: 0, count: 0 };
+        techRatingMap[tid].total += r.score;
+        techRatingMap[tid].count++;
+      }
+    }
+    // Also include technician IDs from BookingService
+    for (const b of bookingDocs) {
+      if (b.technicianId && b.customerRating) {
+        const tid = String(b.technicianId._id || b.technicianId);
+        if (!techRatingMap[tid]) techRatingMap[tid] = { total: 0, count: 0 };
+        techRatingMap[tid].total += b.customerRating;
+        techRatingMap[tid].count++;
+      }
+    }
+    const techNames = {};
+    for (const t of allTechDocs) {
+      techNames[String(t._id)] = t.name;
+    }
+    const technicians = Object.entries(techRatingMap)
+      .map(([tid, g]) => ({
+        id: tid,
+        name: techNames[tid] || "Unknown",
+        avgRating: +(g.total / g.count).toFixed(1),
+        reviewCount: g.count,
+      }))
+      .sort((a, b) => b.avgRating - a.avgRating);
+
+    const topTechnicians = technicians.filter(t => t.reviewCount >= 1).slice(0, 5);
+    const lowestTechnicians = technicians.filter(t => t.reviewCount >= 1).slice(-5).reverse();
+
+    // â”€â”€ Service Ratings Breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const serviceGroups = {};
     for (const r of allRatings) {
-      if (categoryBreakdown[r.type] !== undefined) categoryBreakdown[r.type]++;
+      const svc = r.serviceName || "Unknown";
+      if (!serviceGroups[svc]) serviceGroups[svc] = { total: 0, count: 0 };
+      serviceGroups[svc].total += r.score;
+      serviceGroups[svc].count++;
+    }
+    const serviceRatings = Object.entries(serviceGroups)
+      .map(([name, v]) => ({
+        name,
+        avgRating: +(v.total / v.count).toFixed(1),
+        count: v.count,
+      }))
+      .sort((a, b) => b.avgRating - a.avgRating);
+
+    // â”€â”€ Complaint Categories (keyword extraction from comments) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const complaintKeywords = {
+      "Late Arrival": ["late", "delayed", "slow", "took long", "waiting", "waited", "hours"],
+      "Poor Communication": ["no update", "didn't inform", "no response", "unresponsive", "ignored", "never called", "no call"],
+      "Incomplete Repair": ["still broken", "not fixed", "didn't fix", "came back", "same problem", "issue remains", "recurring"],
+      "Pricing": ["expensive", "overcharged", "too much", "price", "cost", "billing", "hidden fee"],
+      "Rude Behavior": ["rude", "unprofessional", "impolite", "attitude", "disrespectful"],
+      "Poor Quality": ["poor quality", "bad work", "sloppy", "messy", "damaged"],
+      "Other": [],
+    };
+    const complaintCounts = {};
+    for (const [category] of Object.entries(complaintKeywords)) {
+      complaintCounts[category] = 0;
+    }
+    for (const r of allRatings) {
+      if (!r.comment) continue;
+      const lower = r.comment.toLowerCase();
+      let matched = false;
+      for (const [category, keywords] of Object.entries(complaintKeywords)) {
+        if (category === "Other") continue;
+        if (keywords.some(kw => lower.includes(kw))) {
+          complaintCounts[category]++;
+          matched = true;
+        }
+      }
+      if (!matched && r.score <= 2) {
+        complaintCounts["Other"]++;
+      }
+    }
+    const complaintCategories = Object.entries(complaintCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .filter(c => c.count > 0);
+
+    // â”€â”€ Review Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const lowRatingReviews = allRatings.filter(r => r.score <= 2).length;
+    // Bookings with rating but no comment (no response)
+    const noResponseReviews = allRatings.filter(r => r.score <= 3 && !r.hasComment).length;
+    // Reviews with 1-star (flagged)
+    const flaggedReviews = allRatings.filter(r => r.score === 1).length;
+
+    // â”€â”€ Recent Reviews (enriched with technician + service) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const recentReviews = allRatings
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 20)
+      .map(r => ({
+        date: r.createdAt,
+        type: r.type,
+        customer: r.customer,
+        score: r.score,
+        comment: r.comment,
+        serviceName: r.serviceName,
+        technicianName: r.technicianName,
+        priority: r.score <= 2 ? "high" : r.score === 3 ? "medium" : "low",
+      }));
+
+    // â”€â”€ Review Sources â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const sourceBooking = allRatings.filter(r => r.type === "booking").length;
+    const sourceProduct = allRatings.filter(r => r.type === "inventory").length;
+    const sourceTechnician = allRatings.filter(r => r.type === "technician").length;
+    const reviewSources = {
+      completedBooking: totalRatings > 0 ? Math.round((sourceBooking / totalRatings) * 100) : 0,
+      productReview: totalRatings > 0 ? Math.round((sourceProduct / totalRatings) * 100) : 0,
+      technicianReview: totalRatings > 0 ? Math.round((sourceTechnician / totalRatings) * 100) : 0,
+    };
+
+    // â”€â”€ AI Insights (keyword-based recommendations) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const insights = [];
+    // Check for low-rated service categories
+    const weakServices = serviceRatings.filter(s => s.avgRating < 4.0 && s.count >= 2);
+    if (weakServices.length > 0) {
+      insights.push(`${weakServices.map(s => s.name).join(", ")} receive${weakServices.length === 1 ? "s" : ""} lower ratings (below 4.0).`);
+    }
+    // Top technician
+    if (topTechnicians.length > 0) {
+      insights.push(`${topTechnicians[0].name} consistently receives excellent reviews (${topTechnicians[0].avgRating}â˜…).`);
+    }
+    // Complaint insight
+    if (complaintCategories.length > 0 && complaintCategories[0].count >= 3) {
+      insights.push(`Customers mention "${complaintCategories[0].name.toLowerCase()}" ${complaintCategories[0].count} times this period.`);
+    }
+    // Trend insight
+    if (ratingChange < 0) {
+      insights.push(`Average rating dropped by ${Math.abs(ratingChange).toFixed(1)} stars compared to last month.`);
+    } else if (ratingChange > 0) {
+      insights.push(`Average rating improved by ${ratingChange.toFixed(1)} stars compared to last month.`);
+    }
+    // Low rating alert
+    if (lowRatingCount > 0) {
+      insights.push(`${lowRatingCount} review${lowRatingCount !== 1 ? "s" : ""} with 1-2 stars need${lowRatingCount === 1 ? "s" : ""} attention.`);
     }
 
     res.json({
-      stats: { totalRatings, avgRating, serviceRatings, productRatings },
-      recentRatings,
-      trend: { labels: trendLabels, data: trendData },
+      stats: { totalRatings, avgRating, lowRatingCount, responseRate },
+      ratingChange,
+      currentMonthAvg,
+      prevMonthAvg,
+      recentReviews,
+      trend: { labels: trendLabels, data: trendData, counts: trendCounts },
       distribution,
-      categoryBreakdown,
+      sentiment: { positive, neutral, negative, sentimentScore },
+      topTechnicians,
+      lowestTechnicians,
+      serviceRatings,
+      complaintCategories,
+      reviewAlerts: { lowRatingReviews, noResponseReviews, flaggedReviews },
+      reviewSources,
+      insights,
     });
   } catch (err) {
     next(err);
@@ -861,83 +1644,142 @@ router.get("/ratings/technicians", async (req, res, next) => {
     const Technician = require("../models/Technician");
     const BookingService = require("../models/BookingService");
 
+    // Fetch ALL technicians
+    const allTechs = await Technician.find({}).sort({ name: 1 }).lean();
+
+    // 1. Get ratings from Rating collection (targetType: "technician")
     const techRatings = await Rating.find({ targetType: "technician" })
       .populate("customerId", "firstName lastName email")
       .sort({ createdAt: -1 })
       .lean();
 
-    const techIds = [...new Set(techRatings.map(r => String(r.targetId)))];
-    let techMap = {};
-    if (techIds.length > 0) {
-      const techDocs = await Technician.find({ _id: { $in: techIds } }).lean();
-      for (const t of techDocs) {
-        techMap[String(t._id)] = t;
-      }
-    }
+    // 2. Get ratings from BookingService (customerRating on completed bookings with a technician)
+    const ratedBookings = await BookingService.find({
+      customerRating: { $exists: true, $ne: null },
+      technicianId: { $exists: true, $ne: null },
+    })
+      .populate("customerId", "firstName lastName email")
+      .select("technicianId customerRating customerRatingComment createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
 
+    // Merge: group all ratings by technician ID
     const techGroups = {};
+
+    // From Rating collection
     for (const r of techRatings) {
       const tid = String(r.targetId);
       if (!techGroups[tid]) techGroups[tid] = { ratings: [], total: 0, count: 0 };
-      techGroups[tid].ratings.push(r);
+      techGroups[tid].ratings.push({
+        customer: r.customerId ? ((r.customerId.firstName || "") + " " + (r.customerId.lastName || "")).trim() : "Customer",
+        rating: r.score,
+        comment: r.comment || "",
+        date: r.createdAt,
+      });
       techGroups[tid].total += r.score;
       techGroups[tid].count++;
     }
 
-    const technicians = Object.entries(techGroups).map(([tid, g]) => {
-      const t = techMap[tid] || {};
-      return {
-        id: tid,
-        name: t.name || "Unknown Technician",
-        email: t.userEmail || "",
-        department: "",
-        avgRating: +(g.total / g.count).toFixed(1),
-        reviewCount: g.count,
-        jobsCompleted: 0,
-        experience: 0,
-        status: t.active ? (t.availabilityStatus || "Offline") : "inactive",
-        avatar: null,
-      };
-    }).sort((a, b) => b.avgRating - a.avgRating);
+    // From BookingService
+    for (const b of ratedBookings) {
+      const tid = String(b.technicianId);
+      if (!techGroups[tid]) techGroups[tid] = { ratings: [], total: 0, count: 0 };
+      techGroups[tid].ratings.push({
+        customer: b.customerId ? ((b.customerId.firstName || "") + " " + (b.customerId.lastName || "")).trim() : "Customer",
+        rating: b.customerRating,
+        comment: b.customerRatingComment || "",
+        date: b.createdAt,
+      });
+      techGroups[tid].total += b.customerRating;
+      techGroups[tid].count++;
+    }
 
-    const totalReviews = techRatings.length;
+    // Count completed jobs per technician
+    let jobCounts = {};
+    try {
+      const completedBookings = await BookingService.find({ status: "completed" }).select("technicianId").lean();
+      for (const b of completedBookings) {
+        if (b.technicianId) {
+          const tid = String(b.technicianId);
+          jobCounts[tid] = (jobCounts[tid] || 0) + 1;
+        }
+      }
+    } catch (e) {
+      console.error("Error counting jobs:", e.message);
+    }
+
+    // Build technician objects — only include those with at least 1 rating
+    const technicians = allTechs
+      .map(t => {
+        const tid = String(t._id);
+        const g = techGroups[tid];
+        const createdDate = t.createdAt ? new Date(t.createdAt) : null;
+        const yearsSinceCreation = createdDate
+          ? Math.max(0, Math.floor((Date.now() - createdDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
+          : 0;
+
+        return {
+          id: tid,
+          name: t.name || "Unknown Technician",
+          email: t.userEmail || "",
+          department: "",
+          avgRating: g ? +(g.total / g.count).toFixed(1) : 0,
+          reviewCount: g ? g.count : 0,
+          jobsCompleted: jobCounts[tid] || 0,
+          experience: yearsSinceCreation,
+          status: t.active ? (t.availabilityStatus || "Offline") : "inactive",
+          avatar: null,
+          recentReviews: g ? g.ratings.slice(0, 5) : [],
+        };
+      })
+      .filter(t => t.reviewCount > 0)
+      .sort((a, b) => b.avgRating - a.avgRating);
+
+    const totalReviews = techRatings.length + ratedBookings.length;
     const totalTechnicians = technicians.length;
-    const avgRating = totalReviews > 0
-      ? +(techRatings.reduce((s, r) => s + r.score, 0) / totalReviews).toFixed(1)
+    const allScores = [...techRatings.map(r => r.score), ...ratedBookings.map(b => b.customerRating)];
+    const avgRating = allScores.length > 0
+      ? +(allScores.reduce((s, v) => s + v, 0) / allScores.length).toFixed(1)
       : 0;
     const topPerformers = technicians.filter(t => t.avgRating >= 4.5).length;
 
     const ratingDistribution = { "5": 0, "4": 0, "3": 0, "2": 0, "1": 0 };
-    for (const r of techRatings) {
-      const key = String(Math.round(r.score));
+    for (const score of allScores) {
+      const key = String(Math.round(score));
       if (ratingDistribution[key] !== undefined) ratingDistribution[key]++;
     }
 
+    // Performance trends (last 6 months)
+    const allDated = [
+      ...techRatings.map(r => ({ score: r.score, date: r.createdAt })),
+      ...ratedBookings.map(b => ({ score: b.customerRating, date: b.createdAt })),
+    ];
     const now = new Date();
     const trendLabels = [];
     const avgRatings = [];
-    const jobCounts = [];
+    const jobCountsTrend = [];
     for (let m = 5; m >= 0; m--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - m + 1, 1);
       trendLabels.push(monthStart.toLocaleString("default", { month: "short" }));
-      const monthRatings = techRatings.filter(r => {
-        const d = new Date(r.createdAt);
+      const monthScores = allDated.filter(r => {
+        const d = new Date(r.date);
         return d >= monthStart && d < monthEnd;
       });
-      avgRatings.push(monthRatings.length > 0
-        ? +(monthRatings.reduce((s, r) => s + r.score, 0) / monthRatings.length).toFixed(1)
+      avgRatings.push(monthScores.length > 0
+        ? +(monthScores.reduce((s, r) => s + r.score, 0) / monthScores.length).toFixed(1)
         : 0);
-      jobCounts.push(monthRatings.length);
+      jobCountsTrend.push(monthScores.length);
     }
 
     res.json({
       stats: { totalTechnicians, avgRating, totalReviews, topPerformers },
       technicians,
       ratingDistribution,
-      performanceTrends: { labels: trendLabels, avgRatings, jobCounts },
+      performanceTrends: { labels: trendLabels, avgRatings, jobCounts: jobCountsTrend },
     });
   } catch (err) {
+    console.error("Error in /ratings/technicians:", err);
     next(err);
   }
 });
@@ -1082,7 +1924,74 @@ router.get("/ratings/stats", async (req, res, next) => {
   }
 });
 
-// ─── Company Location Settings (admin) ─────────────────────────────────────
+// â”€â”€â”€ Business Profile Settings (admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GET /api/admin/settings/business-profile
+router.get("/settings/business-profile", async (req, res, next) => {
+  try {
+    const keys = [
+      "companyName",
+      "companyTagline",
+      "companyPhone",
+      "companyEmail",
+      "companyLocationAddress",
+    ];
+    const docs = await SiteSetting.find({ key: { $in: keys } }).lean();
+    const map = {};
+    for (const d of docs) map[d.key] = d.value;
+    return res.json({
+      businessName: map.companyName || "CALIDRO RACS",
+      tagline: map.companyTagline || "Premium air conditioning & appliance care powered by transparent service and certified technicians.",
+      phone: map.companyPhone || "0965 605 6495",
+      email: map.companyEmail || "calidroracs@gmail.com",
+      address: map.companyLocationAddress || "San Leonardo, Nueva Ecija",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/settings/business-profile
+router.put("/settings/business-profile", async (req, res, next) => {
+  try {
+    const updates = {};
+    const fields = [
+      { body: "businessName", key: "companyName", max: 100 },
+      { body: "tagline", key: "companyTagline", max: 300 },
+      { body: "phone", key: "companyPhone", max: 30 },
+      { body: "email", key: "companyEmail", max: 100 },
+      { body: "address", key: "companyLocationAddress", max: 500 },
+    ];
+    for (const f of fields) {
+      if (req.body[f.body] !== undefined) {
+        const val = String(req.body[f.body]).trim().slice(0, f.max);
+        if (val) {
+          await SiteSetting.findOneAndUpdate(
+            { key: f.key },
+            { value: val },
+            { upsert: true, setDefaultsOnInsert: true },
+          );
+          updates[f.key] = val;
+        }
+      }
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: req.user && req.user._id,
+      action: "settings.businessProfile.update",
+      module: "admin",
+      req,
+      details: updates,
+    }).catch(() => { });
+    return res.json({ message: "Business profile saved successfully", updates });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// â”€â”€â”€ Company Location Settings (admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This endpoint persists the company/base location used for booking distance & travel fare.
 // Body: { address, lat, lng }
 // PATCH /api/admin/settings/company-location
@@ -1138,7 +2047,7 @@ router.patch("/settings/company-location", async (req, res, next) => {
   }
 });
 
-// ─── Attendance Settings & Management ───────────────────────────────────────
+// â”€â”€â”€ Attendance Settings & Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const crypto = require("crypto");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
@@ -1146,7 +2055,7 @@ const TechnicianAttendance = require("../models/TechnicianAttendance");
 // helper to get or create today's QR token
 async function getOrCreateDailyToken() {
   const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  let tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" });
+  let tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
 
   if (tokenSetting) {
     const val = tokenSetting.value;
@@ -1298,11 +2207,11 @@ router.patch("/attendance/:technicianId", async (req, res, next) => {
 
       // Availability auto-update based on attendance status
       if (["Present", "Late"].includes(status)) {
-        // Checked in → ready to work
+        // Checked in â†’ ready to work
         tech.availabilityStatus = "Available";
         updates.availabilityStatus = "Available";
       } else if (["Absent", "Checked Out", "On Leave", "Sick Leave"].includes(status)) {
-        // Not at work → offline
+        // Not at work â†’ offline
         tech.availabilityStatus = "Offline";
         updates.availabilityStatus = "Offline";
       }
@@ -1359,7 +2268,7 @@ router.patch("/attendance/:technicianId", async (req, res, next) => {
   }
 });
 
-// ─── Repair Queue Management ────────────────────────────────────────────
+// â”€â”€â”€ Repair Queue Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BookingService = require("../models/BookingService");
 const Assignment = require("../models/Assignment");
 
@@ -1588,7 +2497,7 @@ router.patch("/repair-queue/:id/status", async (req, res, next) => {
   }
 });
 
-// ─── Warranty Management ────────────────────────────────────────────────
+// â”€â”€â”€ Warranty Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * GET /api/admin/warranties
@@ -1680,7 +2589,7 @@ router.get("/repair-queue/:id", async (req, res, next) => {
 /**
  * POST /api/admin/repair-queue/:id/confirm
  * Confirms a repair request and moves it to the assignment queue.
- * Status: repair_requested → awaiting_assignment
+ * Status: repair_requested â†’ awaiting_assignment
  */
 router.post("/repair-queue/:id/confirm", async (req, res, next) => {
   try {
@@ -1715,7 +2624,7 @@ router.post("/repair-queue/:id/confirm", async (req, res, next) => {
 /**
  * POST /api/admin/repair-queue/:id/assign-technician
  * Assigns a technician to a confirmed repair request and schedules inspection.
- * Status: awaiting_assignment → inspection_scheduled
+ * Status: awaiting_assignment â†’ inspection_scheduled
  */
 router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
   try {
@@ -1725,6 +2634,8 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const Technician = require("../models/Technician");
     const Assignment = require("../models/Assignment");
+    const PartsRequest = require("../models/PartsRequest");
+    const StockReservation = require("../models/StockReservation");
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Repair booking not found" });
@@ -1734,10 +2645,16 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     }
 
     const { technicianId, scheduledDate, scheduledTime, priority, notes } = req.body;
-    if (!technicianId) return res.status(400).json({ error: "Technician ID is required" });
+    if (!technicianId || !mongoose.Types.ObjectId.isValid(technicianId)) {
+      return res.status(400).json({ error: "A valid technician is required" });
+    }
     if (!scheduledDate) return res.status(400).json({ error: "Inspection date is required" });
+    const inspectionDate = new Date(scheduledDate);
+    if (Number.isNaN(inspectionDate.getTime())) {
+      return res.status(400).json({ error: "Inspection date is invalid" });
+    }
 
-    const tech = await Technician.findById(technicianId);
+    const tech = await Technician.findById(technicianId).lean();
     if (!tech) return res.status(404).json({ error: "Technician not found" });
 
     // Enterprise: Allow priority override during assignment
@@ -1747,7 +2664,7 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
 
     // Set inspection schedule
     booking.inspection = {
-      scheduledDate: new Date(scheduledDate),
+      scheduledDate: inspectionDate,
       scheduledTime: scheduledTime || "",
       technicianId: tech._id,
     };
@@ -1768,10 +2685,19 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     const slaDeadline = new Date();
     slaDeadline.setHours(slaDeadline.getHours() + 2);
 
+    const serviceItems = Array.isArray(booking.services) ? booking.services : [];
+    const repairItems = serviceItems.filter(item => item?.type === "repair");
+    const technicianName = tech.name ||
+      [tech.firstName, tech.lastName].filter(Boolean).join(" ") ||
+      "Technician";
+    const serviceName = booking.service?.name ||
+      repairItems.map(item => item?.name).filter(Boolean).join(", ") ||
+      `Inspection: ${booking.unitInfo?.unitType || "Repair"}`;
+
     const assignment = new Assignment({
       bookingId: booking._id,
       technicianId: tech._id,
-      bookingDate: new Date(scheduledDate),
+      bookingDate: inspectionDate,
       startTime: scheduledTime || "",
       status: "pending_acceptance",
       priority: priority === 'critical' ? 'urgent' : priority === 'high' ? 'high' : 'normal',
@@ -1780,7 +2706,7 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
       customerPhone: booking.customer?.phone || "",
       customerEmail: booking.customer?.email || "",
       address: booking.location?.address || "",
-      serviceName: `Inspection: ${booking.unitInfo?.unitType || "Repair"}`,
+      serviceName,
       serviceType: "repair",
       estimatedFee: booking.initialCost || 0,
       notes: [{ text: `Repair inspection scheduled by admin. Priority: ${booking.priority}`, byName: req.user.name || "Admin" }],
@@ -1790,17 +2716,33 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     booking.assignmentId = assignment._id;
     booking.technicianId = tech._id;
 
+    for (const item of repairItems) {
+      if (item.technicianId && String(item.technicianId) !== String(tech._id)) continue;
+      item.technicianId = tech._id;
+      item.technicianName = technicianName;
+      item.assignmentId = assignment._id;
+      item.status = "inspection_scheduled";
+      item.phase = "repair_phase_1";
+      item.schedule = {
+        date: inspectionDate,
+        startTime: scheduledTime || "",
+        endTime: "",
+        durationMinutes: Number(item.duration || booking.serviceDurationMinutes) || 60,
+        kind: "inspection",
+      };
+    }
+
     // Record status transition
     booking.recordStatusHistory({
       fromStatus: "awaiting_assignment",
       toStatus: "inspection_scheduled",
-      reason: `Technician ${tech.name} assigned for inspection on ${scheduledDate}`,
+      reason: `Technician ${technicianName} assigned for inspection on ${scheduledDate}`,
       changedBy: req.user._id,
       changedByModel: "User",
       changedByName: req.user.name || req.user.email || "Admin",
       metadata: {
         technicianId: tech._id,
-        technicianName: tech.name,
+        technicianName,
         scheduledDate,
         scheduledTime,
         priority: booking.priority,
@@ -1835,10 +2777,10 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
           technicianName: techFullName,
           customerName: booking.customer?.name || 'Customer',
           bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-          serviceName: `Inspection: ${booking.unitInfo?.unitType || 'Repair'}`,
+          serviceName,
           dateLabel,
           timeLabel,
-          totalLabel: `₱${Number(booking.initialCost || 0).toLocaleString()}`,
+          totalLabel: `â‚±${Number(booking.initialCost || 0).toLocaleString()}`,
           locationAddress: booking.location?.address || '',
           issueDescription: booking.issueDescription || '',
         }).catch(err => console.error('[MAILER] Failed to send repair assignment email:', err.message));
@@ -1847,7 +2789,7 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
       console.error('[MAILER] Repair assignment email error:', mailErr.message);
     }
 
-    return res.json({ message: `Technician ${tech.name} assigned for inspection`, booking, assignment });
+    return res.json({ message: `Technician ${technicianName} assigned for inspection`, booking, assignment });
   } catch (err) {
     next(err);
   }
@@ -2051,39 +2993,151 @@ router.post("/repair-queue/:id/receive-parts", async (req, res, next) => {
     }
 
     // Find the parts request for this booking
-    const partsRequest = await PartsRequest.findOne({ bookingId: id, status: { $in: ["pending", "procuring"] } });
+    let partsRequest = await PartsRequest.findOne({ bookingId: id, status: { $in: ["pending", "procuring"] } }).lean();
+    if (!partsRequest && booking.partsRequest?.items?.length) {
+      const recovered = await PartsRequest.create({
+        bookingId: booking._id,
+        workOrderNumber: booking.workOrderNumber,
+        customerId: booking.customerId,
+        customerName: booking.customer?.name || 'Customer',
+        technicianId: booking.technicianId,
+        requestedBy: booking.partsRequest.requestedBy,
+        requestedAt: booking.partsRequest.requestedAt || new Date(),
+        resumeStatus: booking.partsRequest.resumeStatus || 'inspection_scheduled',
+        status: booking.partsRequest.status === 'procuring' ? 'procuring' : 'pending',
+        items: booking.partsRequest.items.map(item => ({
+          toolId: item.toolId || null,
+          itemName: item.itemName,
+          requestedQty: item.requestedQty || 1,
+          availableQty: item.availableQty || 0,
+          status: item.status || 'waiting',
+        })),
+      });
+      partsRequest = recovered.toObject();
+    }
     if (!partsRequest) {
       return res.status(404).json({ error: "No active parts request found for this booking" });
     }
 
     const { toolIds } = req.body;
 
-    // Mark items as received
-    if (toolIds && Array.isArray(toolIds) && toolIds.length > 0) {
-      for (const toolId of toolIds) {
-        await PartsRequest.receiveItem(partsRequest._id, toolId);
+    // "Received" must represent real inventory. Resolve every selected item,
+    // verify stock, and reserve it before allowing the workflow to resume.
+    const Tool = require("../models/Tool");
+    const requestDoc = await PartsRequest.findById(partsRequest._id);
+    const selectedToolIds = Array.isArray(toolIds) ? new Set(toolIds.map(String)) : null;
+    const itemsToReceive = requestDoc.items.filter(item =>
+      item.status !== "received"
+      && (!selectedToolIds?.size || (item.toolId && selectedToolIds.has(String(item.toolId))))
+    );
+    const existingReservations = await StockReservation.find({
+      bookingId: booking._id,
+      status: { $in: ["reserved", "checked_out"] },
+    }).select("toolId quantity").lean();
+    const existingByTool = existingReservations.reduce((map, reservation) => {
+      const key = String(reservation.toolId || "");
+      if (key) map.set(key, (map.get(key) || 0) + (Number(reservation.quantity) || 0));
+      return map;
+    }, new Map());
+    const reservationParts = [];
+    const unavailableItems = [];
+
+    for (const item of itemsToReceive) {
+      const required = Number(item.requestedQty) || 1;
+      let tool = item.toolId
+        ? await Tool.findOne({ _id: item.toolId, active: { $ne: false }, $and: [Tool.merchandiseFilter()] }).lean()
+        : null;
+      if (!tool) {
+        const escaped = String(item.itemName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const exact = new RegExp(`^${escaped}$`, "i");
+        const candidates = await Tool.find({ itemName: exact, active: { $ne: false }, $and: [Tool.merchandiseFilter()] })
+          .sort({ quantity: -1 }).lean();
+        tool = candidates[0] || null;
       }
-    } else {
-      // Mark all items as received
-      for (const item of partsRequest.items) {
-        if (item.toolId) {
-          await PartsRequest.receiveItem(partsRequest._id, item.toolId);
-        }
+      const alreadyReserved = tool ? (existingByTool.get(String(tool._id)) || 0) : 0;
+      const remaining = Math.max(0, required - alreadyReserved);
+      if (!tool || Number(tool.quantity || 0) < remaining) {
+        unavailableItems.push({
+          itemName: item.itemName,
+          requested: required,
+          available: tool ? Number(tool.quantity || 0) : 0,
+        });
+        continue;
+      }
+      item.toolId = tool._id;
+      item.availableQty = Number(tool.quantity || 0);
+      if (remaining > 0) {
+        reservationParts.push({
+          toolId: tool._id,
+          name: item.itemName,
+          quantity: remaining,
+          cost: Number(item.unitPrice) || Number(tool.costPrice) || 0,
+        });
       }
     }
 
+    if (unavailableItems.length) {
+      return res.status(409).json({
+        error: `Record the procured stock before receiving: ${unavailableItems.map(item => `${item.itemName} (${item.available}/${item.requested})`).join(", ")}.`,
+        code: "STOCK_NOT_RECORDED",
+        unavailableItems,
+      });
+    }
+
+    if (reservationParts.length) {
+      const reservationResult = await StockReservation.reserveForBooking({
+        bookingId: booking._id,
+        parts: reservationParts,
+        reservedBy: req.user._id,
+      });
+      if (reservationResult.insufficientStock?.length) {
+        return res.status(409).json({
+          error: "Stock changed before it could be reserved. Restock the requested quantity and try again.",
+          code: "STOCK_RESERVATION_FAILED",
+          unavailableItems: reservationResult.insufficientStock,
+        });
+      }
+    }
+    const receivedAt = new Date();
+    itemsToReceive.forEach(item => {
+      item.status = "received";
+      item.receivedAt = receivedAt;
+    });
+    if (requestDoc.items.every(item => item.status === "received")) {
+      requestDoc.status = "received";
+      requestDoc.completedAt = receivedAt;
+      requestDoc.completedBy = req.user._id;
+    }
+    await requestDoc.save();
+
     // Check if all items are now received
-    const updatedRequest = await PartsRequest.findById(partsRequest._id);
+    const updatedRequest = await PartsRequest.findById(partsRequest._id).lean();
     const allReceived = updatedRequest.items.every(i => i.status === "received");
 
     if (allReceived) {
-      // Update booking status to ready_for_repair
       const prevStatus = booking.status;
-      booking.status = "ready_for_repair";
+      const lastWaitingTransition = [...(booking.statusHistory || [])]
+        .reverse()
+        .find(entry => entry.toStatus === "waiting_parts");
+      const resumeStatus = updatedRequest.resumeStatus
+        || booking.partsRequest?.resumeStatus
+        || lastWaitingTransition?.fromStatus;
+      const phaseOneStatuses = ["assigned", "accepted", "confirmed", "inspection_scheduled", "inspection_in_progress"];
+      const targetStatus = phaseOneStatuses.includes(resumeStatus)
+        ? resumeStatus
+        : "ready_for_repair";
+      if (phaseOneStatuses.includes(resumeStatus) && booking.technicianAssistant?.summary) {
+        booking.technicianAssistant.verifiedByTechnician = true;
+        booking.technicianAssistant.verifiedAt = booking.technicianAssistant.verifiedAt || new Date();
+      }
+      const receivedMessage = targetStatus === "ready_for_repair"
+        ? "All parts received. Booking ready for scheduling."
+        : "All parts received. Technician preparation can continue.";
+      booking.status = targetStatus;
       booking.recordStatusHistory({
         fromStatus: prevStatus,
-        toStatus: "ready_for_repair",
-        reason: "All parts received — ready for repair",
+        toStatus: targetStatus,
+        reason: targetStatus === "ready_for_repair" ? "All parts received - ready for repair" : "All preparation parts received - inspection workflow resumed",
         changedBy: req.user._id,
         changedByModel: "User",
         changedByName: req.user.firstName || req.user.name || "Admin",
@@ -2093,35 +3147,30 @@ router.post("/repair-queue/:id/receive-parts", async (req, res, next) => {
       booking.partsRequest = {
         ...booking.partsRequest,
         status: "received",
+        resumeStatus: updatedRequest.resumeStatus || booking.partsRequest?.resumeStatus,
         completedAt: new Date(),
         completedBy: req.user._id,
+        items: updatedRequest.items.map(item => ({
+          toolId: item.toolId || null,
+          itemName: item.itemName,
+          requestedQty: item.requestedQty,
+          availableQty: item.availableQty,
+          status: item.status,
+          receivedAt: item.receivedAt,
+        })),
       };
 
       await booking.save();
 
-      // Try to reserve stock now that parts are available
-      try {
-        const parts = booking.quotation?.parts || [];
-        if (parts.length > 0) {
-          await StockReservation.reserveForBooking({
-            bookingId: booking._id,
-            parts,
-            reservedBy: req.user._id,
-          });
-        }
-      } catch (e) {
-        console.error('[STOCK] Reservation error after parts received:', e.message);
-      }
-
       // Notify technician
       if (global.io && booking.technicianId) {
         const Technician = require("../models/Technician");
-        const tech = await Technician.findById(booking.technicianId);
+        const tech = await Technician.findById(booking.technicianId).lean();
         if (tech?.user) {
           global.io.to(`user:${tech.user}`).emit("booking:updated", {
             bookingId: booking._id,
             status: booking.status,
-            message: `Parts received for ${booking.workOrderNumber || booking._id}. Ready for scheduling.`,
+            message: `Parts received for ${booking.workOrderNumber || booking._id}. ${receivedMessage}`,
           });
         }
       }
@@ -2131,14 +3180,14 @@ router.post("/repair-queue/:id/receive-parts", async (req, res, next) => {
         global.io.to(`customer:${booking.customerId}`).emit("booking:updated", {
           bookingId: booking._id,
           status: booking.status,
-          message: `Parts for your repair have arrived! We will contact you to schedule the repair.`,
+          message: `Parts for your repair have arrived. ${receivedMessage}`,
         });
       }
 
       // Send email to customer
       try {
         const { sendEmail } = require("../utils/mailer");
-        if (booking.customer?.email) {
+        if (booking.customer?.email && targetStatus === 'ready_for_repair') {
           const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'https://racs.com';
           await sendEmail(booking.customer.email, "Parts Received – Ready to Schedule Repair",
             `Dear ${booking.customer.name || 'Customer'},
@@ -2146,10 +3195,10 @@ router.post("/repair-queue/:id/receive-parts", async (req, res, next) => {
 Great news! The required parts for your repair have arrived and are now in stock.
 
 Your Repair Quotation:
-${(booking.quotation?.parts || []).map(p => `  - ${p.name}: ₱${(p.cost || 0).toLocaleString()} x ${p.quantity || 1}`).join('\n')}
-Labor: ₱${(booking.quotation?.laborCost || 0).toLocaleString()}
-─────────────────────
-Total: ₱${(booking.quotation?.totalCost || 0).toLocaleString()}
+${(booking.quotation?.parts || []).map(p => `  - ${p.name}: â‚±${(p.cost || 0).toLocaleString()} x ${p.quantity || 1}`).join('\n')}
+Labor: â‚±${(booking.quotation?.laborCost || 0).toLocaleString()}
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+Total: â‚±${(booking.quotation?.totalCost || 0).toLocaleString()}
 
 We will contact you shortly to schedule your repair appointment.
 
@@ -2165,7 +3214,7 @@ RACS Repair Team`);
         }
       } catch (e) { console.error('[MAILER] Parts received email error:', e.message); }
 
-      return res.json({ message: "All parts received. Booking ready for scheduling.", booking, partsRequest: updatedRequest });
+      return res.json({ message: receivedMessage, booking, partsRequest: updatedRequest });
     } else {
       await booking.save();
       return res.json({ message: "Parts marked as received. Waiting for remaining parts.", booking, partsRequest: updatedRequest });
@@ -2216,9 +3265,9 @@ router.post("/repair-queue/:id/reject", async (req, res, next) => {
   }
 });
 
-// ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // REPAIR SCHEDULING QUEUE — "Schedule Repair Later" management
-// ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 /**
  * GET /api/admin/repair-scheduling-queue
@@ -2233,13 +3282,22 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
     // Find bookings where customer chose "later" — they have preferredSchedule set
     // and are in repair_approved / waiting_parts status (waiting for admin to schedule)
     const bookings = await BookingService.find({
-      "repairSchedule.preference": "later",
-      status: { $in: ["repair_approved", "repair_scheduled", "waiting_parts", "ready_for_repair"] },
+      $or: [
+        { status: "waiting_parts" },
+        {
+          "partsRequest.status": "pending",
+          "partsRequest.resumeStatus": { $in: ["assigned", "accepted", "confirmed", "inspection_scheduled", "inspection_in_progress"] },
+        },
+        {
+          "repairSchedule.preference": "later",
+          status: { $in: ["repair_approved", "repair_scheduled", "ready_for_repair"] },
+        },
+      ],
     })
       .populate("technicianId", "name user")
       .populate("customerId", "name email phone")
       .populate("inspection.technicianId", "name user")
-      .sort({ "preferredSchedule.submittedAt": -1 })
+      .sort({ updatedAt: -1 })
       .lean();
 
     // Enrich with technician availability data and parts/stock info
@@ -2253,38 +3311,69 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
       // Determine parts stock status
       let partsStatus = 'none';
       let partsRequestStatus = null;
-      const hasParts = (b.quotation?.parts || []).length > 0;
+      const partsReq = await PartsRequest.findOne({
+        bookingId: b._id,
+        status: { $in: ["pending", "procuring"] },
+      }).lean();
+      const embeddedRequestItems = b.partsRequest?.items || [];
+      const requestedParts = (partsReq?.items?.length ? partsReq.items : embeddedRequestItems).map(item => ({
+        name: item.itemName,
+        quantity: item.requestedQty || 1,
+        toolId: item.toolId || null,
+        currentStock: item.availableQty || 0,
+        needsProcurement: item.status !== 'received',
+        requestStatus: item.status || 'waiting',
+      }));
+      const lastWaitingTransition = [...(b.statusHistory || [])]
+        .reverse()
+        .find(entry => entry.toStatus === 'waiting_parts');
+      const requestResumeStatus = partsReq?.resumeStatus
+        || b.partsRequest?.resumeStatus
+        || lastWaitingTransition?.fromStatus;
+      const phaseOneStatuses = ['assigned', 'accepted', 'confirmed', 'inspection_scheduled', 'inspection_in_progress'];
+      const requestPhase = phaseOneStatuses.includes(requestResumeStatus)
+        ? 'phase_1_ai_preparation'
+        : 'phase_2_repair';
+      const quotationParts = b.quotation?.parts || [];
+      // Phase 1 must display the technician's reviewed AI/custom list. A stale
+      // quotation must not replace the preparation request in the admin modal.
+      const baseParts = requestPhase === 'phase_1_ai_preparation' && requestedParts.length
+        ? requestedParts
+        : (quotationParts.length ? quotationParts : requestedParts);
+      const hasParts = baseParts.length > 0;
+      let bookingReservations = [];
       if (hasParts) {
-        const reservationCount = await StockReservation.countDocuments({
+        bookingReservations = await StockReservation.find({
           bookingId: b._id,
           status: "reserved",
-        });
-        const partsReq = await PartsRequest.findOne({
-          bookingId: b._id,
-          status: { $in: ["pending", "procuring"] },
-        }).lean();
-
-        if (reservationCount > 0) {
+        }).select("toolId quantity").lean();
+        if (bookingReservations.length >= baseParts.length && baseParts.every(part => part.toolId)) {
           partsStatus = 'reserved';
-        } else if (partsReq) {
+        } else if (partsReq || (b.status === 'waiting_parts' && embeddedRequestItems.length)) {
           partsStatus = 'waiting_parts';
-          partsRequestStatus = partsReq.status;
+          partsRequestStatus = partsReq?.status || b.partsRequest?.status || 'pending';
         } else {
           partsStatus = 'pending_check';
         }
       }
 
       // Enrich each quotation part with stock availability
-      const enrichedParts = await Promise.all((b.quotation?.parts || []).map(async (p) => {
+      const reservedQuantityByTool = bookingReservations.reduce((map, reservation) => {
+        const key = String(reservation.toolId);
+        map.set(key, (map.get(key) || 0) + (Number(reservation.quantity) || 0));
+        return map;
+      }, new Map());
+      const enrichedParts = await Promise.all(baseParts.map(async (p) => {
         const qty = p.quantity || 1;
         let currentStock = 0;
         let toolFound = false;
 
         // Prefer the linked tool if it has enough stock
         if (p.toolId) {
-          const tool = await Tool.findById(p.toolId).select("quantity active").lean();
-          if (tool && tool.active !== false && (tool.quantity || 0) >= qty) {
-            currentStock = tool.quantity || 0;
+          const tool = await Tool.findOne({ _id: p.toolId, $and: [Tool.merchandiseFilter()] }).select("quantity active").lean();
+          const bookingReserved = reservedQuantityByTool.get(String(p.toolId)) || 0;
+          if (tool && tool.active !== false && (tool.quantity || 0) + bookingReserved >= qty) {
+            currentStock = (tool.quantity || 0) + bookingReserved;
             toolFound = true;
           }
         }
@@ -2294,7 +3383,7 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
           const escaped = (p.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           if (escaped) {
             const regex = new RegExp(escaped.replace(/\\s+/g, '.*'), 'i');
-            const candidates = await Tool.find({ itemName: regex, active: true })
+            const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] })
               .select("quantity").sort({ quantity: -1 }).lean();
             const best = candidates.find(t => (t.quantity || 0) >= qty) || candidates[0];
             if (best) {
@@ -2321,14 +3410,26 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         inspectionDate: b.inspection?.completedAt || b.inspection?.scheduledDate,
         preferredDates: b.preferredSchedule?.dates || [],
         preferredTimeWindow: b.preferredSchedule?.timeWindow || 'any',
-        submittedAt: b.preferredSchedule?.submittedAt,
+        submittedAt: partsReq?.requestedAt || b.partsRequest?.requestedAt || b.preferredSchedule?.submittedAt,
         status: b.status,
         scheduledDate: b.schedulingRequest?.scheduledDate || null,
         unitInfo: b.unitInfo,
         quotation: { ...b.quotation, parts: enrichedParts },
+        diagnosis: b.diagnosis,
+        technicianAssistant: {
+          estimatedDurationMinutes: Math.min(480, Math.max(30, Number(b.technicianAssistant?.estimatedDurationMinutes) || 90)),
+          repairComplexity: b.technicianAssistant?.repairComplexity || b.repairComplexity || 'standard',
+        },
+        serviceDurationMinutes: Math.min(480, Math.max(30, Number(b.technicianAssistant?.estimatedDurationMinutes) || Number(b.serviceDurationMinutes) || 90)),
+        travelDurationMinutes: Number.isFinite(Number(b.travelDurationMinutes)) ? Math.max(0, Number(b.travelDurationMinutes)) : undefined,
+        travelTime: Number.isFinite(Number(b.travelTime)) ? Math.max(0, Number(b.travelTime)) : 30,
+        repairComplexity: b.diagnosis?.laborCategory || b.repairComplexity || b.technicianAssistant?.repairComplexity || 'standard',
+        requestedParts,
         priority: b.priority || 'medium',
         partsStatus,
         partsRequestStatus,
+        requestPhase,
+        requestResumeStatus: requestResumeStatus || null,
         stockAvailable: partsStatus === 'reserved' || partsStatus === 'none',
       });
     }
@@ -2359,10 +3460,36 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
       .populate("customerId", "name email");
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
-    const parts = (booking.quotation?.parts || []).filter(p => p.name);
+    const activePartsRequest = await PartsRequest.findOne({
+      bookingId: booking._id,
+      status: { $in: ["pending", "procuring"] },
+    });
+    const quotationParts = (booking.quotation?.parts || []).filter(p => p.name);
+    const requestItems = activePartsRequest?.items?.length
+      ? activePartsRequest.items
+      : (booking.partsRequest?.items || []);
+    // Technician preparation requests may exist before a quotation.
+    const parts = quotationParts.length
+      ? quotationParts
+      : requestItems.filter(item => item.itemName).map(item => ({
+          name: item.itemName,
+          quantity: item.requestedQty || 1,
+          toolId: item.toolId || null,
+          cost: item.unitPrice || 0,
+        }));
     if (parts.length === 0) {
-      return res.status(400).json({ error: "No parts found in quotation." });
+      return res.status(400).json({ error: "No quotation parts or active technician parts request found." });
     }
+
+    const existingReservations = await StockReservation.find({
+      bookingId: booking._id,
+      status: { $in: ["reserved", "checked_out"] },
+    }).select("toolId quantity status").lean();
+    const existingByTool = existingReservations.reduce((map, reservation) => {
+      const key = String(reservation.toolId || "");
+      if (key) map.set(key, (map.get(key) || 0) + (Number(reservation.quantity) || 0));
+      return map;
+    }, new Map());
 
     // Step 1 & 2: Match each quotation part to an inventory Tool and persist the link
     const matchedParts = [];
@@ -2375,8 +3502,9 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
 
       // Use the linked tool if it has enough stock
       if (p.toolId && mongoose.Types.ObjectId.isValid(p.toolId)) {
-        const linkedTool = await Tool.findById(p.toolId).lean();
-        if (linkedTool && linkedTool.active !== false && (linkedTool.quantity || 0) >= qty) {
+        const linkedTool = await Tool.findOne({ _id: p.toolId, $and: [Tool.merchandiseFilter()] }).lean();
+        const alreadyReserved = linkedTool ? (existingByTool.get(String(linkedTool._id)) || 0) : 0;
+        if (linkedTool && linkedTool.active !== false && (linkedTool.quantity || 0) + alreadyReserved >= qty) {
           tool = linkedTool;
         }
       }
@@ -2385,8 +3513,8 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
       if (!tool && p.name) {
         const escaped = String(p.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(escaped.replace(/\s+/g, '.*'), 'i');
-        const candidates = await Tool.find({ itemName: regex, active: true }).sort({ quantity: -1 }).lean();
-        tool = candidates.find(t => (t.quantity || 0) >= qty) || candidates[0] || null;
+        const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] }).sort({ quantity: -1 }).lean();
+        tool = candidates.find(t => (t.quantity || 0) + (existingByTool.get(String(t._id)) || 0) >= qty) || candidates[0] || null;
       }
 
       if (tool) {
@@ -2408,13 +3536,25 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
     let reserveInsufficient = [];
     let reservedToolIds = [];
     try {
+      const remainingExisting = new Map(existingByTool);
+      const partsToReserve = matchedParts.map(part => {
+        const key = String(part.toolId);
+        const required = Number(part.quantity) || 1;
+        const availableExisting = remainingExisting.get(key) || 0;
+        const appliedExisting = Math.min(required, availableExisting);
+        remainingExisting.set(key, Math.max(0, availableExisting - appliedExisting));
+        return { ...part, quantity: required - appliedExisting };
+      }).filter(part => part.quantity > 0);
       const result = await StockReservation.reserveForBooking({
         bookingId: booking._id,
-        parts: matchedParts,
+        parts: partsToReserve,
         reservedBy: req.user._id,
       });
       reserveInsufficient = result.insufficientStock || [];
-      reservedToolIds = (result.reservations || []).map(r => String(r.toolId));
+      reservedToolIds = [
+        ...existingReservations.map(r => String(r.toolId)),
+        ...(result.reservations || []).map(r => String(r.toolId)),
+      ];
     } catch (e) {
       console.error('[STOCK] Reservation error:', e.message);
       // Mark any matched parts that weren't reserved as insufficient
@@ -2457,22 +3597,66 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
     // Step 5: Update booking status
     const hasReservations = matchedParts.some(p => p.toolId && !insufficientStock.some(i => String(i.toolId) === String(p.toolId)));
     const prevStatus = booking.status;
+    let resolvedWorkflowPhase = null;
     if (insufficientStock.length === 0) {
       // All stock was reserved — ready for scheduling
-      if (prevStatus !== "repair_approved" && prevStatus !== "ready_for_repair") {
-        booking.status = "repair_approved";
+      const lastWaitingTransition = [...(booking.statusHistory || [])]
+        .reverse()
+        .find(entry => entry.toStatus === "waiting_parts");
+      const resumeStatus = activePartsRequest?.resumeStatus
+        || booking.partsRequest?.resumeStatus
+        || lastWaitingTransition?.fromStatus;
+      const phaseOneStatuses = ["assigned", "accepted", "confirmed", "inspection_scheduled", "inspection_in_progress"];
+      const isPhaseOneRequest = phaseOneStatuses.includes(resumeStatus);
+      resolvedWorkflowPhase = isPhaseOneRequest ? "phase_1_ai_preparation" : "phase_2_repair";
+      const targetStatus = isPhaseOneRequest
+        ? resumeStatus
+        : "repair_approved";
+      if (isPhaseOneRequest && booking.technicianAssistant?.summary) {
+        booking.technicianAssistant.verifiedByTechnician = true;
+        booking.technicianAssistant.verifiedAt = booking.technicianAssistant.verifiedAt || new Date();
+      }
+      if (prevStatus !== targetStatus) {
+        booking.status = targetStatus;
         booking.recordStatusHistory({
           fromStatus: prevStatus,
-          toStatus: "repair_approved",
-          reason: "Parts stock verified and reserved",
+          toStatus: targetStatus,
+          reason: targetStatus === "repair_approved"
+            ? "Parts stock verified and reserved"
+            : "Requested preparation parts reserved; technician workflow resumed",
           changedBy: req.user._id,
           changedByModel: "User",
           changedByName: req.user.firstName || req.user.name || "Admin",
         });
       }
-      if (!booking.approval) booking.approval = {};
-      booking.approval.status = "approved";
-      booking.approval.decidedAt = booking.approval.decidedAt || new Date();
+      if (activePartsRequest) {
+        activePartsRequest.items.forEach(item => {
+          item.status = "received";
+          item.receivedAt = item.receivedAt || new Date();
+          const matched = matchedParts.find(part => String(part.name || "").trim().toLowerCase() === String(item.itemName || "").trim().toLowerCase());
+          if (matched?.toolId) item.toolId = matched.toolId;
+        });
+        activePartsRequest.status = "received";
+        activePartsRequest.completedAt = new Date();
+        activePartsRequest.completedBy = req.user._id;
+        await activePartsRequest.save();
+      }
+      if (booking.partsRequest?.items?.length) {
+        booking.partsRequest.items.forEach(item => {
+          item.status = "received";
+          item.receivedAt = item.receivedAt || new Date();
+          const matched = matchedParts.find(part => String(part.name || "").trim().toLowerCase() === String(item.itemName || "").trim().toLowerCase());
+          if (matched?.toolId) item.toolId = matched.toolId;
+        });
+        booking.partsRequest.status = "received";
+        booking.partsRequest.completedAt = new Date();
+        booking.partsRequest.completedBy = req.user._id;
+      }
+      if (targetStatus === "repair_approved") {
+        if (!booking.approval) booking.approval = {};
+        booking.approval.status = "approved";
+        booking.approval.decidedAt = booking.approval.decidedAt || new Date();
+      }
     } else {
       // Some parts need to be ordered
       if (prevStatus !== "waiting_parts") {
@@ -2508,12 +3692,19 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
     }
 
     const allReady = insufficientStock.length === 0;
+    const readyForScheduling = allReady
+      && resolvedWorkflowPhase === "phase_2_repair"
+      && ["repair_approved", "ready_for_repair"].includes(booking.status);
     return res.json({
       success: true,
       allReady,
+      readyForScheduling,
+      workflowPhase: resolvedWorkflowPhase,
       status: booking.status,
       message: allReady
-        ? `All parts verified and reserved. Ready for scheduling.`
+        ? (readyForScheduling
+            ? `All parts verified and reserved. Ready for scheduling.`
+            : `All requested parts were reserved. The technician workflow can continue.`)
         : `Stock reserved for available items. Parts request created for ${insufficientStock.length} item(s): ${insufficientStock.map(i => i.itemName).join(', ')}.`,
       details: {
         totalParts: parts.length,
@@ -2538,6 +3729,7 @@ router.post("/repair-scheduling-queue/:id/link-procured-part", async (req, res, 
 
     const BookingService = require("../models/BookingService");
     const Tool = require("../models/Tool");
+    const PartsRequest = require("../models/PartsRequest");
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
@@ -2552,16 +3744,54 @@ router.post("/repair-scheduling-queue/:id/link-procured-part", async (req, res, 
       });
     }
 
-    if (!matched) return res.status(404).json({ error: "Quotation part not found" });
+    let embeddedRequestItem = null;
+    let activeRequest = null;
+    let activeRequestItem = null;
+    if (!matched) {
+      embeddedRequestItem = (booking.partsRequest?.items || []).find(item => {
+        const name = String(item.itemName || '').trim().toLowerCase();
+        return name && (name === targetName || name.includes(targetName) || targetName.includes(name));
+      }) || null;
+    }
+    if (!matched && !embeddedRequestItem) {
+      activeRequest = await PartsRequest.findOne({ bookingId: booking._id, status: { $in: ['pending', 'procuring'] } });
+      activeRequestItem = activeRequest?.items?.find(item => {
+        const name = String(item.itemName || '').trim().toLowerCase();
+        return name && (name === targetName || name.includes(targetName) || targetName.includes(name));
+      }) || null;
+    }
 
-    const tool = await Tool.findById(toolId).select("quantity").lean();
-    matched.toolId = toolId;
-    matched.currentStock = Number(quantity) || (tool?.quantity || 0);
+    if (!matched && !embeddedRequestItem && !activeRequestItem) {
+      return res.status(404).json({ error: "Quotation or technician-requested part not found" });
+    }
 
-    booking.markModified('quotation.parts');
+    const tool = await Tool.findById(toolId).select("quantity type inventoryClass").lean();
+    if (!tool || Tool.effectiveInventoryClass(tool) !== 'merchandise') {
+      return res.status(400).json({ error: 'Only merchandise can be linked as a repair part' });
+    }
+    const linkedQuantity = Number(quantity) || (tool?.quantity || 0);
+    if (matched) {
+      matched.toolId = toolId;
+      matched.currentStock = linkedQuantity;
+      booking.markModified('quotation.parts');
+    }
+    if (embeddedRequestItem) {
+      embeddedRequestItem.toolId = toolId;
+      embeddedRequestItem.availableQty = linkedQuantity;
+      booking.markModified('partsRequest.items');
+    }
+    if (activeRequestItem) {
+      activeRequestItem.toolId = toolId;
+      activeRequestItem.availableQty = linkedQuantity;
+      await activeRequest.save();
+    }
     await booking.save();
 
-    return res.json({ success: true, message: "Part linked to booking", part: matched });
+    return res.json({
+      success: true,
+      message: "Procured inventory linked to the repair request",
+      part: matched || embeddedRequestItem || activeRequestItem,
+    });
   } catch (err) {
     next(err);
   }
@@ -2578,10 +3808,58 @@ router.get("/repair-scheduling-queue/:id/quotation-parts", async (req, res, next
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
 
     const BookingService = require("../models/BookingService");
-    const booking = await BookingService.findById(id).select("quotation workOrderNumber");
+    const Tool = require("../models/Tool");
+    const PartsRequest = require("../models/PartsRequest");
+    const booking = await BookingService.findById(id).select("quotation partsRequest workOrderNumber").lean();
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
-    const parts = (booking.quotation?.parts || []).filter(p => p.name);
+    const quotationParts = (booking.quotation?.parts || []).filter(p => p.name);
+    const activeRequest = await PartsRequest.findOne({
+      bookingId: booking._id,
+      status: { $in: ["pending", "procuring"] },
+    }).lean();
+    const requestedItems = activeRequest?.items?.length
+      ? activeRequest.items
+      : (booking.partsRequest?.items || []);
+    const requestedParts = requestedItems.filter(item => item.itemName && item.status !== 'received').map(item => ({
+      name: item.itemName,
+      quantity: Number(item.requestedQty) || 1,
+      toolId: item.toolId || null,
+      cost: Number(item.unitPrice) || 0,
+      source: 'technician_ai_request',
+    }));
+    const sourceParts = quotationParts.length ? quotationParts : requestedParts;
+    const parts = [];
+
+    // Send only real stock shortfalls. Returning every quotation line caused
+    // the next (already available) part to pop up after procurement.
+    for (const part of sourceParts) {
+      const quantity = Number(part.quantity) || 1;
+      let tool = null;
+
+      if (part.toolId && mongoose.Types.ObjectId.isValid(part.toolId)) {
+        tool = await Tool.findOne({ _id: part.toolId, active: { $ne: false }, $and: [Tool.merchandiseFilter()] }).lean();
+      }
+      if (!tool || (tool.quantity || 0) < quantity) {
+        const linkedTool = tool;
+        const escaped = String(part.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(escaped.replace(/\s+/g, ".*"), "i");
+        const candidates = await Tool.find({ itemName: regex, active: true, type: { $in: ['part', 'consumable'] }, $and: [Tool.merchandiseFilter()] }).sort({ quantity: -1 }).lean();
+        tool = candidates.find(candidate => (candidate.quantity || 0) >= quantity) || candidates[0] || linkedTool || null;
+      }
+
+      const currentStock = Number(tool?.quantity) || 0;
+      if (currentStock < quantity) {
+        parts.push({
+          ...(typeof part.toObject === "function" ? part.toObject() : part),
+          toolId: tool?._id || part.toolId || null,
+          currentStock,
+          quantity,
+          shortfall: quantity - currentStock,
+        });
+      }
+    }
+
     return res.json({ success: true, workOrderNumber: booking.workOrderNumber, parts });
   } catch (err) {
     next(err);
@@ -2596,7 +3874,7 @@ router.get("/repair-scheduling-queue/stats", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
 
-    const [pendingCount, scheduledCount, totalCount] = await Promise.all([
+    const [pendingCount, scheduledCount, totalCount, waitingPartsCount] = await Promise.all([
       BookingService.countDocuments({
         "repairSchedule.preference": "later",
         status: { $in: ["repair_approved", "ready_for_repair"] },
@@ -2606,15 +3884,22 @@ router.get("/repair-scheduling-queue/stats", async (req, res, next) => {
         status: "repair_scheduled",
       }),
       BookingService.countDocuments({
-        "repairSchedule.preference": "later",
-        status: { $in: ["repair_approved", "ready_for_repair", "repair_scheduled", "waiting_parts"] },
+        $or: [
+          { status: "waiting_parts" },
+          {
+            "repairSchedule.preference": "later",
+            status: { $in: ["repair_approved", "ready_for_repair", "repair_scheduled"] },
+          },
+        ],
       }),
+      BookingService.countDocuments({ status: "waiting_parts" }),
     ]);
 
     return res.json({
       pendingScheduling: pendingCount,
       scheduled: scheduledCount,
       total: totalCount,
+      waitingParts: waitingPartsCount,
     });
   } catch (err) {
     next(err);
@@ -2649,6 +3934,10 @@ router.get("/repair-scheduling-queue/:id/availability", async (req, res, next) =
 
     const originalInspector = booking.inspection?.technicianId || booking.technicianId;
     const estimatedDuration = booking.technicianAssistant?.estimatedDurationMinutes || 90;
+    const rawRepairTravelMinutes = booking.travelDurationMinutes ?? booking.travelTime;
+    const repairTravelMinutes = Number.isFinite(Number(rawRepairTravelMinutes)) ? Math.max(0, Number(rawRepairTravelMinutes)) : 30;
+    const repairBufferMinutes = require("../utils/bookingPolicy").getBufferMinutesSync();
+    const requiredCapacityMinutes = estimatedDuration + repairTravelMinutes + repairBufferMinutes;
 
     // Helper: check if a technician is available on a given date
     async function checkTechAvailability(techId, date) {
@@ -2687,19 +3976,19 @@ router.get("/repair-scheduling-queue/:id/availability", async (req, res, next) =
           technicianId: techId,
           status: { $in: ["accepted", "en_route", "on_site", "in_progress", "pending_acceptance"] },
           bookingDate: { $gte: dayStart, $lte: dayEnd },
-        }).select("startTime endTime serviceDurationMinutes").lean();
+        }).select("startTime endTime serviceDurationMinutes travelTime").lean();
 
         // Calculate total booked minutes
         let bookedMinutes = 0;
         for (const a of existingAssignments) {
-          bookedMinutes += a.serviceDurationMinutes || 90;
+          bookedMinutes += (Number(a.serviceDurationMinutes) || 90) + Math.max(0, Number(a.travelTime) || 0) + repairBufferMinutes;
         }
 
         const workStartMin = workingDay.startMinutes || 480; // 8:00 AM
         const workEndMin = workingDay.endMinutes || 1020;    // 5:00 PM
         const availableMinutes = (workEndMin - workStartMin) - bookedMinutes;
 
-        if (availableMinutes < estimatedDuration) {
+        if (availableMinutes < requiredCapacityMinutes) {
           return { available: false, reason: "Insufficient working hours remaining" };
         }
       }
@@ -2821,8 +4110,9 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
     const tech = await Technician.findById(techId);
     if (!tech) return res.status(404).json({ error: "Technician not found" });
 
-    const estimatedDuration = parseInt(req.query.duration) || 90;
-    const TRAVEL_TIME = 30;
+    const estimatedDuration = Math.min(480, Math.max(30, parseInt(req.query.duration) || 90));
+    const requestedTravelTime = Number(req.query.travelTime);
+    const TRAVEL_TIME = Number.isFinite(requestedTravelTime) ? Math.min(240, Math.max(0, requestedTravelTime)) : 30;
     const BUFFER_TIME = getBufferMinutesSync();
     const capacityPerSlot = estimatedDuration + TRAVEL_TIME + BUFFER_TIME;
 
@@ -3059,8 +4349,9 @@ router.get("/technicians/:techId/available-slots", async (req, res, next) => {
     const LeaveRequest = require("../models/LeaveRequest");
     const { getBufferMinutesSync } = require("../utils/bookingPolicy");
 
-    const duration = parseInt(durParam) || 90;
-    const TRAVEL_TIME = 30;
+    const duration = Math.min(480, Math.max(30, parseInt(durParam) || 90));
+    const requestedTravelTime = Number(req.query.travelTime);
+    const TRAVEL_TIME = Number.isFinite(requestedTravelTime) ? Math.min(240, Math.max(0, requestedTravelTime)) : 30;
     const BUFFER_TIME = getBufferMinutesSync();
     const capacityPerSlot = duration + TRAVEL_TIME + BUFFER_TIME;
     const slotInterval = Math.max(30, capacityPerSlot);
@@ -3219,6 +4510,8 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const Technician = require("../models/Technician");
     const Assignment = require("../models/Assignment");
+    const PartsRequest = require("../models/PartsRequest");
+    const StockReservation = require("../models/StockReservation");
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
@@ -3227,7 +4520,60 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       return res.status(400).json({ error: `Cannot assign from status "${booking.status}"` });
     }
 
-    const tech = await Technician.findById(technicianId).populate("user", "name email");
+    // Scheduling is the final gate: quotation parts must be procured and held
+    // for this booking. Never trust the modal state alone.
+    const quotationParts = (booking.quotation?.parts || []).filter(part => part?.name);
+    if (quotationParts.length > 0) {
+      const [activePartsRequest, reservations] = await Promise.all([
+        PartsRequest.findOne({
+          bookingId: booking._id,
+          status: { $in: ["pending", "procuring"] },
+        }).select("items status").lean(),
+        StockReservation.find({
+          bookingId: booking._id,
+          status: { $in: ["reserved", "checked_out"] },
+        }).select("toolId quantity").lean(),
+      ]);
+
+      const requestItems = activePartsRequest?.items?.length
+        ? activePartsRequest.items
+        : (booking.partsRequest?.items || []);
+      const unresolvedRequestItems = requestItems.filter(item => item.status !== "received");
+      if (unresolvedRequestItems.length > 0) {
+        return res.status(409).json({
+          error: `Cannot schedule yet. Procure the missing part(s): ${unresolvedRequestItems.map(item => item.itemName).filter(Boolean).join(", ")}.`,
+          code: "PARTS_NOT_PROCURED",
+        });
+      }
+
+      const reservedByTool = reservations.reduce((totals, reservation) => {
+        const key = String(reservation.toolId || "");
+        if (key) totals.set(key, (totals.get(key) || 0) + (Number(reservation.quantity) || 0));
+        return totals;
+      }, new Map());
+      const requiredByTool = new Map();
+      const unlinkedParts = [];
+      quotationParts.forEach(part => {
+        const key = String(part.toolId || "");
+        if (!key) {
+          unlinkedParts.push(part.name);
+          return;
+        }
+        requiredByTool.set(key, (requiredByTool.get(key) || 0) + (Number(part.quantity) || 1));
+      });
+      const unreservedParts = quotationParts
+        .filter(part => part.toolId && (reservedByTool.get(String(part.toolId)) || 0) < (requiredByTool.get(String(part.toolId)) || 0))
+        .map(part => part.name);
+      const unavailableParts = [...new Set([...unlinkedParts, ...unreservedParts])];
+      if (unavailableParts.length > 0) {
+        return res.status(409).json({
+          error: `Cannot schedule yet. Procure and reserve the required part(s): ${unavailableParts.join(", ")}.`,
+          code: "PARTS_NOT_READY",
+        });
+      }
+    }
+
+    const tech = await Technician.findById(technicianId).populate("user", "name email").lean();
     if (!tech) return res.status(404).json({ error: "Technician not found" });
 
     // Update booking
@@ -3242,6 +4588,51 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     };
     booking.bookingDate = new Date(scheduledDate);
     booking.startTime = scheduledTime || "09:00";
+    const repairDurationMinutes = Math.min(480, Math.max(30, Number(booking.technicianAssistant?.estimatedDurationMinutes) || 90));
+    const rawRepairTravel = booking.travelDurationMinutes ?? booking.travelTime;
+    const repairTravelTime = Number.isFinite(Number(rawRepairTravel)) ? Math.max(0, Number(rawRepairTravel)) : 30;
+    const repairBufferTime = require("../utils/bookingPolicy").getBufferMinutesSync();
+    const parseScheduleTime = value => {
+      const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return 540;
+      let hour = Number(match[1]); const minute = Number(match[2]);
+      if (match[3]) { hour %= 12; if (match[3].toUpperCase() === 'PM') hour += 12; }
+      return hour * 60 + minute;
+    };
+    const formatScheduleTime = minutes => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    booking.serviceDurationMinutes = repairDurationMinutes;
+    booking.travelTime = repairTravelTime;
+    booking.endTime = formatScheduleTime(parseScheduleTime(booking.startTime) + repairDurationMinutes + repairTravelTime + repairBufferTime);
+
+    // Revalidate the selected slot at commit time. The browser availability
+    // result may be stale if another admin schedules work in the meantime.
+    const scheduleDayStart = new Date(scheduledDate); scheduleDayStart.setHours(0, 0, 0, 0);
+    const scheduleDayEnd = new Date(scheduledDate); scheduleDayEnd.setHours(23, 59, 59, 999);
+    const requestedStart = parseScheduleTime(booking.startTime);
+    const requestedEnd = requestedStart + repairDurationMinutes + repairTravelTime + repairBufferTime;
+    const [conflictingAssignments, conflictingBookings] = await Promise.all([
+      Assignment.find({
+        bookingId: { $ne: booking._id }, technicianId: tech._id,
+        bookingDate: { $gte: scheduleDayStart, $lte: scheduleDayEnd },
+        status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] },
+      }).select("startTime endTime serviceDurationMinutes travelTime").lean(),
+      BookingService.find({
+        _id: { $ne: booking._id }, technicianId: tech._id,
+        bookingDate: { $gte: scheduleDayStart, $lte: scheduleDayEnd },
+        status: { $in: ["pending", "payment_verified", "awaiting_assignment", "assigned", "confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "repair_scheduled", "repair_in_progress"] },
+      }).select("startTime endTime serviceDurationMinutes travelTime").lean(),
+    ]);
+    const overlapsRequestedSlot = row => {
+      const start = parseScheduleTime(row.startTime);
+      const explicitEnd = row.endTime ? parseScheduleTime(row.endTime) : NaN;
+      const end = Number.isFinite(explicitEnd) && explicitEnd > start
+        ? explicitEnd
+        : start + (Number(row.serviceDurationMinutes) || 90) + Math.max(0, Number(row.travelTime) || 0) + repairBufferTime;
+      return requestedStart < end && requestedEnd > start;
+    };
+    if ([...conflictingAssignments, ...conflictingBookings].some(overlapsRequestedSlot)) {
+      return res.status(409).json({ error: "That time slot is no longer available. Refresh the schedule and select another slot.", code: "SLOT_CONFLICT" });
+    }
 
     // Store scheduling details
     if (!booking.schedulingRequest) booking.schedulingRequest = {};
@@ -3251,6 +4642,33 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     booking.schedulingRequest.status = "confirmed";
     booking.schedulingRequest.notes = notes || "";
 
+    const isMixedBooking = booking.serviceType === "mixed"
+      || ((booking.services || []).some(item => item.type === "core")
+        && (booking.services || []).some(item => item.type === "repair"));
+    if (isMixedBooking) {
+      for (const item of booking.services.filter(row => row.type === "repair" && !["completed", "repair_declined", "cancelled"].includes(row.status))) {
+        item.status = "repair_scheduled";
+        item.phase = "repair_phase_2";
+        item.technicianId = tech._id;
+        item.technicianName = tech.name || tech.user?.name || "Technician";
+        item.schedule = {
+          date: new Date(scheduledDate),
+          startTime: scheduledTime || "09:00",
+          endTime: booking.endTime,
+          durationMinutes: repairDurationMinutes,
+          kind: "repair",
+        };
+        item.statusHistory = item.statusHistory || [];
+        item.statusHistory.push({
+          status: "repair_scheduled",
+          changedAt: new Date(),
+          changedBy: req.user._id,
+          changedByName: req.user.firstName || req.user.name || "Admin",
+          reason: "Admin scheduled Phase 2 Repair visit",
+        });
+      }
+    }
+
     booking.recordStatusHistory({
       fromStatus: prevStatus,
       toStatus: "repair_scheduled",
@@ -3258,12 +4676,37 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       changedBy: req.user._id,
       changedByModel: "User",
       changedByName: req.user.firstName || req.user.name || "Admin",
-      metadata: { technicianId: tech._id, scheduledDate, scheduledTime },
+      metadata: { technicianId: tech._id, scheduledDate, scheduledTime, repairDurationMinutes, repairTravelTime, repairBufferTime },
     });
 
     await booking.save();
 
-    // ── Assignment handling ───────────────────────────────────────────────
+    // â”€â”€ Assignment handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // A Phase 2 reassignment replaces the original technician's active visit;
+    // do not leave two live assignments for the same mixed booking.
+    const replacedAssignments = await Assignment.find({
+      bookingId: booking._id,
+      technicianId: { $ne: tech._id },
+      status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] },
+    });
+    for (const replaced of replacedAssignments) {
+      replaced.status = "completed";
+      replaced.completedAt = new Date();
+      replaced.notes = replaced.notes || [];
+      replaced.notes.push({
+        text: `Phase 1 visit closed; Phase 2 Repair assigned to ${tech.name || tech.user?.name || "another technician"}.`,
+        by: req.user._id,
+        byName: req.user.firstName || req.user.name || "Admin",
+        createdAt: new Date(),
+      });
+      await replaced.save();
+      const previousTechnician = await Technician.findById(replaced.technicianId);
+      if (previousTechnician) {
+        const { resolveAvailabilityStatus } = require("../utils/availability");
+        await resolveAvailabilityStatus(previousTechnician, null, null, { syncDb: true });
+      }
+    }
+
     // Check if there's already an active assignment for this booking (from inspection phase)
     let assignment = await Assignment.findOne({
       bookingId: booking._id,
@@ -3275,6 +4718,9 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       // Update existing assignment with new schedule — no re-acceptance needed
       assignment.bookingDate = new Date(scheduledDate);
       assignment.startTime = scheduledTime || "09:00";
+      assignment.endTime = booking.endTime;
+      assignment.serviceDurationMinutes = repairDurationMinutes;
+      assignment.travelTime = repairTravelTime;
       assignment.status = "accepted";
       assignment.notes.push({
         text: `Repair rescheduled for ${new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} at ${scheduledTime || "09:00"}. Inspection already completed.${notes ? " Notes: " + notes.trim() : ""}`,
@@ -3291,7 +4737,9 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
         status: "pending_acceptance",
         bookingDate: new Date(scheduledDate),
         startTime: scheduledTime || "09:00",
-        serviceDurationMinutes: booking.technicianAssistant?.estimatedDurationMinutes || 90,
+        serviceDurationMinutes: repairDurationMinutes,
+        travelTime: repairTravelTime,
+        endTime: booking.endTime,
         customerName: booking.customer?.name,
         customerPhone: booking.customer?.phone,
         serviceType: "repair",
@@ -3307,9 +4755,16 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       assignment = await Assignment.create(assignmentData);
     }
 
+    if (isMixedBooking) {
+      for (const item of booking.services.filter(row => row.type === "repair" && row.status === "repair_scheduled")) {
+        item.assignmentId = assignment._id;
+      }
+      await booking.save();
+    }
+
     const isReschedule = assignment.status === "accepted";
 
-    // ── Sync technician into Project.assignedTechnicians (large-scale repairs)
+    // â”€â”€ Sync technician into Project.assignedTechnicians (large-scale repairs)
     try {
       const Project = require("../models/Project");
       const project = await Project.findOne({ bookingId: booking._id });
@@ -3391,7 +4846,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
         const { isLargeProject } = require("../utils/enterpriseSchedulingEngine");
         const estimatedMinutes = Number(booking.projectScheduling?.estimatedTotalHours || 0) * 60
           || (booking.serviceDurationMinutes || 90);
-        const isLarge = await isLargeProject({ totalEstimatedMinutes: estimatedMinutes }).catch(() => false);
+        const isLarge = await isLargeProject({ totalUnits: booking.quantity || 1, totalEstimatedMinutes: estimatedMinutes }).catch(() => false);
         const custFirst = booking.customer?.name || "";
         const newProject = await Project.create({
           bookingId: booking._id,
@@ -3478,7 +4933,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       console.warn("Project team sync failed (non-fatal):", projErr.message);
     }
 
-    // ── Notifications ─────────────────────────────────────────────────────
+    // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const scheduledDateLabel = new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" });
     const workOrderNum = booking.workOrderNumber || `WO-${String(booking._id).slice(-6).toUpperCase()}`;
     const techFullName = tech.name || tech.user?.name || "Technician";
@@ -3577,6 +5032,494 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     next(err);
   }
 });
+
+// ═══ ATTENTION REQUIRED QUEUE ═════════════════════════════════════════════
+
+/**
+ * GET /api/admin/attention-queue
+ * Returns bookings that need admin action: declined assignments, expired
+ * assignments that need reassignment, customer reschedule requests, etc.
+ */
+router.get("/attention-queue", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+
+    const status = req.query.status;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 20, 100));
+    const skip = (page - 1) * limit;
+
+    const attentionStatuses = [
+      "pending_reassignment",
+      "re-scheduled",
+      "repair_requested",
+      "pending_inspection",
+      "awaiting_assignment",
+    ];
+
+    const query = status && attentionStatuses.includes(status)
+      ? { status }
+      : { status: { $in: attentionStatuses } };
+
+    const [total, bookings] = await Promise.all([
+      BookingService.countDocuments(query),
+      BookingService.find(query)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("customerId", "firstName lastName email phone")
+        .populate("technicianId", "name")
+        .lean(),
+    ]);
+
+    const items = bookings.map((b) => {
+      const lastAction = b.cancellationHistory && b.cancellationHistory.length
+        ? b.cancellationHistory[b.cancellationHistory.length - 1]
+        : null;
+
+      let reason = "";
+      if (b.status === "pending_reassignment") {
+        reason = lastAction
+          ? `${lastAction.technicianName || "Technician"} ${lastAction.action}${lastAction.reason ? ": " + lastAction.reason : ""}`
+          : "Needs new technician";
+      } else if (b.status === "re-scheduled") {
+        reason = b.rescheduleReason || "Customer requested reschedule";
+      } else if (b.status === "repair_requested") {
+        reason = "New repair request awaiting review";
+      } else if (b.status === "pending_inspection") {
+        reason = "Inspection needs to be scheduled";
+      } else if (b.status === "awaiting_assignment") {
+        reason = "Waiting for technician assignment";
+      }
+
+      const customer = b.customerId
+        ? `${b.customerId.firstName || ""} ${b.customerId.lastName || ""}`.trim()
+        : (b.customer?.name || "Customer");
+
+      const phone = b.customerId?.phone || b.customer?.phone || b.customer?.mobile || "";
+
+      return {
+        id: String(b._id),
+        reference: b.bookingReference || b.workOrderNumber || `#${String(b._id).slice(-6).toUpperCase()}`,
+        customer,
+        email: b.customerId?.email || b.customer?.email || "",
+        phone,
+        serviceName: b.service?.name || (b.serviceModel === "RepairService" ? "Repair Service" : "Service"),
+        serviceModel: b.serviceModel || "CoreService",
+        status: b.status,
+        reason,
+        bookingDate: b.bookingDate,
+        startTime: b.startTime || "",
+        technicianName: b.technicianId?.name || b.technician?.name || "Unassigned",
+        updatedAt: b.updatedAt,
+        requiresReschedule: ["re-scheduled", "pending_reassignment"].includes(b.status),
+        proposedReschedule: b.proposedReschedule || null,
+        isProposedPassed: (() => {
+          const now = new Date();
+          const prop = b.proposedReschedule;
+          const rawDate = (prop && prop.date) ? prop.date : (b.bookingDate || null);
+          const effectiveTimeStr = (prop && prop.time) ? prop.time : (b.startTime || '');
+          if (!rawDate || !effectiveTimeStr) return false;
+          const raw = new Date(rawDate);
+          const effDate = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
+          const tm = String(effectiveTimeStr).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+          if (tm) {
+            let h = parseInt(tm[1], 10);
+            const m = parseInt(tm[2], 10);
+            if (tm[3]) {
+              const ap = tm[3].toUpperCase();
+              if (ap === 'PM' && h < 12) h += 12;
+              if (ap === 'AM' && h === 12) h = 0;
+            }
+            effDate.setHours(h, m, 0, 0);
+          } else {
+            effDate.setHours(23, 59, 59, 999);
+          }
+          return effDate < now;
+        })(),
+      };
+    });
+
+    res.json({
+      items,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/attention-queue/:bookingId/suggestions
+ * Real technician availability for rescheduling.
+ * Considers: TechnicianSchedule, leaves, holidays, non-working days,
+ * BookingService, Assignment, Order, and Project reservations.
+ */
+router.get("/attention-queue/:bookingId/suggestions", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Technician = require("../models/Technician");
+    const TechnicianSchedule = require("../models/TechnicianSchedule");
+    const Assignment = require("../models/Assignment");
+    const Order = require("../models/Order");
+    const LeaveRequest = require("../models/LeaveRequest");
+    const NonWorkingDay = require("../models/NonWorkingDay");
+    const Project = require("../models/Project");
+    const CoreService = require("../models/CoreService");
+
+    const { bookingId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking id" });
+    }
+
+    const booking = await BookingService.findById(bookingId).lean();
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    const durationMinutes = booking.serviceDurationMinutes || booking.service?.durationMinutes || 60;
+    const daysToScan = Math.min(parseInt(req.query.days) || 10, 21);
+    const slotInterval = 60; // minutes between slot starts
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const candidates = await Technician.find({ active: true }).select("name _id user").lean();
+    const candidateIds = candidates.map(c => String(c._id));
+
+    // Resolve the service duration and default working hours
+    let serviceDuration = durationMinutes;
+    try {
+      if (booking.serviceId && mongoose.Types.ObjectId.isValid(booking.serviceId)) {
+        const cs = await CoreService.findById(booking.serviceId).select("durationMinutes").lean();
+        if (cs && cs.durationMinutes) serviceDuration = cs.durationMinutes;
+      }
+    } catch (_) { /* ignore */ }
+    const totalSlotDuration = serviceDuration; // total time a slot occupies
+
+    // Load holidays and non-working days once for the scan range
+    const scanEnd = new Date(today);
+    scanEnd.setDate(scanEnd.getDate() + daysToScan);
+
+    const [holidays, nonWorkingDays, approvedLeaves, schedules] = await Promise.all([
+      NonWorkingDay.find({
+        date: { $gte: today, $lte: scanEnd },
+      }).select("date").lean(),
+      NonWorkingDay.find({
+        date: { $gte: today, $lte: scanEnd },
+      }).select("date").lean(),
+      LeaveRequest.find({
+        status: "approved",
+        startDate: { $lte: scanEnd },
+        endDate: { $gte: today },
+      }).select("technicianId startDate endDate").lean(),
+      TechnicianSchedule.find({
+        technicianId: { $in: candidateIds },
+      }).select("technicianId workingDays nonWorkingWeekdays restDates").lean(),
+    ]);
+
+    // Build lookup sets
+    const holidaySet = new Set(
+      holidays.map(h => new Date(h.date).toISOString().slice(0, 10))
+    );
+    const nonWorkingSet = new Set(
+      nonWorkingDays.map(n => new Date(n.date).toISOString().slice(0, 10))
+    );
+
+    // Build leave lookup: techId â†’ Set of date strings
+    const leaveMap = new Map();
+    for (const lr of approvedLeaves) {
+      const tid = String(lr.technicianId);
+      if (!leaveMap.has(tid)) leaveMap.set(tid, new Set());
+      const s = new Date(lr.startDate);
+      const e = new Date(lr.endDate);
+      for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+        leaveMap.get(tid).add(d.toISOString().slice(0, 10));
+      }
+    }
+
+    // Build schedule lookup: techId â†’ schedule doc
+    const scheduleMap = new Map();
+    for (const sched of schedules) {
+      scheduleMap.set(String(sched.technicianId), sched);
+    }
+
+    /**
+     * Get working-hour blocks for a technician on a given Date.
+     * Returns [{ start, end }] in minutes-from-midnight, or [] if non-working.
+     */
+    function getWorkingBlocks(techId, date) {
+      const defaultBlock = [{ start: 8 * 60, end: 19 * 60 }];
+      const sched = scheduleMap.get(String(techId));
+      if (!sched || !Array.isArray(sched.workingDays) || !sched.workingDays.length) {
+        return defaultBlock;
+      }
+      const dow = date.getDay();
+      const matching = sched.workingDays.filter(w => w.dayOfWeek === dow);
+      if (!matching.length) return [];
+      return matching.map(w => ({
+        start: w.startMinutes || 8 * 60,
+        end: w.endMinutes || 19 * 60,
+      }));
+    }
+
+    /**
+     * Parse a time string (e.g. "8:00 AM", "13:00", "480") to minutes-from-midnight.
+     */
+    function parseTime(str) {
+      if (!str || typeof str !== "string") return NaN;
+      const s = str.trim();
+      if (/^\d{1,4}$/.test(s)) return parseInt(s, 10);
+      const m1 = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (m1) return parseInt(m1[1], 10) * 60 + parseInt(m1[2], 10);
+      const m2 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (m2) {
+        let hh = parseInt(m2[1], 10) % 12;
+        if (m2[3].toUpperCase() === "PM") hh += 12;
+        return hh * 60 + parseInt(m2[2], 10);
+      }
+      return NaN;
+    }
+
+    /**
+     * Convert minutes-from-midnight to 12-hour label.
+     */
+    function toLabel(totalMinutes) {
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = ((h + 11) % 12) + 1;
+      return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    }
+
+    /**
+     * Merge overlapping ranges and find free gaps within working blocks.
+     */
+    function findFreeGaps(workingBlocks, busyRanges) {
+      const sorted = [...busyRanges].sort((a, b) => a.start - b.start);
+      const merged = [];
+      for (const r of sorted) {
+        if (merged.length && r.start <= merged[merged.length - 1].end) {
+          merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, r.end);
+        } else {
+          merged.push({ ...r });
+        }
+      }
+      const gaps = [];
+      for (const block of workingBlocks) {
+        let cursor = block.start;
+        for (const busy of merged) {
+          if (busy.start >= block.end) break;
+          if (busy.end <= block.start) continue;
+          const gapEnd = Math.min(busy.start, block.end);
+          if (gapEnd > cursor) gaps.push({ start: cursor, end: gapEnd });
+          cursor = Math.max(cursor, Math.min(busy.end, block.end));
+        }
+        if (cursor < block.end) gaps.push({ start: cursor, end: block.end });
+      }
+      return gaps;
+    }
+
+    /**
+     * Generate slot labels from free gaps.
+     */
+    function generateSlotLabels(gaps, totalDur, interval) {
+      const labels = [];
+      for (const gap of gaps) {
+        for (let t = gap.start; t + totalDur <= gap.end; t += interval) {
+          labels.push({ startMin: t, endMin: t + totalDur, label: toLabel(t) + " – " + toLabel(t + totalDur) });
+        }
+      }
+      return labels;
+    }
+
+    const suggestions = [];
+
+    for (let i = 0; i < daysToScan; i++) {
+      const day = new Date(today);
+      day.setDate(day.getDate() + i);
+      const dateStr = day.toISOString().slice(0, 10);
+
+      // Skip holidays and global non-working days
+      if (holidaySet.has(dateStr) || nonWorkingSet.has(dateStr)) continue;
+
+      const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999);
+
+      const dayDateLabel = day.toLocaleDateString("en-PH", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric",
+      });
+
+      const availableTechs = [];
+
+      for (const tech of candidates) {
+        const tid = String(tech._id);
+
+        // Check leave
+        if (leaveMap.has(tid) && leaveMap.get(tid).has(dateStr)) continue;
+
+        // Check technician schedule rest days
+        const sched = scheduleMap.get(tid);
+        if (sched && Array.isArray(sched.restDates)) {
+          const isRest = sched.restDates.some(rd => {
+            const rdDate = new Date(rd.date).toISOString().slice(0, 10);
+            return rdDate === dateStr;
+          });
+          if (isRest) continue;
+        }
+
+        // Get working blocks — if empty array â†’ tech doesn't work this day
+        const workingBlocks = getWorkingBlocks(tech._id, day);
+        if (!workingBlocks.length) continue;
+
+        // Resolve all IDs to match (user vs technician _id)
+        const techIdsToMatch = [tid];
+        const byTechId = await Technician.findById(tech._id).select("_id user").lean();
+        if (byTechId) {
+          if (byTechId._id) techIdsToMatch.push(String(byTechId._id));
+          if (byTechId.user) techIdsToMatch.push(String(byTechId.user));
+        }
+
+        const uniqueTechIds = [...new Set(techIdsToMatch)];
+
+        // Load all busy ranges in parallel: bookings, assignments, orders, project reservations
+        const [bookings, assignments, orders, projectRes] = await Promise.all([
+          BookingService.find({
+            _id: { $ne: booking._id },
+            technicianId: { $in: uniqueTechIds },
+            bookingDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ["pending", "confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "assigned", "inspection_scheduled", "inspection_in_progress", "repair_scheduled", "repair_in_progress", "payment_verified"] },
+          }).select("startTime endTime serviceDurationMinutes travelTime").lean(),
+          Assignment.find({
+            technicianId: { $in: uniqueTechIds },
+            bookingDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] },
+          }).select("startTime endTime bookingDate").lean(),
+          Order.find({
+            technicianId: { $in: uniqueTechIds },
+            "delivery.preferredDate": { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ["technician_assigned", "technician_accepted", "out_for_delivery", "arrived", "installing"] },
+          }).select("delivery.preferredDate timeSlot").lean(),
+          (async () => {
+            try {
+              const engine = require("../utils/enterpriseSchedulingEngine");
+              if (engine.getProjectReservationsForDate) {
+                return await engine.getProjectReservationsForDate(day);
+              }
+            } catch (_) { /* ignore */ }
+            return [];
+          })(),
+        ]);
+
+        const busyRanges = [];
+
+        // BookingService conflicts
+        for (const b of bookings) {
+          const startMin = parseTime(b.startTime);
+          if (Number.isNaN(startMin)) continue;
+          let endMin = parseTime(b.endTime);
+          if (Number.isNaN(endMin)) {
+            const dur = (Number(b.serviceDurationMinutes) || serviceDuration) + Math.max(0, Number(b.travelTime) || 0);
+            endMin = startMin + dur;
+          }
+          if (endMin > startMin) busyRanges.push({ start: startMin, end: endMin });
+        }
+
+        // Assignment conflicts
+        for (const a of assignments) {
+          const startMin = parseTime(a.startTime);
+          if (Number.isNaN(startMin)) continue;
+          let endMin = parseTime(a.endTime);
+          if (Number.isNaN(endMin)) endMin = startMin + serviceDuration + 30;
+          if (endMin > startMin) busyRanges.push({ start: startMin, end: endMin });
+        }
+
+        // Order conflicts (delivery/installation)
+        for (const o of orders) {
+          const startMin = parseTime(o.timeSlot);
+          if (!Number.isNaN(startMin)) {
+            busyRanges.push({ start: startMin, end: startMin + serviceDuration });
+          } else {
+            // Default 8AM–5PM block for orders without explicit time
+            busyRanges.push({ start: 8 * 60, end: 17 * 60 });
+          }
+        }
+
+        // Project reservations (large-scale)
+        if (Array.isArray(projectRes)) {
+          for (const pr of projectRes) {
+            const prTechId = pr.technicianId ? String(pr.technicianId) : null;
+            const prTechUser = pr.technicianUser ? String(pr.technicianUser) : null;
+            if (prTechId && uniqueTechIds.includes(prTechId) || prTechUser && uniqueTechIds.includes(prTechUser)) {
+              const startMin = parseTime(pr.startTime || "08:00");
+              const endMin = parseTime(pr.endTime || "17:00");
+              if (!Number.isNaN(startMin) && !Number.isNaN(endMin) && endMin > startMin) {
+                busyRanges.push({ start: startMin, end: endMin });
+              }
+            }
+          }
+        }
+
+        const gaps = findFreeGaps(workingBlocks, busyRanges);
+        const slots = generateSlotLabels(gaps, totalSlotDuration, slotInterval);
+
+        if (slots.length) {
+          availableTechs.push({
+            id: tid,
+            name: tech.name,
+            slots: slots.map(s => ({ time: s.label, startMin: s.startMin, endMin: s.endMin })),
+          });
+        }
+      }
+
+      if (availableTechs.length) {
+        suggestions.push({
+          date: dayStart.toISOString(),
+          dateLabel: dayDateLabel,
+          availableTechnicians: availableTechs,
+        });
+      }
+    }
+
+    res.json({
+      bookingId,
+      currentBookingDate: booking.bookingDate,
+      serviceDurationMinutes: serviceDuration,
+      suggestions,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REVENUE REPORTS — FILTERED API
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/reports/revenue
+ * Filtered revenue analytics endpoint. Supports:
+ *   from / to          — date range (ISO strings)
+ *   source             — "all" | "service" | "order" | "pos"
+ *   paymentMethod      — "all" | "gcash" | "cod" | "bank" | "other"
+ *   paymentStatus      — "all" | "paid" | "pending" | "partial" | "failed"
+ *   serviceType        — "all" | "core" | "repair"
+ *   technician         — technician ID or "all"
+ *   period             — preset: "this_month" | "last_month" | "last_3_months" | "last_6_months" | "ytd" | "custom"
+ */
+router.get("/reports/revenue", async (req, res, next) => {
+  try {
+    const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
+    const { filters, technicians, analytics } = await buildRevenueAnalytics(req.query);
+    return res.json({ success: true, filters, technicians, analytics });
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error("Revenue reports API error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 module.exports = router;
 

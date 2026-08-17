@@ -12,8 +12,25 @@ const User = require("./models/User");
 const AuthSession = require("./models/AuthSession");
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
+const rateLimit = require("express-rate-limit");
 
 dotenv.config();
+
+// ── Fail-fast: require critical secrets before anything else boots ──────────
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is required. Exiting.");
+  process.exit(1);
+}
+if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
+  console.error("FATAL: SESSION_SECRET (or JWT_SECRET) environment variable is required. Exiting.");
+  process.exit(1);
+}
+
+// Build allowed CORS origins from env vars
+const ALLOWED_ORIGINS = [
+  process.env.APP_URL,
+  process.env.APP_BASE_URL,
+].filter(Boolean);
 
 const app = express();
 
@@ -22,7 +39,8 @@ const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb://localhost:27017/appointment_scheduler";
 
-logger.info("Connecting to MongoDB:", MONGODB_URI);
+// Never write database credentials from the connection URI to application logs.
+logger.info("Connecting to MongoDB");
 
 mongoose
   .connect(MONGODB_URI)
@@ -71,17 +89,20 @@ app.use((req, res, next) => {
     "Content-Security-Policy",
     "default-src 'self'; " +
     // allow leaflet from unpkg if any page still references it, and other CDNs
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; " +
-    "img-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://api.qrserver.com; " +
-    "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
+    "img-src 'self' data: blob: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://*.arcgisonline.com https://api.qrserver.com; " +
+    "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://*.arcgisonline.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
     "font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "frame-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net;",
   );
   next();
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+}));
 
 // request logging middleware (small overhead)
 app.use((req, res, next) => {
@@ -104,12 +125,36 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
+// ── Rate Limiters ──────────────────────────────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: "Too many attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { error: "Too many requests, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const chatLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20, // 20 chat messages per minute
+  message: { error: "Too many messages, please slow down" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // express-session (server-side sessions)
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const SESSION_TTL = Number(process.env.SESSION_TTL_MS) || 30 * 60 * 1000; // ms
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || process.env.JWT_SECRET || "dev-session-secret";
+const SESSION_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET;
 
 // create a named session store so we can clear it in development on startup
 const sessionStore = MongoStore.create({
@@ -189,6 +234,61 @@ app.use(function (req, res, next) {
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// ── Global company info middleware ──────────────────────────────────────────
+// Fetches company profile from SiteSetting so the footer and other public
+// partials have access without each route needing to pass it manually.
+const SiteSetting = require("./models/SiteSetting");
+const _companyCache = { data: null, ts: 0 };
+const COMPANY_CACHE_TTL = 60_000; // 1 minute
+
+async function getCompanyInfo() {
+  const now = Date.now();
+  if (_companyCache.data && now - _companyCache.ts < COMPANY_CACHE_TTL) {
+    return _companyCache.data;
+  }
+  try {
+    const keys = [
+      "companyName",
+      "companyTagline",
+      "companyPhone",
+      "companyEmail",
+      "companyLocationAddress",
+    ];
+    const docs = await SiteSetting.find({ key: { $in: keys } }).lean();
+    const map = {};
+    for (const d of docs) map[d.key] = d.value;
+    const info = {
+      companyName: map.companyName || "CALIDRO RACS",
+      companyTagline: map.companyTagline || "Premium air conditioning & appliance care powered by transparent service and certified technicians.",
+      companyPhone: map.companyPhone || "0965 605 6495",
+      companyEmail: map.companyEmail || "calidroracs@gmail.com",
+      companyAddress: map.companyLocationAddress || "San Leonardo, Nueva Ecija",
+    };
+    _companyCache.data = info;
+    _companyCache.ts = now;
+    return info;
+  } catch {
+    return {
+      companyName: "CALIDRO RACS",
+      companyTagline: "Premium air conditioning & appliance care powered by transparent service and certified technicians.",
+      companyPhone: "0965 605 6495",
+      companyEmail: "calidroracs@gmail.com",
+      companyAddress: "San Leonardo, Nueva Ecija",
+    };
+  }
+}
+app.use(async (req, res, next) => {
+  try {
+    const info = await getCompanyInfo();
+    res.locals.companyName = info.companyName;
+    res.locals.companyTagline = info.companyTagline;
+    res.locals.companyPhone = info.companyPhone;
+    res.locals.companyEmail = info.companyEmail;
+    res.locals.companyAddress = info.companyAddress;
+  } catch { /* ignore – defaults are in the template */ }
+  next();
+});
+
 // Routes
 const pageRoutes = require("./routes/pages");
 app.use("/", pageRoutes);
@@ -221,10 +321,10 @@ app.use("/api/bookings", bookingRoutesNew);
 const appointmentRoutes = require("./routes/appointmentRoutes");
 console.log("[startup] appointmentRoutes type", typeof appointmentRoutes);
 if (appointmentRoutes && typeof appointmentRoutes === "function") {
-  app.use("/api/appointments", appointmentRoutes);
+  app.use("/api/appointments", apiLimiter, appointmentRoutes);
   // Mount the same routes at /appointments so client-side code that posts to /appointments
   // (UI) is protected by the same server-side authentication checks.
-  app.use("/appointments", appointmentRoutes);
+  app.use("/appointments", apiLimiter, appointmentRoutes);
 } else {
   console.warn(
     "Appointment routes could not be mounted (not a function):",
@@ -233,10 +333,10 @@ if (appointmentRoutes && typeof appointmentRoutes === "function") {
 }
 
 const userRoutes = require("./routes/userRoutes");
-app.use("/api/users", userRoutes);
+app.use("/api/users", apiLimiter, userRoutes);
 
 const authRoutes = require("./routes/authRoutes");
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 
 const adminApi = require("./routes/adminApi");
 app.use("/api/admin", adminApi);
@@ -270,6 +370,9 @@ app.use("/api/secretary", secretaryApi);
 const technicianApi = require("./routes/technicianApi");
 app.use("/api/technician", technicianApi);
 
+const payrollRoutes = require("./routes/payrollRoutes");
+app.use("/api/payroll", payrollRoutes);
+
 const bookingFlow = require("./routes/bookingFlow");
 app.use("/api/booking-flow", bookingFlow);
 
@@ -283,7 +386,7 @@ app.use("/api", projectRoutes);
 
 // rating endpoints (requires login but not admin)
 const ratingApi = require("./routes/ratingApi");
-app.use("/api/rating", ratingApi);
+app.use("/api/rating", apiLimiter, ratingApi);
 
 // Notifications API
 const notificationRoutes = require("./routes/notifications");
@@ -291,20 +394,22 @@ app.use("/api/notifications", notificationRoutes);
 
 // AI Chat API
 const chatRoutes = require("./routes/chatRoutes");
-app.use("/api/chat", chatRoutes);
+app.use("/api/chat", chatLimiter, chatRoutes);
 
 // Public holidays (supports multiple providers: google or nager)
 const holidayRoutes = require("./routes/holidayRoutes");
 app.use("/api/holidays", holidayRoutes);
 
-// PayMongo webhook (public)
-const paymongoRoutes = require("./routes/paymongoRoutes");
-app.use("/api/paymongo", paymongoRoutes);
+// Online gateway processing is intentionally disabled. Payments are recorded
+// manually by technicians and verified through the admin remittance workflow.
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(`[DEBUG_ERR] ${err.stack}`);
-  res.status(500).json({ error: err.message });
+  console.error(`[ERROR] ${err.stack}`);
+  const isProd = process.env.NODE_ENV === "production";
+  res.status(500).json({
+    error: isProd ? "Internal server error" : err.message,
+  });
 });
 
 // Start the server
@@ -363,7 +468,6 @@ setInterval(async () => {
     console.error("[midnight-reset] Error resetting technician statuses:", err);
   }
 }, 60 * 60 * 1000); // check every hour
-
 // ── Overdue Booking Scheduler ─────────────────────────────────────────────────
 const { startOverdueScheduler } = require('./utils/overdueBookingScheduler');
 startOverdueScheduler();
@@ -382,16 +486,70 @@ server = app.listen(PORT, () => {
 
 // ── Socket.io Setup for Live Tracking ────────────────────────────────────────
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
+
+function parseCookies(header) {
+  const h = header || "";
+  return h
+    .split(";")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .reduce((acc, pair) => {
+      const [k, ...v] = pair.split("=");
+      acc[k] = decodeURIComponent(v.join("="));
+      return acc;
+    }, {});
+}
+
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"] },
   path: "/socket.io",
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: false,
+  },
+});
+
+// ── Socket Auth Middleware ─────────────────────────────────────────────────
+io.use(async (socket, next) => {
+  try {
+    const cookies = parseCookies(socket.handshake.headers.cookie || "");
+    const token = cookies["auth_token"];
+    if (!token) {
+      return next(new Error("Authentication required"));
+    }
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(payload.id).select("-passwordHash");
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+    if (
+      payload.sessionId &&
+      user.currentSessionId &&
+      payload.sessionId !== user.currentSessionId
+    ) {
+      return next(new Error("Session expired"));
+    }
+    if (
+      user.lastPasswordChange &&
+      payload.iat &&
+      payload.iat * 1000 < user.lastPasswordChange.getTime()
+    ) {
+      return next(new Error("Token expired"));
+    }
+    socket.user = user;
+    next();
+  } catch (err) {
+    next(new Error("Invalid token"));
+  }
 });
 
 io.on("connection", (socket) => {
-  console.log("[socket] client connected:", socket.id);
+  console.log("[socket] client connected:", socket.id, "user:", socket.user._id);
 
   // Technician shares location
   socket.on("tech:location", (data) => {
+    if (socket.user.role !== "technician" && socket.user.role !== "admin") return;
     io.emit("tech:location:update", {
       techId: data.techId,
       name: data.name,
@@ -403,11 +561,16 @@ io.on("connection", (socket) => {
   });
 
   // ── GPS Update from technician tracker ──────────────────────────────────
-  // Saves location to DB and broadcasts to the customer room in real-time.
   socket.on("gps:update", async (data) => {
     try {
+      if (socket.user.role !== "technician" && socket.user.role !== "admin") return;
       const { techId, lat, lng, accuracy, bookingId, customerId } = data;
       if (!techId || typeof lat !== "number" || typeof lng !== "number") return;
+
+      // Technicians can only update their own location
+      if (socket.user.role === "technician" && String(socket.user._id) !== String(techId)) {
+        return;
+      }
 
       const Technician = require("./models/Technician");
       await Technician.findOneAndUpdate(
@@ -416,7 +579,6 @@ io.on("connection", (socket) => {
         { new: true },
       );
 
-      // Broadcast to the specific customer watching this booking
       if (customerId) {
         io.to("customer:" + customerId).emit("gps:location", {
           techId,
@@ -428,7 +590,6 @@ io.on("connection", (socket) => {
         });
       }
 
-      // Also broadcast to admin room and all tech trackers
       io.to("admin-room").emit("tech:location:update", {
         techId,
         lat,
@@ -443,27 +604,35 @@ io.on("connection", (socket) => {
 
   // Admin sends assignment notification
   socket.on("admin:assignment", (data) => {
+    if (socket.user.role !== "admin" && socket.user.role !== "secretary") return;
     io.to("tech:" + data.techId).emit("assignment:new", data);
   });
 
   // Technician joins their room for targeted notifications
   socket.on("tech:join", (techId) => {
-    // Handle both string and object formats
     const id = typeof techId === 'object' ? (techId.techId || techId.id || '') : techId;
-    if (id) {
-      socket.join("tech:" + id);
-      console.log("[socket] technician joined room:", id);
+    if (!id) return;
+    // Technicians can only join their own room; admins can join any
+    if (socket.user.role === "technician" && String(socket.user._id) !== String(id)) {
+      return;
     }
+    socket.join("tech:" + id);
+    console.log("[socket] technician joined room:", id);
   });
 
   // Customer joins their room for targeted tracking updates
   socket.on("customer:join", (customerId) => {
+    // Customers can only join their own room; admins can join any
+    if (socket.user.role === "customer" && String(socket.user._id) !== String(customerId)) {
+      return;
+    }
     socket.join("customer:" + customerId);
     console.log("[socket] customer joined room:", customerId);
   });
 
   // Admin/secretary joins admin room for notifications
   socket.on("admin:join", (userId) => {
+    if (socket.user.role !== "admin" && socket.user.role !== "secretary") return;
     socket.join("admin-room");
     socket.join("user:" + userId);
     console.log("[socket] admin joined room:", userId);
@@ -471,6 +640,9 @@ io.on("connection", (socket) => {
 
   // Technician joins their user room for personal notifications
   socket.on("tech:user-join", (userId) => {
+    if (socket.user.role === "technician" && String(socket.user._id) !== String(userId)) {
+      return;
+    }
     socket.join("user:" + userId);
     console.log("[socket] technician joined user room:", userId);
   });
@@ -531,11 +703,10 @@ setInterval(async () => {
         const isRepair = booking.serviceModel === "RepairService";
         const dayS = new Date(booking.bookingDate); dayS.setHours(0, 0, 0, 0);
         const dayE = new Date(booking.bookingDate); dayE.setHours(23, 59, 59, 999);
-        const candidates = await Technician.find({
-          _id: { $ne: assignment.technicianId },
-          active: true,
-          availabilityStatus: "Available",
-        }).lean();
+        // Keep admin control: an expired assignment returns to the queue.
+        // The queue planner recommends the next eligible technician, but does
+        // not send a new assignment until the admin reviews and confirms it.
+        const candidates = [];
 
         let newTech = null;
         for (const t of candidates) {
@@ -623,7 +794,15 @@ setInterval(async () => {
           });
           booking.status = 'pending_reassignment';
           booking.technicianId = null;
+          booking.assignmentId = null;
           booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
+          booking.cancellationHistory.push({
+            technicianId: assignment.technicianId,
+            technicianName: 'Technician (response timed out)',
+            action: 'auto_reschedule',
+            reason: 'No response before acceptance deadline',
+            timestamp: now,
+          });
           await booking.save();
         }
       }
@@ -642,7 +821,7 @@ setInterval(async () => {
         role: "admin",
         referenceId: assignment._id,
         referenceModel: "Assignment",
-        link: "/admin/appointments?tab=waiting-reassign",
+        link: "/admin/appointments?tab=queue",
         io: _io,
       });
       if (_io) {

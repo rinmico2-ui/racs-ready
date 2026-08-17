@@ -365,6 +365,119 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
 });
 
 /**
+ * POST /api/admin/hvac/:id/variants
+ * Add a new HP variant to an existing HVAC product
+ */
+router.post("/hvac/:id/variants", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const product = await HVACProduct.findById(id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const variantData = req.body.variant || {};
+    const { capacity, btu, sellingPrice, costPrice, quantity, minStockLevel } = variantData;
+
+    if (!capacity || sellingPrice === undefined || sellingPrice === null || sellingPrice === '') {
+      return res.status(400).json({ error: "Capacity and selling price are required" });
+    }
+
+    // Check for duplicate capacity
+    if (product.variants.some(v => v.capacity === String(capacity))) {
+      return res.status(409).json({ error: "A variant with this capacity already exists" });
+    }
+
+    const qty = parseFloat(quantity) || 0;
+    const msl = parseFloat(minStockLevel) || 3;
+
+    const newVariant = {
+      _id: new mongoose.Types.ObjectId(),
+      capacity: String(capacity),
+      btu: parseFloat(btu) || 0,
+      sellingPrice: parseFloat(sellingPrice) || 0,
+      costPrice: parseFloat(costPrice) || 0,
+      quantity: qty,
+      minStockLevel: msl,
+      status: qty > 0 ? (qty <= msl ? 'low_stock' : 'in_stock') : 'out_of_stock',
+      active: true
+    };
+
+    product.variants.push(newVariant);
+    product.updateOverallStatus();
+    product.updatedBy = req.user?._id;
+    await product.save();
+
+    return res.status(201).json({
+      message: "Variant added successfully",
+      product
+    });
+  } catch (err) {
+    console.error("createHVACVariant 500:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/admin/hvac/:id/variants/:variantId
+ * Update an existing HP variant
+ */
+router.patch("/hvac/:id/variants/:variantId", async (req, res, next) => {
+  try {
+    const { id, variantId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(variantId)) {
+      return res.status(400).json({ error: "Invalid variant id" });
+    }
+
+    const product = await HVACProduct.findById(id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const variant = product.variants.id(variantId);
+    if (!variant) {
+      return res.status(404).json({ error: "Variant not found" });
+    }
+
+    const variantData = req.body.variant || {};
+    const { capacity, btu, sellingPrice, costPrice, quantity, minStockLevel } = variantData;
+
+    if (capacity !== undefined) variant.capacity = String(capacity);
+    if (btu !== undefined) variant.btu = parseFloat(btu) || 0;
+    if (sellingPrice !== undefined) variant.sellingPrice = parseFloat(sellingPrice) || 0;
+    if (costPrice !== undefined) variant.costPrice = parseFloat(costPrice) || 0;
+    if (quantity !== undefined) variant.quantity = parseFloat(quantity) || 0;
+    if (minStockLevel !== undefined) variant.minStockLevel = parseFloat(minStockLevel) || 3;
+
+    const qty = variant.quantity;
+    const msl = variant.minStockLevel;
+    variant.status = qty > 0 ? (qty <= msl ? 'low_stock' : 'in_stock') : 'out_of_stock';
+
+    product.updateOverallStatus();
+    product.updatedBy = req.user?._id;
+    await product.save();
+
+    return res.json({
+      message: "Variant updated successfully",
+      product
+    });
+  } catch (err) {
+    console.error("updateHVACVariant 500:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * DELETE /api/admin/hvac/:id
  * Archive (soft delete) an HVAC product
  */

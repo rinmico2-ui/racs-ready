@@ -117,4 +117,8 @@ userSchema.methods.toJSON = function () {
   return obj;
 };
 
+// Performance indexes
+userSchema.index({ role: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
+
 module.exports = mongoose.model("User", userSchema);

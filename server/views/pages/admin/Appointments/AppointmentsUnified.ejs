@@ -25,11 +25,11 @@
   .au-hero-inner { display: flex; align-items: center; justify-content: space-between; padding: 32px 40px; position: relative; z-index: 1; flex-wrap: wrap; gap: 24px; }
   .au-hero-left { display: flex; align-items: center; gap: 18px; }
   .au-hero-icon { width: 60px; height: 60px; border-radius: 18px; background: rgba(255,255,255,0.12); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0; }
-  .au-hero h1 { font-family: "Outfit", sans-serif; font-size: 1.6rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+  .au-hero h1 { font-family: "Outfit", sans-serif; font-size: 1.6rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
   .au-hero p { color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 0.88rem; font-weight: 400; }
   .au-hero-stats { display: none; }
   .au-hero-stat { text-align: center; padding: 8px 14px; border-radius: 14px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); }
-  .au-hero-stat-val { font-family: "Outfit", sans-serif; font-size: 1.7rem; font-weight: 800; line-height: 1; }
+  .au-hero-stat-val { font-family: "Outfit", sans-serif; font-size: 1.7rem; font-weight: 600; line-height: 1; }
   .au-hero-stat-lbl { font-family: "Inter", sans-serif; font-size: 0.7rem; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; font-weight: 600; }
   @media(max-width:767px){
     .au-hero-inner { padding: 22px 20px; flex-direction: column; align-items: flex-start; }
@@ -53,6 +53,8 @@
 
   /* ═══ MODALS (enterprise) ═══ */
   .ent-modal { border: none; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 80px rgba(0,0,0,0.3); }
+  #detailModal.modal { overflow-y: hidden !important; }
+  #detailModal .ent-modal-body { max-height: calc(100vh - 170px); overflow-y: auto; }
   .ent-modal-header { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%); color: #fff; padding: 22px 26px; border: none; }
   .ent-modal-header-danger { background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%); }
   .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; background: rgba(255,255,255,0.15); }
@@ -83,7 +85,7 @@
   .bd-photo-strip::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
   .bd-photo-thumb { flex: 0 0 auto; max-height: 120px; max-width: 150px; border-radius: 8px; object-fit: cover; cursor: pointer; border: 1px solid #e2e8f0; }
   .bd-photo-caption { font-family: "Inter", sans-serif; font-size: 0.7rem; font-weight: 500; color: #94a3b8; text-align: center; margin-top: 4px; }
-  .bd-lightbox-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 10600; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .bd-lightbox-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 999999; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .bd-lightbox-content { position: relative; max-width: 90vw; max-height: 90vh; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 4px solid #fff; }
   .bd-lightbox-content img { max-width: 90vw; max-height: 86vh; object-fit: contain; display: block; }
   .bd-lightbox-close { position: absolute; top: -40px; right: 0; background: #fff; border: none; color: #1e293b; width: 32px; height: 32px; border-radius: 50%; font-size: 1.4rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
@@ -114,7 +116,7 @@
   .pipeline-stage:last-child::after { display: none; }
   .pipeline-icon { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; z-index: 1; transition: var(--au-transition); border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
   .pipeline-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; text-align: center; }
-  .pipeline-count { font-size: 1rem; font-weight: 800; color: var(--au-dark); }
+  .pipeline-count { font-size: 1rem; font-weight: 600; color: var(--au-dark); }
   .pipeline-active .pipeline-icon { transform: scale(1.18); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
   .pipeline-active .pipeline-count { color: var(--au-primary); }
 
@@ -131,7 +133,7 @@
   .au-kpi-card .au-kpi-icon.red { background: linear-gradient(135deg, #ef4444, #dc2626); }
   .au-kpi-card .au-kpi-icon.cyan { background: linear-gradient(135deg, #06b6d4, #0891b2); }
   .au-kpi-info { display: flex; flex-direction: column; gap: 2px; }
-  .au-kpi-val { font-size: 1.5rem; font-weight: 800; color: #0f172a; line-height: 1.2; font-family: "Outfit", sans-serif; }
+  .au-kpi-val { font-size: 1.5rem; font-weight: 600; color: #0f172a; line-height: 1.2; font-family: "Outfit", sans-serif; }
   .au-kpi-lbl { font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
   @media(max-width:991px){ .au-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
   @media(max-width:575px){ .au-kpi-grid { grid-template-columns: 1fr; } }
@@ -154,7 +156,7 @@
   .rq-stat-card:hover { box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); transform: translateY(-4px); }
   .rq-stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
   .rq-stat-icon i { color: #fff !important; }
-  .rq-stat-value { font-size: 1.5rem; font-weight: 800; color: #0f172a; font-family: "Outfit", sans-serif; }
+  .rq-stat-value { font-size: 1.5rem; font-weight: 600; color: #0f172a; font-family: "Outfit", sans-serif; }
   .rq-stat-label { font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 
   /* ═══ RQ BADGES ═══ */
@@ -182,9 +184,9 @@
   .au-filter-bar { background: #fff; border: 1px solid var(--au-border); border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; box-shadow: var(--au-shadow); }
   .au-filter-bar .form-select, .au-filter-bar .form-control { border-radius: 10px; font-family: "Inter", sans-serif; font-size: 0.82rem; border-color: #e2e8f0; }
   .au-filter-bar .form-select:focus, .au-filter-bar .form-control:focus { border-color: var(--au-primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-  #filterDate, #cjDateFilter { padding: 8px 12px 8px 36px; width: 170px; border-radius: 10px; border: 1px solid #e2e8f0; font-family: "Inter", sans-serif; font-size: 0.82rem; color: #475569; background: #fff; }
-  #filterDate:focus, #cjDateFilter:focus { border-color: var(--au-primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-  #filterDate::placeholder, #cjDateFilter::placeholder { color: #94a3b8; }
+  #filterStartDate, #filterEndDate, #filterDate, #cjDateFilter { padding: 8px 12px 8px 36px; width: 170px; border-radius: 10px; border: 1px solid #e2e8f0; font-family: "Inter", sans-serif; font-size: 0.82rem; color: #475569; background: #fff; }
+  #filterStartDate:focus, #filterEndDate:focus, #filterDate:focus, #cjDateFilter:focus { border-color: var(--au-primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+  #filterStartDate::placeholder, #filterEndDate::placeholder, #filterDate::placeholder, #cjDateFilter::placeholder { color: #94a3b8; }
   .au-date-wrap { display: inline-flex; align-items: center; }
   .au-date-icon { position: absolute; left: 11px; color: #94a3b8; font-size: 0.9rem; pointer-events: none; }
 
@@ -209,7 +211,7 @@
   .au-sub-tabs .nav-link:hover { color: #334155; background: rgba(255,255,255,0.5); }
   .au-sub-tabs .nav-link .badge { border-radius: 8px; font-size: 0.68rem; font-weight: 700; padding: 3px 8px; }
   .au-sub-badge { background: #f1f5f9; color: #64748b; border: 1px solid rgba(15,23,42,0.06); margin-left: 8px; }
-  .au-sub-tabs .nav-link.active { background: #fff; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-weight: 800; }
+  .au-sub-tabs .nav-link.active { background: #fff; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-weight: 600; }
   .au-sub-tabs .nav-link.active .badge { background: #e2e8f0; color: #64748b; }
 
   /* ═══ QUEUE: BOOKING CARDS ═══ */
@@ -224,6 +226,13 @@
   .aq-detail-item i { color: #94a3b8; width: 14px; font-size: 0.8rem; }
   .aq-action-bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
   .aq-reassign-alert { background: linear-gradient(135deg, #fef2f2, #fff1f2); border: 1px solid #fecaca; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 0.82rem; color: #991b1b; display: flex; align-items: center; gap: 8px; }
+  .aq-overdue-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: linear-gradient(135deg, #b45309, #d97706); color: #fff; box-shadow: 0 2px 8px rgba(217,119,6,0.3); }
+  .aq-overdue-alert { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fcd34d; color: #78350f; }
+  .aq-warning-banner { display: flex; align-items: center; gap: 12px; border-radius: 14px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; }
+  .aq-warning-banner i { font-size: 1.1rem; }
+  .aq-warning-banner.overdue { background: linear-gradient(135deg, #fff7ed, #fef3c7); border: 1px solid #fdba74; color: #7c2d12; }
+  .aq-warning-banner.verify { background: linear-gradient(135deg, #eff6ff, #f0f9ff); border: 1px solid #93c5fd; color: #1e3a8a; }
+  .aq-warning-banner .aq-wb-btn { margin-left: auto; flex-shrink: 0; }
   .aq-escalation-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; }
   .aq-cancel-history { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.78rem; }
   .aq-cancel-history-title { font-weight: 700; color: #92400e; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
@@ -233,14 +242,43 @@
   .aq-cancel-history-item .action-cancelled { background: #fef3c7; color: #92400e; }
 
   /* ═══ TECH SELECTOR ═══ */
-  .aq-tech-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 14px 0; }
-  .aq-tech-option { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; border: 2px solid #e2e8f0; cursor: pointer; transition: var(--au-transition); background: #f8fafc; }
-  .aq-tech-option:hover { border-color: #3b82f6; background: #eff6ff; transform: translateY(-1px); }
-  .aq-tech-option.selected { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
-  .aq-tech-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
-  .aq-tech-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+  .aq-tech-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 14px 0; }
+  .aq-tech-option { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; cursor: pointer; transition: all .2s; }
+  .aq-tech-option:hover { border-color: #3b82f6; background: #f8faff; box-shadow: 0 4px 12px rgba(59,130,246,0.08); transform: translateY(-1px); }
+  .aq-tech-option.selected { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+  .aq-tech-option.disabled { opacity: 0.5; pointer-events: none; filter: grayscale(0.4); }
+  .aq-tech-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem; flex-shrink: 0; position: relative; }
+  .aq-tech-avatar::after { content: ''; position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--status-color, #94a3b8); border: 2px solid #fff; }
+  .aq-tech-card-top { display: flex; align-items: center; gap: 10px; }
+  .aq-tech-card-info { flex: 1; min-width: 0; }
+  .aq-tech-name { font-size: 0.88rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; }
   .aq-tech-status { font-size: 0.72rem; color: #64748b; }
-  .aq-tech-status .online { color: #22c55e; }
+  .aq-tech-card-rating { font-size: 0.8rem; color: #f59e0b; font-weight: 600; white-space: nowrap; }
+  .aq-tech-card-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .aq-tech-badge { font-size: 0.7rem; background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; white-space: nowrap; }
+  .aq-tech-card-footer { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+
+  /* ═══ ASSIGN TECHNICIAN V2 ═══ */
+  .asgn-hero { display: flex; align-items: flex-start; gap: 14px; padding: 18px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .asgn-hero-icon { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg,#3b82f6,#1d4ed8); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .asgn-hero-main { flex: 1; min-width: 0; }
+  .asgn-hero-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
+  .asgn-hero-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 2px 0; }
+  .asgn-hero-sub { font-size: 0.8rem; color: #64748b; }
+  .asgn-hero-side { display: flex; align-items: center; }
+  .asgn-status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.7rem; }
+  .asgn-layout { margin-top: 6px; }
+  .asgn-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .asgn-section:last-child { margin-bottom: 0; }
+  .asgn-section-title { font-size: 0.82rem; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; }
+  .asgn-section-title i { color: #3b82f6; }
+  .asgn-map-wrap { height: 300px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f8fafc; }
+  .asgn-ai-card { background: linear-gradient(135deg,#fffbeb,#fff); border: 1px solid #fde68a; border-radius: 12px; padding: 12px 14px; }
+  .asgn-ai-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+  .asgn-ai-reason { font-size: 0.78rem; color: #64748b; }
+  .asgn-tech-list-wrap { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  @media (max-width: 991px) { .asgn-tech-list-wrap { max-height: 280px; } }
+
   .aq-empty { text-align: center; padding: 56px 24px; color: #94a3b8; }
   .aq-empty i { font-size: 3.5rem; display: block; margin-bottom: 16px; opacity: 0.5; }
   .aq-empty p { font-size: 0.9rem; margin: 0; }
@@ -249,7 +287,7 @@
   .aj-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; }
   .aj-header-left { display: flex; align-items: center; gap: 14px; }
   .aj-header-icon { width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; color: #fff; box-shadow: 0 4px 16px rgba(59,130,246,0.35); }
-  .aj-title { font-size: 1.3rem; font-weight: 800; color: var(--au-dark); margin: 0; }
+  .aj-title { font-size: 1.3rem; font-weight: 600; color: var(--au-dark); margin: 0; }
   .aj-subtitle { font-size: 0.78rem; color: #94a3b8; margin: 2px 0 0; }
   .aj-header-right { display: flex; align-items: center; gap: 10px; }
   .aj-search-box { position: relative; display: flex; align-items: center; }
@@ -275,7 +313,7 @@
   .aj-stat-card:hover { box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); transform: translateY(-4px); }
   .aj-stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #fff; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
   .aj-stat-info { display: flex; flex-direction: column; gap: 2px; }
-  .aj-stat-value { font-size: 1.5rem; font-weight: 800; color: #0f172a; line-height: 1.2; font-family: "Outfit", sans-serif; }
+  .aj-stat-value { font-size: 1.5rem; font-weight: 600; color: #0f172a; line-height: 1.2; font-family: "Outfit", sans-serif; }
   .aj-stat-label { font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
 
   /* ═══ JOB CARDS ═══ */
@@ -333,27 +371,50 @@
   .track-drawer-btn-icon { width: 36px; height: 36px; border: none; border-radius: 10px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; font-size: 0.95rem; cursor: pointer; transition: all 0.15s; }
   .track-drawer-btn-icon:hover { background: rgba(255,255,255,0.2); color: #fff; }
   .track-drawer-btn-icon.pinned { color: #fbbf24; background: rgba(251,191,36,0.15); }
-  .track-drawer-progress { display: flex; align-items: center; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; gap: 0; }
-  .td-progress-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; cursor: default; }
-  .td-progress-dot { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; border: 3px solid #e2e8f0; transition: all 0.3s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #94a3b8; }
-  .td-progress-step.active .td-progress-dot { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,0.12); }
+  .track-drawer-progress { display: flex; align-items: flex-start; padding: 22px 24px 18px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; gap: 0; }
+  .td-progress-step { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: default; position: relative; z-index: 1; }
+  .td-progress-dot { width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 2px solid #e2e8f0; transition: all 0.3s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94a3b8; box-shadow: none; }
+  .td-progress-step.active .td-progress-dot { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 0 0 6px rgba(37,99,235,0.12); }
   .td-progress-step.done .td-progress-dot { background: #2563eb; border-color: #2563eb; color: #fff; }
-  .td-progress-step span { font-family: "Inter", sans-serif; font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-align: center; white-space: nowrap; }
-  .td-progress-step.active span { color: #1e293b; font-weight: 700; }
-  .td-progress-step.done span { color: #2563eb; }
-  .td-progress-line { flex: 0 0 auto; width: 100%; height: 3px; background: #e2e8f0; margin: 0; margin-top: -22px; border-radius: 2px; }
+  .td-progress-step span { font-family: "Inter", sans-serif; font-size: 0.7rem; font-weight: 600; color: #94a3b8; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .td-progress-step.active span { color: #1e293b; font-weight: 600; }
+  .td-progress-step.done span { color: #2563eb; font-weight: 600; }
+  .td-progress-line { flex: 1 1 auto; min-width: 8px; height: 3px; background: #e2e8f0; margin: 12px 4px 0; border-radius: 2px; align-self: flex-start; }
   .td-progress-line.done { background: #2563eb; }
-  .track-drawer-map-wrap { position: relative; flex: 1; min-height: 50vh; }
+  .track-drawer-map-wrap { position: relative; flex: none; min-height: 320px; height: 320px; }
   .track-drawer-map { width: 100%; height: 100%; position: absolute; inset: 0; }
-  .track-drawer-legend { position: absolute; bottom: 16px; left: 16px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 12px; padding: 10px 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
+  .td-map-ctrls { position: absolute; z-index: 1000; }
+  .td-ctrl-zoom { top: 12px; left: 12px; display: flex; flex-direction: column; background: rgba(255,255,255,0.95); border: 2px solid #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+  .td-ctrl-zoom .td-ctrl-btn { width: 36px; height: 36px; background: transparent; border: none; font-size: 1.1rem; color: #0f172a; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; }
+  .td-ctrl-zoom .td-ctrl-btn + .td-ctrl-btn { border-top: 1px solid rgba(0,0,0,0.12); }
+  .td-ctrl-compass { top: 104px; right: 12px; }
+  .td-ctrl-compass .td-ctrl-btn { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.95); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.25); color: #0f172a; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .td-ctrl-cust { top: 12px; right: 12px; }
+  .td-ctrl-cust .td-ctrl-btn { width: 36px; height: 36px; border-radius: 50%; background: #2563eb; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.18); color: #fff; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .td-ctrl-cust .td-ctrl-btn:hover { background: #1d4ed8; }
+  .td-ctrl-cust .td-ctrl-btn:disabled { background: #94a3b8; cursor: default; }
+  .td-ctrl-tech { top: 56px; right: 12px; }
+  .td-ctrl-tech .td-ctrl-btn { width: 36px; height: 36px; border-radius: 50%; background: #ef4444; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.18); color: #fff; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .td-ctrl-tech .td-ctrl-btn:hover { background: #dc2626; }
+  .td-ctrl-tech .td-ctrl-btn:disabled { background: #94a3b8; cursor: default; }
+  .td-ctrl-layers { bottom: 12px; left: 12px; display: flex; gap: 4px; background: rgba(15,23,42,0.88); backdrop-filter: blur(4px); border-radius: 12px; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+  .td-ctrl-layer { background: transparent; border: none; color: #94a3b8; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; font-family: "Inter", sans-serif; font-size: 0.65rem; font-weight: 600; cursor: pointer; }
+  .td-ctrl-layer.active { color: #fff; background: rgba(37,99,235,0.25); }
+  .td-ctrl-thumb { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #475569; flex-shrink: 0; }
+  .td-ctrl-layer.active .td-ctrl-thumb[data-thumb="standard"] { border-color: #2b7de9; background: #e0f2fe; }
+  .td-ctrl-layer.active .td-ctrl-thumb[data-thumb="hybrid"] { border-color: #166534; background: #14532d; }
+  .track-drawer-legend { position: absolute; bottom: 12px; right: 12px; left: auto; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 12px; padding: 10px 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
   .td-legend-item { display: flex; align-items: center; gap: 10px; font-family: "Inter", sans-serif; font-size: 0.78rem; font-weight: 500; color: #334155; }
   .td-legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); flex-shrink: 0; }
   .td-legend-line { width: 20px; height: 4px; background: #2563eb; border-radius: 2px; opacity: 0.6; flex-shrink: 0; }
   .track-drawer-footer { flex-shrink: 0; background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 24px; }
   .td-footer-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
   .td-footer-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; min-width: 0; }
-  .td-fi-label { font-family: "Outfit", sans-serif; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-  .td-fi-value { font-family: "Inter", sans-serif; font-size: 0.92rem; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+  .td-fi-label { font-family: "Outfit", sans-serif; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .td-focus-btn { width: 28px; height: 28px; border: 2px solid #fff; border-radius: 50%; background: #fff; color: #0f172a; cursor: pointer; padding: 0; margin-left: auto; font-size: 0.75rem; box-shadow: 0 2px 5px rgba(0,0,0,0.18); display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .td-focus-btn:hover { background: #f1f5f9; color: #2563eb; }
+  .td-focus-btn:disabled { color: #cbd5e1; cursor: default; }
+  .td-fi-value { font-family: "Inter", sans-serif; font-size: 0.92rem; font-weight: 500; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
   .td-fi-sub { font-family: "Inter", sans-serif; font-size: 0.76rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .td-footer-divider { display: none; }
   .td-footer-actions { display: flex; justify-content: flex-end; gap: 10px; }
@@ -417,7 +478,7 @@
   .stat-card { background: #fff; border: 1px solid var(--au-border); border-radius: 16px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03); transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
   .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04); }
   .stat-card h6 { font-family: "Inter", sans-serif; font-size: 0.82rem; font-weight: 500; color: #64748b; }
-  .stat-card .h3 { font-family: "Outfit", sans-serif; font-size: 1.75rem; font-weight: 800; color: var(--au-dark); }
+  .stat-card .h3 { font-family: "Outfit", sans-serif; font-size: 1.75rem; font-weight: 600; color: var(--au-dark); }
   .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
   .stat-icon i { color: #fff !important; font-size: 1.2rem; }
   .kpi-trend { font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-flex; align-items:center; gap:3px; }
@@ -428,6 +489,103 @@
   .kpi-percent-badge { font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(100,116,139,0.1); color:#64748b; display:inline-flex; align-items:center; gap:3px; }
   .stat-sparkline { height:40px; margin-top:0.5rem; }
   .stat-sparkline canvas { width:100% !important; height:100% !important; display:block; }
+
+  /* Fresh Enterprise Booking Detail V2 */
+  .dv2-wrap { display:flex; flex-direction:column; gap:16px; }
+  .dv2-hero { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px; background:#fff; border:1px solid #e2e8f0; border-radius:18px; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+  .dv2-hero-main { display:flex; align-items:flex-start; gap:16px; min-width:0; flex:1; }
+  .dv2-hero-icon { width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0; }
+  .dv2-hero-ref { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#94a3b8; margin-bottom:2px; }
+  .dv2-hero-title { font-family:'Inter', sans-serif; font-size:1.05rem; font-weight:700; color:#0f172a; margin:0; line-height:1.2; }
+  .dv2-hero-sub { font-size:0.82rem; color:#64748b; margin-top:4px; }
+  .dv2-hero-side { text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:120px; }
+  .dv2-hero-amount { font-family:'Inter', sans-serif; font-size:1.25rem; font-weight:700; color:#0f172a; line-height:1; }
+  .dv2-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .dv2-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:18px; display:flex; align-items:flex-start; gap:14px; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+  .dv2-card-wide { grid-column:span 2; }
+  .dv2-card-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+  .dv2-card-content { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
+  .dv2-label { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; }
+  .dv2-value { font-family:'Inter', sans-serif; font-size:0.9rem; font-weight:700; color:#0f172a; line-height:1.35; }
+  .dv2-sub { font-size:0.8rem; color:#64748b; line-height:1.4; }
+  .dv2-payment-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f1f5f9; }
+  .dv2-payment-row:last-child { border-bottom:none; }
+  .dv2-payment-label { font-size:0.82rem; color:#64748b; }
+  .dv2-payment-value { font-family:'Inter', sans-serif; font-size:0.9rem; font-weight:700; color:#0f172a; }
+  .dv2-photo-strip { display:flex; gap:10px; overflow-x:auto; padding:4px 0; }
+  .dv2-photo-item { background:#f8fafc; padding:6px; border-radius:10px; border:1px solid #e2e8f0; flex:0 0 auto; text-align:center; display:flex; flex-direction:column; }
+  .dv2-photo-thumb { max-height:120px; max-width:150px; border-radius:8px; object-fit:cover; cursor:pointer; display:block; margin:0 auto; }
+  .dv2-photo-caption { font-size:0.68rem; color:#94a3b8; margin-top:4px; }
+  @media (max-width: 767px) { .dv2-grid { grid-template-columns:1fr; } .dv2-card-wide { grid-column:span 1; } .dv2-hero { flex-direction:column; } .dv2-hero-side { text-align:left; align-items:flex-start; } }
+
+  /* ═══ AUDIT TRAIL TIMELINE ═══ */
+  .at-wrap { padding:4px 0 0; }
+  .at-item { position:relative; padding:0 0 18px 30px; }
+  .at-item::before { content:''; position:absolute; left:9px; top:20px; bottom:-2px; width:2px; background:#e2e8f0; }
+  .at-item:last-child::before { display:none; }
+  .at-dot { position:absolute; left:2px; top:2px; width:18px; height:18px; border-radius:50%; background:#fff; border:3px solid #cbd5e1; z-index:1; }
+  .at-item.current .at-dot { border-color:#16a34a; box-shadow:0 0 0 4px rgba(22,163,74,0.15); }
+  .at-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .at-status { font-size:0.8rem; font-weight:700; color:#0f172a; text-transform:capitalize; }
+  .at-arrow { color:#94a3b8; font-size:0.7rem; }
+  .at-prev { font-size:0.72rem; color:#94a3b8; font-weight:500; text-transform:capitalize; }
+  .at-meta { font-size:0.7rem; color:#94a3b8; font-weight:500; margin-top:2px; }
+  .at-note { font-size:0.78rem; color:#475569; background:#f8fafc; border:1px solid #f1f5f9; border-radius:8px; padding:6px 10px; margin-top:6px; display:inline-block; }
+  .at-actor { display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; font-weight:600; color:#64748b; background:#f1f5f9; border-radius:20px; padding:2px 9px; }
+  .at-actor i { font-size:0.65rem; color:#94a3b8; }
+
+  /* ═══ WORK-FLOW SUMMARY GRID ═══ */
+  .wf-kv { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:10px; }
+  .wf-kv-item { display:flex; flex-direction:column; gap:2px; padding:10px 12px; background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; }
+  .wf-kv-label { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#94a3b8; }
+  .wf-kv-value { font-size:0.84rem; font-weight:600; color:#1e293b; }
+  .wf-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:0.7rem; font-weight:600; }
+  .wf-list { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .wf-list-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; font-size:0.8rem; }
+  .wf-list-row .wfl-name { font-weight:600; color:#1e293b; }
+  .wf-list-row .wfl-meta { color:#64748b; font-size:0.74rem; }
+  .wf-note-box { margin-top:10px; padding:10px 12px; background:#fffbeb; border:1px solid #fde68a; border-radius:10px; font-size:0.8rem; color:#78350f; }
+  .wf-empty { font-size:0.78rem; color:#94a3b8; padding:10px 0; font-style:italic; }
+  @media (max-width: 767px) { .wf-kv { grid-template-columns:1fr; } }
+
+  /* ═══ MIXED SERVICE BREAKDOWN ═══ */
+  .ms-wrap { display:flex; flex-direction:column; gap:14px; }
+  .ms-section { border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+  .ms-section-core { border-color:#dbeafe; }
+  .ms-section-repair { border-color:#fef3c7; }
+  .ms-section-header { display:flex; align-items:center; gap:10px; padding:12px 16px; font-family:'Outfit',sans-serif; font-size:0.82rem; font-weight:700; }
+  .ms-section-header-core { background:linear-gradient(135deg,#eff6ff,#dbeafe); color:#1e40af; }
+  .ms-section-header-repair { background:linear-gradient(135deg,#fffbeb,#fef3c7); color:#92400e; }
+  .ms-section-header i { font-size:1rem; }
+  .ms-section-count { margin-left:auto; font-size:0.68rem; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,0.7); }
+  .ms-section-body { padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .ms-service-item { background:#f8fafc; border:1px solid #f1f5f9; border-radius:12px; padding:14px; }
+  .ms-service-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .ms-service-name { font-family:'Inter',sans-serif; font-size:0.85rem; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px; }
+  .ms-service-name i { font-size:0.9rem; }
+  .ms-service-status { padding:3px 10px; border-radius:6px; font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; white-space:nowrap; }
+  .ms-service-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .ms-meta-item { display:flex; flex-direction:column; gap:2px; }
+  .ms-meta-label { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#94a3b8; }
+  .ms-meta-value { font-size:0.78rem; font-weight:600; color:#334155; line-height:1.3; }
+  .ms-service-issue { margin-top:10px; padding:10px 12px; background:#fff; border:1px solid #f1f5f9; border-radius:10px; font-size:0.76rem; color:#475569; line-height:1.4; }
+  .ms-service-issue strong { color:#1e293b; }
+  .ms-service-pricing { margin-top:10px; display:flex; flex-wrap:wrap; gap:16px; padding-top:10px; border-top:1px solid #f1f5f9; }
+  .ms-price-item { display:flex; flex-direction:column; gap:1px; }
+  .ms-price-label { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#94a3b8; }
+  .ms-price-value { font-size:0.82rem; font-weight:700; color:#1e293b; }
+  .ms-price-value.accent { color:#059669; }
+  .ms-service-tech { margin-top:8px; display:flex; align-items:center; gap:6px; font-size:0.74rem; color:#64748b; }
+  .ms-service-tech i { color:#94a3b8; }
+  .ms-section-subtotal { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-top:1px solid #f1f5f9; background:#fafbfc; font-size:0.8rem; }
+  .ms-section-subtotal-label { font-weight:600; color:#64748b; }
+  .ms-section-subtotal-value { font-family:'Inter',sans-serif; font-weight:700; color:#0f172a; }
+  .ms-summary-bar { display:flex; gap:0; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0; }
+  .ms-summary-cell { flex:1; padding:12px 16px; background:#f8fafc; border-right:1px solid #e2e8f0; }
+  .ms-summary-cell:last-child { border-right:none; }
+  .ms-summary-label { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#94a3b8; }
+  .ms-summary-value { font-family:'Inter',sans-serif; font-size:0.88rem; font-weight:700; color:#0f172a; margin-top:2px; }
+  @media (max-width: 767px) { .ms-service-grid { grid-template-columns:repeat(2,1fr); } .ms-summary-bar { flex-direction:column; } .ms-summary-cell { border-right:none; border-bottom:1px solid #e2e8f0; } .ms-summary-cell:last-child { border-bottom:none; } }
 </style>
 
 <div class="au-page">
@@ -442,13 +600,16 @@
         </div>
       </div>
       <div class="au-hero-stats">
-        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Today</div></div>
+        <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroActive">-</div><div class="au-hero-stat-lbl">Active</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroRevenue">-</div><div class="au-hero-stat-lbl">Revenue</div></div>
       </div>
     </div>
   </div>
+
+  <div class="d-flex justify-content-end mb-3"><button class="au-btn au-btn-ghost" id="openServiceChangeQueue"><i class="bi bi-list-check me-1"></i>Service Change Requests <span class="badge bg-danger ms-1" id="serviceChangeCount" style="display:none">0</span></button></div>
+  <div class="modal fade" id="serviceChangeQueueModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 rounded-4"><div class="modal-header"><div><h5 class="modal-title fw-bold">Service Change Review</h5><div class="small text-muted">Compare customer requests, verify capacity, and decide before notifying technicians.</div></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="serviceChangeQueueBody"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div></div></div></div>
 
   <!-- Tab Navigation -->
   <div class="au-tabs-wrapper">
@@ -469,8 +630,14 @@
         <div class="d-flex align-items-center gap-2 au-date-filter">
           <div class="position-relative au-date-wrap">
             <i class="bi bi-calendar3 au-date-icon"></i>
-            <input type="text" class="form-control form-control-sm" id="filterDate" placeholder="Filter by date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Overview.load();">
+            <input type="text" class="form-control form-control-sm" id="filterStartDate" placeholder="Start date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Overview.load();" style="width:150px;">
           </div>
+          <span class="text-muted small">to</span>
+          <div class="position-relative au-date-wrap">
+            <i class="bi bi-calendar3 au-date-icon"></i>
+            <input type="text" class="form-control form-control-sm" id="filterEndDate" placeholder="End date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Overview.load();" style="width:150px;">
+          </div>
+          <button class="au-btn au-btn-ghost" onclick="document.getElementById('filterStartDate').value='';document.getElementById('filterEndDate').value='';document.getElementById('filterStartDate').type='text';document.getElementById('filterEndDate').type='text';AU.Overview.load();" title="Clear dates"><i class="bi bi-x-circle"></i></button>
           <button class="au-btn au-btn-ghost" onclick="AU.Overview.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         </div>
       </div>
@@ -487,13 +654,13 @@
           <div class="stat-card h-100" data-spark-color="#f59e0b">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
-                <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Today's Bookings</h6>
+                <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Total Bookings</h6>
                 <div class="d-flex align-items-baseline gap-2">
                   <span class="h3 mb-0 fw-bold text-dark" id="kpiToday">-</span>
                   <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
-                  <span class="kpi-percent-badge">Today</span>
+                  <span class="kpi-percent-badge">All</span>
                 </div>
-                <small class="text-muted">All bookings today</small>
+                <small class="text-muted">All time bookings</small>
               </div>
               <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
                 <i class="bi bi-calendar-week text-white"></i>
@@ -550,7 +717,7 @@
           <div class="stat-card h-100" data-spark-color="#8b5cf6">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
-                <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Revenue (Today)</h6>
+                <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Revenue (All Time)</h6>
                 <div class="d-flex align-items-baseline gap-2">
                   <span class="h3 mb-0 fw-bold text-dark" id="kpiRevenue">-</span>
                   <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
@@ -585,15 +752,16 @@
 
     <!-- ═══ PENDING REVIEW TAB ═══ -->
     <div class="tab-pane fade" id="tab-pending" role="tabpanel">
-      <ul class="nav nav-tabs au-sub-tabs mb-4" role="tablist">
-        <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#bookings-panel" type="button" role="tab"><i class="bi bi-calendar-check me-1"></i>Core Services <span class="badge au-sub-badge" id="bookingTabCount">0</span></button></li>
-        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#repairs-panel" type="button" role="tab"><i class="bi bi-wrench-adjustable-circle me-1"></i>Repair Requests <span class="badge au-sub-badge" id="repairTabCount">0</span></button></li>
-      </ul>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div><h5 class="mb-1 fw-bold"><i class="bi bi-calendar-check me-2 text-primary"></i>Pending Service Bookings</h5><p class="text-muted small mb-0">Core, repair, and mixed-service bookings are reviewed in one queue.</p></div>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2"><i class="bi bi-layers me-1"></i>Unified Queue</span>
+      </div>
       <div class="tab-content">
         <!-- Core Services -->
         <div class="tab-pane fade show active" id="bookings-panel" role="tabpanel">
           <div class="au-filter-bar mb-4"><div class="d-flex flex-wrap align-items-center gap-2">
             <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Filters:</span>
+            <select class="form-select form-select-sm" id="filterServiceType" style="width:auto;min-width:140px;"><option value="">All Service Types</option><option value="core">Core Service</option><option value="repair">Repair Service</option><option value="mixed">Mixed Service</option></select>
             <select class="form-select form-select-sm" id="filterPaymentStatus" style="width:auto;min-width:140px;"><option value="">All Payment Status</option><option value="pending">Pending</option><option value="partial">Partial (Downpayment)</option><option value="paid">Paid in Full</option></select>
             <select class="form-select form-select-sm" id="filterPaymentMethod" style="width:auto;min-width:130px;"><option value="">All Payment Methods</option><option value="cod">Cash on Delivery</option><option value="gcash">GCash</option><option value="maya">Maya</option></select>
             <select class="form-select form-select-sm" id="filterDateRange" style="width:auto;min-width:140px;"><option value="">All Dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This Week</option><option value="this_month">This Month</option><option value="last_month">Last Month</option></select>
@@ -680,13 +848,13 @@
             </div>
           </div>
           <div class="au-table-card">
-            <div class="au-table-header"><h6>Pending Bookings</h6><span class="badge bg-warning text-dark" id="resultCount">0</span></div>
-            <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Date</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
+            <div class="au-table-header"><h6>All Pending Bookings</h6><span class="badge bg-warning text-dark" id="resultCount">0</span></div>
+            <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Type</th><th>Service Details</th><th>Date</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
             <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top"><small class="text-muted" id="pendingPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="pendingPag"></ul></nav></div>
           </div>
         </div>
         <!-- Repair Requests -->
-        <div class="tab-pane fade" id="repairs-panel" role="tabpanel">
+        <div class="tab-pane fade d-none" id="repairs-panel" role="tabpanel" aria-hidden="true">
           <div class="row g-4 mb-5">
             <div class="col-lg-4 col-md-6 col-12">
               <div class="stat-card h-100" data-spark-color="#f59e0b">
@@ -901,12 +1069,22 @@
           </div>
         </div>
       </div>
-      <div class="au-filter-bar mb-4"><div class="d-flex gap-2 align-items-center">
+      <div id="aqWarnings"></div>
+      <div class="au-filter-bar mb-4"><div class="d-flex gap-2 align-items-center flex-wrap">
         <div class="aj-search-box" style="flex:1;"><i class="bi bi-search aj-search-icon"></i><input type="text" class="aj-search-input" placeholder="Search customer, service..." id="aqSearchInput" style="width:100%;"></div>
         <select class="form-select form-select-sm" id="aqFilterStatus" style="width:220px;border-radius:10px;"><option value="awaiting_assignment">Awaiting Assignment</option><option value="pending_reassignment">Need Reassignment</option><option value="all_active">All Queue</option></select>
+        <button class="au-btn au-btn-primary" type="button" onclick="AU.Queue.openBulkPlan()"><i class="bi bi-stars me-1"></i>Auto Assign Unassigned Bookings</button>
       </div></div>
       <div id="queueContainer"><div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div></div>
       <div class="d-flex justify-content-center mt-3" id="aqPagination"></div>
+    </div>
+
+    <div class="modal fade" id="bulkAssignmentModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 shadow-lg">
+        <div class="modal-header"><div><h5 class="modal-title fw-bold"><i class="bi bi-diagram-3-fill text-primary me-2"></i>Review Assignment Plan</h5><div class="small text-muted">No technician is notified until you confirm this plan.</div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><div id="bulkPlanSummary" class="row g-2 mb-3"></div><div id="bulkPlanBody"><div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload and travel...</p></div></div></div>
+        <div class="modal-footer justify-content-between"><div class="d-flex align-items-center gap-2"><label class="small fw-semibold" for="bulkResponseMinutes">Response time</label><select id="bulkResponseMinutes" class="form-select form-select-sm" style="width:130px"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div><div><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="confirmBulkPlanBtn" onclick="AU.Queue.confirmBulkPlan()"><i class="bi bi-send-check me-1"></i>Confirm & Notify</button></div></div>
+      </div></div>
     </div>
 
     <!-- ═══ WAITING FOR ACCEPTANCE TAB ═══ -->
@@ -998,7 +1176,10 @@
           </div>
         </div>
       </div>
-      <div class="row g-3" id="jobsContainer"><div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div></div>
+      <div class="au-table-card">
+        <div class="au-table-header"><h6><i class="bi bi-list-ul me-2 text-primary"></i>Active Jobs</h6><span class="badge bg-primary" id="activeJobCount">0</span></div>
+        <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th>Date</th><th>Amount</th><th>Status</th><th class="text-center">Actions</th></tr></thead><tbody id="jobsContainer"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading active jobs...</div></td></tr></tbody></table></div>
+      </div>
     </div>
 
     <!-- ═══ COMPLETED TAB ═══ -->
@@ -1137,78 +1318,78 @@
       </div>
 
       <div class="modal-body ent-modal-body">
-        <div class="ent-detail-card ent-detail-card-wide mb-3">
-          <div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-calendar-check text-success"></i></div>
-          <div class="ent-detail-card-content">
-            <span class="ent-detail-label">Booking</span>
-            <span class="ent-detail-value fw-bold" id="assignCustomerName">—</span>
-            <span class="ent-detail-sub" id="assignServiceInfo">—</span>
+        <!-- Job Dossier -->
+        <div class="asgn-hero">
+          <div class="asgn-hero-icon"><i class="bi bi-briefcase-fill"></i></div>
+          <div class="asgn-hero-main">
+            <div class="asgn-hero-label">Booking</div>
+            <div class="asgn-hero-title" id="assignCustomerName">—</div>
+            <div class="asgn-hero-sub" id="assignServiceInfo">—</div>
+          </div>
+          <div class="asgn-hero-side">
+            <span class="badge asgn-status-badge bg-light text-dark border">Awaiting Assignment</span>
           </div>
         </div>
 
-        <div class="row g-3">
-          <div class="col-lg-7">
-            <div class="ent-detail-grid">
-              <div class="ent-detail-card ent-detail-card-wide">
-                <div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-map text-info"></i></div>
-                <div class="ent-detail-card-content" style="width:100%;">
-                  <span class="ent-detail-label">Service Location</span>
-                  <span class="ent-detail-sub" id="assignLocationSub">Map preview</span>
-                  <div id="assignMapContainer" style="height:320px;border-radius:14px;border:1px solid #e2e8f0;overflow:hidden;margin-top:10px;"></div>
-                </div>
+        <!-- AI Recommendation -->
+        <div class="asgn-section" id="aiRecommendSection">
+          <div class="asgn-section-title"><i class="bi bi-stars me-2"></i>AI Recommendation</div>
+          <div class="asgn-ai-card">
+            <div class="asgn-ai-body">
+              <div class="asgn-ai-name" id="aiRecommendName">—</div>
+              <div class="asgn-ai-reason" id="aiRecommendReason">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Workspace: Technicians (left) | Map + Equipment (right) -->
+        <div class="row g-4 asgn-layout">
+          <div class="col-lg-5">
+            <div class="asgn-section asgn-tech-section">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="asgn-section-title mb-0"><i class="bi bi-people me-2"></i>Technicians</div>
+                <span class="badge bg-primary" id="techCountBadge">—</span>
+              </div>
+              <div class="small text-muted mb-2" id="assignAvailabilityHint"></div>
+              <div id="techListContainer" class="asgn-tech-list-wrap">
+                <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
               </div>
             </div>
 
-            <div id="aiRecommendSection" class="mt-3">
-              <div class="ent-detail-card ent-detail-card-wide" style="background:#f8fafc;border-color:#c7d2fe;">
-                <div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-stars text-primary"></i></div>
-                <div class="ent-detail-card-content" style="width:100%;">
-                  <span class="ent-detail-label">AI Recommendation</span>
-                  <span class="ent-detail-value" id="aiRecommendName">—</span>
-                  <span class="ent-detail-sub" id="aiRecommendReason">—</span>
+            <div class="asgn-section mt-3">
+              <div class="asgn-section-title"><i class="bi bi-sliders me-2"></i>Assignment Options</div>
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label small fw-semibold">Priority</label>
+                  <select class="form-select form-select-sm" id="assignPriority">
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-semibold">Notes <small class="text-muted">(optional)</small></label>
+                  <input type="text" class="form-control form-control-sm" id="assignNotes" placeholder="Special instructions...">
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="col-lg-5">
-            <h6 class="fw-bold mb-3"><i class="bi bi-people me-2"></i>Technicians</h6>
-
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="text-muted small fw-semibold">
-                Eligible: <span id="techCountBadge">—</span>
-              </div>
-              <div class="text-muted small fw-semibold" id="assignAvailabilityHint"></div>
+          <div class="col-lg-7">
+            <div class="asgn-section">
+              <div class="asgn-section-title"><i class="bi bi-geo-alt-fill me-2"></i>Service Location</div>
+              <div class="asgn-map-wrap" id="assignMapContainer"></div>
+              <small class="text-muted d-block mt-2" id="assignLocationSub">Map preview</small>
             </div>
 
-            <div id="techListContainer">
-              <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
-            </div>
-
-            <div class="row g-3 mt-3">
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Priority</label>
-                <select class="form-select form-select-sm" id="assignPriority">
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Notes <small class="text-muted">(optional)</small></label>
-                <input type="text" class="form-control form-control-sm" id="assignNotes" placeholder="Special instructions...">
-              </div>
-            </div>
-
-            <!-- Equipment & Materials -->
-            <div class="mt-4">
-              <h6 class="fw-bold mb-2"><i class="bi bi-tools me-2"></i>Equipment & Materials</h6>
+            <div class="asgn-section d-none" id="adminAssignmentEquipmentSection" aria-hidden="true">
+              <div class="asgn-section-title"><i class="bi bi-tools me-2"></i>Equipment</div>
               <div id="assignEquipmentRecommended" class="d-flex flex-wrap gap-2 mb-2"></div>
-              <div id="assignEquipmentRecommendedEmpty" class="text-muted small mb-2 d-none">No AI tool recommendations for this service.</div>
+              <div id="assignEquipmentRecommendedEmpty" class="text-muted small mb-2 d-none">No AI equipment recommendations for this service.</div>
               <div class="row g-2 align-items-end mb-2">
                 <div class="col-6">
-                  <label class="form-label small fw-semibold">Tool / Material</label>
-                  <input type="text" class="form-control form-control-sm" id="assignEquipmentToolInput" list="assignEquipmentDatalist" placeholder="Type tool name..." oninput="AU.Queue.updateSelectedToolId()">
+                  <label class="form-label small fw-semibold">Equipment</label>
+                  <input type="text" class="form-control form-control-sm" id="assignEquipmentToolInput" list="assignEquipmentDatalist" placeholder="Type equipment name..." oninput="AU.Queue.updateSelectedToolId()">
                   <input type="hidden" id="assignEquipmentTool">
                   <datalist id="assignEquipmentDatalist"></datalist>
                 </div>
@@ -1222,24 +1403,30 @@
               </div>
               <div class="mb-2">
                 <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="btnToggleNewTool" onclick="AU.Queue.toggleNewToolForm()">
-                  <i class="bi bi-plus-circle me-1"></i>Add New Tool / Equipment
+                  <i class="bi bi-plus-circle me-1"></i>Add New Equipment
                 </button>
               </div>
               <div id="newToolForm" class="d-none border rounded p-2 mb-2 bg-light">
                 <div class="row g-2">
                   <div class="col-12">
-                    <label class="form-label small fw-semibold">Tool Name</label>
+                    <label class="form-label small fw-semibold">Item Name</label>
                     <input type="text" class="form-control form-control-sm" id="assignNewToolName" placeholder="e.g. Refrigerant gauge">
                   </div>
-                  <div class="col-4">
+                  <div class="col-3">
                     <label class="form-label small fw-semibold">Qty</label>
                     <input type="number" class="form-control form-control-sm" id="assignNewToolQty" value="1" min="0">
                   </div>
-                  <div class="col-4">
+                  <div class="col-3">
                     <label class="form-label small fw-semibold">Unit</label>
                     <input type="text" class="form-control form-control-sm" id="assignNewToolUnit" value="pcs" placeholder="pcs">
                   </div>
-                  <div class="col-4">
+                  <div class="col-3 d-none">
+                    <label class="form-label small fw-semibold">Type</label>
+                    <select class="form-select form-select-sm" id="assignNewToolType" style="border-radius:8px;border:1px solid #e2e8f0;">
+                      <option value="equipment" selected>Equipment</option>
+                    </select>
+                  </div>
+                  <div class="col-3">
                     <label class="form-label small fw-semibold">Category</label>
                     <select class="form-select form-select-sm" id="assignNewToolCategory" style="border-radius:8px;border:1px solid #e2e8f0;">
                       <option value="Capacitor">Capacitor</option>
@@ -1263,12 +1450,6 @@
               </div>
               <div id="assignEquipmentList" class="d-flex flex-column gap-2"></div>
               <div id="assignEquipmentEmpty" class="text-muted small py-2">No equipment selected. Add items from inventory.</div>
-            </div>
-
-            <div class="mt-3">
-              <small class="text-muted">
-                Tip: click a technician card to select. Confirm assigns immediately.
-              </small>
             </div>
           </div>
         </div>
@@ -1468,28 +1649,45 @@
     </div>
     <div class="track-drawer-map-wrap">
       <div id="trackDrawerMap" class="track-drawer-map"></div>
+      <div class="td-map-ctrls td-ctrl-zoom">
+        <button class="td-ctrl-btn" id="tdZoomIn" title="Zoom in"><i class="bi bi-plus-lg"></i></button>
+        <button class="td-ctrl-btn" id="tdZoomOut" title="Zoom out"><i class="bi bi-dash-lg"></i></button>
+      </div>
+      <div class="td-map-ctrls td-ctrl-compass">
+        <button class="td-ctrl-btn" id="tdCompass" title="Reset view"><i class="bi bi-compass"></i></button>
+      </div>
+      <div class="td-map-ctrls td-ctrl-cust" id="tdCtrlCust" title="Focus customer">
+        <button class="td-ctrl-btn"><i class="bi bi-geo-alt-fill"></i></button>
+      </div>
+      <div class="td-map-ctrls td-ctrl-tech" id="tdCtrlTech" title="Focus technician">
+        <button class="td-ctrl-btn"><i class="bi bi-geo-alt-fill"></i></button>
+      </div>
+      <div class="td-map-ctrls td-ctrl-layers" id="tdLayerSelector">
+        <button class="td-ctrl-layer active" data-layer="standard"><span class="td-ctrl-thumb" data-thumb="standard" style="background:#e0f2fe;"></span>Standard</button>
+        <button class="td-ctrl-layer" data-layer="hybrid"><span class="td-ctrl-thumb" data-thumb="hybrid" style="background:#14532d;"></span>Hybrid</button>
+      </div>
       <div class="track-drawer-legend">
         <div class="td-legend-item"><div class="td-legend-dot" style="background:#2563eb;"></div><span>Customer</span></div>
-        <div class="td-legend-item"><div class="td-legend-dot" style="background:#16a34a;"></div><span>Technician</span></div>
+        <div class="td-legend-item"><div class="td-legend-dot" style="background:#ef4444;"></div><span>Technician</span></div>
         <div class="td-legend-item"><div class="td-legend-line"></div><span>Route</span></div>
       </div>
     </div>
     <div class="track-drawer-footer">
       <div class="td-footer-row">
         <div class="td-footer-item">
-          <div class="td-fi-label"><i class="bi bi-person"></i> Customer</div>
+          <div class="td-fi-label"><i class="bi bi-person-circle"></i> Customer<button class="td-focus-btn" id="tdFocusCustomer" title="Focus customer on map"><i class="bi bi-geo-alt-fill"></i></button></div>
           <div class="td-fi-value" id="tdInfoCustomer">—</div>
           <div class="td-fi-sub" id="tdInfoCustomerAddr">—</div>
         </div>
         <div class="td-footer-divider"></div>
         <div class="td-footer-item">
-          <div class="td-fi-label"><i class="bi bi-tools"></i> Technician</div>
+          <div class="td-fi-label"><i class="bi bi-wrench"></i> Technician<button class="td-focus-btn" id="tdFocusTechnician" title="Focus technician on map"><i class="bi bi-geo-alt-fill"></i></button></div>
           <div class="td-fi-value" id="tdInfoTechnician">—</div>
           <div class="td-fi-sub" id="tdInfoTechStatus">—</div>
         </div>
         <div class="td-footer-divider"></div>
         <div class="td-footer-item">
-          <div class="td-fi-label"><i class="bi bi-flag"></i> Status</div>
+          <div class="td-fi-label"><i class="bi bi-clipboard-check"></i> Status</div>
           <div class="td-fi-value" id="tdInfoStatus">—</div>
           <div class="td-fi-sub" id="tdInfoRef">—</div>
         </div>
@@ -1594,8 +1792,19 @@
   }
   function formatTime(t) {
     if (!t) return '\u2014';
-    var mins = parseInt(t);
-    if (isNaN(mins)) return t;
+    var raw=String(t).trim();
+    if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(raw)) return raw.replace(/\s+/g,' ').toUpperCase();
+    var hm=raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hm) {
+      var hour=Number(hm[1]), minute=Number(hm[2]);
+      if (hour<24&&minute<60) {
+        var suffix=hour>=12?'PM':'AM';
+        return (hour%12||12)+':'+String(minute).padStart(2,'0')+' '+suffix;
+      }
+    }
+    if (!/^\d{1,4}$/.test(raw)) return raw;
+    var mins = Number(raw);
+    if (!Number.isFinite(mins)||mins<0||mins>1439) return raw;
     var h = Math.floor(mins/60), m = mins % 60;
     var ampm = h >= 12 ? 'PM' : 'AM';
     return (h % 12 || 12) + ':' + String(m).padStart(2,'0') + ' ' + ampm;
@@ -1628,51 +1837,478 @@
 
   function buildDetailHTML(b,data) {
     var date=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    var time=(b.startTime&&b.endTime?formatTime(b.startTime)+' \u2013 '+formatTime(b.endTime):(b.selectedTimeLabel||formatTime(b.preferredTime||b.startTime||'')));
     var isRepair=b.serviceType==='repair'||b.serviceModel==='RepairService';
-    var serviceName=b.service?(b.service.name||''):(b.services?b.services.map(function(s){return s.name;}).join(', '):(isRepair?'Repair Service':'N/A'));
-    if (!serviceName) serviceName='N/A';
+    var serviceNames=(Array.isArray(b.services)&&b.services.length)
+      ? b.services.map(function(s){return s.name||'';})
+      : (b.service?[(b.service.name||'')]:[]);
+    if (!serviceNames.length) serviceNames=[isRepair?'Repair Service':'N/A'];
+    var uniqueNames=serviceNames.filter(function(n,i,a){return n&&a.indexOf(n)===i;});
+    var serviceName=uniqueNames.length>1?uniqueNames.join(', '):uniqueNames[0];
+    var customer=b.customer||{};
+    if ((!customer.name||!customer.email) && b.customerId && typeof b.customerId==='object') {
+      customer={
+        name:customer.name||((b.customerId.firstName||'')+' '+(b.customerId.lastName||'')).trim(),
+        email:customer.email||b.customerId.email||'',
+        phone:customer.phone||b.customerId.phone||'',
+        address:customer.address||b.customerId.address||''
+      };
+    }
+
+    var unitType=b.applianceTypeName||b.applianceType||(b.unitInfo&&b.unitInfo.unitType)||'—';
+    var unitBrand=b.brand||(b.unitInfo&&b.unitInfo.brand)||'—';
+    var unitQty=Number(b.quantity)||(Array.isArray(b.services)?b.services.reduce(function(sum,s){return sum+(Number(s.quantity)||0);},0):0)||1;
+    var unitHp=b.hpDescription||(b.hp?b.hp+' HP':'')||(b.unitInfo&&b.unitInfo.hpDescription?b.unitInfo.hpDescription:'')||(b.unitInfo&&b.unitInfo.hp?b.unitInfo.hp+' HP':'')||((Array.isArray(b.services)&&b.services[0]&&b.services[0].hpDescription)?b.services[0].hpDescription:((Array.isArray(b.services)&&b.services[0]&&b.services[0].hp)?b.services[0].hp+' HP':'—'))||'—';
     var stL=statusLabel(b.status);
     var isCOD=b.paymentMethod==='cod';
     var total=b.totalPrice||b.estimatedFee||0;
-    var dp=b.downpaymentAmount||(isCOD?400:0);
-    var bal=b.balanceAmount>0?b.balanceAmount:(isCOD?Math.max(0,total-dp):0);
+    var travelFee=Number(b.travelFare)||0;
+    var paymentList=Array.isArray(data.payments)?data.payments:[];
+    var recordedDownpayment=paymentList.filter(function(p){return p.type==='downpayment'||p.type==='inspection';}).reduce(function(sum,p){return sum+(Number(p.amount)||0);},0);
+    var dp=Number(b.downpaymentAmount)||recordedDownpayment||0;
+    var bal=isCOD?Math.max(0,total-dp):0;
     var photos=[];
-    if (b.paymentProof) photos.push(b.paymentProof);
-    if (data.payment&&data.payment.proofUrl&&photos.indexOf(data.payment.proofUrl)===-1) photos.push(data.payment.proofUrl);
-    if (b.imageUrl&&photos.indexOf(b.imageUrl)===-1) photos.push(b.imageUrl);
-    if (b.unitInfo&&Array.isArray(b.unitInfo.photos)) b.unitInfo.photos.forEach(function(p){if(p&&photos.indexOf(p)===-1)photos.push(p);});
-    var html='<div class="bd-compact-grid">'+
-      '<div class="bd-compact-card"><div class="bd-compact-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Customer</span><span class="bd-compact-value">'+(b.customer?b.customer.name:'N/A')+'</span><span class="bd-compact-sub">'+(b.customer?b.customer.email:'')+'</span><span class="bd-compact-sub">'+(b.customer?b.customer.phone:'')+'</span></div></div>'+
-      '<div class="bd-compact-card"><div class="bd-compact-icon bg-success-subtle"><i class="bi bi-tools text-success"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Service</span><span class="bd-compact-value">'+serviceName+'</span><span class="bd-compact-sub">'+date+'</span><span class="bd-compact-sub">'+(b.startTime&&b.endTime?b.startTime+' \u2013 '+b.endTime:(b.preferredTime||b.startTime||''))+'</span></div></div>'+
-      '<div class="bd-compact-card"><div class="bd-compact-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Payment</span><span class="bd-compact-value fw-bold">\u20B1'+total.toLocaleString()+'</span><span class="bd-compact-sub">'+(b.paymentMethod||'N/A').toUpperCase()+' \u00B7 '+(b.paymentStatus||'pending')+'</span>'+
-      (isCOD?'<div style="margin-top:4px;padding:4px 6px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;"><div style="font-size:0.68rem;color:#92400e;"><div class="d-flex justify-content-between"><span>Downpayment:</span><span class="fw-semibold">\u20B1'+dp.toLocaleString()+'</span></div><div class="d-flex justify-content-between"><span>Balance (on-site):</span><span class="fw-semibold">\u20B1'+bal.toLocaleString()+'</span></div>'+(b.amountPaid?'<div class="d-flex justify-content-between mt-1 pt-1 border-top" style="border-color:#fde68a !important;"><span>Collected so far:</span><span class="fw-bold text-success">\u20B1'+b.amountPaid.toLocaleString()+'</span></div>':'')+'</div></div>':'')+
-      '</div></div>'+
-      '<div class="bd-compact-card"><div class="bd-compact-icon bg-dark-subtle"><i class="bi bi-flag-fill text-dark"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Status</span><span class="bd-compact-value"><span class="badge bg-'+(b.paymentStatus==='paid'?'success':'warning')+'">'+stL+'</span></span></div></div>'+
-      '<div class="bd-compact-card bd-compact-card-wide"><div class="bd-compact-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Service Location</span><span class="bd-compact-value">'+(b.location?b.location.address:'N/A')+'</span></div></div>';
+    function addPhoto(p,label){
+      if(!p) return;
+      p=String(p);
+      var already=false;
+      photos.forEach(function(x){ if(x.src===p) already=true; });
+      if(!already) photos.push({src:p,label:label||''});
+    }
+    addPhoto(b.paymentProof,'Customer Payment Proof');
+    if (data.payment&&data.payment.proofUrl) addPhoto(data.payment.proofUrl,'Payment Proof');
+    addPhoto(b.imageUrl,'Booking Image');
+    addPhoto(b.repairPaymentProof,'Repair Payment Proof');
+    addPhoto(b.proofPhoto,'Proof of Completion');
+    if (data.assignment){
+      addPhoto(data.assignment.startProofUrl,'Start Work Proof');
+      addPhoto(data.assignment.proofPhoto,'Proof of Completion');
+      if (data.assignment.damagePhoto) addPhoto(data.assignment.damagePhoto,'Damaged Item Photo');
+    }
+    if (Array.isArray(data.payments)) data.payments.forEach(function(pm,i){
+      if (pm.proofUrl) addPhoto(pm.proofUrl,'Payment Proof ('+(String(pm.method||'').toUpperCase()||('#'+(i+1)))+')');
+      if (pm.customerPhotoUrl) addPhoto(pm.customerPhotoUrl,'Customer Confirmation Photo'+(pm.type?' ('+statusLabel(pm.type)+')':''));
+      if (pm.remittanceProofUrl) addPhoto(pm.remittanceProofUrl,'Remittance Proof');
+    });
+    if (b.unitInfo&&Array.isArray(b.unitInfo.photos)) b.unitInfo.photos.forEach(function(p){addPhoto(p,'Unit Photo');});
+    if (b.inspection&&Array.isArray(b.inspection.photos)) b.inspection.photos.forEach(function(p){addPhoto(p,'Inspection Photo');});
+    if (Array.isArray(b.services)) b.services.forEach(function(s){ if(s&&Array.isArray(s.units)) s.units.forEach(function(u){ if(u&&u.inspection&&Array.isArray(u.inspection.photos)) u.inspection.photos.forEach(function(p){addPhoto(p,'Inspection Photo');}); }); });
+
+    var ref = b.bookingReference||b.workOrderNumber||b._id.toString().slice(-8).toUpperCase();
+    var statusColor = b.paymentStatus==='paid'?'success':(b.paymentStatus==='partial'?'warning':'secondary');
+    var heroBg = b.paymentStatus==='paid'?'#f0fdf4':(b.paymentStatus==='partial'?'#fffbeb':'#eff6ff');
+    var heroColor = b.paymentStatus==='paid'?'#059669':(b.paymentStatus==='partial'?'#d97706':'#2563eb');
+
+    var paymentRows = '<div class="dv2-payment-row"><span class="dv2-payment-label">Total Amount</span><span class="dv2-payment-value">\u20B1'+total.toLocaleString()+'</span></div>'+
+      (travelFee>0?'<div class="dv2-payment-row" style="padding-left:12px;"><span class="dv2-payment-label" style="font-size:0.72rem;"><i class="bi bi-arrow-return-right me-1"></i>Incl. Travel Fee</span><span class="dv2-payment-value" style="font-size:0.72rem;">\u20B1'+travelFee.toLocaleString()+'</span></div>':'')+
+      '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Method</span><span class="dv2-payment-value">'+(b.paymentMethod||'N/A').toUpperCase()+'</span></div>';
+    if (isCOD) {
+      paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Downpayment</span><span class="dv2-payment-value">\u20B1'+dp.toLocaleString()+'</span></div>'+
+        '<div class="dv2-payment-row"><span class="dv2-payment-label">Balance (on-site)</span><span class="dv2-payment-value">\u20B1'+bal.toLocaleString()+'</span></div>';
+      if (b.amountPaid) paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Collected so far</span><span class="dv2-payment-value" style="color:#16a34a;">\u20B1'+b.amountPaid.toLocaleString()+'</span></div>';
+    }
+    paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Status</span><span class="dv2-payment-value" style="color:'+(b.paymentStatus==='paid'?'#16a34a':(b.paymentStatus==='partial'?'#d97706':'#64748b'))+';">'+(b.paymentStatus==='paid'?'Paid in full':(b.paymentStatus==='partial'?'Partial payment received':'Payment pending'))+'</span></div>';
+
+    var photosHtml = '';
+    if (photos.length>0) {
+      window._modalPhotos=photos;
+      photosHtml = '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Photos & Proofs ('+photos.length+')</span>'+
+          '<div class="dv2-photo-strip">';
+      photos.forEach(function(item,i){
+        photosHtml += '<div class="dv2-photo-item" style="width:160px;">'+
+          '<img src="'+item.src+'" alt="'+((item.label||'Photo')+' '+(i+1))+' - Click to enlarge" class="dv2-photo-thumb" onclick="showImgLightboxIndex('+i+')" onerror="this.style.display=\'none\';this.parentElement.querySelector(\'.dv2-photo-missing\').style.display=\'flex\';">'+
+          '<div class="dv2-photo-missing" style="display:none;height:100px;align-items:center;justify-content:center;flex-direction:column;color:#94a3b8;font-size:0.7rem;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:8px;"><i class="bi bi-image" style="font-size:1.2rem;margin-bottom:4px;"></i>Image unavailable</div>'+
+          '<div class="dv2-photo-caption">'+(item.label?item.label+' \u00B7 ':'')+'Click to enlarge</div>'+
+        '</div>';
+      });
+      photosHtml += '</div></div></div>';
+    }
+
+    // ── Detect mixed service booking (both core & repair) ──
+    var hasCore=false, hasRepair=false;
+    if (Array.isArray(b.services)) {
+      b.services.forEach(function(s){
+        if (s.type==='repair') hasRepair=true; else hasCore=true;
+      });
+    }
+    var isMixed = (b.isMultiService || b.serviceType==='mixed') && hasCore && hasRepair;
+
+    function effectiveItemStatus(s) {
+      var own=String(s.status||'pending');
+      if (own!=='pending') return own;
+      if (data.assignment&&data.assignment.status==='pending_acceptance') return 'assigned';
+      if (data.assignment&&data.assignment.status==='accepted') return isRepair?'inspection_scheduled':'accepted';
+      if (['assigned','confirmed','scheduled','on-the-way','arrived','in-progress','completed'].indexOf(b.status)>=0) return b.status;
+      return own;
+    }
+
+    function buildServiceItemHTML(s,i){
+      var t=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'\u2014';
+      var bnd=s.brand||'\u2014';
+      var q=Number(s.quantity)||1;
+      var h=s.hpDescription||(s.hp?s.hp+' HP':'\u2014');
+      var sn=s.name||('Service '+(i+1));
+      var model=s.model||'\u2014';
+      var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+      var itemStatus=effectiveItemStatus(s);
+      var stBadge=itemStatus==='completed'?'background:#dcfce7;color:#166534;':s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+      var sIcon=s.type==='repair'?'bi-wrench-adjustable':'bi-gear-wide-connected';
+      var item='<div class="ms-service-item">'+
+        '<div class="ms-service-head">'+
+          '<div class="ms-service-name"><i class="bi '+sIcon+'"></i>'+sn+'</div>'+
+          '<span class="ms-service-status" style="'+stBadge+'">'+statusLabel(itemStatus)+'</span>'+
+        '</div>'+
+        '<div class="ms-service-grid">'+
+          '<div class="ms-meta-item"><span class="ms-meta-label">Type</span><span class="ms-meta-value">'+t+'</span></div>'+
+          '<div class="ms-meta-item"><span class="ms-meta-label">Brand</span><span class="ms-meta-value">'+bnd+'</span></div>'+
+          '<div class="ms-meta-item"><span class="ms-meta-label">Model</span><span class="ms-meta-value">'+model+'</span></div>'+
+          '<div class="ms-meta-item"><span class="ms-meta-label">HP / Qty</span><span class="ms-meta-value">'+h+' / '+q+'</span></div>'+
+        '</div>';
+      if (issue) item+='<div class="ms-service-issue"><strong>Problem:</strong> '+issue+'</div>';
+      var pricingParts='';
+      if (s.unitPrice!=null) pricingParts+='<div class="ms-price-item"><span class="ms-price-label">Unit Price</span><span class="ms-price-value">\u20B1'+Number(s.unitPrice).toLocaleString()+'</span></div>';
+      if (s.totalPrice!=null) pricingParts+='<div class="ms-price-item"><span class="ms-price-label">Total Price</span><span class="ms-price-value accent">\u20B1'+Number(s.totalPrice).toLocaleString()+'</span></div>';
+      if (s.initialCost!=null) pricingParts+='<div class="ms-price-item"><span class="ms-price-label">Initial Cost</span><span class="ms-price-value">\u20B1'+Number(s.initialCost).toLocaleString()+'</span></div>';
+      if (s.finalCost!=null) pricingParts+='<div class="ms-price-item"><span class="ms-price-label">Final Cost</span><span class="ms-price-value accent">\u20B1'+Number(s.finalCost).toLocaleString()+'</span></div>';
+      if (s.duration) pricingParts+='<div class="ms-price-item"><span class="ms-price-label">Est. Duration</span><span class="ms-price-value">'+s.duration+' min</span></div>';
+      if (pricingParts) item+='<div class="ms-service-pricing">'+pricingParts+'</div>';
+      if (s.technicianName) item+='<div class="ms-service-tech"><i class="bi bi-person-fill"></i>Assigned: '+s.technicianName+'</div>';
+      item+='</div>';
+      return item;
+    }
+
+    function buildServiceSectionHTML(services,type){
+      var icon=type==='repair'?'bi-wrench-adjustable-circle':'bi-gear-wide-connected';
+      var title=type==='repair'?'Repair Services':'Core Services';
+      var items=services.map(function(s,i){return buildServiceItemHTML(s,i);}).join('');
+      var subtotal=services.reduce(function(sum,s){return sum+(Number(s.totalPrice)||Number(s.unitPrice)||0)*(Number(s.quantity)||1);},0);
+      return '<div class="ms-section ms-section-'+(type==='repair'?'repair':'core')+'">'+
+        '<div class="ms-section-header ms-section-header-'+(type==='repair'?'repair':'core')+'">'+
+          '<i class="bi '+icon+'"></i>'+title+
+          '<span class="ms-section-count">'+services.length+' service'+(services.length>1?'s':'')+'</span>'+
+        '</div>'+
+        '<div class="ms-section-body">'+items+'</div>'+
+        '<div class="ms-section-subtotal">'+
+          '<span class="ms-section-subtotal-label">Subtotal</span>'+
+          '<span class="ms-section-subtotal-value">\u20B1'+subtotal.toLocaleString()+'</span>'+
+        '</div>'+
+      '</div>';
+    }
+
+    var unitDetailsHtml='';
+    if (isMixed && Array.isArray(b.services) && b.services.length) {
+      var coreServices=b.services.filter(function(s){return s.type!=='repair';});
+      var repairServices=b.services.filter(function(s){return s.type==='repair';});
+      var coreSubtotal=coreServices.reduce(function(sum,s){return sum+(Number(s.totalPrice)||Number(s.unitPrice)||0)*(Number(s.quantity)||1);},0);
+      var repairSubtotal=repairServices.reduce(function(sum,s){return sum+(Number(s.totalPrice)||Number(s.unitPrice)||0)*(Number(s.quantity)||1);},0);
+      var totalUnits=coreServices.reduce(function(sum,s){return sum+(Number(s.quantity)||1);},0)+repairServices.reduce(function(sum,s){return sum+(Number(s.quantity)||1);},0);
+
+      unitDetailsHtml='<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-info-subtle"><i class="bi bi-diagram-3 text-info"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Service Breakdown \u00B7 Mixed Booking ('+b.services.length+' services, '+totalUnits+' units)</span>'+
+          '<div class="ms-wrap" style="margin-top:10px;">';
+      if (coreServices.length) unitDetailsHtml+=buildServiceSectionHTML(coreServices,'core');
+      if (repairServices.length) unitDetailsHtml+=buildServiceSectionHTML(repairServices,'repair');
+      unitDetailsHtml+='<div class="ms-summary-bar">'+
+          '<div class="ms-summary-cell"><div class="ms-summary-label">Core Subtotal</div><div class="ms-summary-value">\u20B1'+coreSubtotal.toLocaleString()+'</div></div>'+
+          '<div class="ms-summary-cell"><div class="ms-summary-label">Repair Subtotal</div><div class="ms-summary-value">\u20B1'+repairSubtotal.toLocaleString()+'</div></div>'+
+          '<div class="ms-summary-cell"><div class="ms-summary-label">Grand Total</div><div class="ms-summary-value" style="color:#059669;">\u20B1'+(coreSubtotal+repairSubtotal).toLocaleString()+'</div></div>'+
+        '</div>'+
+      '</div></div></div>';
+    } else {
+      var unitRows='';
+      if (Array.isArray(b.services) && b.services.length) {
+        b.services.forEach(function(s,i){
+          var t=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'\u2014';
+          var bnd=s.brand||'\u2014';
+          var q=Number(s.quantity)||1;
+          var h=s.hpDescription||(s.hp?s.hp+' HP':'\u2014');
+          var sn=s.name||('Service '+(i+1));
+          var model=s.model||'\u2014';
+          var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+          var itemStatus=effectiveItemStatus(s);
+          var stBadge=itemStatus==='completed'?'background:#dcfce7;color:#166534;':s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+          unitRows+='<div style="padding:12px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+            '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+              '<div style="font-weight:600;font-size:0.82rem;color:#1e293b;">'+sn+'</div>'+
+              '<span style="'+stBadge+'padding:3px 8px;border-radius:6px;font-size:0.65rem;font-weight:600;">'+statusLabel(itemStatus)+'</span>'+
+            '</div>'+
+            '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px;">'+
+              '<div><span style="font-size:0.65rem;color:#64748b;">Type</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+t+'</div></div>'+
+              '<div><span style="font-size:0.65rem;color:#64748b;">Brand</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+bnd+'</div></div>'+
+              '<div><span style="font-size:0.65rem;color:#64748b;">Model</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+model+'</div></div>'+
+              '<div><span style="font-size:0.65rem;color:#64748b;">HP / Qty</span><div style="font-size:0.78rem;color:#334155;font-weight:500;">'+h+' / '+q+'</div></div>'+
+            '</div>'+
+            (issue?'<div style="margin-top:6px;"><span style="font-size:0.65rem;color:#64748b;">Problem</span><div style="font-size:0.75rem;color:#475569;line-height:1.4;">'+issue+'</div></div>':'')+
+          '</div>';
+        });
+      } else {
+        unitRows='<div style="margin-top:6px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">'+
+          '<div><span class="dv2-sub" style="font-size:0.65rem;color:#64748b;">Type</span><div class="dv2-value" style="font-size:0.8rem;">'+unitType+'</div></div>'+
+          '<div><span class="dv2-sub" style="font-size:0.65rem;color:#64748b;">Brand</span><div class="dv2-value" style="font-size:0.8rem;">'+unitBrand+'</div></div>'+
+          '<div><span class="dv2-sub" style="font-size:0.65rem;color:#64748b;">Quantity</span><div class="dv2-value" style="font-size:0.8rem;">'+unitQty+'</div></div>'+
+          '<div><span class="dv2-sub" style="font-size:0.65rem;color:#64748b;">HP Rating</span><div class="dv2-value" style="font-size:0.8rem;">'+unitHp+'</div></div>'+
+        '</div>';
+      }
+      unitDetailsHtml='<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-info-subtle"><i class="bi bi-box-seam text-info"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Unit Details'+((Array.isArray(b.services)&&b.services.length>1)?(' ('+b.services.length+' items)'):'')+'</span>'+
+          unitRows+
+        '</div>'+
+      '</div>';
+    }
+
+    var html='<div class="dv2-wrap">'+
+      '<div class="dv2-hero" style="border-left:4px solid '+heroColor+';">'+
+        '<div class="dv2-hero-main">'+
+          '<div class="dv2-hero-icon" style="background:'+heroBg+';color:'+heroColor+';"><i class="bi bi-file-earmark-text"></i></div>'+
+          '<div>'+
+            '<div class="dv2-hero-ref">Booking Reference</div>'+
+            '<div class="dv2-hero-title">#'+ref+'</div>'+
+            '<div class="dv2-hero-sub">'+serviceName+' &nbsp;\u00B7&nbsp; '+date+(time?' &nbsp;\u00B7&nbsp; '+time:'')+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="dv2-hero-side">'+
+          '<div class="dv2-hero-amount">\u20B1'+total.toLocaleString()+'</div>'+
+          '<span class="badge bg-'+statusColor+'" style="font-size:0.7rem;padding:6px 10px;">'+stL+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="dv2-grid">'+
+        '<div class="dv2-card">'+
+          '<div class="dv2-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div>'+
+          '<div class="dv2-card-content">'+
+            '<span class="dv2-label">Customer</span>'+
+            '<div class="dv2-value">'+(customer.name||'N/A')+'</div>'+
+            '<span class="dv2-sub">'+(customer.email||'')+'</span>'+
+            '<span class="dv2-sub">'+(customer.phone||'')+'</span>'+
+          '</div>'+
+        '</div>'+
+        '<div class="dv2-card">'+
+          '<div class="dv2-card-icon bg-success-subtle"><i class="bi bi-tools text-success"></i></div>'+
+          '<div class="dv2-card-content">'+
+            '<span class="dv2-label">Service & Schedule</span>'+
+            '<div class="dv2-value">'+serviceName+'</div>'+
+            '<span class="dv2-sub">'+date+'</span>'+
+            '<span class="dv2-sub">'+(time||'No time set')+'</span>'+
+          '</div>'+
+        '</div>'+
+        unitDetailsHtml+
+        ((b.technicianId||b.technician||data.assignment)?'<div class="dv2-card dv2-card-wide">'+
+          '<div class="dv2-card-icon bg-primary-subtle"><i class="bi bi-person-badge text-primary"></i></div>'+
+          '<div class="dv2-card-content">'+
+            '<span class="dv2-label">'+(data.assignment?'Technician Assignment':'Selected Technician')+'</span>'+
+            '<div class="dv2-value">'+((b.technicianId&&b.technicianId.name)||(b.technician&&b.technician.name)||(data.assignment&&data.assignment.technicianId&&data.assignment.technicianId.name)||'Assigned technician')+'</div>'+
+            '<span class="dv2-sub">'+(data.assignment?'Assignment: '+statusLabel(data.assignment.status):'No assignment has been dispatched yet')+'</span>'+
+            (data.assignment&&data.assignment.acceptanceDeadline&&data.assignment.status==='pending_acceptance'?'<span class="dv2-sub">Accept by '+new Date(data.assignment.acceptanceDeadline).toLocaleString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})+'</span>':'')+
+          '</div></div>':'')+
+        '<div class="dv2-card dv2-card-wide">'+
+          '<div class="dv2-card-icon bg-warning-subtle"><i class="bi bi-cash-stack text-warning"></i></div>'+
+          '<div class="dv2-card-content" style="width:100%;">'+
+            '<span class="dv2-label">Payment Breakdown</span>'+
+            '<div style="margin-top:6px;">'+paymentRows+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="dv2-card dv2-card-wide">'+
+          '<div class="dv2-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div>'+
+          '<div class="dv2-card-content">'+
+            '<span class="dv2-label">Service Location</span>'+
+            '<div class="dv2-value">'+(b.location?b.location.address:'N/A')+'</div>'+
+          '</div>'+
+        '</div>';
     if (isRepair&&b.unitInfo) {
-      html+='<div class="bd-compact-card bd-compact-card-wide"><div class="bd-compact-icon bg-info-subtle"><i class="bi bi-wrench text-info"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Unit Information</span><span class="bd-compact-value">'+(b.unitInfo.unitType||'')+' '+(b.unitInfo.brand||'')+' '+(b.unitInfo.model||'')+'</span>'+(b.unitInfo.problemDescription?'<span class="bd-compact-sub">'+b.unitInfo.problemDescription+'</span>':'')+'</div></div>';
+      html+='<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-info-subtle"><i class="bi bi-wrench text-info"></i></div>'+
+        '<div class="dv2-card-content">'+
+          '<span class="dv2-label">Unit Information</span>'+
+          '<div class="dv2-value">'+(b.unitInfo.unitType||'')+' '+(b.unitInfo.brand||'')+' '+(b.unitInfo.model||'')+'</div>'+
+          (b.unitInfo.problemDescription?'<span class="dv2-sub">'+b.unitInfo.problemDescription+'</span>':'')+
+        '</div>'+
+      '</div>';
     }
     if (b.issueDescription) {
-      html+='<div class="bd-compact-card bd-compact-card-wide"><div class="bd-compact-icon bg-danger-subtle"><i class="bi bi-exclamation-triangle text-danger"></i></div><div class="bd-compact-content"><span class="bd-compact-label">Issue Description</span><span class="bd-compact-value">'+b.issueDescription+'</span></div></div>';
+      html+='<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-danger-subtle"><i class="bi bi-exclamation-triangle text-danger"></i></div>'+
+        '<div class="dv2-card-content">'+
+          '<span class="dv2-label">Issue Description</span>'+
+          '<div class="dv2-value">'+b.issueDescription+'</div>'+
+        '</div>'+
+      '</div>';
     }
-    if (photos.length>0) {
-      html+='<div class="bd-compact-card bd-compact-card-wide"><div class="bd-compact-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div><div class="bd-compact-content" style="width:100%;"><span class="bd-compact-label">Payment Receipt / Photos ('+photos.length+')</span><div class="bd-photo-strip">';
-      photos.forEach(function(src,i){
-        html+='<div style="background:#f8fafc;padding:6px;border-radius:8px;border:1px solid #e2e8f0;flex:0 0 auto;"><img src="'+src+'" alt="Photo '+(i+1)+'" class="bd-photo-thumb" onclick="showImgLightbox(\''+src+'\')" onerror="this.closest(\'div\').innerHTML=\'Image unavailable\'"><div class="bd-photo-caption">Photo '+(i+1)+' \u00B7 Click to enlarge</div></div>';
+    if (isRepair && data.reservedParts && data.reservedParts.length) {
+      var reservedPartsHtml = '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-info-subtle"><i class="bi bi-box-seam text-info"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Reserved Parts</span>'+
+          '<div style="margin-top:6px;display:flex;flex-direction:column;gap:6px;">';
+      data.reservedParts.forEach(function(p){
+        reservedPartsHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+          '<div style="font-size:0.8rem;font-weight:600;">'+(p.itemName || (p.toolId && p.toolId.itemName) || 'Part')+'</div>'+
+          '<div style="font-size:0.75rem;color:#475569;">Qty '+(p.quantity || 1)+' · '+(p.status || 'reserved').replace(/_/g,' ')+'</div>'+
+        '</div>';
       });
-      html+='</div></div></div>';
+      reservedPartsHtml += '</div></div></div>';
+      html += reservedPartsHtml;
     }
-    html+='</div>';
+
+    // ── AUDIT TRAIL (statusHistory timeline) ──
+    if (b.statusHistory && b.statusHistory.length) {
+      var histSorted = b.statusHistory.slice().sort(function(x,y){
+        return new Date(x.timestamp||0)-new Date(y.timestamp||0);
+      });
+      var histItems = histSorted.map(function(h,i){
+        var isLast = i===histSorted.length-1;
+        var actor = h.changedByName || (h.changedBy && typeof h.changedBy==='object' && h.changedBy.name) || (h.changedByModel || 'System');
+        var when = h.timestamp ? new Date(h.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        var note = h.notes || h.reason || '';
+        var meta = h.metadata && h.metadata.type ? ' <span class="at-actor"><i class="bi bi-tag"></i>'+String(h.metadata.type).replace(/_/g,' ')+'</span>' : '';
+        return '<div class="at-item'+(isLast?' current':'')+'">'+
+          '<div class="at-dot"></div>'+
+          '<div class="at-head">'+
+            '<span class="at-status">'+statusLabel(h.toStatus)+'</span>'+
+            (h.fromStatus?'<span class="at-arrow"><i class="bi bi-arrow-right"></i></span><span class="at-prev">'+statusLabel(h.fromStatus)+'</span>':'')+
+          '</div>'+
+          (when?'<div class="at-meta">'+when+'</div>':'')+
+          '<div class="at-meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">'+
+            (actor?'<span class="at-actor"><i class="bi bi-person-fill"></i>'+actor+'</span>':'')+meta+
+          '</div>'+
+          (note?'<div class="at-note"><i class="bi bi-chat-left-text me-1"></i>'+note+'</div>':'')+
+        '</div>';
+      }).join('');
+      html += '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon" style="background:#f3e8ff;color:#7c3aed;"><i class="bi bi-clock-history"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Audit Trail · Status History</span>'+
+          '<div class="at-wrap">'+histItems+'</div>'+
+        '</div>'+
+      '</div>';
+    }
+
+    // ── TECHNICIAN INSPECTION & DIAGNOSIS ──
+    var insp = b.inspection || {};
+    var diag = b.diagnosis || {};
+    if (insp.findings || insp.severity || insp.recommendedAction || (insp.damagedParts && insp.damagedParts.length) || diag.diagnosisSummary || (diag.confirmedDiagnoses && diag.confirmedDiagnoses.length)) {
+      var sevBg='#f1f5f9', sevColor='#475569';
+      if (insp.severity==='critical'){sevBg='#fee2e2';sevColor='#b91c1c';}
+      else if (insp.severity==='major'){sevBg='#fef3c7';sevColor='#92400e';}
+      else if (insp.severity==='minor'){sevBg='#dbeafe';sevColor='#1e40af';}
+      var inspKv = '';
+      if (insp.severity) inspKv += '<div class="wf-kv-item"><span class="wf-kv-label">Severity</span><span class="wf-kv-value"><span class="wf-chip" style="background:'+sevBg+';color:'+sevColor+';">'+statusLabel(insp.severity)+'</span></span></div>';
+      if (insp.completedAt) inspKv += '<div class="wf-kv-item"><span class="wf-kv-label">Inspected At</span><span class="wf-kv-value">'+new Date(insp.completedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</span></div>';
+      if (diag.laborCost != null) inspKv += '<div class="wf-kv-item"><span class="wf-kv-label">Labor Cost</span><span class="wf-kv-value">₱'+Number(diag.laborCost).toLocaleString()+'</span></div>';
+      if (diag.laborDuration) inspKv += '<div class="wf-kv-item"><span class="wf-kv-label">Labor Duration</span><span class="wf-kv-value">'+diag.laborDuration+'</span></div>';
+      if (inspKv) inspKv = '<div class="wf-kv">'+inspKv+'</div>';
+      var inspDamaged = (insp.damagedParts && insp.damagedParts.length)? insp.damagedParts.map(function(p){return '<span class="wf-chip" style="background:#fee2e2;color:#b91c1c;"><i class="bi bi-bug-fill"></i>'+p+'</span>';}).join(' '):'';
+      var inspDiagChips = (diag.confirmedDiagnoses && diag.confirmedDiagnoses.length)? diag.confirmedDiagnoses.map(function(d){return '<span class="wf-chip" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-check2-circle"></i>'+d+'</span>';}).join(' '):'';
+      html += '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-primary-subtle"><i class="bi bi-search-heart text-primary"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Technician Inspection & Diagnosis</span>'+
+          (insp.findings?'<div class="dv2-value" style="margin-top:4px;">'+insp.findings+'</div>':'')+
+          (diag.diagnosisSummary?'<span class="dv2-sub" style="margin-top:4px;"><strong>Diagnosis:</strong> '+diag.diagnosisSummary+'</span>':'')+
+          (inspDamaged?'<div class="wf-list" style="flex-direction:row;flex-wrap:wrap;gap:6px;">'+inspDamaged+'</div>':'')+
+          (inspDiagChips?'<div class="wf-list" style="flex-direction:row;flex-wrap:wrap;gap:6px;">'+inspDiagChips+'</div>':'')+
+          (insp.recommendedAction?'<div class="wf-note-box"><i class="bi bi-lightbulb me-1"></i><strong>Recommended Action:</strong> '+insp.recommendedAction+'</div>':'')+
+          (inspKv||'')+
+        '</div>'+
+      '</div>';
+    }
+
+    // ── QUOTATION ──
+    var quot = b.quotation || {};
+    if (quot.totalCost != null || (quot.parts && quot.parts.length) || quot.laborCost != null || quot.notes) {
+      var quotRows = '';
+      (quot.parts || []).forEach(function(p){
+        var q=Number(p.quantity)||1, c=Number(p.cost)||0;
+        quotRows += '<div class="wf-list-row"><div><span class="wfl-name">'+(p.name||'Part')+'</span> <span class="wfl-meta">× '+q+'</span></div><div class="wfl-meta" style="font-weight:600;">₱'+(c*q).toLocaleString()+'</div></div>';
+      });
+      if (quot.laborCost != null) quotRows += '<div class="wf-list-row"><span class="wfl-name">Labor</span><span class="wfl-meta" style="font-weight:600;">₱'+Number(quot.laborCost).toLocaleString()+'</span></div>';
+      if (quotRows) quotRows = '<div class="wf-list">'+quotRows+'</div>';
+      html += '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon" style="background:#f3e8ff;color:#7c3aed;"><i class="bi bi-receipt-cutoff"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Quotation</span>'+
+          (quot.totalCost!=null?'<div class="dv2-value" style="color:#7c3aed;">₱'+Number(quot.totalCost).toLocaleString()+'</div>':'')+
+          (quotRows||'')+
+          (quot.notes?'<div class="wf-note-box" style="background:#f5f3ff;border-color:#ddd6fe;color:#5b21b6;"><i class="bi bi-chat-left-quote me-1"></i>'+quot.notes+'</div>':'')+
+        '</div>'+
+      '</div>';
+    }
+
+    // ── REPAIR COMPLETION / WORK LOG ──
+    var rc = b.repairCompletion || {};
+    if ((rc.partsInstalled && rc.partsInstalled.length) || (rc.actionsPerformed && rc.actionsPerformed.length) || rc.completionNotes) {
+      var rcRows = '';
+      (rc.partsInstalled || []).forEach(function(p){
+        rcRows += '<div class="wf-list-row"><div><span class="wfl-name">'+(p.name||'Part')+'</span> <span class="wfl-meta">× '+(Number(p.quantity)||1)+'</span></div><span class="wfl-meta">Installed</span></div>';
+      });
+      if (rcRows) rcRows = '<div class="wf-list">'+rcRows+'</div>';
+      var rcActions = (rc.actionsPerformed && rc.actionsPerformed.length)? rc.actionsPerformed.map(function(a){return '<span class="wf-chip" style="background:#ecfdf5;color:#047857;"><i class="bi bi-wrench-adjustable"></i>'+a+'</span>';}).join(' '):'';
+      html += '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-success-subtle"><i class="bi bi-clipboard-check text-success"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Work Performed & Completion</span>'+
+          (rc.completedAt?'<span class="dv2-sub">Completed '+(rc.completedAt?new Date(rc.completedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'')+'</span>':'')+
+          (rcRows||'')+
+          (rcActions?'<div class="wf-list" style="flex-direction:row;flex-wrap:wrap;gap:6px;">'+rcActions+'</div>':'')+
+          (rc.completionNotes?'<div class="wf-note-box" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534;"><i class="bi bi-chat-left-text me-1"></i>'+rc.completionNotes+'</div>':'')+
+        '</div>'+
+      '</div>';
+    }
+
+    // ── PAYMENT COLLECTION LEDGER (inspection fee / repair payment) ──
+    var payLedgerRows = '';
+    function fmtMoney(n){ return n==null?'—':'₱'+Number(n).toLocaleString(); }
+    function fmtDT(d){ return d? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'; }
+    if (!paymentList.some(function(pm){return pm.type==='inspection';}) && (b.inspectionFeeCollected || b.inspectionFeeTotalCollected || b.inspectionFeeAmount)) {
+      payLedgerRows += '<div class="wf-list-row"><div><span class="wfl-name">Inspection Fee'+(b.inspectionFeeMethod?' · '+String(b.inspectionFeeMethod).toUpperCase():'')+'</span><span class="wfl-meta">'+fmtDT(b.inspectionFeeCollectedAt)+'</span></div><span class="wfl-meta" style="font-weight:700;">'+fmtMoney(b.inspectionFeeTotalCollected||b.inspectionFeeAmount)+'</span></div>';
+    }
+    if (!paymentList.some(function(pm){return pm.type==='final';}) && (b.repairPaymentCollected || b.repairPaymentAmount)) {
+      payLedgerRows += '<div class="wf-list-row"><div><span class="wfl-name">Repair Payment'+(b.repairPaymentMethod?' · '+String(b.repairPaymentMethod).toUpperCase():'')+'</span><span class="wfl-meta">'+fmtDT(b.repairPaymentCollectedAt)+'</span></div><span class="wfl-meta" style="font-weight:700;">'+fmtMoney(b.repairPaymentAmount)+'</span></div>';
+    }
+    paymentList.forEach(function(pm){
+      var typeLabel=pm.type==='downpayment'?'Downpayment':pm.type==='inspection'?'Inspection Fee':pm.type==='final'?'Final Payment':'Payment Adjustment';
+      var paidAt=pm.collectedAt||pm.completedAt||pm.verifiedAt||pm.submittedAt;
+      payLedgerRows += '<div class="wf-list-row"><div><span class="wfl-name">'+typeLabel+(pm.method?' · '+String(pm.method).toUpperCase():'')+'</span><span class="wfl-meta">'+fmtDT(paidAt)+' · '+statusLabel(pm.status)+'</span>'+(pm.reference?'<span class="wfl-meta">Reference: '+pm.reference+'</span>':'')+'</div><span class="wfl-meta" style="font-weight:700;">'+fmtMoney(pm.amount)+'</span></div>';
+    });
+    if (!paymentList.length && b.downpaymentAmount && b.downpaymentAmount>0) {
+      payLedgerRows += '<div class="wf-list-row"><div><span class="wfl-name">Downpayment'+(b.paymentMethod?' · '+String(b.paymentMethod).toUpperCase():'')+'</span><span class="wfl-meta">'+fmtDT(b.createdAt)+'</span></div><span class="wfl-meta" style="font-weight:700;">'+fmtMoney(b.downpaymentAmount)+'</span></div>';
+    }
+    if (payLedgerRows) {
+      html += '<div class="dv2-card dv2-card-wide">'+
+        '<div class="dv2-card-icon bg-success-subtle"><i class="bi bi-cash-coin text-success"></i></div>'+
+        '<div class="dv2-card-content" style="width:100%;">'+
+          '<span class="dv2-label">Payment Collection Ledger</span>'+
+          '<div class="wf-list">'+payLedgerRows+'</div>'+
+          (!paymentList.length&&b.paymentReference?'<span class="dv2-sub" style="margin-top:8px;"><strong>Reference:</strong> '+b.paymentReference+'</span>':'')+
+          (b.gcashNumber?'<span class="dv2-sub"><strong>GCash:</strong> '+b.gcashNumber+'</span>':'')+
+        '</div>'+
+      '</div>';
+    }
+
+    html += photosHtml;
+    html += '</div></div>';
     return html;
   }
 
   window.showImgLightbox=function(src){
     var overlay=document.createElement('div');
     overlay.className='bd-lightbox-overlay';
+    overlay.style.zIndex='999999';
     overlay.innerHTML='<div class="bd-lightbox-content"><button class="bd-lightbox-close">&times;</button><img src="'+src+'" alt="Enlarged" onerror="this.parentElement.innerHTML=\'Image unavailable\'"></div>';
     overlay.addEventListener('click',function(e){ if(e.target===overlay){ overlay.remove(); } });
     overlay.querySelector('.bd-lightbox-close').addEventListener('click',function(){ overlay.remove(); });
     document.body.appendChild(overlay);
+  };
+
+  window.showImgLightboxIndex=function(idx){
+    var photos=window._modalPhotos||[];
+    if (!photos[idx]) return;
+    showImgLightbox(photos[idx].src);
   };
 
   var loaded={overview:false,pending:false,queue:false,waiting:false,active:false,completed:false};
@@ -1685,8 +2321,8 @@
   function loadTab(tab){
     switch(tab){
       case'overview':AU.Overview.load();break;
-      case'pending':AU.Pending.load();AU.Pending.loadRepairStats();AU.Pending.loadRepairRequests();break;
-      case'queue':AU.Queue.loadStats();AU.Queue.loadQueue(1);break;
+      case'pending':AU.Pending.load();break;
+      case'queue':AU.Queue.loadStats();AU.Queue.loadWarnings();AU.Queue.loadQueue(1);break;
       case'waiting':loadWaitingAcceptTab();break;
       case'active':AU.Active.load();break;
       case'completed':AU.Completed.load();break;
@@ -1799,12 +2435,19 @@
   var _overviewSearchTimeout=null;
 
   AU.Overview.load=function(){
-    var date=(document.getElementById('filterDate')||{}).value||'';
+    var startDate=(document.getElementById('filterStartDate')||{}).value||'';
+    var endDate=(document.getElementById('filterEndDate')||{}).value||'';
+    var statsUrl='/api/admin/appointments/flow-stats';
+    var dateParams='';
+    if(startDate||endDate){
+      dateParams='?'+(startDate?'start='+startDate:'')+(startDate&&endDate?'&':'')+(endDate?'end='+endDate:'');
+    }
+    var listDate=startDate||endDate||'';
     Promise.all([
-      fetch('/api/admin/appointments/flow-stats').then(function(r){return r.json();}),
-      fetch('/api/admin/appointments/list?page=1&limit='+_ovLimit+'&date='+date).then(function(r){return r.json();})
+      fetch(statsUrl+dateParams).then(function(r){return r.json();}),
+      fetch('/api/admin/appointments/list?page=1&limit='+_ovLimit+(listDate?'&date='+listDate:'')).then(function(r){return r.json();})
     ]).then(function(res){
-      AU.Overview.renderPipeline(res[0].stages);
+      AU.Overview.renderPipeline(res[0].statusCounts||{});
       AU.Overview.renderKPIs(res[0]);
       AU.Overview.renderTable(res[1].bookings);
       AU.Overview.renderPagination(res[1].pagination);
@@ -1814,9 +2457,12 @@
   AU.Overview.loadRecent=function(page){
     page=page||1;
     var status=(document.getElementById('statusFilter')||{}).value||'';
-    var date=(document.getElementById('filterDate')||{}).value||'';
+    var startDate=(document.getElementById('filterStartDate')||{}).value||'';
+    var endDate=(document.getElementById('filterEndDate')||{}).value||'';
     var search=(document.getElementById('overviewSearchInput')||{}).value||'';
-    fetch('/api/admin/appointments/list?page='+page+'&limit='+_ovLimit+'&status='+status+'&date='+date+'&search='+encodeURIComponent(search))
+    var dateParam='';
+    if(startDate&&endDate){dateParam='&date='+startDate;}else if(startDate){dateParam='&date='+startDate;}else if(endDate){dateParam='&date='+endDate;}
+    fetch('/api/admin/appointments/list?page='+page+'&limit='+_ovLimit+'&status='+status+'&search='+encodeURIComponent(search)+dateParam)
     .then(function(r){return r.json();}).then(function(data){
       AU.Overview.renderTable(data.bookings);
       AU.Overview.renderPagination(data.pagination);
@@ -1828,10 +2474,10 @@
     _overviewSearchTimeout=setTimeout(function(){AU.Overview.loadRecent(1);},300);
   };
 
-  AU.Overview.renderPipeline=function(stages){
+  AU.Overview.renderPipeline=function(statusCounts){
     var el=document.getElementById('pipeline');if(!el)return;
     el.innerHTML=PIPELINE_STAGES.map(function(s,i){
-      var count=(stages[s.key]||{}).count||0;
+      var count=(statusCounts[s.key]||0);
       return '<div class="pipeline-stage '+(count>0?'pipeline-active':'')+'"><div class="pipeline-icon" style="background:'+s.bg+';color:'+s.color+';"><i class="bi '+s.icon+'"></i></div><div class="pipeline-label">'+s.label+'</div><div class="pipeline-count">'+count+'</div></div>'+
         (i<PIPELINE_STAGES.length-1?'<div style="flex:0 0 20px;text-align:center;color:#cbd5e1;font-size:1.2rem;margin-top:14px;"><i class="bi bi-chevron-right"></i></div>':'');
     }).join('');
@@ -1839,22 +2485,30 @@
 
   AU.Overview.renderKPIs=function(stats){
     var s=stats.stages||{};
-    var today=stats.summary?stats.summary.todayBookings||0:0;
+    var sum=stats.summary||{};
+    var today=sum.todayBookings||0;
+    var total=sum.allTimeBookings||sum.totalBookings||0;
     var pending=s.PENDING_REVIEW?s.PENDING_REVIEW.count||0:0;
     var active=s.ACTIVE_JOBS?s.ACTIVE_JOBS.count||0:0;
-    var revenue=stats.summary?stats.summary.todayRevenue||0:0;
-    document.getElementById('kpiToday').textContent=today;
+    var revenue=sum.totalRevenue||0;
+    var filteredRevenue=sum.filteredRevenue||0;
+    var dateFilter=(document.getElementById('filterStartDate')||{}).value||(document.getElementById('filterEndDate')||{}).value;
+    var displayRevenue=(dateFilter&&filteredRevenue)?filteredRevenue:revenue;
+    document.getElementById('kpiToday').textContent=total;
     document.getElementById('kpiPending').textContent=pending;
     document.getElementById('kpiActive').textContent=active;
-    document.getElementById('kpiRevenue').textContent='\u20B1'+revenue.toLocaleString();
+    document.getElementById('kpiRevenue').textContent='\u20B1'+displayRevenue.toLocaleString();
     // Hero stats
-    var hToday=document.getElementById('heroToday');if(hToday)hToday.textContent=today;
+    var hToday=document.getElementById('heroToday');if(hToday)hToday.textContent=total;
     var hPending=document.getElementById('heroPending');if(hPending)hPending.textContent=pending;
     var hActive=document.getElementById('heroActive');if(hActive)hActive.textContent=active;
-    var hRevenue=document.getElementById('heroRevenue');if(hRevenue)hRevenue.textContent='\u20B1'+revenue.toLocaleString();
+    var hRevenue=document.getElementById('heroRevenue');if(hRevenue)hRevenue.textContent='\u20B1'+displayRevenue.toLocaleString();
     // Tab badges
     var tp=document.getElementById('tabPendingBadge');if(tp)tp.textContent=pending>0?pending:'';
     var ta=document.getElementById('tabActiveBadge');if(ta)ta.textContent=active>0?active:'';
+    // KPI labels
+    var kpiTodayLabel=document.querySelector('#kpiToday')?.closest('.au-kpi-card')?.querySelector('.au-kpi-sub');
+    if(kpiTodayLabel) kpiTodayLabel.textContent=dateFilter?'Filtered bookings':'All bookings';
   };
 
   AU.Overview.renderTable=function(bookings){
@@ -1892,6 +2546,7 @@
   AU.Overview.viewDetail=function(id){
     fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
+      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
       new bootstrap.Modal(document.getElementById('detailModal')).show();
@@ -1900,7 +2555,7 @@
 
   // â•â•â• PENDING â•â•â•
   AU.Pending={};
-  var _pdPage=1,_pdLimit=15,_pdAll=[],_rqAll=[];
+  var _pdPage=1,_pdLimit=10,_pdAll=[],_rqAll=[];
 
   AU.Pending.load=function(){
     Promise.all([
@@ -1915,13 +2570,15 @@
 
   AU.Pending.applyFilters=function(page){
     page=page||1;
+    var serviceType=(document.getElementById('filterServiceType')||{}).value||'';
     var ps=(document.getElementById('filterPaymentStatus')||{}).value||'';
     var pm=(document.getElementById('filterPaymentMethod')||{}).value||'';
     var dr=(document.getElementById('filterDateRange')||{}).value||'';
     var sort=(document.getElementById('filterSort')||{}).value||'newest';
-    var hasF=ps||pm||dr;
+    var hasF=serviceType||ps||pm||dr;
     var cb=document.getElementById('clearFiltersBtn');if(cb)cb.classList.toggle('d-none',!hasF);
     var f=_pdAll.slice();
+    if(serviceType) f=f.filter(function(b){return AU.Pending.getServiceType(b)===serviceType;});
     if(ps) f=f.filter(function(b){return b.paymentStatus===ps;});
     if(pm) f=f.filter(function(b){return(b.paymentMethod||'').toLowerCase()===pm;});
     if(dr){
@@ -1950,6 +2607,7 @@
     _pdPage=Math.min(page,tp);
     var s=(_pdPage-1)*_pdLimit;
     AU.Pending.renderTable(f.slice(s,s+_pdLimit));
+    var resultCount=document.getElementById('resultCount');if(resultCount)resultCount.textContent=ti;
     AU.Pending.renderPagination({page:_pdPage,limit:_pdLimit,total:ti,pages:tp});
   };
 
@@ -1964,26 +2622,53 @@
     var tbody=document.getElementById('bookingsTableBody');
     var rc=document.getElementById('resultCount');if(rc)rc.textContent=bookings.length;
     if(!tbody)return;
-    if(!bookings.length){tbody.innerHTML='<tr><td colspan="7" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
+    if(!bookings.length){tbody.innerHTML='<tr><td colspan="8" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
     tbody.innerHTML=bookings.map(function(b){
       var dt=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       var isCOD=b.paymentMethod==='cod';
       var tot=b.totalPrice||b.estimatedFee||0;
       var dp=b.downpaymentAmount||(isCOD?400:0);
-      var bal=b.balanceAmount>0?b.balanceAmount:(isCOD?Math.max(0,tot-dp):0);
+      var bal=isCOD?Math.max(0,tot-dp):0;
       var pl=b.paymentStatus==='paid'?'Paid in Full':b.paymentStatus==='partial'?'Downpayment Only':'Pending';
       var pc=b.paymentStatus==='paid'?'payment-paid':b.paymentStatus==='partial'?'payment-partial':'payment-pending';
+      var serviceType=AU.Pending.getServiceType(b);
+      var typeMeta=serviceType==='mixed'?{label:'Mixed',icon:'bi-layers',style:'background:#ede9fe;color:#6d28d9;'}:serviceType==='repair'?{label:'Repair',icon:'bi-wrench-adjustable-circle',style:'background:#fef3c7;color:#92400e;'}:{label:'Core',icon:'bi-gear-wide-connected',style:'background:#dbeafe;color:#1e40af;'};
+      var serviceDetails=AU.Pending.getServiceDetails(b);
       return '<tr><td><code class="small">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></td>'+
         '<td><div class="fw-semibold small">'+(b.customer?b.customer.name:'N/A')+'</div><div class="text-muted" style="font-size:0.7rem;">'+(b.customer?b.customer.email:'')+'</div></td>'+
-        '<td><span class="small">'+(b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A')))+'</span></td>'+
+        '<td><span class="badge" style="'+typeMeta.style+'"><i class="bi '+typeMeta.icon+' me-1"></i>'+typeMeta.label+'</span></td>'+
+        '<td>'+serviceDetails+'</td>'+
         '<td><span class="small">'+dt+'</span></td>'+
         '<td><div class="fw-semibold">\u20B1'+tot.toLocaleString()+'</div>'+(isCOD?'<div style="font-size:0.7rem;color:#64748b;">DP \u20B1'+dp.toLocaleString()+' + Bal \u20B1'+bal.toLocaleString()+'</div>':'')+'</td>'+
         '<td><span class="payment-badge '+pc+'">'+pl+'</span>'+(isCOD&&b.paymentStatus!=='paid'?'<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>':'')+'</td>'+
         '<td class="text-center"><div class="d-flex gap-1 justify-content-center">'+
-        '<button class="au-btn au-btn-ghost action-btn" onclick="AU.Pending.viewDetail(\''+b._id+'\')" title="View Details"><i class="bi bi-eye"></i></button>'+
+        '<button class="au-btn au-btn-ghost action-btn" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye"></i></button>'+
         '<button class="au-btn au-btn-success action-btn" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg"></i> Verify</button>'+
         '<button class="au-btn au-btn-danger action-btn" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg"></i></button>'+
         '</div></td></tr>';
+    }).join('');
+  };
+
+  AU.Pending.getServiceType=function(b){
+    var items=Array.isArray(b.services)?b.services:[];
+    var hasRepair=items.some(function(s){return String(s.type||'').toLowerCase()==='repair';});
+    var hasCore=items.some(function(s){return String(s.type||'').toLowerCase()!=='repair';});
+    if((hasCore&&hasRepair)||String(b.serviceType||'').toLowerCase()==='mixed')return'mixed';
+    if(hasRepair||String(b.serviceType||'').toLowerCase()==='repair'||b.serviceModel==='RepairService')return'repair';
+    return'core';
+  };
+
+  AU.Pending.getServiceDetails=function(b){
+    var items=Array.isArray(b.services)&&b.services.length?b.services:[b.service||{}];
+    return items.map(function(s,index){
+      var itemType=String(s.type||'').toLowerCase();
+      var type=itemType==='repair'||(!itemType&&AU.Pending.getServiceType(b)==='repair')?'Repair':'Core';
+      var name=s.name||s.applianceTypeName||s.applianceType||(type==='Repair'?'Repair Service':'Service');
+      var unit=[s.brand,s.model,s.hpDescription||s.hp].filter(Boolean).join(' / ');
+      var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
+      return '<div class="'+(index?'mt-2 pt-2 border-top':'')+'"><div class="small fw-semibold">'+qEsc(name)+' <span class="text-muted fw-normal">('+type+')</span></div>'+
+        (unit?'<div class="text-muted" style="font-size:0.7rem;">'+qEsc(unit)+'</div>':'')+
+        (issue?'<div class="text-muted text-truncate" style="font-size:0.7rem;max-width:260px;" title="'+qEsc(issue)+'"><i class="bi bi-exclamation-circle me-1"></i>'+qEsc(issue)+'</div>':'')+'</div>';
     }).join('');
   };
 
@@ -2038,6 +2723,7 @@
   };
 
   AU.Pending.clearFilters=function(){
+    document.getElementById('filterServiceType').value='';
     document.getElementById('filterPaymentStatus').value='';
     document.getElementById('filterPaymentMethod').value='';
     document.getElementById('filterDateRange').value='';
@@ -2045,13 +2731,26 @@
     AU.Pending.applyFilters(1);
   };
 
-  AU.Pending.viewDetail=function(id){
+  AU.Pending.viewDetail=function(id, btn){
+    if (btn) { if (btn.disabled) return; btn.disabled = true; }
+    document.getElementById('detailTitle').textContent='Booking Details';
+    document.getElementById('detailModalSubtitle').textContent='Loading...';
+    document.getElementById('detailBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary mb-2" role="status"></div><p class="text-muted small mb-0">Loading booking details...</p></div>';
+    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
+    modal.show();
     fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
+      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Booking not found</div>';return;}
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
+      document.getElementById('detailModalSubtitle').textContent='Complete booking information';
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
-    }).catch(function(){showNotification({type:'error',title:'Error',message:'Failed to load booking details.',duration:4000});});
+    }).catch(function(e){
+      console.error(e);
+      document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Failed to load booking details. Please try again.</div>';
+      showNotification({type:'error',title:'Error',message:'Failed to load booking details.',duration:4000});
+    }).finally(function(){
+      if (btn) btn.disabled = false;
+    });
   };
 
   AU.Pending.loadRepairStats=function(){
@@ -2191,12 +2890,12 @@
     var priority=document.getElementById('rqAssignPriority').value;
     var notes=document.getElementById('rqAssignNotes').value;
     if(!techId||!date){showNotification({type:'warning',title:'Required',message:'Please select a technician and date.',duration:3000});return;}
-    fetch('/api/admin/repair-queue/'+id+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:techId,inspectionDate:date,inspectionTime:time,priority:priority,notes:notes})})
-    .then(function(r){return r.json();}).then(function(){
+    fetch('/api/admin/repair-queue/'+id+'/assign-technician',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:techId,scheduledDate:date,scheduledTime:time,priority:priority,notes:notes})})
+    .then(function(r){return r.json().then(function(data){if(!r.ok)throw new Error(data.error||'Failed to assign technician.');return data;});}).then(function(){
       bootstrap.Modal.getInstance(document.getElementById('rqAssignModal')).hide();
       showNotification({type:'success',title:'Technician Assigned',message:'Technician has been assigned successfully.',duration:4000});
       AU.Pending.loadRepairRequests();
-    }).catch(function(){showNotification({type:'error',title:'Error',message:'Failed to assign technician.',duration:5000});});
+    }).catch(function(err){showNotification({type:'error',title:'Error',message:err.message||'Failed to assign technician.',duration:5000});});
   };
 
   AU.Pending.viewRepairDetail=function(id){
@@ -2209,14 +2908,56 @@
       document.getElementById('detailTitle').textContent='Repair '+refText;
       document.getElementById('detailModalSubtitle').textContent=refText;
       var issue=b.issueDescription||(b.unitInfo?b.unitInfo.problemDescription:'No description');
-      var unit=((b.unitInfo?b.unitInfo.unitType:'')||'')+' '+((b.unitInfo?b.unitInfo.brand:'')||'')+' '+((b.unitInfo?b.unitInfo.model:'')||'');
       var addr=(b.location&&typeof b.location.address==='string'?b.location.address:'')||'\u2014';
+      var unitType=(b.unitInfo?b.unitInfo.unitType:'')||b.applianceTypeName||b.applianceType||'\u2014';
+      var unitBrand=(b.unitInfo?b.unitInfo.brand:'')||b.brand||'\u2014';
+      var unitModel=(b.unitInfo?b.unitInfo.model:'')||'\u2014';
+      var unitQty=b.quantity||1;
+      var photos=[];
+      if(b.paymentProof) photos.push(b.paymentProof);
+      if(b.imageUrl) photos.push(b.imageUrl);
+      if(b.unitInfo&&Array.isArray(b.unitInfo.photos)) b.unitInfo.photos.forEach(function(p){if(p)photos.push(p);});
+      var photosHtml='';
+      if(photos.length){
+        photosHtml='<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div><div class="ent-detail-card-content" style="width:100%;"><span class="ent-detail-label">Payment Proof / Photos ('+photos.length+')</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">'+photos.map(function(src,i){return '<div style="position:relative;"><img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="showImgLightbox(\''+src+'\')" onerror="this.parentElement.innerHTML=\'Image unavailable\'"><div style="font-size:0.65rem;color:#64748b;text-align:center;">'+(i+1)+'</div></div>';}).join('')+'</div></div></div>';
+      }
       body.innerHTML='<div class="ent-detail-grid">'+
-        '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Customer</span><span class="ent-detail-value">'+(b.customer?b.customer.name:'N/A')+'</span><span class="ent-detail-sub">'+(b.customer?b.customer.phone:'\u2014')+'</span></div></div>'+
-        '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-wrench text-warning"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Unit & Issue</span><span class="ent-detail-value">'+unit.trim()+'</span><span class="ent-detail-sub">'+issue+'</span></div></div>'+
+        '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Customer</span><span class="ent-detail-value">'+(b.customer?b.customer.name:'N/A')+'</span><span class="ent-detail-sub">'+(b.customer?b.customer.phone:'\u2014')+' | '+(b.customer?b.customer.email:'')+'</span></div></div>'+
         '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-calendar-event text-success"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Schedule</span><span class="ent-detail-value">'+(b.preferredDate?formatDate(b.preferredDate):'\u2014')+'</span><span class="ent-detail-sub">'+(b.preferredTime||'\u2014')+'</span></div></div>'+
-        '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Location</span><span class="ent-detail-value">'+addr+'</span></div></div>'+
+        '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-wrench text-info"></i></div><div class="ent-detail-card-content" style="width:100%;"><span class="ent-detail-label">Unit Information'+((Array.isArray(b.services)&&b.services.length>1)?(' ('+b.services.length+' items)'):'')+'</span>'+
+          (Array.isArray(b.services)&&b.services.length?b.services.map(function(s,i){
+            var st=s.applianceTypeName||s.airconTypeName||s.applianceType||s.airconType||'\u2014';
+            var sb=s.brand||'\u2014';
+            var sm=s.model||'\u2014';
+            var sq=Number(s.quantity)||1;
+            var sh=s.hpDescription||(s.hp?s.hp+' HP':'');
+            var sn=s.name||('Service '+(i+1));
+            var issue2=s.problemDescription||s.repairIssue||'';
+            return '<div style="padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5);">'+
+              '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+                '<div style="font-weight:600;font-size:0.82rem;color:#1e293b;">'+sn+'</div>'+
+                '<span style="background:'+(s.status==='completed'?'#dcfce7;color:#166534;':'#dbeafe;color:#1e40af;')+'padding:3px 8px;border-radius:6px;font-size:0.65rem;font-weight:600;">'+(s.status||'pending').replace(/_/g,' ')+'</span>'+
+              '</div>'+
+              '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px;">'+
+                '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Type</span><div class="ent-detail-value" style="font-size:0.78rem;">'+st+'</div></div>'+
+                '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Brand</span><div class="ent-detail-value" style="font-size:0.78rem;">'+sb+'</div></div>'+
+                '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Model</span><div class="ent-detail-value" style="font-size:0.78rem;">'+sm+'</div></div>'+
+                '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">HP / Qty</span><div class="ent-detail-value" style="font-size:0.78rem;">'+(sh?sh:'\u2014')+' / '+sq+'</div></div>'+
+              '</div>'+
+              (issue2?'<div style="margin-top:4px;"><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Problem</span><div style="font-size:0.75rem;color:#475569;line-height:1.4;">'+issue2+'</div></div>':'')+
+            '</div>';
+          }).join(''):
+          '<div style="margin-top:6px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">'+
+            '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Type</span><div class="ent-detail-value" style="font-size:0.8rem;">'+unitType+'</div></div>'+
+            '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Brand</span><div class="ent-detail-value" style="font-size:0.8rem;">'+unitBrand+'</div></div>'+
+            '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Model</span><div class="ent-detail-value" style="font-size:0.8rem;">'+unitModel+'</div></div>'+
+            '<div><span class="ent-detail-sub" style="font-size:0.65rem;color:#64748b;">Quantity</span><div class="ent-detail-value" style="font-size:0.8rem;">'+unitQty+'</div></div>'+
+          '</div>')+
+        '</div></div>'+
+        '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-warning-subtle"><i class="bi bi-exclamation-triangle text-warning"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Issue / Problem</span><span class="ent-detail-value">'+issue+'</span></div></div>'+
+        '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Location</span><span class="ent-detail-value">'+addr+'</span></div></div>'+
         '</div>'+
+        photosHtml+
         '<div class="pm-footer">'+
         (b.status==='repair_requested'?'<button class="btn btn-outline-danger btn-sm" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Pending.openRejectRepair(\''+b._id+'\');},300);"><i class="bi bi-x-lg me-1"></i>Reject</button><button class="btn btn-success btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Pending.approveRepairRequest(\''+b._id+'\');},300);"><i class="bi bi-check-lg me-1"></i>Approve & Queue</button>':'')+
                 '<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button></div>';
@@ -2225,7 +2966,7 @@
 
   // â•â•â• QUEUE â•â•â•
   AU.Queue={};
-  var _qCurrentBookingId=null,_qSelectedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[];
+  var _qCurrentBookingId=null,_qSelectedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[];
 
   AU.Queue.loadStats=function(){
     Promise.all([
@@ -2264,12 +3005,18 @@
         var isEsc=b.escalated||rc>=3;
         var hist=b.cancellationHistory||[];
         var last=hist.length>0?hist[hist.length-1]:null;
-        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+statusLabel(b.status)+'</span></div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
-        (b.status==='pending_reassignment'?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 Previous technician '+(last?last.action:'declined')+' this job.</div>':'')+
-        (hist.length>0?'<div class="aq-cancel-history"><div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>'+hist.slice(-3).reverse().map(function(h){return '<div class="aq-cancel-history-item"><span class="action-badge action-'+h.action+'">'+h.action+'</span><span><strong>'+h.technicianName+'</strong> \u2014 '+(h.reason||'No reason')+' <small class="text-muted">'+new Date(h.timestamp).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</small></span></div>';}).join('')+'</div>':'')+
-        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button><button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+(b.customer?b.customer.name:'').replace(/'/g,"\\'")+'\',\''+((b.service?b.service.name:'')||(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'')).replace(/'/g,"\\'")+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Assign Technician</button></div>':'')+
+        var overdue=!!b.autoReschedulePending;
+        var custName=(b.customer?b.customer.name:'').replace(/'/g,"\\'");
+        var servName=((b.service?b.service.name:'')||(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'')).replace(/'/g,"\\'");
+        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(overdue?'<span class="aq-overdue-badge"><i class="bi bi-alarm-fill"></i>Overdue — Reschedule</span>':'')+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+statusLabel(b.status)+'</span></div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
+        (overdue?'<div class="aq-reassign-alert aq-overdue-alert"><i class="bi bi-alarm me-1"></i><strong>Exceeded Schedule</strong> \u2014 No technician was assigned before the scheduled time. Reschedule this appointment.</div>':'')+
+        (b.status==='pending_reassignment'&&!overdue?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 Previous technician '+(last?last.action:'declined')+' this job.</div>':'')+
+        (hist.length>0?'<div class="aq-cancel-history"><div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>'+hist.slice(-3).reverse().map(function(h){return '<div class="aq-cancel-history-item"><span class="action-badge action-'+(h.action==='auto_reschedule'?'reassigned':h.action)+'">'+h.action+'</span><span><strong>'+h.technicianName+'</strong> \u2014 '+(h.reason||'No reason')+' <small class="text-muted">'+new Date(h.timestamp).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</small></span></div>';}).join('')+'</div>':'')+
+        (canAssign&&!overdue?'<div id="aqRec-'+b._id+'" class="border rounded-3 p-3 mt-3" style="background:#f8fafc"><div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div></div>':'')+
+        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?'<button class="au-btn au-btn-danger" onclick="AU.Queue.openReschedule(\''+b._id+'\',\''+custName+'\',\''+servName+'\')" style="font-size:0.75rem;"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>':'')+'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button></div>':'')+
         '</div>';
       }).join('');
+      AU.Queue.loadRecommendations();
       var pag=data.pagination||{};
       if(pag.pages>1){
         var pg='<ul class="pagination pagination-sm">';
@@ -2278,6 +3025,150 @@
         document.getElementById('aqPagination').innerHTML=pg;
       }else document.getElementById('aqPagination').innerHTML='';
     }).catch(function(){container.innerHTML='<div class="alert alert-danger">Failed to load queue</div>';});
+  };
+
+  function qEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+  AU.Queue.loadRecommendations=function(){
+    var filter=document.getElementById('aqFilterStatus')?.value||'awaiting_assignment';
+    var statuses=filter==='all_active'?'awaiting_assignment,pending_reassignment':filter;
+    fetch('/api/admin/appointments/assignment-plan?status='+encodeURIComponent(statuses)).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(data){
+      _qRecommendations={};
+      (data.plan||[]).forEach(function(row){
+        _qRecommendations[row.bookingId]=row;
+        var el=document.getElementById('aqRec-'+row.bookingId);if(!el)return;
+        if(!row.recommended){el.innerHTML='<div class="text-warning small"><i class="bi bi-exclamation-triangle me-1"></i>No conflict-free technician is currently available.</div>';return;}
+        var r=row.recommended;
+        el.innerHTML='<div class="d-flex justify-content-between gap-3 flex-wrap"><div><div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended Technician</div><div class="fw-bold fs-6 mt-1">⭐ '+qEsc(r.name)+' <span class="badge bg-primary-subtle text-primary ms-1">Score '+r.score+'</span></div><ul class="small text-muted mb-0 mt-1 ps-3">'+r.reasons.slice(0,4).map(function(x){return'<li>'+qEsc(x)+'</li>';}).join('')+'</ul></div><button class="au-btn au-btn-primary align-self-center" onclick="AU.Queue.assignRecommended(\''+row.bookingId+'\')"><i class="bi bi-check2-circle me-1"></i>Assign Recommended</button></div>';
+      });
+      document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){var id=el.id.slice(6);if(!_qRecommendations[id])el.innerHTML='<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>No recommendation available for this booking.</div>';});
+    }).catch(function(){document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){el.innerHTML='<div class="small text-danger">Recommendation could not be loaded.</div>';});});
+  };
+
+  AU.Queue.assignRecommended=function(bookingId){
+    var row=_qRecommendations[bookingId];if(!row||!row.recommended)return;
+    var r=row.recommended;
+    var details=(r.reasons||[]).map(function(x){return '• '+x;}).join('\n');
+    if(!window.confirm('Assign '+r.name+' and notify the technician?'+(details?'\n\nWhy recommended:\n'+details:'')))return;
+    var button=document.querySelector('[onclick="AU.Queue.assignRecommended(\''+bookingId+'\')"]');
+    var original=button?button.innerHTML:'';
+    if(button){button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';}
+    fetch('/api/admin/appointments/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:[{bookingId:bookingId,technicianId:r.technicianId}],responseMinutes:30})}).then(function(resp){return resp.json().then(function(d){if(!resp.ok||!d.assigned)throw new Error(d.results?.[0]?.error||d.error||'Assignment failed');return d;});}).then(function(){showNotification({type:'success',title:'Technician Assigned',message:r.name+' was notified.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message,duration:5000});if(button){button.disabled=false;button.innerHTML=original;}});
+  };
+
+  AU.Queue.openBulkPlan=function(){
+    _qBulkPlan=[];document.getElementById('bulkPlanSummary').innerHTML='';document.getElementById('bulkPlanBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload and travel...</p></div>';
+    new bootstrap.Modal(document.getElementById('bulkAssignmentModal')).show();
+    fetch('/api/admin/appointments/assignment-plan').then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(d){_qBulkPlan=d.plan||[];AU.Queue.renderBulkPlan();}).catch(function(e){document.getElementById('bulkPlanBody').innerHTML='<div class="alert alert-danger">'+qEsc(e.message)+'</div>';});
+  };
+
+  AU.Queue.renderBulkPlan=function(){
+    var body=document.getElementById('bulkPlanBody');
+    if(!_qBulkPlan.length){body.innerHTML='<div class="text-center text-muted py-5"><i class="bi bi-check-circle fs-1"></i><p class="mt-2">No unassigned standard bookings.</p></div>';return;}
+    body.innerHTML='<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Booking</th><th>Schedule</th><th>Recommended Assignment</th><th>Why</th></tr></thead><tbody>'+_qBulkPlan.map(function(row,i){
+      if(!row.candidates.length)return'<tr><td><strong>'+qEsc(row.bookingReference)+'</strong><br><small>'+qEsc(row.customerName)+'</small></td><td>'+formatDate(row.bookingDate)+' '+formatTime(row.startTime)+'</td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>';
+      return'<tr><td><strong>'+qEsc(row.bookingReference)+'</strong><br><small>'+qEsc(row.customerName)+' · '+qEsc(row.serviceName)+'</small></td><td>'+formatDate(row.bookingDate)+'<br><small>'+formatTime(row.startTime)+'</small></td><td><select class="form-select form-select-sm bulk-tech-select" data-index="'+i+'" onchange="AU.Queue.renderBulkSummary()">'+row.candidates.map(function(c,j){return'<option value="'+c.technicianId+'" '+(j===0?'selected':'')+'>'+qEsc(c.name)+(j===0?' ⭐':'')+' — score '+c.score+'</option>';}).join('')+'</select></td><td class="small text-muted">'+row.recommended.reasons.slice(0,3).map(function(x){return'<div><i class="bi bi-check2 text-success"></i> '+qEsc(x)+'</div>';}).join('')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+    AU.Queue.renderBulkSummary();
+  };
+
+  AU.Queue.renderBulkSummary=function(){
+    var groups={};document.querySelectorAll('.bulk-tech-select').forEach(function(sel){var row=_qBulkPlan[Number(sel.dataset.index)];var c=row.candidates.find(function(x){return x.technicianId===sel.value;});if(!c)return;(groups[c.name]||(groups[c.name]=[])).push(row.bookingReference);});
+    document.getElementById('bulkPlanSummary').innerHTML=Object.keys(groups).map(function(name){return'<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="fw-bold"><i class="bi bi-person-check-fill text-primary me-1"></i>'+qEsc(name)+'</div><div class="small text-muted mt-1">'+groups[name].map(qEsc).join(' · ')+'</div><span class="badge bg-primary-subtle text-primary mt-2">'+groups[name].length+' booking'+(groups[name].length===1?'':'s')+'</span></div></div>';}).join('');
+  };
+
+  AU.Queue.confirmBulkPlan=function(){
+    var assignments=[];document.querySelectorAll('.bulk-tech-select').forEach(function(sel){var row=_qBulkPlan[Number(sel.dataset.index)];assignments.push({bookingId:row.bookingId,technicianId:sel.value});});if(!assignments.length)return;
+    var btn=document.getElementById('confirmBulkPlanBtn');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Validating & assigning...';
+    fetch('/api/admin/appointments/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:assignments,responseMinutes:Number(document.getElementById('bulkResponseMinutes').value)||30})}).then(function(r){return r.json();}).then(function(d){bootstrap.Modal.getInstance(document.getElementById('bulkAssignmentModal'))?.hide();showNotification({type:d.failed?'warning':'success',title:'Assignment Plan Processed',message:d.assigned+' assigned, '+d.failed+' need review.',duration:6000});AU.Queue.loadQueue(1);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Bulk Assignment Failed',message:e.message,duration:5000});}).finally(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-send-check me-1"></i>Confirm & Notify';});
+  };
+
+  AU.Queue.loadWarnings=function(){
+    var w=document.getElementById('aqWarnings');
+    if(!w) return;
+    fetch('/api/admin/appointments/verification-warnings').then(function(r){return r.json();}).then(function(d){
+      var html='';
+      if(d.overdueCount>0){
+        html+='<div class="aq-warning-banner overdue"><i class="bi bi-alarm-fill"></i><div><strong>'+d.overdueCount+' booking(s)</strong> exceeded their schedule without a technician assigned. Reschedule them before the next dispatch cycle.</div><button class="au-btn au-btn-danger aq-wb-btn" onclick="document.getElementById(\'aqFilterStatus\').value=\'pending_reassignment\';AU.Queue.loadQueue(1);"><i class="bi bi-calendar-event me-1"></i>Review & Reschedule</button></div>';
+      }
+      if(d.verifyCount>0){
+        html+='<div class="aq-warning-banner verify"><i class="bi bi-exclamation-circle-fill"></i><div><strong>'+d.verifyCount+' booking(s)</strong> need verification before their schedule time. Verify payments and assignments to avoid delays.</div></div>';
+      }
+      w.innerHTML=html;
+    }).catch(function(){w.innerHTML='';});
+  };
+
+  AU.Queue.openReschedule=function(bookingId,customerName,serviceName){
+    _qRescheduleBookingId=bookingId;
+    var ref=document.getElementById('rescheduleBookingRef');
+    if(ref) ref.textContent=(serviceName||'Service')+' — '+(customerName||'Customer')+' (#'+bookingId.toString().slice(-8).toUpperCase()+')';
+    var body=document.getElementById('rescheduleBody');
+    var minDate=new Date().toISOString().split('T')[0];
+    body.innerHTML='<form id="rsForm">'+
+      '<div class="mb-3"><label class="form-label fw-semibold">Select New Date</label><input type="date" class="form-control" id="rsDate" min="'+minDate+'" onchange="AU.Queue.loadRescheduleSlots()"></div>'+
+      '<div class="mb-3"><label class="form-label fw-semibold">Select Time Slot</label><select class="form-select" id="rsTime"><option value="">Select a date first</option></select><div class="form-text" id="rsSlotInfo">Slots load after choosing a date.</div></div>'+
+      '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="rsNotify" checked><label class="form-check-label" for="rsNotify">Notify customer of the new schedule</label></div>'+
+      '<div id="rsFeedback"></div>'+
+      '<button type="button" class="au-btn au-btn-primary w-100" id="rsSubmitBtn" onclick="AU.Queue.submitReschedule()"><i class="bi bi-calendar-check me-1"></i>Confirm Reschedule</button>'+
+      '</form>';
+    new bootstrap.Modal(document.getElementById('rescheduleModal')).show();
+  };
+
+  AU.Queue.loadRescheduleSlots=function(){
+    var date=document.getElementById('rsDate').value;
+    var select=document.getElementById('rsTime');
+    var info=document.getElementById('rsSlotInfo');
+    var submit=document.getElementById('rsSubmitBtn');
+    if(!date){ select.innerHTML='<option value="">Select a date first</option>'; info.textContent='Slots load after choosing a date.'; submit.disabled=false; return; }
+    select.innerHTML='<option value="">Loading slots...</option>';
+    info.textContent='';
+    submit.disabled=true;
+    fetch('/api/admin/appointments/waiting-reassignment/slots?date='+encodeURIComponent(date)+'&bookingId='+encodeURIComponent(_qRescheduleBookingId)).then(function(r){return r.json();}).then(function(d){
+      if(!d.slots||!d.slots.length){
+        select.innerHTML='<option value="">No slots available</option>';
+        info.textContent='No available time slots on this date. Try another day.';
+        return;
+      }
+      select.innerHTML='<option value="">Select a time...</option>'+d.slots.map(function(s){
+        var cap=s.remainingCapacity?s.remainingCapacity+' technician(s) available':'';
+        return '<option value="'+s.value+'">'+s.label+(cap?' ('+cap+')':'')+'</option>';
+      }).join('');
+      info.textContent=d.slots.length+' available slot(s) on '+date+'.';
+      submit.disabled=false;
+    }).catch(function(){
+      select.innerHTML='<option value="">Error loading slots</option>';
+      info.textContent='Failed to load slots. Please try again.';
+      submit.disabled=false;
+    });
+  };
+
+  AU.Queue.submitReschedule=function(){
+    var date=document.getElementById('rsDate').value;
+    var time=document.getElementById('rsTime').value;
+    var feedback=document.getElementById('rsFeedback');
+    var submit=document.getElementById('rsSubmitBtn');
+    if(!date||!time){
+      feedback.innerHTML='<div class="alert alert-warning py-2 px-3">Please choose a date and time slot.</div>';
+      return;
+    }
+    submit.disabled=true;
+    submit.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Rescheduling...';
+    fetch('/api/admin/appointments/'+_qRescheduleBookingId+'/admin-reschedule',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({newDate:date,newTime:time,notifyCustomer:document.getElementById('rsNotify').checked})
+    }).then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});}).then(function(res){
+      if(!res.ok){throw new Error(res.data.error||'Failed to reschedule booking');}
+      submit.innerHTML='<i class="bi bi-calendar-check me-1"></i>Confirm Reschedule';
+      bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
+      AU.Queue.loadStats();AU.Queue.loadWarnings();AU.Queue.loadQueue(_qPage);
+      if(window.showToast) showToast('Booking rescheduled successfully','success');
+      else alert('Booking rescheduled successfully');
+    }).catch(function(err){
+      submit.disabled=false;
+      submit.innerHTML='<i class="bi bi-calendar-check me-1"></i>Confirm Reschedule';
+      feedback.innerHTML='<div class="alert alert-danger py-2 px-3">'+(err.message||'Failed to reschedule booking')+'</div>';
+    });
   };
 
   AU.Queue.openAssignModal=function(bookingId,customerName,serviceName){
@@ -2298,26 +3189,10 @@
     document.getElementById('assignFooterSub').textContent='—';
     document.getElementById('techCountBadge').textContent='—';
     document.getElementById('assignAvailabilityHint').textContent='';
-
-    var toolInput=document.getElementById('assignEquipmentToolInput');
-    var toolHidden=document.getElementById('assignEquipmentTool');
-    var toolList=document.getElementById('assignEquipmentDatalist');
-    var toolQty=document.getElementById('assignEquipmentQty');
-    if(toolInput){toolInput.value='';toolInput.placeholder='Loading tools...';toolInput.disabled=true;}
-    if(toolHidden) toolHidden.value='';
-    if(toolList) toolList.innerHTML='';
-    if(toolQty) toolQty.value=1;
-    AU.Queue.renderEquipmentList();
-
-    fetch('/api/admin/appointments/tools/available?serviceName='+encodeURIComponent(serviceName)).then(function(r){return r.json();}).then(function(d){
-      _qEquipmentCache=d.tools||[];
-      var dl=document.getElementById('assignEquipmentDatalist'); var input=document.getElementById('assignEquipmentToolInput');
-      if(!dl||!input) return;
-      if(!_qEquipmentCache.length){ input.disabled=false; input.placeholder='No tools available'; return; }
-      dl.innerHTML=_qEquipmentCache.map(function(t){ return '<option value="'+t.itemName+' (avail '+t.availableQuantity+')">'; }).join('');
-      input.disabled=false; input.placeholder='Type tool name...';
-      AU.Queue.renderRecommendedTools(d.recommended||[]);
-    }).catch(function(){ var dl=document.getElementById('assignEquipmentDatalist'); var input=document.getElementById('assignEquipmentToolInput'); if(dl) dl.innerHTML=''; if(input){input.disabled=false; input.placeholder='Tools unavailable';} });
+    // Core and repair bookings use the same dispatch modal. Inventory is
+    // prepared by the technician only after accepting the assignment.
+    var adminEqSection=document.getElementById('adminAssignmentEquipmentSection');
+    if(adminEqSection) adminEqSection.style.display='none';
 
     document.getElementById('techListContainer').innerHTML='<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
 
@@ -2464,32 +3339,43 @@
         html+='<div class="aq-tech-list">'+avail.map(function(t){
           var isRecommended=(aiTechId&&String(t._id)===String(aiTechId));
           var selectedClass=isRecommended?' selected':'';
-          var recommendedBadge=isRecommended?'<div style="margin-left:auto;display:flex;align-items:center;gap:6px;"><span class="badge" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;font-weight:800;">AI Recommended</span></div>':'';
-          var distBadge=t.distanceKm!=null?'<span style="font-size:0.7rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:1px 6px;margin-left:4px;"><i class="bi bi-geo me-1"></i>'+t.distanceKm+' km</span>':'';
-          var etaBadge=t.etaMin!=null?'<span style="font-size:0.7rem;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:1px 6px;margin-left:4px;"><i class="bi bi-clock me-1"></i>'+t.etaMin+' min</span>':'';
+          var statusColor=t.availabilityStatus==='Available'?'#22c55e':(t.availabilityStatus==='Online'?'#f59e0b':'#94a3b8');
+          var recommendedBadge=isRecommended?'<span class="badge" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;font-weight:600;font-size:0.65rem;padding:2px 6px;border-radius:6px;">AI Recommended</span>':'';
+          var dist=t.distanceKm!=null?'<span class="aq-tech-badge"><i class="bi bi-geo me-1"></i>'+t.distanceKm+' km</span>':'';
+          var eta=t.etaMin!=null?'<span class="aq-tech-badge"><i class="bi bi-clock me-1"></i>'+t.etaMin+' min</span>':'';
+          var rating=t.rating?'<div class="aq-tech-card-rating">\u2605 '+Number(t.rating).toFixed(1)+'</div>':'';
+          var jobs='<span class="aq-tech-badge"><i class="bi bi-briefcase me-1"></i>'+(t.currentWorkload||0)+' jobs</span>';
+          var radioChecked=isRecommended?'checked':'';
           return '<div class="aq-tech-option'+selectedClass+'" onclick="AU.Queue.selectTech(\''+t._id+'\',this)" data-tech-id="'+t._id+'">'+
-            '<div class="aq-tech-avatar">'+((t.name||'?')[0].toUpperCase())+'</div>'+
-            '<div style="flex:1;min-width:0;">'+
-              '<div class="aq-tech-name d-flex justify-content-between align-items-center gap-2">'+
-                '<span>'+t.name+'</span>'+recommendedBadge+
+            '<div class="aq-tech-card-top">'+
+              '<div class="aq-tech-avatar" style="--status-color:'+statusColor+';">'+((t.name||'?')[0].toUpperCase())+'</div>'+
+              '<div class="aq-tech-card-info">'+
+                '<div class="aq-tech-name">'+t.name+' '+recommendedBadge+'</div>'+
+                '<div class="aq-tech-status"><span style="color:'+statusColor+';font-size:10px;">&#9679;</span> '+(t.availabilityStatus||'Offline')+'</div>'+
               '</div>'+
-              '<div class="aq-tech-status">'+
-                (t.availabilityStatus==='Available'?'<span class="online">&#9679;</span> Available':t.availabilityStatus)+
-                (t.rating?' | \u2605 '+t.rating.toFixed(1):'')+
-                distBadge+etaBadge+
-              '</div>'+
+              rating+
+            '</div>'+
+            '<div class="aq-tech-card-meta">'+
+              dist+eta+jobs+
+            '</div>'+
+            '<div class="aq-tech-card-footer">'+
+              '<input type="radio" name="qTechSelect" class="form-check-input" '+radioChecked+'>'+
+              '<span class="small text-muted">Select</span>'+
             '</div>'+
           '</div>';
         }).join('')+'</div>';
       }
       if(unavail.length>0){
-        html+='<div class="mt-2"><small class="text-muted fw-semibold">Unavailable Technicians</small></div>';
+        html+='<div class="mt-2 mb-1"><small class="fw-semibold text-muted" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;">Unavailable</small></div>';
         html+='<div class="aq-tech-list">'+unavail.map(function(t){
-          return '<div class="aq-tech-option disabled" style="opacity:0.5;pointer-events:none;" title="'+(t.reason||'Unavailable')+'">'+
-            '<div class="aq-tech-avatar" style="background:#6c757d;">'+((t.name||'?')[0].toUpperCase())+'</div>'+
-            '<div style="flex:1;min-width:0;">'+
-              '<div class="aq-tech-name">'+t.name+'</div>'+
-              '<div class="aq-tech-status text-danger"><i class="bi bi-x-circle me-1"></i>'+(t.reason||'Unavailable')+'</div>'+
+          var statusColor='#6c757d';
+          return '<div class="aq-tech-option disabled" title="'+(t.reason||'Unavailable')+'" data-tech-id="'+t._id+'">'+
+            '<div class="aq-tech-card-top">'+
+              '<div class="aq-tech-avatar" style="--status-color:'+statusColor+';background:#f1f5f9;color:#64748b;">'+((t.name||'?')[0].toUpperCase())+'</div>'+
+              '<div class="aq-tech-card-info">'+
+                '<div class="aq-tech-name">'+t.name+'</div>'+
+                '<div class="aq-tech-status text-danger"><i class="bi bi-x-circle me-1"></i>'+(t.reason||'Unavailable')+'</div>'+
+              '</div>'+
             '</div>'+
           '</div>';
         }).join('')+'</div>';
@@ -2633,7 +3519,13 @@
     _qSelectedTechId=techId;
     document.querySelectorAll('.aq-tech-option').forEach(function(o){o.classList.remove('selected');});
     el.classList.add('selected');
+    document.querySelectorAll('input[name="qTechSelect"]').forEach(function(r){r.checked=false;});
+    var radio=el.querySelector('input[name="qTechSelect"]');
+    if(radio) radio.checked=true;
     document.getElementById('btnConfirmAssign').disabled=false;
+    var nameEl=(el.querySelector('.aq-tech-card-info .aq-tech-name')||{}).firstChild;
+    var techName=nameEl?nameEl.textContent.trim():'Technician';
+    document.getElementById('assignFooterSub').textContent='Selected: '+techName;
   };
 
   AU.Queue.updateSelectedToolId=function(){
@@ -2718,13 +3610,15 @@
     var nameEl=document.getElementById('assignNewToolName');
     var qtyEl=document.getElementById('assignNewToolQty');
     var unitEl=document.getElementById('assignNewToolUnit');
+    var typeEl=document.getElementById('assignNewToolType');
     var catEl=document.getElementById('assignNewToolCategory');
     var name=(nameEl&&nameEl.value||'').trim();
     var qty=parseInt(qtyEl&&qtyEl.value)||0;
+    var itemType=(typeEl&&typeEl.value)||'equipment';
     if(!name){showNotification({type:'warning',title:'Tool Name Required',message:'Enter a tool name.',duration:3000});return;}
     var btn=document.getElementById('btnSaveNewTool');
     btn.disabled=true;btn.innerHTML='Saving...';
-    fetch('/api/admin/tools',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({itemName:name,quantity:qty,unit:(unitEl&&unitEl.value)||'pcs',category:(catEl&&catEl.value)||'General'})})
+    fetch('/api/admin/tools',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({itemName:name,quantity:qty,unit:(unitEl&&unitEl.value)||'pcs',type:itemType,category:(catEl&&catEl.value)||itemType})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed to save tool');return d;});})
     .then(function(d){
       showNotification({type:'success',title:'Tool Created',message:d.tool.itemName+' added to inventory.',duration:3000});
@@ -2738,7 +3632,7 @@
       if(dl){ var o=document.createElement('option'); o.value=display; dl.appendChild(o); }
       if(input){ input.value=display; input.disabled=false; }
       if(hidden) hidden.value=tool._id;
-      nameEl.value='';qtyEl.value=1;if(unitEl) unitEl.value='pcs';if(catEl) catEl.value='General';
+      nameEl.value='';qtyEl.value=1;if(unitEl) unitEl.value='pcs';if(typeEl) typeEl.value='equipment';if(catEl) catEl.value='General';
       AU.Queue.toggleNewToolForm();
     })
     .catch(function(e){showNotification({type:'error',title:'Failed to Save Tool',message:e.message||'Could not add tool.',duration:5000});})
@@ -2750,7 +3644,7 @@
     var btn=document.getElementById('btnConfirmAssign');
     var orig=btn.innerHTML;
     btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
-    fetch('/api/admin/appointments/'+_qCurrentBookingId+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:_qSelectedTechId,priority:document.getElementById('assignPriority').value,notes:document.getElementById('assignNotes').value,equipment:_qEquipment})})
+    fetch('/api/admin/appointments/'+_qCurrentBookingId+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:_qSelectedTechId,priority:document.getElementById('assignPriority').value,notes:document.getElementById('assignNotes').value})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});})
     .then(function(){bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();showNotification({type:'success',title:'Technician Assigned',message:'Booking has been assigned successfully.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();})
     .catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message||'An error occurred.',duration:5000});btn.disabled=false;btn.innerHTML=orig;});
@@ -2819,16 +3713,30 @@
 
   AU.Active.renderJobs=function(bookings){
     var container=document.getElementById('jobsContainer');
-    if(!bookings||!bookings.length){container.innerHTML='<div class="col-12"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No In Progress Jobs</h6><p>All clear \u2014 no jobs in this status</p></div></div>';return;}
-    var cardColors={confirmed:'#10b981','on-the-way':'#3b82f6',arrived:'#f59e0b','in-progress':'#8b5cf6'};
+    var countBadge=document.getElementById('activeJobCount');
+    if(countBadge) countBadge.textContent=bookings?bookings.length:0;
+    if(!bookings||!bookings.length){container.innerHTML='<tr><td colspan="8" class="text-center py-5 text-muted"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No In Progress Jobs</h6><p>All clear \u2014 no jobs in this status</p></div></td></tr>';return;}
+    var statusColors={confirmed:'#10b981','on-the-way':'#3b82f6',arrived:'#f59e0b','in-progress':'#8b5cf6'};
+    var statusBg={confirmed:'#d1fae5','on-the-way':'#dbeafe',arrived:'#fef3c7','in-progress':'#ede9fe'};
     container.innerHTML=bookings.map(function(b){
       var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      var sc=STATUS_CLASSES_ACTIVE[b.status]||'job-confirmed';
       var sl=STATUS_LABELS[b.status]||b.status;
-      var cc=cardColors[b.status]||'#3b82f6';
-      return '<div class="col-md-6 col-xl-4"><div class="job-card" style="border-top:3px solid '+cc+';"><div class="job-card-header"><div class="d-flex align-items-center gap-2"><code style="font-size:0.75rem;color:#3b82f6;font-weight:600;">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></div><span class="job-status '+sc+'">'+sl+'</span></div><div class="job-card-body"><div class="d-flex justify-content-between align-items-start mb-3"><div><div class="fw-semibold" style="font-size:0.9rem;color:#0f172a;">'+(b.customer?b.customer.name:'N/A')+'</div><div style="font-size:0.72rem;color:#94a3b8;">'+(b.customer?b.customer.phone:'')+'</div></div><div class="text-end"><div style="font-size:1.05rem;font-weight:800;color:#059669;">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div></div></div><div class="d-flex justify-content-between align-items-center mb-3"><div style="font-size:0.78rem;color:#64748b;"><i class="bi bi-tools me-1"></i>'+(b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A')))+'</div><div style="font-size:0.72rem;color:#94a3b8;"><i class="bi bi-calendar3 me-1"></i>'+dt+'</div></div>'+
-        (b.technician&&b.technician.name?'<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-radius:10px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;"><i class="bi bi-person-fill" style="font-size:0.7rem;color:#fff;"></i></div><div><span style="font-size:0.82rem;font-weight:600;color:#1e293b;">'+b.technician.name+'</span></div></div>':'')+
-        '<div class="d-flex gap-2"><button class="au-btn au-btn-ghost flex-fill" onclick="AU.Active.viewDetail(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>Details</button><button class="au-btn au-btn-ghost" onclick="AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);" title="Track" style="padding:8px 12px;"><i class="bi bi-geo-alt"></i></button></div></div></div></div>';
+      var sc=statusColors[b.status]||'#3b82f6';
+      var sbg=statusBg[b.status]||'#dbeafe';
+      var svcName=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
+      var techName=b.technician&&b.technician.name?b.technician.name:'<span class="text-muted">Unassigned</span>';
+      var amount='\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString();
+      var ref=b.bookingReference||b.workOrderNumber||'N/A';
+      return '<tr>'+
+        '<td><code>'+ref+'</code></td>'+
+        '<td><div class="fw-semibold" style="font-size:0.84rem;color:#0f172a;">'+(b.customer?b.customer.name:'N/A')+'</div><div style="font-size:0.72rem;color:#94a3b8;">'+(b.customer?b.customer.phone:'')+'</div></td>'+
+        '<td style="font-size:0.82rem;color:#64748b;"><i class="bi bi-tools me-1"></i>'+svcName+'</td>'+
+        '<td style="font-size:0.82rem;">'+techName+'</td>'+
+        '<td style="font-size:0.78rem;color:#94a3b8;"><i class="bi bi-calendar3 me-1"></i>'+dt+'</td>'+
+        '<td style="font-weight:600;color:#059669;font-size:0.86rem;">'+amount+'</td>'+
+        '<td><span style="background:'+sbg+';color:'+sc+';padding:4px 10px;border-radius:8px;font-size:0.7rem;font-weight:700;">'+sl+'</span></td>'+
+        '<td class="text-center"><div class="d-flex gap-1 justify-content-center"><button class="au-btn au-btn-ghost" onclick="AU.Active.viewDetail(\''+b._id+'\')" style="font-size:0.72rem;padding:6px 10px;"><i class="bi bi-eye"></i></button><button class="au-btn au-btn-ghost" onclick="AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);" title="Track" style="padding:6px 10px;"><i class="bi bi-geo-alt"></i></button></div></td>'+
+      '</tr>';
     }).join('');
   };
 
@@ -2846,23 +3754,24 @@
       subtitle.textContent=refText;
       body.innerHTML=buildDetailHTML(b,data);
       var trackerSteps=[
+        {key:'assigned',label:'Awaiting Acceptance',icon:'bi-hourglass-split'},
         {key:'confirmed',label:'Confirmed',icon:'bi-check-circle'},
         {key:'on-the-way',label:'En Route',icon:'bi-sign-turn-right'},
         {key:'arrived',label:'Arrived',icon:'bi-geo-alt'},
         {key:'in-progress',label:'In Progress',icon:'bi-tools'},
         {key:'completed',label:'Completed',icon:'bi-check-circle-fill'}
       ];
-      var statusOrder=['confirmed','scheduled','assigned','on-the-way','arrived','in-progress','completed'];
+      var statusOrder=['assigned','confirmed','scheduled','on-the-way','arrived','in-progress','completed'];
       var currentIdx=statusOrder.indexOf(b.status);
       var trackerHTML='<div class="track-progress">'+trackerSteps.map(function(step,i){
         var stepIdx=statusOrder.indexOf(step.key);
         var isDone=currentIdx>stepIdx;
-        var isCurrent=step.key===b.status||(step.key==='confirmed'&&['confirmed','scheduled','assigned'].indexOf(b.status)!==-1);
+        var isCurrent=step.key===b.status||(step.key==='confirmed'&&b.status==='scheduled');
         return '<div class="track-step '+(isDone?'done':'')+' '+(isCurrent?'current':'')+'"><div class="track-step-dot"><i class="bi '+step.icon+'"></i></div><span class="track-step-label">'+step.label+'</span></div>'+(i<trackerSteps.length-1?'<div class="track-step-line '+(isDone?'done':'')+'"></div>':'');
       }).join('')+'</div>';
       body.innerHTML=trackerHTML+body.innerHTML;
       var footer=document.createElement('div');footer.className='pm-footer';
-      var enrouteHTML=(['confirmed','scheduled','assigned'].indexOf(b.status)!==-1?'<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){window.trackingBookingId=\''+b._id+'\';if(window.markEnRoute)markEnRoute();},300);"><i class="bi bi-truck me-1"></i>Mark En Route</button>':'');
+      var enrouteHTML=(['confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){window.trackingBookingId=\''+b._id+'\';if(window.markEnRoute)markEnRoute();},300);"><i class="bi bi-truck me-1"></i>Mark En Route</button>':'');
       var trackHTML=(['in-progress','on-the-way','arrived','confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="au-btn au-btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);},300);"><i class="bi bi-geo-alt-fill me-1"></i>Track on Map</button>':'');
       footer.innerHTML=enrouteHTML+trackHTML+'<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
       body.appendChild(footer);
@@ -2877,22 +3786,83 @@
     var mapEl=document.getElementById('trackDrawerMap');
     if(_trackMap){_trackMap.remove();_trackMap=null;}
     var def=custLoc||techLoc||{lat:14.5995,lng:120.9842};
-    _trackMap=L.map(mapEl,{zoomControl:true,attributionControl:false}).setView([def.lat,def.lng],13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'}).addTo(_trackMap);
+    _trackMap=L.map(mapEl,{zoomControl:false,attributionControl:false}).setView([def.lat,def.lng],13);
+    window._trackMapCenter=def;
+
+    var standardLayer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains:'abcd',
+      maxZoom:19
+    });
+    var hybridBase=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'&copy; Esri',
+      maxZoom:18
+    });
+    var hybridLabels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'&copy; Esri',
+      maxZoom:18
+    });
+    var hybridGroup=L.layerGroup([hybridBase,hybridLabels]);
+    window._trackTileLayers={standard:standardLayer,hybrid:hybridGroup,current:standardLayer,name:'standard'};
+    standardLayer.addTo(_trackMap);
+    L.control.attribution({position:'bottomright',prefix:false}).addTo(_trackMap);
+
     window.trackMap=_trackMap;
     _trackMarkers={};
+
+    function pinIcon(color,iconClass){
+      return L.divIcon({
+        className:'',
+        html:'<div style="width:28px;height:40px;position:relative;filter:drop-shadow(0 3px 5px rgba(0,0,0,0.35));">'+
+             '<svg width="28" height="40" viewBox="0 0 28 40" style="position:absolute;top:0;left:0;">'+
+             '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="'+color+'"/>'+
+             '<circle cx="14" cy="14" r="9" fill="#fff"/>'+
+             '</svg>'+
+             '<i class="bi '+iconClass+'" style="position:absolute;top:6px;left:7px;font-size:14px;color:'+color+';"></i>'+
+             '</div>',
+        iconSize:[28,40],
+        iconAnchor:[14,40],
+        popupAnchor:[0,-36]
+      });
+    }
+
     if(custLoc){
-      var ci=L.divIcon({className:'',html:'<div style="width:34px;height:34px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(37,99,235,0.35);display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-fill" style="color:#fff;font-size:15px;"></i></div>',iconSize:[34,34],iconAnchor:[17,17]});
-      _trackMarkers.customer=L.marker([custLoc.lat,custLoc.lng],{icon:ci}).addTo(_trackMap).bindPopup('<b>'+custName+'</b><br><span style="font-size:0.8rem;color:#666;">'+serviceAddr+'</span>');
+      _trackMarkers.customer=L.marker([custLoc.lat,custLoc.lng],{icon:pinIcon('#2563eb','bi-house-door-fill')}).addTo(_trackMap).bindPopup('<b>'+custName+'</b><br><span style="font-size:0.8rem;color:#666;">'+serviceAddr+'</span>');
     }
     if(techLoc){
-      var ti=L.divIcon({className:'',html:'<div style="width:34px;height:34px;background:#16a34a;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(22,163,74,0.35);display:flex;align-items:center;justify-content:center;"><i class="bi bi-tools" style="color:#fff;font-size:15px;"></i></div>',iconSize:[34,34],iconAnchor:[17,17]});
-      _trackMarkers.technician=L.marker([techLoc.lat,techLoc.lng],{icon:ti}).addTo(_trackMap).bindPopup('<b>'+techName+'</b><br><span style="font-size:0.8rem;color:#666;">Current location</span>');
+      _trackMarkers.technician=L.marker([techLoc.lat,techLoc.lng],{icon:pinIcon('#ef4444','bi-tools')}).addTo(_trackMap).bindPopup('<b>'+techName+'</b><br><span style="font-size:0.8rem;color:#666;">Current location</span>');
     }
     if(custLoc&&techLoc){
       _trackPolyline=L.polyline([[custLoc.lat,custLoc.lng],[techLoc.lat,techLoc.lng]],{color:'#2563eb',weight:3,dashArray:'8, 8',opacity:0.7}).addTo(_trackMap);
       _trackMap.fitBounds(L.latLngBounds([custLoc,techLoc]).pad(0.2));
     }else _trackMap.setView([def.lat,def.lng],14);
+    window._trackCustLoc=custLoc;
+    window._trackTechLoc=techLoc;
+
+    document.getElementById('tdZoomIn').onclick=function(){if(_trackMap)_trackMap.setZoom(_trackMap.getZoom()+1);};
+    var cBtn=document.getElementById('tdCtrlCust');
+    var tBtn=document.getElementById('tdCtrlTech');
+    if(cBtn){cBtn.querySelector('button').disabled=!_trackMarkers.customer;cBtn.querySelector('button').onclick=function(){if(_trackMap&&_trackMarkers.customer)_trackMap.setView(_trackMarkers.customer.getLatLng(),16);};}
+    if(tBtn){tBtn.querySelector('button').disabled=!_trackMarkers.technician;tBtn.querySelector('button').onclick=function(){if(_trackMap&&_trackMarkers.technician)_trackMap.setView(_trackMarkers.technician.getLatLng(),16);};}
+    document.getElementById('tdZoomOut').onclick=function(){if(_trackMap)_trackMap.setZoom(_trackMap.getZoom()-1);};
+    document.getElementById('tdCompass').onclick=function(){
+      if(_trackMap){
+        _trackMap.setView([window._trackMapCenter.lat,window._trackMapCenter.lng],13);
+        if(_trackMap.setBearing)_trackMap.setBearing(0);
+      }
+    };
+    document.querySelectorAll('#tdLayerSelector .td-ctrl-layer').forEach(function(btn){
+      btn.onclick=function(){
+        var layer=btn.dataset.layer;
+        if(!layer||!_trackMap||layer===window._trackTileLayers.name)return;
+        _trackMap.removeLayer(window._trackTileLayers.current);
+        if(layer==='standard'){window._trackTileLayers.current=standardLayer;window._trackTileLayers.name='standard';}
+        else if(layer==='hybrid'){window._trackTileLayers.current=hybridGroup;window._trackTileLayers.name='hybrid';}
+        _trackMap.addLayer(window._trackTileLayers.current);
+        document.querySelectorAll('#tdLayerSelector .td-ctrl-layer').forEach(function(b){b.classList.toggle('active',b.dataset.layer===layer);});
+      };
+    });
+
     if(document.getElementById('trackDrawer').classList.contains('open')){
       setTimeout(function(){_trackMap.invalidateSize();},200);
     }
@@ -2900,14 +3870,14 @@
 
   function _updateProgressBar(status){
     var steps=['confirmed','on-the-way','arrived','in-progress','completed'];
-    var order=['confirmed','scheduled','assigned','on-the-way','arrived','in-progress','completed'];
+    var order=['assigned','confirmed','scheduled','on-the-way','arrived','in-progress','completed'];
     var currentIdx=order.indexOf(status);
     steps.forEach(function(step,i){
       var si=order.indexOf(step);
       var el=document.getElementById('tdStep'+i);
       var line=document.getElementById('tdLine'+i);
       var isDone=currentIdx>si;
-      var isCurrent=step===status||(step==='confirmed'&&['confirmed','scheduled','assigned'].indexOf(status)!==-1);
+      var isCurrent=step===status||(step==='confirmed'&&status==='scheduled');
       el.className='td-progress-step';
       if(isDone)el.classList.add('done');
       if(isCurrent)el.classList.add('active');
@@ -2971,6 +3941,10 @@
 
       AU.Active._ensureLeaflet().then(function(){
         _trackInitMap(custLoc,techLoc,custName,techName,serviceAddr);
+        var fCust=document.getElementById('tdFocusCustomer');
+        var fTech=document.getElementById('tdFocusTechnician');
+        if(fCust){fCust.disabled=!_trackMarkers.customer;fCust.onclick=function(){if(_trackMap&&_trackMarkers.customer)_trackMap.setView(_trackMarkers.customer.getLatLng(),16);};}
+        if(fTech){fTech.disabled=!_trackMarkers.technician;fTech.onclick=function(){if(_trackMap&&_trackMarkers.technician)_trackMap.setView(_trackMarkers.technician.getLatLng(),16);};}
         document.getElementById('trackDrawer').classList.add('open');
         document.body.style.overflow='hidden';
       });
@@ -3002,13 +3976,16 @@
   AU.Completed._renderStats=function(stats){
     var stages=stats.stages||{};
     var completedCount=stages.COMPLETED?stages.COMPLETED.count||0:0;
+    var repairCompletedCount=stages.REPAIR_COMPLETED?stages.REPAIR_COMPLETED.count||0:0;
+    var totalCompletedCount=completedCount+repairCompletedCount;
     var todayCount=stats.summary?stats.summary.todayBookings||0:0;
     var revenue=stats.summary?stats.summary.totalRevenue||0:0;
-    document.getElementById('cjStatTotal').textContent=completedCount;
+    var avgRating=stats.summary?stats.summary.avgRating:null;
+    document.getElementById('cjStatTotal').textContent=totalCompletedCount;
     document.getElementById('cjStatToday').textContent=todayCount;
     document.getElementById('cjStatRevenue').textContent='₱'+Number(revenue).toLocaleString();
-    document.getElementById('cjStatAvg').textContent='—';
-    var tb=document.getElementById('tabCompletedBadge');if(tb)tb.textContent=completedCount>0?completedCount:'';
+    document.getElementById('cjStatAvg').textContent=avgRating!=null?avgRating.toFixed(1)+' ★':'—';
+    var tb=document.getElementById('tabCompletedBadge');if(tb)tb.textContent=totalCompletedCount>0?totalCompletedCount:'';
   };
 
   AU.Completed._renderJobs=function(bookings){
@@ -3018,15 +3995,31 @@
       container.innerHTML='<div class="col-12"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Completed Jobs</h6><p>Completed jobs will appear here</p></div></div>';
       return;
     }
-    container.innerHTML=bookings.map(function(b){
-      var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-      var cd=b.updatedAt?new Date(b.updatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
-      var svc=b.service?b.service.name:(b.services&&b.services[0]?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
-      return '<div class="col-md-6 col-xl-4"><div class="job-card" style="border-top:3px solid #10b981;"><div class="job-card-header bg-white"><code class="small" style="color:#10b981;font-weight:600;">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code><span class="job-status job-confirmed" style="background:#d1fae5;color:#065f46;text-transform:uppercase;">Completed</span></div><div class="job-card-body"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-semibold small">'+(b.customer?b.customer.name:'N/A')+'</div><div class="text-muted" style="font-size:0.7rem;">'+(b.customer?b.customer.phone:'')+'</div></div><div class="text-end"><div class="fw-bold text-success">₱'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="text-muted" style="font-size:0.65rem;">'+(b.paymentMethod||'cod').toUpperCase()+'</div></div></div><div class="d-flex justify-content-between align-items-center"><div class="small text-muted"><i class="bi bi-tools me-1"></i>'+svc+'</div><div class="small text-muted"><i class="bi bi-calendar me-1"></i>'+dt+'</div></div>'+
-        (b.technician&&b.technician.name?'<div class="mt-2 small"><i class="bi bi-person me-1 text-success"></i><span class="fw-semibold">'+b.technician.name+'</span></div>':'')+
-        (cd?'<div class="mt-1 small text-muted"><i class="bi bi-check2 me-1"></i>Completed '+cd+'</div>':'')+
-        '<div class="mt-3"><button class="au-btn au-btn-ghost w-100" onclick="AU.Completed.viewDetail(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View Details</button></div></div></div></div>';
-    }).join('');
+    container.innerHTML='<div class="col-12"><div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead style="background:#f8fafc;"><tr>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Reference</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Customer</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Service</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Technician</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Date</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:right;">Amount</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Status</th>'+
+      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Action</th>'+
+      '</tr></thead><tbody>'+
+      bookings.map(function(b){
+        var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        var svc=b.service?b.service.name:(b.services&&b.services[0]?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
+        return '<tr style="border-bottom:1px solid #f1f5f9;">'+
+          '<td style="padding:12px 16px;"><code style="font-size:0.78rem;background:#f1f5f9;padding:3px 8px;border-radius:6px;">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></td>'+
+          '<td style="padding:12px 16px;"><div style="font-weight:600;font-size:0.85rem;color:#1e293b;">'+(b.customer?b.customer.name:'N/A')+'</div><div style="font-size:0.72rem;color:#64748b;">'+(b.customer?b.customer.phone:'')+'</div></td>'+
+          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+svc+'</div></td>'+
+          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+(b.technician&&b.technician.name?b.technician.name:'Unassigned')+'</div></td>'+
+          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+dt+'</div></td>'+
+          '<td style="padding:12px 16px;text-align:right;"><div style="font-weight:700;font-size:0.88rem;color:#059669;">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div style="font-size:0.68rem;color:#64748b;">'+(b.paymentMethod||'cod').toUpperCase()+'</div></td>'+
+          '<td style="padding:12px 16px;text-align:center;"><span style="background:#dcfce7;color:#166534;padding:4px 10px;border-radius:20px;font-size:0.7rem;font-weight:600;">Completed</span></td>'+
+          '<td style="padding:12px 16px;text-align:center;"><button class="au-btn au-btn-ghost" onclick="AU.Completed.viewDetail(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button></td>'+
+          '</tr>';
+      }).join('')+
+      '</tbody></table></div></div></div>';
   };
 
   AU.Completed._renderPagination=function(pag){
@@ -3043,6 +4036,7 @@
   AU.Completed.viewDetail=function(id){
     fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
+      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
       var ref=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Job '+ref;
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data)+
@@ -3059,7 +4053,7 @@
   if(_cjSearchEl)_cjSearchEl.addEventListener('input',function(){clearTimeout(_cjSearchTimer);_cjSearchTimer=setTimeout(function(){_cjPage=1;AU.Completed.load();},400);});
 
   // ═══ EVENT LISTENERS & INIT ═══
-  ['filterPaymentStatus','filterPaymentMethod','filterDateRange','filterSort'].forEach(function(id){
+  ['filterServiceType','filterPaymentStatus','filterPaymentMethod','filterDateRange','filterSort'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.addEventListener('change',function(){AU.Pending.applyFilters(1);});
   });
 
@@ -3320,5 +4314,19 @@ window.AU = window.AU || {};
     });
   };
   window.AU.drawStatSparklines();
+})();
+</script>
+<script>
+(function(){
+  const button=document.getElementById('openServiceChangeQueue'), badge=document.getElementById('serviceChangeCount'), body=document.getElementById('serviceChangeQueueBody'), modal=document.getElementById('serviceChangeQueueModal');
+  if(!button||!body||!modal)return;
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const itemRows=items=>(items||[]).map((item,index)=>`<div class="border rounded-3 p-2 mb-2"><strong>${index+1}. ${esc(item.name||item.type||'Service')}</strong><div class="small text-muted">${esc([item.type,item.brand,item.model,item.applianceTypeName].filter(Boolean).join(' · '))} · Qty ${Number(item.quantity||1)}</div>${item.problemDescription||item.repairIssue?`<div class="small mt-1">${esc(item.problemDescription||item.repairIssue)}</div>`:''}</div>`).join('')||'<div class="text-muted small">No service items</div>';
+  async function load(){
+    body.innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+    try{const response=await fetch('/api/appointments/service-change-requests/pending',{credentials:'include'}),data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to load requests');const rows=data.requests||[];badge.textContent=rows.length;badge.style.display=rows.length?'inline-block':'none';body.innerHTML=rows.length?rows.map(row=>`<article class="card border mb-3" data-booking="${row.bookingId}" data-request="${row._id}"><div class="card-header bg-white d-flex justify-content-between"><div><strong>${esc(row.bookingReference||row.bookingId)}</strong><div class="small text-muted">${esc(row.customer?.name||'Customer')} · ${new Date(row.requestedAt).toLocaleString()}</div></div><span class="badge bg-warning text-dark">${esc(row.status)}</span></div><div class="card-body"><div class="row g-3"><div class="col-md-6"><div class="small fw-bold text-uppercase text-muted mb-2">Before</div>${itemRows(row.beforeServices)}</div><div class="col-md-6"><div class="small fw-bold text-uppercase text-primary mb-2">Proposed</div>${itemRows(row.proposedServices)}</div></div><div class="small mt-2"><strong>Change:</strong> ${Number(row.summary?.added||0)} added, ${Number(row.summary?.edited||0)} edited, ${Number(row.summary?.removed||0)} removed${row.reason?' · '+esc(row.reason):''}</div></div><div class="card-footer bg-white d-flex flex-wrap justify-content-end gap-2"><button class="btn btn-sm btn-outline-warning sc-schedule">Propose Schedule</button><button class="btn btn-sm btn-outline-danger sc-reject">Reject</button><button class="btn btn-sm btn-success sc-approve">Approve</button></div></article>`).join(''):'<div class="text-center text-muted py-5"><i class="bi bi-check2-circle fs-2 d-block mb-2"></i>No pending service changes.</div>';attach();}catch(error){body.innerHTML=`<div class="alert alert-danger">${esc(error.message)}</div>`;}
+  }
+  function attach(){body.querySelectorAll('article[data-request]').forEach(card=>{const decide=async(action,payload={})=>{const reason=payload.reason??prompt(action==='reject'?'Reason for rejection:':'Decision note (optional):','');if(reason===null)return;const response=await fetch(`/api/appointments/${card.dataset.booking}/service-change-requests/${card.dataset.request}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({action,reason,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Decision failed');await load();};card.querySelector('.sc-approve').onclick=()=>decide('approve').catch(e=>alert(e.message));card.querySelector('.sc-reject').onclick=()=>decide('reject').catch(e=>alert(e.message));card.querySelector('.sc-schedule').onclick=()=>{const date=prompt('Proposed date (YYYY-MM-DD):');if(!date)return;const startTime=prompt('Proposed start time (HH:MM):');if(!startTime)return;decide('propose_schedule',{date,startTime}).catch(e=>alert(e.message));};});}
+  button.onclick=()=>{bootstrap.Modal.getOrCreateInstance(modal).show();load();};load();
 })();
 </script>

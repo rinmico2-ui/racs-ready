@@ -50,6 +50,13 @@
         <span class="nav-tooltip">Orders</span>
       </a>
     </li>
+    <li class="nav-item">
+      <a href="/technician/remittances" class="nav-link">
+        <i class="bi bi-cash-stack nav-icon"></i>
+        <span class="nav-label">My Remittances</span>
+        <span class="nav-tooltip">Submit collected payments</span>
+      </a>
+    </li>
 
     <!-- Attendance -->
     <li class="nav-section-label">Attendance</li>
@@ -58,6 +65,13 @@
         <i class="bi bi-qr-code-scan nav-icon"></i>
         <span class="nav-label">Check In / Out</span>
         <span class="nav-tooltip">Check In / Out</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a href="/technician/payroll" class="nav-link">
+        <i class="bi bi-wallet2 nav-icon"></i>
+        <span class="nav-label">My Payroll</span>
+        <span class="nav-tooltip">Payslips and pay history</span>
       </a>
     </li>
 
@@ -76,17 +90,6 @@
         <i class="bi bi-tools nav-icon"></i>
         <span class="nav-label">My Tools</span>
         <span class="nav-tooltip">My Tools</span>
-      </a>
-    </li>
-
-    <!-- Service Reports -->
-    <li class="nav-section-label">Reports</li>
-    <li class="nav-item">
-      <a href="/technician/reports" class="nav-link">
-        <i class="bi bi-file-earmark-text nav-icon"></i>
-        <span class="nav-label">Service Reports</span>
-        <span class="nav-badge" id="reportsBadge" style="display:none;">0</span>
-        <span class="nav-tooltip">Service Reports</span>
       </a>
     </li>
 
@@ -164,19 +167,6 @@
         if (expenseBadge && data.pendingExpenses > 0) {
           expenseBadge.textContent = data.pendingExpenses;
           expenseBadge.style.display = '';
-        }
-      }
-    } catch (e) { }
-
-    // Draft reports badge
-    try {
-      const res2 = await fetch('/api/technician/reports?status=draft&limit=1');
-      if (res2.ok) {
-        const data2 = await res2.json();
-        const badge2 = document.getElementById('reportsBadge');
-        if (badge2 && data2.total > 0) {
-          badge2.textContent = data2.total;
-          badge2.style.display = '';
         }
       }
     } catch (e) { }

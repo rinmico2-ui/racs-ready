@@ -1,351 +1,264 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aircon Cart - HVAC Solutions</title>
-  
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Bootstrap Icons -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-  <!-- AOS for Animations -->
-  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-  <!-- SweetAlert2 -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  
-  <style>
-    :root {
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --bg-gradient: linear-gradient(135deg, #0a1628 0%, #0f2b5e 45%, #1a4fd8 100%);
-      --surface: #ffffff;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-    }
+<%
+  const cartItems = cart && Array.isArray(cart.items) ? cart.items : [];
+  const unitCount = cartItems.reduce(function (sum, item) { return sum + (Number(item.quantity) || 0); }, 0);
+  const subtotal = Number(cart && cart.totalAmount) || 0;
+  const hasStockIssues = cartItems.some(function (item) {
+    const product = item.inventoryId || {};
+    const available = Number(product.quantity);
+    return Number.isFinite(available) && ((Number(item.quantity) || 0) > available || available < 1);
+  });
+  const formatCurrency = function (value) { return '₱' + (Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+%>
 
-    .checkout-now .cart-hero { display: none; }
-    .checkout-now #pdCartContent { display: none !important; }
-    .checkout-now .navbar { display: none; }
-    .checkout-now footer { display: none; }
-    .checkout-now .page-footer { display: none; }
-    .checkout-now .modal-backdrop { opacity: 1 !important; }
-    .checkout-now .modal-backdrop.show { opacity: 1 !important; }
+<style>
+  :root { --cart-primary:#2563eb; --cart-primary-dark:#1d4ed8; --cart-ink:#0f172a; --cart-muted:#64748b; --cart-line:#e2e8f0; --cart-surface:#fff; }
+  .checkout-now .cart-page { display:none !important; }
+  .checkout-now .navbar, .checkout-now footer, .checkout-now .page-footer { display:none !important; }
+  .checkout-now .modal-backdrop, .checkout-now .modal-backdrop.show { opacity:1 !important; }
+  .cart-page { min-height:75vh; background:#f6f8fc; color:var(--cart-ink); }
+  .cart-hero { position:relative; overflow:hidden; padding:3rem 0 4.5rem; color:#fff; background:linear-gradient(135deg,#0f172a 0%,#16366d 55%,#1d4ed8 100%); }
+  .cart-hero::after { content:''; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 82% 18%,rgba(96,165,250,.28),transparent 26%); }
+  .cart-hero .container { position:relative; z-index:1; }
+  .cart-breadcrumb { display:flex; align-items:center; gap:.55rem; margin-bottom:1.1rem; font-size:.78rem; color:#bfdbfe; }
+  .cart-breadcrumb a { color:#dbeafe; text-decoration:none; }
+  .cart-breadcrumb a:hover { color:#fff; }
+  .cart-eyebrow { font-size:.72rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#93c5fd; }
+  .cart-title { margin:.35rem 0 .6rem; font-size:clamp(2rem,5vw,3.25rem); font-weight:800; letter-spacing:-.04em; }
+  .cart-hero-copy { max-width:620px; margin:0; color:rgba(219,234,254,.78); }
+  .cart-hero-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.65rem; }
+  .cart-hero-actions .btn { min-height:42px; display:inline-flex; align-items:center; border-radius:10px; font-weight:700; }
+  .cart-workspace { position:relative; z-index:2; margin-top:-2rem; padding-bottom:4rem; }
+  .cart-steps { display:grid; grid-template-columns:repeat(4,1fr); margin-bottom:1.25rem; overflow:hidden; border:1px solid var(--cart-line); border-radius:14px; background:#fff; box-shadow:0 8px 28px rgba(15,23,42,.07); }
+  .cart-step { position:relative; display:flex; align-items:center; gap:.7rem; min-height:70px; padding:.9rem 1rem; color:#94a3b8; }
+  .cart-step:not(:last-child)::after { content:''; position:absolute; top:17px; right:0; bottom:17px; width:1px; background:var(--cart-line); }
+  .cart-step-number { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:0 0 30px; border-radius:50%; background:#f1f5f9; font-size:.75rem; font-weight:800; }
+  .cart-step strong { display:block; font-size:.78rem; color:#64748b; }
+  .cart-step small { display:block; margin-top:1px; font-size:.66rem; }
+  .cart-step.active { background:#eff6ff; color:#2563eb; }
+  .cart-step.active .cart-step-number { background:#2563eb; color:#fff; }
+  .cart-step.active strong { color:#1e40af; }
+  .cart-panel, .summary-card, .empty-cart-card { border:1px solid var(--cart-line); border-radius:16px; background:var(--cart-surface); box-shadow:0 4px 18px rgba(15,23,42,.05); }
+  .cart-panel-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1.15rem 1.25rem; border-bottom:1px solid var(--cart-line); }
+  .cart-panel-head h2 { margin:0; font-size:1rem; font-weight:800; }
+  .cart-panel-head span { color:var(--cart-muted); font-size:.76rem; }
+  .cart-item { padding:1.25rem; }
+  .cart-item + .cart-item { border-top:1px solid var(--cart-line); }
+  .cart-item-grid { display:grid; grid-template-columns:104px minmax(0,1fr) 155px; gap:1.15rem; align-items:center; }
+  .cart-item-image { display:flex; align-items:center; justify-content:center; width:104px; height:104px; padding:.5rem; overflow:hidden; border:1px solid #e8edf5; border-radius:12px; background:#f8fafc; }
+  .cart-item-image img { max-width:100%; max-height:100%; object-fit:contain; }
+  .cart-item-name { margin:0 0 .35rem; font-size:1rem; font-weight:800; color:var(--cart-ink); }
+  .cart-item-tags { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.65rem; }
+  .cart-item-tag { display:inline-flex; align-items:center; padding:.25rem .55rem; border-radius:6px; background:#f1f5f9; color:#475569; font-size:.68rem; font-weight:700; }
+  .cart-stock { display:inline-flex; align-items:center; gap:.35rem; font-size:.72rem; font-weight:700; color:#15803d; }
+  .cart-stock.low { color:#b45309; }
+  .cart-item-pricing { text-align:right; }
+  .cart-line-total { margin-bottom:.15rem; font-size:1.1rem; font-weight:800; color:#1d4ed8; }
+  .cart-unit-price { margin-bottom:.75rem; color:var(--cart-muted); font-size:.68rem; }
+  .qty-row { display:flex; justify-content:flex-end; align-items:center; gap:.55rem; }
+  .qty-control { display:inline-flex; align-items:center; padding:.2rem; border:1px solid #dbe3ee; border-radius:9px; background:#f8fafc; }
+  .qty-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:0; border-radius:7px; background:#fff; color:#1d4ed8; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+  .qty-btn:hover:not(:disabled) { background:#2563eb; color:#fff; }
+  .qty-btn:disabled { cursor:not-allowed; opacity:.38; }
+  .qty-input { width:38px; border:0; background:transparent; text-align:center; color:var(--cart-ink); font-weight:800; }
+  .remove-item { width:32px; height:32px; padding:0; border:0; border-radius:8px; background:#fff; color:#dc2626; }
+  .remove-item:hover { background:#fef2f2; }
+  .summary-card { position:sticky; top:92px; padding:1.4rem; }
+  .summary-card h2 { margin:0 0 1.25rem; font-size:1rem; font-weight:800; }
+  .summary-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:.8rem; color:var(--cart-muted); font-size:.8rem; }
+  .summary-row strong { color:#334155; text-align:right; }
+  .summary-total { display:flex; justify-content:space-between; gap:1rem; padding-top:1.1rem; margin-top:1rem; border-top:1px solid var(--cart-line); }
+  .summary-total span { font-size:.88rem; font-weight:800; }
+  .summary-total strong { font-size:1.35rem; color:#1d4ed8; }
+  .summary-note { margin:.45rem 0 1.15rem; color:var(--cart-muted); font-size:.69rem; line-height:1.5; }
+  .btn-checkout { width:100%; min-height:48px; border:0; border-radius:10px; background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; font-weight:800; box-shadow:0 8px 20px rgba(37,99,235,.22); }
+  .btn-checkout:hover { background:linear-gradient(135deg,#1d4ed8,#1e40af); color:#fff; transform:translateY(-1px); }
+  .btn-checkout:disabled { cursor:not-allowed; background:#94a3b8; box-shadow:none; transform:none; }
+  .summary-link { display:flex; align-items:center; justify-content:center; gap:.45rem; margin-top:.65rem; min-height:40px; border-radius:9px; color:#475569; font-size:.76rem; font-weight:700; text-decoration:none; }
+  .summary-link:hover { background:#f8fafc; color:#1d4ed8; }
+  .assurance-list { display:grid; gap:.7rem; padding-top:1rem; margin-top:1rem; border-top:1px solid var(--cart-line); }
+  .assurance-item { display:flex; align-items:flex-start; gap:.55rem; color:var(--cart-muted); font-size:.69rem; line-height:1.4; }
+  .assurance-item i { margin-top:1px; color:#2563eb; }
+  .empty-cart-card { padding:4.5rem 1.5rem; text-align:center; }
+  .empty-cart-icon { display:inline-flex; align-items:center; justify-content:center; width:76px; height:76px; margin-bottom:1.25rem; border-radius:20px; background:#eff6ff; color:#2563eb; font-size:2rem; }
+  .empty-cart-card h2 { font-size:1.35rem; font-weight:800; }
+  .empty-cart-card p { max-width:430px; margin:0 auto 1.35rem; color:var(--cart-muted); }
+  @media (max-width:991.98px) {
+    .cart-hero-actions { justify-content:flex-start; margin-top:1.5rem; }
+    .cart-steps { grid-template-columns:repeat(2,1fr); }
+    .cart-step:nth-child(2)::after { display:none; }
+    .cart-step:nth-child(-n+2) { border-bottom:1px solid var(--cart-line); }
+    .summary-card { position:static; }
+  }
+  @media (max-width:575.98px) {
+    .cart-hero { padding:2.35rem 0 4rem; }
+    .cart-hero-actions .btn { flex:1 1 auto; justify-content:center; }
+    .cart-step { min-height:58px; padding:.7rem; }
+    .cart-step small { display:none; }
+    .cart-item-grid { grid-template-columns:76px minmax(0,1fr); align-items:start; }
+    .cart-item-image { width:76px; height:76px; }
+    .cart-item-pricing { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.7rem; padding-top:.9rem; border-top:1px solid #f1f5f9; text-align:left; }
+    .cart-unit-price { width:100%; margin:-.45rem 0 0; }
+    .qty-row { justify-content:flex-start; }
+  }
+</style>
 
-    body {
-      background-color: #f8fafc;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      color: var(--text-main);
-    }
-
-    /* Hero Styling */
-    .cart-hero {
-      background: var(--bg-gradient);
-      padding: 4rem 0;
-      position: relative;
-      overflow: hidden;
-      color: white;
-    }
-    .cart-hero::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
-      background-size: 30px 30px;
-    }
-
-    /* Cart Card */
-    .item-card {
-      background: var(--surface);
-      border-radius: 1.25rem;
-      border: 1px solid rgba(37,99,235,0.08);
-      box-shadow: 0 4px 20px rgba(15,36,96,0.04);
-      transition: all 0.3s ease;
-      margin-bottom: 1.5rem;
-      overflow: hidden;
-    }
-    .item-card:hover {
-      box-shadow: 0 8px 30px rgba(15,36,96,0.08);
-      transform: translateY(-2px);
-    }
-
-    .item-img-container {
-      background: #f1f5f9;
-      width: 120px;
-      height: 120px;
-      border-radius: 1rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.5rem;
-    }
-    .item-img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
-
-    /* Controls */
-    .qty-control {
-      display: flex;
-      align-items: center;
-      background: #f1f5f9;
-      border-radius: 50px;
-      padding: 0.25rem;
-    }
-    .qty-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: none;
-      background: white;
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-      transition: all 0.2s;
-    }
-    .qty-btn:hover {
-      background: var(--primary);
-      color: white;
-    }
-    .qty-input {
-      width: 40px;
-      border: none;
-      background: transparent;
-      text-align: center;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    /* Summary Card */
-    .summary-card {
-      background: white;
-      border-radius: 1.5rem;
-      border: 1px solid rgba(37,99,235,0.1);
-      box-shadow: 0 10px 40px rgba(15,36,96,0.05);
-      padding: 2rem;
-      position: sticky;
-      top: 2rem;
-    }
-
-    .btn-checkout {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
-      border: none;
-      color: white;
-      font-weight: 700;
-      padding: 1rem;
-      border-radius: 50px;
-      box-shadow: 0 10px 20px rgba(37,99,235,0.2);
-      transition: all 0.3s;
-    }
-    .btn-checkout:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 15px 30px rgba(37,99,235,0.3);
-      filter: brightness(1.05);
-      color: white;
-    }
-
-    /* Empty State */
-    .empty-state {
-      padding: 5rem 0;
-      text-align: center;
-    }
-    .empty-icon {
-      font-size: 5rem;
-      color: #cbd5e1;
-      margin-bottom: 1.5rem;
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Navbar Partial -->
-  <%- include('../partials/navbar') %>
-
-  <!-- Hero -->
-  <section class="cart-hero">
-    <div class="container py-4">
-      <div class="row align-items-center">
-        <div class="col-lg-6" data-aos="fade-right">
-          <h1 class="display-4 fw-bold mb-2">My Aircon Cart</h1>
-          <p class="fs-5 opacity-75">Review your selected premium cooling solutions.</p>
+<section class="cart-page">
+  <header class="cart-hero">
+    <div class="container">
+      <nav class="cart-breadcrumb" aria-label="Breadcrumb"><a href="/products">Products</a><i class="bi bi-chevron-right"></i><span>Shopping cart</span></nav>
+      <div class="row align-items-end g-4">
+        <div class="col-lg-8">
+          <div class="cart-eyebrow">Ordering workspace</div>
+          <h1 class="cart-title">Shopping Cart</h1>
+          <p class="cart-hero-copy">Review product variants, quantities, and pricing before selecting fulfillment, schedule, and payment.</p>
         </div>
-        <div class="col-lg-2 ms-auto d-none d-lg-block" data-aos="fade-left">
-          <div class="text-center p-3 rounded-4" style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
-             <div class="fs-3 fw-bold"><%= cart.items.reduce((sum, item) => sum + item.quantity, 0) %></div>
-             <div class="small text-uppercase opacity-50">Items</div>
+        <div class="col-lg-4">
+          <div class="cart-hero-actions">
+            <a href="/products" class="btn btn-outline-light px-3"><i class="bi bi-arrow-left me-2"></i>Continue Shopping</a>
+            <a href="/my-orders" class="btn btn-light text-primary px-3"><i class="bi bi-receipt me-2"></i>My Orders</a>
           </div>
         </div>
       </div>
     </div>
-  </section>
+  </header>
 
-  <div class="container py-5" id="pdCartContent">
-    <% if (!cart.items || cart.items.length === 0) { %>
-      <div class="empty-state" data-aos="zoom-in">
-        <i class="bi bi-cart-x empty-icon"></i>
-        <h2 class="fw-bold">Your cart is empty</h2>
-        <p class="text-muted mb-4">It seems you haven't added any air conditioners yet.</p>
-        <a href="/aircons" class="btn btn-primary btn-lg rounded-pill px-5">Browse Aircons</a>
+  <div class="container cart-workspace" id="pdCartContent">
+    <div class="cart-steps" aria-label="Checkout progress">
+      <div class="cart-step active" aria-current="step"><span class="cart-step-number">1</span><div><strong>Cart Review</strong><small>Products and quantity</small></div></div>
+      <div class="cart-step"><span class="cart-step-number">2</span><div><strong>Fulfillment</strong><small>Delivery, pickup, or install</small></div></div>
+      <div class="cart-step"><span class="cart-step-number">3</span><div><strong>Payment</strong><small>Method and receipt</small></div></div>
+      <div class="cart-step"><span class="cart-step-number">4</span><div><strong>Confirmation</strong><small>Review and submit</small></div></div>
+    </div>
+
+    <% if (cartItems.length === 0) { %>
+      <div class="empty-cart-card">
+        <div class="empty-cart-icon"><i class="bi bi-cart3"></i></div>
+        <h2>Your cart is ready for a new order</h2>
+        <p>Choose an air conditioner and capacity from the product catalog. Your selections will appear here for review.</p>
+        <a href="/products" class="btn btn-primary rounded-3 px-4 py-2 fw-bold"><i class="bi bi-grid me-2"></i>Browse Products</a>
       </div>
     <% } else { %>
-      <div class="row g-4">
-        <!-- Cart List -->
-        <div class="col-lg-8" data-aos="fade-up">
-          <% cart.items.forEach(item => { %>
-            <div class="item-card p-3 p-md-4" id="item-<%= item._id %>">
-              <div class="d-flex flex-column flex-md-row gap-4 align-items-center">
-                <div class="item-img-container">
-                  <img src="<%= item.inventoryId.imageUrl || '/images/products/default.png' %>" class="item-img" alt="Aircon">
-                </div>
-                <div class="flex-grow-1">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h5 class="fw-bold mb-1"><%= item.inventoryId.modelLine %></h5>
-                      <div class="badge bg-light text-primary border rounded-pill mb-2 px-3">
-                        <%= item.inventoryId.brand %>
-                      </div>
-                      <p class="text-muted small mb-0">
-                        <i class="bi bi-fan me-1"></i><%= item.inventoryId.capacity %> <%= item.inventoryId.capacityUnit %> · 
-                        <%= item.inventoryId.inverter ? 'Inverter' : 'Non-Inverter' %>
-                      </p>
-                    </div>
-                    <button class="btn btn-link text-danger p-0" onclick="removeItem('<%= item._id %>')">
-                      <i class="bi bi-trash fs-5"></i>
-                    </button>
-                  </div>
-                </div>
-                <div class="text-md-end">
-                  <div class="fs-4 fw-bold text-primary mb-3">₱<%= item.inventoryId.sellingPrice.toLocaleString() %></div>
-                  <div class="qty-control ms-md-auto" style="width: fit-content;">
-                    <button class="qty-btn" onclick="updateQty('<%= item._id %>', '<%= item.inventoryId._id %>', -1)"><i class="bi bi-dash"></i></button>
-                    <input type="text" class="qty-input" value="<%= item.quantity %>" readonly id="qty-input-<%= item._id %>">
-                    <button class="qty-btn" onclick="updateQty('<%= item._id %>', '<%= item.inventoryId._id %>', 1)"><i class="bi bi-plus"></i></button>
-                  </div>
-                </div>
-              </div>
+      <div class="row g-4 align-items-start">
+        <div class="col-lg-8">
+          <section class="cart-panel" aria-labelledby="selectedProductsTitle">
+            <div class="cart-panel-head">
+              <div><h2 id="selectedProductsTitle">Selected Products</h2><span>Verify the exact capacity before checkout.</span></div>
+              <span><strong><%= unitCount %></strong> <%= unitCount === 1 ? 'unit' : 'units' %></span>
             </div>
-          <% }) %>
+            <% cartItems.forEach(function (item) { %>
+              <%
+                const product = item.inventoryId || {};
+                const itemQuantity = Number(item.quantity) || 1;
+                const unitPrice = Number(product.sellingPrice) || 0;
+                const lineTotal = unitPrice * itemQuantity;
+                const brandName = product.brand && typeof product.brand === 'object' ? product.brand.name : product.brand;
+                const availableStock = Number(product.quantity);
+                const hasStockValue = Number.isFinite(availableStock);
+                const atStockLimit = hasStockValue && itemQuantity >= availableStock;
+              %>
+              <article class="cart-item" id="item-<%= item._id %>">
+                <div class="cart-item-grid">
+                  <div class="cart-item-image"><img src="<%= product.imageUrl || '/images/products/default.png' %>" alt="<%= [brandName, product.modelLine].filter(Boolean).join(' ') || 'Air conditioner' %>"></div>
+                  <div>
+                    <h3 class="cart-item-name"><%= product.modelLine || 'Air conditioner' %></h3>
+                    <div class="cart-item-tags">
+                      <% if (brandName) { %><span class="cart-item-tag"><%= brandName %></span><% } %>
+                      <span class="cart-item-tag"><%= product.capacity %> <%= product.capacityUnit || 'HP' %></span>
+                      <span class="cart-item-tag"><%= product.inverter ? 'Inverter' : 'Non-Inverter' %></span>
+                    </div>
+                    <% if (hasStockValue) { %>
+                      <span class="cart-stock <%= availableStock <= 3 ? 'low' : '' %>"><i class="bi <%= availableStock > 0 ? 'bi-check-circle-fill' : 'bi-x-circle-fill' %>"></i><%= availableStock > 0 ? availableStock + ' available' : 'Currently unavailable' %></span>
+                    <% } else { %>
+                      <span class="cart-stock"><i class="bi bi-check-circle-fill"></i>Availability checked at checkout</span>
+                    <% } %>
+                  </div>
+                  <div class="cart-item-pricing">
+                    <div class="cart-line-total"><%= formatCurrency(lineTotal) %></div>
+                    <div class="cart-unit-price"><%= formatCurrency(unitPrice) %> per unit</div>
+                    <div class="qty-row">
+                      <div class="qty-control" aria-label="Quantity controls">
+                        <button class="qty-btn" type="button" aria-label="Decrease quantity" onclick="updateQty('<%= item._id %>', '<%= product._id %>', -1)"><i class="bi bi-dash"></i></button>
+                        <input type="text" class="qty-input" value="<%= itemQuantity %>" readonly aria-label="Quantity" id="qty-input-<%= item._id %>">
+                        <button class="qty-btn" type="button" aria-label="Increase quantity" <%= atStockLimit ? 'disabled title="Maximum available stock reached"' : '' %> onclick="updateQty('<%= item._id %>', '<%= product._id %>', 1)"><i class="bi bi-plus"></i></button>
+                      </div>
+                      <button class="remove-item" type="button" aria-label="Remove <%= product.modelLine || 'item' %>" title="Remove item" onclick="removeItem('<%= item._id %>')"><i class="bi bi-trash3"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            <% }); %>
+          </section>
         </div>
 
-        <!-- Summary -->
-        <div class="col-lg-4" data-aos="fade-left" data-aos-delay="200">
+        <aside class="col-lg-4" aria-labelledby="orderSummaryTitle">
           <div class="summary-card">
-            <h4 class="fw-bold mb-4">Summary</h4>
-            <div class="d-flex justify-content-between mb-2">
-              <span class="text-muted">Subtotal</span>
-              <span class="fw-bold">₱<%= cart.totalAmount.toLocaleString() %></span>
+            <h2 id="orderSummaryTitle">Order Summary</h2>
+            <div class="summary-row"><span>Selected units</span><strong><%= unitCount %></strong></div>
+            <div class="summary-row"><span>Merchandise subtotal</span><strong><%= formatCurrency(subtotal) %></strong></div>
+            <div class="summary-row"><span>Delivery / installation</span><strong>Calculated next</strong></div>
+            <div class="summary-total"><span>Current total</span><strong><%= formatCurrency(subtotal) %></strong></div>
+            <p class="summary-note"><%= hasStockIssues ? 'Update or remove unavailable products before continuing.' : 'The final payable amount, required downpayment, and any fulfillment fees are shown before you confirm the order.' %></p>
+            <button class="btn-checkout" type="button" <%= hasStockIssues ? 'disabled' : '' %> onclick="openCheckoutWizard()">Continue to Fulfillment <i class="bi bi-arrow-right ms-2"></i></button>
+            <a class="summary-link" href="/my-orders"><i class="bi bi-receipt"></i>View existing orders</a>
+            <div class="assurance-list">
+              <div class="assurance-item"><i class="bi bi-shield-check"></i><span>Payment instructions and GCash receipt requirements are reviewed before submission.</span></div>
+              <div class="assurance-item"><i class="bi bi-calendar-check"></i><span>Delivery, pickup, and installation schedules are selected in the next step.</span></div>
+              <div class="assurance-item"><i class="bi bi-bell"></i><span>After confirmation, order progress remains available in My Orders.</span></div>
             </div>
-            <div class="d-flex justify-content-between mb-4">
-              <span class="text-muted">Shipping</span>
-              <span class="text-success fw-bold">Calculated at checkout</span>
-            </div>
-            <hr class="my-4">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <span class="fs-5 fw-bold">Total</span>
-              <span class="fs-3 fw-bold text-primary">₱<%= cart.totalAmount.toLocaleString() %></span>
-            </div>
-            <button class="btn btn-checkout w-100 py-3" onclick="openCheckoutWizard()">
-              Proceed to Checkout <i class="bi bi-arrow-right ms-2"></i>
-            </button>
           </div>
-        </div>
+        </aside>
       </div>
     <% } %>
   </div>
+</section>
 
-  <!-- Cart Checkout Wizard -->
-  <script>
-    // admin GCash number for the checkout wizard QR
-    window.adminGcashNumber = "<%= typeof adminGcashNumber !== 'undefined' ? adminGcashNumber : '' %>";
-  </script>
-  <%- include('../partials/cart-wizard', { cart: cart }) %>
+<script>window.adminGcashNumber = "<%= typeof adminGcashNumber !== 'undefined' ? adminGcashNumber : '' %>";</script>
+<%- include('../partials/cart-wizard', { cart: cart }) %>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-  <script>
-    AOS.init({ duration: 800, once: true });
+<script>
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') !== 'now') return;
+    if (window.history.replaceState) window.history.replaceState({}, 'Checkout', '/checkout');
+    document.body.classList.add('checkout-now');
+    var waitTimer = setInterval(function () {
+      if (typeof openCheckoutWizard !== 'function') return;
+      clearInterval(waitTimer);
+      openCheckoutWizard();
+      setTimeout(function () {
+        var modalEl = document.getElementById('checkoutOrderModal');
+        if (modalEl) { modalEl.setAttribute('data-bs-backdrop', 'static'); modalEl.setAttribute('data-bs-keyboard', 'false'); }
+      }, 300);
+    }, 100);
+  })();
 
-    // Auto-open checkout wizard + hide cart when redirected from Buy Now
-    (function() {
-      var params = new URLSearchParams(window.location.search);
-      if (params.get('checkout') === 'now') {
-        // Rewrite URL so user never sees "cart"
-        if (window.history.replaceState) {
-          window.history.replaceState({}, 'Checkout', '/checkout');
-        }
-        // Add class to body to hide everything except checkout
-        document.body.classList.add('checkout-now');
-        // Wait then open checkout modal
-        var waitTimer = setInterval(function() {
-          if (typeof openCheckoutWizard === 'function') {
-            clearInterval(waitTimer);
-            openCheckoutWizard();
-            // Lock modal so it can't be dismissed
-            setTimeout(function() {
-              var modalEl = document.getElementById('checkoutOrderModal');
-              if (modalEl) {
-                modalEl.setAttribute('data-bs-backdrop', 'static');
-                modalEl.setAttribute('data-bs-keyboard', 'false');
-              }
-            }, 300);
-          }
-        }, 100);
-      }
-    })();
-
-    async function updateQty(itemId, inventoryId, delta) {
-      const input = document.getElementById(`qty-input-${itemId}`);
-      let newQty = parseInt(input.value) + delta;
-      if (newQty < 1) return;
-
-      // Optimistic UI
-      input.value = newQty;
-
-      try {
-        const res = await fetch('/api/aircon-cart/add', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inventoryId: inventoryId, quantity: delta })
-        });
-        
-        if (res.ok) {
-          location.reload(); 
-        } else {
-          const data = await res.json();
-          Swal.fire('Error', data.error || 'Failed to update quantity', 'error');
-          input.value = newQty - delta; // revert
-        }
-      } catch (e) {
-        Swal.fire('Error', 'Failed to update quantity', 'error');
-        input.value = newQty - delta; // revert
-      }
+  async function updateQty(itemId, inventoryId, delta) {
+    var input = document.getElementById('qty-input-' + itemId);
+    var previousQty = Number(input.value) || 1;
+    var newQty = previousQty + delta;
+    if (newQty < 1) return removeItem(itemId);
+    input.value = newQty;
+    try {
+      var response = await fetch('/api/aircon-cart/add', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ inventoryId:inventoryId, quantity:delta }) });
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(data.error || 'Failed to update quantity');
+      window.location.reload();
+    } catch (error) {
+      input.value = previousQty;
+      Swal.fire({ icon:'error', title:'Quantity not updated', text:error.message || 'Please try again.' });
     }
+  }
 
-    async function removeItem(itemId) {
-      const result = await Swal.fire({
-        title: 'Remove item?',
-        text: "Are you sure you want to remove this item from your cart?",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        confirmButtonText: 'Yes, remove it'
-      });
-
-      if (result.isConfirmed) {
-        try {
-          const res = await fetch(`/api/aircon-cart/${itemId}`, { method: 'DELETE' });
-          if (res.ok) {
-            location.reload();
-          }
-        } catch (e) {
-          Swal.fire('Error', 'Failed to remove item', 'error');
-        }
-      }
+  async function removeItem(itemId) {
+    var result = await Swal.fire({ title:'Remove this product?', text:'It will be removed from your current order.', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc2626', confirmButtonText:'Remove product' });
+    if (!result.isConfirmed) return;
+    try {
+      var response = await fetch('/api/aircon-cart/' + itemId, { method:'DELETE' });
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(data.error || 'Failed to remove product');
+      window.location.reload();
+    } catch (error) {
+      Swal.fire({ icon:'error', title:'Product not removed', text:error.message || 'Please try again.' });
     }
-
-  </script>
-</body>
-</html>
+  }
+</script>

@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
 
-const EQ_STATUSES = ["reserved", "checked_out", "in_use", "returned", "damaged", "lost"];
+const EQ_STATUSES = ["reserved", "checked_out", "in_use", "returned", "consumed", "damaged", "lost"];
 
 const equipmentAssignmentSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Project",
-    required: function () { return !this.bookingId; },
+    required: function () { return !this.bookingId && !this.dailyKitId; },
     index: true,
   },
   bookingId: {
@@ -14,6 +14,8 @@ const equipmentAssignmentSchema = new mongoose.Schema({
     ref: "BookingService",
     index: true,
   },
+  dailyKitId: { type: mongoose.Schema.Types.ObjectId, ref: "DailyKit", index: true },
+  serviceItemId: { type: mongoose.Schema.Types.ObjectId, index: true },
   bookingReference: { type: String, trim: true },
   technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician", required: true, index: true },
   workOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" },
@@ -51,5 +53,6 @@ equipmentAssignmentSchema.pre("save", function () {
 });
 
 equipmentAssignmentSchema.index({ projectId: 1, technicianId: 1, workDate: 1 });
+equipmentAssignmentSchema.index({ bookingId: 1, serviceItemId: 1, workDate: 1 });
 
 module.exports = mongoose.model("EquipmentAssignment", equipmentAssignmentSchema);

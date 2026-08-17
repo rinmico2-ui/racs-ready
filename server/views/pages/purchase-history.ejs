@@ -167,7 +167,7 @@
               </div>
 
               <div class="d-flex align-items-center gap-2">
-                <% const isPending = ['pending_payment', 'preparing_unit', 'technician_assigned', 'out_for_delivery', 'arrived', 'installing'].includes(order.status); %>
+                <% const isPending = ['pending_payment', 'preparing_unit', 'ready_for_pickup', 'technician_assigned', 'out_for_delivery', 'arrived', 'installing'].includes(order.status); %>
                 <% if (isPending) { %>
                   <button class="btn btn-sm btn-outline-warning ph-reschedule-btn"
                     data-id="<%= order._id %>"

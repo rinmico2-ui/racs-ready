@@ -12,12 +12,18 @@ const PARTS_REQUEST_STATUSES = ["pending", "procuring", "received", "cancelled"]
 
 const partsRequestSchema = new mongoose.Schema(
   {
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      index: true,
+    },
     bookingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BookingService",
       required: true,
       index: true,
     },
+    serviceItemId: { type: mongoose.Schema.Types.ObjectId, index: true },
 
     workOrderNumber: {
       type: String,
@@ -95,6 +101,10 @@ const partsRequestSchema = new mongoose.Schema(
       ref: "User",
     },
 
+    // Status to restore when procurement was requested during the inspection
+    // preparation phase rather than after quotation approval.
+    resumeStatus: { type: String, trim: true },
+
     procuringAt: Date,
     procuredBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -111,6 +121,9 @@ const partsRequestSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    requiredDate: Date,
+    priority: { type: String, enum: ["low", "normal", "high", "urgent"], default: "normal" },
+    affectedWorkOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
   },
   {
     timestamps: true,
@@ -121,6 +134,7 @@ const partsRequestSchema = new mongoose.Schema(
 
 partsRequestSchema.index({ status: 1, requestedAt: -1 });
 partsRequestSchema.index({ bookingId: 1, status: 1 });
+partsRequestSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
 
 // ─── Static Helpers ──────────────────────────────────────────────────────────
 

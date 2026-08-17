@@ -36,6 +36,16 @@ const bookingSchema = new mongoose.Schema({
     enum: ["CoreService", "RepairService"],
   },
 
+  // Persist the booking classification used throughout scheduling, repair
+  // workflows and reporting.  Several creation routes already send this
+  // value; without a schema path Mongoose strict mode silently drops it.
+  serviceType: {
+    type: String,
+    enum: ["core", "repair", "mixed"],
+    default: "core",
+    index: true,
+  },
+
   // snapshot of the service chosen (for display even if service doc changes)
   service: {
     _id: { type: mongoose.Schema.Types.ObjectId, refPath: "serviceModel" },
@@ -51,14 +61,18 @@ const bookingSchema = new mongoose.Schema({
   brand: { type: String },
   applianceType: { type: String }, // 'split' | 'window' | 'cassette' | 'floor_standing'
   applianceTypeName: { type: String }, // Display label e.g. "Split Type"
+  hp: { type: Number },             // HP rating for aircon services
+  hpDescription: { type: String },  // e.g. "1.5 HP Split Type"
 
   // Multi-service booking support
   isMultiService: { type: Boolean, default: false },
   services: [{
     serviceId: { type: mongoose.Schema.Types.ObjectId },
     name: String,
-    type: String, // 'core' or 'repair'
-    quantity: Number,
+    // `type` is a reserved schema-definition key in Mongoose. It must be
+    // wrapped or Mongoose interprets the entire services array as [String].
+    type: { type: String }, // 'core' or 'repair'
+    quantity: { type: Number, min: 1, max: 40, default: 1 },
     unitPrice: Number,
     totalPrice: Number,
     hp: Number, // HP rating for aircon services
@@ -71,6 +85,59 @@ const bookingSchema = new mongoose.Schema({
     duration: Number,
     isAirconService: Boolean,
     repairIssue: String, // Individual repair issue description
+    model: { type: String, trim: true },
+    problemDescription: { type: String, trim: true },
+    unitCategory: { type: String, trim: true },
+    symptoms: [String],
+    photos: [String],
+
+    // Independent lifecycle for each appliance/service item. Parent booking
+    // status remains as a compatibility summary for legacy screens.
+    status: {
+      type: String,
+      default: "pending",
+      enum: [
+        "pending", "awaiting_assignment", "assigned", "accepted", "scheduled",
+        "en_route", "arrived", "in_progress", "completed", "cancelled", "on_hold",
+        "inspection_pending", "inspection_scheduled", "inspection_in_progress",
+        "inspection_completed", "diagnosis_completed", "parts_check",
+        "awaiting_quotation", "awaiting_customer_decision", "repair_approved",
+        "repair_declined", "ready_for_repair", "repair_scheduled",
+        "repair_in_progress", "payment_pending"
+      ],
+      index: true,
+    },
+    phase: { type: String, enum: ["core", "repair_phase_1", "repair_phase_2"], default: "core" },
+    technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician", default: null },
+    technicianName: String,
+    assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Assignment", default: null },
+    schedule: {
+      date: Date,
+      startTime: String,
+      endTime: String,
+      durationMinutes: Number,
+      kind: { type: String, enum: ["service", "inspection", "repair"], default: "service" },
+    },
+    quotation: {
+      parts: [{
+        name: String,
+        cost: Number,
+        quantity: Number,
+        toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+      }],
+      laborCost: Number,
+      laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
+      totalCost: Number,
+      notes: String,
+      status: { type: String, enum: ["draft", "submitted", "approved", "declined", "revision_requested"], default: "draft" },
+      createdAt: Date,
+      decidedAt: Date,
+    },
+    partsUsed: [{ name: String, quantity: Number, unitCost: Number, toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" }, usedAt: Date }],
+    consumablesUsed: [{ name: String, quantity: Number, unitCost: Number, toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool" }, usedAt: Date }],
+    equipmentAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "EquipmentAssignment" }],
+    serviceReportId: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceReport", default: null },
+    statusHistory: [{ status: String, changedAt: { type: Date, default: Date.now }, changedBy: { type: mongoose.Schema.Types.ObjectId }, changedByName: String, reason: String }],
 
     // Professional repair pricing workflow
     initialCost: Number, // Initial cost at booking time (diagnostic fee)
@@ -117,7 +184,7 @@ const bookingSchema = new mongoose.Schema({
       diagnosis: {
         summary: String,
         confirmedDiagnoses: [String],
-        laborCategory: { type: String, enum: ["standard", "complex", "major"], default: "standard" },
+        laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
         laborDuration: String,
         technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
         completedAt: Date,
@@ -131,7 +198,7 @@ const bookingSchema = new mongoose.Schema({
           toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
         }],
         laborCost: Number,
-        laborCategory: { type: String, enum: ["standard", "complex", "major"], default: "standard" },
+        laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
         totalCost: Number,
         notes: String,
       },
@@ -149,6 +216,25 @@ const bookingSchema = new mongoose.Schema({
       completedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
       completionNotes: String,
     }],
+  }],
+  serviceChangeRequests: [{
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    requestedByName: String,
+    requestedAt: { type: Date, default: Date.now },
+    reason: { type: String, trim: true, maxlength: 1000 },
+    status: { type: String, enum: ["pending", "approved", "rejected", "schedule_proposed", "customer_accepted_schedule", "customer_rejected_schedule"], default: "pending", index: true },
+    changeType: { type: String, enum: ["direct_edit", "change_request"], default: "change_request" },
+    beforeServices: [{ type: mongoose.Schema.Types.Mixed }],
+    proposedServices: [{ type: mongoose.Schema.Types.Mixed }],
+    summary: {
+      added: { type: Number, default: 0 },
+      edited: { type: Number, default: 0 },
+      removed: { type: Number, default: 0 },
+    },
+    proposedSchedule: { date: Date, startTime: String, endTime: String, notes: String },
+    adminDecision: { decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, decidedByName: String, decidedAt: Date, reason: String },
+    technicianAcknowledgedAt: Date,
+    technicianAcknowledgedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
   }],
   totalPrice: { type: Number }, // Total price for multi-service bookings
   totalInitialCost: { type: Number }, // Sum of all initial costs
@@ -173,6 +259,9 @@ const bookingSchema = new mongoose.Schema({
   // optional image associated with this booking (e.g. photo of issue or location)
   imageUrl: { type: String },
 
+  // technician proof-of-completion photo (uploaded when job is marked completed)
+  proofPhoto: { type: String },
+
   bookingDate: { type: Date, required: true },
   startTime: { type: String },
   endTime: { type: String },
@@ -185,7 +274,7 @@ const bookingSchema = new mongoose.Schema({
   isProject: { type: Boolean, default: false },
 
   // Repair requests may involve multiple units; quantity captured at top level too.
-  quantity: { type: Number, default: 1 },
+  quantity: { type: Number, default: 1, min: 1, max: 40 },
 
   // Customer-provided scheduling preferences (not a confirmed schedule).
   projectScheduling: {
@@ -208,6 +297,8 @@ const bookingSchema = new mongoose.Schema({
     unitType: String,       // e.g. "Split Type Aircon", "Refrigerator"
     brand: String,          // e.g. "Carrier"
     model: String,          // e.g. "42KDPV48"
+    hp: Number,             // HP rating for aircon services
+    hpDescription: String,  // e.g. "1.5 HP Split Type"
     problemDescription: String,
     photos: [String],       // URLs to uploaded photos
   },
@@ -238,10 +329,20 @@ const bookingSchema = new mongoose.Schema({
     findings: String,
     diagnosisSummary: String,
     confirmedDiagnoses: [String],
-    requiredParts: [{ name: String, quantity: Number, cost: Number }],
+    repairAction: String,
+    replacementPartsRequired: { type: Boolean, default: false },
+    requiredParts: [{
+      name: String,
+      quantity: Number,
+      cost: Number, // legacy alias of sellingPrice
+      sellingPrice: Number,
+      purchasePrice: Number,
+      toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+      itemType: { type: String, default: "part" },
+    }],
     laborDuration: String,
     laborCost: Number,
-    laborCategory: { type: String, enum: ["standard", "complex", "major"], default: "standard" },
+    laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
     completedAt: Date,
     technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
   },
@@ -251,11 +352,17 @@ const bookingSchema = new mongoose.Schema({
     parts: [{
       name: String,
       cost: Number,
+      sellingPrice: Number,
+      purchasePrice: Number,
       quantity: Number,
       toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+      itemType: { type: String, default: "part" },
+      source: { type: String, enum: ["inventory", "external_purchase"], default: "inventory" },
     }],
     laborCost: Number,
-    laborCategory: { type: String, enum: ["standard", "complex", "major"], default: "standard" },
+    laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
+    repairAction: String,
+    replacementPartsRequired: { type: Boolean, default: false },
     totalCost: Number,
     notes: String,
     createdAt: Date,
@@ -284,6 +391,7 @@ const bookingSchema = new mongoose.Schema({
     status: { type: String, enum: ["pending", "procuring", "received", "cancelled"], default: "pending" },
     requestedAt: Date,
     requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    resumeStatus: { type: String },
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     items: [{
@@ -295,6 +403,29 @@ const bookingSchema = new mongoose.Schema({
       receivedAt: Date,
     }],
   },
+
+  // ── Local Purchase (technician buys missing parts from external supplier) ──
+  localPurchase: [{
+    partName: String,
+    toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+    quotedCustomerPrice: Number,
+    expectedPurchaseCost: Number,
+    actualPurchaseCost: Number,
+    source: { type: String, default: "External Supplier" },
+    supplierName: String,
+    supplierAddress: String,
+    supplierContact: String,
+    supplierAvailabilityConfirmed: { type: Boolean, default: false },
+    purchaseByType: { type: String, enum: ["technician", "customer"], default: "technician" },
+    purchasedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
+    purchasedByName: String,
+    purchaseStatus: { type: String, enum: ["pending", "awaiting_customer", "purchased", "receipt_uploaded", "verified", "rejected"], default: "pending" },
+    receiptUrl: String,
+    purchasedAt: Date,
+    verifiedAt: Date,
+    adminVerificationStatus: { type: String, enum: ["not_required", "pending", "approved", "rejected", "correction_requested"], default: "pending" },
+    notes: String,
+  }],
 
   // ── Warranty ────────────────────────────────────────────────────────────
   warranty: {
@@ -428,6 +559,21 @@ const bookingSchema = new mongoose.Schema({
   // when an appointment is cancelled, record the reason
   cancellationReason: { type: String },
 
+  // ── Admin-Initiated Reschedule Proposal (awaiting customer response) ──────
+  proposedReschedule: {
+    proposedAt: { type: Date },
+    proposedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    proposedByName: { type: String },
+    date: { type: Date },
+    time: { type: String },
+    dateLabel: { type: String },
+    timeLabel: { type: String },
+    technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
+    technicianName: { type: String },
+    expiresAt: { type: Date },
+    status: { type: String, enum: ["pending", "accepted", "rejected", "new_requested"], default: "pending" },
+  },
+
   // ── Delay (overtime cascade) ─────────────────────────────────────────────
   // Set when a technician's earlier job overruns into this booking's slot.
   // Per product decision this is NOTIFY-ONLY: the customer is informed and
@@ -460,7 +606,7 @@ const bookingSchema = new mongoose.Schema({
   cancellationHistory: [{
     technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
     technicianName: { type: String },
-    action: { type: String, enum: ["declined", "cancelled", "reassigned"] },
+    action: { type: String, enum: ["declined", "cancelled", "reassigned", "auto_reschedule"] },
     reason: { type: String },
     timestamp: { type: Date, default: Date.now },
   }],
@@ -483,7 +629,7 @@ const bookingSchema = new mongoose.Schema({
       reason: { type: String },
       requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       requestedAt: { type: Date },
-      status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+      status: { type: String, enum: ["pending", "approved", "rejected", "superseded"], default: "pending" },
       processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       processedAt: { type: Date },
       rejectionReason: { type: String }
@@ -497,11 +643,12 @@ const bookingSchema = new mongoose.Schema({
   // downpayment / proof information (customer-submitted when booking)
   gcashNumber: { type: String }, // raw mobile number entered by customer (optional reference)
   paymentReference: { type: String }, // text reference or note entered
+  downpaymentPercentage: { type: Number, min: 1, max: 100 }, // policy snapshot at booking time
   downpaymentAmount: { type: Number }, // required for cash bookings
   paymentNotes: { type: String }, // optional special instructions (cash bookings)
 
   // payment status tracking
-  paymentStatus: { type: String, enum: ["pending", "paid", "failed", "partial"], default: "pending" },
+  paymentStatus: { type: String, enum: ["pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "refunded", "paid", "failed", "partial"], default: "pending" },
   amountPaid: { type: Number, default: 0 },          // total collected so far (downpayment + any final)
   balanceAmount: { type: Number, default: 0 },       // remaining balance to collect on-site
   balanceCollected: { type: Boolean, default: false }, // true when technician collects final payment
@@ -521,8 +668,18 @@ const bookingSchema = new mongoose.Schema({
   inspectionFeeAmount: { type: Number, default: 0 },
   inspectionFeeDistanceFare: { type: Number, default: 0 },
   inspectionFeeTotalCollected: { type: Number, default: 0 },
+  downpaymentAppliedToInspection: { type: Number, default: 0 },
   inspectionFeeMethod: { type: String },
   inspectionFeeCollectedAt: { type: Date },
+
+  // Mixed-booking Phase 1 settlement. Core service is paid on the first
+  // visit when every Core item is complete; the later Repair visit then
+  // collects only the approved quotation.
+  coreServicePaymentCollected: { type: Boolean, default: false },
+  coreServicePaymentAmount: { type: Number, default: 0 },
+  coreServicePaymentCashCollected: { type: Number, default: 0 },
+  coreServicePaymentMethod: { type: String },
+  coreServicePaymentCollectedAt: { type: Date },
 
   // if technician has been detected near customer, we send a one‑time notification
   arrivalNotified: { type: Boolean, default: false },
@@ -531,6 +688,17 @@ const bookingSchema = new mongoose.Schema({
   isDelayed: { type: Boolean, default: false, index: true },
   delayedAt: { type: Date },
   delayNotifiedAt: { type: Date },
+
+  // Auto-fallback to reschedule — set by overdueBookingScheduler when a booking
+  // in the assignment queue exceeds its scheduled time without a technician.
+  // The booking is moved to pending_reassignment so admins can reschedule it.
+  autoReschedulePending: { type: Boolean, default: false, index: true },
+  autoRescheduleAt: { type: Date },
+  autoRescheduleReason: { type: String },
+
+  // Pre-schedule verification reminder — set once when a booking approaches its
+  // scheduled time while still pending payment verification / technician assignment.
+  verificationReminderAt: { type: Date },
 
   // optional external gateway tracking (kept for compatibility)
   paymentGatewayId: { type: String },
@@ -629,9 +797,46 @@ const bookingSchema = new mongoose.Schema({
     estimatedDurationMinutes: { type: Number },
     safetyReminders: [String],
     additionalNotes: { type: String },
+    // One preliminary reference per selected repair service/appliance. The
+    // aggregate fields above remain for backwards-compatible screens.
+    serviceAnalyses: [{ type: mongoose.Schema.Types.Mixed }],
     technicianNotes: { type: String },    // Technician can add their own notes after on-site inspection
+    // Optional contingency parts the technician declares they will carry.
+    // These are not confirmed repair parts, reservations, or customer charges.
+    carriedPossibleParts: [{ type: mongoose.Schema.Types.Mixed }],
     verifiedByTechnician: { type: Boolean, default: false },
     verifiedAt: { type: Date }
+  },
+
+  // Technician pre-departure checklist for repair visits.
+  repairPreparation: {
+    confirmed: { type: Boolean, default: false },
+    confirmedAt: { type: Date },
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' }
+  },
+
+  // Technician-owned preparation for standard/core service bookings.
+  servicePreparation: {
+    confirmed: { type: Boolean, default: false },
+    confirmedAt: { type: Date },
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
+    recommendationGeneratedAt: { type: Date },
+    // Optional AI contingency parts physically confirmed in the technician's
+    // possession. These remain references, not quoted/required repair parts.
+    aiContingencyParts: [{
+      name: { type: String, trim: true },
+      quantity: { type: Number, min: 1, default: 1 },
+      serviceName: { type: String, trim: true },
+      confirmedBroughtAt: { type: Date },
+      confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' }
+    }],
+    items: [{
+      inventoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tool' },
+      name: { type: String, trim: true },
+      kind: { type: String, enum: ['equipment', 'consumable'] },
+      quantity: { type: Number, min: 1, default: 1 },
+      recommended: { type: Boolean, default: false }
+    }]
   },
 
   // ── Enterprise Repair: Preventive Maintenance Tips ──────────────────────
@@ -730,11 +935,19 @@ bookingSchema.pre("validate", function () {
       "Multi-service booking must have at least one service",
     );
   }
+  const serviceUnits = Array.isArray(this.services) && this.services.length
+    ? this.services.reduce((sum, service) => sum + (Number(service.quantity) || 1), 0)
+    : Number(this.quantity || 1);
+  if (serviceUnits > 40) this.invalidate("services", "A booking can contain at most 40 units across all services");
+  if (serviceUnits >= 8) {
+    this.quantity = serviceUnits;
+    this.isProject = true;
+  }
 });
 
 // Helper method: Calculate total costs for multi-service bookings
 bookingSchema.methods.calculateTotalCosts = function () {
-  if (!this.isMultiService || !this.services || this.services.length === 0) {
+  if (!this.services || this.services.length === 0) {
     return {
       totalInitialCost: this.initialCost || 0,
       totalFinalCost: this.finalCost || 0,
@@ -747,18 +960,20 @@ bookingSchema.methods.calculateTotalCosts = function () {
   let hasUndiagnosedRepairs = false;
 
   this.services.forEach(service => {
-    // Add initial costs
-    if (service.initialCost) {
-      totalInitial += service.initialCost * (service.quantity || 1);
-    } else if (service.unitPrice) {
-      totalInitial += service.unitPrice * (service.quantity || 1);
-    }
+    const quantity = Math.max(1, Number(service.quantity) || 1);
+    const initialUnit = Number(service.initialCost ?? service.unitPrice ?? 0);
+    const initialLine = initialUnit * quantity;
+    totalInitial += initialLine;
 
-    // Add final costs (if technician has updated)
-    if (service.finalCost) {
-      totalFinal += service.finalCost * (service.quantity || 1);
-    } else if (service.type === 'repair' && !service.costUpdatedByTechnician) {
+    if (service.finalCost != null && service.costUpdatedByTechnician) {
+      totalFinal += Number(service.finalCost) * quantity;
+    } else if (service.type === 'repair') {
+      // Until diagnosis, keep the inspection/diagnostic amount as the
+      // provisional customer total without claiming it is a final quote.
       hasUndiagnosedRepairs = true;
+      totalFinal += initialLine;
+    } else {
+      totalFinal += Number(service.totalPrice ?? (Number(service.unitPrice) || 0) * quantity);
     }
   });
 
@@ -771,14 +986,14 @@ bookingSchema.methods.calculateTotalCosts = function () {
   return {
     totalInitialCost: totalInitial,
     totalFinalCost: hasUndiagnosedRepairs ? null : totalFinal,
-    totalPrice: hasUndiagnosedRepairs ? totalInitial : totalFinal,
+    totalPrice: totalFinal,
     hasUndiagnosedRepairs
   };
 };
 
 // Helper method: Update service cost (for technician dashboard)
 bookingSchema.methods.updateServiceCost = function (serviceIndex, newCost, technicianId, diagnosisNotes, reason) {
-  if (!this.isMultiService || !this.services || !this.services[serviceIndex]) {
+  if (!this.services || !this.services[serviceIndex]) {
     throw new Error('Invalid service index');
   }
 
@@ -819,7 +1034,7 @@ bookingSchema.methods.updateServiceCost = function (serviceIndex, newCost, techn
 
 // Helper method: Check if all repair services have been diagnosed
 bookingSchema.methods.allRepairsDiagnosed = function () {
-  if (!this.isMultiService || !this.services) {
+  if (!this.services || this.services.length === 0) {
     return this.costUpdatedByTechnician || false;
   }
 
@@ -835,7 +1050,7 @@ bookingSchema.methods.allRepairsDiagnosed = function () {
 // Builds an array of appliance groups from the services[] array.
 // Each group represents a distinct appliance type with its unit count and details.
 bookingSchema.methods.getUnitGroups = function () {
-  if (!this.isMultiService || !this.services || this.services.length === 0) {
+  if (!this.services || this.services.length === 0) {
     // Single-service booking: use top-level unitInfo
     return [{
       groupIndex: 0,
@@ -864,14 +1079,14 @@ bookingSchema.methods.getUnitGroups = function () {
     serviceId: svc.serviceId,
     serviceName: svc.name,
     serviceType: svc.type || 'repair',
-    unitType: svc.airconTypeName || svc.name || 'Unknown',
+    unitType: svc.applianceTypeName || svc.airconTypeName || svc.name || 'Unknown',
     brand: svc.brand || '',
-    model: '',
+    model: svc.model || '',
     applianceType: svc.applianceType || svc.airconType || '',
-    applianceTypeName: svc.airconTypeName || '',
+    applianceTypeName: svc.applianceTypeName || svc.airconTypeName || '',
     hp: svc.hp || null,
     hpDescription: svc.hpDescription || '',
-    problemDescription: svc.repairIssue || '',
+    problemDescription: svc.problemDescription || svc.repairIssue || '',
     quantity: svc.quantity || 1,
     unitPrice: svc.unitPrice || 0,
     totalPrice: svc.totalPrice || 0,
@@ -897,6 +1112,34 @@ bookingSchema.methods.recordStatusHistory = function (opts = {}) {
   };
   if (!this.statusHistory) this.statusHistory = [];
   this.statusHistory.push(entry);
+
+  // ── Enterprise: mirror every status change to the global audit log ────────
+  try {
+    const { logEvent } = require('../utils/audit');
+    logEvent({
+      actor: opts.changedBy || null,
+      action: 'booking.status_change',
+      module: 'BookingService',
+      details: {
+        fromStatus: entry.fromStatus,
+        toStatus: entry.toStatus,
+        reason: opts.reason || '',
+        notes: opts.notes || '',
+        metadata: opts.metadata || {},
+        bookingReference: this.bookingReference,
+        bookingId: this._id ? this._id.toString() : null,
+        actorRole: opts.changedByModel || 'System',
+        actorName: opts.changedByName || 'System',
+      },
+      entityId: this._id || null,
+      entityType: 'BookingService',
+      category: 'booking',
+      actionType: 'status_change',
+      actorRole: opts.changedByModel || 'System',
+      actorName: opts.changedByName || 'System',
+    });
+  } catch (_) { /* non-fatal */ }
+
   return entry;
 };
 
@@ -940,20 +1183,13 @@ bookingSchema.pre("save", async function () {
   // if user switches category away from repair, clear any entered issue
   if (this.serviceType !== "repair") this.issueDescription = undefined;
 
-  // snapshot customer information if we have an id but no details yet
-  // ALWAYS fetch real customer data from database
-  if (this.customerId) {
-    console.log('🔍 BookingService pre-save: Fetching REAL customer data from database...');
+  // Only snapshot customer when customerId changed or new doc (skip on status-only updates)
+  if (this.customerId && (this.isNew || this.isModified("customerId"))) {
     try {
       const User = mongoose.model("User");
-      const u = await User.findById(this.customerId);
-
+      const u = await User.findById(this.customerId).lean();
       if (u) {
-        // Manually construct full name from firstName and lastName
-        const firstName = u.firstName || '';
-        const lastName = u.lastName || '';
-        const constructedName = `${firstName} ${lastName}`.trim();
-
+        const constructedName = `${u.firstName || ""} ${u.lastName || ""}`.trim();
         this.customer = {
           _id: u._id,
           name: constructedName || "Customer Name",
@@ -961,21 +1197,15 @@ bookingSchema.pre("save", async function () {
           phone: u.phone || u.mobile || "09123456789",
           address: u.address || "Default Address",
         };
-        console.log('✅ REAL customer data fetched:', {
-          name: this.customer.name,
-          email: this.customer.email
-        });
-      } else {
-        console.log('❌ Customer not found in database for ID:', this.customerId);
       }
     } catch (e) {
-      console.error('❌ Error fetching customer:', e.message);
+      console.error("Error fetching customer:", e.message);
     }
   }
-  // snapshot chosen service info if we have a reference and no snapshot yet
-  if (this.serviceId && (!this.service || !this.service._id)) {
+
+  // Only snapshot service when serviceId changed or new doc
+  if (this.serviceId && (this.isNew || this.isModified("serviceId"))) {
     try {
-      // serviceModel should already be set (pre-save earlier)
       const Model = mongoose.model(this.serviceModel || "CoreService");
       const svc = await Model.findById(this.serviceId).lean();
       if (svc) {
@@ -985,7 +1215,6 @@ bookingSchema.pre("save", async function () {
           description: svc.description || svc.commonFaults || "",
           basePrice: svc.basePrice || svc.laborPerHour || 0,
         };
-        // also cache price and (approx) duration
         if (svc.basePrice !== undefined) this.servicePrice = svc.basePrice;
         if (svc.durationMinutes !== undefined)
           this.serviceDurationMinutes = svc.durationMinutes;
@@ -996,44 +1225,38 @@ bookingSchema.pre("save", async function () {
       /* ignore snapshot failure */
     }
   }
+
   // if travelFare exists, recalc estimated fee after servicePrice set
   if (this.travelFare != null) {
     if (this.isMultiService) {
-      this.estimatedFee = (this.totalPrice || 0); // totalPrice already includes travelFare
+      this.estimatedFee = (this.totalPrice || 0);
     } else {
       const base = this.servicePrice || (this.service && this.service.basePrice) || 0;
       this.estimatedFee = base + (this.travelFare || 0);
     }
   }
-  // ALWAYS fetch real technician data from database
-  if (this.technicianId) {
-    console.log('🔍 BookingService pre-save: Fetching REAL technician data from database...');
+
+  // Only snapshot technician when technicianId changed or new doc
+  if (this.technicianId && (this.isNew || this.isModified("technicianId"))) {
     try {
       const Technician = mongoose.model("Technician");
-      const tech = await Technician.findById(this.technicianId);
-
+      const tech = await Technician.findById(this.technicianId).lean();
       if (tech) {
         this.technician = {
           _id: tech._id,
           name: tech.name || "Technician Name",
-          // Use userEmail field (correct field in Technician model)
           email: tech.userEmail || tech.email || "technician@example.com",
           phone: tech.phone || tech.mobile || "0987654321",
         };
-        console.log('✅ REAL technician data fetched:', {
-          name: this.technician.name,
-          email: this.technician.email
-        });
-      } else {
-        console.log('❌ Technician not found in database for ID:', this.technicianId);
       }
     } catch (e) {
-      console.error('❌ Error fetching technician:', e.message);
+      console.error("Error fetching technician:", e.message);
     }
   }
 
-  // Auto-calculate total costs for multi-service bookings
-  if (this.isMultiService && this.services && this.services.length > 0) {
+  // Service items are the source of truth for both single- and multi-item
+  // bookings. Legacy records without services continue using top-level totals.
+  if (this.services && this.services.length > 0) {
     const totals = this.calculateTotalCosts();
     this.totalInitialCost = totals.totalInitialCost;
     this.totalFinalCost = totals.totalFinalCost;

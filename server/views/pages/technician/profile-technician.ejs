@@ -8,122 +8,121 @@
           <i class="bi bi-person-circle me-2"></i>Technician Profile
         </h1>
         <p class="hero-sub small">
-          Account details for <%= user && user.email ? user.email : 'Technician' %>
+          View your account details, availability, and customer rating.
         </p>
       </div>
     </div>
   </div>
 
-  <div class="row gx-0">
-    <div class="col-12 mb-4">
-      <div class="card shadow-lg bg-white w-100">
+  <%
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || (techProfile && techProfile.name) || 'Technician';
+    const email = user.email || (techProfile && techProfile.userEmail) || '';
+    const phone = user.phone || (techProfile && techProfile.phone) || '';
+    const initials = (fullName || 'T').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+    const status = (techProfile && techProfile.availabilityStatus) ? techProfile.availabilityStatus : 'Offline';
+    const statusClass = { 'Available':'success', 'Assigned':'primary', 'On The Way':'info', 'In Progress':'warning', 'Unavailable':'secondary', 'Offline':'dark' }[status] || 'secondary';
+    const joined = user.createdAt || (techProfile && techProfile.createdAt);
+    const lastLogin = user.lastLogin;
+    const rating = (techProfile && techProfile.rating) ? techProfile.rating : 0;
+    const ratingCount = (techProfile && techProfile.ratingCount) ? techProfile.ratingCount : 0;
+    const active = techProfile ? techProfile.active : true;
+  %>
+
+  <div class="row gy-4">
+    <div class="col-lg-4">
+      <div class="card shadow-lg border-0 text-center p-4 h-100">
+        <div class="d-flex justify-content-center mb-3">
+          <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:96px;height:96px;font-size:2.5rem;font-weight:600;">
+            <%= initials %>
+          </div>
+        </div>
+        <h4 class="fw-bold mb-1"><%= fullName %></h4>
+        <p class="text-muted mb-3">Technician</p>
+        <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
+          <span class="badge bg-<%= active ? 'success' : 'danger' %>"><%= active ? 'Active' : 'Inactive' %></span>
+          <span class="badge bg-<%= statusClass %>"><%= status %></span>
+        </div>
+        <div class="d-flex justify-content-center align-items-center gap-1 text-warning fs-5 mb-1">
+          <% for (let i = 1; i <= 5; i++) { %>
+            <i class="bi bi-star<%= i <= Math.round(rating) ? '-fill' : '' %>"></i>
+          <% } %>
+          <span class="text-muted small ms-2">(<%= ratingCount %>)</span>
+        </div>
+        <p class="text-muted small"><%= rating ? rating.toFixed(1) + ' / 5.0' : 'Unrated' %></p>
+        <hr>
+        <div class="text-start small">
+          <div class="mb-2"><i class="bi bi-envelope me-2 text-muted"></i><%= email || 'No email on file' %></div>
+          <div class="mb-2"><i class="bi bi-telephone me-2 text-muted"></i><%= phone || 'No phone on file' %></div>
+          <div><i class="bi bi-geo-alt me-2 text-muted"></i><%= (techProfile && techProfile.locationText) ? techProfile.locationText : 'Location not set' %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-lg border-0 h-100">
         <div class="card-body p-4">
-          <h6 class="mb-3">Account Details</h6>
-          <form class="row gx-3 gy-2" id="technicianProfileForm">
+          <h5 class="fw-bold mb-4">Account Information</h5>
+          <form class="row gx-3 gy-3">
             <div class="col-md-6">
-              <label class="form-label small">First Name</label>
+              <label class="form-label small text-muted">First Name</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-person"></i></span>
-                <input
-                  name="firstName"
-                  type="text"
-                  class="form-control"
-                  value="<%= user.firstName || '' %>"
-                  readonly
-                />
+                <input type="text" class="form-control" value="<%= user.firstName || '' %>" readonly>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small">Last Name</label>
+              <label class="form-label small text-muted">Last Name</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-person"></i></span>
-                <input
-                  name="lastName"
-                  type="text"
-                  class="form-control"
-                  value="<%= user.lastName || '' %>"
-                  readonly
-                />
+                <input type="text" class="form-control" value="<%= user.lastName || '' %>" readonly>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small">Email</label>
+              <label class="form-label small text-muted">Email</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input
-                  name="email"
-                  type="email"
-                  class="form-control"
-                  value="<%= user.email || '' %>"
-                  readonly
-                />
+                <input type="email" class="form-control" value="<%= email %>" readonly>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small">Phone</label>
+              <label class="form-label small text-muted">Phone</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-telephone"></i></span>
-                <input
-                  name="phone"
-                  type="tel"
-                  class="form-control"
-                  value="<%= user.phone || '' %>"
-                  readonly
-                />
+                <input type="tel" class="form-control" value="<%= phone %>" readonly>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small">Role</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
-                <input
-                  type="text"
-                  class="form-control"
-                  value="Technician"
-                  readonly
-                />
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small">Customer Rating</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-star"></i></span>
-                <input
-                  type="text"
-                  class="form-control"
-                  value="<%= typeof techProfile !== 'undefined' && techProfile.rating ? techProfile.rating.toFixed(1) + ' / 5.0' : 'Unrated' %>"
-                  readonly
-                />
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small">Employed Since</label>
+              <label class="form-label small text-muted">Employed Since</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
-                <input
-                  type="text"
-                  class="form-control"
-                  value="<%= user && user.createdAt ? new Date(user.createdAt).toLocaleString() : '' %>"
-                  readonly
-                />
+                <input type="text" class="form-control" value="<%= joined ? new Date(joined).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '' %>" readonly>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small">Last Login</label>
+              <label class="form-label small text-muted">Last Login</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-clock"></i></span>
-                <input
-                  type="text"
-                  class="form-control"
-                  value="<%= user && user.lastLogin ? new Date(user.lastLogin).toLocaleString() : '' %>"
-                  readonly
-                />
+                <input type="text" class="form-control" value="<%= lastLogin ? new Date(lastLogin).toLocaleString() : 'Never' %>" readonly>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted">Customer Rating</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-star"></i></span>
+                <input type="text" class="form-control" value="<%= rating ? rating.toFixed(1) + ' / 5.0 (' + ratingCount + ' reviews)' : 'Unrated' %>" readonly>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted">Role</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
+                <input type="text" class="form-control" value="Technician" readonly>
               </div>
             </div>
           </form>
           <div class="mt-4 d-flex gap-2">
             <a class="btn btn-outline-secondary btn-sm" href="/technician">
-              Back to dashboard
+              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
             </a>
           </div>
         </div>

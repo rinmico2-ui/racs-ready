@@ -44,6 +44,9 @@ class CheckoutCalendar {
                 border-radius: 12px;
                 overflow: hidden;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
             }
             .co-cal-header {
                 display: flex; align-items: center; justify-content: space-between;
@@ -79,15 +82,15 @@ class CheckoutCalendar {
             .co-cal-legend-dot.full { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.15); }
             .co-cal-legend-dot.holiday { background: repeating-linear-gradient(45deg, rgba(239,68,68,0.04), rgba(239,68,68,0.04) 2px, rgba(239,68,68,0.08) 2px, rgba(239,68,68,0.08) 4px); border-color: rgba(239,68,68,0.15); }
             .co-cal-legend-dot.non-working { background: repeating-linear-gradient(45deg, rgba(100,116,139,0.04), rgba(100,116,139,0.04) 2px, rgba(100,116,139,0.08) 2px, rgba(100,116,139,0.08) 4px); border-color: rgba(100,116,139,0.15); }
-            .co-cal-days { display: grid; grid-template-columns: repeat(7,1fr); padding: 8px 12px 2px; }
+            .co-cal-days { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); padding: 8px 12px 2px; }
             .co-cal-day-name { text-align: center; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; padding: 4px 0; }
-            .co-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; padding: 2px 12px 12px; }
+            .co-cal-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 4px; padding: 2px 12px 12px; }
             .co-cal-cell {
-                position: relative; aspect-ratio: 1; border-radius: 8px;
+                position: relative; min-width: 0; min-height: 58px; border-radius: 8px;
                 display: flex; flex-direction: column; align-items: center; justify-content: center;
                 font-size: 0.85rem; font-weight: 600; cursor: default;
                 transition: all 0.15s ease; border: 1px solid transparent;
-                min-height: 48px; background: #fafafa;
+                padding: 5px 2px; background: #fafafa; box-sizing: border-box;
             }
             .co-cal-cell.empty { background: transparent; cursor: default; }
             .co-cal-cell.past { background: #f8fafc; color: #94a3b8; border-color: #f1f5f9; opacity: 0.5; }
@@ -110,7 +113,7 @@ class CheckoutCalendar {
             .co-cal-reason { font-size: 0.5rem; font-weight: 600; color: #64748b; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; margin-top: 1px; }
             .co-cal-cell.holiday .co-cal-reason { color: #dc2626; }
             .co-cal-cell.non-working .co-cal-reason { color: #64748b; }
-            .co-cal-tooltip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #f8fafc; padding: 6px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 500; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+            .co-cal-tooltip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f172a; color: #f8fafc; padding: 6px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 500; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
             .co-cal-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: #0f172a; }
             .co-cal-cell:hover .co-cal-tooltip { opacity: 1; }
             .co-time-section { margin-top: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
@@ -152,18 +155,32 @@ class CheckoutCalendar {
             .co-cal-loading .spinner-border { width: 1.2rem; height: 1.2rem; color: #0f172a; }
             .co-no-slots { text-align: center; padding: 24px 16px; color: #64748b; font-size: 0.82rem; font-weight: 500; }
             .co-no-slots i { display: block; font-size: 1.6rem; color: #cbd5e1; margin-bottom: 6px; }
+            .co-cal-nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+            .co-cal-nav-btn:disabled:hover { background: rgba(255,255,255,0.08); }
             @media (max-width: 575px) {
-                .co-cal-cell { min-height: 40px; border-radius: 6px; border-width: 1px; }
-                .co-cal-date { font-size: 0.8rem; }
-                .co-cal-slots { font-size: 0.5rem; }
+                .co-cal-cell { min-height: 44px; border-radius: 6px; border-width: 1px; padding: 3px 1px; }
+                .co-cal-date { font-size: 0.76rem; }
+                .co-cal-slots { font-size: 0.46rem; }
+                .co-cal-reason { font-size: .44rem; }
                 .co-cal-legend { gap: 6px; padding: 6px 12px; }
                 .co-cal-legend-item { font-size: 0.6rem; }
                 .co-cal-legend-dot { width: 10px; height: 10px; }
                 .co-cal-header { padding: 10px 12px; }
+                .co-cal-mode { padding: 7px 12px; font-size: .66rem; }
+                .co-cal-days { padding-left: 8px; padding-right: 8px; }
                 .co-cal-grid { gap: 3px; padding: 2px 8px 8px; }
                 .co-time-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px; padding: 8px 10px; }
                 .co-time-slot { padding: 8px 10px; }
-                .co-time-header { padding: 8px 12px; }
+                .co-time-header { padding: 8px 12px; align-items:flex-start; flex-direction:column; gap:5px; }
+                .co-cal-tooltip { display:none; }
+            }
+            @media (max-width: 380px) {
+                .co-cal-day-name { font-size:.55rem; letter-spacing:0; }
+                .co-cal-grid { gap:2px; padding-left:6px; padding-right:6px; }
+                .co-cal-days { padding-left:6px; padding-right:6px; }
+                .co-cal-cell { min-height:40px; }
+                .co-cal-slots, .co-cal-reason { display:none; }
+                .co-time-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
             }
         `;
         document.head.appendChild(style);
@@ -214,6 +231,7 @@ class CheckoutCalendar {
         };
 
         this.dom.prevBtn.addEventListener('click', () => {
+            if (this.dom.prevBtn.disabled) return;
             this.state.activeMonth.setMonth(this.state.activeMonth.getMonth() - 1);
             this.render();
         });
@@ -278,6 +296,13 @@ class CheckoutCalendar {
         const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
         this.dom.label.textContent = `${MONTHS[month]} ${year}`;
+
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        currentMonth.setHours(0,0,0,0);
+        this.dom.prevBtn.disabled = this.state.activeMonth <= currentMonth;
+        this.dom.prevBtn.setAttribute('aria-label', 'Previous month');
+        this.dom.nextBtn.setAttribute('aria-label', 'Next month');
 
         const availMap = {};
         (this.scheduleData?.availableDates || []).forEach(d => { availMap[d.date] = d; });
@@ -423,6 +448,9 @@ class CheckoutCalendar {
 
         if (!silent) {
             this.options.onDateSelect(dateStr);
+            // A time belongs to the previously selected date and must not
+            // remain valid after the customer chooses a different day.
+            this.options.onTimeSelect('');
         }
 
         this.dom.timeSection.style.display = 'block';
@@ -527,6 +555,10 @@ class CheckoutCalendar {
 
     _renderTimeSlots(slots, date) {
         const grid = this.dom.timeGrid;
+        if (!slots.length) {
+            grid.innerHTML = '<div class="co-no-slots"><i class="bi bi-calendar-x"></i>No available times for this date. Please choose another day.</div>';
+            return;
+        }
         let html = '';
 
         slots.forEach(slot => {
@@ -556,7 +588,7 @@ class CheckoutCalendar {
             }
 
             html += `<div class="${cls}" data-start="${slot.startTime}" data-label="${slot.label}" ${slot.available ? 'role="button" tabindex="0"' : ''}>
-                <div class="co-time-slot-label">${slot.label}</div>
+                <div class="co-time-slot-label">${this._formatDisplayTime(slot.label)}</div>
                 <span class="${statusCls}">${statusLabel}</span>
             </div>`;
         });
@@ -574,7 +606,24 @@ class CheckoutCalendar {
                 this._renderTimeSlots(slots, date);
                 this.options.onTimeSelect(el.dataset.label);
             });
+            el.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    el.click();
+                }
+            });
         });
+    }
+
+    _formatDisplayTime(value) {
+        const parts = String(value || '').split(':');
+        if (parts.length < 2) return value;
+        const hour = Number(parts[0]);
+        const minute = parts[1];
+        if (!Number.isFinite(hour)) return value;
+        const period = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minute} ${period}`;
     }
 
     _timeToMinutes(t) {

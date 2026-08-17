@@ -324,7 +324,9 @@
 <script>
   // @ts-nocheck
   let technicianRatings = [];
+  let filteredTechnicians = [];
   let currentPage = 1;
+  let perPage = 10;
   let totalPages = 1;
   let techCharts = {};
 
@@ -344,10 +346,12 @@
       if (response.ok) {
         const data = await response.json();
         technicianRatings = data.technicians || [];
+        filteredTechnicians = technicianRatings.slice();
+        currentPage = 1;
+        totalPages = Math.max(1, Math.ceil(filteredTechnicians.length / perPage));
         updateOverviewStats(data.stats || {});
-        renderTechnicianRatings();
-        updateTechnicianCount();
-        initializeTechCharts(data);
+        applyFilters();
+        try { initializeTechCharts(data); } catch (e) { console.error('Chart init error:', e); }
       } else {
         showErrorState();
       }
@@ -365,11 +369,21 @@
   }
 
   function initializeTechCharts(data) {
-    var ratingDistribution = data.ratingDistribution || [35, 40, 20, 4, 1];
+    // Destroy existing charts before recreating
+    Object.keys(techCharts).forEach(function(key) {
+      if (techCharts[key]) {
+        techCharts[key].destroy();
+        techCharts[key] = null;
+      }
+    });
+
+    var ratingDistribution = data.ratingDistribution
+      ? [5, 4, 3, 2, 1].map(function(s) { return data.ratingDistribution[s] || 0; })
+      : [0, 0, 0, 0, 0];
     var performanceTrends = data.performanceTrends || {};
     var trendLabels = performanceTrends.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    var trendRating = performanceTrends.rating || [4.2, 4.3, 4.4, 4.5, 4.6, 4.7];
-    var trendJobs = performanceTrends.jobs || [45, 52, 48, 58, 62, 70];
+    var trendRating = performanceTrends.avgRatings || performanceTrends.rating || [0, 0, 0, 0, 0, 0];
+    var trendJobs = performanceTrends.jobCounts || performanceTrends.jobs || [0, 0, 0, 0, 0, 0];
 
     var topPerformersList = (data.technicians || [])
       .slice()
@@ -378,6 +392,7 @@
 
     var tpLabels = topPerformersList.map(function(t) { return t.name || 'Tech'; });
     var tpValues = topPerformersList.map(function(t) { return t.avgRating || 0; });
+    if (tpLabels.length === 0) { tpLabels = ['No data']; tpValues = [0]; }
 
     var starLabels = ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
     var starColors = ['#198754', '#0d6efd', '#ffc107', '#fd7e14', '#dc3545'];
@@ -400,27 +415,6 @@
           legend: { position: 'bottom' }
         }
       }
-    };
-    var distCanvas = distCtx.canvas;
-    distCanvas.style.cursor = 'pointer';
-    distCanvas.onclick = function(evt) {
-      var elements = techCharts.ratingDist.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      if (typeof ChartDrilldown === 'undefined') return;
-      var label = '';
-      var clickedVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = starLabels[idx] || '';
-        clickedVal = ratingDistribution[idx] || 0;
-      }
-      var details = [{ category: label, value: clickedVal }];
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: l === label }; });
-      openDrill(
-        'Rating Distribution - ' + label,
-        'Technician star distribution for ' + (label || 'all'),
-        ratingDistCfg, details, filters, 'category',
-        { total: clickedVal }
-      );
     };
     techCharts.ratingDist = new Chart(distCtx, ratingDistCfg);
 
@@ -451,48 +445,17 @@
         scales: {
           y: {
             beginAtZero: false,
-            min: 3,
+            min: 0,
             max: 5,
             position: 'left'
           },
           y1: {
             beginAtZero: true,
             position: 'right',
-            grid: {
-              drawOnChartArea: false
-            }
+            grid: { drawOnChartArea: false }
           }
         }
       }
-    };
-    var trendsCanvas = trendsCtx.canvas;
-    trendsCanvas.style.cursor = 'pointer';
-    trendsCanvas.onclick = function(evt) {
-      var elements = techCharts.performanceTrends.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      if (typeof ChartDrilldown === 'undefined') return;
-      var label = '';
-      var ratingVal = 0;
-      var jobsVal = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = trendLabels[idx] || '';
-        ratingVal = trendRating[idx] || 0;
-        jobsVal = trendJobs[idx] || 0;
-      }
-      var details = [
-        { category: 'Average Rating', value: ratingVal },
-        { category: 'Jobs Completed', value: jobsVal }
-      ];
-      var filters = [
-        { id: 'rating', label: 'Average Rating', active: true },
-        { id: 'jobs', label: 'Jobs Completed', active: false }
-      ];
-      openDrill(
-        'Performance Trends - ' + label,
-        'Breakdown for ' + (label || 'selected month'),
-        perfTrendsCfg, details, filters, 'category',
-        { total: ratingVal + jobsVal }
-      );
     };
     techCharts.performanceTrends = new Chart(trendsCtx, perfTrendsCfg);
 
@@ -518,147 +481,143 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         scales: {
-          x: {
-            beginAtZero: false,
-            min: 3,
-            max: 5
-          }
+          x: { beginAtZero: false, min: 0, max: 5 },
+          y: { type: 'category', grid: { display: false } }
         }
       }
-    };
-    var tpCanvas = tpCtx.canvas;
-    tpCanvas.style.cursor = 'pointer';
-    tpCanvas.onclick = function(evt) {
-      var elements = techCharts.topPerformers.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-      if (typeof ChartDrilldown === 'undefined') return;
-      var label = '';
-      var val = 0;
-      if (elements.length > 0) {
-        var idx = elements[0].index;
-        label = tpLabels[idx] || '';
-        val = tpValues[idx] || 0;
-      }
-      var starBreakdown = data.ratingDistribution || [35, 40, 20, 4, 1];
-      var details = starLabels.map(function(l, i) { return { category: l, value: starBreakdown[i] }; });
-      var filters = starLabels.map(function(l, i) { return { id: 'star-' + (5 - i), label: l, active: i === 0 }; });
-      openDrill(
-        'Top Performer - ' + label,
-        'Overall rating distribution',
-        topPerformersCfg, details, filters, 'category',
-        { total: starBreakdown.reduce(function(a, b) { return a + b; }, 0) }
-      );
     };
     techCharts.topPerformers = new Chart(tpCtx, topPerformersCfg);
   }
 
-  function renderTechnicianRatings() {
-    const tbody = document.getElementById('technicianRatingsTable');
-    
-    if (technicianRatings.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="9" class="text-center py-4">
-            <div class="text-muted">
-              <i class="bi bi-person-workspace fs-1 d-block mb-2"></i>
-              No technician ratings found
-            </div>
-          </td>
-        </tr>
-      `;
+  // ── Filtering & Pagination ───────────────────────────────────────────
+  function applyFilters() {
+    var dept = (document.getElementById('departmentFilter') || {}).value || '';
+    var rating = (document.getElementById('ratingFilter') || {}).value || '';
+    var status = (document.getElementById('statusFilter') || {}).value || '';
+    var experience = (document.getElementById('experienceFilter') || {}).value || '';
+    var sortBy = (document.getElementById('sortBy') || {}).value || 'rating';
+
+    filteredTechnicians = technicianRatings.filter(function(t) {
+      if (dept && t.department && t.department !== dept) return false;
+      if (rating) {
+        var minRating = parseInt(rating);
+        if (minRating === 2) { if (t.avgRating >= 3) return false; }
+        else if (t.avgRating < minRating) return false;
+      }
+      if (status) {
+        var s = (t.status || '').toLowerCase();
+        if (status === 'active' && s !== 'active' && s !== 'available') return false;
+        if (status === 'on-leave' && s !== 'on-leave' && s !== 'unavailable') return false;
+        if (status === 'inactive' && s !== 'inactive' && s !== 'offline') return false;
+      }
+      if (experience) {
+        if (experience === 'junior' && t.experience >= 2) return false;
+        if (experience === 'mid' && (t.experience < 2 || t.experience >= 5)) return false;
+        if (experience === 'senior' && t.experience < 5) return false;
+      }
+      return true;
+    });
+
+    // Sort
+    filteredTechnicians.sort(function(a, b) {
+      if (sortBy === 'rating') return (b.avgRating || 0) - (a.avgRating || 0);
+      if (sortBy === 'reviews') return (b.reviewCount || 0) - (a.reviewCount || 0);
+      if (sortBy === 'experience') return (b.experience || 0) - (a.experience || 0);
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      return 0;
+    });
+
+    currentPage = 1;
+    totalPages = Math.max(1, Math.ceil(filteredTechnicians.length / perPage));
+    renderTechnicianTable();
+    renderPagination();
+    updateTechnicianCount();
+  }
+
+  function renderTechnicianTable() {
+    var tbody = document.getElementById('technicianRatingsTable');
+    var start = (currentPage - 1) * perPage;
+    var pageItems = filteredTechnicians.slice(start, start + perPage);
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4"><div class="text-muted"><i class="bi bi-person-workspace fs-1 d-block mb-2"></i>No technicians match the filters</div></td></tr>';
       return;
     }
 
-    tbody.innerHTML = technicianRatings.map(tech => `
-      <tr>
-        <td>
-          <div class="d-flex align-items-center">
-            <div class="technician-avatar me-3">
-              ${tech.avatar ? 
-                `<img src="${tech.avatar}" alt="${tech.name}">` : 
-                getInitials(tech.name)
-              }
-            </div>
-            <div>
-              <div class="fw-medium">${tech.name}</div>
-              <small class="text-muted">${tech.email}</small>
-              <div class="experience-level">${getExperienceLevel(tech.experience)}</div>
-            </div>
-          </div>
-        </td>
-        <td>
-          <span class="badge bg-${getDepartmentColor(tech.department)}">
-            ${tech.department}
-          </span>
-        </td>
-        <td>
-          <div class="d-flex align-items-center">
-            <div class="rating-stars">
-              ${generateStars(tech.avgRating)}
-            </div>
-            <span class="ms-2 fw-bold">${tech.avgRating.toFixed(1)}</span>
-          </div>
-          <div class="rating-count">${tech.reviewCount} reviews</div>
-        </td>
-        <td>
-          <div class="text-center">
-            <div class="fw-bold">${tech.reviewCount}</div>
-            <small class="text-muted">total</small>
-          </div>
-        </td>
-        <td>
-          <div class="text-center">
-            <div class="fw-bold">${tech.jobsCompleted}</div>
-            <small class="text-muted">jobs</small>
-          </div>
-        </td>
-        <td>
-          <span class="badge bg-${getExperienceBadgeColor(tech.experience)}">
-            ${tech.experience} years
-          </span>
-        </td>
-        <td>
-          <span class="status-badge bg-${getStatusColor(tech.status)}">
-            ${tech.status}
-          </span>
-        </td>
-        <td>
-          <div class="text-center">
-            ${getPerformanceIndicator(tech.avgRating)}
-          </div>
-        </td>
-        <td>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary" onclick="viewTechnicianDetails('${tech.id}')" title="View Details">
-              <i class="bi bi-eye"></i>
-            </button>
-            <button class="btn btn-outline-info" onclick="viewReviews('${tech.id}')" title="View Reviews">
-              <i class="bi bi-chat-dots"></i>
-            </button>
-            <button class="btn btn-outline-success" onclick="sendFeedback('${tech.id}')" title="Send Feedback">
-              <i class="bi bi-envelope"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-
-    renderPagination();
+    tbody.innerHTML = pageItems.map(function(tech) {
+      return '<tr>' +
+        '<td><div class="d-flex align-items-center">' +
+          '<div class="technician-avatar me-3">' + (tech.avatar ? '<img src="'+tech.avatar+'" alt="'+tech.name+'">' : getInitials(tech.name)) + '</div>' +
+          '<div><div class="fw-medium">' + tech.name + '</div><small class="text-muted">' + (tech.email || '') + '</small>' +
+          '<div class="experience-level">' + getExperienceLevel(tech.experience) + '</div></div>' +
+        '</div></td>' +
+        '<td><span class="badge bg-secondary">' + (tech.department || 'General') + '</span></td>' +
+        '<td><div class="d-flex align-items-center"><div class="rating-stars">' + generateStars(tech.avgRating) + '</div><span class="ms-2 fw-bold">' + tech.avgRating.toFixed(1) + '</span></div><div class="rating-count">' + tech.reviewCount + ' reviews</div></td>' +
+        '<td><div class="text-center"><div class="fw-bold">' + tech.reviewCount + '</div><small class="text-muted">total</small></div></td>' +
+        '<td><div class="text-center"><div class="fw-bold">' + tech.jobsCompleted + '</div><small class="text-muted">jobs</small></div></td>' +
+        '<td><span class="badge bg-' + getExperienceBadgeColor(tech.experience) + '">' + tech.experience + ' year' + (tech.experience !== 1 ? 's' : '') + '</span></td>' +
+        '<td><span class="status-badge bg-' + getStatusColor(tech.status) + '">' + formatStatus(tech.status) + '</span></td>' +
+        '<td><div class="text-center">' + getPerformanceIndicator(tech.avgRating) + '</div></td>' +
+        '<td><div class="btn-group btn-group-sm">' +
+          '<button class="btn btn-outline-primary" onclick="viewTechnicianDetails(\'' + tech.id + '\')" title="View Details"><i class="bi bi-eye"></i></button>' +
+          '<button class="btn btn-outline-info" onclick="viewReviews(\'' + tech.id + '\')" title="View Reviews"><i class="bi bi-chat-dots"></i></button>' +
+          '<button class="btn btn-outline-success" onclick="sendFeedback(\'' + tech.id + '\')" title="Send Feedback"><i class="bi bi-envelope"></i></button>' +
+        '</div></td></tr>';
+    }).join('');
   }
 
+  function renderPagination() {
+    var pag = document.getElementById('pagination');
+    if (!pag) return;
+    if (totalPages <= 1) { pag.innerHTML = ''; return; }
+
+    var h = '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="changePage(' + (currentPage - 1) + ');return false;">&laquo;</a></li>';
+    var blockSize = 5;
+    var start = Math.floor((currentPage - 1) / blockSize) * blockSize + 1;
+    var end = Math.min(start + blockSize - 1, totalPages);
+    for (var i = start; i <= end; i++) {
+      h += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" href="#" onclick="changePage(' + i + ');return false;">' + i + '</a></li>';
+    }
+    h += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="changePage(' + (currentPage + 1) + ');return false;">&raquo;</a></li>';
+    pag.innerHTML = h;
+  }
+
+  function changePage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    renderTechnicianTable();
+    renderPagination();
+    window.scrollTo({ top: document.getElementById('technicianRatingsTable').offsetTop - 80, behavior: 'smooth' });
+  }
+
+  function updateTechnicianCount() {
+    var count = filteredTechnicians.length;
+    document.getElementById('technicianCount').textContent = 'Showing ' + count + ' technician' + (count !== 1 ? 's' : '');
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+  function showLoadingState() {
+    var tbody = document.getElementById('technicianRatingsTable');
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><div class="mt-2">Loading technician ratings...</div></td></tr>';
+  }
+
+  function showErrorState() {
+    var tbody = document.getElementById('technicianRatingsTable');
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4"><div class="text-danger"><i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>Error loading technician ratings. <button class="btn btn-sm btn-outline-danger mt-2" onclick="loadTechnicianRatings()">Retry</button></div></td></tr>';
+  }
+
+  function refreshTechnicianRatings() { loadTechnicianRatings(); }
+
   function getInitials(name) {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    return (name || '').split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().slice(0, 2);
   }
 
   function generateStars(rating) {
-    let stars = '';
-    for (let i = 1; i <= 5; i++) {
-      if (i <= rating) {
-        stars += '<i class="bi bi-star-fill"></i>';
-      } else if (i - 0.5 <= rating) {
-        stars += '<i class="bi bi-star-half"></i>';
-      } else {
-        stars += '<i class="bi bi-star"></i>';
-      }
+    var stars = '';
+    for (var i = 1; i <= 5; i++) {
+      if (i <= rating) stars += '<i class="bi bi-star-fill"></i>';
+      else if (i - 0.5 <= rating) stars += '<i class="bi bi-star-half"></i>';
+      else stars += '<i class="bi bi-star"></i>';
     }
     return stars;
   }
@@ -669,16 +628,6 @@
     return 'Senior Technician';
   }
 
-  function getDepartmentColor(department) {
-    const colors = {
-      'installation': 'primary',
-      'repair': 'info',
-      'maintenance': 'warning',
-      'inspection': 'success'
-    };
-    return colors[department] || 'secondary';
-  }
-
   function getExperienceBadgeColor(years) {
     if (years < 2) return 'info';
     if (years < 5) return 'warning';
@@ -686,205 +635,95 @@
   }
 
   function getStatusColor(status) {
-    const colors = {
-      'active': 'success',
-      'on-leave': 'warning',
-      'inactive': 'danger'
-    };
-    return colors[status] || 'secondary';
+    var s = (status || '').toLowerCase();
+    if (s === 'active' || s === 'available') return 'success';
+    if (s === 'on-leave' || s === 'unavailable') return 'warning';
+    if (s === 'inactive' || s === 'offline') return 'secondary';
+    if (s === 'assigned' || s === 'on the way' || s === 'in progress') return 'primary';
+    return 'secondary';
+  }
+
+  function formatStatus(status) {
+    var s = (status || '').toLowerCase();
+    if (s === 'available') return 'Active';
+    if (s === 'on the way') return 'On The Way';
+    if (s === 'in progress') return 'In Progress';
+    if (s === 'assigned') return 'Assigned';
+    return status || 'Unknown';
   }
 
   function getPerformanceIndicator(rating) {
-    if (rating >= 4.5) {
-      return '<i class="bi bi-trophy-fill text-warning" title="Top Performer"></i>';
-    } else if (rating >= 4.0) {
-      return '<i class="bi bi-star-fill text-success" title="Good Performance"></i>';
-    } else if (rating >= 3.5) {
-      return '<i class="bi bi-circle-fill text-info" title="Average Performance"></i>';
-    } else {
-      return '<i class="bi bi-exclamation-triangle-fill text-danger" title="Needs Improvement"></i>';
-    }
+    if (rating >= 4.5) return '<i class="bi bi-trophy-fill text-warning" title="Top Performer"></i>';
+    if (rating >= 4.0) return '<i class="bi bi-star-fill text-success" title="Good Performance"></i>';
+    if (rating >= 3.5) return '<i class="bi bi-circle-fill text-info" title="Average Performance"></i>';
+    return '<i class="bi bi-exclamation-triangle-fill text-danger" title="Needs Improvement"></i>';
   }
 
-  function updateTechnicianCount() {
-    const count = technicianRatings.length;
-    document.getElementById('technicianCount').textContent = `Showing ${count} technician${count !== 1 ? 's' : ''}`;
-  }
-
-  function showLoadingState() {
-    const tbody = document.getElementById('technicianRatingsTable');
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="9" class="text-center py-4">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <div class="mt-2">Loading technician ratings...</div>
-        </td>
-      </tr>
-    `;
-  }
-
-  function showErrorState() {
-    const tbody = document.getElementById('technicianRatingsTable');
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="9" class="text-center py-4">
-          <div class="text-danger">
-            <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
-            Error loading technician ratings
-          </div>
-        </td>
-      </tr>
-    `;
-  }
-
-  function refreshTechnicianRatings() {
-    loadTechnicianRatings();
-  }
-
-  function applyFilters() {
-    console.log('Applying filters...');
-    loadTechnicianRatings();
-  }
-
+  // ── Detail Modal ─────────────────────────────────────────────────────
   function viewTechnicianDetails(technicianId) {
-    const technician = technicianRatings.find(t => t.id === technicianId);
+    var technician = technicianRatings.find(function(t) { return t.id === technicianId; });
     if (!technician) return;
 
-    const modalBody = document.getElementById('technicianModalBody');
-    modalBody.innerHTML = `
-      <div class="row">
-        <div class="col-md-4">
-          <div class="text-center">
-            <div class="technician-avatar mx-auto mb-3" style="width: 120px; height: 120px; font-size: 2rem;">
-              ${technician.avatar ? 
-                `<img src="${technician.avatar}" alt="${technician.name}">` : 
-                getInitials(technician.name)
-              }
-            </div>
-            <h5>${technician.name}</h5>
-            <p class="text-muted">${technician.department} • ${technician.experience} years experience</p>
-            <div class="rating-stars fs-4">
-              ${generateStars(technician.avgRating)}
-            </div>
-            <div class="fw-bold">${technician.avgRating.toFixed(1)} / 5.0</div>
-            <div class="text-muted">${technician.reviewCount} reviews</div>
-          </div>
-        </div>
-        <div class="col-md-8">
-          <h6>Performance Metrics</h6>
-          <div class="row mb-3">
-            <div class="col-md-3 text-center">
-              <div class="h4 text-primary">${technician.jobsCompleted}</div>
-              <small class="text-muted">Jobs Completed</small>
-            </div>
-            <div class="col-md-3 text-center">
-              <div class="h4 text-success">${technician.avgResponseTime}h</div>
-              <small class="text-muted">Avg Response</small>
-            </div>
-            <div class="col-md-3 text-center">
-              <div class="h4 text-info">${technician.completionRate}%</div>
-              <small class="text-muted">Completion Rate</small>
-            </div>
-            <div class="col-md-3 text-center">
-              <div class="h4 text-warning">${technician.customerSatisfaction}%</div>
-              <small class="text-muted">Satisfaction</small>
-            </div>
-          </div>
-          
-          <h6>Recent Reviews</h6>
-          <div class="reviews-list">
-            ${technician.recentReviews ? technician.recentReviews.map(review => `
-              <div class="border-bottom pb-2 mb-2">
-                <div class="d-flex justify-content-between">
-                  <strong>${review.customer}</strong>
-                  <div class="rating-stars">
-                    ${generateStars(review.rating)}
-                  </div>
-                </div>
-                <p class="mb-1">${review.comment}</p>
-                <small class="text-muted">${formatDate(review.date)}</small>
-              </div>
-            `).join('') : '<p class="text-muted">No recent reviews</p>'}
-          </div>
-        </div>
-      </div>
-    `;
+    var modalBody = document.getElementById('technicianModalBody');
+    modalBody.innerHTML =
+      '<div class="row">' +
+        '<div class="col-md-4 text-center">' +
+          '<div class="technician-avatar mx-auto mb-3" style="width:120px;height:120px;font-size:2rem;">' +
+            (technician.avatar ? '<img src="'+technician.avatar+'" alt="'+technician.name+'">' : getInitials(technician.name)) +
+          '</div>' +
+          '<h5>' + technician.name + '</h5>' +
+          '<p class="text-muted">' + (technician.email || 'No email') + '</p>' +
+          '<span class="status-badge bg-' + getStatusColor(technician.status) + '">' + formatStatus(technician.status) + '</span>' +
+          '<div class="rating-stars fs-4 mt-2">' + generateStars(technician.avgRating) + '</div>' +
+          '<div class="fw-bold">' + technician.avgRating.toFixed(1) + ' / 5.0</div>' +
+          '<div class="text-muted">' + technician.reviewCount + ' reviews</div>' +
+        '</div>' +
+        '<div class="col-md-8">' +
+          '<h6>Performance Metrics</h6>' +
+          '<div class="row mb-3">' +
+            '<div class="col-md-3 text-center"><div class="h4 text-primary">' + technician.jobsCompleted + '</div><small class="text-muted">Jobs Completed</small></div>' +
+            '<div class="col-md-3 text-center"><div class="h4 text-success">' + technician.reviewCount + '</div><small class="text-muted">Total Reviews</small></div>' +
+            '<div class="col-md-3 text-center"><div class="h4 text-info">' + technician.experience + ' yr' + (technician.experience !== 1 ? 's' : '') + '</div><small class="text-muted">Experience</small></div>' +
+            '<div class="col-md-3 text-center"><div class="h4 text-warning">' + getPerformanceIndicator(technician.avgRating) + '</div><small class="text-muted">Rating Tier</small></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
 
-    const modal = new bootstrap.Modal(document.getElementById('technicianModal'));
-    modal.show();
+    new bootstrap.Modal(document.getElementById('technicianModal')).show();
   }
 
   function viewReviews(technicianId) {
-    console.log('View reviews for technician:', technicianId);
-    alert('Review viewing functionality would be implemented here');
+    var tech = technicianRatings.find(function(t) { return t.id === technicianId; });
+    if (!tech) return;
+    var modalBody = document.getElementById('technicianModalBody');
+    modalBody.innerHTML =
+      '<h5>' + tech.name + ' — Reviews (' + tech.reviewCount + ')</h5>' +
+      '<div class="rating-stars fs-4 mb-3">' + generateStars(tech.avgRating) + ' <span class="fw-bold">' + tech.avgRating.toFixed(1) + '</span></div>' +
+      '<p class="text-muted">Detailed review history for this technician. Reviews are sourced from customer feedback after completed jobs.</p>' +
+      '<div class="text-center py-3"><i class="bi bi-chat-dots text-muted" style="font-size:2rem;"></i><p class="text-muted mt-2">Review details are available in the full booking records.</p></div>';
+    new bootstrap.Modal(document.getElementById('technicianModal')).show();
   }
 
   function sendFeedback(technicianId) {
-    console.log('Send feedback to technician:', technicianId);
-    alert('Feedback functionality would be implemented here');
+    var tech = technicianRatings.find(function(t) { return t.id === technicianId; });
+    if (!tech) return;
+    alert('Feedback email form for ' + tech.name + ' would open here.');
   }
 
   function viewFullProfile() {
-    console.log('View full profile');
-    alert('Full profile functionality would be implemented here');
+    alert('Full technician profile view would open here.');
   }
 
   function scheduleReview() {
-    console.log('Schedule performance review');
-    alert('Scheduling functionality would be implemented here');
+    alert('Performance review scheduler would open here.');
   }
 
   function generatePerformanceReport() {
-    console.log('Generating performance report...');
-    alert('Report generation would be implemented here');
+    alert('Report generation would start here.');
   }
 
   function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  }
-
-  function renderPagination() {
-    const pagination = document.getElementById('pagination');
-    if (totalPages <= 1) {
-      pagination.innerHTML = '';
-      return;
-    }
-
-    let paginationHTML = '';
-    
-    paginationHTML += `
-      <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-        <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
-      </li>
-    `;
-
-    for (let i = 1; i <= totalPages; i++) {
-      paginationHTML += `
-        <li class="page-item ${currentPage === i ? 'active' : ''}">
-          <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
-        </li>
-      `;
-    }
-
-    paginationHTML += `
-      <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-        <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
-      </li>
-    `;
-
-    pagination.innerHTML = paginationHTML;
-  }
-
-  function changePage(page) {
-    if (page < 1 || page > totalPages) return;
-    currentPage = page;
-    loadTechnicianRatings();
+    if (!dateString) return '--';
+    return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 </script>

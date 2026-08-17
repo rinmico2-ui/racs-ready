@@ -1,280 +1,120 @@
-<div class="technician-page">
-  <div class="container-fluid px-4 py-4">
+<div class="exp-page container-fluid px-3 px-lg-4 py-4">
+  <section class="exp-hero">
+    <div><span class="exp-eyebrow">EXPENSE MANAGEMENT</span><h2>Daily Expenses</h2><p>Log operational costs once, then optionally associate them with a booking or project.</p></div>
+    <button class="btn exp-primary" onclick="openExpenseModal()"><i class="bi bi-plus-lg"></i> Add Expense</button>
+  </section>
 
-    <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-      <div>
-        <h4 class="mb-0 fw-bold"><i class="bi bi-receipt-cutoff me-2"></i>Expenses</h4>
-        <small class="text-muted">Track daily fuel, materials, and other expenses</small>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="openExpenseModal()">
-        <i class="bi bi-plus-lg me-1"></i>New Expense
-      </button>
-    </div>
+  <div id="expenseReminder" class="exp-reminder d-none"></div>
 
-    <!-- Summary Cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-3">
-        <div class="exp-summary-card blue">
-          <div class="exp-summary-icon"><i class="bi bi-check-circle"></i></div>
-          <div><span class="exp-summary-value" id="sumApproved">₱0</span><span class="exp-summary-label">Approved</span></div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="exp-summary-card amber">
-          <div class="exp-summary-icon"><i class="bi bi-hourglass-split"></i></div>
-          <div><span class="exp-summary-value" id="sumPending">₱0</span><span class="exp-summary-label">Pending</span></div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="exp-summary-card green">
-          <div class="exp-summary-icon"><i class="bi bi-fuel-pump"></i></div>
-          <div><span class="exp-summary-value" id="sumFuel">₱0</span><span class="exp-summary-label">Fuel (Month)</span></div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="exp-summary-card violet">
-          <div class="exp-summary-icon"><i class="bi bi-receipt"></i></div>
-          <div><span class="exp-summary-value" id="sumCount">0</span><span class="exp-summary-label">Total Records</span></div>
-        </div>
+  <section class="exp-kpis">
+    <article><span class="ico today"><i class="bi bi-calendar2-check"></i></span><div><small>Today</small><strong id="todayTotal">₱0.00</strong><em id="todayCount">0 entries</em></div></article>
+    <article><span class="ico pending"><i class="bi bi-hourglass-split"></i></span><div><small>Pending Approval</small><strong id="sumPending">₱0.00</strong><em id="pendingCount">0 records</em></div></article>
+    <article><span class="ico approved"><i class="bi bi-check2-circle"></i></span><div><small>Approved This Month</small><strong id="sumApproved">₱0.00</strong><em>Verified expenses</em></div></article>
+    <article><span class="ico fuel"><i class="bi bi-fuel-pump"></i></span><div><small>Fuel This Month</small><strong id="sumFuel">₱0.00</strong><em>Operational fuel</em></div></article>
+  </section>
+
+  <section class="exp-card">
+    <div class="exp-toolbar">
+      <div><h5>Expense History</h5><p>Review receipts, associations, and approval status.</p></div>
+      <div class="exp-filters">
+        <select id="filterType" class="form-select"><option value="">All categories</option><option value="fuel">Fuel</option><option value="parking">Parking</option><option value="toll">Toll</option><option value="external_parts">External Parts</option><option value="meal">Meals</option><option value="other">Other</option></select>
+        <select id="filterStatus" class="form-select"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+        <input id="filterDate" type="date" class="form-control" title="Filter by date">
       </div>
     </div>
-
-    <!-- Filters -->
-    <div class="d-flex gap-2 mb-3 flex-wrap">
-      <select class="form-select form-select-sm" id="filterType" style="width:150px;">
-        <option value="">All Types</option>
-        <option value="fuel">Fuel</option>
-        <option value="material">Materials</option>
-        <option value="transport">Transport</option>
-        <option value="meal">Meal</option>
-        <option value="other">Other</option>
-      </select>
-      <select class="form-select form-select-sm" id="filterStatus" style="width:150px;">
-        <option value="">All Status</option>
-        <option value="pending">Pending</option>
-        <option value="approved">Approved</option>
-        <option value="rejected">Rejected</option>
-      </select>
-    </div>
-
-    <!-- Expenses Table -->
-    <div class="table-responsive">
-      <table class="table table-hover align-middle" id="expensesTable">
-        <thead class="table-light">
-          <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="expensesBody">
-          <tr><td colspan="7" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="d-flex justify-content-center mt-3" id="expPagination"></div>
-  </div>
+    <div class="table-responsive"><table class="table exp-table"><thead><tr><th>Date</th><th>Category</th><th>Details</th><th>Association</th><th>Receipt</th><th class="text-end">Amount</th><th>Status</th><th></th></tr></thead><tbody id="expensesBody"><tr><td colspan="8" class="exp-empty"><span class="spinner-border spinner-border-sm"></span> Loading expenses…</td></tr></tbody></table></div>
+    <div id="expPagination" class="exp-pagination"></div>
+  </section>
 </div>
 
-<!-- Expense Modal -->
-<div class="modal fade" id="expenseModal" tabindex="-1">
-  <div class="modal-dialog modal-md modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold"><i class="bi bi-receipt me-2"></i>New Expense</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="expenseForm" onsubmit="submitExpense(event)">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Type *</label>
-            <select class="form-select" id="expType" required>
-              <option value="fuel">Fuel</option>
-              <option value="material">Materials</option>
-              <option value="transport">Transport</option>
-              <option value="meal">Meal</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Amount (₱) *</label>
-            <input type="number" class="form-control" id="expAmount" step="0.01" min="0.01" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Description *</label>
-            <textarea class="form-control" id="expDesc" rows="2" maxlength="500" required></textarea>
-          </div>
-          <div id="fuelFields" style="display:none;">
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label class="form-label fw-semibold">Liters</label>
-                <input type="number" class="form-control" id="expLiters" step="0.01" min="0">
-              </div>
-              <div class="col-6">
-                <label class="form-label fw-semibold">Price/Liter (₱)</label>
-                <input type="number" class="form-control" id="expPricePerLiter" step="0.01" min="0">
-              </div>
-            </div>
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label class="form-label fw-semibold">Odometer</label>
-                <input type="number" class="form-control" id="expOdometer" min="0">
-              </div>
-              <div class="col-6">
-                <label class="form-label fw-semibold">Gas Station</label>
-                <input type="text" class="form-control" id="expStation" maxlength="100">
-              </div>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Date</label>
-            <input type="date" class="form-control" id="expDate">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary btn-sm">Save Expense</button>
-        </div>
-      </form>
+<div class="modal fade" id="expenseModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content exp-modal">
+  <div class="modal-header"><div><span class="exp-eyebrow">NEW RECORD</span><h5 class="modal-title">Add Daily Expense</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <form id="expenseForm" onsubmit="submitExpense(event)"><div class="modal-body">
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label">Expense Category <b>*</b></label><select id="expType" class="form-select" required><option value="fuel">Fuel</option><option value="parking">Parking</option><option value="toll">Toll</option><option value="external_parts">External Parts</option><option value="meal">Meals</option><option value="other">Other</option></select></div>
+      <div class="col-md-6"><label class="form-label">Amount <b>*</b></label><div class="input-group"><span class="input-group-text">₱</span><input id="expAmount" type="number" min="0.01" step="0.01" class="form-control" placeholder="0.00" required></div></div>
+      <div class="col-md-6" id="expenseDateWrap"><label class="form-label">Expense Date <b>*</b></label><input id="expDate" type="date" class="form-control" required></div>
+      <div class="col-md-6"><label class="form-label">Association <span>(optional)</span></label><select id="associationType" class="form-select"><option value="none">Daily expense — no association</option><option value="booking">Link to booking</option><option value="project">Link to project</option></select></div>
+      <div class="col-12 d-none" id="bookingWrap"><label class="form-label">Booking</label><select id="expBooking" class="form-select"><option value="">Select booking</option></select></div>
+      <div class="col-12 d-none" id="projectWrap"><label class="form-label">Project</label><select id="expProject" class="form-select"><option value="">Select project</option></select></div>
+      <div class="col-12"><label class="form-label">Description <b>*</b></label><textarea id="expDesc" rows="3" maxlength="500" class="form-control" placeholder="What was purchased and why?" required></textarea><div class="form-text">Use a clear description for faster approval.</div></div>
+      <div class="col-12 d-none" id="fuelFields"><div class="exp-subsection"><h6><i class="bi bi-fuel-pump"></i> Fuel details</h6><div class="row g-3"><div class="col-6 col-lg-3"><label class="form-label">Liters</label><input id="expLiters" type="number" min="0" step="0.01" class="form-control"></div><div class="col-6 col-lg-3"><label class="form-label">Price/Liter</label><input id="expPricePerLiter" type="number" min="0" step="0.01" class="form-control"></div><div class="col-6 col-lg-3"><label class="form-label">Odometer</label><input id="expOdometer" type="number" min="0" class="form-control"></div><div class="col-6 col-lg-3"><label class="form-label">Station</label><input id="expStation" maxlength="100" class="form-control"></div></div></div></div>
+      <div class="col-12"><label class="form-label">Receipt <span>(optional, recommended)</span></label><label class="exp-upload" for="expReceipt"><i class="bi bi-cloud-arrow-up"></i><strong id="receiptLabel">Upload receipt</strong><small>JPG, PNG, WEBP or PDF · up to 5 MB</small></label><input id="expReceipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden><div id="receiptPreview" class="exp-file d-none"></div></div>
     </div>
-  </div>
-</div>
+  </div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button id="saveExpenseBtn" type="submit" class="btn exp-primary"><i class="bi bi-check2"></i> Save Expense</button></div></form>
+</div></div></div>
 
 <style>
-  .exp-summary-card {
-    background: #fff; border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; gap: 14px;
-    border: 1px solid #eef2f7; transition: all 0.2s;
+.exp-page{max-width:1500px}.exp-hero{background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;border-radius:20px;padding:28px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px;box-shadow:0 12px 30px rgba(15,23,42,.15)}.exp-hero h2{font-weight:800;margin:3px 0 5px}.exp-hero p{margin:0;color:#cbd5e1}.exp-eyebrow{font-size:.67rem;font-weight:800;letter-spacing:.14em;color:#60a5fa}.exp-primary{background:#2563eb!important;color:#fff!important;border:0!important;border-radius:10px!important;font-weight:700!important;padding:10px 16px!important;display:inline-flex;gap:8px;align-items:center}.exp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.exp-kpis article{background:#fff;border:1px solid #e5eaf1;border-radius:15px;padding:18px;display:flex;gap:13px;align-items:center}.exp-kpis .ico{width:43px;height:43px;border-radius:11px;display:grid;place-items:center;font-size:1.05rem}.ico.today{background:#eff6ff;color:#2563eb}.ico.pending{background:#fffbeb;color:#d97706}.ico.approved{background:#ecfdf5;color:#059669}.ico.fuel{background:#f5f3ff;color:#7c3aed}.exp-kpis small,.exp-kpis em{display:block;color:#64748b;font-size:.7rem;font-style:normal}.exp-kpis strong{display:block;font-size:1.25rem;color:#0f172a}.exp-reminder{margin-top:18px;padding:14px 18px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;display:flex;align-items:center;justify-content:space-between;gap:12px}.exp-card{background:#fff;border:1px solid #e5eaf1;border-radius:17px;overflow:hidden}.exp-toolbar{padding:20px 22px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;gap:16px;align-items:center}.exp-toolbar h5{font-weight:750;margin:0}.exp-toolbar p{font-size:.78rem;color:#64748b;margin:3px 0 0}.exp-filters{display:flex;gap:8px}.exp-filters>*{min-width:145px;font-size:.8rem}.exp-table{margin:0}.exp-table th{font-size:.67rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;background:#f8fafc;padding:12px 16px;border:0}.exp-table td{padding:14px 16px;vertical-align:middle;border-color:#f1f5f9;font-size:.8rem}.exp-empty{text-align:center!important;padding:45px!important;color:#94a3b8!important}.exp-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:99px;font-size:.65rem;font-weight:700}.exp-badge.pending{background:#fef3c7;color:#92400e}.exp-badge.approved{background:#d1fae5;color:#065f46}.exp-badge.rejected{background:#fee2e2;color:#991b1b}.exp-pagination{display:flex;justify-content:center;gap:6px;padding:15px}.exp-modal{border:0;border-radius:18px;overflow:hidden}.exp-modal .modal-header{padding:20px 24px}.exp-modal .modal-body{padding:22px 24px}.exp-modal .form-label{font-size:.78rem;font-weight:700;color:#334155}.exp-modal .form-label b{color:#dc2626}.exp-modal .form-label span{font-weight:500;color:#94a3b8}.exp-subsection{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:15px}.exp-subsection h6{font-size:.8rem;font-weight:750;color:#334155}.exp-upload{border:1.5px dashed #93c5fd;background:#f8fbff;border-radius:12px;min-height:105px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#2563eb}.exp-upload i{font-size:1.4rem}.exp-upload small{color:#94a3b8}.exp-file{margin-top:8px;padding:8px 10px;border-radius:8px;background:#f1f5f9;color:#475569;font-size:.75rem}@media(max-width:991px){.exp-kpis{grid-template-columns:repeat(2,1fr)}.exp-toolbar{align-items:flex-start;flex-direction:column}.exp-filters{width:100%;flex-wrap:wrap}}@media(max-width:575px){.exp-hero{padding:22px;align-items:flex-start;flex-direction:column}.exp-kpis{grid-template-columns:1fr}.exp-filters>*{width:100%;min-width:0}}
+  .exp-page { background: #f1f5f9; min-height: 100vh; display: block !important; }
+
+  /* Responsive */
+  @media (max-width: 991px) {
+    .exp-hero { flex-direction: column; align-items: flex-start; gap: 1rem; padding: 24px; }
+    .exp-kpis { grid-template-columns: repeat(2, 1fr); }
+    .exp-toolbar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .exp-filters { width: 100%; }
   }
-  .exp-summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(15,23,42,0.05); }
-  .exp-summary-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-  .exp-summary-card.blue .exp-summary-icon { background: #eff6ff; color: #3b82f6; }
-  .exp-summary-card.amber .exp-summary-icon { background: #fffbeb; color: #f59e0b; }
-  .exp-summary-card.green .exp-summary-icon { background: #f0fdf4; color: #22c55e; }
-  .exp-summary-card.violet .exp-summary-icon { background: #f5f3ff; color: #8b5cf6; }
-  .exp-summary-value { font-size: 1.3rem; font-weight: 800; color: #1e293b; display: block; }
-  .exp-summary-label { font-size: 0.75rem; color: #64748b; }
+  @media (max-width: 767px) {
+    .exp-kpis { grid-template-columns: 1fr; }
+    .exp-filters { flex-direction: column; }
+    .exp-filters > * { width: 100%; min-width: auto; }
+    .exp-reminder { flex-direction: column; align-items: flex-start; }
+    .exp-table { border: 0; }
+    .exp-table thead { display: none; }
+    .exp-table tbody, .exp-table tr { display: block; }
+    .exp-table tr {
+      margin-bottom: 0.75rem;
+      background: #fff;
+      border: 1px solid #e5eaf1;
+      border-radius: 14px;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    }
+    .exp-table td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.85rem;
+    }
+    .exp-table td:last-child { border-bottom: none; }
+    .exp-table td::before {
+      font-weight: 600;
+      color: #64748b;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .exp-table td:nth-child(1)::before { content: 'Date'; }
+    .exp-table td:nth-child(2)::before { content: 'Category'; }
+    .exp-table td:nth-child(3)::before { content: 'Details'; }
+    .exp-table td:nth-child(4)::before { content: 'Association'; }
+    .exp-table td:nth-child(5)::before { content: 'Receipt'; }
+    .exp-table td:nth-child(6)::before { content: 'Amount'; }
+    .exp-table td:nth-child(7)::before { content: 'Status'; }
+    .exp-table td:nth-child(8)::before { content: 'Action'; }
+  }
+  @media (max-width: 480px) {
+    .exp-hero { padding: 1.5rem 1.25rem; }
+    .exp-hero h2 { font-size: 1.35rem; }
+    .exp-card { border-radius: 14px; }
+    .exp-kpis { gap: 10px; }
+    .exp-kpis article { padding: 14px; }
+    .exp-toolbar { padding: 16px; }
+  }
 </style>
 
 <script>
-(function() {
-  const typeColors = { fuel: 'bg-info text-dark', material: 'bg-primary', transport: 'bg-secondary', meal: 'bg-warning text-dark', other: 'bg-dark' };
-  const statusColors = { pending: 'bg-warning text-dark', approved: 'bg-success', rejected: 'bg-danger' };
-  const typeLabels = { fuel: 'Fuel', material: 'Materials', transport: 'Transport', meal: 'Meal', other: 'Other' };
-
-  function formatPeso(n) { return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }); }
-
-  function renderRow(e) {
-    const date = e.expenseDate ? new Date(e.expenseDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-    return `<tr>
-      <td>${date}</td>
-      <td><span class="badge ${typeColors[e.type] || 'bg-secondary'}">${typeLabels[e.type] || e.type}</span></td>
-      <td>${e.description || ''}</td>
-      <td class="fw-bold">${formatPeso(e.amount)}</td>
-      <td><span class="badge ${statusColors[e.status] || 'bg-secondary'}">${(e.status || '').charAt(0).toUpperCase() + (e.status || '').slice(1)}</span></td>
-      <td>${e.status === 'pending' ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteExpense('${e._id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
-    </tr>`;
-  }
-
-  async function loadExpenses(page) {
-    const type = document.getElementById('filterType').value;
-    const status = document.getElementById('filterStatus').value;
-    let url = `/api/technician/expenses?page=${page || 1}&limit=15`;
-    if (type) url += `&type=${type}`;
-    if (status) url += `&status=${status}`;
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-      const tbody = document.getElementById('expensesBody');
-      if (!data.items || data.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-inbox" style="font-size:2rem;"></i><br>No expenses found</td></tr>';
-      } else {
-        tbody.innerHTML = data.items.map(renderRow).join('');
-      }
-      if (data.summary) {
-        document.getElementById('sumApproved').textContent = formatPeso(data.summary.approvedTotal);
-        document.getElementById('sumPending').textContent = formatPeso(data.summary.pendingTotal);
-        document.getElementById('sumFuel').textContent = formatPeso(data.summary.fuelTotal);
-        document.getElementById('sumCount').textContent = (data.summary.approvedCount || 0) + (data.summary.pendingCount || 0);
-      }
-    } catch(e) {
-      document.getElementById('expensesBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Failed to load</td></tr>';
-    }
-  }
-
-  document.getElementById('filterType').addEventListener('change', () => loadExpenses(1));
-  document.getElementById('filterStatus').addEventListener('change', () => loadExpenses(1));
-
-  // loadBookings removed — expenses are no longer linked to specific services
-
-  window.openExpenseModal = function() {
-    document.getElementById('expenseForm').reset();
-    document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('fuelFields').style.display = 'none';
-    new bootstrap.Modal(document.getElementById('expenseModal')).show();
-  };
-
-  document.getElementById('expType').addEventListener('change', function() {
-    document.getElementById('fuelFields').style.display = this.value === 'fuel' ? '' : 'none';
-  });
-
-  window.submitExpense = async function(e) {
-    e.preventDefault();
-    const body = {
-      type: document.getElementById('expType').value,
-      amount: parseFloat(document.getElementById('expAmount').value),
-      description: document.getElementById('expDesc').value,
-      expenseDate: document.getElementById('expDate').value,
-    };
-    if (body.type === 'fuel') {
-      body.fuelLiters = parseFloat(document.getElementById('expLiters').value) || 0;
-      body.pricePerLiter = parseFloat(document.getElementById('expPricePerLiter').value) || 0;
-      body.odometerReading = parseFloat(document.getElementById('expOdometer').value) || 0;
-      body.gasStation = document.getElementById('expStation').value;
-    }
-    try {
-      const res = await fetch('/api/technician/expenses', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        bootstrap.Modal.getInstance(document.getElementById('expenseModal')).hide();
-        showToast('Expense recorded!', 'success');
-        loadExpenses(1);
-      } else {
-        showToast(data.error || 'Failed', 'danger');
-      }
-    } catch(e) { showToast('Network error', 'danger'); }
-  };
-
-  window.deleteExpense = async function(id) {
-    if (!confirm('Delete this expense?')) return;
-    try {
-      const res = await fetch(`/api/technician/expenses/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok) { showToast('Deleted', 'info'); loadExpenses(1); }
-      else showToast(data.error || 'Failed', 'danger');
-    } catch(e) { showToast('Network error', 'danger'); }
-  };
-
-  function showToast(msg, type) {
-    var container = document.getElementById('globalToastContainer');
-    if (!container) return;
-    var id = 'toast_' + Date.now();
-    var bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-primary';
-    var html = '<div id="' + id + '" class="toast align-items-center text-white ' + bgClass + ' border-0 show" role="alert">' +
-      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
-      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
-    container.insertAdjacentHTML('beforeend', html);
-    setTimeout(function() { var el = document.getElementById(id); if (el) el.remove(); }, 4000);
-  }
-
-  loadExpenses(1);
-})();
+(()=>{let currentPage=1,bookings=[],projects=[];const $=id=>document.getElementById(id);const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels={fuel:'Fuel',parking:'Parking',toll:'Toll',external_parts:'External Parts',meal:'Meals',other:'Other',material:'Materials',transport:'Transport'};const icons={fuel:'bi-fuel-pump',parking:'bi-p-square',toll:'bi-signpost-2',external_parts:'bi-tools',meal:'bi-cup-hot',other:'bi-three-dots'};
+function toast(message,type='success'){if(window.Swal)return Swal.fire({toast:true,position:'top-end',icon:type==='danger'?'error':type,title:message,showConfirmButton:false,timer:3000});alert(message)}
+function row(e){const d=new Date(e.expenseDate).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});const assoc=e.bookingId?`<i class="bi bi-briefcase"></i> ${esc(e.bookingId.bookingReference||e.bookingId.customerName||'Booking')}`:e.projectId?`<i class="bi bi-building"></i> ${esc(e.projectId.projectCode||e.projectId.title||'Project')}`:'<span class="text-muted">Daily expense</span>';return `<tr><td>${d}</td><td><i class="bi ${icons[e.type]||icons.other} me-2 text-primary"></i>${labels[e.type]||esc(e.type)}</td><td><strong>${esc(e.description)}</strong>${e.rejectionReason?`<small class="d-block text-danger">${esc(e.rejectionReason)}</small>`:''}</td><td>${assoc}</td><td>${e.receiptImage?`<a href="${esc(e.receiptImage)}" target="_blank" class="btn btn-sm btn-light"><i class="bi bi-paperclip"></i> View</a>`:'<span class="text-muted">—</span>'}</td><td class="text-end fw-bold">${peso(e.amount)}</td><td><span class="exp-badge ${e.status}"><i class="bi ${e.status==='approved'?'bi-check2':e.status==='rejected'?'bi-x':'bi-clock'}"></i>${e.status}</span></td><td>${e.status==='pending'?`<button class="btn btn-sm btn-outline-danger" onclick="deleteExpense('${e._id}')" title="Delete pending expense"><i class="bi bi-trash"></i></button>`:''}</td></tr>`}
+async function load(page=1){currentPage=page;let u=`/api/technician/expenses?page=${page}&limit=15`;if($('filterType').value)u+=`&type=${$('filterType').value}`;if($('filterStatus').value)u+=`&status=${$('filterStatus').value}`;if($('filterDate').value)u+=`&startDate=${$('filterDate').value}&endDate=${$('filterDate').value}`;try{const r=await fetch(u),d=await r.json();$('expensesBody').innerHTML=d.items?.length?d.items.map(row).join(''):'<tr><td colspan="8" class="exp-empty"><i class="bi bi-receipt fs-3 d-block mb-2"></i>No expenses found</td></tr>';if(d.summary){$('sumPending').textContent=peso(d.summary.pendingTotal);$('sumApproved').textContent=peso(d.summary.approvedTotal);$('sumFuel').textContent=peso(d.summary.fuelTotal);$('pendingCount').textContent=`${d.summary.pendingCount||0} records`}$('expPagination').innerHTML=Array.from({length:d.pages||0},(_,i)=>`<button class="btn btn-sm ${i+1===page?'btn-primary':'btn-light'}" onclick="expenseGoPage(${i+1})">${i+1}</button>`).join('')}catch(e){$('expensesBody').innerHTML='<tr><td colspan="8" class="exp-empty text-danger">Could not load expenses.</td></tr>'}}
+async function loadToday(){const t=new Date().toISOString().slice(0,10);try{const [er,dr]=await Promise.all([fetch(`/api/technician/expenses?startDate=${t}&endDate=${t}&limit=100`),fetch('/api/technician/dashboard/overview')]);const e=await er.json(),d=await dr.json(),items=e.items||[],total=items.reduce((s,x)=>s+Number(x.amount||0),0),done=(d.completedToday||[]).length;$('todayTotal').textContent=peso(total);$('todayCount').textContent=`${items.length} ${items.length===1?'entry':'entries'}`;if(done>0&&!items.length){$('expenseReminder').classList.remove('d-none');$('expenseReminder').innerHTML=`<div><strong><i class="bi bi-exclamation-triangle me-2"></i>No expense logged today</strong><div class="small">You completed ${done} ${done===1?'booking':'bookings'} today. Log an expense if you incurred one.</div></div><button class="btn btn-sm btn-warning fw-bold" onclick="openExpenseModal()">Log Expense</button>`}else{$('expenseReminder').classList.add('d-none')}}catch(e){}}
+async function associations(){try{const [b,p]=await Promise.all([fetch('/api/technician/expenses/available-bookings').then(r=>r.json()),fetch('/api/technician/expenses/available-projects').then(r=>r.json())]);bookings=b.bookings||[];projects=p.projects||[];$('expBooking').innerHTML='<option value="">Select booking</option>'+bookings.map(x=>`<option value="${x.bookingId}" data-date="${x.bookingDate?new Date(x.bookingDate).toISOString().slice(0,10):''}">${esc(x.customerName)} — ${esc(x.serviceName)} (${new Date(x.bookingDate).toLocaleDateString('en-PH')})</option>`).join('');$('expProject').innerHTML='<option value="">Select project</option>'+projects.map(x=>`<option value="${x._id}">${esc(x.projectCode||x.title||x.name||'Project')}</option>`).join('')}catch(e){}}
+window.openExpenseModal=()=>{$('expenseForm').reset();$('expDate').value=new Date().toISOString().slice(0,10);$('expenseDateWrap').classList.remove('d-none');$('fuelFields').classList.remove('d-none');$('bookingWrap').classList.add('d-none');$('projectWrap').classList.add('d-none');$('receiptPreview').classList.add('d-none');new bootstrap.Modal($('expenseModal')).show()};$('expType').onchange=e=>$('fuelFields').classList.toggle('d-none',e.target.value!=='fuel');$('associationType').onchange=e=>{const isBooking=e.target.value==='booking';$('bookingWrap').classList.toggle('d-none',!isBooking);$('projectWrap').classList.toggle('d-none',e.target.value!=='project');$('expenseDateWrap').classList.toggle('d-none',isBooking);if(!isBooking)$('expDate').value=new Date().toISOString().slice(0,10)};$('expBooking').onchange=e=>{const option=e.target.selectedOptions[0];if(option?.dataset?.date)$('expDate').value=option.dataset.date};$('expReceipt').onchange=e=>{const f=e.target.files[0];if(!f)return;$('receiptPreview').classList.remove('d-none');$('receiptPreview').innerHTML=`<i class="bi bi-file-earmark-check me-1"></i>${esc(f.name)} · ${(f.size/1024).toFixed(0)} KB`};
+window.submitExpense=async ev=>{ev.preventDefault();const btn=$('saveExpenseBtn');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Saving…';try{let receiptImage=null,f=$('expReceipt').files[0];if(f){const fd=new FormData();fd.append('receipt',f);const ur=await fetch('/api/technician/expenses/upload-receipt',{method:'POST',body:fd}),ud=await ur.json();if(!ur.ok)throw new Error(ud.error);receiptImage=ud.url}const type=$('expType').value,association=$('associationType').value,body={type,amount:Number($('expAmount').value),expenseDate:$('expDate').value,description:$('expDesc').value.trim(),receiptImage};if(association==='booking')body.bookingId=$('expBooking').value;if(association==='project')body.projectId=$('expProject').value;if(type==='fuel')Object.assign(body,{fuelLiters:Number($('expLiters').value)||0,pricePerLiter:Number($('expPricePerLiter').value)||0,odometerReading:Number($('expOdometer').value)||0,gasStation:$('expStation').value.trim()});const r=await fetch('/api/technician/expenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw new Error(d.error);bootstrap.Modal.getInstance($('expenseModal')).hide();toast('Expense submitted for approval');await Promise.all([load(1),loadToday()])}catch(e){toast(e.message||'Could not save expense','danger')}finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-check2"></i> Save Expense'}};
+window.deleteExpense=async id=>{const ok=window.Swal?(await Swal.fire({title:'Delete expense?',text:'Only this pending record will be removed.',icon:'warning',showCancelButton:true,confirmButtonColor:'#dc2626',confirmButtonText:'Delete'})).isConfirmed:confirm('Delete this expense?');if(!ok)return;const r=await fetch(`/api/technician/expenses/${id}`,{method:'DELETE'}),d=await r.json();if(!r.ok)return toast(d.error||'Delete failed','danger');toast('Expense deleted');load(currentPage);loadToday()};window.expenseGoPage=load;['filterType','filterStatus','filterDate'].forEach(id=>$(id).addEventListener('change',()=>load(1)));associations();load();loadToday();if(new URLSearchParams(location.search).get('new')==='1')setTimeout(openExpenseModal,150)})();
 </script>

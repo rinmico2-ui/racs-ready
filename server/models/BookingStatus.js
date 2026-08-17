@@ -114,6 +114,7 @@ const StatusTransitions = {
   ],
   [BookingStatus.AWAITING_ASSIGNMENT]: [
     BookingStatus.ASSIGNED,
+    BookingStatus.PENDING_REASSIGNMENT,
     BookingStatus.INSPECTION_SCHEDULED,
     BookingStatus.CANCELLED,
     BookingStatus.EXPIRED,
@@ -131,10 +132,12 @@ const StatusTransitions = {
   ],
   [BookingStatus.CONFIRMED]: [
     BookingStatus.SCHEDULED,
+    BookingStatus.PENDING_REASSIGNMENT,
     BookingStatus.ON_THE_WAY,
     BookingStatus.CANCELLED,
   ],
   [BookingStatus.SCHEDULED]: [
+    BookingStatus.PENDING_REASSIGNMENT,
     BookingStatus.ON_THE_WAY,
     BookingStatus.CANCELLED,
   ],

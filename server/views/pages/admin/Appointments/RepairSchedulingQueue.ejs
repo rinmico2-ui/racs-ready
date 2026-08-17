@@ -35,7 +35,7 @@
     .rsq-stat-icon.amber { background: #fffbeb; color: #f59e0b; }
     .rsq-stat-icon.green { background: #f0fdf4; color: #22c55e; }
     .rsq-stat-icon.purple { background: #f5f3ff; color: #7c3aed; }
-    .rsq-stat-value { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
+    .rsq-stat-value { font-size: 1.4rem; font-weight: 600; color: #1e293b; }
     .rsq-stat-label { font-size: 0.75rem; color: #64748b; }
 
     .rsq-filters { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -172,8 +172,8 @@
         <div class="au-hero-left">
           <div class="au-hero-icon"><i class="bi bi-calendar2-check"></i></div>
           <div>
-            <h1>Repair Scheduling Queue</h1>
-            <p>Manage repair scheduling for customers who chose "Schedule Repair Later". Assign technicians and confirm preferred dates.</p>
+            <h1>Repair Parts &amp; Scheduling</h1>
+            <p>Manage technician parts requests, procurement, received inventory, and repair scheduling or rescheduling in one queue.</p>
           </div>
         </div>
       </div>
@@ -248,13 +248,13 @@
         <div class="stat-card h-100" data-spark-color="#2563eb">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Submitted Today</h6>
+              <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Parts Requests</h6>
               <div class="d-flex align-items-baseline gap-2">
-                <span class="h3 mb-0 fw-bold text-dark" id="statToday">-</span>
+                <span class="h3 mb-0 fw-bold text-dark" id="statParts">-</span>
                 <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
                 <span class="kpi-percent-badge">New</span>
               </div>
-              <small class="text-muted">New today</small>
+              <small class="text-muted">Waiting for procurement</small>
             </div>
             <div class="stat-icon" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);">
               <i class="bi bi-wrench text-white"></i>
@@ -470,7 +470,7 @@
         <div class="d-flex align-items-center gap-3">
           <div class="ent-modal-icon" style="background:rgba(255,255,255,0.15);"><i class="bi bi-box-seam"></i></div>
           <div>
-            <h6 class="modal-title fw-bold mb-0">Manage Parts</h6>
+            <h6 class="modal-title fw-bold mb-0" id="mpModalTitle">Manage Parts</h6>
             <small class="opacity-75" id="mpWorkOrder"></small>
           </div>
         </div>
@@ -481,7 +481,7 @@
         <div id="mpStatusInfo" class="mt-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;display:none;">
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-check-circle-fill" style="color:#16a34a;"></i>
-            <span class="fw-semibold" style="font-size:0.85rem;color:#166534;">All parts received — ready for scheduling</span>
+            <span class="fw-semibold" id="mpStatusText" style="font-size:0.85rem;color:#166534;">All parts received</span>
           </div>
         </div>
         <div id="mpProcureResult" class="mt-3" style="display:none;"></div>
@@ -534,14 +534,12 @@
       document.getElementById('statScheduled').textContent = statsData.scheduled || 0;
       document.getElementById('statTotal').textContent = statsData.total || 0;
 
-      const today = new Date().toDateString();
-      const todayCount = allBookings.filter(b => b.submittedAt && new Date(b.submittedAt).toDateString() === today).length;
-      document.getElementById('statToday').textContent = todayCount;
+      document.getElementById('statParts').textContent = statsData.waitingParts || 0;
 
       renderQueue();
     } catch (err) {
       console.error(err);
-      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-exclamation-triangle"></i><p>Failed to load scheduling queue</p><p class="sub text-danger">' + err.message + '</p></div>';
+      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-exclamation-triangle"></i><p>Failed to load parts and scheduling queue</p><p class="sub text-danger">' + err.message + '</p></div>';
     }
   };
 
@@ -664,7 +662,7 @@
           </button>
           ${canAssign ? `
             <button class="btn btn-sm ${partsReady ? 'btn-primary' : 'btn-outline-danger'}" onclick="${partsReady ? `openAssignModal('${b._id}')` : 'showPartsRequest(\'' + b._id + '\')' }">
-              <i class="bi ${partsReady ? 'bi-calendar-plus' : 'bi-box-seam'} me-1"></i>${partsReady ? 'Schedule & Assign' : 'Manage Parts'}
+              <i class="bi ${partsReady ? 'bi-calendar-plus' : 'bi-box-seam'} me-1"></i>${partsReady ? 'Schedule Date' : 'Manage Parts'}
             </button>
           ` : isWaitingParts ? `
             <button class="btn btn-sm btn-outline-warning" onclick="showPartsRequest('${b._id}')">
@@ -707,10 +705,27 @@
     return `<div class="d-flex flex-wrap gap-1">${chips}</div>`;
   }
 
+  function isRepairSchedulingReady(booking) {
+    if (!booking || booking.requestPhase === 'phase_1_ai_preparation') return false;
+    const parts = booking.quotation?.parts || [];
+    const hasUnprocuredPart = parts.some(part => part.needsProcurement !== false);
+    if (hasUnprocuredPart) return false;
+    if (parts.length === 0) return true;
+    return booking.partsStatus === 'reserved'
+      || booking.stockAvailable === true
+      || booking.status === 'ready_for_repair'
+      || booking.status === 'repair_scheduled';
+  }
+
   // ── Open Assign Modal ─────────────────────────────────────────────────
   window.openAssignModal = async function(bookingId) {
     const booking = allBookings.find(b => b._id === bookingId);
     if (!booking) return;
+    if (!isRepairSchedulingReady(booking)) {
+      showToast('warning', 'Schedule & Assign is unavailable until every missing repair part has been procured and reserved.');
+      showPartsRequest(bookingId);
+      return;
+    }
 
     currentAssignBooking = booking;
     selectedTechId = null;
@@ -743,8 +758,8 @@
     const duration = booking.technicianAssistant?.estimatedDurationMinutes || 90;
     const durationLabel = duration >= 60 ? Math.floor(duration/60) + 'h' + (duration%60 > 0 ? ' ' + duration%60 + 'm' : '') : duration + 'min';
     document.getElementById('assignDuration').textContent = durationLabel;
-    const complexity = booking.repairComplexity || 'moderate';
-    const complexityLabels = { simple: 'Simple (1 part fix)', moderate: 'Moderate (multi-part)', complex: 'Complex (major overhaul)' };
+    const complexity = booking.diagnosis?.laborCategory || booking.repairComplexity || 'standard';
+    const complexityLabels = { minor: 'Minor Repair', simple: 'Minor Repair', standard: 'Standard Repair', moderate: 'Standard Repair', complex: 'Complex Repair', major: 'Major Overhaul' };
     document.getElementById('assignComplexity').textContent = complexityLabels[complexity] || complexity;
 
     document.getElementById('assignOriginalInspector').textContent = booking.originalInspector?.name || 'Unassigned';
@@ -787,7 +802,8 @@
       // If a tech was auto-selected, load their available dates
       if (selectedTechId) {
         const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
-        fetchTechAvailableDates(selectedTechId, duration);
+        const travelTime = currentAssignBooking?.travelDurationMinutes ?? currentAssignBooking?.travelTime ?? 30;
+        fetchTechAvailableDates(selectedTechId, duration, travelTime);
       }
     } catch (err) {
       techListEl.innerHTML = '<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>' + err.message + '</div>';
@@ -870,11 +886,12 @@
     updatePreview();
     // Fetch available dates for this technician using the booking's estimated duration
     const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
-    fetchTechAvailableDates(techId, duration);
+    const travelTime = currentAssignBooking?.travelDurationMinutes ?? currentAssignBooking?.travelTime ?? 30;
+    fetchTechAvailableDates(techId, duration, travelTime);
   };
 
   // ── Fetch Technician Available Dates ──────────────────────────────────
-  async function fetchTechAvailableDates(techId, duration) {
+  async function fetchTechAvailableDates(techId, duration, travelTime) {
     const gridEl = document.getElementById('adminDateGrid');
     const placeholderEl = document.getElementById('adminDatePlaceholder');
     const capacityEl = document.getElementById('adminDateCapacity');
@@ -885,7 +902,7 @@
     capacityEl.textContent = '-';
 
     try {
-      const res = await fetch(`/api/admin/technicians/${techId}/available-dates?duration=${duration || 90}`, { credentials: 'same-origin' });
+      const res = await fetch(`/api/admin/technicians/${techId}/available-dates?duration=${duration || 90}&travelTime=${Math.max(0, Number(travelTime) || 0)}`, { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Failed to load dates');
       const data = await res.json();
 
@@ -950,6 +967,7 @@
   async function renderAdminTimeSlots(date) {
     const gridEl = document.getElementById('adminTimeGrid');
     const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
+    const travelTime = currentAssignBooking?.travelDurationMinutes ?? currentAssignBooking?.travelTime ?? 30;
     const preferredWindow = currentAssignBooking?.preferredTimeWindow || 'any';
 
     // Show time window hint next to the label
@@ -968,7 +986,7 @@
     gridEl.innerHTML = '<div class="text-muted small" style="grid-column:1/-1;padding:12px;text-align:center;"><div class="spinner-border spinner-border-sm me-1"></div>Loading slots...</div>';
 
     try {
-      const resp = await fetch(`/api/admin/technicians/${selectedTechId}/available-slots?date=${date}&duration=${duration}`, { credentials: 'same-origin' });
+      const resp = await fetch(`/api/admin/technicians/${selectedTechId}/available-slots?date=${date}&duration=${duration}&travelTime=${Math.max(0, Number(travelTime) || 0)}`, { credentials: 'same-origin' });
       const data = await resp.json();
 
       if (data.reason) {
@@ -1175,7 +1193,11 @@
     const b = allBookings.find(x => x._id === bookingId);
     if (!b) return;
     _mpBookingId = bookingId;
-    document.getElementById('mpWorkOrder').textContent = b.workOrderNumber;
+    const isAiPreparationRequest = b.requestPhase === 'phase_1_ai_preparation';
+    document.getElementById('mpModalTitle').textContent = isAiPreparationRequest
+      ? 'AI Preparation Parts Reservation'
+      : 'Phase 2 Repair Parts & Scheduling';
+    document.getElementById('mpWorkOrder').textContent = `${b.workOrderNumber} · ${isAiPreparationRequest ? 'Phase 1 - Technician Preparation' : 'Phase 2 - Repair Visit'}`;
     document.getElementById('mpProcureResult').style.display = 'none';
 
     const allParts = b.quotation?.parts || [];
@@ -1183,12 +1205,17 @@
     const parts = allParts.filter(p => p.needsProcurement !== false);
     const partsListEl = document.getElementById('mpPartsList');
 
-    const isReady = b.partsStatus === 'reserved' || b.partsStatus === 'none' || b.stockAvailable || b.status === 'ready_for_repair' || b.status === 'repair_approved';
+    const hasReadyParts = b.partsStatus === 'reserved' || b.partsStatus === 'none' || b.stockAvailable;
+    const isReadyForScheduling = isRepairSchedulingReady(b);
+    const isReadyForTechnician = isAiPreparationRequest && hasReadyParts;
+    document.getElementById('mpStatusText').textContent = isAiPreparationRequest
+      ? 'Parts reserved — technician preparation can continue. No scheduling is required.'
+      : 'All parts received — ready for phase 2 repair scheduling.';
     const canReceive = b.partsStatus === 'waiting_parts';
     const canCheck = b.partsStatus === 'pending_check';
     const allInStock = parts.length === 0 && allParts.length > 0;
 
-    if (allInStock && canCheck) {
+    if (allInStock && (canCheck || canReceive)) {
       partsListEl.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
           <span class="fw-semibold" style="font-size:0.85rem;color:#0f172a;">All ${allParts.length} Part(s) In Stock</span>
@@ -1197,7 +1224,9 @@
         <div style="border:1px solid #bbf7d0;border-radius:10px;overflow:hidden;background:#f0fdf4;padding:12px 16px;">
           <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:#166534;">
             <i class="bi bi-check-circle-fill"></i>
-            <span>All parts are available in inventory. Click <strong>"Reserve Parts &amp; Schedule"</strong> to reserve stock and proceed to scheduling.</span>
+            <span>${isAiPreparationRequest
+              ? `This is an AI preparation request. Click <strong>"Reserve &amp; Return to Technician"</strong> to secure the stock and resume technician preparation. <strong>No repair scheduling is needed.</strong>`
+              : `This is a phase 2 repair request. Click <strong>"Reserve Parts &amp; Schedule"</strong> to secure the stock and schedule the repair visit.`}</span>
           </div>
         </div>
       `;
@@ -1213,14 +1242,19 @@
         document.querySelector('#managePartsModal .ent-modal-footer').insertBefore(reserveBtn, document.getElementById('mpScheduleBtn'));
       }
       reserveBtn.onclick = function() { reserveAndSchedule(bookingId); };
-      reserveBtn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i> Reserve Parts &amp; Schedule';
+      reserveBtn.innerHTML = isAiPreparationRequest
+        ? '<i class="bi bi-arrow-return-left me-1"></i> Reserve &amp; Return to Technician'
+        : '<i class="bi bi-calendar-plus me-1"></i> Reserve Parts &amp; Schedule';
       reserveBtn.style.display = '';
     } else if (allInStock && !canCheck) {
       partsListEl.innerHTML = `<div class="text-muted small text-center py-4" style="color:#16a34a !important;"><i class="bi bi-check-circle-fill me-1"></i>All ${allParts.length} part(s) are available in stock. No procurement needed.</div>`;
       document.getElementById('mpReceiveBtn').style.display = 'none';
       document.getElementById('mpCheckBtn').style.display = 'none';
-      document.getElementById('mpScheduleBtn').style.display = isReady ? '' : 'none';
-      document.getElementById('mpStatusInfo').style.display = isReady ? 'block' : 'none';
+      const scheduleBtn = document.getElementById('mpScheduleBtn');
+      scheduleBtn.style.display = '';
+      scheduleBtn.disabled = !isReadyForScheduling;
+      scheduleBtn.title = isReadyForScheduling ? '' : 'Procure and reserve all missing parts before scheduling.';
+      document.getElementById('mpStatusInfo').style.display = (isReadyForScheduling || isReadyForTechnician) ? 'block' : 'none';
       const reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
       if (reserveBtn) reserveBtn.style.display = 'none';
     } else {
@@ -1250,13 +1284,20 @@
         </div>
       `;
 
-      document.getElementById('mpReceiveBtn').style.display = canReceive ? '' : 'none';
-      document.getElementById('mpCheckBtn').style.display = canCheck ? '' : 'none';
-      document.getElementById('mpScheduleBtn').style.display = isReady ? '' : 'none';
-      if (canCheck) {
-        document.getElementById('mpCheckBtn').innerHTML = '<i class="bi bi-search me-1"></i> Check &amp; Procure Parts';
+      // Stock must be recorded in inventory before a technician request can be
+      // resolved. Do not allow "mark received" to bypass the stock ledger.
+      document.getElementById('mpReceiveBtn').style.display = 'none';
+      document.getElementById('mpCheckBtn').style.display = (canCheck || canReceive) ? '' : 'none';
+      const scheduleBtn = document.getElementById('mpScheduleBtn');
+      scheduleBtn.style.display = '';
+      scheduleBtn.disabled = !isReadyForScheduling;
+      scheduleBtn.title = isReadyForScheduling ? '' : 'Procure and reserve all missing parts before scheduling.';
+      if (canCheck || canReceive) {
+        document.getElementById('mpCheckBtn').innerHTML = isAiPreparationRequest
+          ? '<i class="bi bi-box-arrow-in-down me-1"></i> Procure / Restock &amp; Auto-Reserve'
+          : '<i class="bi bi-cart-plus me-1"></i> Procure Repair Parts';
       }
-      document.getElementById('mpStatusInfo').style.display = isReady ? 'block' : 'none';
+      document.getElementById('mpStatusInfo').style.display = (isReadyForScheduling || isReadyForTechnician) ? 'block' : 'none';
       const reserveBtn = document.getElementById('mpReserveAndScheduleBtn');
       if (reserveBtn) reserveBtn.style.display = 'none';
     }
@@ -1304,10 +1345,12 @@
         await loadQueue();
         return;
       }
-      showToast('success', 'Parts reserved successfully! Opening scheduler...');
+      showToast('success', data.message || 'Parts reserved successfully.');
       bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
       await loadQueue();
-      setTimeout(() => openAssignModal(bookingId), 300);
+      if (data.readyForScheduling) {
+        setTimeout(() => openAssignModal(bookingId), 300);
+      }
     } catch (err) {
       showToast('error', err.message);
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-calendar-plus me-1"></i> Reserve Parts &amp; Schedule'; }
@@ -1357,6 +1400,16 @@
   // ── Proceed to Schedule ──────────────────────────────────────────────
   window.proceedToSchedule = function() {
     if (!_mpBookingId) return;
+    const booking = allBookings.find(item => item._id === _mpBookingId);
+    if (booking?.requestPhase === 'phase_1_ai_preparation') {
+      showToast('warning', 'This is a phase 1 AI preparation request. Repair scheduling is not required.');
+      document.getElementById('mpScheduleBtn').style.display = 'none';
+      return;
+    }
+    if (!isRepairSchedulingReady(booking)) {
+      showToast('warning', 'Schedule & Assign is disabled until every missing repair part has been procured and reserved.');
+      return;
+    }
     bootstrap.Modal.getInstance(document.getElementById('managePartsModal')).hide();
     setTimeout(() => openAssignModal(_mpBookingId), 300);
   };
@@ -1436,8 +1489,19 @@
           <div class="ent-detail-card-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-tools"></i></div>
           <div class="ent-detail-card-content">
             <span class="ent-detail-label">Unit Information</span>
-            <span class="ent-detail-value">${b.unitInfo.unitType || '-'}</span>
-            <span class="ent-detail-sub">${[b.unitInfo.brand, b.unitInfo.model].filter(Boolean).join(' - ')}</span>
+            <span class="ent-detail-value">${b.unitInfo.unitType || b.applianceTypeName || b.applianceType || '-'}</span>
+            <span class="ent-detail-sub">Brand: ${b.unitInfo.brand || b.brand || '-'}</span>
+            <span class="ent-detail-sub">Model: ${b.unitInfo.model || '-'}</span>
+            <span class="ent-detail-sub">Quantity: ${b.quantity || 1}</span>
+          </div>
+        </div>
+        ` : ''}
+        ${(b.issueDescription || (b.unitInfo && b.unitInfo.problemDescription) || (Array.isArray(b.repairIssues) && b.repairIssues.length)) ? `
+        <div class="ent-detail-card ent-detail-card-wide">
+          <div class="ent-detail-card-icon" style="background:#fffbeb;color:#d97706;"><i class="bi bi-exclamation-triangle"></i></div>
+          <div class="ent-detail-card-content">
+            <span class="ent-detail-label">Issue / Problem Description</span>
+            <span class="ent-detail-value">${b.issueDescription || (b.unitInfo && b.unitInfo.problemDescription) || b.repairIssues.join(', ') || '-'}</span>
           </div>
         </div>
         ` : ''}

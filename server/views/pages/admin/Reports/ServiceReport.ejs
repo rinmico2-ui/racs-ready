@@ -1,4 +1,4 @@
-﻿<div class="admin-dashboard container-fluid px-0 py-4">
+<div class="admin-dashboard container-fluid px-0 py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
 
@@ -38,6 +38,7 @@
     .kpi-enterprise-icon.green{background:linear-gradient(135deg,#10b981,#059669);color:#fff;}
     .kpi-enterprise-icon.cyan{background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;}
     .kpi-enterprise-icon.red{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;}
+    .kpi-enterprise-icon.orange{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;}
     .kpi-enterprise-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.6rem;font-weight:600;letter-spacing:0.04em;padding:2px 8px;border-radius:999px;white-space:nowrap;}
     .kpi-enterprise-badge.blue{background:rgba(59,130,246,0.10);color:#2563eb;}
     .kpi-enterprise-badge.amber{background:rgba(245,158,11,0.10);color:#d97706;}
@@ -94,7 +95,7 @@
     .rating-item{text-align:center;padding:10px 6px;border-radius:10px;background:#f8fafc;border:1px solid #f1f5f9;transition:transform 0.2s ease;}
     .rating-item:hover{transform:translateY(-2px);}
     .rating-stars{font-size:0.68rem;font-weight:600;color:#f59e0b;margin-bottom:4px;}
-    .rating-count{font-size:1.1rem;font-weight:800;color:#0f172a;line-height:1.1;}
+    .rating-count{font-size:1.1rem;font-weight:600;color:#0f172a;line-height:1.1;}
     .rating-label{font-size:0.62rem;color:#94a3b8;font-weight:500;margin-top:2px;}
 
     /* -- AI Insight Cards -- */
@@ -124,18 +125,160 @@
       .rating-grid{grid-template-columns:repeat(3,1fr);}
       .dash-card-body{padding:12px 16px;}
     }
+
+    /* ---- Section Hierarchy ---- */
+    .admin-dashboard .section-label {
+      position: relative;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 2.5rem;
+      margin-bottom: 1.25rem;
+      padding-left: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .admin-dashboard .section-label::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 5px;
+      height: 22px;
+      border-radius: 3px;
+      background: linear-gradient(180deg,#2563eb,#06b6d4);
+    }
+    .admin-dashboard .section-label:first-of-type {
+      margin-top: 0.5rem;
+    }
+    .admin-dashboard .dash-card-header h6 {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    /* ---- Right-Side Section Navigation ---- */
+    .report-nav {
+      position: fixed;
+      right: 1.5rem;
+      top: 9rem;
+      transform: translateX(calc(100% + 1.5rem));
+      opacity: 0;
+      pointer-events: none;
+      z-index: 110;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(226,232,240,0.8);
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(15,23,42,0.06);
+      overflow-y: auto;
+      max-height: calc(100vh - 11rem);
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      backdrop-filter: blur(8px);
+      transition: all 0.25s ease;
+      width: fit-content;
+    }
+    .report-nav.open {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .report-nav::-webkit-scrollbar { display: none; }
+    .report-nav .report-nav-btn { display: none; }
+    .report-nav.open .report-nav-btn { display: flex; }
+    .report-nav-btn {
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      border-radius: 10px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #475569;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .report-nav-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+    .report-nav-btn.active {
+      background: linear-gradient(135deg,#2563eb,#1d4ed8);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+    }
+    .report-nav-btn i { font-size: 0.85rem; }
+    .report-nav-trigger {
+      position: fixed;
+      top: 5.5rem;
+      right: 1.5rem;
+      z-index: 1200;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: 2px solid rgba(255,255,255,0.9);
+      background: linear-gradient(135deg,#2563eb,#1d4ed8);
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.15), 0 6px 20px rgba(37,99,235,0.4);
+      white-space: nowrap;
+    }
+    .report-nav-trigger:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.2), 0 8px 24px rgba(37,99,235,0.5);
+    }
+    @media(max-width:767px){
+      .report-nav { right: 0.75rem; top: 8.5rem; padding: 6px; gap: 4px; max-height: calc(100vh - 10rem); }
+      .report-nav-btn { padding: 5px 8px; font-size: 0.68rem; gap: 4px; }
+      .report-nav-trigger { top: 4.75rem; right: 0.75rem; padding: 8px 12px; font-size: 0.78rem; }
+    }
   </style>
 
   <div class="au-hero mb-4">
-    <div class="au-hero-inner">
+    <div class="au-hero-inner" style="display:flex;justify-content:space-between;align-items:center;">
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-bar-chart-line-fill"></i></div>
         <div>
-          <h1>Service Analytics</h1>
+          <h1>Services</h1>
           <p>Track service demand, completion efficiency, and technician output trends.</p>
         </div>
       </div>
+      <button class="report-nav-trigger" id="reportNavTrigger"><i class="bi bi-list" id="reportNavTriggerIcon"></i><span id="reportNavTriggerLabel">Sections</span></button>
     </div>
+  </div>
+
+  <!-- --- SECTION NAV --- -->
+  <div class="report-nav" id="reportNav">
+    <button class="report-nav-btn active" data-target="top"><i class="bi bi-speedometer2"></i>Overview</button>
+    <button class="report-nav-btn" data-target="section-bookings"><i class="bi bi-calendar-check"></i>Bookings</button>
+    <button class="report-nav-btn" data-target="section-revenue"><i class="bi bi-cash-stack"></i>Revenue</button>
+    <button class="report-nav-btn" data-target="section-technicians"><i class="bi bi-people"></i>Technicians</button>
+    <button class="report-nav-btn" data-target="section-customers"><i class="bi bi-heart"></i>Customers</button>
+    <button class="report-nav-btn" data-target="section-service"><i class="bi bi-gear"></i>Services</button>
+    <button class="report-nav-btn" data-target="section-operations"><i class="bi bi-clipboard-check"></i>Operations</button>
+    <button class="report-nav-btn" data-target="section-financial"><i class="bi bi-calculator"></i>Financial</button>
+    <button class="report-nav-btn" data-target="section-ai"><i class="bi bi-robot"></i>AI</button>
+    <button class="report-nav-btn" data-target="section-geographic"><i class="bi bi-geo-alt"></i>Geographic</button>
+    <button class="report-nav-btn" data-target="section-service-costs"><i class="bi bi-calculator-fill"></i>Service Costs</button>
+    <button class="report-nav-btn" data-target="section-equipment-used"><i class="bi bi-hammer"></i>Equipment</button>
   </div>
 
   <!-- --- KPI GRID --- -->
@@ -146,7 +289,7 @@
         <span class="kpi-enterprise-badge blue"><%= analytics ? Math.round((analytics.completedBookings / (analytics.totalBookings || 1)) * 100) : 0 %>% rate</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Total Bookings (60d)</p>
+        <p class="kpi-enterprise-label">Total Bookings</p>
         <div class="kpi-enterprise-value"><span id="kpiTotalBookings"><%= analytics ? analytics.totalBookings.toLocaleString() : "0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkTotalBookings"></canvas></div>
@@ -165,13 +308,47 @@
     <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon amber"><i class="bi bi-currency-dollar"></i></div>
-        <span class="kpi-enterprise-badge amber">?<%= analytics ? Math.round(analytics.avgBookingValue) : 0 %> avg</span>
+        <span class="kpi-enterprise-badge amber">₱<%= analytics ? Math.round(analytics.avgBookingValue).toLocaleString() : 0 %> avg</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Total Revenue (60d)</p>
-        <div class="kpi-enterprise-value"><span id="kpiTotalRevenue">?<%= analytics ? (analytics.totalRevenue / 1000).toFixed(1) : "0.0" %>K</span></div>
+        <p class="kpi-enterprise-label">Revenue</p>
+        <div class="kpi-enterprise-value"><span id="kpiTotalRevenue">₱<%= analytics ? Number(analytics.accurateTotalRevenue || analytics.totalRevenue || 0).toLocaleString() : "0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkRevenue"></canvas></div>
+    </div>
+    <div class="kpi-enterprise" data-accent="orange" data-aos="fade-up" data-aos-delay="120">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon orange"><i class="bi bi-tools"></i></div>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Parts Cost (COGS)</p>
+        <div class="kpi-enterprise-value"><span>₱<%= analytics ? Number(analytics.totalPartsCost || 0).toLocaleString() : "0" %></span></div>
+      </div>
+    </div>
+    <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon green"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="kpi-enterprise-badge green"><%= analytics && analytics.grossProfit > 0 ? 'Profitable' : 'Check costs' %></span>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Completed-Service Gross Profit</p>
+        <div class="kpi-enterprise-value"><span style="color:<%= analytics && analytics.grossProfit >= 0 ? '#059669' : '#dc2626' %>">₱<%= analytics ? Number(analytics.grossProfit || 0).toLocaleString() : "0" %></span></div>
+        <small style="color:#64748b;">Revenue − parts COGS</small>
+      </div>
+    </div>
+    <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="140">
+      <div class="kpi-enterprise-top">
+        <div class="kpi-enterprise-icon red"><i class="bi bi-receipt"></i></div>
+      </div>
+      <div class="kpi-enterprise-body">
+        <p class="kpi-enterprise-label">Total Expenses</p>
+        <div class="kpi-enterprise-value"><span>₱<%= analytics ? Number(analytics.totalExpenses || 0).toLocaleString() : "0" %></span></div>
+        <small style="color:#64748b;">Operating expenses</small>
+      </div>
+    </div>
+    <div class="kpi-enterprise" data-accent="<%= analytics && analytics.netProfit >= 0 ? 'green' : 'red' %>" data-aos="fade-up" data-aos-delay="145">
+      <div class="kpi-enterprise-top"><div class="kpi-enterprise-icon <%= analytics && analytics.netProfit >= 0 ? 'green' : 'red' %>"><i class="bi bi-bank"></i></div><span class="kpi-enterprise-badge <%= analytics && analytics.netProfit >= 0 ? 'green' : 'red' %>"><%= analytics && analytics.netProfit >= 0 ? 'Positive contribution' : 'Negative contribution' %></span></div>
+      <div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Operating Contribution</p><div class="kpi-enterprise-value"><span style="color:<%= analytics && analytics.netProfit >= 0 ? '#059669' : '#dc2626' %>">₱<%= analytics ? Number(analytics.netProfit || 0).toLocaleString() : "0" %></span></div><small style="color:#64748b;">Completed-service gross profit − recorded expenses</small></div>
     </div>
     <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="150">
       <div class="kpi-enterprise-top">
@@ -179,7 +356,7 @@
         <span class="kpi-enterprise-badge purple"><%= analytics ? analytics.cancelledBookings : 0 %> cancelled</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Pending / Active</p>
+        <p class="kpi-enterprise-label">Pending Jobs</p>
         <div class="kpi-enterprise-value"><span id="kpiProjectedBookings"><%= analytics ? analytics.pendingBookings.toLocaleString() : "0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkProjected"></canvas></div>
@@ -201,7 +378,7 @@
         <span class="kpi-enterprise-badge red"><%= analytics ? analytics.avgRating : "0.0" %> ? avg</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Customer Rating</p>
+        <p class="kpi-enterprise-label">Customer Satisfaction</p>
         <div class="kpi-enterprise-value"><span id="kpiAvgRating"><%= analytics ? analytics.avgRating : "0.0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkRating"></canvas></div>
@@ -209,26 +386,37 @@
   </div>
 
   <!-- --- FILTER BAR --- -->
-  <div class="admin-filter-bar">
+  <% const filters = analytics && analytics.filterContext ? analytics.filterContext : { range:'90', from:'', to:'', segment:'all', status:'all', scale:'all', payment:'all', technician:'all', brand:'all', search:'' }; %>
+  <form class="admin-filter-bar" method="get" action="/admin/reports/service" id="serviceReportFilters">
     <div class="filter-group">
       <div class="filter-item">
         <i class="bi bi-calendar3"></i>
-        <select class="form-select"><option>Last 30 Days</option><option>Last 90 Days</option><option>This Year</option></select>
+        <select class="form-select" name="range" id="reportRange">
+          <option value="7" <%= filters.range === '7' ? 'selected' : '' %>>Last 7 days</option><option value="30" <%= filters.range === '30' ? 'selected' : '' %>>Last 30 days</option><option value="90" <%= filters.range === '90' ? 'selected' : '' %>>Last 90 days</option><option value="365" <%= filters.range === '365' ? 'selected' : '' %>>Last 12 months</option><option value="custom" <%= filters.range === 'custom' ? 'selected' : '' %>>Custom dates</option>
+        </select>
       </div>
       <div class="filter-item">
         <i class="bi bi-gear"></i>
-        <select class="form-select"><option>All Services</option><option>Cleaning</option><option>Installation</option><option>Repair</option></select>
+        <select class="form-select" name="segment"><option value="all">All segments</option><option value="core" <%= filters.segment === 'core' ? 'selected' : '' %>>Core services</option><option value="repair" <%= filters.segment === 'repair' ? 'selected' : '' %>>Repair services</option></select>
       </div>
       <div class="filter-item">
-        <i class="bi bi-geo-alt"></i>
-        <select class="form-select"><option>All Areas</option><option>Metro Manila</option><option>North Cluster</option><option>South Cluster</option></select>
+        <i class="bi bi-activity"></i>
+        <select class="form-select" name="status"><option value="all">All statuses</option><% ['pending','confirmed','scheduled','on-the-way','arrived','in-progress','completed','cancelled'].forEach(function(s) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase()) %></option><% }); %></select>
       </div>
+      <div class="filter-item"><i class="bi bi-building-gear"></i><select class="form-select" name="scale"><option value="all">All booking scales</option><option value="standard" <%= filters.scale === 'standard' ? 'selected' : '' %>>Standard</option><option value="large" <%= filters.scale === 'large' ? 'selected' : '' %>>Large-scale projects</option></select></div>
+      <div class="filter-item"><i class="bi bi-credit-card"></i><select class="form-select" name="payment"><option value="all">All payment methods</option><option value="gcash" <%= filters.payment === 'gcash' ? 'selected' : '' %>>GCash</option><option value="cod" <%= filters.payment === 'cod' ? 'selected' : '' %>>Cash / COD</option><option value="other" <%= filters.payment === 'other' ? 'selected' : '' %>>Other</option></select></div>
+      <div class="filter-item"><i class="bi bi-person-gear"></i><select class="form-select" name="technician"><option value="all">All technicians</option><% (analytics && analytics.technicians || []).forEach(function(t) { %><option value="<%= t._id %>" <%= filters.technician === String(t._id) ? 'selected' : '' %>><%= t.name %></option><% }); %></select></div>
+      <div class="filter-item"><i class="bi bi-award"></i><select class="form-select" name="brand"><option value="all">All brands</option><% (analytics && analytics.bookingBrands || []).forEach(function(brand) { %><option value="<%= brand %>" <%= filters.brand === brand ? 'selected' : '' %>><%= brand %></option><% }); %></select></div>
+      <div class="filter-item"><i class="bi bi-search"></i><input class="form-control" type="search" name="search" value="<%= filters.search %>" placeholder="Reference, customer, issue…" style="min-width:210px;border:0;box-shadow:none;"></div>
+      <div class="filter-item custom-date-filter" style="<%= filters.range === 'custom' ? '' : 'display:none;' %>"><span style="font-size:.72rem;color:#64748b;">From</span><input class="form-control" type="date" name="from" value="<%= filters.from %>" style="border:0;box-shadow:none;"></div>
+      <div class="filter-item custom-date-filter" style="<%= filters.range === 'custom' ? '' : 'display:none;' %>"><span style="font-size:.72rem;color:#64748b;">To</span><input class="form-control" type="date" name="to" value="<%= filters.to %>" style="border:0;box-shadow:none;"></div>
     </div>
     <div class="filter-actions">
-      <button class="btn btn-outline" style="border-radius:8px;font-weight:600;padding:0.45rem 1.2rem;font-size:0.875rem;display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;color:#0f172a;"><i class="bi bi-funnel"></i> Apply</button>
-      <button id="exportReportBtn" class="btn btn-primary" style="border-radius:8px;font-weight:600;padding:0.45rem 1.2rem;font-size:0.875rem;display:inline-flex;align-items:center;gap:6px;background:#2563eb;border-color:#2563eb;color:#fff;"><i class="bi bi-download"></i> Export CSV</button>
+      <button type="submit" class="btn btn-outline" style="border-radius:8px;font-weight:600;padding:0.45rem 1.2rem;font-size:0.875rem;display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;color:#0f172a;"><i class="bi bi-funnel"></i> Apply</button>
+      <a href="/admin/reports/service" class="btn btn-outline" style="border-radius:8px;font-weight:600;padding:0.45rem .8rem;font-size:0.875rem;background:#fff;border:1px solid #e2e8f0;color:#64748b;">Reset</a>
+      <button type="button" id="exportReportBtn" class="btn btn-primary" style="border-radius:8px;font-weight:600;padding:0.45rem 1.2rem;font-size:0.875rem;display:inline-flex;align-items:center;gap:6px;background:#2563eb;border-color:#2563eb;color:#fff;"><i class="bi bi-download"></i> Export CSV</button>
     </div>
-  </div>
+  </form>
 
   <!-- --- QUICK ACTIONS --- -->
   <div class="quick-bar">
@@ -266,15 +454,15 @@
           <ul class="list-unstyled small mb-0 mt-2 px-1">
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom" style="border-color:#f1f5f9!important;">
               <span style="color:#94a3b8;font-size:0.78rem;"><i class="bi bi-circle-fill me-2" style="color:#06b6d4;font-size:0.55rem;"></i>Core Service</span>
-              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && analytics.totalBookings > 0 ? Math.round((analytics.coreServiceBookings / analytics.totalBookings) * 100) : 0 %>%</strong>
+              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && (analytics.totalBookings + analytics.orderBookings) > 0 ? Math.round((analytics.coreServiceBookings / (analytics.totalBookings + analytics.orderBookings)) * 100) : 0 %>%</strong>
             </li>
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom" style="border-color:#f1f5f9!important;">
               <span style="color:#94a3b8;font-size:0.78rem;"><i class="bi bi-circle-fill me-2" style="color:#8b5cf6;font-size:0.55rem;"></i>Repair</span>
-              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && analytics.totalBookings > 0 ? Math.round((analytics.repairBookings / analytics.totalBookings) * 100) : 0 %>%</strong>
+              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && (analytics.totalBookings + analytics.orderBookings) > 0 ? Math.round((analytics.repairBookings / (analytics.totalBookings + analytics.orderBookings)) * 100) : 0 %>%</strong>
             </li>
             <li class="d-flex justify-content-between align-items-center py-1">
-              <span style="color:#94a3b8;font-size:0.78rem;"><i class="bi bi-circle-fill me-2" style="color:#db2777;font-size:0.55rem;"></i>Multi-Service</span>
-              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && analytics.totalBookings > 0 ? Math.round((analytics.multiServiceBookings / analytics.totalBookings) * 100) : 0 %>%</strong>
+              <span style="color:#94a3b8;font-size:0.78rem;"><i class="bi bi-circle-fill me-2" style="color:#db2777;font-size:0.55rem;"></i>Orders</span>
+              <strong style="color:#0f172a;font-size:0.85rem;"><%= analytics && (analytics.totalBookings + analytics.orderBookings) > 0 ? Math.round((analytics.orderBookings / (analytics.totalBookings + analytics.orderBookings)) * 100) : 0 %>%</strong>
             </li>
           </ul>
         </div>
@@ -349,105 +537,8 @@
     </div>
   </div>
 
-  <!-- --- AI INTELLIGENCE --- -->
-  <div class="section-label" style="margin-top:1.75rem;">Intelligence &amp; Recommendations</div>
-
-  <div class="dash-card mt-1" data-aos="fade-up" style="border-left:3px solid #8b5cf6;">
-    <div class="dash-card-header">
-      <h6><i class="bi bi-robot me-1" style="color:#8b5cf6;"></i>AI-Powered Service Intelligence</h6>
-      <span class="kpi-enterprise-badge purple">Schema-Based Analysis</span>
-    </div>
-    <div class="dash-card-body">
-      <div class="row g-3">
-        <div class="col-lg-3 col-md-6">
-          <div class="insight-card purple">
-            <div class="insight-icon"><i class="bi bi-graph-up-arrow"></i></div>
-            <div class="insight-title">Demand Analysis</div>
-            <div class="insight-value"><strong><%= analytics ? analytics.totalBookings.toLocaleString() : "0" %></strong> total bookings (60d)</div>
-            <div class="progress my-2" style="height:4px;"><div class="progress-bar" role="progressbar" data-completion-rate data-value="<%= analytics ? Math.round((analytics.completedBookings / (analytics.totalBookings || 1)) * 100) : 0 %>" style="background:#8b5cf6;"></div></div>
-            <div class="insight-sub"><%= analytics ? Math.round((analytics.completedBookings / (analytics.totalBookings || 1)) * 100) : 0 %>% completion rate</div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="insight-card amber">
-            <div class="insight-icon"><i class="bi bi-people-fill"></i></div>
-            <div class="insight-title">Resource Utilization</div>
-            <div class="insight-value"><strong><%= analytics ? Object.keys(analytics.technicianStats || {}).length : 0 %></strong> of <%= analytics && analytics.technicians ? analytics.technicians.length : 0 %> techs assigned</div>
-            <div class="progress my-2" style="height:4px;"><div class="progress-bar bg-warning" role="progressbar" data-resource-utilization data-value="<%= analytics && analytics.technicians ? Math.round((Object.keys(analytics.technicianStats || {}).length / analytics.technicians.length) * 100) : 0 %>"></div></div>
-            <div class="insight-sub"><%= analytics ? analytics.pendingBookings : 0 %> pending bookings</div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="insight-card blue">
-            <div class="insight-icon"><i class="bi bi-star-fill"></i></div>
-            <div class="insight-title">Customer Satisfaction</div>
-            <div class="insight-value">Average Rating: <strong><%= analytics ? analytics.avgRating : "0.0" %>/5.0</strong></div>
-            <div class="progress my-2" style="height:4px;"><div class="progress-bar bg-primary" role="progressbar" data-csat-score data-value="<%= analytics ? (analytics.avgRating / 5) * 100 : 0 %>"></div></div>
-            <div class="insight-sub"><%= analytics ? (analytics.avgRating >= 4 ? "Excellent" : analytics.avgRating >= 3 ? "Good" : "Needs Improvement") : "N/A" %></div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="insight-card green">
-            <div class="insight-icon"><i class="bi bi-currency-dollar"></i></div>
-            <div class="insight-title">Revenue Metrics</div>
-            <div class="insight-value">Total: <strong>?<%= analytics ? (analytics.totalRevenue / 1000).toFixed(1) : "0.0" %>K</strong> (60d)</div>
-            <div class="progress my-2" style="height:4px;"><div class="progress-bar bg-success" role="progressbar" data-revenue-target data-value="<%= analytics ? Math.min((analytics.totalRevenue / 500000) * 100, 100) : 0 %>"></div></div>
-            <div class="insight-sub">?<%= analytics ? Math.round(analytics.avgBookingValue) : 0 %> average per booking</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- AI Recommendations -->
-      <div class="mt-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-        <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:12px;"><i class="bi bi-magic me-2" style="color:#8b5cf6;"></i>AI-Generated Recommendations</div>
-        <div class="row g-3">
-          <% if (analytics && analytics.pendingBookings > 10) { %>
-            <div class="col-md-6">
-              <div class="d-flex align-items-start gap-3 p-2 rounded-2" style="background:#fff;border:1px solid #f1f5f9;">
-                <span class="kpi-enterprise-badge purple" style="min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;font-size:0.7rem;">1</span>
-                <div>
-                  <strong style="font-size:0.8rem;color:#0f172a;">Address Pending Backlog</strong>
-                  <p class="small mb-0" style="font-size:0.75rem;color:#64748b;margin-top:2px;"><%= analytics.pendingBookings %> bookings pending. Consider assigning additional technicians or extending shifts to clear backlog.</p>
-                </div>
-              </div>
-            </div>
-          <% } %>
-          <% if (analytics && analytics.avgRating < 4) { %>
-            <div class="col-md-6">
-              <div class="d-flex align-items-start gap-3 p-2 rounded-2" style="background:#fff;border:1px solid #f1f5f9;">
-                <span class="kpi-enterprise-badge purple" style="min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;font-size:0.7rem;"><%= (analytics && analytics.pendingBookings > 10) ? "2" : "1" %></span>
-                <div>
-                  <strong style="font-size:0.8rem;color:#0f172a;">Improve Customer Satisfaction</strong>
-                  <p class="small mb-0" style="font-size:0.75rem;color:#64748b;margin-top:2px;">Current rating <%= analytics.avgRating %>/5.0. Review customer feedback and address common complaints to boost ratings.</p>
-                </div>
-              </div>
-            </div>
-          <% } %>
-          <div class="col-md-6">
-            <div class="d-flex align-items-start gap-3 p-2 rounded-2" style="background:#fff;border:1px solid #f1f5f9;">
-              <span class="kpi-enterprise-badge purple" style="min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;font-size:0.7rem;"><%= (analytics && analytics.pendingBookings > 10 ? 1 : 0) + (analytics && analytics.avgRating < 4 ? 1 : 0) + 1 %></span>
-              <div>
-                <strong style="font-size:0.8rem;color:#0f172a;">Service Mix Optimization</strong>
-                <p class="small mb-0" style="font-size:0.75rem;color:#64748b;margin-top:2px;"><%= analytics ? analytics.coreServiceBookings : 0 %> core services vs <%= analytics ? analytics.repairBookings : 0 %> repairs. <%= analytics && analytics.coreServiceBookings > analytics.repairBookings ? "Core services dominate. Consider promoting repair packages." : "Repairs are high. Ensure adequate parts inventory." %></p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="d-flex align-items-start gap-3 p-2 rounded-2" style="background:#fff;border:1px solid #f1f5f9;">
-              <span class="kpi-enterprise-badge purple" style="min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;font-size:0.7rem;"><%= (analytics && analytics.pendingBookings > 10 ? 1 : 0) + (analytics && analytics.avgRating < 4 ? 1 : 0) + 2 %></span>
-              <div>
-                <strong style="font-size:0.8rem;color:#0f172a;">Payment Method Analysis</strong>
-                <p class="small mb-0" style="font-size:0.75rem;color:#64748b;margin-top:2px;"><%= analytics ? analytics.gcashBookings : 0 %> GCash (<%= analytics ? Math.round((analytics.gcashBookings / (analytics.totalBookings || 1)) * 100) : 0 %>%) vs <%= analytics ? analytics.codBookings : 0 %> COD (<%= analytics ? Math.round((analytics.codBookings / (analytics.totalBookings || 1)) * 100) : 0 %>%). <%= analytics && analytics.gcashBookings > analytics.codBookings ? "Digital payments preferred." : "Cash handling remains significant." %></p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- --- TRENDS + DISTRIBUTION --- -->
-  <div class="section-label" style="margin-top:1.75rem;">Trends &amp; Distribution</div>
+  <div class="section-label" id="section-bookings">Booking Performance</div>
 
   <div class="row g-4 mt-1">
     <div class="col-lg-8">
@@ -557,8 +648,127 @@
     </div>
   </div>
 
+  <!-- --- CANCELLATION ANALYSIS --- -->
+  <div class="section-label" id="section-cancellation">Cancellation Analysis</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-x-circle me-1" style="color:#ef4444;"></i>Cancellation Rate</h6>
+          <span class="kpi-enterprise-badge red"><%= analytics ? analytics.cancelledBookings : 0 %> cancelled</span>
+        </div>
+        <div class="dash-card-body text-center" style="padding-top:24px;padding-bottom:24px;">
+          <div style="font-size:2.5rem;font-weight:600;color:<%= analytics && analytics.cancellationRate < 10 ? '#10b981' : (analytics && analytics.cancellationRate < 20 ? '#f59e0b' : '#ef4444') %>;"><%= analytics ? analytics.cancellationRate.toFixed(1) : "0.0" %>%</div>
+          <p style="font-size:0.78rem;color:#64748b;margin-top:8px;">of total bookings (90d)</p>
+          <div class="progress mt-3" style="height:6px;">
+            <div class="progress-bar" style="width:<%= analytics ? Math.min(analytics.cancellationRate, 100) : 0 %>%;background:<%= analytics && analytics.cancellationRate < 10 ? '#10b981' : (analytics && analytics.cancellationRate < 20 ? '#f59e0b' : '#ef4444') %>;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-graph-down-arrow me-1" style="color:#ef4444;"></i>Weekly Cancellation Trend</h6>
+          <span class="meta">12-week rate trend</span>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container" style="height:200px;"><canvas id="cancellationTrendChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cancellation Reasons -->
+  <div class="dash-card mt-3" data-aos="fade-up">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-list-ul me-1" style="color:#ef4444;"></i>Cancellation Reasons Breakdown</h6>
+    </div>
+    <div class="dash-card-body">
+      <% if (analytics && analytics.cancellationReasonsArray && analytics.cancellationReasonsArray.length > 0) { %>
+        <div class="table-responsive">
+          <table class="table-dash">
+            <thead>
+              <tr>
+                <th>Reason</th>
+                <th style="text-align:center;">Count</th>
+                <th style="text-align:center;">% of Cancelled</th>
+                <th>Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% analytics.cancellationReasonsArray.forEach(function(r) { %>
+                <tr>
+                  <td style="font-weight:600;"><%= r.reason %></td>
+                  <td style="text-align:center;"><%= r.count %></td>
+                  <td style="text-align:center;"><%= Math.round((r.count / (analytics.cancelledBookings || 1)) * 100) %>%</td>
+                  <td>
+                    <div class="pipeline-bar" style="width:120px;">
+                      <div class="pipeline-bar-fill" style="width:<%= Math.round((r.count / (analytics.cancelledBookings || 1)) * 100) %>%;background:#ef4444;"></div>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="dash-empty"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:8px;color:#10b981;"></i>No cancellations recorded — excellent performance!</div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- --- REVENUE ANALYTICS --- -->
+  <div class="section-label" id="section-revenue">Revenue Analytics</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-gear-fill me-1" style="color:#06b6d4;"></i>Core Service Revenue</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.coreRevenueAccurate.toLocaleString() : "0" %></div>
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <span style="font-size:0.72rem;color:#94a3b8;"><%= analytics ? analytics.coreServiceBookings : 0 %> bookings</span>
+            <span class="kpi-enterprise-badge cyan"><%= analytics && analytics.accurateTotalRevenue > 0 ? Math.round((analytics.coreRevenueAccurate / analytics.accurateTotalRevenue) * 100) : 0 %>%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-tools me-1" style="color:#8b5cf6;"></i>Repair Service Revenue</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.repairRevenueAccurate.toLocaleString() : "0" %></div>
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <span style="font-size:0.72rem;color:#94a3b8;"><%= analytics ? analytics.repairBookings : 0 %> bookings</span>
+            <span class="kpi-enterprise-badge purple"><%= analytics && analytics.accurateTotalRevenue > 0 ? Math.round((analytics.repairRevenueAccurate / analytics.accurateTotalRevenue) * 100) : 0 %>%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-cash-stack me-1" style="color:#10b981;"></i>Accurate Total Revenue</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.accurateTotalRevenue.toLocaleString() : "0" %></div>
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <span style="font-size:0.72rem;color:#94a3b8;">Avg ₱<%= analytics ? Math.round(analytics.accurateAvgBookingValue).toLocaleString() : 0 %> / booking</span>
+            <span class="kpi-enterprise-badge green">90d</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- --- TEAM PERFORMANCE --- -->
-  <div class="section-label" style="margin-top:1.75rem;">Team Performance</div>
+  <div class="section-label" id="section-technicians">Technician Analytics</div>
 
   <div class="dash-card mt-1" data-aos="fade-up">
     <div class="dash-card-header">
@@ -621,8 +831,86 @@
     </div>
   </div>
 
+  <!-- --- CUSTOMER ANALYTICS --- -->
+  <div class="section-label" id="section-customers">Customer Analytics</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-people me-1" style="color:#3b82f6;"></i>Unique Customers</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:#0f172a;"><%= analytics ? analytics.uniqueCustomers : 0 %></div>
+          <span class="kpi-enterprise-badge blue mt-2 d-inline-block">In 90-day window</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-person-check me-1" style="color:#10b981;"></i>Repeat Customers</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:#0f172a;"><%= analytics ? analytics.repeatCustomers : 0 %></div>
+          <span class="kpi-enterprise-badge green mt-2 d-inline-block">2+ bookings</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-heart-fill me-1" style="color:#ef4444;"></i>Retention Rate</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:<%= analytics && analytics.retentionRate >= 30 ? '#10b981' : (analytics && analytics.retentionRate >= 15 ? '#f59e0b' : '#ef4444') %>;"><%= analytics ? analytics.retentionRate.toFixed(1) : "0.0" %>%</div>
+          <div class="progress mt-2" style="height:4px;">
+            <div class="progress-bar" style="width:<%= analytics ? Math.min(analytics.retentionRate, 100) : 0 %>%;background:<%= analytics && analytics.retentionRate >= 30 ? '#10b981' : (analytics && analytics.retentionRate >= 15 ? '#f59e0b' : '#ef4444') %>;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="150">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-award-fill me-1" style="color:#f59e0b;"></i>Loyal Customers</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:#0f172a;"><%= analytics ? analytics.customerSegments.loyal : 0 %></div>
+          <span class="kpi-enterprise-badge amber mt-2 d-inline-block">5+ bookings</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Segments Chart -->
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-pie-chart me-1" style="color:#8b5cf6;"></i>Customer Segments</h6>
+          <span class="meta">One-time vs Returning vs Loyal</span>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container" style="height:200px;"><canvas id="customerSegmentChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-bar-chart-line me-1" style="color:#3b82f6;"></i>Monthly Revenue Trend</h6>
+          <span class="meta">Core vs Repair (6 months)</span>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container" style="height:200px;"><canvas id="monthlyRevenueChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- --- TOP SERVICES --- -->
-  <div class="section-label" style="margin-top:1.75rem;">Top Services</div>
+  <div class="section-label" id="section-service">Service Analytics</div>
 
   <div class="dash-card mt-1 mb-1" data-aos="fade-up">
     <div class="dash-card-header">
@@ -635,7 +923,8 @@
           <thead>
             <tr>
               <th>Service</th>
-              <th style="text-align:center;">Bookings</th>
+              <th>Segment</th>
+              <th style="text-align:center;">Bookings / Units</th>
               <th style="text-align:center;">Completion Rate</th>
               <th style="text-align:right;">Avg Revenue</th>
               <th style="text-align:center;">Customer Rating</th>
@@ -646,7 +935,8 @@
               <% analytics.topServices.forEach(function(svc) { %>
                 <tr>
                   <td style="font-weight:700;"><%= svc.name %></td>
-                  <td style="text-align:center;"><%= svc.bookings %></td>
+                  <td><span class="badge-status <%= svc.type === 'repair' ? 'warning' : 'success' %>"><%= svc.type === 'repair' ? 'Repair' : 'Core' %></span></td>
+                  <td style="text-align:center;"><%= svc.bookings %> / <%= svc.units || svc.bookings %></td>
                   <td style="text-align:center;">
                     <div class="d-flex align-items-center justify-content-center gap-2">
                       <div class="pipeline-bar" style="width:60px;">
@@ -655,7 +945,7 @@
                       <span class="badge-status <%= svc.completionRate >= 90 ? 'success' : (svc.completionRate >= 75 ? 'warning' : 'danger') %>"><%= Math.round(svc.completionRate) %>%</span>
                     </div>
                   </td>
-                  <td style="text-align:right;font-weight:600;">? <%= Math.round(svc.avgRevenue).toLocaleString() %></td>
+                  <td style="text-align:right;font-weight:600;">₱<%= Math.round(svc.avgRevenue).toLocaleString() %></td>
                   <td style="text-align:center;">
                     <% if (svc.avgRating > 0) { %>
                       <span class="badge-status warning"><i class="bi bi-star-fill me-1"></i><%= svc.avgRating.toFixed(1) %></span>
@@ -666,7 +956,7 @@
                 </tr>
               <% }); %>
             <% } else { %>
-              <tr><td colspan="5" class="dash-empty">No service performance data available</td></tr>
+              <tr><td colspan="6" class="dash-empty">No service performance data available</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -674,41 +964,423 @@
     </div>
   </div>
 
-</div>
+  <div class="row g-4 mt-1">
+    <% [
+      { title: 'Most Booked Core Services', icon: 'bi-gear-fill', color: '#06b6d4', rows: analytics ? analytics.topCoreServices : [] },
+      { title: 'Most Booked Repair Services', icon: 'bi-tools', color: '#8b5cf6', rows: analytics ? analytics.topRepairServices : [] },
+      { title: 'Most Booked Brands', icon: 'bi-award-fill', color: '#f59e0b', rows: analytics ? analytics.topBrands : [] }
+    ].forEach(function(group) { %>
+      <div class="col-lg-4">
+        <div class="dash-card h-100">
+          <div class="dash-card-header"><h6><i class="bi <%= group.icon %> me-1" style="color:<%= group.color %>;"></i><%= group.title %></h6></div>
+          <div class="dash-card-body">
+            <% if (group.rows && group.rows.length) { group.rows.forEach(function(row, index) { %>
+              <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                <div><span class="me-2" style="font-weight:700;color:#94a3b8;">#<%= index + 1 %></span><span style="font-weight:600;"><%= row.name %></span></div>
+                <span class="kpi-enterprise-badge blue"><%= row.bookings %> bookings · <%= row.units || row.bookings %> units</span>
+              </div>
+            <% }); } else { %><div class="dash-empty">No matching booking data</div><% } %>
+          </div>
+        </div>
+      </div>
+    <% }); %>
+  </div>
 
-<!-- --- Enterprise Chart Drilldown Modal --- -->
+  <div class="row g-4 mt-1">
+    <div class="col-lg-8">
+      <div class="dash-card h-100">
+        <div class="dash-card-header"><h6><i class="bi bi-exclamation-diamond-fill me-1" style="color:#ef4444;"></i>Most Common Repair Issues</h6><span class="kpi-enterprise-badge purple">Customer-reported</span></div>
+        <div class="dash-card-body">
+          <% if (analytics && analytics.commonRepairIssues && analytics.commonRepairIssues.length) { analytics.commonRepairIssues.forEach(function(row, index) { %>
+            <div class="d-flex align-items-center justify-content-between py-2 border-bottom"><div><span class="me-2" style="font-weight:700;color:#94a3b8;">#<%= index + 1 %></span><span><%= row.name %></span></div><span class="badge-status warning"><%= row.bookings %> booking<%= row.bookings === 1 ? '' : 's' %></span></div>
+          <% }); } else { %><div class="dash-empty">No repair issue descriptions recorded</div><% } %>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="dash-card h-100">
+        <div class="dash-card-header"><h6><i class="bi bi-building-gear me-1" style="color:#3b82f6;"></i>Booking Scale</h6></div>
+        <div class="dash-card-body">
+          <% [{ key: 'standard', label: 'Standard bookings' }, { key: 'largeScale', label: 'Large-scale projects' }].forEach(function(item) { const scale = analytics && analytics.bookingScale ? analytics.bookingScale[item.key] : { bookings: 0, units: 0, revenue: 0 }; %>
+            <div class="p-3 mb-2" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"><div class="d-flex justify-content-between"><strong><%= item.label %></strong><span class="badge-status neutral"><%= scale.bookings %></span></div><div class="mt-2" style="font-size:.75rem;color:#64748b;"><%= scale.units %> units · ₱<%= Math.round(scale.revenue).toLocaleString() %> revenue</div></div>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- --- OPERATIONS ANALYTICS --- -->
+  <div class="section-label" id="section-operations">Operations Analytics</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-stopwatch me-1" style="color:#10b981;"></i>Response Compliance</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:<%= analytics && analytics.slaStats.responseCompliance >= 90 ? '#10b981' : (analytics && analytics.slaStats.responseCompliance >= 75 ? '#f59e0b' : '#ef4444') %>;"><%= analytics ? analytics.slaStats.responseCompliance.toFixed(1) : "100.0" %>%</div>
+          <div class="progress mt-2" style="height:4px;">
+            <div class="progress-bar" style="width:<%= analytics ? analytics.slaStats.responseCompliance : 100 %>%;background:<%= analytics && analytics.slaStats.responseCompliance >= 90 ? '#10b981' : (analytics && analytics.slaStats.responseCompliance >= 75 ? '#f59e0b' : '#ef4444') %>;"></div>
+          </div>
+          <p style="font-size:0.68rem;color:#94a3b8;margin-top:6px;"><%= analytics ? analytics.slaStats.responseBreached : 0 %> breached of <%= analytics ? analytics.slaStats.totalWithSLA : 0 %></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-check2-square me-1" style="color:#3b82f6;"></i>Resolution Compliance</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:<%= analytics && analytics.slaStats.resolutionCompliance >= 90 ? '#10b981' : (analytics && analytics.slaStats.resolutionCompliance >= 75 ? '#f59e0b' : '#ef4444') %>;"><%= analytics ? analytics.slaStats.resolutionCompliance.toFixed(1) : "100.0" %>%</div>
+          <div class="progress mt-2" style="height:4px;">
+            <div class="progress-bar" style="width:<%= analytics ? analytics.slaStats.resolutionCompliance : 100 %>%;background:<%= analytics && analytics.slaStats.resolutionCompliance >= 90 ? '#10b981' : (analytics && analytics.slaStats.resolutionCompliance >= 75 ? '#f59e0b' : '#ef4444') %>;"></div>
+          </div>
+          <p style="font-size:0.68rem;color:#94a3b8;margin-top:6px;"><%= analytics ? analytics.slaStats.resolutionBreached : 0 %> breached of <%= analytics ? analytics.slaStats.totalWithSLA : 0 %></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-clock me-1" style="color:#f59e0b;"></i>Avg Assignment Time</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:#0f172a;"><%= analytics ? analytics.avgAssignmentHours.toFixed(1) : "0.0" %>h</div>
+          <p style="font-size:0.68rem;color:#94a3b8;margin-top:6px;">From booking to technician assignment</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="150">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-shield-check me-1" style="color:#8b5cf6;"></i>Warranty Status</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.6rem;font-weight:600;color:#0f172a;"><%= analytics ? analytics.warrantyStats.total : 0 %></div>
+          <div class="d-flex gap-2 mt-2">
+            <span class="badge-status success"><%= analytics ? analytics.warrantyStats.active : 0 %> active</span>
+            <span class="badge-status neutral"><%= analytics ? analytics.warrantyStats.expired : 0 %> expired</span>
+            <span class="badge-status warning"><%= analytics ? analytics.warrantyStats.claimed : 0 %> claimed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- PRIORITY & APPLIANCE DISTRIBUTION --- -->
+  <% const controls = analytics && analytics.serviceControls ? analytics.serviceControls : {}; %>
+  <div class="section-label" id="section-controls">Enterprise Service Controls</div>
+  <div class="kpi-grid mb-3">
+    <% [
+      {label:'Completion Cycle Time',value:Number(controls.avgCompletionCycleHours||0).toFixed(1)+'h',meta:(controls.cycleTimeSampleSize||0)+' completed assignment samples',color:'blue',icon:'bi-stopwatch'},
+      {label:'Service Report Coverage',value:Number(controls.reportCoverage||0).toFixed(1)+'%',meta:'Completed jobs with a service report',color:'green',icon:'bi-file-earmark-check'},
+      {label:'Report Approval Rate',value:Number(controls.approvedReportRate||0).toFixed(1)+'%',meta:'Non-draft reports approved',color:'cyan',icon:'bi-patch-check'},
+      {label:'Follow-up Required',value:Number(controls.followUpRate||0).toFixed(1)+'%',meta:(controls.followUpRequiredCount||0)+' reports flagged',color:'amber',icon:'bi-arrow-repeat'},
+      {label:'Parts Fulfillment',value:Number(controls.partsFulfillmentRate||0).toFixed(1)+'%',meta:(controls.partsRequestCount||0)+' parts requests in scope',color:'purple',icon:'bi-box-seam'},
+      {label:'Equipment Return',value:Number(controls.equipmentReturnCompliance||0).toFixed(1)+'%',meta:(controls.equipmentAssignmentCount||0)+' completed-job assignments',color:'green',icon:'bi-arrow-return-left'},
+      {label:'Reschedule Rate',value:Number(controls.rescheduleRate||0).toFixed(1)+'%',meta:(controls.rescheduledBookings||0)+' bookings with reschedule evidence',color:'amber',icon:'bi-calendar2-event'},
+      {label:'Actual Labor Coverage',value:Number(controls.actualLaborCoverage||0).toFixed(1)+'%',meta:'Reports with internal labor expense',color:'red',icon:'bi-person-workspace'},
+      {label:'Customer No-show Rate',value:Number(controls.noShowRate||0).toFixed(1)+'%',meta:'Bookings marked as customer no-show',color:'red',icon:'bi-person-x'},
+      {label:'Operational Delay Rate',value:Number(controls.delayRate||0).toFixed(1)+'%',meta:'Bookings carrying a delay event',color:'amber',icon:'bi-clock-history'},
+      {label:'Technician Reassignment',value:Number(controls.reassignmentRate||0).toFixed(1)+'%',meta:'Bookings reassigned at least once',color:'purple',icon:'bi-people'},
+      {label:'Escalation Rate',value:Number(controls.escalationRate||0).toFixed(1)+'%',meta:'Booking or SLA escalation recorded',color:'red',icon:'bi-exclamation-octagon'},
+      {label:'Recurring Repair Rate',value:Number(controls.recurringRepairRate||0).toFixed(1)+'%',meta:'Repair bookings flagged as recurring',color:'amber',icon:'bi-arrow-counterclockwise'},
+      {label:'Feedback Coverage',value:Number(controls.feedbackCoverage||0).toFixed(1)+'%',meta:'Completed jobs with a customer rating',color:'cyan',icon:'bi-chat-square-heart'}
+    ].forEach(function(k){ %>
+      <div class="kpi-enterprise" data-accent="<%= k.color %>"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon <%= k.color %>"><i class="bi <%= k.icon %>"></i></div></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label"><%= k.label %></p><div class="kpi-enterprise-value"><%= k.value %></div><small style="color:#64748b;"><%= k.meta %></small></div></div>
+    <% }); %>
+  </div>
+  <div class="alert alert-light border mb-4" style="font-size:.72rem;color:#64748b;"><i class="bi bi-info-circle me-1 text-primary"></i>Control percentages are operational indicators scoped to the active report filters. A zero with no samples means no qualifying records were captured, not necessarily zero performance.</div>
+
+  <div class="section-label" id="section-priority">Priority & Appliance Distribution</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-exclamation-triangle me-1" style="color:#f59e0b;"></i>Booking Priority Distribution</h6>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container" style="height:200px;"><canvas id="priorityChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-fan me-1" style="color:#06b6d4;"></i>Appliance Type Breakdown</h6>
+        </div>
+        <div class="dash-card-body">
+          <div class="chart-container" style="height:200px;"><canvas id="applianceChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- FINANCIAL BREAKDOWN --- -->
+  <div class="section-label" id="section-financial">Financial Breakdown</div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-box-seam me-1" style="color:#f59e0b;"></i>Total Parts Cost</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.totalQuotationPartsCost.toLocaleString() : "0" %></div>
+          <span class="kpi-enterprise-badge amber mt-2 d-inline-block">From quotations</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-person-bounding-box me-1" style="color:#3b82f6;"></i>Customer Labor Fees</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.totalQuotationLaborCost.toLocaleString() : "0" %></div>
+          <span class="kpi-enterprise-badge blue mt-2 d-inline-block">From quotations</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="dash-card-header">
+          <h6><i class="bi bi-calculator me-1" style="color:#10b981;"></i>Total Quotation Value</h6>
+        </div>
+        <div class="dash-card-body">
+          <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? (analytics.totalQuotationPartsCost + analytics.totalQuotationLaborCost).toLocaleString() : "0" %></div>
+          <span class="kpi-enterprise-badge green mt-2 d-inline-block">Parts + Labor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parts Cost by Service -->
+  <div class="dash-card mt-3" data-aos="fade-up">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-table me-1" style="color:#f59e0b;"></i>Quoted Parts Cost &amp; Customer Labor Fees by Service</h6>
+    </div>
+    <div class="dash-card-body">
+      <% if (analytics && analytics.partsCostByServiceArray && analytics.partsCostByServiceArray.length > 0) { %>
+        <div class="table-responsive">
+          <table class="table-dash">
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th style="text-align:center;">Jobs</th>
+                <th style="text-align:right;">Parts Cost</th>
+                <th style="text-align:right;">Customer Labor Fee</th>
+                <th style="text-align:right;">Total</th>
+                <th style="text-align:center;">Avg / Job</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% analytics.partsCostByServiceArray.forEach(function(s) { %>
+                <tr>
+                  <td style="font-weight:600;"><%= s.name %></td>
+                  <td style="text-align:center;"><%= s.jobCount %></td>
+                  <td style="text-align:right;font-weight:600;color:#f59e0b;">₱<%= s.partsCost.toLocaleString() %></td>
+                  <td style="text-align:right;font-weight:600;color:#3b82f6;">₱<%= s.laborCost.toLocaleString() %></td>
+                  <td style="text-align:right;font-weight:700;">₱<%= (s.partsCost + s.laborCost).toLocaleString() %></td>
+                  <td style="text-align:center;"><span class="badge-status info">₱<%= Math.round((s.partsCost + s.laborCost) / s.jobCount).toLocaleString() %></span></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="dash-empty"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:8px;"></i>No quotation cost data available</div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- --- AI INTELLIGENCE --- -->
+  <div class="section-label" id="section-ai">AI Insights</div>
+
+  <div class="dash-card mt-1" data-aos="fade-up" style="border-left:3px solid #8b5cf6;">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-robot me-1" style="color:#8b5cf6;"></i>AI-Powered Service Intelligence</h6>
+      <span class="kpi-enterprise-badge purple">Schema-Based Analysis</span>
+    </div>
+    <div class="dash-card-body">
+      <!-- AI Recommendations -->
+      <div class="mt-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+        <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:12px;"><i class="bi bi-magic me-2" style="color:#8b5cf6;"></i>AI-Generated Recommendations</div>
+          <%
+            const aiRecs = [];
+            if (analytics) {
+              const core = analytics.coreServiceBookings || 0;
+              const repair = analytics.repairBookings || 0;
+              const orders = analytics.orderBookings || 0;
+              const gcash = analytics.gcashBookings || 0;
+              const cod = analytics.codBookings || 0;
+              const other = analytics.otherPaymentBookings || 0;
+              const total = analytics.totalBookings || 1;
+              const avg = analytics.avgBookingValue || 0;
+
+              if (analytics.pendingBookings > 10) {
+                aiRecs.push({ title: 'Address Pending Backlog', summary: analytics.pendingBookings + ' bookings are currently pending.', advice: 'Assign additional technicians or extend shifts to clear the backlog.' });
+              }
+              if (analytics.avgRating < 4) {
+                aiRecs.push({ title: 'Improve Customer Satisfaction', summary: 'Current average rating is ' + analytics.avgRating + '/5.0.', advice: 'Review customer feedback and address common complaints to boost ratings.' });
+              }
+              if (analytics.cancellationRate > 15) {
+                aiRecs.push({ title: 'Reduce Cancellation Risk', summary: 'Cancellation rate is ' + analytics.cancellationRate.toFixed(1) + '%.', advice: 'Investigate common reasons and confirm bookings closer to the schedule.' });
+              }
+              if (analytics.retentionRate < 20) {
+                aiRecs.push({ title: 'Boost Customer Retention', summary: 'Customer retention is ' + analytics.retentionRate.toFixed(1) + '%.', advice: 'Launch loyalty offers or follow-up campaigns to increase repeat bookings.' });
+              }
+
+              let smSummary = core + ' core, ' + repair + ' repair, ' + orders + ' product order' + (orders === 1 ? '' : 's') + '.';
+              let smAdvice = '';
+              if (orders > core + repair) smAdvice = 'Orders are the largest revenue channel. Consider expanding product offerings.';
+              else if (core > repair && repair < core * 0.25) smAdvice = 'Core services dominate. Upsell repair packages to improve per-booking value.';
+              else if (repair > core) smAdvice = 'Repair demand is strong. Ensure parts inventory and technician skills keep up.';
+              else smAdvice = 'Service mix is balanced. Maintain inventory for both core and repair lines.';
+              aiRecs.push({ title: 'Service Mix Optimization', summary: smSummary, advice: smAdvice });
+
+              let pmSummary = gcash + ' GCash (' + Math.round((gcash / total) * 100) + '%), ' + cod + ' COD (' + Math.round((cod / total) * 100) + '%), ' + other + ' other (' + Math.round((other / total) * 100) + '%).';
+              let pmAdvice = '';
+              if (gcash > cod + other) pmAdvice = 'Digital payments lead. Promote GCash incentives to reduce cash handling.';
+              else if (cod > gcash + other) pmAdvice = 'Cash-on-delivery dominates. Prepare adequate float and collection workflows.';
+              else if (other > gcash && other > cod) pmAdvice = 'Other payment methods are significant. Review payment partner performance.';
+              else pmAdvice = 'Payment channels are mixed. Monitor fees and customer preference trends.';
+              aiRecs.push({ title: 'Payment Method Analysis', summary: pmSummary, advice: pmAdvice });
+
+              if (avg > 0) {
+                let revSummary = 'Average booking value is ₱' + Math.round(avg).toLocaleString() + '.';
+                let revAdvice = avg < 500 ? 'Average value is low. Bundle add-ons or premium options to raise per-booking revenue.' : 'Average value is healthy. Continue offering value-added services to protect margin.';
+                aiRecs.push({ title: 'Revenue Efficiency', summary: revSummary, advice: revAdvice });
+              }
+
+              if (aiRecs.length < 3) {
+                aiRecs.push({ title: 'Continue Monitoring', summary: 'No urgent issues detected for the selected period.', advice: 'Keep tracking bookings, ratings, and cancellations to catch trends early.' });
+              }
+            }
+          %>
+          <div class="row g-3">
+            <% aiRecs.forEach(function(rec, i) { %>
+              <div class="col-md-6">
+                <div class="d-flex align-items-start gap-3 p-2 rounded-2" style="background:#fff;border:1px solid #f1f5f9;">
+                  <span class="kpi-enterprise-badge purple" style="min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;padding:0;font-size:0.7rem;"><%= i + 1 %></span>
+                  <div>
+                    <strong style="font-size:0.8rem;color:#0f172a;"><%= rec.title %></strong>
+                    <p class="small mb-0" style="font-size:0.75rem;color:#64748b;margin-top:2px;"><%= rec.summary %></p>
+                    <p class="small mb-0" style="font-size:0.75rem;color:#334155;font-weight:500;margin-top:4px;">Recommended action: <%= rec.advice %></p>
+                  </div>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- GEOGRAPHIC DISTRIBUTION --- -->
+  <div class="section-label" id="section-geographic">Geographic Analysis</div>
+
+  <div class="dash-card mt-1 mb-1" data-aos="fade-up">
+    <div class="dash-card-header">
+      <h6><i class="bi bi-geo-alt me-1" style="color:#3b82f6;"></i>Top Service Areas</h6>
+      <span class="kpi-enterprise-badge blue"><%= analytics && analytics.topAreas ? analytics.topAreas.length : 0 %> areas</span>
+    </div>
+    <div class="dash-card-body">
+      <% if (analytics && analytics.topAreas && analytics.topAreas.length > 0) { %>
+        <div class="table-responsive">
+          <table class="table-dash">
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th style="text-align:center;">Bookings</th>
+                <th style="text-align:center;">% of Total</th>
+                <th>Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% analytics.topAreas.forEach(function(a) { %>
+                <tr>
+                  <td style="font-weight:600;"><i class="bi bi-geo-alt-fill me-1" style="color:#3b82f6;font-size:0.75rem;"></i><%= a.area %></td>
+                  <td style="text-align:center;"><%= a.count %></td>
+                  <td style="text-align:center;"><%= Math.round((a.count / (analytics.totalBookings || 1)) * 100) %>%</td>
+                  <td>
+                    <div class="pipeline-bar" style="width:140px;">
+                      <div class="pipeline-bar-fill" style="width:<%= Math.round((a.count / (analytics.topAreas[0].count || 1)) * 100) %>%;background:linear-gradient(90deg,#3b82f6,#06b6d4);"></div>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="dash-empty"><i class="bi bi-geo-alt" style="font-size:1.5rem;display:block;margin-bottom:8px;"></i>No geographic data available</div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Completed-service costs: consumables and repair parts are expenses; equipment is operational only. -->
+  <div class="section-label" id="section-service-costs">Service Cost Breakdown</div>
+  <% const serviceCosts = analytics && analytics.serviceCosts ? analytics.serviceCosts : {}; const costRows = analytics && analytics.completedServiceCosts ? analytics.completedServiceCosts : []; const allLocalPurchases = costRows.flatMap(s => (s.localPurchases || []).map(lp => ({ ...lp, serviceName: s.serviceName, reference: s.reference, technician: s.technician }))); %>
+  <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);">
+    <% [{label:'Service Revenue',value:serviceCosts.revenue,color:'#2563eb',icon:'bi-cash-stack'},{label:'Actual Direct Labor',value:serviceCosts.laborCost,color:'#7c3aed',icon:'bi-people'},{label:'Consumables Cost',value:serviceCosts.consumablesCost,color:'#f59e0b',icon:'bi-droplet'},{label:'Repair Parts Cost',value:serviceCosts.partsCost,color:'#ef4444',icon:'bi-tools'},{label:'Local Purchase Cost',value:serviceCosts.localPurchaseCost,color:'#c2410c',icon:'bi-shop'},{label:'Gross Profit',value:serviceCosts.grossProfit,color:'#10b981',icon:'bi-graph-up-arrow'}].forEach(function(x){ %>
+      <div class="kpi-enterprise" style="border-top:3px solid <%= x.color %>"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon" style="background:<%= x.color %>;color:#fff"><i class="bi <%= x.icon %>"></i></div></div><div class="kpi-enterprise-label"><%= x.label %></div><div class="kpi-enterprise-value">₱<%= Math.round(Number(x.value||0)).toLocaleString() %></div></div>
+    <% }); %>
+  </div>
+  <div class="dash-card mb-3"><div class="dash-card-header"><h6><i class="bi bi-calculator me-1 text-primary"></i>Completed Services — Expand for Resources Used</h6><span class="kpi-enterprise-badge green"><%= Number(serviceCosts.grossProfitMargin||0).toFixed(1) %>% margin</span></div><div class="dash-card-body table-responsive"><table class="table-dash"><thead><tr><th>Service</th><th style="text-align:right">Revenue</th><th style="text-align:right">Labor</th><th style="text-align:right">Consumables</th><th style="text-align:right">Repair Parts</th><th style="text-align:right">Gross Profit</th></tr></thead><tbody id="completedServicesBody">
+    <% if (!costRows.length) { %><tr><td colspan="6" class="dash-empty">No completed service cost records in this period.</td></tr><% } costRows.forEach(function(s, idx){ %><tr class="cs-row" data-idx="<%= idx %>"><td><details><summary style="cursor:pointer;font-weight:700;color:#334155"><%= s.serviceName %> <i class="bi bi-chevron-down ms-1"></i><div style="font-size:.66rem;color:#94a3b8;font-weight:400"><%= s.reference %> · <%= s.customer %></div></summary><div style="font-size:.7rem;color:#64748b;padding:8px 0 0 12px"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Consumables:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / ₱'+Math.round(i.cost).toLocaleString()).join(', ') : 'None recorded' %></div><div><strong>Repair Parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / ₱'+Math.round(i.cost).toLocaleString()).join(', ') : 'None recorded' %></div><% if (s.localPurchases && s.localPurchases.length) { %><div style="margin-top:6px;padding:6px 8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;"><strong style="color:#c2410c;"><i class="bi bi-shop me-1"></i>Local Purchases (External Shop):</strong><% s.localPurchases.forEach(function(lp) { %><div style="padding:2px 0;color:#92400e;">• <%= lp.partName %> — <span style="font-weight:600;">Cost: ₱<%= Math.round(lp.actualPurchaseCost).toLocaleString() %></span> · Quoted: ₱<%= Math.round(lp.quotedCustomerPrice).toLocaleString() %> · <span style="font-size:.65rem;"><%= lp.source %></span><% if (lp.receiptUrl) { %> <a href="<%= lp.receiptUrl %>" target="_blank" style="color:#2563eb;font-size:.65rem;"><i class="bi bi-receipt me-1"></i>Receipt</a><% } %></div><% }); %></div><% } %></div></details></td><td style="text-align:right">₱<%= Math.round(s.revenue).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.laborCost).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.consumablesCost).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.partsCost + (s.localPurchaseCost||0)).toLocaleString() %></td><td style="text-align:right;font-weight:700;color:<%= s.grossProfit>=0?'#059669':'#dc2626' %>">₱<%= Math.round(s.grossProfit).toLocaleString() %></td></tr><% }); %>
+  </tbody></table><div id="completedServicesPagination" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #edf1f6;"><span id="csPageInfo" style="font-size:.72rem;color:#64748b;"></span><div id="csPageButtons" style="display:flex;gap:4px;"></div></div></div></div>
+
+  <div class="section-label" id="section-equipment-used">Equipment Used <span style="font-size:.65rem;font-weight:500;color:#64748b;text-transform:none;letter-spacing:0">Operational tracking only — excluded from service cost and profit</span></div>
+  <div class="dash-card mb-3"><div class="dash-card-header"><h6><i class="bi bi-hammer me-1" style="color:#0891b2"></i>Reusable Equipment Activity</h6><span class="kpi-enterprise-badge cyan"><%= analytics && analytics.equipmentUsage ? analytics.equipmentUsage.length : 0 %> assignments</span></div><div class="dash-card-body table-responsive"><table class="table-dash"><thead><tr><th>Equipment</th><th>Assigned Technician</th><th style="text-align:center">Times Used</th><th>Checkout Status</th><th>Return Status</th></tr></thead><tbody id="equipmentUsageBody"><% if (!(analytics && analytics.equipmentUsage && analytics.equipmentUsage.length)) { %><tr><td colspan="5" class="dash-empty">No equipment assignments recorded for completed services.</td></tr><% } (analytics && analytics.equipmentUsage ? analytics.equipmentUsage : []).forEach(function(e, idx){ %><tr class="eu-row" data-idx="<%= idx %>"><td style="font-weight:700"><%= e.name %></td><td><%= e.technician %></td><td style="text-align:center"><%= e.timesUsed %></td><td><span class="badge-status <%= e.checkoutStatus==='Checked out'?'info':'neutral' %>"><%= e.checkoutStatus %></span></td><td><span class="badge-status <%= e.returnStatus==='Returned'?'success':e.returnStatus==='Outstanding'?'warning':'danger' %>"><%= e.returnStatus %></span></td></tr><% }); %></tbody></table><div id="equipmentUsagePagination" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #edf1f6;"><span id="euPageInfo" style="font-size:.72rem;color:#64748b;"></span><div id="euPageButtons" style="display:flex;gap:4px;"></div></div></div></div>
+
+  <% if (allLocalPurchases.length) { %>
+  <div class="section-label" id="section-local-purchases">Local Purchases <span style="font-size:.65rem;font-weight:500;color:#64748b;text-transform:none;letter-spacing:0">Parts bought from external shops by technicians</span></div>
+  <div class="dash-card mb-3"><div class="dash-card-header"><h6><i class="bi bi-shop me-1" style="color:#c2410c"></i>External Parts Purchase Records</h6><span class="kpi-enterprise-badge" style="background:#fff7ed;color:#c2410c;"><%= allLocalPurchases.length %> purchase<%= allLocalPurchases.length>1?'s':'' %></span></div><div class="dash-card-body table-responsive"><table class="table-dash"><thead><tr><th>Part Name</th><th>Service</th><th>Purchased By</th><th style="text-align:right">Customer Price</th><th style="text-align:right">Actual Cost</th><th style="text-align:right">Margin</th><th>Status</th><th>Date</th></tr></thead><tbody id="localPurchasesBody">
+    <% allLocalPurchases.forEach(function(lp, idx){ %><tr class="lp-row" data-idx="<%= idx %>"><td style="font-weight:700"><%= lp.partName %><div style="font-size:.63rem;color:#94a3b8;"><%= lp.source %></div></td><td><%= lp.serviceName %><div style="font-size:.63rem;color:#94a3b8;"><%= lp.reference %></div></td><td><%= lp.purchasedBy %></td><td style="text-align:right">₱<%= Math.round(lp.quotedCustomerPrice).toLocaleString() %></td><td style="text-align:right;font-weight:700;color:#c2410c;">₱<%= Math.round(lp.actualPurchaseCost).toLocaleString() %></td><td style="text-align:right;font-weight:700;color:<%= (lp.quotedCustomerPrice - lp.actualPurchaseCost)>=0?'#059669':'#dc2626' %>">₱<%= Math.round(lp.quotedCustomerPrice - lp.actualPurchaseCost).toLocaleString() %></td><td><span class="badge-status <%= lp.purchaseStatus==='receipt_uploaded'?'success':'info' %>"><%= (lp.purchaseStatus||'purchased').replace(/_/g,' ') %></span><% if (lp.receiptUrl) { %> <a href="<%= lp.receiptUrl %>" target="_blank" style="font-size:.63rem;color:#2563eb;margin-left:4px;"><i class="bi bi-receipt"></i></a><% } %></td><td><%= lp.purchasedAt ? new Date(lp.purchasedAt).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—' %></td></tr><% }); %>
+  </tbody></table><div id="localPurchasesPagination" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #edf1f6;"><span id="lpPageInfo" style="font-size:.72rem;color:#64748b;"></span><div id="lpPageButtons" style="display:flex;gap:4px;"></div></div></div></div>
+  <% } %>
+
+</div>
 <%- include('../../../partials/chart-drilldown-modal') %>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="/js/chart-drilldown.js"></script>
+<%
+  const report = analytics || {};
+  const finiteNumber = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const reportPayload = {
+    weeklyData: report.weeklyData ? Object.entries(report.weeklyData).map(([key, val]) => ({ week: key, bookings: finiteNumber(val.bookings), revenue: finiteNumber(val.revenue), completed: finiteNumber(val.completed) })) : [],
+    ratingDistribution: report.ratingDistribution ? [5,4,3,2,1].map(key => finiteNumber(report.ratingDistribution[key])) : [0,0,0,0,0],
+    statusBreakdown: report.statusBreakdown ? Object.entries(report.statusBreakdown).map(([status, count]) => ({ status, count: finiteNumber(count) })) : [],
+    dailyTrend: report.dailyTrend || [], topServices: report.topServices || [], techUtilization: report.techUtilization || [], weeklyCsat: report.weeklyCsat || [],
+    totalBookings: finiteNumber(report.totalBookings), completedBookings: finiteNumber(report.completedBookings), pendingBookings: finiteNumber(report.pendingBookings),
+    cancelledBookings: finiteNumber(report.cancelledBookings), inProgressBookings: finiteNumber(report.inProgressBookings), avgRating: finiteNumber(report.avgRating),
+    totalRevenue: finiteNumber(report.totalRevenue), avgBookingValue: finiteNumber(report.avgBookingValue), gcashBookings: finiteNumber(report.gcashBookings),
+    codBookings: finiteNumber(report.codBookings), otherPaymentBookings: finiteNumber(report.otherPaymentBookings), coreServiceBookings: finiteNumber(report.coreServiceBookings),
+    repairBookings: finiteNumber(report.repairBookings), orderBookings: finiteNumber(report.orderBookings), multiServiceBookings: finiteNumber(report.multiServiceBookings), technicians: report.technicians || [],
+    bookingDrilldown: report.bookingDrilldown || [], orderDrilldown: report.orderDrilldown || [],
+    technicianStats: report.technicianStats || {}, topTechnicians: report.topTechnicians || [], weeklyCancellation: report.weeklyCancellation || [],
+    customerSegments: report.customerSegments || { oneTime: 0, returning: 0, loyal: 0 }, monthlyRevenueTrend: report.monthlyRevenueTrend || [],
+    priorityBreakdown: report.priorityBreakdown || { low: 0, medium: 0, high: 0, critical: 0 }, applianceArray: report.applianceArray || []
+  };
+  const reportPayloadJson = JSON.stringify(reportPayload).replace(/</g, '\\u003c');
+%>
 <script>
-var serviceAnalytics = {
-  weeklyData: <%- JSON.stringify(analytics && analytics.weeklyData ? Object.entries(analytics.weeklyData).map(([key, val]) => ({ week: key, bookings: val.bookings, revenue: val.revenue, completed: val.completed })) : []) %>,
-  ratingDistribution: <%- JSON.stringify(analytics && analytics.ratingDistribution ? [analytics.ratingDistribution[5], analytics.ratingDistribution[4], analytics.ratingDistribution[3], analytics.ratingDistribution[2], analytics.ratingDistribution[1]] : [0,0,0,0,0]) %>,
-  statusBreakdown: <%- JSON.stringify(analytics && analytics.statusBreakdown ? Object.entries(analytics.statusBreakdown).map(([status, count]) => ({ status: status, count: count })) : []) %>,
-  dailyTrend: <%- JSON.stringify(analytics && analytics.dailyTrend ? analytics.dailyTrend : []) %>,
-  topServices: <%- JSON.stringify(analytics && analytics.topServices ? analytics.topServices : []) %>,
-  techUtilization: <%- JSON.stringify(analytics && analytics.techUtilization ? analytics.techUtilization : []) %>,
-  weeklyCsat: <%- JSON.stringify(analytics && analytics.weeklyCsat ? analytics.weeklyCsat : []) %>,
-  totalBookings: <%= analytics ? analytics.totalBookings : 0 %>,
-  completedBookings: <%= analytics ? analytics.completedBookings : 0 %>,
-  pendingBookings: <%= analytics ? analytics.pendingBookings : 0 %>,
-  cancelledBookings: <%= analytics ? analytics.cancelledBookings : 0 %>,
-  inProgressBookings: <%= analytics ? analytics.inProgressBookings : 0 %>,
-  avgRating: <%= analytics ? analytics.avgRating : 0 %>,
-  totalRevenue: <%= analytics ? analytics.totalRevenue : 0 %>,
-  avgBookingValue: <%= analytics ? analytics.avgBookingValue : 0 %>,
-  gcashBookings: <%= analytics ? analytics.gcashBookings : 0 %>,
-  codBookings: <%= analytics ? analytics.codBookings : 0 %>,
-  otherPaymentBookings: <%= analytics ? analytics.otherPaymentBookings : 0 %>,
-  coreServiceBookings: <%= analytics ? analytics.coreServiceBookings : 0 %>,
-  repairBookings: <%= analytics ? analytics.repairBookings : 0 %>,
-  multiServiceBookings: <%= analytics ? analytics.multiServiceBookings : 0 %>,
-  technicians: <%- JSON.stringify(analytics && analytics.technicians ? analytics.technicians : []) %>,
-  technicianStats: <%- JSON.stringify(analytics && analytics.technicianStats ? analytics.technicianStats : {}) %>,
-  topTechnicians: <%- JSON.stringify(analytics && analytics.topTechnicians ? analytics.topTechnicians : []) %>
-};
+var serviceAnalytics = <%- reportPayloadJson %>;
+
+var reportRangeSelect = document.getElementById('reportRange');
+if (reportRangeSelect) reportRangeSelect.addEventListener('change', function() {
+  document.querySelectorAll('.custom-date-filter').forEach(function(el) { el.style.display = reportRangeSelect.value === 'custom' ? '' : 'none'; });
+});
 
 function initCharts() {
   if (typeof Chart === "undefined" || typeof ChartDrilldown === "undefined") { return; }
+  if (window.__serviceReportChartsInitialized) return;
+  window.__serviceReportChartsInitialized = true;
   Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
   Chart.defaults.font.size = 11;
   Chart.defaults.color = '#64748b';
@@ -719,8 +1391,34 @@ function initCharts() {
   var colors = ChartDrilldown.palette(8);
 
   /* -- Helper: open drilldown -- */
-  function openDrill(title, subtitle, chartCfg, details, filters, filterField, summary) {
-    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, filters: filters || [], filterField: filterField || 'category', summary: summary || {} });
+  var bookingColumns = [{ key:'reference', label:'Booking' },{ key:'customer', label:'Customer' },{ key:'contact', label:'Contact' },{ key:'service', label:'Service' },{ key:'status', label:'Status' },{ key:'technician', label:'Technician' },{ key:'date', label:'Date' },{ key:'amount', label:'Amount', align:'right' }];
+  function openDrill(title, subtitle, chartCfg, details, filters, filterField, summary, columns) {
+    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, columns: columns || bookingColumns, filters: filters || [], filterField: filterField || 'category', summary: summary || {} });
+  }
+  function bookingDetails(field, transform, predicate) {
+    return SA.bookingDrilldown.filter(predicate || function(){ return true; }).map(function(row) {
+      var value = transform ? transform(row) : row[field];
+      return Object.assign({ label: row.customer, value: row.reference, category: value }, row, { category: value });
+    });
+  }
+  function openSelected(event, canvas, title, subtitle, chartCfg, details, summary, matcher) {
+    var chart = Chart.getChart(canvas);
+    var hits = chart ? chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, true) : [];
+    var selected = details;
+    var selectedLabel = 'All';
+    if (hits.length) {
+      var hit = hits[0];
+      selectedLabel = String(chart.data.labels[hit.index]);
+      var datasetLabel = chart.data.datasets[hit.datasetIndex] ? String(chart.data.datasets[hit.datasetIndex].label || '') : '';
+      selected = details.filter(function(row) {
+        if (matcher) return matcher(row, selectedLabel, datasetLabel, hit.index);
+        return String(row.category || '').toLowerCase() === selectedLabel.toLowerCase();
+      });
+      subtitle += ' — Selected: ' + selectedLabel + (datasetLabel ? ' / ' + datasetLabel : '');
+    } else {
+      subtitle += ' — Click directly on a point, bar, or slice to isolate it.';
+    }
+    openDrill(title, subtitle, chartCfg, selected, [], 'category', Object.assign({}, summary || {}, { selected: selectedLabel, records: selected.length }));
   }
 
   /* -- Booking Trend -- */
@@ -731,24 +1429,25 @@ function initCharts() {
     var trendLabels = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.day; }) : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
     var trendBookings = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.bookings; }) : [42,51,49,58,64,72,60];
     var trendCompleted = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.completed; }) : [38,47,45,53,59,66,56];
-    var trendChartCfg = { type: "line", data: { labels: trendLabels, datasets: [{ label: "Bookings", data: trendBookings, borderColor: "#06b6d4", backgroundColor: g1, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 },{ label: "Completed", data: trendCompleted, borderColor: "#8b5cf6", backgroundColor: g2, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', titleFont: { weight: '700' }, padding: 12, cornerRadius: 8, boxPadding: 4 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } };
-    var trendDetails = SA.dailyTrend.map(function(d) { return { label: d.day, value: d.bookings, subtext: d.completed + ' completed', category: d.day, barValue: d.bookings }; });
-    ctx1.canvas.style.cursor = 'pointer';
-    ctx1.onclick = function() { openDrill('Booking Trend', 'Daily bookings vs completions', trendChartCfg, trendDetails, trendDetails.map(function(d) { return { key: d.label, label: d.label }; }), 'category', { total: trendBookings.reduce(function(a,b){return a+b;},0), avg: (trendBookings.reduce(function(a,b){return a+b;},0) / trendLabels.length).toFixed(1) }); };
+    var trendChartCfg = { type: "line", data: { labels: trendLabels, datasets: [{ label: "Bookings", data: trendBookings, borderColor: "#06b6d4", backgroundColor: g1, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 },{ label: "Completed", data: trendCompleted, borderColor: "#8b5cf6", backgroundColor: g2, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', titleFont: { weight: '700' }, padding: 12, cornerRadius: 8, boxPadding: 4 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
+    var trendDetails = SA.bookingDrilldown.map(function(b) { return Object.assign({ label: b.customer, value: b.reference, category: b.day }, b); });
+    ctx1.style.cursor = 'pointer';
+    ctx1.addEventListener('click', function(event) { openSelected(event, ctx1, 'Booking Trend', 'Customer and booking records for the selected reporting day', trendChartCfg, trendDetails, { totalBookings:trendDetails.length }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return String(row.date).slice(0,10)===exact && (dataset!=='Completed' || row.status==='completed'); }); });
     new Chart(ctx1, trendChartCfg);
   }
 
   /* -- Service Mix -- */
   var ctx2 = document.getElementById("serviceMixChart");
   if (ctx2) {
-    var smLabels = ["Core Service", "Repair", "Multi-Service"];
-    var smData = [SA.coreServiceBookings || 0, SA.repairBookings || 0, SA.multiServiceBookings || 0];
+    var smLabels = ["Core Service", "Repair", "Orders"];
+    var smData = [SA.coreServiceBookings || 0, SA.repairBookings || 0, SA.orderBookings || 0];
     var smColors = ["#06b6d4", "#8b5cf6", "#db2777"];
     var smChartCfg = { type: "doughnut", data: { labels: smLabels, datasets: [{ data: smData, backgroundColor: smColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "70%", animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var smDetails = smLabels.map(function(l, i) { return { label: l, value: smData[i], category: l, barValue: smData[i] }; });
+    var smDetails = SA.bookingDrilldown.concat(SA.orderDrilldown).map(function(row) { return Object.assign({ label:row.customer, value:row.reference }, row); });
+    var smColumns = [{ key:'reference', label:'Reference' },{ key:'customer', label:'Customer' },{ key:'contact', label:'Contact' },{ key:'service', label:'Service / Products' },{ key:'status', label:'Status' },{ key:'amount', label:'Amount', align:'right' }];
     var smFilters = smLabels.map(function(l, i) { return { key: l, label: l, color: smColors[i] }; });
-    ctx2.canvas.style.cursor = 'pointer';
-    ctx2.onclick = function() { openDrill('Service Mix', 'Core Service vs Repair vs Multi-Service bookings', smChartCfg, smDetails, smFilters, 'category', { total: smData.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx2.style.cursor = 'pointer';
+    ctx2.addEventListener('click', function(event) { openSelected(event, ctx2, 'Service Mix', 'Customer records for the selected service segment', smChartCfg, smDetails, { total:smDetails.length }); });
     new Chart(ctx2, smChartCfg);
   }
 
@@ -759,10 +1458,10 @@ function initCharts() {
     var pmData = [SA.gcashBookings || 0, SA.codBookings || 0, SA.otherPaymentBookings || 0];
     var pmColors = ["#06b6d4", "#8b5cf6", "#db2777"];
     var pmChartCfg = { type: "doughnut", data: { labels: pmLabels, datasets: [{ data: pmData, backgroundColor: pmColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var pmDetails = pmLabels.map(function(l, i) { return { label: l, value: pmData[i], category: l, barValue: pmData[i] }; });
+    var pmDetails = bookingDetails('payment');
     var pmFilters = pmLabels.map(function(l, i) { return { key: l, label: l, color: pmColors[i] }; });
-    ctx3.canvas.style.cursor = 'pointer';
-    ctx3.onclick = function() { openDrill('Payment Method Breakdown', 'GCash vs COD vs Other payments', pmChartCfg, pmDetails, pmFilters, 'category', { total: pmData.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx3.style.cursor = 'pointer';
+    ctx3.addEventListener('click', function(event) { openSelected(event, ctx3, 'Payment Method Breakdown', 'Bookings using the selected payment method', pmChartCfg, pmDetails, { total:pmDetails.length }); });
     new Chart(ctx3, pmChartCfg);
   }
 
@@ -774,10 +1473,10 @@ function initCharts() {
     var sdData = [smap.confirmed || 0, smap.completed || 0, smap.pending || 0, smap.cancelled || 0, smap["in-progress"] || 0, smap.scheduled || 0];
     var sdColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6"];
     var sdChartCfg = { type: "doughnut", data: { labels: sdLabels, datasets: [{ data: sdData, backgroundColor: sdColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var sdDetails = sdLabels.map(function(l, i) { return { label: l, value: sdData[i], category: l, barValue: sdData[i] }; });
+    var sdDetails = bookingDetails('status', function(row) { var s=String(row.status||'').toLowerCase(); return s==='in-progress'?'In Progress':s.charAt(0).toUpperCase()+s.slice(1); });
     var sdFilters = sdLabels.map(function(l, i) { return { key: l, label: l, color: sdColors[i] }; });
-    ctx4.canvas.style.cursor = 'pointer';
-    ctx4.onclick = function() { openDrill('Status Distribution', 'Booking status breakdown', sdChartCfg, sdDetails, sdFilters, 'category', { total: sdData.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx4.style.cursor = 'pointer';
+    ctx4.addEventListener('click', function(event) { openSelected(event, ctx4, 'Status Distribution', 'Bookings with the selected status', sdChartCfg, sdDetails, { total:sdDetails.length }); });
     new Chart(ctx4, sdChartCfg);
   }
 
@@ -788,10 +1487,10 @@ function initCharts() {
     var techData = SA.techUtilization.length > 0 ? SA.techUtilization.map(function(t) { return t.utilization; }) : [0];
     var techBg = techData.map(function(v) { return v >= 80 ? '#10b981' : v >= 50 ? '#3b82f6' : '#f59e0b'; });
     var tuChartCfg = { type: "bar", data: { labels: techLabels, datasets: [{ label: "Utilization %", data: techData, backgroundColor: techBg, hoverBackgroundColor: '#1d4ed8', borderRadius: 6, barThickness: 14 }] }, options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return c.parsed.x + '% utilization'; } } } }, scales: { x: { max: 100, grid: { display: false }, ticks: { display: false }, border: { display: false } }, y: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: '500' } }, border: { display: false } } } } };
-    var tuDetails = techLabels.map(function(l, i) { return { label: l, value: techData[i], category: l, barValue: techData[i] }; });
+    var tuDetails = bookingDetails('technician');
     var tuFilters = techLabels.map(function(l, i) { return { key: l, label: l, color: techBg[i] }; });
-    ctx5.canvas.style.cursor = 'pointer';
-    ctx5.onclick = function() { openDrill('Technician Utilization', 'Individual technician workload distribution', tuChartCfg, tuDetails, tuFilters, 'category', { avg: (techData.reduce(function(a, b) { return a + b; }, 0) / techData.length).toFixed(1) + '%' }); };
+    ctx5.style.cursor = 'pointer';
+    ctx5.addEventListener('click', function(event) { openSelected(event, ctx5, 'Technician Utilization', 'Bookings assigned to the selected technician', tuChartCfg, tuDetails, { avg:(techData.reduce(function(a,b){return a+b;},0)/techData.length).toFixed(1)+'%' }); });
     new Chart(ctx5, tuChartCfg);
   }
 
@@ -802,10 +1501,10 @@ function initCharts() {
     var csatLabels = SA.weeklyCsat.length > 0 ? SA.weeklyCsat.map(function(w) { return w.week; }) : ["W1", "W2", "W3", "W4", "W5", "W6"];
     var csatData = SA.weeklyCsat.length > 0 ? SA.weeklyCsat.map(function(w) { return w.avg; }) : [0, 0, 0, 0, 0, 0];
     var csatChartCfg = { type: "line", data: { labels: csatLabels, datasets: [{ label: "CSAT", data: csatData, borderColor: "#f59e0b", backgroundColor: g6, borderWidth: 2.5, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#f59e0b", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return 'Rating: ' + c.parsed.y.toFixed(1) + '/5.0'; } } } }, scales: { y: { min: 3.5, max: 5.0, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return v.toFixed(1); } }, border: { display: false } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var csatDetails = csatLabels.map(function(l, i) { return { label: l, value: csatData[i], category: l, barValue: csatData[i] }; });
+    var csatDetails = bookingDetails('rating', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(age+1); }, function(row){return row.rating>0;});
     var csatFilters = csatLabels.map(function(l) { return { key: l, label: l }; });
-    ctx6.canvas.style.cursor = 'pointer';
-    ctx6.onclick = function() { openDrill('CSAT Trend', 'Weekly customer satisfaction scores', csatChartCfg, csatDetails, csatFilters, 'category', { avg: (csatData.reduce(function(a, b) { return a + b; }, 0) / csatData.length).toFixed(1) + '/5.0' }); };
+    ctx6.style.cursor = 'pointer';
+    ctx6.addEventListener('click', function(event) { openSelected(event, ctx6, 'CSAT Trend', 'Rated bookings contributing to the selected week', csatChartCfg, csatDetails, { rated:csatDetails.length }); });
     new Chart(ctx6, csatChartCfg);
   }
 
@@ -819,10 +1518,10 @@ function initCharts() {
     var bfLabels = baseLabels.concat(baseLabels.map(function(d) { return d + "+"; }));
     var bfAllData = baseData.concat(predicted);
     var bfChartCfg = { type: "line", data: { labels: bfLabels, datasets: [{ label: "Historical", data: baseData.concat(Array(baseLabels.length).fill(null)), borderColor: "#06b6d4", backgroundColor: g7a, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }, { label: "Forecast", data: Array(baseLabels.length).fill(null).concat(predicted), borderColor: "#8b5cf6", borderDash: [6, 4], borderWidth: 2.5, tension: 0.4, fill: false, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', padding: 12, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45 } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var bfDetails = bfLabels.map(function(l, i) { return { label: l, value: bfAllData[i] || 0, category: l, barValue: bfAllData[i] || 0 }; });
+    var bfDetails = bookingDetails('day');
     var bfFilters = bfLabels.map(function(l) { return { key: l, label: l }; });
-    ctx7.canvas.style.cursor = 'pointer';
-    ctx7.onclick = function() { openDrill('Booking Forecast Details', 'Historical bookings and predicted demand', bfChartCfg, bfDetails, bfFilters, 'category', { historical: baseData.reduce(function(a, b) { return a + b; }, 0), forecast: predicted.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx7.style.cursor = 'pointer';
+    ctx7.addEventListener('click', function(event) { openSelected(event, ctx7, 'Booking Forecast Details', 'Actual bookings underlying the selected historical point; forecast points have no fabricated records', bfChartCfg, bfDetails, { historical:baseData.reduce(function(a,b){return a+b;},0) }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return dataset==='Historical' && String(row.date).slice(0,10)===exact; }); });
     new Chart(ctx7, bfChartCfg);
   }
 
@@ -835,10 +1534,10 @@ function initCharts() {
     var wtBookings = SA.weeklyData.map(function(d) { return d.bookings; });
     var wtCompleted = SA.weeklyData.map(function(d) { return d.completed; });
     var wtChartCfg = { type: "line", data: { labels: wtLabels, datasets: [{ label: "Bookings", data: wtBookings, borderColor: "#06b6d4", backgroundColor: g8a, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }, { label: "Completed", data: wtCompleted, borderColor: "#8b5cf6", backgroundColor: g8b, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', padding: 12, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var wtDetails = wtLabels.map(function(l, i) { return { label: l, value: wtBookings[i], subtext: wtCompleted[i] + ' completed', category: l, barValue: wtBookings[i] }; });
-    var wtFilters = wtLabels.map(function(l) { return { key: l, label: l }; });
-    ctx8.canvas.style.cursor = 'pointer';
-    ctx8.onclick = function() { openDrill('Weekly Trend', 'Weekly bookings vs completions', wtChartCfg, wtDetails, wtFilters, 'category', { totalBookings: wtBookings.reduce(function(a, b) { return a + b; }, 0), totalCompleted: wtCompleted.reduce(function(a, b) { return a + b; }, 0) }); };
+    var wtDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); });
+    var wtFilters = [];
+    ctx8.style.cursor = 'pointer';
+    ctx8.addEventListener('click', function(event) { openSelected(event, ctx8, 'Weekly Trend', 'Bookings contributing to the selected reporting week', wtChartCfg, wtDetails, { totalBookings:wtDetails.length }, function(row,label,dataset){return row.category===label && (dataset!=='Completed'||row.status==='completed');}); });
     new Chart(ctx8, wtChartCfg);
   }
 
@@ -849,10 +1548,10 @@ function initCharts() {
     var rdData = SA.ratingDistribution;
     var rdColors = ["#10b981", "#3b82f6", "#f59e0b", "#94a3b8", "#ef4444"];
     var rdChartCfg = { type: "doughnut", data: { labels: rdLabels, datasets: [{ data: rdData, backgroundColor: rdColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "60%", animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var rdDetails = rdLabels.map(function(l, i) { return { label: l, value: rdData[i], category: l, barValue: rdData[i] }; });
+    var rdDetails = bookingDetails('rating', function(row) { return row.rating ? row.rating + (row.rating === 1 ? ' Star' : ' Stars') : 'Not Rated'; }, function(row) { return row.rating > 0; });
     var rdFilters = rdLabels.map(function(l, i) { return { key: l, label: l, color: rdColors[i] }; });
-    ctx9.canvas.style.cursor = 'pointer';
-    ctx9.onclick = function() { openDrill('Rating Distribution', 'Customer rating breakdown', rdChartCfg, rdDetails, rdFilters, 'category', { total: rdData.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx9.style.cursor = 'pointer';
+    ctx9.addEventListener('click', function(event) { openSelected(event, ctx9, 'Rating Distribution', 'Bookings with the selected customer rating', rdChartCfg, rdDetails, { rated:rdDetails.length }); });
     new Chart(ctx9, rdChartCfg);
   }
 
@@ -864,11 +1563,81 @@ function initCharts() {
     var sbCounts = SA.statusBreakdown.map(function(s) { return s.count; });
     var sbColors = SA.statusBreakdown.map(function(s) { return sc[s.status] || '#94a3b8'; });
     var sbChartCfg = { type: "pie", data: { labels: sbLabels, datasets: [{ data: sbCounts, backgroundColor: sbColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var sbDetails = sbLabels.map(function(l, i) { return { label: l, value: sbCounts[i], category: l, barValue: sbCounts[i] }; });
+    var sbDetails = bookingDetails('status');
     var sbFilters = sbLabels.map(function(l, i) { return { key: l, label: l, color: sbColors[i] }; });
-    ctx10.canvas.style.cursor = 'pointer';
-    ctx10.onclick = function() { openDrill('Status Breakdown', 'Booking status distribution', sbChartCfg, sbDetails, sbFilters, 'category', { total: sbCounts.reduce(function(a, b) { return a + b; }, 0) }); };
+    ctx10.style.cursor = 'pointer';
+    ctx10.addEventListener('click', function(event) { openSelected(event, ctx10, 'Status Breakdown', 'Bookings with the selected workflow status', sbChartCfg, sbDetails, { total:sbDetails.length }); });
     new Chart(ctx10, sbChartCfg);
+  }
+
+  /* -- Cancellation Trend -- */
+  var ctx11 = document.getElementById("cancellationTrendChart");
+  if (ctx11) {
+    var canLabels = SA.weeklyCancellation.length > 0 ? SA.weeklyCancellation.map(function(w) { return w.week; }) : ["W1","W2","W3","W4","W5","W6","W7","W8","W9","W10","W11","W12"];
+    var canRates = SA.weeklyCancellation.length > 0 ? SA.weeklyCancellation.map(function(w) { return w.rate; }) : [0,0,0,0,0,0,0,0,0,0,0,0];
+    var canCounts = SA.weeklyCancellation.length > 0 ? SA.weeklyCancellation.map(function(w) { return w.cancelled; }) : [0,0,0,0,0,0,0,0,0,0,0,0];
+    var g11 = ctx11.getContext('2d').createLinearGradient(0, 0, 0, 200); g11.addColorStop(0, 'rgba(239,68,68,0.3)'); g11.addColorStop(1, 'rgba(239,68,68,0.02)');
+    var canChartCfg = { type: "line", data: { labels: canLabels, datasets: [{ label: "Cancellation Rate %", data: canRates, borderColor: "#ef4444", backgroundColor: g11, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#ef4444", pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5, yAxisID: 'y' }, { label: "Cancelled Count", data: canCounts, borderColor: "#f59e0b", backgroundColor: 'transparent', borderWidth: 2, tension: 0.4, fill: false, pointBackgroundColor: "#fff", pointBorderColor: "#f59e0b", pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } }, border: { display: false } }, y: { position: 'left', grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return v + '%'; } }, border: { display: false }, max: 100 }, y1: { position: 'right', grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
+    var canDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); }, function(row) { return row.status === 'cancelled'; });
+    ctx11.style.cursor = 'pointer';
+    ctx11.addEventListener('click', function(event) { openSelected(event, ctx11, 'Cancellation Trend', 'Cancelled bookings from the selected reporting week', canChartCfg, canDetails, { cancelled:canDetails.length }); });
+    new Chart(ctx11, canChartCfg);
+  }
+
+  /* -- Customer Segments -- */
+  var ctx12 = document.getElementById("customerSegmentChart");
+  if (ctx12) {
+    var csLabels = ["One-Time", "Returning", "Loyal"];
+    var csData = [SA.customerSegments.oneTime || 0, SA.customerSegments.returning || 0, SA.customerSegments.loyal || 0];
+    var csColors = ["#94a3b8", "#3b82f6", "#f59e0b"];
+    var csChartCfg = { type: "doughnut", data: { labels: csLabels, datasets: [{ data: csData, backgroundColor: csColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
+    var customerFrequency = {}; SA.bookingDrilldown.forEach(function(row) { var key=row.contact||row.customer; customerFrequency[key]=(customerFrequency[key]||0)+1; });
+    var csDetails = bookingDetails('customer', function(row) { var count=customerFrequency[row.contact||row.customer]||1; return count >= 5 ? 'Loyal' : count >= 2 ? 'Returning' : 'One-Time'; });
+    ctx12.style.cursor = 'pointer';
+    ctx12.addEventListener('click', function(event) { openSelected(event, ctx12, 'Customer Segments', 'Bookings belonging to the selected repeat-customer segment', csChartCfg, csDetails, { customers:Object.keys(customerFrequency).length }); });
+    new Chart(ctx12, csChartCfg);
+  }
+
+  /* -- Monthly Revenue Trend -- */
+  var ctx13 = document.getElementById("monthlyRevenueChart");
+  if (ctx13) {
+    var mrLabels = SA.monthlyRevenueTrend.length > 0 ? SA.monthlyRevenueTrend.map(function(m) { return m.month; }) : ["M1","M2","M3","M4","M5","M6"];
+    var mrTotal = SA.monthlyRevenueTrend.length > 0 ? SA.monthlyRevenueTrend.map(function(m) { return m.total; }) : [0,0,0,0,0,0];
+    var mrCore = SA.monthlyRevenueTrend.length > 0 ? SA.monthlyRevenueTrend.map(function(m) { return m.core; }) : [0,0,0,0,0,0];
+    var mrRepair = SA.monthlyRevenueTrend.length > 0 ? SA.monthlyRevenueTrend.map(function(m) { return m.repair; }) : [0,0,0,0,0,0];
+    var g13a = ctx13.getContext('2d').createLinearGradient(0, 0, 0, 200); g13a.addColorStop(0, 'rgba(6,182,212,0.3)'); g13a.addColorStop(1, 'rgba(6,182,212,0.02)');
+    var g13b = ctx13.getContext('2d').createLinearGradient(0, 0, 0, 200); g13b.addColorStop(0, 'rgba(139,92,246,0.3)'); g13b.addColorStop(1, 'rgba(139,92,246,0.02)');
+    var mrChartCfg = { type: "bar", data: { labels: mrLabels, datasets: [{ label: "Core", data: mrCore, backgroundColor: "#06b6d4", borderRadius: 4, barPercentage: 0.6 }, { label: "Repair", data: mrRepair, backgroundColor: "#8b5cf6", borderRadius: 4, barPercentage: 0.6 }, { label: "Total", data: mrTotal, type: "line", borderColor: "#10b981", backgroundColor: 'transparent', borderWidth: 2.5, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#10b981", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6, fill: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return c.dataset.label + ': ₱' + c.parsed.y.toLocaleString(); } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return '₱' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v); } }, border: { display: false } } } } };
+    var mrDetails = bookingDetails('month');
+    ctx13.style.cursor = 'pointer';
+    ctx13.addEventListener('click', function(event) { openSelected(event, ctx13, 'Monthly Revenue Trend', 'Bookings contributing to the selected month and revenue segment', mrChartCfg, mrDetails, { revenue:mrDetails.reduce(function(sum,row){return sum+(Number(row.amount)||0);},0) }, function(row,label,dataset){return row.month===label && (dataset==='Total'||row.segment===(dataset==='Core'?'Core Service':'Repair'));}); });
+    new Chart(ctx13, mrChartCfg);
+  }
+
+  /* -- Priority Distribution -- */
+  var ctx14 = document.getElementById("priorityChart");
+  if (ctx14) {
+    var prLabels = ["Low", "Medium", "High", "Critical"];
+    var prData = [SA.priorityBreakdown.low || 0, SA.priorityBreakdown.medium || 0, SA.priorityBreakdown.high || 0, SA.priorityBreakdown.critical || 0];
+    var prColors = ["#94a3b8", "#3b82f6", "#f59e0b", "#ef4444"];
+    var prChartCfg = { type: "doughnut", data: { labels: prLabels, datasets: [{ data: prData, backgroundColor: prColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "60%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
+    var prDetails = bookingDetails('priority', function(row) { var p=String(row.priority||'medium'); return p.charAt(0).toUpperCase()+p.slice(1); });
+    ctx14.style.cursor = 'pointer';
+    ctx14.addEventListener('click', function(event) { openSelected(event, ctx14, 'Priority Distribution', 'Bookings assigned the selected operational priority', prChartCfg, prDetails, { bookings:prDetails.length }); });
+    new Chart(ctx14, prChartCfg);
+  }
+
+  /* -- Appliance Type Breakdown -- */
+  var ctx15 = document.getElementById("applianceChart");
+  if (ctx15) {
+    var apLabels = SA.applianceArray.length > 0 ? SA.applianceArray.map(function(a) { return a.type; }) : ["N/A"];
+    var apData = SA.applianceArray.length > 0 ? SA.applianceArray.map(function(a) { return a.count; }) : [0];
+    var apColors = ["#06b6d4", "#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444"];
+    var apChartCfg = { type: "bar", data: { labels: apLabels, datasets: [{ label: "Bookings", data: apData, backgroundColor: apColors.slice(0, apLabels.length), borderRadius: 6, barThickness: 24 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
+    var apDetails = bookingDetails('appliance');
+    ctx15.style.cursor = 'pointer';
+    ctx15.addEventListener('click', function(event) { openSelected(event, ctx15, 'Appliance Type Breakdown', 'Bookings for the selected appliance or unit type', apChartCfg, apDetails, { bookings:apDetails.length }); });
+    new Chart(ctx15, apChartCfg);
   }
 
   /* -- Sparklines -- */
@@ -924,5 +1693,101 @@ function waitForCharts() {
   requestAnimationFrame(function() { setTimeout(initCharts, 50); });
 }
 if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', waitForCharts); } else { waitForCharts(); }
+
+function setupReportNav() {
+  var nav = document.getElementById('reportNav');
+  if (!nav) return;
+  var buttons = nav.querySelectorAll('.report-nav-btn');
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = btn.dataset.target;
+      if (target === 'top') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        var el = document.getElementById(target);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
+  var trigger = document.getElementById('reportNavTrigger');
+  var icon = document.getElementById('reportNavTriggerIcon');
+  var label = document.getElementById('reportNavTriggerLabel');
+  if (trigger) {
+    trigger.addEventListener('click', function() {
+      nav.classList.toggle('open');
+      if (icon) {
+        icon.classList.toggle('bi-list');
+        icon.classList.toggle('bi-x-lg');
+      }
+      if (label) {
+        label.textContent = nav.classList.contains('open') ? 'Close' : 'Sections';
+      }
+    });
+  }
+}
+if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', setupReportNav); } else { setupReportNav(); }
 </script>
-<script src="/js/chart-drilldown.js"></script>
+
+<!-- ═══ PAGINATION FOR COMPLETED SERVICES & EQUIPMENT TABLES ═══ -->
+<script>
+(() => {
+  const PAGE_SIZE = 10;
+
+  function paginateTable(rows, infoId, buttonsId) {
+    const rowsArr = Array.from(rows);
+    if (!rowsArr.length) return;
+    let page = 1;
+    const totalPages = Math.max(1, Math.ceil(rowsArr.length / PAGE_SIZE));
+    const info = document.getElementById(infoId);
+    const btns = document.getElementById(buttonsId);
+
+    function render() {
+      const start = (page - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      rowsArr.forEach((row, i) => {
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+      });
+      info.textContent = `Showing ${start + 1}–${Math.min(end, rowsArr.length)} of ${rowsArr.length}`;
+      btns.innerHTML = '';
+      const addBtn = (label, p, disabled, active) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm' + (active ? ' btn-primary' : ' btn-outline-secondary');
+        btn.style.cssText = 'font-size:.7rem;padding:4px 10px;border-radius:6px;min-width:32px;';
+        btn.innerHTML = label;
+        btn.disabled = disabled;
+        btn.addEventListener('click', () => { page = p; render(); });
+        btns.appendChild(btn);
+      };
+      addBtn('<i class="bi bi-chevron-left"></i>', page - 1, page === 1, false);
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) addBtn(String(i), i, false, i === page);
+      } else {
+        addBtn('1', 1, false, page === 1);
+        if (page > 3) addBtn('...', page, true, false);
+        for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+          addBtn(String(i), i, false, i === page);
+        }
+        if (page < totalPages - 2) addBtn('...', page, true, false);
+        addBtn(String(totalPages), totalPages, false, page === totalPages);
+      }
+      addBtn('<i class="bi bi-chevron-right"></i>', page + 1, page === totalPages, false);
+    }
+    render();
+  }
+
+  // Initialize pagination on both tables
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function init() {
+    paginateTable(document.querySelectorAll('.cs-row'), 'csPageInfo', 'csPageButtons');
+    paginateTable(document.querySelectorAll('.eu-row'), 'euPageInfo', 'euPageButtons');
+    paginateTable(document.querySelectorAll('.lp-row'), 'lpPageInfo', 'lpPageButtons');
+  }
+})();
+</script>

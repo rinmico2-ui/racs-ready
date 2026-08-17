@@ -15,6 +15,7 @@ const serviceReportSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    serviceItemId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 
     assignmentId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -81,6 +82,9 @@ const serviceReportSchema = new mongoose.Schema(
     // ── Cost Summary ─────────────────────────────────────────────────────────
     partsCost: { type: Number, default: 0, min: 0 },
     laborCost: { type: Number, default: 0, min: 0 },
+    // Internal direct labor expense allocated to this job. The legacy
+    // `laborCost` field is customer-facing and is not a profitability cost.
+    actualLaborCost: { type: Number, default: 0, min: 0 },
     totalCost: { type: Number, default: 0, min: 0 },
 
     // ── Status / Workflow ────────────────────────────────────────────────────
@@ -119,7 +123,10 @@ const serviceReportSchema = new mongoose.Schema(
 // ── Indexes ──────────────────────────────────────────────────────────────────
 serviceReportSchema.index({ technicianId: 1, status: 1 });
 serviceReportSchema.index({ technicianId: 1, createdAt: -1 });
-serviceReportSchema.index({ bookingId: 1 }, { unique: true });
+serviceReportSchema.index(
+  { bookingId: 1, serviceItemId: 1 },
+  { unique: true, partialFilterExpression: { serviceItemId: { $type: "objectId" } }, name: "booking_service_item_unique" },
+);
 
 // ── Virtuals ─────────────────────────────────────────────────────────────────
 

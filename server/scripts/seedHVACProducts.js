@@ -25,7 +25,11 @@ async function seedHVACProducts() {
     
     // Connect to database
     if (mongoose.connection.readyState === 0) {
-      const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://racs_ready:tOwE7F0fwflbzuzD@cluster0.zg3zjgk.mongodb.net/?appName=Cluster0';
+      const mongoUri = process.env.MONGODB_URI;
+      if (!mongoUri) {
+        console.error("FATAL: MONGODB_URI environment variable is required. Exiting.");
+        process.exit(1);
+      }
       console.log('🔌 Connecting to MongoDB...');
       console.log('  URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')); // Hide credentials
       

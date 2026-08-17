@@ -1,96 +1,86 @@
-<section class="contact-hero position-relative" style="overflow:hidden; background:linear-gradient(150deg,#0a1628 0%,#0f2b5e 45%,#1a4fd8 100%); color:#fff;">
-  <div class="position-absolute rounded-circle" style="width:650px;height:650px;background:radial-gradient(circle,rgba(59,130,246,0.2) 0%,transparent 70%);top:-220px;right:-240px;pointer-events:none;animation:orbDrift 18s ease-in-out infinite alternate;"></div>
-  <div class="position-absolute rounded-circle" style="width:520px;height:520px;background:radial-gradient(circle,rgba(96,165,250,0.12) 0%,transparent 70%);bottom:-160px;left:-200px;pointer-events:none;animation:orbDrift 20s ease-in-out infinite alternate-reverse;"></div>
-  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image:radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px);background-size:40px 40px;opacity:.35;pointer-events:none;"></div>
-  <div class="container position-relative py-5" style="z-index:2;">
+<!-- Contact — Enterprise Hero -->
+<section class="ent-contact-hero position-relative" style="overflow:hidden;">
+  <div class="ent-contact-hero-bg"></div>
+  <div class="ent-contact-grid-overlay"></div>
+  <div class="container position-relative ent-contact-hero-container" style="z-index:2;">
     <div class="text-center" data-aos="fade-up">
-      <span class="contact-chip">Reach Out</span>
-      <h1 class="display-5 fw-bold mt-3 mb-2" style="letter-spacing:-1.3px;">Contact <span style="color:#60a5fa;">CALIDRO RACS</span></h1>
-      <p class="fs-5 text-white-50 mx-auto" style="max-width:620px;">
-        We're here to help—reach out for bookings, support, or feedback to keep your home running comfortably.
-      </p>
+      <span class="ent-contact-chip">Reach Out</span>
+      <h1 class="ent-contact-title">Contact <span class="ent-contact-title-accent"><%= locals.companyName || 'CALIDRO RACS' %></span></h1>
+      <p class="ent-contact-desc">We're here to help — reach out for bookings, support, or feedback to keep your home running comfortably.</p>
     </div>
   </div>
 </section>
 
-<section class="support-premium position-relative py-5" style="overflow:hidden; background:linear-gradient(180deg,#eff6ff 0%,#e0edff 60%,#ffffff 100%);">
-  <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image:radial-gradient(rgba(59,130,246,0.08) 1px,transparent 1px);background-size:60px 60px;opacity:0.35;pointer-events:none;"></div>
+<section class="ent-contact-body position-relative py-5">
+  <div class="ent-contact-body-bg"></div>
   <div class="container position-relative" style="z-index:1;">
     <div class="text-center mb-4" data-aos="fade-up">
-      <span class="contact-chip light">Support Channels</span>
-      <h2 class="fw-bold mt-3 mb-2" style="color:#0a1628;">Choose the help you need</h2>
-      <p class="text-muted mb-0" style="max-width:640px;margin:0 auto;">Call or message us for bookings, or send detailed feedback to help us level up every visit.</p>
+      <span class="ent-contact-chip light">Support Channels</span>
+      <h2 class="ent-contact-section-title">Choose the help you need</h2>
+      <p class="ent-contact-section-desc">Call or message us for bookings, or send detailed feedback to help us level up every visit.</p>
     </div>
 
-    <div class="support-toggle-group d-flex justify-content-center flex-wrap gap-2 mb-4" role="tablist">
-      <button class="support-toggle active" type="button" data-target="contact-support">Support & Bookings</button>
-      <button class="support-toggle" type="button" data-target="contact-feedback">Service feedback</button>
+    <div class="ent-toggle-group d-flex justify-content-center flex-wrap gap-2 mb-4" role="tablist">
+      <button class="ent-toggle active" type="button" data-target="contact-support">Support &amp; Bookings</button>
+      <button class="ent-toggle" type="button" data-target="contact-feedback">Service Feedback</button>
     </div>
 
-    <div class="support-panels">
-      <div class="support-panel active" id="contact-support" data-aos="fade-right">
-        <div class="support-card">
+    <div class="ent-panels">
+      <div class="ent-panel active" id="contact-support" data-aos="fade-right">
+        <div class="ent-support-card">
           <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-4">
             <div>
-              <p class="eyebrow mb-1">Support & Bookings</p>
-              <h3 class="fw-bold mb-1" style="color:#0a1628;">Get in touch</h3>
-              <p class="text-muted mb-0">Call, message, or visit during business hours.</p>
+              <p class="ent-eyebrow mb-1">Support &amp; Bookings</p>
+              <h3 class="ent-support-card-title">Get in touch</h3>
+              <p class="ent-support-card-sub">Call, message, or visit during business hours.</p>
             </div>
-            <div class="support-icon gradient"><i class="bi bi-headset"></i></div>
+            <div class="ent-support-icon gradient"><i class="bi bi-headset"></i></div>
           </div>
           <div class="row g-4">
             <div class="col-md-6">
-              <div class="support-info">
+              <div class="ent-info-block">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="info-icon-circle">
-                    <i class="bi bi-telephone-fill"></i>
-                  </div>
+                  <div class="ent-info-circle phone"><i class="bi bi-telephone-fill"></i></div>
                   <div>
-                    <p class="label">Phone</p>
-                    <a class="value" href="tel:+639656056495">09656056495</a>
-                    <p class="muted">Quick bookings and urgent support</p>
+                    <p class="ent-info-label">Phone</p>
+                    <a class="ent-info-value" href="tel:<%= locals.companyPhone || '09656056495' %>"><%= locals.companyPhone || '0965 605 6495' %></a>
+                    <p class="ent-info-sub">Quick bookings and urgent support</p>
                   </div>
                 </div>
               </div>
             </div>
             <div class="col-md-6">
-              <div class="support-info">
+              <div class="ent-info-block">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="info-icon-circle email">
-                    <i class="bi bi-envelope-fill"></i>
-                  </div>
+                  <div class="ent-info-circle email"><i class="bi bi-envelope-fill"></i></div>
                   <div>
-                    <p class="label">Email</p>
-                    <a class="value" href="mailto:info@calidro.com">info@calidro.com</a>
-                    <p class="muted">Send details, attachments, or floor plans</p>
+                    <p class="ent-info-label">Email</p>
+                    <a class="ent-info-value" href="mailto:<%= locals.companyEmail || 'calidroracs@gmail.com' %>"><%= locals.companyEmail || 'calidroracs@gmail.com' %></a>
+                    <p class="ent-info-sub">Send details, attachments, or floor plans</p>
                   </div>
                 </div>
               </div>
             </div>
             <div class="col-md-6">
-              <div class="support-info">
+              <div class="ent-info-block">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="info-icon-circle hours">
-                    <i class="bi bi-clock-fill"></i>
-                  </div>
+                  <div class="ent-info-circle hours"><i class="bi bi-clock-fill"></i></div>
                   <div>
-                    <p class="label">Hours</p>
-                    <div class="value">Mon–Sat · 8:00 AM – 6:00 PM</div>
-                    <p class="muted">Reach us within business hours</p>
+                    <p class="ent-info-label">Hours</p>
+                    <div class="ent-info-value"><%= locals.businessHours ? businessHours.summary : 'Mon–Sat · 8:00 AM – 6:00 PM' %></div>
+                    <p class="ent-info-sub"><%= locals.businessHours ? businessHours.note : 'Reach us within business hours' %></p>
                   </div>
                 </div>
               </div>
             </div>
             <div class="col-md-6">
-              <div class="support-info">
+              <div class="ent-info-block">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="info-icon-circle address">
-                    <i class="bi bi-geo-alt-fill"></i>
-                  </div>
+                  <div class="ent-info-circle address"><i class="bi bi-geo-alt-fill"></i></div>
                   <div>
-                    <p class="label">Address</p>
-                    <div class="value">San Leonardo, Nueva Ecija</div>
-                    <p class="muted">Drop by or schedule on-site service</p>
+                    <p class="ent-info-label">Address</p>
+                    <div class="ent-info-value"><%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %></div>
+                    <p class="ent-info-sub">Drop by or schedule on-site service</p>
                   </div>
                 </div>
               </div>
@@ -99,42 +89,42 @@
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4 pt-3 border-top">
             <span class="text-muted small">Follow us for real-time updates</span>
             <div class="d-flex gap-2">
-              <a href="#" class="social-pill" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-              <a href="#" class="social-pill" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-              <a href="#" class="social-pill" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+              <a href="#" class="ent-social-pill" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+              <a href="#" class="ent-social-pill" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+              <a href="#" class="ent-social-pill" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="support-panel" id="contact-feedback" data-aos="fade-left">
-        <div class="support-card">
+      <div class="ent-panel" id="contact-feedback" data-aos="fade-left">
+        <div class="ent-support-card">
           <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start mb-4">
             <div>
-              <p class="eyebrow mb-1">Service feedback</p>
-              <h3 class="fw-bold mb-1" style="color:#0a1628;">Send us your feedback</h3>
-              <p class="text-muted mb-0">Share what we did great or what we can improve.</p>
+              <p class="ent-eyebrow mb-1">Service Feedback</p>
+              <h3 class="ent-support-card-title">Send us your feedback</h3>
+              <p class="ent-support-card-sub">Share what we did great or what we can improve.</p>
             </div>
-            <div class="support-icon amber"><i class="bi bi-stars"></i></div>
+            <div class="ent-support-icon amber"><i class="bi bi-stars"></i></div>
           </div>
           <form class="row g-4" id="feedbackForm">
             <div class="col-md-6">
               <label class="form-label">Your name</label>
-              <div class="input-icon-wrapper">
-                <i class="bi bi-person input-icon"></i>
-                <input type="text" class="form-control premium-input-with-icon" placeholder="Full name" required maxlength="40" id="fName">
+              <div class="ent-input-wrapper">
+                <i class="bi bi-person ent-input-icon"></i>
+                <input type="text" class="form-control ent-input" placeholder="Full name" required maxlength="40" id="fName">
               </div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Email</label>
-              <div class="input-icon-wrapper">
-                <i class="bi bi-envelope input-icon"></i>
-                <input type="email" class="form-control premium-input-with-icon" placeholder="you@email.com" required id="fEmail">
+              <div class="ent-input-wrapper">
+                <i class="bi bi-envelope ent-input-icon"></i>
+                <input type="email" class="form-control ent-input" placeholder="you@email.com" required id="fEmail">
               </div>
             </div>
             <div class="col-md-5">
               <label class="form-label">Rate your experience</label>
-              <div class="premium-rating-wrapper">
+              <div class="ent-rating-wrapper">
                 <div class="star-rating" id="starRating">
                   <button type="button" class="star-btn" data-value="1"><i class="bi bi-star"></i></button>
                   <button type="button" class="star-btn" data-value="2"><i class="bi bi-star"></i></button>
@@ -148,13 +138,13 @@
             </div>
             <div class="col-md-7">
               <label class="form-label">Comments <span id="fCommentsCount" class="text-muted ms-1 small">(160 left)</span></label>
-              <div class="input-icon-wrapper textarea-wrapper">
-                <i class="bi bi-chat-left-text input-icon textarea-icon"></i>
-                <textarea rows="3" class="form-control premium-input-with-icon textarea-input" placeholder="Share details so we can improve..." maxlength="160" required id="fComments"></textarea>
+              <div class="ent-input-wrapper textarea-wrapper">
+                <i class="bi bi-chat-left-text ent-input-icon textarea-icon"></i>
+                <textarea rows="3" class="form-control ent-input textarea-input" placeholder="Share details so we can improve..." maxlength="160" required id="fComments"></textarea>
               </div>
             </div>
             <div class="col-12 d-flex flex-wrap gap-3 align-items-center">
-              <button type="submit" class="btn btn-premium-feedback">Submit Feedback</button>
+              <button type="submit" class="ent-btn-feedback">Submit Feedback</button>
               <span class="text-muted small" id="feedbackStatus">Avg. response time: &lt; 24 hrs</span>
             </div>
           </form>
@@ -164,66 +154,103 @@
   </div>
 
   <style>
-    .contact-chip {
-      display:inline-flex;padding:6px 18px;border-radius:999px;border:1px solid rgba(255,255,255,0.35);
-      font-size:0.78rem;letter-spacing:0.18em;text-transform:uppercase;background:rgba(255,255,255,0.14);
+    /* Hero */
+    .ent-contact-hero { background: linear-gradient(135deg, #020617 0%, #0b1120 50%, #111d38 100%); color: #fff; padding: 80px 0; }
+    .ent-contact-hero-bg { position: absolute; inset: 0; background: radial-gradient(ellipse 800px 600px at 5% 15%, rgba(37,99,235,.10) 0%, transparent 65%), radial-gradient(ellipse 700px 500px at 95% 90%, rgba(37,99,235,.06) 0%, transparent 65%); pointer-events: none; }
+    .ent-contact-grid-overlay { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px); background-size: 48px 48px; pointer-events: none; }
+    .ent-contact-hero-container { padding: 0 15px; }
+    .ent-contact-chip { display: inline-flex; padding: 6px 18px; border-radius: 999px; border: 1px solid rgba(96,165,250,.3); font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; background: rgba(37,99,235,.15); color: #93c5fd; }
+    .ent-contact-chip.light { background: #fff; border: 1px solid rgba(15,36,96,.08); color: #2563eb; box-shadow: 0 6px 20px rgba(15,36,96,.08); }
+    .ent-contact-title { font-size: 2.8rem; font-weight: 800; letter-spacing: -1.3px; margin-top: 16px; margin-bottom: 8px; }
+    .ent-contact-title-accent { color: #60a5fa; }
+    .ent-contact-desc { font-size: 1.1rem; color: rgba(255,255,255,.55); max-width: 620px; margin: 0 auto; line-height: 1.65; }
+
+    /* Body */
+    .ent-contact-body { background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden; }
+    .ent-contact-body-bg { position: absolute; inset: 0; background-image: radial-gradient(rgba(59,130,246,.06) 1px, transparent 1px); background-size: 60px 60px; opacity: .35; pointer-events: none; }
+    .ent-contact-section-title { font-weight: 800; color: #0f172a; margin-top: 16px; margin-bottom: 8px; }
+    .ent-contact-section-desc { color: #64748b; max-width: 640px; margin: 0 auto; }
+
+    /* Toggles */
+    .ent-toggle { border: none; background: #fff; color: #0f172a; font-weight: 600; padding: 10px 26px; border-radius: 12px; box-shadow: 0 4px 16px rgba(15,36,96,.06); border: 1px solid rgba(15,36,96,.05); transition: all .25s ease; }
+    .ent-toggle.active { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; box-shadow: 0 8px 24px rgba(37,99,235,.25); border-color: transparent; }
+    .ent-toggle:hover { transform: translateY(-2px); }
+
+    /* Panels */
+    .ent-panel { display: none; }
+    .ent-panel.active { display: block; }
+    .ent-support-card { background: #fff; border-radius: 20px; padding: 40px; border: 1px solid rgba(37,99,235,.06); box-shadow: 0 12px 40px rgba(15,36,96,.08); }
+    .ent-support-icon { width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.3rem; flex-shrink: 0; }
+    .ent-support-icon.gradient { background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 8px 24px rgba(37,99,235,.2); }
+    .ent-support-icon.amber { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 8px 24px rgba(245,158,11,.2); }
+    .ent-eyebrow { font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: #94a3b8; font-weight: 800; }
+    .ent-support-card-title { font-weight: 700; color: #0f172a; font-size: 1.35rem; margin-bottom: 4px; }
+    .ent-support-card-sub { color: #64748b; margin-bottom: 0; }
+
+    /* Info blocks */
+    .ent-info-block { padding: 20px; border-radius: 14px; border: 1px solid #e2e8f0; background: linear-gradient(145deg, #fff, #f8fafc); transition: all .3s ease; }
+    .ent-info-block:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(37,99,235,.08); }
+    .ent-info-circle { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.2rem; flex-shrink: 0; transition: all .3s cubic-bezier(.34,1.56,.64,1); }
+    .ent-info-circle.phone { background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 6px 16px rgba(37,99,235,.2); }
+    .ent-info-circle.email { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 6px 16px rgba(16,185,129,.2); }
+    .ent-info-circle.hours { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 6px 16px rgba(245,158,11,.2); }
+    .ent-info-circle.address { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 6px 16px rgba(239,68,68,.2); }
+    .ent-info-block:hover .ent-info-circle { transform: scale(1.08) rotate(-4deg); }
+    .ent-info-label { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 700; color: #94a3b8; margin-bottom: 4px; }
+    .ent-info-value { font-weight: 700; font-size: 1.05rem; color: #0f172a; text-decoration: none; transition: color .2s; }
+    .ent-info-value:hover { color: #2563eb; }
+    .ent-info-sub { margin-bottom: 0; font-size: .85rem; color: #94a3b8; }
+
+    /* Social */
+    .ent-social-pill { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(59,130,246,.15); display: flex; align-items: center; justify-content: center; color: #2563eb; background: #f8fbff; transition: all .25s ease; }
+    .ent-social-pill:hover { background: #2563eb; color: #fff; transform: translateY(-3px); box-shadow: 0 8px 20px rgba(37,99,235,.2); }
+
+    /* Form inputs */
+    .ent-input-wrapper { position: relative; }
+    .ent-input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; transition: all .3s ease; z-index: 2; }
+    .ent-input { padding-left: 44px; border-radius: 12px; border: 1.5px solid rgba(148,163,184,.25); background: #fff; padding-top: .9rem; padding-bottom: .9rem; transition: all .3s ease; }
+    .ent-input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.08); outline: none; }
+    .ent-input-wrapper:focus-within .ent-input-icon { color: #2563eb; transform: translateY(-50%) scale(1.1); }
+    .textarea-wrapper .ent-input-icon { top: 14px; transform: none; }
+    .textarea-wrapper:focus-within .ent-input-icon { transform: scale(1.1); }
+    .textarea-input { padding-top: 12px; min-height: 100px; resize: vertical; }
+
+    /* Rating */
+    .ent-rating-wrapper { background: #fff; border-radius: 12px; border: 1.5px solid rgba(148,163,184,.25); padding: 10px 16px; display: flex; align-items: center; gap: 12px; transition: all .3s ease; }
+    .ent-rating-wrapper:focus-within { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.08); }
+    .star-rating { display: flex; gap: 4px; }
+    .star-btn { background: none; border: none; padding: 0; cursor: pointer; transition: all .2s cubic-bezier(.34,1.56,.64,1); font-size: 1.4rem; color: #cbd5e1; }
+    .star-btn:hover { transform: scale(1.2); }
+    .star-btn.active { color: #fbbf24; transform: scale(1.1); }
+    .star-btn.active i.bi-star::before { content: "\f586"; }
+    .star-btn:hover ~ .star-btn { color: #cbd5e1; }
+    .star-rating:hover .star-btn { color: #fbbf24; }
+    .star-rating .star-btn:hover ~ .star-btn { color: #cbd5e1; }
+    .rating-label { font-size: .85rem; color: #64748b; font-weight: 500; }
+
+    /* Submit button */
+    .ent-btn-feedback { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; border-radius: 12px; padding: .8rem 2.4rem; font-weight: 600; box-shadow: 0 8px 24px rgba(37,99,235,.2); transition: all .3s ease; }
+    .ent-btn-feedback:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(37,99,235,.3); }
+
+    /* Map */
+    .ent-map-card { background: #fff; border-radius: 20px; padding: 32px; border: 1px solid rgba(37,99,235,.06); box-shadow: 0 8px 32px rgba(15,36,96,.06); }
+    .ent-map-title { font-weight: 800; color: #0f172a; text-align: center; margin-bottom: 24px; }
+    .ent-map-iframe { border: 0; border-radius: 16px; filter: brightness(.95) contrast(1.05); }
+    .ent-map-address { text-align: center; margin-top: 16px; }
+    .ent-map-address strong { color: #0f172a; }
+    .ent-map-sub { color: #94a3b8; font-size: .85rem; margin-bottom: 0; }
+
+    @media (max-width: 767.98px) {
+      .ent-support-card { padding: 24px; }
+      .ent-info-block { padding: 14px; }
+      .ent-contact-title { font-size: 2rem; }
     }
-    .contact-chip.light { background:#fff;border:1px solid rgba(15,36,96,0.08);color:#2563eb;box-shadow:0 6px 20px rgba(15,36,96,0.08); }
-    .support-toggle {
-      border:none;background:#fff;color:#0f172a;font-weight:600;padding:10px 26px;border-radius:999px;
-      box-shadow:0 12px 35px rgba(15,36,96,0.1);border:1px solid rgba(15,36,96,0.05);transition:all .25s ease;
-    }
-    .support-toggle.active { background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 16px 40px rgba(59,130,246,0.35);border-color:transparent; }
-    .support-toggle:hover { transform:translateY(-2px); }
-    .support-panel { display:none; }
-    .support-panel.active { display:block; }
-    .support-card { background:#fff;border-radius:24px;padding:40px;border:1px solid rgba(15,36,96,0.06);box-shadow:0 25px 60px rgba(15,36,96,0.12); }
-    .support-icon { width:54px;height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.3rem; }
-    .support-icon.gradient { background:linear-gradient(135deg,#3b82f6,#2563eb);box-shadow:0 12px 30px rgba(59,130,246,0.25); }
-    .support-icon.amber { background:linear-gradient(135deg,#fbbf24,#f97316);box-shadow:0 12px 30px rgba(249,115,22,0.3); }
-    .support-info { padding:20px;border-radius:18px;border:1px solid rgba(15,36,96,0.05);background:linear-gradient(145deg,#fff,#f6f8ff);box-shadow:inset 0 1px 0 rgba(255,255,255,0.8);transition:all 0.3s ease; }
-    .support-info:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(37,99,235,0.12),inset 0 1px 0 rgba(255,255,255,0.8); }
-    .info-icon-circle { width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;box-shadow:0 8px 20px rgba(37,99,235,0.3);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);flex-shrink:0; }
-    .info-icon-circle.email { background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 8px 20px rgba(16,185,129,0.3); }
-    .info-icon-circle.hours { background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 8px 20px rgba(245,158,11,0.3); }
-    .info-icon-circle.address { background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 8px 20px rgba(239,68,68,0.3); }
-    .support-info:hover .info-icon-circle { transform:scale(1.1) rotate(-5deg); }
-    .support-info .label { text-transform:uppercase;letter-spacing:0.12em;font-size:0.72rem;font-weight:700;color:#94a3b8;margin-bottom:4px; }
-    .support-info .value { font-weight:700;font-size:1.05rem;color:#0a1628;text-decoration:none;transition:color 0.2s; }
-    .support-info .value:hover { color:#2563eb; }
-    .support-info .muted { margin-bottom:0;font-size:0.85rem;color:#94a3b8; }
-    .input-icon-wrapper { position:relative; }
-    .input-icon { position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:1.1rem;transition:all 0.3s ease;z-index:2; }
-    .premium-input-with-icon { padding-left:44px;border-radius:14px;border:1.5px solid rgba(148,163,184,0.3);background:#fff;padding-top:0.9rem;padding-bottom:0.9rem;transition:all 0.3s ease; }
-    .premium-input-with-icon:focus { border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.1);outline:none; }
-    .premium-input-with-icon:focus + .input-icon,.input-icon-wrapper:focus-within .input-icon { color:#2563eb;transform:translateY(-50%) scale(1.1); }
-    .textarea-wrapper .input-icon { top:14px;transform:none; }
-    .textarea-wrapper:focus-within .input-icon { transform:scale(1.1); }
-    .textarea-input { padding-top:12px;min-height:100px;resize:vertical; }
-    .premium-rating-wrapper { background:#fff;border-radius:14px;border:1.5px solid rgba(148,163,184,0.3);padding:10px 16px;display:flex;align-items:center;gap:12px;transition:all 0.3s ease; }
-    .premium-rating-wrapper:focus-within { border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.1); }
-    .star-rating { display:flex;gap:4px; }
-    .star-btn { background:none;border:none;padding:0;cursor:pointer;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);font-size:1.4rem;color:#cbd5e1; }
-    .star-btn:hover { transform:scale(1.2); }
-    .star-btn.active { color:#fbbf24;transform:scale(1.1); }
-    .star-btn.active i.bi-star::before { content:"\f586"; }
-    .star-btn:hover ~ .star-btn { color:#cbd5e1; }
-    .star-rating:hover .star-btn { color:#fbbf24; }
-    .star-rating .star-btn:hover ~ .star-btn { color:#cbd5e1; }
-    .rating-label { font-size:0.85rem;color:#64748b;font-weight:500; }
-    .social-pill { width:42px;height:42px;border-radius:14px;border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;color:#2563eb;background:#f8fbff;transition:all .25s ease; }
-    .social-pill:hover { background:#2563eb;color:#fff;transform:translateY(-3px);box-shadow:0 12px 24px rgba(37,99,235,0.25); }
-    .premium-input { border-radius:14px;border:1px solid rgba(148,163,184,0.4);background:#fdfdff;padding:0.85rem 1rem;transition:border-color .2s,box-shadow .2s; }
-    .premium-input:focus { border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.15); }
-    .btn-premium-feedback { background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:999px;padding:0.8rem 2.8rem;font-weight:600;box-shadow:0 14px 30px rgba(59,130,246,0.3);transition:all .3s ease; }
-    .btn-premium-feedback:hover { transform:translateY(-3px);box-shadow:0 18px 38px rgba(59,130,246,0.4); }
-    @media (max-width: 767.98px) { .support-card { padding:26px; } .support-info { padding:14px; } }
   </style>
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const toggles = document.querySelectorAll('.support-toggle');
-      const panels = document.querySelectorAll('.support-panel');
+      const toggles = document.querySelectorAll('.ent-toggle');
+      const panels = document.querySelectorAll('.ent-panel');
       const nameField = document.getElementById('fName');
       const emailField = document.getElementById('fEmail');
       const commentField = document.getElementById('fComments');
@@ -235,7 +262,6 @@
       const ratingLabel = document.getElementById('ratingLabel');
       const ratingLabels = ['Poor', 'Needs work', 'Okay', 'Good', 'Excellent'];
       
-      // Star rating functionality
       starBtns.forEach((btn, index) => {
         btn.addEventListener('click', () => {
           const value = parseInt(btn.dataset.value);
@@ -323,16 +349,16 @@
 </section>
 
 <!-- Location Map Section -->
-<section class="contact-map py-5">
+<section class="py-5" style="background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);">
   <div class="container" data-aos="fade-up">
-    <div class="card border-0 shadow-sm p-4 neutral-card">
-      <h4 class="fw-bold text-primary mb-4 text-center">Find Us</h4>
+    <div class="ent-map-card">
+      <h4 class="ent-map-title">Find Us</h4>
       <div class="map-container">
-        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d12345.67890!2d120.9679!3d15.3634!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f8b8b8b8b8b8%3A0x1234567890abcdef!2sSan%20Leonardo%2C%20Nueva%20Ecija!5e0!3m2!1sen!2sph!4v1234567890123!5m2!1sen!2sph" width="100%" height="420" style="border:0;border-radius:16px;filter:brightness(0.9) contrast(1.05);" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d12345.67890!2d120.9679!3d15.3634!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f8b8b8b8b8b8%3A0x1234567890abcdef!2sSan%20Leonardo%2C%20Nueva%20Ecija!5e0!3m2!1sen!2sph!4v1234567890123!5m2!1sen!2sph" width="100%" height="420" class="ent-map-iframe" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
       </div>
-      <div class="text-center mt-3">
-        <p class="text-muted mb-2"><i class="bi bi-geo-alt-fill text-primary me-2"></i><strong>San Leonardo, Nueva Ecija</strong></p>
-        <p class="text-muted small mb-0">Drop by our location or schedule an on-site visit in the area.</p>
+      <div class="ent-map-address">
+        <p class="mb-2"><i class="bi bi-geo-alt-fill text-primary me-2"></i><strong><%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %></strong></p>
+        <p class="ent-map-sub">Drop by our location or schedule an on-site visit in the area.</p>
       </div>
     </div>
   </div>

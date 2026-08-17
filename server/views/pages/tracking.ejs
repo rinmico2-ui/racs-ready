@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+<!-- Leaflet CSS already loaded by main layout -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -168,10 +168,10 @@
           </div>
         </div>
 
-        <!-- Service Progress -->
+        <!-- Service Progress / Project Progress -->
         <div class="trk-card trk-lifecycle mb-4" id="trkLifecycle" style="display:none;">
           <div class="trk-card-header">
-            <h6 class="trk-card-title"><i class="bi bi-diagram-3"></i> Service Progress</h6>
+            <h6 class="trk-card-title" id="trkLifecycleTitle"><i class="bi bi-diagram-3"></i> Service Progress</h6>
             <span class="trk-status-pill" id="trkLifecycleStatus"></span>
           </div>
           <div class="trk-card-body">
@@ -179,13 +179,10 @@
           </div>
         </div>
 
-        <!-- Live Work Progress -->
+        <!-- Activity Timeline -->
         <div class="trk-card trk-work-progress mb-4" id="trkWorkProgress" style="display:none;">
           <div class="trk-card-header">
-            <h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>
-            <span class="trk-live-tag" id="trkWorkLiveTag" style="display:none;">
-              <span class="trk-pulse-dot live"></span> LIVE
-            </span>
+            <h6 class="trk-card-title" id="trkWorkProgressTitle"><i class="bi bi-clock-history"></i> Activity Timeline</h6>
           </div>
           <div class="trk-card-body">
             <div class="trk-current-action" id="trkCurrentAction" style="display:none;">
@@ -308,7 +305,7 @@
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- RESCHEDULE MODAL                                                  -->
   <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <div class="trk-rating-modal" id="trkRescheduleModal" style="display:none;">
+  <div class="trk-rating-modal" id="trkLegacyRescheduleModal" style="display:none;">
     <div class="trk-rating-backdrop" onclick="closeRescheduleModal()"></div>
     <div class="trk-rating-dialog" style="max-width:480px;" onclick="event.stopPropagation()">
       <!-- Header -->
@@ -901,6 +898,24 @@
   .trk-list-empty h6 { font-weight: 800; color: var(--trk-text); margin-bottom: 4px; }
   .trk-list-empty p { font-size: 0.82rem; margin: 0; }
 
+  .trk-pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; margin-top: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  }
+  .trk-pag-range { font-size: 0.78rem; color: var(--trk-text-muted); font-weight: 500; }
+  .trk-pag-controls { display: flex; align-items: center; gap: 6px; }
+  .trk-pag-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; border: 1.5px solid #e2e8f0;
+    background: #fff; color: var(--trk-text); cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .trk-pag-btn:hover:not(:disabled) { border-color: var(--trk-primary); color: var(--trk-primary); background: #eff6ff; }
+  .trk-pag-btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+  .trk-pag-indicator { font-size: 0.78rem; font-weight: 600; color: var(--trk-text); padding: 0 6px; }
+
   .trk-back-btn {
     display: inline-flex; align-items: center; gap: 8px;
     border: 1px solid #e2e8f0; background: #fff; color: var(--trk-text);
@@ -1183,6 +1198,78 @@
     font-family: var(--trk-font); padding: 14px 18px;
   }
 
+  /* Keep calendar events tidy (one-line, ellipsis) */
+  .trk-calendar .trk-event-line {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 600; font-size: 0.62rem; line-height: 1.2; color: #fff;
+    display: block; width: 100%; box-sizing: border-box;
+  }
+
+  /* Large-scale project calendar events */
+  .trk-calendar .fc-event.trk-event-project {
+    background: linear-gradient(145deg, #9333ea, #7c3aed) !important;
+    border-color: #7c3aed !important;
+    padding: 5px 8px;
+  }
+  .trk-calendar .trk-event-project-inner {
+    display: flex; flex-direction: column; gap: 3px;
+    color: #fff; font-family: var(--trk-font);
+    width: 100%; box-sizing: border-box;
+  }
+  .trk-calendar .trk-event-project-top {
+    display: flex; align-items: center; gap: 5px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .trk-calendar .trk-event-project-top i {
+    font-size: 0.7rem; opacity: 0.9; flex-shrink: 0;
+  }
+  .trk-calendar .trk-event-project-title {
+    font-weight: 700; font-size: 0.65rem; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1 1 auto; min-width: 0;
+  }
+  .trk-calendar .trk-event-project-pill {
+    flex-shrink: 0; font-size: 0.55rem; font-weight: 700;
+    background: rgba(255,255,255,0.2); color: #fff;
+    padding: 1px 5px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .trk-calendar .trk-event-project-meta {
+    font-size: 0.58rem; font-weight: 500; opacity: 0.9;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .trk-calendar .trk-event-project-progress {
+    height: 4px; border-radius: 999px; background: rgba(255,255,255,0.25); overflow: hidden;
+  }
+  .trk-calendar .trk-event-project-progress > div {
+    height: 100%; background: #fff; border-radius: inherit; transition: width 0.3s ease;
+  }
+  .trk-calendar .trk-event-project-inner.compact .trk-event-project-meta { display: none; }
+  .trk-calendar .trk-event-project-inner.compact .trk-event-project-progress { margin-top: 2px; }
+
+  .trk-calendar .fc-timegrid-event {
+    padding: 2px 5px;
+  }
+  .trk-calendar .fc-timegrid-event .fc-event-main { overflow: hidden; }
+
+  /* Mobile-first enterprise responsive calendar */
+  @media (max-width: 767px) {
+    .trk-calendar { padding: 10px; }
+    .trk-calendar .fc-toolbar { flex-direction: column; gap: 10px; align-items: center; }
+    .trk-calendar .fc-toolbar-title { font-size: 1rem; }
+    .trk-calendar .fc-button { padding: 0.45rem 0.9rem; font-size: 0.72rem; }
+    .trk-calendar .fc-col-header-cell-cushion { font-size: 0.6rem; padding: 10px 4px; }
+    .trk-calendar .fc-daygrid-day-frame { min-height: 70px; }
+  }
+  @media (max-width: 480px) {
+    .trk-calendar .fc-col-header-cell-cushion { font-size: 0.55rem; padding: 6px 2px; }
+    .trk-calendar .fc-event { font-size: 0.62rem; padding: 3px 5px; }
+    .trk-calendar .fc-event-title { font-size: 0.62rem; }
+    .trk-calendar .fc-event-time { font-size: 0.6rem; }
+    .trk-calendar .fc-daygrid-day-number { font-size: 0.72rem; }
+  }
+
   /* ── Progress Timeline (Horizontal) ────────────────────────────── */
   .trk-timeline {
     margin-top: 12px; padding: 20px 16px; background: #f8fafc;
@@ -1422,11 +1509,61 @@
   .trk-fade-in:nth-child(4) { animation-delay: 0.2s; }
 </style>
 
+<!-- ═══ Customer Reschedule Calendar Modal ═══════════════════════════════════ -->
+<div class="modal fade" id="trkRescheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content rounded-4 shadow-lg border-0">
+      <div class="modal-header bg-primary text-white rounded-top-4">
+        <h5 class="modal-title" id="trkRescheduleModalLabel"><i class="bi bi-calendar-event me-2"></i>Request New Schedule</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="trkRescheduleLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+          <p class="mt-2 text-muted">Loading available dates...</p>
+        </div>
+        <div id="trkRescheduleError" class="alert alert-danger d-none"></div>
+        <div id="trkRescheduleCalendarContent" class="d-none">
+          <div class="alert alert-info d-flex align-items-center gap-3 mb-3">
+            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+              <i class="bi bi-info-circle fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold">Choose a new date & time</div>
+              <div class="small">Pick an available slot for <span id="trkRescheduleServiceName">your service</span>.</div>
+            </div>
+          </div>
+          <div id="calendarGrid"></div>
+          <div id="timeSelection" class="d-none mt-3">
+            <div id="timeSlots"></div>
+          </div>
+          <div id="trkRescheduleSelection" class="alert alert-success d-none">
+            <div class="fw-bold">Selected</div>
+            <div id="trkRescheduleSelectionText"></div>
+          </div>
+          <div class="mt-3">
+            <label for="trkRescheduleReason" class="form-label fw-semibold">Reason for rescheduling</label>
+            <textarea class="form-control" id="trkRescheduleReason" rows="2" placeholder="Optional reason"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer rounded-bottom-4">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="trkRescheduleSubmit" disabled>
+          <i class="bi bi-check-lg me-1"></i>Submit Request
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- SCRIPTS                                                                -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+<!-- Load Leaflet before the page inline script because main layout loads it in the body footer -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="/js/enterprise-calendar.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script id="customerTrackInitialBookings" type="application/json"><%- JSON.stringify(initialBookings || []) %></script>
 <script id="customerTrackInitialBooking" type="application/json"><%- JSON.stringify(initialBooking || null) %></script>
@@ -1440,12 +1577,15 @@
   );
 
   let currentBookingId = null;
+  let lastRenderedBooking = null;
   const statusEl = document.getElementById("trkTechStatus");
   const bookingTextEl = document.getElementById("trkBookingInfo");
   const bookingListEl = document.getElementById("trkBookingList");
   const listViewEl = document.getElementById("trkListView");
   const detailViewEl = document.getElementById("trkDetailView");
   let listFilter = 'all';
+  let currentPage = 1;
+  const BOOKINGS_PER_PAGE = 5;
 
   // ── Socket.IO for real-time tracking ────────────────────────────────────
   const socket = io({ path: "/socket.io" });
@@ -1576,6 +1716,43 @@
     return `${String(hh12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ampm}`;
   }
 
+  function trkParseTimeToMinutes(t) {
+    if (t == null) return null;
+    const raw = String(t).trim();
+    const m12 = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (m12) {
+      let h = Number(m12[1]);
+      const mm = Number(m12[2]);
+      const period = m12[3].toUpperCase();
+      if (period === 'AM' && h === 12) h = 0;
+      if (period === 'PM' && h !== 12) h += 12;
+      return h * 60 + mm;
+    }
+    const m24 = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (m24) {
+      return Number(m24[1]) * 60 + Number(m24[2]);
+    }
+    const n = Number(raw);
+    if (Number.isFinite(n)) return n;
+    return null;
+  }
+
+  function trkIsProposedDateTimePassed(pr) {
+    if (!pr || !pr.date) return false;
+    const raw = new Date(pr.date);
+    const proposedDate = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (proposedDate.getTime() < today.getTime()) return true;
+    if (proposedDate.getTime() > today.getTime()) return false;
+    const time = pr.time || pr.timeLabel;
+    if (!time) return false;
+    const mins = trkParseTimeToMinutes(time);
+    if (mins === null) return false;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    return mins < nowMins;
+  }
+
   function getDayMonth(value) {
     if (!value) return { day: '—', month: '' };
     const d = new Date(value);
@@ -1622,6 +1799,27 @@
       (b.serviceId && typeof b.serviceId === "object" && (b.serviceId.name || b.serviceId.title)) ||
       b.serviceType || "Service"
     );
+  }
+
+  function projectPhaseLabel(b) {
+    if (!b?.isProject) return '';
+    if (b.project?.dailyAcceptanceRequired) return 'Continuation confirmation';
+    const phase = String(b.project?.phase || '').toLowerCase();
+    if (phase === 'assessment') return 'Site assessment';
+    if (phase === 'quotation_review') return 'Quotation review';
+    const status = normalizeStatus(b.status);
+    if (status === 'in-progress') return 'Project execution';
+    if (status === 'completed') return 'Project completed';
+    return 'Project scheduling';
+  }
+
+  function projectScheduleLabel(b) {
+    const start = b?.project?.scheduleStart || b?.bookingDate;
+    const end = b?.project?.scheduleEnd || b?.projectEndDate || start;
+    if (!start) return 'Schedule being planned';
+    const startText = formatDate(start);
+    const endText = end ? formatDate(end) : startText;
+    return startText === endText ? startText : `${startText} – ${endText}`;
   }
 
   function getBookingCustomerId(b) {
@@ -1676,9 +1874,9 @@
 
   function renderScheduleList() {
     const countEl = document.getElementById('trkListCount');
-    if (countEl) countEl.textContent = bookings.length;
-
     const visible = bookings.filter(b => bookingMatchesFilter(b, listFilter));
+    if (countEl) countEl.textContent = visible.length;
+
     if (!bookings.length) {
       bookingListEl.innerHTML = `
         <div class="trk-list-empty">
@@ -1697,16 +1895,23 @@
         </div>`;
       return;
     }
+
+    const totalPages = Math.max(1, Math.ceil(visible.length / BOOKINGS_PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * BOOKINGS_PER_PAGE;
+    const paged = visible.slice(start, start + BOOKINGS_PER_PAGE);
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    bookingListEl.innerHTML = visible.map((b) => {
+    const cardsHtml = paged.map((b) => {
       const status = normalizeStatus(b.status);
       const dm = getDayMonth(b.bookingDate);
       const isSelected = currentBookingId && String(b._id || b.id || "") === String(currentBookingId);
       const isToday = b.bookingDate && new Date(b.bookingDate).toDateString() === today.toDateString();
       const isLive = ['on-the-way', 'in-progress', 'arrived'].includes(status);
-      const canReschedule = ['confirmed','scheduled'].includes(status) && b.bookingDate && new Date(b.bookingDate) >= today;
+      const canReschedule = !b.isProject && ['confirmed','scheduled'].includes(status) && b.bookingDate && new Date(b.bookingDate) >= today;
       const tech = getTechnicianName(b);
+      const project = b.project || {};
       return `
         <div class="trk-booking-card ${isSelected ? 'selected' : ''} ${isLive ? 'live' : ''} ${isToday ? 'today' : ''}" data-booking-id="${b._id || b.id || ''}" onclick="trkSelectBooking('${b._id || b.id || ''}')">
           <div class="trk-bc-date">
@@ -1715,17 +1920,19 @@
           </div>
           <div class="trk-bc-main">
             <div class="trk-bc-top">
-              <div class="trk-bc-service">${getServiceName(b)}</div>
+              <div class="trk-bc-service">${getServiceName(b)} ${b.isProject ? '<span class="badge rounded-pill text-bg-primary ms-1" style="font-size:.58rem;vertical-align:middle;">LARGE-SCALE PROJECT</span>' : ''}</div>
               <span class="trk-status-pill ${statusBadgeClass(status)}">${status.replace(/-/g, ' ')}</span>
+              ${b.status === 're-scheduled' && b.proposedReschedule && b.proposedReschedule.status === 'pending' ? `<span class="trk-status-pill" style="background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;"><i class="bi bi-calendar-check me-1"></i>Proposed</span>` : ''}
             </div>
             <div class="trk-bc-meta">
-              <span><i class="bi bi-clock me-1"></i>${formatTime(b.startTime)}</span>
+              <span><i class="bi bi-${b.isProject ? 'calendar-range' : 'clock'} me-1"></i>${b.isProject ? projectScheduleLabel(b) : formatTime(b.startTime)}</span>
               <span><i class="bi bi-geo-alt me-1"></i>${getCustomerAddressFromBooking(b) ? (getCustomerAddressFromBooking(b).length > 26 ? getCustomerAddressFromBooking(b).slice(0,26) + '…' : getCustomerAddressFromBooking(b)) : 'No address'}</span>
             </div>
             <div class="trk-bc-meta">
-              <span><i class="bi bi-person me-1"></i>${tech !== '—' ? tech : 'Technician TBA'}</span>
+              <span><i class="bi bi-${b.isProject ? 'people' : 'person'} me-1"></i>${b.isProject ? `${(project.team || []).length} crew · Lead: ${tech !== '—' ? tech : 'TBA'}` : (tech !== '—' ? tech : 'Technician TBA')}</span>
               ${isLive ? `<span class="trk-bc-live"><span class="trk-pulse-dot live"></span>Live</span>` : ''}
             </div>
+            ${b.isProject ? `<div style="margin-top:.42rem;"><div style="display:flex;justify-content:space-between;font-size:.62rem;color:#64748b;margin-bottom:.2rem;"><span>${projectPhaseLabel(b)}</span><strong>${Number(project.completedUnits || 0)}/${Number(project.totalUnits || b.quantity || 0)} units</strong></div><div style="height:5px;border-radius:999px;background:#e2e8f0;overflow:hidden;"><div style="width:${Math.max(0, Math.min(100, Number(project.completionPct || 0)))}%;height:100%;background:#2563eb;border-radius:inherit;"></div></div></div>` : ''}
           </div>
           <div class="trk-bc-action">
             <button class="trk-bc-view" onclick="event.stopPropagation();trkSelectBooking('${b._id || b.id || ''}')">
@@ -1735,7 +1942,30 @@
           </div>
         </div>`;
     }).join("");
+
+    const from = start + 1;
+    const to = Math.min(start + BOOKINGS_PER_PAGE, visible.length);
+    const pagHtml = totalPages > 1 ? `
+      <div class="trk-pagination">
+        <span class="trk-pag-range">Showing ${from}–${to} of ${visible.length}</span>
+        <div class="trk-pag-controls">
+          <button class="trk-pag-btn" onclick="trkPrevPage()" ${currentPage <= 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>
+          <span class="trk-pag-indicator">${currentPage} / ${totalPages}</span>
+          <button class="trk-pag-btn" onclick="trkNextPage()" ${currentPage >= totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>
+        </div>
+      </div>` : '';
+
+    bookingListEl.innerHTML = cardsHtml + pagHtml;
   }
+
+  window.trkPrevPage = function() {
+    if (currentPage > 1) { currentPage--; renderScheduleList(); }
+  };
+  window.trkNextPage = function() {
+    const visible = bookings.filter(b => bookingMatchesFilter(b, listFilter));
+    const totalPages = Math.ceil(visible.length / BOOKINGS_PER_PAGE);
+    if (currentPage < totalPages) { currentPage++; renderScheduleList(); }
+  };
 
   // Wire filter chips
   const filterWrap = document.getElementById('trkListFilter');
@@ -1745,6 +1975,7 @@
         filterWrap.querySelectorAll('.trk-filter-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         listFilter = chip.dataset.filter;
+        currentPage = 1;
         renderScheduleList();
       });
     });
@@ -1780,9 +2011,135 @@
       tech.fullName = tech.name;
     }
     if (tech && tech.phone) a.technicianPhone = tech.phone;
+    const cust = a.customer || (a.customerId && typeof a.customerId === 'object' ? {
+      name: (`${a.customerId.firstName || ''} ${a.customerId.lastName || ''}`.trim()) || a.customerId.name || 'Customer',
+      email: a.customerId.email || '',
+      phone: a.customerId.phone || a.customerId.mobile || ''
+    } : null);
+    a.customer = cust || a.customer;
+    if (cust) {
+      a.customerName = a.customerName || cust.name;
+      a.customerPhone = a.customerPhone || cust.phone;
+      a.customerEmail = a.customerEmail || cust.email;
+    }
     if (!Array.isArray(a.statusHistory)) a.statusHistory = [];
     return a;
   }
+
+  // ── Customer reschedule confirmation (admin-proposed) ───────────────────
+  async function trkSubmitRescheduleAction(id, action, extras = {}) {
+    try {
+      const res = await fetch(`/api/appointments/${id}/reschedule-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action, ...extras }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Action failed');
+      alert(data.message || 'Done');
+      await trkLoadBooking(id);
+      renderScheduleList();
+    } catch (e) {
+      alert(e.message || 'Failed to process action');
+    }
+  }
+
+  window.trkRescheduleAction = async function (id, action) {
+    if (action === 'cancel') {
+      const reason = prompt('Please provide a reason for cancellation:');
+      if (reason === null) return;
+      if (!reason.trim()) { alert('Please provide a reason.'); return; }
+      if (!confirm('Are you sure you want to cancel this booking? Any downpayment will be refunded.')) return;
+      await trkSubmitRescheduleAction(id, 'cancel', { reason });
+      return;
+    }
+    if (action === 'accept') {
+      if (!confirm('Accept the proposed rescheduled date and time?')) return;
+      await trkSubmitRescheduleAction(id, 'accept');
+      return;
+    }
+  };
+
+  let trkRescheduleTargetId = null;
+  let trkRescheduleSelectedDate = null;
+  let trkRescheduleSelectedTime = null;
+  const trkRescheduleReasonInput = document.getElementById('trkRescheduleReason');
+
+  window.trkRequestNewSchedule = async function (id) {
+    const b = bookings.find((x) => String(x._id || x.id) === String(id));
+    if (!b) return;
+    trkRescheduleTargetId = id;
+    trkRescheduleSelectedDate = null;
+    trkRescheduleSelectedTime = null;
+
+    document.getElementById('trkRescheduleServiceName').textContent = getServiceName(b);
+    document.getElementById('trkRescheduleLoading').classList.remove('d-none');
+    document.getElementById('trkRescheduleError').classList.add('d-none');
+    document.getElementById('trkRescheduleCalendarContent').classList.add('d-none');
+    document.getElementById('trkRescheduleSelection').classList.add('d-none');
+    if (trkRescheduleReasonInput) trkRescheduleReasonInput.value = '';
+    document.getElementById('trkRescheduleSubmit').disabled = true;
+
+    const modal = new bootstrap.Modal(document.getElementById('trkRescheduleModal'));
+    modal.show();
+
+    try {
+      if (typeof EnterpriseCalendar === 'undefined') throw new Error('Calendar module not loaded');
+      const serviceId = (b.serviceId && (b.serviceId._id || b.serviceId)) || (b.service && b.service._id) || null;
+      await EnterpriseCalendar.init({
+        serviceId,
+        duration: Number(b.serviceDurationMinutes) || 90,
+        quantity: Number(b.quantity) || 1,
+        onSelect: ({ date, slot }) => {
+          if (!date || !slot) return;
+          trkRescheduleSelectedDate = EnterpriseCalendar.formatDateKey(date);
+          trkRescheduleSelectedTime = slot.startTime || slot.label;
+          const selBox = document.getElementById('trkRescheduleSelection');
+          const selText = document.getElementById('trkRescheduleSelectionText');
+          selBox.classList.remove('d-none');
+          const dObj = new Date(trkRescheduleSelectedDate + 'T00:00:00');
+          selText.innerHTML = `<strong>Date:</strong> ${dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}<br><strong>Time:</strong> ${trkRescheduleSelectedTime}`;
+          document.getElementById('trkRescheduleSubmit').disabled = false;
+        }
+      });
+      document.getElementById('trkRescheduleLoading').classList.add('d-none');
+      document.getElementById('trkRescheduleCalendarContent').classList.remove('d-none');
+    } catch (err) {
+      console.error(err);
+      document.getElementById('trkRescheduleLoading').classList.add('d-none');
+      const errBox = document.getElementById('trkRescheduleError');
+      errBox.textContent = 'Could not load available slots. Please try again.';
+      errBox.classList.remove('d-none');
+    }
+  };
+
+  if (trkRescheduleReasonInput) {
+    trkRescheduleReasonInput.addEventListener('input', () => {
+      document.getElementById('trkRescheduleSubmit').disabled = !(trkRescheduleSelectedDate && trkRescheduleSelectedTime);
+    });
+  }
+
+  document.getElementById('trkRescheduleSubmit').addEventListener('click', async function () {
+    if (!trkRescheduleTargetId || !trkRescheduleSelectedDate || !trkRescheduleSelectedTime) return;
+    const reason = trkRescheduleReasonInput ? trkRescheduleReasonInput.value.trim() : '';
+    const btn = document.getElementById('trkRescheduleSubmit');
+    btn.disabled = true;
+    const prevHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
+    try {
+      await trkSubmitRescheduleAction(trkRescheduleTargetId, 'request_new', {
+        requestedDate: trkRescheduleSelectedDate,
+        requestedTime: trkRescheduleSelectedTime,
+        reason
+      });
+      const modal = bootstrap.Modal.getInstance(document.getElementById('trkRescheduleModal'));
+      if (modal) modal.hide();
+    } catch (_) { /* trkSubmitRescheduleAction already alerts */ } finally {
+      btn.disabled = false;
+      btn.innerHTML = prevHtml;
+    }
+  });
 
   async function trkLoadBooking(id) {
     // Show a loading state in the detail view
@@ -1847,7 +2204,7 @@
     const address = getCustomerAddressFromBooking(b) || 'No address provided';
     const techName = getTechnicianName(b);
     const hasTech = getTechnicianId(b);
-    const isRepair = String(b.serviceType || '').toLowerCase() === 'repair' || (b.service && (b.service.name || '').toLowerCase().includes('repair')) || (b.issueDescription || b.repairIssues);
+    const isRepair = b.serviceModel === 'RepairService' || String(b.serviceType || '').toLowerCase() === 'repair' || (b.service && (b.service.name || '').toLowerCase().includes('repair')) || Boolean(b.issueDescription || b.repairIssues);
 
     // Payment summary — composed of service fee + travel fee.
     // `totalPrice` already INCLUDES travelFare, so derive the service fee as
@@ -1865,25 +2222,116 @@
     const payments = Array.isArray(b.payments) ? b.payments : [];
     const dpCounted = payments.some(p => String(p.type || '').toLowerCase() === 'downpayment' && ['', 'paid', 'succeeded', 'completed', 'verified'].includes(String(p.status || '').toLowerCase()));
     let paid = Number(b.amountPaid != null ? b.amountPaid : 0);
-    if (downpayment > 0 && !dpCounted) paid += downpayment;
+    if (!b.isProject && downpayment > 0 && !dpCounted) paid += downpayment;
     const balance = Math.max(0, total - paid);
     const payMethod = (b.paymentMethod || '—').replace(/_/g, ' ');
     const isFullyPaid = balance <= 0;
     const showPayment = total > 0;
+    const quantity = Number(b.quantity)
+      || (Array.isArray(b.services) ? b.services.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0) : 0)
+      || 1;
+    const unitWord = quantity === 1 ? 'unit' : 'units';
+    const applianceType = b.applianceTypeName || b.applianceType || (Array.isArray(b.services) && b.services[0]?.applianceTypeName) || '—';
+    const brand = b.brand || (Array.isArray(b.services) && b.services[0]?.brand) || '—';
+    const hp = b.hpDescription || (b.hp ? `${b.hp} HP` : '') || (b.unitInfo && b.unitInfo.hpDescription) || (b.unitInfo && b.unitInfo.hp ? `${b.unitInfo.hp} HP` : '') || (Array.isArray(b.services) && b.services[0]?.hpDescription) || (Array.isArray(b.services) && b.services[0]?.hp ? `${b.services[0].hp} HP` : '') || '—';
+
+    const isProposed = b.status === 're-scheduled' && b.proposedReschedule && b.proposedReschedule.status === 'pending';
+    const isProposedPassed = isProposed && trkIsProposedDateTimePassed(b.proposedReschedule);
 
     bookingTextEl.innerHTML = `
+      ${isProposed ? `
+      <div class="trk-card trk-reschedule-card mb-3" style="border-left:4px solid #2563eb; background:#f0f7ff;">
+        <div class="trk-card-header" style="border-bottom:1px solid #bfdbfe;">
+          <h6 class="trk-card-title"><i class="bi bi-calendar-check" style="color:#2563eb;"></i> Proposed Reschedule</h6>
+          <span class="badge bg-info text-dark">Review Required</span>
+        </div>
+        <div class="trk-card-body">
+          <div class="trk-detail-row">
+            <div class="trk-detail-icon" style="background:#dbeafe; color:#2563eb;"><i class="bi bi-calendar"></i></div>
+            <div class="trk-detail-content">
+              <div class="trk-detail-label">New Date</div>
+              <div class="trk-detail-value">${formatDate(b.proposedReschedule.date)}</div>
+            </div>
+          </div>
+          <div class="trk-detail-row">
+            <div class="trk-detail-icon" style="background:#dbeafe; color:#2563eb;"><i class="bi bi-clock"></i></div>
+            <div class="trk-detail-content">
+              <div class="trk-detail-label">New Time</div>
+              <div class="trk-detail-value">${formatTime(b.proposedReschedule.time)}</div>
+            </div>
+          </div>
+          <div class="trk-detail-row">
+            <div class="trk-detail-icon" style="background:#dbeafe; color:#2563eb;"><i class="bi bi-person"></i></div>
+            <div class="trk-detail-content">
+              <div class="trk-detail-label">Proposed Technician</div>
+              <div class="trk-detail-value">${b.proposedReschedule.technicianName || 'To be assigned'}</div>
+            </div>
+          </div>
+          ${isProposedPassed ? `<div class="alert alert-danger small py-2 mt-2 mb-2"><i class="bi bi-exclamation-circle me-1"></i>This proposed schedule has already passed. Please request a new schedule.</div>` : ''}
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-sm btn-success" onclick="window.trkRescheduleAction('${b._id || b.id}', 'accept')" ${isProposedPassed ? 'disabled' : ''}><i class="bi bi-check-circle me-1"></i>Accept Schedule</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="window.trkRequestNewSchedule('${b._id || b.id}')"><i class="bi bi-calendar-event me-1"></i>Request New</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="window.trkRescheduleAction('${b._id || b.id}', 'cancel')"><i class="bi bi-x-circle me-1"></i>Cancel Booking</button>
+          </div>
+        </div>
+      </div>` : ''}
+
       <div class="trk-detail-hero">
         <div class="trk-detail-hero-icon"><i class="bi bi-${isRepair ? 'wrench' : 'tools'}"></i></div>
         <div class="trk-detail-hero-text">
-          <div class="trk-detail-hero-title">${getServiceName(b)}</div>
-          <div class="trk-detail-hero-sub">${isRepair ? 'Repair Service' : 'Core Service'} • Booking #${String(b._id || b.id || '').slice(-6).toUpperCase()}</div>
+          <div class="trk-detail-hero-title">${b.isProject ? 'LARGE-SCALE PROJECT' : (isRepair ? 'REPAIR SERVICE' : getServiceName(b))}</div>
+          <div class="trk-detail-hero-sub">${b.isProject ? 'Project' : 'Booking'} #${String(b.projectId || b._id || b.id || '').slice(-6).toUpperCase()} • ${b.isProject ? projectPhaseLabel(b) : status.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+        </div>
+      </div>
+      ${b.isProject ? (() => {
+        const project = b.project || {};
+        const projectTotal = Number(project.totalUnits || quantity || 0);
+        const projectDone = Number(project.completedUnits || b.completedUnits || 0);
+        const projectLeft = Math.max(0, Number(project.remainingUnits ?? (projectTotal - projectDone)));
+        const projectPct = Math.max(0, Math.min(100, Number(project.completionPct || (projectTotal ? Math.round(projectDone / projectTotal * 100) : 0))));
+        const leadId = String(project.leadTechnicianId || '');
+        const team = Array.isArray(project.team) ? project.team : [];
+        return `<div style="border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:.85rem;margin-bottom:.85rem;">
+          <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start;margin-bottom:.65rem;">
+            <div><div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:700;">Project schedule</div><div style="font-size:.8rem;font-weight:800;color:#0f172a;margin-top:2px;">${projectScheduleLabel(b)}</div></div>
+            <span class="trk-status-pill ${statusBadgeClass(status)}">${projectPhaseLabel(b)}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;text-align:center;margin-bottom:.6rem;">
+            <div style="background:#fff;border-radius:8px;padding:.5rem;"><div style="font-size:.58rem;color:#64748b;text-transform:uppercase;">Total</div><strong>${projectTotal}</strong></div>
+            <div style="background:#fff;border-radius:8px;padding:.5rem;"><div style="font-size:.58rem;color:#64748b;text-transform:uppercase;">Completed</div><strong style="color:#15803d;">${projectDone}</strong></div>
+            <div style="background:#fff;border-radius:8px;padding:.5rem;"><div style="font-size:.58rem;color:#64748b;text-transform:uppercase;">Remaining</div><strong>${projectLeft}</strong></div>
+          </div>
+          <div style="height:8px;background:#dbeafe;border-radius:999px;overflow:hidden;"><div style="height:100%;width:${projectPct}%;background:#2563eb;border-radius:inherit;"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:.62rem;color:#64748b;margin-top:.25rem;"><span>Overall completion</span><strong>${projectPct}%</strong></div>
+          ${team.length ? `<div style="margin-top:.7rem;padding-top:.6rem;border-top:1px solid #bfdbfe;"><div style="font-size:.62rem;font-weight:750;color:#475569;margin-bottom:.35rem;">Assigned project team (${team.length})</div><div style="display:flex;flex-wrap:wrap;gap:.35rem;">${team.map(member => `<span style="background:#fff;border:1px solid #dbeafe;border-radius:999px;padding:.25rem .5rem;font-size:.62rem;color:#334155;"><i class="bi bi-person me-1"></i>${escHtml(member.name || 'Technician')}${String(member._id) === leadId ? ' · Lead' : ''}</span>`).join('')}</div></div>` : '<div style="font-size:.65rem;color:#64748b;margin-top:.55rem;">Project team assignment is still being finalized.</div>'}
+        </div>`;
+      })() : ''}
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon" style="background:#fff7ed;color:#c2410c;"><i class="bi bi-person"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Customer</div>
+          <div class="trk-detail-value">${b.customer?.name || b.customerName || '—'}</div>
+        </div>
+      </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-telephone"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Phone</div>
+          <div class="trk-detail-value">${b.customer?.phone || b.customerPhone || '—'}</div>
+        </div>
+      </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-envelope"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Email</div>
+          <div class="trk-detail-value">${b.customer?.email || b.customerEmail || '—'}</div>
         </div>
       </div>
       <div class="trk-detail-row">
         <div class="trk-detail-icon"><i class="bi bi-calendar3"></i></div>
         <div class="trk-detail-content">
-          <div class="trk-detail-label">Date & Time</div>
-          <div class="trk-detail-value">${formatDate(b.bookingDate)} at ${formatTime(b.startTime)}</div>
+          <div class="trk-detail-label">${b.isProject ? 'Project Schedule' : 'Date & Time'}</div>
+          <div class="trk-detail-value">${b.isProject ? projectScheduleLabel(b) : `${formatDate(b.bookingDate)} at ${formatTime(b.startTime)}`}</div>
         </div>
       </div>
       <div class="trk-detail-row">
@@ -1893,6 +2341,28 @@
           <div class="trk-detail-value">${address}</div>
         </div>
       </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon" style="background:#fff7ed;color:#c2410c;"><i class="bi bi-flag"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Priority</div>
+          <div class="trk-detail-value">${(b.priority || 'normal').toString().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+        </div>
+      </div>
+      ${!isRepair ? `
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon"><i class="bi bi-layers"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Quantity</div>
+          <div class="trk-detail-value">${quantity} ${unitWord}</div>
+        </div>
+      </div>
+      <div class="trk-detail-row">
+        <div class="trk-detail-icon"><i class="bi bi-box-seam"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Unit Details</div>
+          <div class="trk-detail-value">${applianceType} • ${brand} • ${hp}</div>
+        </div>
+      </div>
       ${hasTech ? `
       <div class="trk-detail-row">
         <div class="trk-detail-icon"><i class="bi bi-person-badge"></i></div>
@@ -1900,20 +2370,29 @@
           <div class="trk-detail-label">Assigned Technician</div>
           <div class="trk-detail-value">${techName}${b.technicianPhone ? ` <a href="tel:${b.technicianPhone}" class="trk-tech-call" title="Call technician"><i class="bi bi-telephone-fill"></i></a>` : ''}</div>
         </div>
-      </div>` : ''}
+      </div>` : ''}` : ''}
       ${showPayment ? `
       <div class="trk-payment-summary">
-        ${serviceFee > 0 ? `<div class="trk-payment-line"><span>Service Fee</span><span>₱${serviceFee.toLocaleString()}</span></div>` : ''}
-        ${travelFee > 0 ? `<div class="trk-payment-line"><span>Travel Fee</span><span>₱${travelFee.toLocaleString()}</span></div>` : ''}
-        <div class="trk-payment-line trk-payment-total"><span>Total Service Fee</span><span>₱${total.toLocaleString()}</span></div>
-        ${downpayment > 0 ? `<div class="trk-payment-line"><span>Downpayment Paid</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
-        <div class="trk-payment-line"><span>Amount Paid</span><span>₱${paid.toLocaleString()}</span></div>
+        ${isRepair ? `
+        <div class="trk-payment-line trk-payment-total"><span>Total</span><span>₱${total.toLocaleString()}</span></div>
+        ${downpayment > 0 ? `<div class="trk-payment-line"><span>Downpayment</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
+        <div class="trk-payment-line"><span>Paid</span><span>₱${paid.toLocaleString()}</span></div>
+        <div class="trk-payment-line"><span>Payment Method</span><span>${payMethod.toUpperCase()}</span></div>
+        ${!isFullyPaid ? `<div class="trk-payment-line due"><span>Balance Due</span><span>₱${balance.toLocaleString()}</span></div>` : ''}
+        ${isFullyPaid ? `<div class="trk-payment-line ok"><span>Status</span><span>Fully Paid</span></div>` : ''}
+        ` : `
+        ${serviceFee > 0 ? `<div class="trk-payment-line"><span>${b.isProject ? 'Project Service Charge' : 'Service Fee'}</span><span>₱${serviceFee.toLocaleString()}</span></div>` : ''}
+        ${travelFee > 0 ? `<div class="trk-payment-line"><span>${b.isProject ? `Travel (${Number(b.project?.pricing?.travelFarePerDay || travelFee).toLocaleString()} × ${Number(b.project?.pricing?.daysWorked || 1)} productive day${Number(b.project?.pricing?.daysWorked || 1) === 1 ? '' : 's'})` : 'Travel Fee'}</span><span>₱${travelFee.toLocaleString()}</span></div>` : ''}
+        <div class="trk-payment-line trk-payment-total"><span>${b.isProject ? 'Project Total' : 'Total Service Fee'}</span><span>₱${total.toLocaleString()}</span></div>
+        ${!b.isProject && downpayment > 0 ? `<div class="trk-payment-line"><span>Downpayment Paid</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
+        <div class="trk-payment-line"><span>${b.isProject ? 'Already Paid' : 'Amount Paid'}</span><span>₱${paid.toLocaleString()}</span></div>
         ${isFullyPaid ? `
         <div class="trk-payment-line ok"><span>Status</span><span>Fully Paid</span></div>
         <div class="trk-payment-meta"><i class="bi bi-credit-card"></i> Paid via ${payMethod}</div>
         ` : `
         <div class="trk-payment-line due"><span>Balance Due</span><span>₱${balance.toLocaleString()}</span></div>
         <div class="trk-payment-meta"><i class="bi bi-credit-card"></i> ${payMethod} • Pay the remaining balance onsite</div>
+        `}
         `}
       </div>` : ''}
       ${isRepair ? renderRepairDetails(b) : ''}
@@ -1927,6 +2406,7 @@
       document.getElementById('trkTechCard').style.display = 'none';
     }
 
+    renderLifecycleStepper(status, b);
     // Live work progress (checklist + activity timeline)
     renderWorkProgress(b, status);
     renderRatingSection(b, status);
@@ -2000,29 +2480,41 @@
   // ── Service Progress Timeline ────────────────────────────────────────
   const STEPS_ORDER = ['confirmed', 'on-the-way', 'arrived', 'in-progress', 'completed'];
 
-  function renderLifecycleStepper(status) {
+  function renderLifecycleStepper(status, booking) {
     const panel = document.getElementById('trkLifecycle');
+    const title = document.getElementById('trkLifecycleTitle');
     if (!status || status === 'pending' || status === 'cancelled' || status === 're-scheduled') {
       panel.style.display = 'none';
       return;
     }
     panel.style.display = '';
 
-    // Status label
+    // Title and status label
+    const titleIcon = '<i class="bi bi-diagram-3"></i>';
+    title.innerHTML = booking?.isProject
+      ? `${titleIcon} Project Progress`
+      : `${titleIcon} Service Progress`;
     const statusPill = document.getElementById('trkLifecycleStatus');
-    statusPill.textContent = status.replace(/-/g, ' ');
+    statusPill.textContent = booking?.isProject ? projectPhaseLabel(booking) : status.replace(/-/g, ' ');
     statusPill.className = 'trk-status-pill ' + statusBadgeClass(status);
 
     // Render timeline
-    renderTimeline(status);
+    renderTimeline(status, booking);
   }
 
-  function renderTimeline(status) {
-    const selected = getSelectedBooking();
+  function renderTimeline(status, booking) {
+    const selected = booking || getSelectedBooking();
     if (!selected) return;
     const timeline = document.getElementById('trkTimeline');
 
-    const timelineSteps = [
+    const timelineSteps = selected.isProject ? [
+      { key: 'confirmed', icon: 'bi-clipboard-check', label: 'Accepted' },
+      { key: 'scheduled', icon: 'bi-calendar-range', label: 'Planned' },
+      { key: 'on-the-way', icon: 'bi-truck', label: 'Mobilized' },
+      { key: 'arrived', icon: 'bi-pin-map', label: 'Onsite' },
+      { key: 'in-progress', icon: 'bi-tools', label: 'Execution' },
+      { key: 'completed', icon: 'bi-check-circle', label: 'Completed' },
+    ] : [
       { key: 'confirmed', icon: 'bi-check-lg', label: 'Confirmed' },
       { key: 'assigned', icon: 'bi-person-check', label: 'Assigned' },
       { key: 'on-the-way', icon: 'bi-geo-alt', label: 'En Route' },
@@ -2064,52 +2556,66 @@
   }
 
   function renderRepairDetails(b) {
-    const blocks = [];
-    const insp = b.inspection;
-    if (insp && (insp.findings || insp.completedAt)) {
-      blocks.push(`
-        <div class="trk-detail-subsection">
-          <div class="trk-detail-subhead"><i class="bi bi-clipboard-check"></i> Inspection</div>
-          ${insp.findings ? `<div class="trk-detail-subtext">${escHtml(insp.findings)}</div>` : ''}
-          ${insp.severity ? `<div class="trk-detail-subtext"><strong>Severity:</strong> ${escHtml(insp.severity)}</div>` : ''}
-        </div>`);
-    }
-    const diag = b.diagnosis;
-    if (diag && (diag.findings || diag.recommendedAction)) {
-      blocks.push(`
-        <div class="trk-detail-subsection">
-          <div class="trk-detail-subhead"><i class="bi bi-stethoscope"></i> Diagnosis</div>
-          ${diag.findings ? `<div class="trk-detail-subtext">${escHtml(diag.findings)}</div>` : ''}
-          ${diag.recommendedAction ? `<div class="trk-detail-subtext"><strong>Recommended Action:</strong> ${escHtml(diag.recommendedAction)}</div>` : ''}
-        </div>`);
-    }
-    const q = b.quotation;
-    if (q && (q.parts && q.parts.length || q.laborCost || q.totalCost)) {
-      const partsHtml = (q.parts || []).map(p =>
-        `<div class="trk-quote-part"><span>${escHtml(p.name || 'Part')} ×${p.quantity || 1}</span><span>₱${Number(p.cost || 0).toLocaleString()}</span></div>`
-      ).join('');
-      blocks.push(`
-        <div class="trk-detail-subsection">
-          <div class="trk-detail-subhead"><i class="bi bi-receipt"></i> Quotation</div>
+    const unit = b.applianceTypeName || b.applianceType || b.unitInfo?.unitType || '—';
+    const brand = b.unitInfo?.brand || b.brand || '—';
+    const model = b.unitInfo?.model || '—';
+    const problem = b.issueDescription || b.unitInfo?.problemDescription || '—';
+
+    const findings = b.inspection?.findings || b.diagnosis?.findings || '';
+    const actions = Array.isArray(b.inspection?.actionsChecklist) ? b.inspection.actionsChecklist.filter(Boolean) : [];
+    const recText = b.inspection?.recommendedAction || b.diagnosis?.diagnosisSummary || '';
+    const recommendations = actions.length ? actions : (recText.trim() ? [recText.trim()] : []);
+    const recHtml = recommendations.length ? `<ul class="trk-repair-list" style="margin:0;padding-left:1.1rem;">${recommendations.map(r => `<li>${escHtml(r)}</li>`).join('')}</ul>` : '';
+
+    const quote = b.quotation || {};
+    const parts = (quote.parts || b.diagnosis?.requiredParts || []).filter(p => p);
+    const labor = Number(quote.laborCost || b.diagnosis?.laborCost || 0);
+    const quoteTotal = Number(quote.totalCost || b.totalPrice || 0);
+    const partsHtml = parts.length ? `<div class="trk-detail-subtext"><strong>Parts:</strong><ul class="trk-repair-list" style="margin:0;padding-left:1.1rem;">${parts.map(p => `<li>${escHtml(p.name || 'Part')} × ${p.quantity || 1} — ₱${Number(p.cost || 0).toLocaleString()}</li>`).join('')}</ul></div>` : '';
+
+    const diagHtml = (findings || recommendations.length) ? `
+      <div class="trk-detail-row" style="margin-top:0.75rem;">
+        <div class="trk-detail-icon" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-clipboard-pulse"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Diagnostic</div>
+          ${findings ? `<div class="trk-detail-subtext" style="white-space:pre-line;"><strong>Findings:</strong> ${escHtml(findings)}</div>` : ''}
+          ${recommendations.length ? `<div class="trk-detail-subtext"><strong>Recommended Action:</strong> ${recHtml}</div>` : ''}
+        </div>
+      </div>` : '';
+
+    const quoteHtml = (parts.length || labor > 0 || quoteTotal > 0) ? `
+      <div class="trk-detail-row" style="margin-top:0.75rem;">
+        <div class="trk-detail-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-receipt"></i></div>
+        <div class="trk-detail-content">
+          <div class="trk-detail-label">Quotation</div>
           ${partsHtml}
-          ${q.laborCost ? `<div class="trk-quote-part"><span>Labor</span><span>₱${Number(q.laborCost).toLocaleString()}</span></div>` : ''}
-          ${q.totalCost ? `<div class="trk-quote-total"><span>Total</span><span>₱${Number(q.totalCost).toLocaleString()}</span></div>` : ''}
-        </div>`);
-    }
-    const rc = b.repairCompletion;
-    if (rc && (rc.completedAt || rc.partsInstalled || rc.completionNotes)) {
-      const partsHtml = (rc.partsInstalled || []).map(p =>
-        `<div class="trk-quote-part"><span>${escHtml(p.name || 'Part')} ×${p.quantity || 1}</span><span>₱${Number(p.cost || p.unitPrice || 0).toLocaleString()}</span></div>`
-      ).join('');
-      blocks.push(`
-        <div class="trk-detail-subsection">
-          <div class="trk-detail-subhead"><i class="bi bi-tools"></i> Repair Completion</div>
-          ${partsHtml}
-          ${rc.completionNotes ? `<div class="trk-detail-subtext">${escHtml(rc.completionNotes)}</div>` : ''}
-          ${b.proofPhoto ? `<a href="${b.proofPhoto}" target="_blank" class="trk-proof-link"><i class="bi bi-camera-fill"></i> View completion photo</a>` : ''}
-        </div>`);
-    }
-    return blocks.length ? `<div class="trk-repair-details">${blocks.join('')}</div>` : '';
+          ${labor > 0 ? `<div class="trk-detail-subtext"><strong>Labor:</strong> ₱${labor.toLocaleString()}</div>` : ''}
+          ${quoteTotal > 0 ? `<div class="trk-detail-subtext"><strong>Quotation Total:</strong> ₱${quoteTotal.toLocaleString()}</div>` : ''}
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="trk-repair-details">
+        <div class="trk-detail-subhead"><i class="bi bi-wrench me-2"></i>Unit & Repair Details</div>
+        <div class="trk-detail-row">
+          <div class="trk-detail-icon" style="background:#eff6ff;color:#1d4ed8;"><i class="bi bi-layers"></i></div>
+          <div class="trk-detail-content"><div class="trk-detail-label">Unit</div><div class="trk-detail-value">${escHtml(unit)}</div></div>
+        </div>
+        <div class="trk-detail-row">
+          <div class="trk-detail-icon" style="background:#fff7ed;color:#c2410c;"><i class="bi bi-tag"></i></div>
+          <div class="trk-detail-content"><div class="trk-detail-label">Brand</div><div class="trk-detail-value">${escHtml(brand)}</div></div>
+        </div>
+        <div class="trk-detail-row">
+          <div class="trk-detail-icon" style="background:#f5f3ff;color:#7c3aed;"><i class="bi bi-upc-scan"></i></div>
+          <div class="trk-detail-content"><div class="trk-detail-label">Model</div><div class="trk-detail-value">${escHtml(model)}</div></div>
+        </div>
+        <div class="trk-detail-row">
+          <div class="trk-detail-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-exclamation-triangle"></i></div>
+          <div class="trk-detail-content"><div class="trk-detail-label">Problem</div><div class="trk-detail-value">${escHtml(problem)}</div></div>
+        </div>
+        ${diagHtml}
+        ${quoteHtml}
+      </div>`;
   }
 
   // ── Live Work Progress (technician task tracking) ──────────────────
@@ -2120,6 +2626,15 @@
     { key: 'arrived', label: 'Arrived Onsite', icon: 'bi-pin-map', desc: 'Technician has arrived and is assessing the unit.' },
     { key: 'in-progress', label: 'Service In Progress', icon: 'bi-gear', desc: 'Work is being performed on your unit.' },
     { key: 'completed', label: 'Service Completed', icon: 'bi-check-circle', desc: 'Job finished. Thank you!' },
+  ];
+
+  const PROJECT_WORK_TASKS = [
+    { key: 'confirmed', label: 'Project Accepted', icon: 'bi-clipboard-check', desc: 'The large-scale booking was accepted for project planning.' },
+    { key: 'scheduled', label: 'Schedule & Team Planned', icon: 'bi-calendar-range', desc: 'Work dates, batches and the project crew are being coordinated.' },
+    { key: 'on-the-way', label: 'Crew Mobilized', icon: 'bi-truck', desc: 'The project lead has mobilized the assigned crew.' },
+    { key: 'arrived', label: 'Crew Onsite', icon: 'bi-pin-map', desc: 'The project team is onsite and preparing the work area.' },
+    { key: 'in-progress', label: 'Project Execution', icon: 'bi-tools', desc: 'Units are being completed across the project schedule.' },
+    { key: 'completed', label: 'Project Completed', icon: 'bi-check-circle', desc: 'All project units and completion requirements are finished.' },
   ];
 
   const STATUS_ACTION_TEXT = {
@@ -2147,34 +2662,11 @@
     }
     panel.style.display = '';
 
-    // Current action banner
-    const act = STATUS_ACTION_TEXT[status];
-    if (act) {
-      curAction.style.display = '';
-      curTitle.textContent = act.t;
-      curSub.textContent = act.s;
-      liveTag.style.display = isLive ? '' : 'none';
-      curAction.classList.toggle('live', isLive);
-    } else {
-      curAction.style.display = 'none';
-      liveTag.style.display = 'none';
-    }
-
-    // Task checklist
-    const statusIdx = WORK_TASKS.findIndex(t => t.key === status);
-    taskList.innerHTML = WORK_TASKS.map((t, i) => {
-      let cls = '';
-      if (i < statusIdx) cls = 'done';
-      else if (i === statusIdx) cls = 'active';
-      const icon = i < statusIdx ? 'bi-check-lg' : (i === statusIdx && isLive ? 'bi-arrow-repeat' : t.icon.replace('bi-', 'bi-'));
-      return `<div class="trk-task ${cls}">
-        <div class="trk-task-dot"><i class="bi ${icon}"></i></div>
-        <div class="trk-task-body">
-          <div class="trk-task-label">${t.label}</div>
-          <div class="trk-task-desc">${t.desc}</div>
-        </div>
-      </div>`;
-    }).join('');
+    // Hide the live action banner and task checklist so this card is a
+    // historical activity timeline, not a duplicate progress tracker.
+    curAction.style.display = 'none';
+    if (liveTag) liveTag.style.display = 'none';
+    taskList.style.display = 'none';
 
     // ── Rich activity / service history ──────────────────────────────
     // Always show as a history: build from statusHistory plus derived
@@ -2182,7 +2674,9 @@
     const events = [];
 
     const pushEvent = (key, label, icon, ts, opts) => {
-      events.push(Object.assign({ key, label, icon, ts: ts ? new Date(ts) : null }, opts || {}));
+      const d = ts ? new Date(ts) : null;
+      const valid = d && !isNaN(d.getTime());
+      events.push(Object.assign({ key, label, icon, ts: valid ? d : null }, opts || {}));
     };
 
     // Status transitions from statusHistory
@@ -2207,7 +2701,10 @@
     history.forEach(h => {
       const to = h.toStatus || '';
       if (!to) return;
-      pushEvent(to, statusLabelMap[to] || (to.replace(/-/g, ' ')), statusIconMap[to] || 'bi-circle', h.timestamp, {
+      // Filter out internal/financial technician statuses that customers shouldn't see.
+      const label = statusLabelMap[to];
+      if (!label) return;
+      pushEvent(to, label, statusIconMap[to] || 'bi-circle', h.timestamp, {
         note: h.notes || '',
         by: h.changedByName || ''
       });
@@ -2225,9 +2722,6 @@
       pushEvent('service-ended', 'Service ended', 'bi-check-circle', rep.completedAt, {
         note: rep.notes ? escHtml(rep.notes) : ''
       });
-    }
-    if (b.endTime) {
-      pushEvent('service-ended', 'Service ended', 'bi-check-circle', b.endTime);
     }
     if (b.proofPhoto) {
       pushEvent('proof', 'Proof of service uploaded', 'bi-image', null);
@@ -2397,7 +2891,7 @@
     const num = Number(value);
     if (!Number.isNaN(num) && Number.isFinite(num)) return num;
     const str = String(value).trim();
-    const m = str.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    const m = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*(AM|PM))?$/i);
     if (!m) return NaN;
     let hh = Number(m[1]);
     const mm = Number(m[2]);
@@ -2410,20 +2904,68 @@
     return hh * 60 + mm;
   }
 
+  function formatTimeCompact(d) {
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    const mm = m ? `:${m.toString().padStart(2, '0')}` : '';
+    return `${h}${mm}${ampm}`;
+  }
+
   function bookingToEvent(b) {
     if (!b || !b.bookingDate) return null;
     const base = new Date(b.bookingDate);
     if (Number.isNaN(base.getTime())) return null;
+    if (b.isProject) {
+      const project = b.project || {};
+      const projectEnd = new Date(project.scheduleEnd || b.projectEndDate || b.bookingDate);
+      const endExclusive = Number.isNaN(projectEnd.getTime()) ? new Date(base) : new Date(projectEnd);
+      endExclusive.setHours(0, 0, 0, 0);
+      endExclusive.setDate(endExclusive.getDate() + 1);
+      const projectStart = new Date(base);
+      projectStart.setHours(0, 0, 0, 0);
+      const total = Number(project.totalUnits || b.quantity || 0);
+      const done = Number(project.completedUnits || b.completedUnits || 0);
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      return {
+        id: String(b._id || b.id || b.projectId),
+        title: `${getServiceName(b)} · Large-Scale Project`,
+        start: projectStart.toISOString(),
+        end: endExclusive.toISOString(),
+        allDay: true,
+        color: '#7c3aed',
+        textColor: '#fff',
+        className: 'trk-event-project',
+        extendedProps: {
+          isProject: true,
+          serviceName: getServiceName(b),
+          phase: projectPhaseLabel(b),
+          scheduleLabel: projectScheduleLabel(b),
+          completedUnits: done,
+          totalUnits: total,
+          completionPct: pct,
+          technician: getTechnicianName(b),
+        },
+      };
+    }
     const minutes = parseStartMinutes(b.startTime);
     if (!Number.isFinite(minutes) || minutes < 0 || minutes >= 24 * 60) return null;
     const start = new Date(base);
     start.setHours(0, 0, 0, 0);
     start.setMinutes(minutes);
     if (Number.isNaN(start.getTime())) return null;
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const multiDuration = Array.isArray(b.services)
+      ? b.services.reduce((sum, s) => sum + (Number(s.duration) || 0), 0)
+      : 0;
+    const durationMinutes =
+      Number(b.serviceDurationMinutes) || multiDuration || Number(b.duration) || 60;
+    const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+    const tech = getTechnicianName(b);
+    const title = tech === '—' ? getServiceName(b) : `${getServiceName(b)} • ${tech}`;
     return {
       id: String(b._id || b.id || `${b.bookingDate}-${minutes}`),
-      title: `${getServiceName(b)} • ${getTechnicianName(b)}`,
+      title: title,
       start: start.toISOString(),
       end: end.toISOString(),
       allDay: false,
@@ -2432,14 +2974,14 @@
 
   const calendarEl = document.getElementById("trackCalendar");
   const calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: "dayGridMonth",
+    initialView: window.innerWidth < 768 ? "listWeek" : "dayGridMonth",
     headerToolbar: {
       left: "title",
       center: "",
       right: "prev,next timeGridWeek,dayGridMonth"
     },
     height: "auto",
-    contentHeight: 440,
+    contentHeight: 600,
     nowIndicator: true,
     events: bookings.map(bookingToEvent).filter(Boolean),
     eventColor: "#2563eb",
@@ -2452,14 +2994,52 @@
         slotMaxTime: "22:00:00",
         slotDuration: "00:30:00",
         slotLabelFormat: { hour: 'numeric', minute: '2-digit', hour12: true },
+        slotEventOverlap: false,
+        eventMaxStack: 4,
+      },
+      listWeek: {
+        listDayFormat: { weekday: 'short', month: 'short', day: 'numeric' },
+        listDaySideFormat: { weekday: 'short' },
       },
     },
     eventContent: function(arg) {
-      const timeText = arg.timeText || "";
+      const props = arg.event.extendedProps || {};
+      if (props.isProject) {
+        const pct = Math.max(0, Math.min(100, Number(props.completionPct) || 0));
+        const isCompact = arg.view.type === 'timeGridWeek' || arg.view.type === 'timeGridDay';
+        const meta = isCompact
+          ? `${escHtml(props.phase)} · ${props.completedUnits}/${props.totalUnits}`
+          : `${escHtml(props.scheduleLabel)} · ${escHtml(props.phase)} · ${props.completedUnits}/${props.totalUnits} units`;
+        return { html: `
+          <div class="trk-event-project-inner ${isCompact ? 'compact' : ''}">
+            <div class="trk-event-project-top">
+              <i class="bi bi-people-fill"></i>
+              <span class="trk-event-project-title">${escHtml(props.serviceName)}</span>
+              <span class="trk-event-project-pill">Large-Scale</span>
+            </div>
+            ${!isCompact ? `<div class="trk-event-project-meta">${meta}</div>` : `<div class="trk-event-project-meta" style="margin-bottom:0">${meta}</div>`}
+            <div class="trk-event-project-progress"><div style="width:${pct}%"></div></div>
+          </div>
+        ` };
+      }
+      const start = arg.event.start;
+      const end = arg.event.end;
+      let timeText = arg.timeText || "";
+      if (start && end && !arg.event.allDay) {
+        timeText = `${formatTimeCompact(start)} - ${formatTimeCompact(end)}`;
+      }
       const titleText = arg.event.title || "Booking";
-      const time = timeText ? `<div class="fc-event-time">${timeText}</div>` : "";
-      const title = `<div class="fc-event-title">${titleText}</div>`;
-      return { html: `<div>${time}${title}</div>` };
+      const isTimeGrid = arg.view.type === 'timeGridWeek' || arg.view.type === 'timeGridDay';
+      const line = (timeText && !isTimeGrid) ? `${timeText} • ${titleText}` : titleText;
+      return { html: `<div class="trk-event-line">${line}</div>` };
+    },
+    eventDidMount: function(info) {
+      const props = info.event.extendedProps || {};
+      if (props.isProject) {
+        info.el.title = `${props.serviceName} — Large-Scale Project · ${props.phase} · ${props.completedUnits}/${props.totalUnits} units`;
+      } else {
+        info.el.title = info.event.title || '';
+      }
     },
     eventClick: function(info) {
       const id = info.event.id || (info.event.extendedProps && info.event.extendedProps.bookingId);
@@ -2467,6 +3047,14 @@
     },
   });
   calendar.render();
+
+  // Use list view on mobile for a better enterprise responsive experience
+  const mobileQuery = window.matchMedia('(max-width: 767px)');
+  if (mobileQuery.matches) calendar.changeView('listWeek');
+  mobileQuery.addEventListener('change', function(e) {
+    if (e.matches) calendar.changeView('listWeek');
+  });
+
   const calHint = document.getElementById('trkCalHint');
   if (calHint) calHint.textContent = 'Tap a booking to view details';
 
@@ -2729,8 +3317,6 @@
     return bookings.find((b) => String(b._id || b.id || "") === id) || null;
   }
 
-  let lastRenderedBooking = null;
-
   async function refreshSelected() {
     // Only run heavy tracking refresh while a booking detail is open
     if (detailViewEl.style.display === 'none' || !currentBookingId) {
@@ -2833,13 +3419,13 @@
     document.getElementById('rescheduleTimeSlotsSection').style.display = 'none';
     document.getElementById('submitRescheduleBtn').disabled = true;
 
-    document.getElementById('trkRescheduleModal').style.display = 'flex';
+    document.getElementById('trkLegacyRescheduleModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     renderRescheduleCalendar();
   };
 
   window.closeRescheduleModal = function() {
-    document.getElementById('trkRescheduleModal').style.display = 'none';
+    document.getElementById('trkLegacyRescheduleModal').style.display = 'none';
     document.body.style.overflow = '';
   };
 

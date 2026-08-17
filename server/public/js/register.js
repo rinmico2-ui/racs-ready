@@ -77,7 +77,7 @@
         result += c;
       }
     }
-    return result.slice(0, 20);
+    return result.slice(0, 30);
   }
 
   if (passField) {
@@ -116,7 +116,7 @@
   function updateIndicators() {
     var pwd = passField ? passField.value : '';
     var conf = confirmField ? confirmField.value : '';
-    var ok = /^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,20}$/.test(pwd);
+    var ok = /^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,30}$/.test(pwd);
 
     if (matchIndicator) {
       if (conf.length === 0) {
@@ -185,6 +185,10 @@
       return window.authUtils.swalError('Invalid phone', 'Phone must be a Philippine mobile number (e.g. 09XXXXXXXXX).');
     }
 
+    if (email.length > 30) {
+      return window.authUtils.swalError('Invalid email', 'Email cannot exceed 30 characters.');
+    }
+
     if (!window.authUtils.validateEmail(email)) {
       return window.authUtils.swalError('Invalid email', 'Please provide a valid email address.');
     }
@@ -193,8 +197,12 @@
       return window.authUtils.swalError('Weak password', 'Password must be at least 8 characters long.');
     }
 
-    if (!/^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,20}$/.test(password)) {
-      return window.authUtils.swalError('Invalid password', 'Password must be 8-20 characters with letters, numbers, and at least one uppercase letter.');
+    if (password.length > 30) {
+      return window.authUtils.swalError('Password too long', 'Password cannot exceed 30 characters.');
+    }
+
+    if (!/^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,30}$/.test(password)) {
+      return window.authUtils.swalError('Invalid password', 'Password must be 8-30 characters with letters, numbers, and at least one uppercase letter.');
     }
 
     if (password !== confirm) {

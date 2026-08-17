@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <title><%= title %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
 
     <!-- Bootstrap CSS -->
     <link
@@ -176,7 +179,16 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
       // Initialize socket connection for real-time tracking
-      window.socket = io({ path: '/socket.io' });
+      window.socket = io({
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        tryAllTransports: true,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 10000
+      });
       // Join technician room for targeted notifications
       <% if (technician && technician._id) { %>
         window.socket.emit('tech:join', '<%= technician._id %>');
