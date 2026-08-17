@@ -1,93 +1,75 @@
-const nodemailer = require("nodemailer");
-const dns = require("dns");
-const net = require("net");
+const https = require("https");
+const http = require("http");
 const logger = require("./logger").create("mailer");
 
-// Force IPv4 resolution globally (Render does not support outbound IPv6)
-try { dns.setDefaultResultOrder("ipv4first"); } catch (_) {}
+// Brevo API config
+const BREVO_API_KEY = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || "";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const FROM_EMAIL = process.env.FROM_EMAIL || "mxwllmallari@gmail.com";
+const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
-// Read SMTP config from env
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = process.env.SMTP_PORT
-  ? parseInt(process.env.SMTP_PORT, 10)
-  : 587;
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const FROM = process.env.FROM_EMAIL || "mxwllmallari@gmail.com";
-
-let transporter = null;
-let lastVerifyFailed = false;
-
-// Resolve hostname to an IPv4 address explicitly (bypasses IPv6 on Render)
-function resolveIPv4(host) {
-  return new Promise((resolve, reject) => {
-    dns.resolve4(host, (err, addresses) => {
-      if (err || !addresses.length) return resolve(host); // fallback to hostname
-      resolve(addresses[0]);
-    });
-  });
-}
-
-async function createTransporter() {
-  if (transporter && !lastVerifyFailed) return transporter;
-  lastVerifyFailed = false;
-
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    logger.warn("SMTP credentials not fully configured; emails will not be sent.");
-    return null;
-  }
-
-  // Resolve to IPv4 to avoid ENETUNREACH on Render
-  const ipv4Host = await resolveIPv4(SMTP_HOST);
-  logger.info("Resolved %s -> %s", SMTP_HOST, ipv4Host);
-
-  transporter = nodemailer.createTransport({
-    host: ipv4Host,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    tls: { rejectUnauthorized: false, ciphers: "SSLv3" },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS,
-    },
-  });
-
-  try {
-    await transporter.verify();
-    logger.info("SMTP connection verified to %s:%s", ipv4Host, SMTP_PORT);
-  } catch (err) {
-    lastVerifyFailed = true;
-    transporter = null;
-    logger.warn("SMTP verification failed %s", err && err.message);
-  }
-
-  return transporter;
-}
-
-async function sendMail({ to, subject, html, text }) {
-  const t = await createTransporter();
-  
+function sendMail({ to, subject, html, text }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
-  
-  if (!t) {
-    logger.debug("[dev] email would be sent to %s subject: %s", to, subject);
-    logger.debug("[dev] html:\n%s", html);
-    console.log("[MAILER] SMTP not configured - email not sent");
-    return false;
+
+  if (!BREVO_API_KEY) {
+    console.log("[MAILER] Brevo API key not configured - email not sent");
+    logger.warn("Brevo API key not configured; emails will not be sent.");
+    return Promise.resolve(false);
   }
 
-  try {
-    const info = await t.sendMail({ from: FROM, to, subject, html, text });
-    console.log("[MAILER] Email sent successfully:", info.messageId);
-    return info;
-  } catch (err) {
-    lastVerifyFailed = true;
-    transporter = null;
-    console.log("[MAILER] Send failed, will retry next request:", err.message);
-    throw err;
-  }
+  const payload = JSON.stringify({
+    sender: { email: FROM_EMAIL, name: FROM_NAME },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    textContent: text || "",
+  });
+
+  return new Promise((resolve, reject) => {
+    const url = new URL(BREVO_API_URL);
+    const req = https.request({
+      hostname: url.hostname,
+      port: 443,
+      path: url.pathname,
+      method: "POST",
+      headers: {
+        "api-key": BREVO_API_KEY,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+      },
+      timeout: 15000,
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const parsed = JSON.parse(body || "{}");
+          console.log("[MAILER] Email sent successfully:", parsed.messageId || res.statusCode);
+          resolve({ messageId: parsed.messageId || `brevo-${res.statusCode}` });
+        } else {
+          const errMsg = `Brevo API ${res.statusCode}: ${body}`;
+          console.log("[MAILER] Send failed:", errMsg);
+          logger.warn("Brevo send failed %s", errMsg);
+          reject(new Error(errMsg));
+        }
+      });
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      const err = new Error("Brevo API request timed out");
+      console.log("[MAILER] Timeout:", err.message);
+      reject(err);
+    });
+
+    req.on("error", (err) => {
+      console.log("[MAILER] Request error:", err.message);
+      reject(err);
+    });
+
+    req.write(payload);
+    req.end();
+  });
 }
 
 // ─── Booking Confirmation Email (to customer) ───────────────────────────────
