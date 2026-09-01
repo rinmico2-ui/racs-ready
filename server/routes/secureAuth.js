@@ -22,11 +22,11 @@ router.post(
       .withMessage("Invalid password"),
     body("mathCaptcha")
       .matches(/^\d+$/)
-      .isLength({ min: 1, max: 2 })
+      .isLength({ min: 1, max: 3 })
       .withMessage("Invalid captcha"),
     body("mathAnswer")
       .matches(/^\d+$/)
-      .isLength({ min: 1, max: 2 })
+      .isLength({ min: 1, max: 3 })
       .withMessage("Invalid captcha answer"),
     body("csrfToken")
       .isString()

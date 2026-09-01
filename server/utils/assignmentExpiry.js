@@ -65,7 +65,7 @@ async function expirePendingAssignments() {
               },
             },
           },
-          { new: true, lean: true }
+          { returnDocument: "after", lean: true }
         );
 
         const tech = await Technician.findById(a.technicianId).select('name').lean();

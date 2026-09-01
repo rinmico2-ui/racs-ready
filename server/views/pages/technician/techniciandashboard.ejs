@@ -1,6 +1,5 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
 
-<br><br>
 <div class="technician-dashboard-page">
   <div class="dashboard-page-inner">
 
@@ -8,9 +7,16 @@
     <div class="td-hero">
       <div class="row align-items-center">
         <div class="col-md-7">
-          <h1 class="td-hero-title"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h1>
-          <p class="td-hero-sub">Welcome back, <strong><%= (technician && technician.name) || 'Technician' %></strong>. Here is your dashboard for today.</p>
-          <span class="td-hero-date"><i class="bi bi-calendar3 me-1"></i><%= new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+          <span class="td-hero-eyebrow">Field operations</span>
+          <h1 class="td-hero-title"><i class="bi bi-speedometer2 me-2"></i>Technician Dashboard</h1>
+          <p class="td-hero-sub">Welcome back, <strong><%= (technician && technician.name) || 'Technician' %></strong>. Review your bookings, orders, preparation, and daily accountability in one place.</p>
+          <div class="td-hero-meta">
+            <span class="td-hero-date"><i class="bi bi-calendar3 me-1"></i><%= new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+            <span class="td-availability-badge <%= (technician && ['Available','On The Way','In Progress'].includes(technician.availabilityStatus)) ? 'online' : 'offline' %>">
+              <span class="status-dot" aria-hidden="true"></span>
+              <%= (technician && technician.availabilityStatus) || 'Offline' %>
+            </span>
+          </div>
         </div>
         <div class="col-md-5 text-md-end mt-3 mt-md-0">
           <div class="td-hero-actions">
@@ -30,6 +36,46 @@
         </div>
       </div>
     </div>
+
+    <!-- Primary work queues -->
+    <section class="td-work-hub" aria-labelledby="tdWorkHubTitle">
+      <div class="td-work-hub-header">
+        <div>
+          <span class="td-section-eyebrow">Work queues</span>
+          <h2 id="tdWorkHubTitle">Continue your assigned work</h2>
+        </div>
+        <span class="td-work-hub-note">Use the correct workflow for each assignment type</span>
+      </div>
+      <div class="td-work-grid">
+        <a href="/technician/assignments" class="td-work-route td-work-route-bookings">
+          <span class="td-work-route-icon"><i class="bi bi-clipboard2-check"></i></span>
+          <span class="td-work-route-copy">
+            <span class="td-work-route-type">Service workflow</span>
+            <strong>Bookings</strong>
+            <small>Core services, repairs, inspections, and projects</small>
+          </span>
+          <span class="td-work-route-side">
+            <span class="td-work-route-count"><strong id="tdBookingQueueCount">—</strong> open</span>
+            <span class="td-work-route-action">Open queue <i class="bi bi-arrow-right"></i></span>
+          </span>
+        </a>
+        <a href="/technician/orders" class="td-work-route td-work-route-orders">
+          <span class="td-work-route-icon"><i class="bi bi-box-seam"></i></span>
+          <span class="td-work-route-copy">
+            <span class="td-work-route-type">Fulfillment workflow</span>
+            <strong>Orders</strong>
+            <small>Delivery, installation, pickup, and daily preparation</small>
+          </span>
+          <span class="td-work-route-side">
+            <span class="td-work-route-count"><strong id="tdOrderQueueCount">—</strong> assigned</span>
+            <span class="td-work-route-action">Open queue <i class="bi bi-arrow-right"></i></span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <!-- End-of-Day Accountability Banner (remittance / expenses) -->
+    <div id="tdEodBanner" class="d-none" style="margin-top:16px;border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"></div>
 
     <!-- Main Content Grid -->
     <div class="row g-4 mt-1">
@@ -196,25 +242,30 @@
           </div>
           <div class="td-panel-body">
             <div class="td-quick-actions">
-              <a href="/technician/assignments" class="td-qa-btn">
-                <div class="td-qa-icon blue"><i class="bi bi-clipboard-check"></i></div>
-                <span>My Work</span>
+              <a href="/technician/remittances" class="td-qa-btn">
+                <div class="td-qa-icon rose"><i class="bi bi-cash-stack"></i></div>
+                <span class="td-qa-label">Remittances</span>
+                <span id="qaRemitBadge" class="td-qa-badge d-none"></span>
+              </a>
+              <a href="/technician/payroll" class="td-qa-btn">
+                <div class="td-qa-icon emerald"><i class="bi bi-wallet2"></i></div>
+                <span class="td-qa-label">My Payroll</span>
               </a>
               <a href="/technician/expenses" class="td-qa-btn">
                 <div class="td-qa-icon amber"><i class="bi bi-receipt"></i></div>
-                <span>Today's Expenses</span>
+                <span class="td-qa-label">Expenses</span>
               </a>
               <a href="/technician/tracking" class="td-qa-btn">
                 <div class="td-qa-icon rose"><i class="bi bi-geo-alt"></i></div>
-                <span>Live Tracking</span>
+                <span class="td-qa-label">Live Tracking</span>
               </a>
               <a href="/technician/tools" class="td-qa-btn">
                 <div class="td-qa-icon violet"><i class="bi bi-tools"></i></div>
-                <span>My Tools</span>
+                <span class="td-qa-label">My Tools</span>
               </a>
-              <a href="/technician/schedule" class="td-qa-btn">
-                <div class="td-qa-icon emerald"><i class="bi bi-calendar3"></i></div>
-                <span>Schedule</span>
+              <a href="/technician/warranty-claims" class="td-qa-btn">
+                <div class="td-qa-icon emerald"><i class="bi bi-shield-check"></i></div>
+                <span class="td-qa-label">Warranty Inspections</span>
               </a>
             </div>
           </div>
@@ -287,23 +338,56 @@
 </div>
 
 <style>
-  .td-hero {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-    border-radius: 16px;
-    padding: 28px 32px;
-    margin-bottom: 24px;
-    color: #fff;
+  .technician-dashboard-page {
+    --td-ink: #172033;
+    --td-muted: #64748b;
+    --td-border: #e2e8f0;
+    color: var(--td-ink);
   }
-  .td-hero-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
-  .td-hero-sub { color: #94a3b8; margin: 4px 0 0; font-size: 0.9rem; }
-  .td-hero-date { color: #94a3b8; font-size: 0.8rem; display: inline-block; margin-top: 8px; }
+  .dashboard-page-inner { width: 100%; max-width: 1520px; margin: 0 auto; }
+  .td-hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(125deg, #111827 0%, #1e3a5f 58%, #155e75 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 18px;
+    padding: 30px 32px;
+    margin-bottom: 18px;
+    color: #fff;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+  }
+  .td-hero::after {
+    content: "";
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    right: -120px;
+    top: -190px;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.12);
+    pointer-events: none;
+  }
+  .td-hero-eyebrow, .td-section-eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    color: #67e8f9;
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  .td-section-eyebrow { color: #0369a1; }
+  .td-hero-title { font-size: 1.65rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+  .td-hero-sub { max-width: 720px; color: #cbd5e1; margin: 7px 0 0; font-size: 0.9rem; line-height: 1.55; }
+  .td-hero-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .td-hero-date { color: #cbd5e1; font-size: 0.78rem; display: inline-flex; align-items: center; }
   .td-hero-actions { display: flex; align-items: center; gap: 16px; justify-content: flex-end; flex-wrap: wrap; }
-  .td-hero-stat { text-align: center; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 16px; min-width: 80px; }
+  .td-hero-stat { text-align: center; background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; padding: 11px 16px; min-width: 88px; backdrop-filter: blur(8px); }
   .td-hero-stat .stat-num { display: block; font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1; }
   .td-hero-stat .stat-label { display: block; font-size: 0.7rem; color: #94a3b8; margin-top: 3px; white-space: nowrap; }
   .td-availability-badge {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
     background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
   }
   .td-availability-badge .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; }
@@ -311,6 +395,66 @@
   .td-availability-badge.offline .status-dot { background: #64748b; }
   .exp-type-pill { border-radius: 20px !important; font-size: 0.78rem !important; transition: all 0.15s; }
   .exp-type-pill.active { font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+
+  /* Primary booking/order navigation */
+  .td-work-hub {
+    padding: 18px;
+    background: #fff;
+    border: 1px solid var(--td-border);
+    border-radius: 16px;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.05);
+  }
+  .td-work-hub-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 13px;
+  }
+  .td-work-hub-header h2 { margin: 0; color: var(--td-ink); font-size: 1rem; font-weight: 800; }
+  .td-work-hub-note { color: var(--td-muted); font-size: 0.75rem; }
+  .td-work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .td-work-route {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 13px;
+    min-width: 0;
+    min-height: 104px;
+    padding: 16px;
+    color: var(--td-ink);
+    text-decoration: none;
+    border: 1px solid #dbe5f0;
+    border-radius: 13px;
+    background: #f8fafc;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+  }
+  .td-work-route:hover {
+    color: var(--td-ink);
+    border-color: #93c5fd;
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+    transform: translateY(-1px);
+  }
+  .td-work-route:focus-visible { outline: 3px solid rgba(14, 165, 233, .25); outline-offset: 2px; }
+  .td-work-route-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    font-size: 1.15rem;
+  }
+  .td-work-route-bookings .td-work-route-icon { color: #0369a1; background: #e0f2fe; }
+  .td-work-route-orders .td-work-route-icon { color: #6d28d9; background: #ede9fe; }
+  .td-work-route-copy { display: flex; flex-direction: column; min-width: 0; }
+  .td-work-route-type { color: var(--td-muted); font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .td-work-route-copy strong { margin-top: 2px; font-size: .98rem; }
+  .td-work-route-copy small { margin-top: 2px; overflow: hidden; color: var(--td-muted); font-size: .73rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+  .td-work-route-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; white-space: nowrap; }
+  .td-work-route-count { color: var(--td-muted); font-size: .7rem; }
+  .td-work-route-count strong { color: var(--td-ink); font-size: 1rem; }
+  .td-work-route-action { display: inline-flex; align-items: center; gap: 6px; color: #2563eb; font-size: .74rem; font-weight: 800; }
 
   /* KPI Grid */
   .td-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
@@ -334,7 +478,8 @@
 
   /* Panels */
   .td-panel {
-    background: #fff; border-radius: 14px; border: 1px solid #eef2f7; overflow: hidden;
+    background: #fff; border-radius: 14px; border: 1px solid var(--td-border); overflow: hidden;
+    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
   }
   .td-panel-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -358,18 +503,12 @@
   .td-assign-card:hover { background: #f1f5f9; }
   .td-assign-card:last-child { margin-bottom: 0; }
   .td-assign-card.today-booking {
-    border: 2px solid #f59e0b;
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fffbeb 100%);
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4), inset 0 0 10px rgba(245, 158, 11, 0.1);
+    border: 1px solid #fbbf24;
+    background: #fffbeb;
+    box-shadow: inset 3px 0 0 #f59e0b;
     position: relative;
   }
-  .td-assign-card.today-booking:hover { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
-  @keyframes pulse-today {
-    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-  }
-  .pulse-today { animation: pulse-today 2s infinite; }
+  .td-assign-card.today-booking:hover { background: #fef3c7; }
   .td-assign-icon {
     width: 42px; height: 42px; min-width: 42px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
@@ -377,7 +516,19 @@
   .td-assign-info { flex: 1; min-width: 0; }
   .td-assign-info h6 { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .td-assign-info p { font-size: 0.75rem; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .td-assign-actions { display: flex; gap: 6px; flex-shrink: 0; align-self: center; }
+  .td-assign-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+  .td-assign-actions { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+  .td-assign-actions .btn,
+  .td-active-actions .btn,
+  #tdEodBanner .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 34px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
   .td-assign-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 6px; font-weight: 600; white-space: nowrap; }
 
   /* Active Job Card */
@@ -400,11 +551,12 @@
   .td-repair-banner span { font-size: 0.75rem; opacity: 0.85; }
 
   /* Quick Actions */
-  .td-quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .td-quick-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .td-qa-btn {
     display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px;
     background: #f8fafc; border: 1px solid #eef2f7; text-decoration: none; color: #1e293b;
     font-size: 0.82rem; font-weight: 600; transition: all 0.15s;
+    position: relative; min-width: 0; min-height: 62px;
   }
   .td-qa-btn:hover { background: #f1f5f9; border-color: #cbd5e1; transform: translateY(-1px); }
   .td-qa-icon {
@@ -417,6 +569,22 @@
   .td-qa-icon.rose { background: #fff1f2; color: #f43f5e; }
   .td-qa-icon.violet { background: #f5f3ff; color: #8b5cf6; }
   .td-qa-icon.emerald { background: #ecfdf5; color: #10b981; }
+  .td-qa-label { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+  .td-qa-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    min-width: 18px;
+    padding: 2px 5px;
+    color: #fff;
+    background: #dc2626;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    font-size: .58rem;
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+  }
 
   /* Expense Summary */
   .td-expense-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.82rem; }
@@ -427,6 +595,7 @@
   #jobExpensesPanel .td-panel-body { padding: 14px 20px; }
 
   @media (max-width: 991px) {
+    .td-work-grid { grid-template-columns: 1fr; }
     .td-hero-actions {
       justify-content: flex-start;
       gap: 12px;
@@ -457,6 +626,8 @@
     .td-hero-date {
       font-size: 0.75rem;
     }
+    .td-work-hub { padding: 14px; }
+    .td-work-hub-header { align-items: flex-start; flex-direction: column; gap: 4px; }
     .td-hero-actions {
       width: 100%;
       justify-content: flex-start;
@@ -581,19 +752,36 @@
       padding: 0.875rem 1rem;
     }
     .td-assign-card {
-      flex-direction: column;
-      align-items: flex-start;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      align-items: start;
+    }
+    .td-assign-meta {
+      grid-column: 1 / -1;
+      width: 100%;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: wrap;
     }
     .td-assign-actions {
-      width: 100%;
-      justify-content: flex-start;
+      margin-left: auto;
     }
+    .td-assign-actions .btn { flex: 1 1 auto; }
     .td-active-actions {
       width: 100%;
     }
     .td-active-actions .btn {
-      flex: 1;
+      flex: 1 1 100%;
     }
+    .td-work-route { grid-template-columns: 40px minmax(0, 1fr); min-height: 0; padding: 13px; }
+    .td-work-route-icon { width: 40px; height: 40px; }
+    .td-work-route-side { grid-column: 1 / -1; width: 100%; flex-direction: row; align-items: center; justify-content: space-between; padding-top: 9px; border-top: 1px solid #e2e8f0; }
+    .td-work-route-copy small { white-space: normal; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .td-work-route, .td-qa-btn { transition: none; }
   }
 </style>
 
@@ -677,8 +865,8 @@
     let actions = '';
     if (showActions && a.status === 'pending_acceptance') {
       actions = `
-        <button class="btn btn-sm btn-success" onclick="tdAccept('${a._id}')"><i class="bi bi-check-lg"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="tdDecline('${a._id}')"><i class="bi bi-x-lg"></i></button>
+        <button type="button" class="btn btn-sm btn-success" onclick="tdAccept('${a._id}')" aria-label="Accept assignment"><i class="bi bi-check-lg"></i><span>Accept</span></button>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="tdDecline('${a._id}')" aria-label="Decline assignment"><i class="bi bi-x-lg"></i><span>Decline</span></button>
       `;
     }
 
@@ -693,10 +881,16 @@
       </div>`;
     }
 
-    const todayLabel = isToday ? '<span class="pulse-today" style="font-size:0.6rem;font-weight:800;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;background:#f59e0b;color:#fff;text-transform:uppercase;"><i class="bi bi-star-fill me-1"></i>Today</span>' : '';
+    const todayLabel = isToday ? '<span style="font-size:0.6rem;font-weight:800;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;background:#f59e0b;color:#fff;text-transform:uppercase;"><i class="bi bi-star-fill me-1"></i>Today</span>' : '';
+
+    // Cards without their own actions open the canonical workflow on the
+    // assignments page — one source of truth for job buttons.
+    const cardClick = !showActions && a._id
+      ? ` onclick="window.location.href='/technician/assignments?id=${a._id}'" style="cursor:pointer;" title="Open in My Work"`
+      : '';
 
     return `
-      <div class="td-assign-card${isToday ? ' today-booking' : ''}">
+      <div class="td-assign-card${isToday ? ' today-booking' : ''}"${cardClick}>
         <div class="td-assign-icon" style="background:${iconBg};color:${iconColor};">
           <i class="bi ${icons[a.status] || 'bi-circle'}"></i>
         </div>
@@ -706,18 +900,75 @@
           ${a.address ? '<p><i class="bi bi-geo-alt me-1"></i>' + a.address.substring(0, 50) + '</p>' : ''}
           ${expenseBadge}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <div class="td-assign-meta">
           ${todayLabel}
           <span class="${statusBadgeClass}" style="${statusBadgeStyle}">${displayStatus}</span>
-          ${actions}
+          ${actions ? `<div class="td-assign-actions">${actions}</div>` : ''}
         </div>
       </div>`;
+  }
+
+  // ── End-of-Day Accountability Banner ──────────────────────────────────────
+  // Red: unsubmitted remittances (hard-blocks checkout).
+  // Amber: jobs finished / after hours but no expenses logged yet.
+  function renderEodBanner(data) {
+    const el = document.getElementById('tdEodBanner');
+    if (!el) return;
+    const eod = data.endOfDay || {};
+    const hour = new Date().getHours();
+    const noExpenses = (eod.expensesLoggedToday || 0) === 0;
+    const doneJobs = eod.completedJobsToday || 0;
+
+    if ((eod.remittancesPending || 0) > 0) {
+      el.style.display = 'flex';
+      el.style.background = '#fef2f2';
+      el.style.border = '1px solid #fecaca';
+      el.innerHTML =
+        '<i class="bi bi-exclamation-octagon-fill" style="color:#dc2626;font-size:1.3rem;"></i>' +
+        '<div style="flex:1;min-width:200px;">' +
+          '<div style="font-weight:800;color:#991b1b;font-size:0.9rem;">Submit your remittance before checking out</div>' +
+          '<div style="font-size:0.78rem;color:#b91c1c;">' + eod.remittancesPending + ' unsubmitted collection' + (eod.remittancesPending > 1 ? 's' : '') + ' worth ₱' + Number(eod.remittancesAmount || 0).toLocaleString() + ' — checkout is blocked until submitted.</div>' +
+        '</div>' +
+        '<a href="/technician/remittances" class="btn btn-danger btn-sm fw-bold" style="border-radius:8px;"><i class="bi bi-cash-stack me-1"></i>Go to Remittances</a>';
+      return;
+    }
+
+    if (noExpenses && (doneJobs > 0 || hour >= 18)) {
+      el.style.display = 'flex';
+      el.style.background = '#fffbeb';
+      el.style.border = '1px solid #fde68a';
+      el.innerHTML =
+        '<i class="bi bi-receipt-cutoff" style="color:#d97706;font-size:1.3rem;"></i>' +
+        '<div style="flex:1;min-width:200px;">' +
+          '<div style="font-weight:800;color:#92400e;font-size:0.9rem;">Log today\'s expenses' + (hour >= 18 && doneJobs === 0 ? '' : ' for your ' + doneJobs + ' completed job' + (doneJobs > 1 ? 's' : '')) + '</div>' +
+          '<div style="font-size:0.78rem;color:#a16207;">No expenses have been logged today. You\'ll be asked to confirm this before checking out.</div>' +
+        '</div>' +
+        '<button class="btn btn-warning btn-sm fw-bold" style="border-radius:8px;" onclick="openDailyExpenseModal()"><i class="bi bi-plus-lg me-1"></i>Log Expense</button>';
+      return;
+    }
+
+    el.style.display = 'none';
   }
 
   async function loadDashboard() {
     const data = await fetchOverview();
     if (!data) return;
     window.__dashboardData = data;
+
+    renderEodBanner(data);
+
+    // Quick-action badges
+    const eod = data.endOfDay || {};
+    const remitBadge = document.getElementById('qaRemitBadge');
+    if (remitBadge) {
+      if ((eod.remittancesPending || 0) > 0) { remitBadge.textContent = eod.remittancesPending; remitBadge.classList.remove('d-none'); }
+      else remitBadge.classList.add('d-none');
+    }
+    const bookingQueueCount = (data.counts?.pendingAcceptance || 0) + (data.counts?.active || 0);
+    const bookingQueueEl = document.getElementById('tdBookingQueueCount');
+    const orderQueueEl = document.getElementById('tdOrderQueueCount');
+    if (bookingQueueEl) bookingQueueEl.textContent = bookingQueueCount;
+    if (orderQueueEl) orderQueueEl.textContent = data.activeOrders || 0;
 
     // KPI Elements removed as requested.
 
@@ -760,6 +1011,8 @@
       } else {
         statusLabel = (a.status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         if (a.status === 'completed') statusColor = '#22c55e';
+        else if (a.status === 'waiting_for_customer') statusColor = '#f59e0b';
+        else if (a.status === 'no_show_reported') statusColor = '#dc2626';
       }
 
       // Determine repair info banner text
@@ -806,40 +1059,43 @@
         }
       }
 
-      let actions = '';
-      if (isMixed) {
-        actions = `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-primary"><i class="bi bi-layers me-1"></i>Open Core &amp; Repair Work</a>`;
-      } else if (isRepair && a.repairInfo) {
-        const rs = a.repairInfo.bookingStatus;
-        // Repair-specific action buttons based on booking status
-        if (rs === 'repair_scheduled' || rs === 'ready_for_repair') {
-          actions = `<button class="btn btn-sm btn-primary" onclick="tdRepairEnRoute('${a.repairInfo.bookingId}')"><i class="bi bi-geo-alt me-1"></i>En Route</button>`;
-        } else if (rs === 'on-the-way' || a.status === 'en_route') {
-          actions = `<button class="btn btn-sm btn-primary" onclick="tdRepairTransition('${a.repairInfo.bookingId}','on_site')"><i class="bi bi-building me-1"></i>Arrived</button>`;
-        } else if (rs === 'arrived' || a.status === 'on_site') {
-          actions = `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-primary"><i class="bi bi-gear me-1"></i>Start Work in Details</a>`;
-        } else if (rs === 'repair_in_progress' || a.status === 'in_progress') {
-          actions = `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-success"><i class="bi bi-check-circle me-1"></i>Complete in Details</a>`;
-        }
-        // For waiting_parts, parts_reserved, awaiting_approval — no action buttons (just the banner)
-      } else {
-        // Standard (non-repair) assignment actions
-        if (a.status === 'accepted') {
-          const canGo = true;
-          actions = `<button class="btn btn-sm btn-primary" ${!canGo ? 'disabled title="You can go En Route 30 minutes before the scheduled time"' : ''} onclick="tdTransition('${a._id}','en_route')"><i class="bi bi-geo-alt me-1"></i>En Route</button>`;
-        } else if (a.status === 'en_route') {
-          actions = `<button class="btn btn-sm btn-primary" onclick="tdTransition('${a._id}','on_site')"><i class="bi bi-building me-1"></i>Arrived</button>`;
-        } else if (a.status === 'on_site') {
-          actions = `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-primary"><i class="bi bi-gear me-1"></i>Start Work in Details</a>`;
-        } else if (a.status === 'in_progress') {
-          const isCODWithBalance = ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && !a.balanceCollected && (a.balanceAmount || 0) > 0;
-          if (isCODWithBalance) {
-            actions = `<button class="btn btn-sm btn-warning" onclick="tdCollectAndComplete('${a._id}')"><i class="bi bi-cash me-1"></i>Collect ₱${Number(a.balanceAmount).toLocaleString()} & Complete</button>`;
-          } else {
-            actions = `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-success"><i class="bi bi-check-circle me-1"></i>Complete in Details</a>`;
-          }
-        }
+      // Keep the Current Job card navigational. Workflow state changes belong
+      // in the booking panel where Daily Preparation, time, proof, and payment
+      // gates are shown together.
+      const bookingWorkflowUrl = `/technician/assignments?id=${encodeURIComponent(a._id)}&source=dashboard`;
+      const scheduledDayEnd = a.bookingDate ? new Date(a.bookingDate) : null;
+      if (scheduledDayEnd && !Number.isNaN(scheduledDayEnd.getTime())) scheduledDayEnd.setHours(23, 59, 59, 999);
+      const missedSchedule = a.status === 'accepted' && scheduledDayEnd && scheduledDayEnd.getTime() < Date.now();
+      let actionLabel = 'Open Booking';
+      let actionIcon = 'bi-arrow-right-circle';
+      let actionClass = 'btn-primary';
+      if (missedSchedule) {
+        actionLabel = 'Open Booking for Schedule Review';
+        actionIcon = 'bi-calendar-exclamation';
+        actionClass = 'btn-warning';
+      } else if (a.status === 'accepted') {
+        actionLabel = isRepair ? 'Open Booking Workflow' : 'Open Booking & Prepare';
+        actionIcon = isRepair ? 'bi-tools' : 'bi-briefcase';
+      } else if (a.status === 'en_route') {
+        actionLabel = 'Open Booking to Mark Arrived';
+        actionIcon = 'bi-geo-alt';
+      } else if (a.status === 'on_site') {
+        actionLabel = 'Open Booking to Start Work';
+        actionIcon = 'bi-play-circle';
+      } else if (a.status === 'waiting_for_customer') {
+        actionLabel = 'Open Customer Waiting Review';
+        actionIcon = 'bi-hourglass-split';
+        actionClass = 'btn-outline-warning';
+      } else if (a.status === 'no_show_reported') {
+        actionLabel = 'Open No-Show Review';
+        actionIcon = 'bi-person-exclamation';
+        actionClass = 'btn-outline-danger';
+      } else if (a.status === 'in_progress') {
+        actionLabel = 'Open Booking to Complete';
+        actionIcon = 'bi-check-circle';
+        actionClass = 'btn-success';
       }
+      const actions = `<a href="${bookingWorkflowUrl}" class="btn btn-sm ${actionClass}"><i class="bi ${actionIcon} me-1"></i>${actionLabel}</a>`;
       const paymentInfo = ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && !a.balanceCollected && (a.balanceAmount || 0) > 0
         ? `<div class="td-active-detail" style="color:#d97706;"><i class="bi bi-exclamation-triangle"></i> Balance ₱${Number(a.balanceAmount).toLocaleString()} due on completion</div>`
         : ['cod', 'cash', 'cash_onsite', 'gcash_downpayment'].includes(a.paymentMethod) && a.balanceCollected
@@ -870,14 +1126,15 @@
           ${unitInfoHtml}
           <div class="td-active-detail"><i class="bi bi-tag"></i> <span class="badge" style="background:${statusColor};font-size:0.78rem;padding:4px 10px;">${statusLabel}</span></div>
           ${repairBanner}
+          ${missedSchedule ? '<div class="td-repair-banner" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;"><i class="bi bi-calendar-exclamation"></i><div><strong>Scheduled date has passed</strong><br><span>Open the booking for review. It must be rescheduled before preparation or travel.</span></div></div>' : ''}
           ${paymentInfo}
           ${activeExpenseInfo}
           <div class="td-active-actions">
             ${actions}
-            ${actions.includes('onclick') || actions.includes('href') ? '' : `<a href="/technician/assignments?id=${a._id}" class="btn btn-sm btn-outline-secondary">Details</a>`}
-            <a href="/technician/expenses" class="btn btn-sm btn-outline-warning" title="Log expense for this job"><i class="bi bi-receipt me-1"></i>Log Expense</a>
           </div>
         </div>`;
+    } else {
+      activeEl.innerHTML = '<div class="td-empty-state"><i class="bi bi-inbox"></i><p>No active job right now</p></div>';
     }
 
     // Completed Today & Repair Queue panels removed.
@@ -1065,8 +1322,15 @@
       });
       const data = await res.json();
       if (res.ok) {
-        showToast('Assignment accepted!', 'success');
+        showToast(`Status updated to ${status.replace(/_/g, ' ')}`, 'success');
         loadDashboard();
+      } else if (['DAILY_KIT_REQUIRED', 'DAILY_KIT_DELTA_REQUIRED'].includes(data.code)) {
+        // Daily Preparation is owned by the My Work page (kit modal lives there)
+        showToast('Daily Preparation needed — opening My Work…', 'warning');
+        setTimeout(() => { window.location.href = '/technician/assignments'; }, 900);
+      } else if (data.code === 'SCHEDULE_MISSED') {
+        showToast(data.error || 'The scheduled time has passed.', 'danger');
+        setTimeout(() => { window.location.href = '/technician/assignments'; }, 1200);
       } else {
         showToast(data.error || 'Failed', 'danger');
       }
@@ -1258,9 +1522,15 @@
   }
 
   // ═══ Upcoming Preparation ═══════════════════════════════════════════════════
+  // The selected date is tracked globally so the 30s auto-refresh and the
+  // batch-checkout action stay on the day the technician is actually viewing
+  // (previously both silently snapped back to Today).
+  window._prepDate = '';
   async function loadPreparation(dateStr) {
     try {
-      const url = '/api/technician/assignments/preparation/next-jobs' + (dateStr ? '?date=' + encodeURIComponent(dateStr) : '');
+      if (dateStr !== undefined) window._prepDate = dateStr || '';
+      const selDate = window._prepDate;
+      const url = '/api/technician/assignments/preparation/next-jobs' + (selDate ? '?date=' + encodeURIComponent(selDate) : '');
       const resp = await fetch(url, { credentials: 'same-origin' });
       if (!resp.ok) return;
       const data = await resp.json();
@@ -1335,10 +1605,11 @@
 
           let resourceBadges = '';
           const allRes = [
-            ...(job.equipment.reserved || []).map(e => ({ name: e.name, qty: e.quantity, type: 'equipment', checked: false })),
-            ...(job.equipment.checkedOut || []).map(e => ({ name: e.name, qty: e.quantity, type: 'equipment', checked: true })),
-            ...(job.repairParts.reserved || []).map(p => ({ name: p.name, qty: p.quantity, type: 'part', checked: false })),
-            ...(job.repairParts.checkedOut || []).map(p => ({ name: p.name, qty: p.quantity, type: 'part', checked: true })),
+            ...(job.equipment.reserved || []).map(e => ({ name: e.name, qty: e.quantity, checked: false })),
+            ...(job.equipment.checkedOut || []).map(e => ({ name: e.name, qty: e.quantity, checked: true })),
+            ...(job.equipment.consumables || []).map(c => ({ name: c.name, qty: c.quantity, checked: true })),
+            ...(job.repairParts.reserved || []).map(p => ({ name: p.name, qty: p.quantity, checked: false })),
+            ...(job.repairParts.checkedOut || []).map(p => ({ name: p.name, qty: p.quantity, checked: true })),
           ];
           if (allRes.length > 0) {
             resourceBadges = '<div class="d-flex flex-wrap gap-1 mt-2">' + allRes.map(r => {
@@ -1384,7 +1655,9 @@
     const btn = document.getElementById('batchCheckoutBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Checking out...'; }
     try {
-      const resp = await fetch('/api/technician/assignments/preparation/next-jobs', { credentials: 'same-origin' });
+      // Scope to the day currently being viewed — never a different day
+      const selDate = window._prepDate || '';
+      const resp = await fetch('/api/technician/assignments/preparation/next-jobs' + (selDate ? '?date=' + encodeURIComponent(selDate) : ''), { credentials: 'same-origin' });
       if (!resp.ok) throw new Error('Failed to fetch jobs');
       const data = await resp.json();
       const needCheckout = (data.jobs || []).filter(j => j.preparationStatus === 'ready_for_checkout' || j.preparationStatus === 'reserved');
@@ -1400,7 +1673,7 @@
       const result = await checkoutResp.json();
       if (checkoutResp.ok && result.success) {
         showToast('Resources checked out for ' + result.results.length + ' job(s)!', 'success');
-        loadPreparation();
+        loadPreparation(window._prepDate);
       } else {
         showToast(result.error || 'Checkout failed.', 'danger');
       }
@@ -1412,14 +1685,16 @@
     }
   }
 
-  // Initial load
+  // Initial load — seed the tracked date from the picker so refreshes and
+  // batch checkout stay on the visible day.
   loadDashboard();
   loadTodayExpenses();
   const dpDash = document.getElementById('prepDateDash');
-  if (dpDash) { dpDash.value = new Date().toISOString().slice(0,10); }
-  loadPreparation();
+  if (dpDash && !dpDash.value) { dpDash.value = new Date().toISOString().slice(0, 10); }
+  window._prepDate = dpDash ? dpDash.value : '';
+  loadPreparation(window._prepDate);
 
-  // Refresh every 30s
-  setInterval(() => { loadDashboard(); loadTodayExpenses(); loadPreparation(); }, 30000);
+  // Refresh every 30s — keep the user's selected date
+  setInterval(() => { loadDashboard(); loadTodayExpenses(); loadPreparation(window._prepDate); }, 30000);
 })();
 </script>

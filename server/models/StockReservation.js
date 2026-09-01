@@ -125,7 +125,7 @@ stockReservationSchema.statics.reserveForBooking = async function ({
         $inc: { quantity: -qty },
       },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       }
     );

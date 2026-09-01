@@ -15,6 +15,30 @@ const activityLogSchema = new mongoose.Schema(
     actorRole: { type: String, default: '' },
     actorName: { type: String, default: '' },
 
+    // Security and operational context. These fields are intentionally
+    // denormalized so incident reviews never depend on mutable user records.
+    outcome: {
+      type: String,
+      enum: ['success', 'failure', 'pending', 'blocked', 'unknown'],
+      default: 'success',
+      index: true,
+    },
+    riskLevel: {
+      type: String,
+      enum: ['info', 'low', 'medium', 'high', 'critical'],
+      default: 'info',
+      index: true,
+    },
+    source: {
+      type: String,
+      enum: ['authenticated_user', 'unauthenticated_request', 'system', 'integration'],
+      default: 'system',
+    },
+    requestId: { type: String, default: '', index: true },
+    requestMethod: { type: String, default: '' },
+    requestPath: { type: String, default: '' },
+    userAgent: { type: String, default: '' },
+
     ip: String,
     details: mongoose.Schema.Types.Mixed,
     createdAt: { type: Date, default: Date.now },
@@ -27,6 +51,7 @@ activityLogSchema.index({ category: 1, createdAt: -1 });
 activityLogSchema.index({ entityType: 1, entityId: 1 });
 activityLogSchema.index({ actionType: 1, createdAt: -1 });
 activityLogSchema.index({ actor: 1, createdAt: -1 });
+activityLogSchema.index({ riskLevel: 1, outcome: 1, createdAt: -1 });
 activityLogSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

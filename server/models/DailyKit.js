@@ -9,28 +9,37 @@ const mongoose = require("mongoose");
  *
  * Equipment is reusable (checked out → returned).
  * Consumables are tracked by actual usage.
- * Repair parts are deliberately outside this model and stay in the existing
- * inspection, quotation and parts-reservation workflow.
+ * Repair parts are included ONLY for scheduled Phase 2 repair visits, where
+ * the customer has approved a quotation and the exact parts are known. AI-
+ * suggested parts during Phase 1 inspection remain outside this model and
+ * stay in the existing inspection/quotation/parts-reservation workflow.
  */
 
 const KIT_STATUSES = ["draft", "prepared", "confirmed", "in_progress", "completed", "cancelled"];
+
+const orderAllocationSchema = new mongoose.Schema({
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true },
+  quantity: { type: Number, required: true, min: 1 },
+}, { _id: false });
 
 const dailyKitItemSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   quantity: { type: Number, default: 1, min: 1 },
   unit: { type: String, default: "pcs" },
 
-  // Daily preparation contains operational equipment and consumables only.
+  // Daily preparation contains operational equipment, consumables, and — for
+  // scheduled Phase 2 repair visits where the quotation is approved — the
+  // exact repair parts to bring.
   category: {
     type: String,
-    enum: ["equipment", "consumable"],
+    enum: ["equipment", "consumable", "repair_part"],
     required: true,
   },
 
-  // Source: standard (always bring), job_specific (from today's jobs), ai_recommended, manual
+  // Source: standard (always bring), job_specific (from today's jobs), ai_recommended, manual, quotation (Phase 2 repair parts)
   source: {
     type: String,
-    enum: ["standard", "job_specific", "ai_recommended", "manual"],
+    enum: ["standard", "job_specific", "ai_recommended", "manual", "quotation"],
     default: "job_specific",
   },
 
@@ -56,12 +65,34 @@ const dailyKitItemSchema = new mongoose.Schema({
   // Which job(s) need this item
   assignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Assignment" }],
   bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "BookingService" }],
+  // Product delivery + installation orders participate directly in the
+  // technician-day kit. The linked calendar booking is deliberately not the
+  // inventory source, which prevents one installation from being counted
+  // twice when order and booking workflows are both visible.
+  orderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
+  // Per-order demand remains explicit even when identical requirements are
+  // consolidated into one technician-day inventory row.
+  orderAllocations: [orderAllocationSchema],
 
   // Conflict info (if equipment unavailable)
   conflict: {
     isUnavailable: { type: Boolean, default: false },
     checkedOutTo: { type: String, default: null }, // technician name
     message: { type: String, default: null },
+  },
+
+  // Technician/admin resolution for unavailable items
+  resolution: {
+    status: {
+      type: String,
+      enum: [null, "confirmed_available", "not_required", "admin_notified",
+             "assigned_from_stock", "procured", "rescheduled"],
+      default: null,
+    },
+    source: { type: String, default: null },
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    resolvedAt: { type: Date, default: null },
+    resolutionNote: { type: String, trim: true, default: null },
   },
 
   notes: { type: String, trim: true },
@@ -103,6 +134,7 @@ const dailyKitSchema = new mongoose.Schema({
   // Job assignments included in this kit
   assignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Assignment" }],
   bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "BookingService" }],
+  orderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
 
   // Tracking
   generatedAt: { type: Date, default: Date.now },

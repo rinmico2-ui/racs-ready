@@ -29,6 +29,12 @@ const walkInSaleItemSchema = new mongoose.Schema(
       ref: "Tool",
       required: true,
     },
+    source: {
+      type: String,
+      enum: ["tool", "aircon", "aircon_legacy"],
+      default: "tool",
+    },
+    parentHvacId: { type: mongoose.Schema.Types.ObjectId, ref: "HVACProduct", default: null },
     // snapshot at time of sale
     itemName: { type: String, required: true },
     category: { type: String, default: "" },
@@ -49,7 +55,6 @@ const walkInSaleSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
 
     // ── Customer Info ──────────────────────────────────────────────────────
@@ -113,7 +118,6 @@ const walkInSaleSchema = new mongoose.Schema(
 
 // ─── Indexes ────────────────────────────────────────────────────────────────
 walkInSaleSchema.index({ status: 1, createdAt: -1 });
-walkInSaleSchema.index({ invoiceNumber: 1 });
 
 // ─── Auto-generate Invoice Number ───────────────────────────────────────────
 walkInSaleSchema.pre("save", async function () {

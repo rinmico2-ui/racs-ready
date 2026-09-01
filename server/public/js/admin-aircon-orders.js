@@ -3,8 +3,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const STATUS_LABELS = {
     pending_payment: "Pending Payment", preparing_unit: "Preparing Unit",
     ready_for_pickup: "Ready for Pickup",
-    technician_assigned: "Technician Assigned", out_for_delivery: "Out for Delivery",
-    arrived: "Arrived", installing: "Installing", completed: "Completed", cancelled: "Cancelled"
+    technician_assigned: "Technician Assigned", technician_accepted: "Technician Accepted", out_for_delivery: "En Route",
+    technician_declined: "Technician Declined", arrived: "Arrived", installing: "Installing", completed: "Completed", cancelled: "Cancelled"
   };
   const FULFILL_LABELS = { delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" };
   const PAYMENT_METHOD_LABELS = { cod: "Cash on Delivery", cash_onsite: "Cash On-Site", gcash_full: "GCash Full", gcash_downpayment: "GCash Downpayment", cash: "Cash", downpayment: "Downpayment (50%)" };
@@ -25,6 +25,12 @@ document.addEventListener("DOMContentLoaded", function () {
     return h >= 12 ? (h === 12 ? "12:00 PM" : (h - 12) + ":00 PM") : (h === 0 ? "12:00 AM" : h + ":00 AM");
   };
   const orderRef = o => o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
+  const orderStatusLabel = o => {
+    if (o && o.status === "preparing_unit") {
+      return o.fulfillmentType === "customer_pickup" ? "Preparing for Pickup" : "Awaiting Assignment";
+    }
+    return STATUS_LABELS[o && o.status] || niceStatus(o && o.status);
+  };
 
   // ═══ SPARKLINE HELPERS ═══════════════════════════════════════════════════════
   function spark(ctx, data, color){
@@ -52,11 +58,21 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ STATE ════════════════════════════════════════════════════════════════════
   let currentPage = 1;
   let currentTab = "overview";
+  const initialScope = new URLSearchParams(window.location.search).get("fulfillment") === "pickup" ? "pickup" : "delivery";
+  let currentFulfillmentScope = initialScope;
+  let assignQueueFilter = "all";
+  let assignQueueOrders = [];
+  let assignQueuePlan = [];
+  let assignQueueRecommendations = {};
+  let assignQueuePlanLoaded = false;
 
   // ═══ DOM REFS ════════════════════════════════════════════════════════════════
   const searchInput   = document.getElementById("aoSearch");
   const statusFilter  = document.getElementById("aoStatusFilter");
   const fulfillFilter = document.getElementById("aoFulfillFilter");
+  const preparationFilter = document.getElementById("aoPreparationFilter");
+  const scheduledFrom = document.getElementById("aoScheduledFrom");
+  const scheduledTo = document.getElementById("aoScheduledTo");
   const filterBtn     = document.getElementById("aoFilterBtn");
 
   const modalEl = document.getElementById("aoDetailsModal");
@@ -69,6 +85,81 @@ document.addEventListener("DOMContentLoaded", function () {
   const assignTechModal = assignTechModalEl ? new bootstrap.Modal(assignTechModalEl) : null;
   let _aoAssignTargetOrderId = null;
   let _aoSelectedTechId = null;
+
+  function scopedOrdersUrl(params) {
+    const query = params instanceof URLSearchParams ? params : new URLSearchParams(params || {});
+    query.set("fulfillmentGroup", currentFulfillmentScope);
+    return "/api/orders/all?" + query.toString();
+  }
+
+  function workflowAllowed(tab) {
+    return currentFulfillmentScope === "pickup"
+      ? ["overview", "payment", "pickup", "completed"].includes(tab)
+      : ["overview", "payment", "assign", "waiting", "active", "completed"].includes(tab);
+  }
+
+  function syncScopeSpecificFilters() {
+    const pickup = currentFulfillmentScope === "pickup";
+    const currentStatus = statusFilter.value;
+    const deliveryStatuses = [
+      ["all", "All Statuses"], ["pending_payment", "Pending Payment"], ["preparing_unit", "Preparation Queue"],
+      ["technician_assigned", "Technician Assigned"], ["technician_accepted", "Technician Accepted"],
+      ["out_for_delivery", "En Route"], ["arrived", "Arrived"], ["installing", "Installing"],
+      ["completed", "Completed"], ["technician_declined", "Technician Declined"], ["cancelled", "Cancelled"],
+    ];
+    const pickupStatuses = [
+      ["all", "All Pickup Statuses"], ["pending_payment", "Pending Payment"], ["preparing_unit", "Preparing for Pickup"],
+      ["ready_for_pickup", "Ready for Pickup"], ["completed", "Picked Up"], ["cancelled", "Cancelled"],
+    ];
+    const statuses = pickup ? pickupStatuses : deliveryStatuses;
+    statusFilter.innerHTML = statuses.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+    statusFilter.value = statuses.some(([value]) => value === currentStatus) ? currentStatus : "all";
+    fulfillFilter.value = "all";
+    fulfillFilter.style.display = pickup ? "none" : "block";
+    if (preparationFilter) {
+      preparationFilter.value = "all";
+      preparationFilter.style.display = pickup ? "none" : "block";
+    }
+  }
+
+  function updateScopeBadges(kpi) {
+    const breakdown = kpi?.fulfillmentBreakdown || {};
+    setText("aoScopeDeliveryBadge", Number(breakdown.delivery_installation || 0) + Number(breakdown.delivery_only || 0));
+    setText("aoScopePickupBadge", Number(breakdown.customer_pickup || 0));
+  }
+
+  function setFulfillmentScope(scope, options = {}) {
+    currentFulfillmentScope = scope === "pickup" ? "pickup" : "delivery";
+    document.querySelectorAll("[data-order-scope]").forEach(button => {
+      const active = button.dataset.orderScope === currentFulfillmentScope;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    document.querySelectorAll("[data-order-workflow-scope]").forEach(item => {
+      const visibleFor = item.dataset.orderWorkflowScope;
+      item.hidden = visibleFor !== "all" && visibleFor !== currentFulfillmentScope;
+    });
+    const context = document.getElementById("aoScopeContext");
+    if (context) context.innerHTML = currentFulfillmentScope === "pickup"
+      ? '<i class="bi bi-info-circle-fill" style="color:#7c3aed"></i><span>Showing customer pickup orders only. Technician assignment, dispatch, travel, and installation controls are intentionally excluded.</span>'
+      : '<i class="bi bi-info-circle-fill text-primary"></i><span>Showing delivery and installation orders. Pickup-only actions are kept in the Pickup Orders workspace. Legacy delivery-only records remain available here.</span>';
+    syncScopeSpecificFilters();
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("fulfillment", currentFulfillmentScope);
+    window.history.replaceState({}, "", url);
+    if (options.load === false) return;
+    if (!workflowAllowed(currentTab)) {
+      const overviewButton = document.querySelector('[data-bs-target="#ao-tab-overview"]');
+      bootstrap.Tab.getOrCreateInstance(overviewButton).show();
+    } else {
+      loadTab(currentTab);
+    }
+  }
+
+  document.querySelectorAll("[data-order-scope]").forEach(button => {
+    button.addEventListener("click", () => setFulfillmentScope(button.dataset.orderScope));
+  });
 
   // ═══ TAB SWITCHING ═══════════════════════════════════════════════════════════
   document.querySelectorAll('.ao-tab-btn[data-bs-target]').forEach(btn => {
@@ -98,10 +189,24 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  async function loadOrderResolutionCount() {
+    try {
+      const response = await fetch('/api/admin/resolution-center?source=order&page=1&perPage=1');
+      if (!response.ok) throw new Error('Resolution count unavailable');
+      const data = await response.json();
+      const count = Number(data?.summary?.bySource?.order) || 0;
+      setText('aoResolutionCount', count);
+      document.getElementById('aoResolutionCount')?.setAttribute('aria-label', `${count} order cases need resolution`);
+    } catch (_) {
+      setText('aoResolutionCount', 0);
+    }
+  }
+
   // ═══ RENDER STATS ════════════════════════════════════════════════════════════
   function renderStats(containerId, stats) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    const overviewMode = containerId === "aoOverviewStats";
     const gradients = {
       blue: '#2563eb',
       amber: '#f59e0b',
@@ -119,8 +224,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const color = s.color || 'blue';
       const hex = sparkColors[color] || sparkColors.blue;
       const badge = s.percent || (s.label && s.label.split(' ')[0]) || '';
-      return `
-      <div class="stat-card h-100" data-spark-color="${hex}">
+      const card = `
+      <div class="stat-card ${overviewMode ? 'workflow-overview-kpi' : 'h-100'}" data-spark-color="${hex}">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">${s.label}</h6>
@@ -137,6 +242,7 @@ document.addEventListener("DOMContentLoaded", function () {
         </div>
         <div class="stat-sparkline"><canvas height="40"></canvas></div>
       </div>`;
+      return overviewMode ? `<div class="col-lg-3 col-md-6">${card}</div>` : card;
     }).join("");
     container.querySelectorAll('.stat-sparkline canvas').forEach(c => {
       const card = c.closest('.stat-card');
@@ -154,22 +260,38 @@ document.addEventListener("DOMContentLoaded", function () {
     const pStatus = (o.paymentStatus||"pending").toLowerCase();
     const pBadge = `ao-st-payment ${pStatus==="paid"?"paid":pStatus==="failed"?"failed":"pending"}`;
     const techName = o.technician && o.technician.name ? esc(o.technician.name) : null;
-    const date = fmtDateShort(o.delivery && o.delivery.preferredDate ? o.delivery.preferredDate : o.createdAt);
+    const scheduledDate = o.fulfillmentType === 'customer_pickup'
+      ? o.pickupDate
+      : (o.delivery && o.delivery.preferredDate);
+    const date = fmtDateShort(scheduledDate || o.createdAt);
     const time = fmtTime(o.timeSlot);
+    const dispatchStatus = o.preparation?.dispatch?.status || (o.fulfillmentType === 'customer_pickup' ? 'not_required' : 'pending');
+    const kitStatus = o.preparation?.installation?.status || (o.fulfillmentType === 'delivery_installation' ? 'pending' : 'not_required');
+    const departureReady = dispatchStatus === 'ready' && (o.fulfillmentType !== 'delivery_installation' || kitStatus === 'confirmed' || kitStatus === 'completed');
+    const prepBadge = o.fulfillmentType === 'customer_pickup' ? ''
+      : departureReady
+        ? '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Ready</span>'
+        : kitStatus === 'blocked'
+          ? '<span class="badge bg-danger"><i class="bi bi-exclamation-octagon me-1"></i>Kit Blocked</span>'
+          : '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Prep Pending</span>';
 
-    return `<div class="ao-order-card" data-order-id="${esc(o._id)}">
-      <div class="ao-order-header">
+    return `<div class="ao-order-card workflow-record-card" data-order-id="${esc(o._id)}">
+      <div class="ao-order-header workflow-record-head">
         <div>
-          <div class="ao-order-ref">${esc(ref)}</div>
-          <div class="ao-order-customer">${esc(cust)}</div>
-          <div class="ao-order-fulfill">${esc(fulfill)}</div>
+          <div class="ao-order-ref workflow-record-ref">${esc(ref)}</div>
+          <div class="ao-order-customer workflow-record-title">${esc(cust)}</div>
+          <div class="ao-order-fulfill workflow-record-subtitle">${esc(fulfill)}</div>
         </div>
         <div class="text-end d-flex flex-column align-items-end gap-1">
-          <span class="ao-st-badge ao-st-${o.status}">${STATUS_LABELS[o.status]||o.status}</span>
+          ${o.isPastDate
+            ? '<span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span>'
+            : `<span class="ao-st-badge ao-st-${o.status}">${esc(orderStatusLabel(o))}</span>`}
           ${o.fulfillmentType === 'delivery_installation' ? '<span class="ao-st-fulfillment"><i class="bi bi-tools me-1"></i>w/ Install</span>' : ''}
+          ${prepBadge}
         </div>
       </div>
-      <div class="ao-detail-grid">
+      ${o.isPastDate ? `<div class="ao-overdue-alert"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>Requested schedule passed.</strong> ${esc(o.attentionReason || 'Admin review is required before this order can continue.')}</span></div>` : ''}
+      <div class="ao-detail-grid workflow-record-grid">
         <div class="ao-detail-item"><i class="bi bi-box-seam"></i> ${esc(items.substring(0,40))}${items.length>40?'...':''}</div>
         <div class="ao-detail-item"><i class="bi bi-calendar"></i> ${date}</div>
         ${time !== "—" ? `<div class="ao-detail-item"><i class="bi bi-clock"></i> ${time}</div>` : ''}
@@ -179,7 +301,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <div class="ao-detail-item"><i class="bi bi-person"></i> ${techName || '<span class="text-muted">Unassigned</span>'}</div>
         <div class="ao-detail-item"><i class="bi bi-boxes"></i> ${(o.items||[]).reduce((s,i)=>s+(i.quantity||1),0)} unit(s)</div>
       </div>
-      <div class="ao-action-bar">${actions}</div>
+      <div class="ao-action-bar workflow-record-actions">${actions}</div>
     </div>`;
   }
 
@@ -190,7 +312,40 @@ document.addEventListener("DOMContentLoaded", function () {
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoVerifyPayment('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Verify</button>`;
   }
   function assignBtn(o) {
-    return `<button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoAssignTechnician('${esc(o._id)}','${esc(orderRef(o))}','${esc((o.customer&&o.customer.name)||'Customer')}','${esc(o.delivery&&o.delivery.preferredDate||'')}','${esc(o.timeSlot||'')}')"><i class="bi bi-person-badge me-1"></i>Assign</button>`;
+    const args = [
+      String(o._id || ""),
+      orderRef(o),
+      (o.customer && o.customer.name) || "Customer",
+      (o.delivery && o.delivery.preferredDate) || "",
+      o.timeSlot || "",
+    ].map(value => JSON.stringify(String(value))).join(",");
+    return `<button class="btn btn-sm btn-primary ao-action-btn" onclick="${esc(`window._aoAssignTechnician(${args})`)}"><i class="bi bi-person-badge me-1"></i>Choose Technician</button>`;
+  }
+  function resolutionUrl(o) {
+    const params = new URLSearchParams({
+      source: 'order',
+      q: orderRef(o),
+      focus: `order:${String(o._id || '')}`,
+      open: 'resolve',
+    });
+    if (o.attentionType) params.set('issue', o.attentionType);
+    return `/admin/operations/resolution-center?${params.toString()}`;
+  }
+  function resolutionBtn(o) {
+    return `<a class="btn btn-sm btn-warning ao-action-btn" href="${esc(resolutionUrl(o))}"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>`;
+  }
+  function paymentIsVerified(o) {
+    return ["paid","partial","verified","remitted"].includes(String(o.paymentStatus||"").toLowerCase());
+  }
+  function canAssign(o) {
+    const hasTech = o.technicianId || (o.technician && o.technician.name);
+    return !hasTech && !o.isPastDate && o.fulfillmentType !== "customer_pickup" &&
+      ["preparing_unit","technician_declined"].includes(o.status) && paymentIsVerified(o);
+  }
+  function assignmentTimestamp(o) {
+    const history = Array.isArray(o.statusHistory) ? o.statusHistory : [];
+    const entry = history.slice().reverse().find(item => item.status === "technician_assigned");
+    return entry && entry.timestamp ? new Date(entry.timestamp) : null;
   }
   function markReadyBtn(id) {
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoMarkReadyForPickup('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Mark Ready</button>`;
@@ -198,17 +353,80 @@ document.addEventListener("DOMContentLoaded", function () {
   function confirmPickupBtn(id) {
     return `<button class="btn btn-sm btn-dark ao-action-btn" onclick="window._aoConfirmPickup('${esc(id)}')"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
   }
+  function unitPreparedBtn(o) {
+    const status = o.preparation?.dispatch?.status || "pending";
+    if (o.fulfillmentType === "customer_pickup" || status === "ready" || ["out_for_delivery","arrived","installing","completed","cancelled"].includes(o.status)) return "";
+    return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoMarkDispatchReady('${esc(o._id)}')"><i class="bi bi-box-seam me-1"></i>Confirm Unit Prepared</button>`;
+  }
 
   // ═══ PAGINATION ══════════════════════════════════════════════════════════════
   function renderPagination(pag, goFn) {
     const el = document.getElementById("aoPagination");
     if (!pag || pag.pages <= 1) { el.innerHTML = ""; return; }
-    let pg = '<ul class="pagination pagination-sm">';
+    let pg = '<ul class="pagination pagination-sm mb-0">';
     for (let i = 1; i <= pag.pages; i++) {
       pg += `<li class="page-item ${i === pag.page ? 'active' : ''}"><button class="page-link" onclick="${goFn}(${i})">${i}</button></li>`;
     }
     pg += '</ul>';
     el.innerHTML = pg;
+  }
+
+  function renderOrderPipeline(kpi) {
+    const target = document.getElementById("aoPipeline");
+    if (!target) return;
+    const counts = kpi.statusBreakdown || {};
+    const stages = currentFulfillmentScope === "pickup" ? [
+      { label:"Payment", icon:"bi-credit-card", count:counts.pending_payment || 0, color:"#d97706", bg:"#fffbeb" },
+      { label:"Preparing", icon:"bi-box-seam", count:counts.preparing_unit || 0, color:"#2563eb", bg:"#eff6ff" },
+      { label:"Ready for Pickup", icon:"bi-bag-check", count:counts.ready_for_pickup || 0, color:"#7c3aed", bg:"#f5f3ff" },
+      { label:"Picked Up", icon:"bi-check-circle", count:counts.completed || 0, color:"#059669", bg:"#ecfdf5" },
+    ] : [
+      { label:"Payment", icon:"bi-credit-card", count:counts.pending_payment || 0, color:"#d97706", bg:"#fffbeb" },
+      { label:"Preparing", icon:"bi-box-seam", count:counts.preparing_unit || 0, color:"#2563eb", bg:"#eff6ff" },
+      { label:"Assigned", icon:"bi-person-check", count:counts.technician_assigned || 0, color:"#7c3aed", bg:"#f5f3ff" },
+      { label:"Accepted", icon:"bi-hand-thumbs-up", count:counts.technician_accepted || 0, color:"#0891b2", bg:"#ecfeff" },
+      { label:"En Route", icon:"bi-truck", count:counts.out_for_delivery || 0, color:"#ea580c", bg:"#fff7ed" },
+      { label:"On Site", icon:"bi-geo-alt", count:(counts.arrived || 0) + (counts.installing || 0), color:"#db2777", bg:"#fdf2f8" },
+      { label:"Completed", icon:"bi-check-circle", count:counts.completed || 0, color:"#059669", bg:"#ecfdf5" },
+    ];
+    target.innerHTML = stages.map(stage => `<div class="workflow-pipeline-stage" style="--stage-color:${stage.color};--stage-bg:${stage.bg}"><span class="workflow-pipeline-icon"><i class="bi ${stage.icon}"></i></span><span class="workflow-pipeline-count">${Number(stage.count).toLocaleString()}</span><span class="workflow-pipeline-label">${stage.label}</span></div>`).join("");
+  }
+
+  function overviewPreparation(o) {
+    if (o.fulfillmentType === "customer_pickup") return '<span class="text-muted">Store pickup</span>';
+    const dispatch = o.preparation?.dispatch?.status || "pending";
+    if (o.fulfillmentType !== "delivery_installation") return `<span class="text-muted">Unit preparation: ${dispatch === "ready" ? "Prepared" : "Pending"}</span>`;
+    const kit = o.preparation?.installation?.status || "pending";
+    const kitClass = kit === "confirmed" || kit === "completed" ? "text-success" : kit === "blocked" ? "text-danger" : "text-warning";
+    return `<span class="text-muted">Unit preparation: ${dispatch === "ready" ? "Prepared" : "Pending"}</span><br><span class="${kitClass}"><i class="bi bi-tools me-1"></i>Daily Kit: ${esc(niceStatus(kit))}</span>`;
+  }
+
+  function niceStatus(value) {
+    return String(value || "").replace(/[_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function overviewOrderRow(o) {
+    const isPickup = o.fulfillmentType === "customer_pickup";
+    const scheduledDate = isPickup ? o.pickupDate : o.delivery?.preferredDate;
+    const products = (o.items || []).map(item => `${esc(item.modelLine || item.brand || "Aircon")} × ${Number(item.quantity) || 1}`).join(", ") || "—";
+    const technician = o.technician?.name || o.technicianId?.name || "Unassigned";
+    let actions = viewBtn(o._id);
+    if (!o.isPastDate && o.status === "pending_payment" && o.paymentMethod !== "cash_onsite" && String(o.paymentStatus || "pending").toLowerCase() === "pending") actions += verifyBtn(o._id);
+    if (canAssign(o)) actions += assignBtn(o);
+    if (o.isPastDate) actions += resolutionBtn(o);
+    if (!o.isPastDate && isPickup && o.status === "preparing_unit") actions += markReadyBtn(o._id);
+    if (!o.isPastDate && isPickup && o.status === "ready_for_pickup") actions += confirmPickupBtn(o._id);
+    return `<tr>
+      <td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="window._aoViewOrder('${esc(o._id)}')">${esc(orderRef(o))}</button><div class="small text-muted mt-1">${fmtDateShort(o.createdAt)}</div>${o.salesChannel === "walk_in" ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle mt-1"><i class="bi bi-shop me-1"></i>Walk-in POS</span>' : ''}</td>
+      <td><strong>${esc(o.customer?.name || "Customer")}</strong><div class="small text-muted">${esc(o.customer?.phone || o.customer?.email || "")}</div></td>
+      <td><div style="max-width:210px;white-space:normal;">${products}</div></td>
+      <td><strong>${esc(FULFILL_LABELS[o.fulfillmentType] || niceStatus(o.fulfillmentType))}</strong><div class="small mt-1">${overviewPreparation(o)}</div></td>
+      <td><span class="text-nowrap">${fmtDate(scheduledDate)}</span><div class="small text-muted">${fmtTime(o.timeSlot)}</div></td>
+      <td class="fw-bold text-nowrap">${currency(o.total)}</td>
+      <td>${o.isPastDate ? '<span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span><div class="small text-danger fw-semibold mt-1">Past schedule</div>' : `<span class="ao-st-badge ao-st-${esc(o.status)}">${esc(orderStatusLabel(o))}</span>`}</td>
+      <td>${technician === "Unassigned" ? '<span class="text-muted">Unassigned</span>' : `<strong>${esc(technician)}</strong>`}</td>
+      <td><div class="d-flex flex-nowrap justify-content-center align-items-center gap-1">${actions}</div></td>
+    </tr>`;
   }
 
   // ═══ OVERVIEW ════════════════════════════════════════════════════════════════
@@ -217,71 +435,70 @@ document.addEventListener("DOMContentLoaded", function () {
     const params = new URLSearchParams({ page: currentPage, limit: LIMIT });
     if (searchInput.value.trim()) params.set("search", searchInput.value.trim());
     if (statusFilter.value !== "all") params.set("status", statusFilter.value);
-    if (fulfillFilter.value !== "all") params.set("fulfillmentType", fulfillFilter.value);
+    if (preparationFilter && preparationFilter.value !== "all") params.set("preparation", preparationFilter.value);
+    if (scheduledFrom && scheduledFrom.value) params.set("scheduledFrom", scheduledFrom.value);
+    if (scheduledTo && scheduledTo.value) params.set("scheduledTo", scheduledTo.value);
 
     const container = document.getElementById("aoOverviewContainer");
-    container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading orders...</p></div>';
+    container.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2 mb-0">Loading orders...</p></td></tr>';
 
     try {
-      const res = await fetch("/api/orders/all?" + params.toString());
+      if (currentFulfillmentScope === "delivery" && fulfillFilter.value !== "all") params.set("fulfillmentType", fulfillFilter.value);
+      const res = await fetch(scopedOrdersUrl(params));
       if (!res.ok) throw new Error("Fetch failed");
       const data = await res.json();
       const orders = data.orders || [];
 
       const kpi = data.kpi || {};
+      updateScopeBadges(kpi);
       setText("heroTotal", kpi.totalOrders || 0);
       setText("heroPending", kpi.pending || 0);
       setText("heroActive", kpi.inProgress || 0);
       setText("heroCompleted", kpi.completed || 0);
       setText("aoTabTotalBadge", data.total || 0);
+      loadOrderResolutionCount();
+      renderOrderPipeline(kpi);
 
-      renderStats("aoOverviewStats", [
-        { icon: "bi-bag-check", color: "blue", value: kpi.totalOrders||0, label: "Total Orders", sub: "All orders" },
-        { icon: "bi-clock-history", color: "amber", value: kpi.pending||0, label: "Pending Payment", sub: "Awaiting payment" },
-        { icon: "bi-truck", color: "purple", value: kpi.inProgress||0, label: "In Progress", sub: "Active orders" },
-        { icon: "bi-check-circle", color: "green", value: kpi.completed||0, label: "Completed" },
-        { icon: "bi-x-circle", color: "red", value: kpi.cancelled||0, label: "Cancelled" },
+      renderStats("aoOverviewStats", currentFulfillmentScope === "pickup" ? [
+        { icon: "bi-shop", color: "purple", value: kpi.totalOrders||0, label: "Pickup Orders", sub: "Customer pickup only", percent:"Pickup" },
+        { icon: "bi-clock-history", color: "blue", value: kpi.pending||0, label: "Pending Payment", sub: "Awaiting verification", percent:"Pending" },
+        { icon: "bi-bag-check", color: "amber", value:(kpi.statusBreakdown?.preparing_unit||0)+(kpi.statusBreakdown?.ready_for_pickup||0), label:"Pickup Queue", sub:"Preparing or awaiting customer", percent:"Queue" },
+        { icon: "bi-check-circle", color: "green", value: kpi.completed||0, label: "Picked Up", sub: "Completed collections", percent:"Done" },
+      ] : [
+        { icon: "bi-truck-front", color: "amber", value: kpi.totalOrders||0, label: "Delivery Orders", sub: "Delivery and installation", percent:"Delivery" },
+        { icon: "bi-clock-history", color: "blue", value: kpi.pending||0, label: "Pending Payment", sub: "Awaiting payment", percent:"Pending" },
+        { icon: "bi-truck", color: "green", value: kpi.inProgress||0, label: "In Progress", sub: "Active field fulfillment", percent:"Active" },
+        { icon: "bi-check-circle", color: "purple", value: kpi.completed||0, label: "Completed", sub: "Delivered orders", percent:"Completed" },
       ]);
 
       if (!orders.length) {
-        container.innerHTML = '<div class="ao-empty"><i class="bi bi-inbox"></i><p>No orders found</p></div>';
+        container.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted"><i class="bi bi-inbox d-block fs-2 mb-2"></i>No orders match the selected filters.</td></tr>';
         document.getElementById("aoPagination").innerHTML = "";
+        setText("aoOverviewPagInfo", "Showing 0 of 0");
         return;
       }
 
-      container.innerHTML = orders.map(o => {
-        const hasTech = o.technicianId || (o.technician && o.technician.name);
-        const isPickup = o.fulfillmentType === 'customer_pickup';
-        let actions = viewBtn(o._id);
-        if (o.status === 'pending_payment' && (o.paymentStatus||'pending') === 'pending') {
-          actions += verifyBtn(o._id);
-        }
-        if (!isPickup && (o.status === 'pending_payment' || o.status === 'preparing_unit' || o.status === 'technician_declined') && !hasTech) {
-          actions += assignBtn(o);
-        }
-        if (isPickup && o.status === 'preparing_unit') {
-          actions += markReadyBtn(o._id);
-        }
-        if (isPickup && o.status === 'ready_for_pickup') {
-          actions += confirmPickupBtn(o._id);
-        }
-        return orderCard(o, actions);
-      }).join("");
+      container.innerHTML = orders.map(overviewOrderRow).join("");
+      const start = ((data.page || 1) - 1) * LIMIT + 1;
+      const end = Math.min(data.total || 0, start + orders.length - 1);
+      setText("aoOverviewPagInfo", `Showing ${start}–${end} of ${Number(data.total || 0).toLocaleString()}`);
 
       renderPagination(data, 'window._aoGoPage');
       window._aoGoPage = function(p) { loadOverview(p); };
     } catch(err) {
-      container.innerHTML = '<div class="alert alert-danger">Failed to load orders</div>';
+      container.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load orders.</td></tr>';
+      setText("aoOverviewPagInfo", "Unable to load orders");
     }
   }
 
+  // ═══ NEEDS ATTENTION TAB ════════════════════════════════════════════════════
   // ═══ PENDING PAYMENT TAB ═════════════════════════════════════════════════════
   async function loadPaymentTab() {
     const container = document.getElementById("aoPaymentContainer");
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading payment queue...</p></div>';
 
     try {
-      const res = await fetch("/api/orders/all?status=pending_payment&limit=100");
+      const res = await fetch(scopedOrdersUrl({ status: "pending_payment", limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = data.orders || [];
@@ -302,17 +519,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const method = PAYMENT_METHOD_LABELS[o.paymentMethod] || o.paymentMethod || "N/A";
         const pStatus = (o.paymentStatus||"pending").toLowerCase();
         const pBadge = `ao-st-payment ${pStatus==="paid"?"paid":pStatus==="failed"?"failed":"pending"}`;
-        const hasTech = o.technicianId || (o.technician && o.technician.name);
         const isPickup = o.fulfillmentType === 'customer_pickup';
 
         let actions = viewBtn(o._id);
-        if (pStatus === "pending") {
+        if (o.isPastDate) {
+          actions += resolutionBtn(o);
+        } else if (pStatus === "pending") {
           actions += verifyBtn(o._id);
         }
-        if (!isPickup && (pStatus === "paid" || o.status === "pending_payment") && !hasTech) {
-          actions += assignBtn(o);
-        }
-        if (isPickup && o.status === 'preparing_unit') {
+        if (!o.isPastDate && isPickup && o.status === 'preparing_unit') {
           actions += markReadyBtn(o._id);
         }
 
@@ -325,35 +540,325 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ═══ READY TO ASSIGN TAB ═════════════════════════════════════════════════════
+  function assignQueueMatchesFilter(o) {
+    if (assignQueueFilter === "awaiting") return o.status === "preparing_unit";
+    if (assignQueueFilter === "reassignment") return o.status === "technician_declined";
+    if (assignQueueFilter === "installation") return o.fulfillmentType === "delivery_installation";
+    if (assignQueueFilter === "delivery") return o.fulfillmentType === "delivery_only";
+    return true;
+  }
+
+  function assignmentQueueCard(o) {
+    const ref = orderRef(o);
+    const customer = (o.customer && o.customer.name) || "Customer";
+    const products = (o.items || []).map(item => {
+      const model = item.modelLine || item.name || item.productName || "Aircon";
+      const capacity = item.capacity ? ` ${item.capacity}${item.capacityUnit || "HP"}` : "";
+      return `${model}${capacity}`;
+    }).join(", ") || "Aircon order";
+    const scheduledDate = o.delivery && o.delivery.preferredDate;
+    const address = (o.delivery && (o.delivery.address || o.delivery.fullAddress)) || (o.customer && o.customer.address) || "No delivery address";
+    const unitCount = (o.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+    const isReassignment = o.status === "technician_declined";
+    const dispatchStatus = o.preparation && o.preparation.dispatch && o.preparation.dispatch.status || "pending";
+    const kitStatus = o.preparation && o.preparation.installation && o.preparation.installation.status || "pending";
+    const isInstallation = o.fulfillmentType === "delivery_installation";
+    const dispatchReady = dispatchStatus === "ready";
+    const kitReady = ["confirmed", "completed"].includes(kitStatus);
+    const kitBlocked = kitStatus === "blocked";
+    const statusBadge = isReassignment
+      ? '<span class="badge bg-danger"><i class="bi bi-arrow-repeat me-1"></i>Needs Reassignment</span>'
+      : '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Awaiting Assignment</span>';
+    const dispatchIcon = dispatchReady ? "ready" : "pending";
+    const dispatchCopy = dispatchReady ? "Unit preparation confirmed" : "Admin confirmation still pending";
+    const kitIcon = !isInstallation || kitReady ? "ready" : kitBlocked ? "blocked" : "pending";
+    const kitTitle = isInstallation ? "Technician Daily Kit" : "Daily Kit";
+    const kitCopy = !isInstallation
+      ? "Not required for delivery-only orders"
+      : kitReady
+        ? "Technician kit confirmed"
+        : kitBlocked
+          ? "Blocked — resolve before departure"
+          : "Technician confirms after accepting";
+
+    return `<div class="ao-assign-card" data-order-id="${esc(o._id)}">
+      <div class="ao-assign-head">
+        <div>
+          <div class="ao-assign-ref">${esc(ref)}</div>
+          <div class="ao-assign-customer">${esc(customer)}</div>
+          <div class="ao-assign-service">${esc(FULFILL_LABELS[o.fulfillmentType] || o.fulfillmentType)} &middot; ${esc(products)}</div>
+        </div>
+        <div class="text-end d-flex flex-column align-items-end gap-1">
+          ${statusBadge}
+          ${isInstallation ? '<span class="ao-st-fulfillment"><i class="bi bi-tools me-1"></i>Delivery + Install</span>' : '<span class="ao-st-fulfillment"><i class="bi bi-truck me-1"></i>Delivery Only</span>'}
+        </div>
+      </div>
+      <div class="ao-assign-detail-grid">
+        <div class="ao-assign-detail"><i class="bi bi-calendar"></i>${esc(fmtDate(scheduledDate))}</div>
+        <div class="ao-assign-detail"><i class="bi bi-clock"></i>${esc(fmtTime(o.timeSlot))}</div>
+        <div class="ao-assign-detail" title="${esc(address)}"><i class="bi bi-geo-alt"></i>${esc(address.length > 34 ? address.slice(0, 34) + "..." : address)}</div>
+        <div class="ao-assign-detail"><i class="bi bi-cash"></i>${currency(o.total)}</div>
+        <div class="ao-assign-detail"><i class="bi bi-boxes"></i>${unitCount} unit${unitCount === 1 ? "" : "s"}</div>
+        <div class="ao-assign-detail"><i class="bi bi-credit-card"></i>${esc(String(o.paymentStatus || "pending").replace(/_/g, " "))}</div>
+      </div>
+      ${isReassignment ? '<div class="ao-assign-alert"><i class="bi bi-arrow-repeat"></i><span><strong>Previous assignment was declined.</strong> Select another eligible technician; the order schedule remains unchanged.</span></div>' : ''}
+      <div class="ao-assign-readiness">
+        <div class="ao-assign-ready-item">
+          <div class="ao-assign-ready-icon ${dispatchIcon}"><i class="bi ${dispatchReady ? 'bi-check2-circle' : 'bi-box-seam'}"></i></div>
+          <div><div class="ao-assign-ready-title">Unit Preparation</div><div class="ao-assign-ready-sub">${dispatchCopy}</div></div>
+        </div>
+        <div class="ao-assign-ready-item">
+          <div class="ao-assign-ready-icon ${kitIcon}"><i class="bi ${kitIcon === 'ready' ? 'bi-check2-circle' : kitIcon === 'blocked' ? 'bi-exclamation-octagon' : 'bi-tools'}"></i></div>
+          <div><div class="ao-assign-ready-title">${kitTitle}</div><div class="ao-assign-ready-sub">${kitCopy}</div></div>
+        </div>
+      </div>
+      <div id="aoAssignRec-${esc(o._id)}" class="border rounded-3 p-3 mt-3" style="background:#f8fafc;">
+        <div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div>
+      </div>
+      <div class="ao-assign-actions">
+        <button class="btn btn-sm btn-outline-secondary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
+        ${unitPreparedBtn(o)}
+        ${assignBtn(o)}
+      </div>
+    </div>`;
+  }
+
+  function renderAssignRecommendationsFromCache() {
+    document.querySelectorAll('[id^="aoAssignRec-"]').forEach(element => {
+      const orderId = element.id.slice("aoAssignRec-".length);
+      const row = assignQueueRecommendations[orderId];
+      if (!row) {
+        if (!assignQueuePlanLoaded) return;
+        element.innerHTML = '<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>No recommendation is available for this order.</div>';
+        return;
+      }
+      if (!row.recommended) {
+        element.innerHTML = `<div class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>${esc(row.issue || "No conflict-free technician is currently available.")}</div>`;
+        return;
+      }
+      const recommended = row.recommended;
+      const reasons = (recommended.reasons || []).slice(0, 4).map(reason => `<li>${esc(reason)}</li>`).join("");
+      element.innerHTML = `<div class="d-flex justify-content-between gap-3 flex-wrap">
+        <div>
+          <div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended Technician</div>
+          <div class="fw-bold fs-6 mt-1">${esc(recommended.name)} <span class="badge bg-primary-subtle text-primary ms-1">Score ${esc(recommended.score)}</span></div>
+          <ul class="small text-muted mb-0 mt-1 ps-3">${reasons}</ul>
+        </div>
+        <button class="btn btn-sm btn-primary fw-semibold align-self-center" type="button" onclick="window._aoAssignRecommended('${esc(orderId)}')"><i class="bi bi-check2-circle me-1"></i>Assign Recommended</button>
+      </div>`;
+    });
+  }
+
+  async function fetchOrderAssignmentPlan() {
+    const response = await fetch('/api/orders/assignment-plan');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to build the assignment plan');
+    assignQueuePlan = data.plan || [];
+    assignQueueRecommendations = Object.fromEntries(assignQueuePlan.map(row => [String(row.orderId), row]));
+    assignQueuePlanLoaded = true;
+    return data;
+  }
+
+  async function loadAssignRecommendations() {
+    try {
+      await fetchOrderAssignmentPlan();
+      renderAssignRecommendationsFromCache();
+    } catch (error) {
+      assignQueuePlanLoaded = true;
+      document.querySelectorAll('[id^="aoAssignRec-"]').forEach(element => {
+        element.innerHTML = '<div class="small text-danger"><i class="bi bi-exclamation-circle me-1"></i>Recommendation could not be loaded.</div>';
+      });
+    }
+  }
+
+  function assignmentPlanDate(row) {
+    if (!row || !row.scheduledDate) return "";
+    const date = new Date(row.scheduledDate);
+    if (Number.isNaN(date.getTime())) return "";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  async function submitReviewedOrderAssignment(row, technicianId) {
+    const response = await fetch(`/api/orders/${encodeURIComponent(row.orderId)}/assign-technician`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        technicianId,
+        scheduledDate: assignmentPlanDate(row),
+        timeSlot: row.timeSlot || '',
+        note: 'Assigned from an admin-reviewed order assignment plan.',
+        assignmentSource: 'reviewed_plan',
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Assignment failed');
+    return data;
+  }
+
+  window._aoAssignRecommended = async function(orderId) {
+    const row = assignQueueRecommendations[String(orderId)];
+    if (!row || !row.recommended) return;
+    const recommended = row.recommended;
+    const reasons = (recommended.reasons || []).slice(0, 4).map(reason => `• ${reason}`).join('\n');
+    const confirmation = await Swal.fire({
+      title: `Assign ${recommended.name}?`,
+      text: reasons || 'This technician is the highest-ranked eligible candidate.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Assign & Notify',
+      cancelButtonText: 'Cancel',
+      buttonsStyling: false,
+      customClass: { confirmButton: 'btn btn-primary px-4 me-2', cancelButton: 'btn btn-light border px-4', popup: 'rounded-4' },
+    });
+    if (!confirmation.isConfirmed) return;
+    try {
+      await submitReviewedOrderAssignment(row, recommended.technicianId);
+      await Swal.fire({ title: 'Technician Assigned', text: `${recommended.name} was notified.`, icon: 'success', timer: 1700, showConfirmButton: false, customClass: { popup: 'rounded-4' } });
+      await loadAssignTab();
+    } catch (error) {
+      Swal.fire({ title: 'Assignment Failed', text: error.message, icon: 'error', customClass: { popup: 'rounded-4' } });
+    }
+  };
+
+  function renderOrderBulkPlan() {
+    const body = document.getElementById('aoBulkPlanBody');
+    if (!assignQueuePlan.length) {
+      body.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-check-circle fs-1 text-success"></i><p class="mt-2">No unassigned delivery orders.</p></div>';
+      document.getElementById('aoBulkPlanSummary').innerHTML = '';
+      document.getElementById('aoConfirmBulkPlan').disabled = true;
+      return;
+    }
+    body.innerHTML = `<div class="table-responsive"><table class="table align-middle">
+      <thead><tr><th>Order</th><th>Schedule</th><th>Recommended Assignment</th><th>Why</th></tr></thead>
+      <tbody>${assignQueuePlan.map((row, index) => {
+        if (!row.candidates || !row.candidates.length) {
+          return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(row.timeSlot || '—')}</small></td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>`;
+        }
+        const options = row.candidates.map((candidate, candidateIndex) => `<option value="${esc(candidate.technicianId)}" ${candidateIndex === 0 ? 'selected' : ''}>${esc(candidate.name)}${candidateIndex === 0 ? ' ★' : ''} — score ${esc(candidate.score)}</option>`).join("");
+        const reasons = (row.recommended.reasons || []).slice(0, 3).map(reason => `<div><i class="bi bi-check2 text-success"></i> ${esc(reason)}</div>`).join("");
+        return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)} · ${esc(FULFILL_LABELS[row.fulfillmentType] || row.fulfillmentType)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(row.timeSlot || '—')}</small></td><td><select class="form-select form-select-sm ao-bulk-tech-select" data-index="${index}">${options}</select></td><td class="small text-muted">${reasons}</td></tr>`;
+      }).join("")}</tbody></table></div>`;
+    body.querySelectorAll('.ao-bulk-tech-select').forEach(select => select.addEventListener('change', renderOrderBulkSummary));
+    document.getElementById('aoConfirmBulkPlan').disabled = !body.querySelector('.ao-bulk-tech-select');
+    renderOrderBulkSummary();
+  }
+
+  function renderOrderBulkSummary() {
+    const groups = {};
+    document.querySelectorAll('.ao-bulk-tech-select').forEach(select => {
+      const row = assignQueuePlan[Number(select.dataset.index)];
+      const candidate = (row.candidates || []).find(item => item.technicianId === select.value);
+      if (!candidate) return;
+      (groups[candidate.name] ||= []).push(row.orderReference || row.orderId);
+    });
+    document.getElementById('aoBulkPlanSummary').innerHTML = Object.entries(groups).map(([name, references]) => `<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="fw-bold"><i class="bi bi-person-check-fill text-primary me-1"></i>${esc(name)}</div><div class="small text-muted mt-1">${references.map(esc).join(' · ')}</div><span class="badge bg-primary-subtle text-primary mt-2">${references.length} order${references.length === 1 ? '' : 's'}</span></div></div>`).join("");
+  }
+
+  async function openOrderBulkPlan() {
+    assignQueuePlan = [];
+    document.getElementById('aoBulkPlanSummary').innerHTML = '';
+    document.getElementById('aoBulkPlanBody').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload, conflicts and travel...</p></div>';
+    document.getElementById('aoConfirmBulkPlan').disabled = true;
+    new bootstrap.Modal(document.getElementById('aoBulkAssignmentModal')).show();
+    try {
+      await fetchOrderAssignmentPlan();
+      renderOrderBulkPlan();
+    } catch (error) {
+      document.getElementById('aoBulkPlanBody').innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`;
+    }
+  }
+
+  async function confirmOrderBulkPlan() {
+    const assignments = Array.from(document.querySelectorAll('.ao-bulk-tech-select')).map(select => ({
+      row: assignQueuePlan[Number(select.dataset.index)],
+      technicianId: select.value,
+    })).filter(item => item.row && item.technicianId);
+    if (!assignments.length) return;
+    const button = document.getElementById('aoConfirmBulkPlan');
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating & assigning...';
+    let assigned = 0;
+    const failures = [];
+    for (const assignment of assignments) {
+      try {
+        await submitReviewedOrderAssignment(assignment.row, assignment.technicianId);
+        assigned += 1;
+      } catch (error) {
+        failures.push(`${assignment.row.orderReference || assignment.row.orderId}: ${error.message}`);
+      }
+    }
+    bootstrap.Modal.getInstance(document.getElementById('aoBulkAssignmentModal'))?.hide();
+    button.disabled = false;
+    button.innerHTML = original;
+    await Swal.fire({
+      title: failures.length ? 'Assignment Plan Partially Processed' : 'Assignment Plan Completed',
+      html: `<strong>${assigned}</strong> assigned${failures.length ? `<br><strong>${failures.length}</strong> need review` : ''}`,
+      icon: failures.length ? 'warning' : 'success',
+      customClass: { popup: 'rounded-4' },
+    });
+    await loadAssignTab();
+  }
+
+  function renderAssignQueue() {
+    const container = document.getElementById("aoAssignContainer");
+    if (!container) return;
+    const term = String(document.getElementById("aoAssignSearchInput")?.value || "").trim().toLowerCase();
+    const visible = assignQueueOrders.filter(o => {
+      if (!assignQueueMatchesFilter(o)) return false;
+      if (!term) return true;
+      const haystack = [orderRef(o), o.customer && o.customer.name, o.customer && o.customer.email]
+        .concat((o.items || []).map(item => item.modelLine || item.name || item.productName || ""))
+        .join(" ").toLowerCase();
+      return haystack.includes(term);
+    });
+
+    setText("aoAssignResultCount", `${visible.length} order${visible.length === 1 ? "" : "s"}`);
+    if (!visible.length) {
+      const hasQueue = assignQueueOrders.length > 0;
+      container.innerHTML = `<div class="ao-empty"><i class="bi ${hasQueue ? 'bi-search' : 'bi-check-circle'}" style="color:${hasQueue ? '#94a3b8' : '#10b981'};"></i><p>${hasQueue ? 'No orders match the selected queue filters' : 'All eligible orders have technicians assigned'}</p></div>`;
+      return;
+    }
+    container.innerHTML = visible.map(assignmentQueueCard).join("");
+    renderAssignRecommendationsFromCache();
+  }
+
   async function loadAssignTab() {
     const container = document.getElementById("aoAssignContainer");
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading assignable orders...</p></div>';
 
     try {
-      const res = await fetch("/api/orders/all?limit=100");
+      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      const orders = (data.orders || []).filter(o =>
-        (o.status === "pending_payment" || o.status === "preparing_unit" || o.status === "technician_declined") &&
-        !o.technicianId && !(o.technician && o.technician.name) &&
-        o.fulfillmentType !== "customer_pickup"
-      );
+      assignQueueOrders = (data.orders || []).filter(canAssign);
+      assignQueueRecommendations = {};
+      assignQueuePlanLoaded = false;
+      const awaiting = assignQueueOrders.filter(o => o.status === "preparing_unit").length;
+      const reassignment = assignQueueOrders.filter(o => o.status === "technician_declined").length;
+      const installation = assignQueueOrders.filter(o => o.fulfillmentType === "delivery_installation").length;
+      const delivery = assignQueueOrders.filter(o => o.fulfillmentType === "delivery_only").length;
 
-      setText("aoTabAssignBadge", orders.length);
+      setText("aoTabAssignBadge", assignQueueOrders.length);
+      setText("aoAssignPillAll", assignQueueOrders.length);
+      setText("aoAssignPillAwaiting", awaiting);
+      setText("aoAssignPillReassign", reassignment);
+      setText("aoAssignPillInstall", installation);
+      setText("aoAssignPillDelivery", delivery);
       renderStats("aoAssignStats", [
-        { icon: "bi-person-check", color: "blue", value: orders.length, label: "Assignment Queue", sub: "Ready to assign" },
-        { icon: "bi-box-seam", color: "green", value: orders.filter(o => o.fulfillmentType === "delivery_installation").length, label: "Delivery + Install", sub: "With installation" },
-        { icon: "bi-geo-alt", color: "cyan", value: orders.filter(o => o.fulfillmentType === "delivery_only").length, label: "Delivery Only", sub: "No installation" },
+        { icon: "bi-hourglass-split", color: "amber", value: awaiting, label: "Awaiting Assignment", sub: "New technician selections" },
+        { icon: "bi-arrow-repeat", color: "red", value: reassignment, label: "Need Reassignment", sub: "Previous technician declined" },
+        { icon: "bi-tools", color: "purple", value: installation, label: "Delivery + Install", sub: "Daily kit after acceptance" },
+        { icon: "bi-truck", color: "cyan", value: delivery, label: "Delivery Only", sub: "Installation kit not required" },
       ]);
-
-      if (!orders.length) {
-        container.innerHTML = '<div class="ao-empty"><i class="bi bi-check-circle" style="color:#10b981;"></i><p>All orders have technicians assigned</p></div>';
-        return;
-      }
-
-      container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id) + assignBtn(o))).join("");
+      renderAssignQueue();
+      loadAssignRecommendations();
     } catch(err) {
-      container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
+      assignQueueOrders = [];
+      container.innerHTML = '<div class="alert alert-danger">Failed to load assignment queue. Please refresh and try again.</div>';
     }
   }
 
@@ -363,7 +868,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading pickup orders...</p></div>';
 
     try {
-      const res = await fetch("/api/orders/all?limit=100&fulfillmentType=customer_pickup");
+      const res = await fetch(scopedOrdersUrl({ limit: 100, fulfillmentType: "customer_pickup" }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []);
@@ -386,9 +891,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
       container.innerHTML = allRelevant.map(o => {
         let actions = viewBtn(o._id);
-        if (o.status === "preparing_unit") {
+        if (o.isPastDate) actions += resolutionBtn(o);
+        if (!o.isPastDate && o.status === "preparing_unit") {
           actions += markReadyBtn(o._id);
-        } else if (o.status === "ready_for_pickup") {
+        } else if (!o.isPastDate && o.status === "ready_for_pickup") {
           actions += confirmPickupBtn(o._id);
         }
         return orderCard(o, actions);
@@ -404,7 +910,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
 
     try {
-      const res = await fetch("/api/orders/all?limit=100");
+      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []).filter(o => o.status === "technician_assigned");
@@ -413,8 +919,9 @@ document.addEventListener("DOMContentLoaded", function () {
       renderStats("aoWaitingStats", [
         { icon: "bi-person-badge", color: "purple", value: orders.length, label: "Waiting for Acceptance", sub: "Tech pending" },
         { icon: "bi-clock-history", color: "amber", value: orders.filter(o => {
-          if (!o.technician?.assignedAt) return false;
-          const hours = (Date.now() - new Date(o.technician.assignedAt).getTime()) / 3600000;
+          const assignedAt = assignmentTimestamp(o);
+          if (!assignedAt) return false;
+          const hours = (Date.now() - assignedAt.getTime()) / 3600000;
           return hours > 2;
         }).length, label: "Overdue (>2 hrs)" },
       ]);
@@ -425,11 +932,14 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       container.innerHTML = orders.map(o => {
-        const assignedAt = o.technician?.assignedAt ? new Date(o.technician.assignedAt).toLocaleString() : '—';
+        const assignmentDate = assignmentTimestamp(o);
+        const assignedAt = assignmentDate ? assignmentDate.toLocaleString() : '—';
+        const isAcceptanceOverdue = assignmentDate && (Date.now() - assignmentDate.getTime()) > 2 * 3600000;
         const techName = o.technician?.name || 'Unknown';
-        const techPhone = o.technician?.phone || o.technician?.contact || '—';
         return orderCard(o, `
           <button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
+          ${unitPreparedBtn(o)}
+          ${isAcceptanceOverdue ? `<button class="btn btn-sm btn-warning ao-action-btn" onclick="window._aoRequeueAssignment('${esc(o._id)}','${esc(orderRef(o))}')"><i class="bi bi-arrow-repeat me-1"></i>Requeue</button>` : ''}
           <span class="small text-muted ms-2">Assigned to ${esc(techName)} at ${assignedAt}</span>
         `);
       }).join("");
@@ -444,16 +954,16 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading active orders...</p></div>';
 
     try {
-      const activeStatuses = ["technician_assigned","out_for_delivery","arrived","installing"];
-      const res = await fetch("/api/orders/all?limit=100");
+      const activeStatuses = ["technician_accepted","out_for_delivery","arrived","installing"];
+      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []).filter(o => activeStatuses.includes(o.status));
 
       setText("aoTabActiveBadge", orders.length);
       renderStats("aoActiveStats", [
-        { icon: "bi-person-badge", color: "purple", value: orders.filter(o=>o.status==="technician_assigned").length, label: "Assigned", sub: "Tech assigned" },
-        { icon: "bi-truck", color: "amber", value: orders.filter(o=>o.status==="out_for_delivery").length, label: "Out for Delivery", sub: "In transit" },
+        { icon: "bi-person-check", color: "purple", value: orders.filter(o=>o.status==="technician_accepted").length, label: "Accepted", sub: "Technician confirmed" },
+        { icon: "bi-truck", color: "amber", value: orders.filter(o=>o.status==="out_for_delivery").length, label: "En Route", sub: "Heading to customer" },
         { icon: "bi-geo-alt", color: "cyan", value: orders.filter(o=>o.status==="arrived").length, label: "Arrived", sub: "On site" },
         { icon: "bi-tools", color: "rose", value: orders.filter(o=>o.status==="installing").length, label: "Installing" },
       ]);
@@ -463,7 +973,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id))).join("");
+      container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id) + (o.status === "technician_accepted" ? unitPreparedBtn(o) : ""))).join("");
     } catch(err) {
       container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
     }
@@ -475,7 +985,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading completed orders...</p></div>';
 
     try {
-      const res = await fetch("/api/orders/all?limit=100");
+      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []).filter(o => o.status === "completed" || o.status === "cancelled");
@@ -484,13 +994,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
       setText("aoTabDoneBadge", orders.length);
       renderStats("aoCompletedStats", [
-        { icon: "bi-check-circle", color: "green", value: completed.length, label: "Completed", sub: "Finished orders" },
+        { icon: currentFulfillmentScope === "pickup" ? "bi-bag-check" : "bi-check-circle", color: "green", value: completed.length, label: currentFulfillmentScope === "pickup" ? "Picked Up" : "Completed", sub: currentFulfillmentScope === "pickup" ? "Customer collections completed" : "Finished delivery orders" },
         { icon: "bi-x-circle", color: "red", value: orders.filter(o=>o.status==="cancelled").length, label: "Cancelled", sub: "Voided orders" },
-        { icon: "bi-cash-stack", color: "blue", value: currency(revenue), label: "Revenue", sub: "Total revenue" },
+        { icon: "bi-cash-stack", color: "blue", value: currency(revenue), label: "Revenue", sub: currentFulfillmentScope === "pickup" ? "Collected pickup revenue" : "Delivery revenue" },
       ]);
 
       if (!orders.length) {
-        container.innerHTML = '<div class="ao-empty"><i class="bi bi-inbox"></i><p>No completed orders yet</p></div>';
+        container.innerHTML = `<div class="ao-empty"><i class="bi bi-inbox"></i><p>${currentFulfillmentScope === "pickup" ? "No completed pickups yet" : "No completed delivery orders yet"}</p></div>`;
         return;
       }
 
@@ -517,17 +1027,23 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!o) { modalBody.innerHTML = '<p class="text-center text-danger">Order not found</p>'; return; }
 
       const refText = o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
-      modalSubtitle.textContent = refText;
+      modalSubtitle.textContent = o.isPastDate ? `${refText} · Past schedule · Needs resolution` : refText;
 
       const pStatus = (o.paymentStatus||"pending").toLowerCase();
       const pBadgeClass = pStatus==="paid"?"bg-success":pStatus==="failed"?"bg-danger":"bg-warning text-dark";
+      const dispatchPrep = o.preparation?.dispatch || { status: o.fulfillmentType === 'customer_pickup' ? 'not_required' : 'pending' };
+      const installPrep = o.preparation?.installation || { status: o.fulfillmentType === 'delivery_installation' ? 'pending' : 'not_required', blockers: [] };
+      const prepBadgeClass = value => ['ready','confirmed','completed'].includes(value) ? 'bg-success' : value === 'blocked' ? 'bg-danger' : value === 'not_required' ? 'bg-secondary' : 'bg-warning text-dark';
 
       let html = `
         <div class="pm-status-bar">
           <span class="badge ${pStatus==='paid'?'bg-success':pStatus==='failed'?'bg-danger':'bg-warning text-dark'}" style="font-size:.75rem;">Payment: ${pStatus.toUpperCase()}</span>
-          <span class="ao-st-badge ao-st-${o.status}">${STATUS_LABELS[o.status]||o.status}</span>
+          ${o.isPastDate
+            ? '<span class="badge bg-danger" style="font-size:.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Past Schedule &middot; Needs Resolution</span>'
+            : `<span class="ao-st-badge ao-st-${o.status}">${esc(orderStatusLabel(o))}</span>`}
           <span class="ao-st-fulfillment">${esc(FULFILL_LABELS[o.fulfillmentType]||o.fulfillmentType)}</span>
         </div>
+        ${o.isPastDate ? `<div class="ao-overdue-alert" style="margin:0 0 14px;"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>Requested schedule passed.</strong> Normal payment, preparation, pickup, and assignment actions are paused. Review the case and record the approved outcome in the Resolution Center.</span></div>` : ''}
 
         <div class="pm-grid">
           <div class="pm-card">
@@ -555,6 +1071,8 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="pm-card-head"><div class="pm-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-calendar-event"></i></div><h3 class="pm-card-title">Schedule</h3></div>
             <div class="pm-card-body">
               <div class="pm-row"><span class="pm-lbl">Order Date</span><span class="pm-val">${fmtDate(o.createdAt)}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Sales Channel</span><span class="pm-val">${o.salesChannel === 'walk_in' ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-shop me-1"></i>Walk-in POS</span>' : esc(niceStatus(o.salesChannel || 'online'))}</span></div>
+              ${o.pickupDate?`<div class="pm-row"><span class="pm-lbl">Pickup Date</span><span class="pm-val">${fmtDate(o.pickupDate)}</span></div>`:''}
               ${o.delivery&&o.delivery.preferredDate?`<div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${fmtDate(o.delivery.preferredDate)}</span></div>`:''}
               ${o.timeSlot?`<div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${fmtTime(o.timeSlot)}</span></div>`:''}
               ${o.delivery&&o.delivery.notes?`<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;">${esc(o.delivery.notes)}</span></div>`:''}
@@ -565,6 +1083,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="pm-card-head"><div class="pm-icon" style="background:#f3e8ff;color:#9333ea;"><i class="bi bi-cash-stack"></i></div><h3 class="pm-card-title">Pricing</h3></div>
             <div class="pm-card-body">
               <div class="pm-row"><span class="pm-lbl">Subtotal</span><span class="pm-val">${currency(o.subtotal)}</span></div>
+              ${Number(o.discount)>0?`<div class="pm-row"><span class="pm-lbl">Discount</span><span class="pm-val text-danger">-${currency(o.discount)}</span></div>`:''}
               ${o.deliveryFee?`<div class="pm-row"><span class="pm-lbl">Delivery Fee</span><span class="pm-val">${currency(o.deliveryFee)}</span></div>`:''}
               ${o.installationFee?`<div class="pm-row"><span class="pm-lbl">Installation Fee</span><span class="pm-val">${currency(o.installationFee)}</span></div>`:''}
               ${o.transportationFee?`<div class="pm-row"><span class="pm-lbl">Transportation</span><span class="pm-val">${currency(o.transportationFee)}</span></div>`:''}
@@ -592,6 +1111,26 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
           </div>
 
+          ${o.fulfillmentType !== 'customer_pickup' ? `
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#ecfeff;color:#0e7490;"><i class="bi bi-clipboard2-check"></i></div><h3 class="pm-card-title">Unit Preparation</h3></div>
+            <div class="pm-card-body">
+              <div class="pm-row"><span class="pm-lbl">Ordered Unit</span><span class="pm-val"><span class="badge ${prepBadgeClass(dispatchPrep.status)}">${dispatchPrep.status === 'ready' ? 'PREPARED' : 'PENDING'}</span></span></div>
+              ${o.fulfillmentType === 'delivery_installation' ? `<div class="pm-row"><span class="pm-lbl">Installation Daily Kit</span><span class="pm-val"><span class="badge ${prepBadgeClass(installPrep.status)}">${esc(String(installPrep.status||'pending').replace(/_/g,' ').toUpperCase())}</span></span></div><div class="pm-row"><span class="pm-lbl">Required Items</span><span class="pm-val">${(installPrep.requiredItems||[]).length}</span></div>` : ''}
+              ${(installPrep.blockers||[]).length ? `<div class="alert alert-warning small py-2 mt-2 mb-0">${installPrep.blockers.map(esc).join('<br>')}</div>` : ''}
+            </div>
+          </div>` : ''}
+
+          ${o.arrivalProofUrl || o.startProofUrl || o.proofPhoto ? `
+          <div class="pm-card">
+            <div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Field Evidence</h3></div>
+            <div class="pm-card-body d-flex flex-wrap gap-2">
+              ${o.arrivalProofUrl?`<button class="btn btn-sm btn-outline-primary" onclick="window.openAoImage('${esc(o.arrivalProofUrl).replace(/'/g,"\\'")}')"><i class="bi bi-geo-alt me-1"></i>Arrival</button>`:''}
+              ${o.startProofUrl?`<button class="btn btn-sm btn-outline-primary" onclick="window.openAoImage('${esc(o.startProofUrl).replace(/'/g,"\\'")}')"><i class="bi bi-play-circle me-1"></i>Start Work</button>`:''}
+              ${o.proofPhoto?`<button class="btn btn-sm btn-outline-success" onclick="window.openAoImage('${esc(o.proofPhoto).replace(/'/g,"\\'")}')"><i class="bi bi-check-circle me-1"></i>Completion</button>`:''}
+            </div>
+          </div>` : ''}
+
           ${o.technician && o.technician.name ? `
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-person-badge"></i></div><h3 class="pm-card-title">Technician</h3></div>
@@ -610,7 +1149,7 @@ document.addEventListener("DOMContentLoaded", function () {
           const dot = i===0 ? "background:#2563eb;border-color:#2563eb;box-shadow:0 0 8px rgba(37,99,235,0.3);" : "background:#22c55e;border-color:#22c55e;";
           html += `<div style="position:relative;padding-bottom:0.75rem;padding-left:1rem;">
             <div style="position:absolute;left:-1.5rem;top:2px;width:14px;height:14px;border-radius:50%;border:2px solid #e2e8f0;background:#fff;${dot}"></div>
-            <div class="fw-semibold small">${esc(STATUS_LABELS[h.status]||h.status)}</div>
+            <div class="fw-semibold small">${esc(orderStatusLabel({ status: h.status, fulfillmentType: o.fulfillmentType }))}</div>
             <div style="font-size:0.72rem;color:#94a3b8;">${new Date(h.timestamp).toLocaleString("en-PH")}</div>
             ${h.note?'<div style="font-size:0.75rem;color:#64748b;">'+esc(h.note)+'</div>':''}
           </div>`;
@@ -622,19 +1161,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
       let footerBtns = '';
       const isPickup = o.fulfillmentType === 'customer_pickup';
-      if (o.status === "pending_payment" && (o.paymentStatus||"pending") === "pending") {
+      if (o.isPastDate) {
+        footerBtns += `<a class="btn btn-sm btn-warning fw-bold" href="${esc(resolutionUrl(o))}" style="border-radius:8px;"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>`;
+        footerBtns += '<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>';
+      } else if (o.status === "pending_payment" && o.paymentMethod !== "cash_onsite" && (o.paymentStatus||"pending") === "pending") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoVerifyPayment('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Verify Payment</button>`;
       }
-      if (isPickup && o.status === "preparing_unit") {
+      if (!o.isPastDate && isPickup && o.status === "preparing_unit") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoMarkReadyForPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Mark Ready for Pickup</button>`;
       }
-      if (isPickup && o.status === "ready_for_pickup") {
+      if (!o.isPastDate && isPickup && o.status === "ready_for_pickup") {
         footerBtns += `<button type="button" class="btn btn-sm btn-dark fw-bold" onclick="window._aoConfirmPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
       }
-      const assignableStatuses = ["pending_payment","preparing_unit"];
-      const hasTech = o.technicianId || (o.technician && o.technician.name);
-      if (!isPickup && assignableStatuses.includes(o.status) && !hasTech) {
-        footerBtns += `<button type="button" class="btn btn-sm btn-primary fw-bold" onclick="window._aoAssignTechnician('${esc(o._id)}','${esc(refText)}','${esc((o.customer&&o.customer.name)||'Customer')}','${esc(o.delivery&&o.delivery.preferredDate||'')}','${esc(o.timeSlot||'')}')" style="border-radius:8px;"><i class="bi bi-person-badge me-1"></i>Assign Technician</button>`;
+      if (canAssign(o)) {
+        footerBtns += assignBtn(o);
       }
       modalFooter.innerHTML = footerBtns;
       modalFooter.style.display = footerBtns ? '' : 'none';
@@ -643,10 +1183,101 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
+  // ═══ ADMIN RESCHEDULE ═══════════════════════════════════════════════════════
+  window._aoRescheduleOrder = async function(orderId, ref, currentDate, currentTime) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const current = currentDate ? new Date(currentDate) : null;
+    const defaultDate = current && current.getTime() > Date.now() ? toLocalDateStr(current) : toLocalDateStr(tomorrow);
+    const result = await Swal.fire({
+      title: "Set a New Schedule",
+      html: `<div class="text-start">
+        <div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1"></i>The original schedule for <strong>${esc(ref)}</strong> has passed. The order will remain active.</div>
+        <label class="form-label small fw-bold" for="aoRescheduleDate">New date</label>
+        <input id="aoRescheduleDate" type="date" class="form-control mb-3" min="${toLocalDateStr(new Date())}" value="${defaultDate}">
+        <label class="form-label small fw-bold" for="aoRescheduleTime">New time</label>
+        <input id="aoRescheduleTime" type="time" class="form-control mb-3" value="${/^\d{2}:\d{2}$/.test(currentTime||'') ? esc(currentTime) : '09:00'}">
+        <label class="form-label small fw-bold" for="aoRescheduleReason">Reason / customer agreement</label>
+        <textarea id="aoRescheduleReason" class="form-control" rows="2" placeholder="Customer contacted and agreed to the new schedule"></textarea>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: "Save New Schedule",
+      cancelButtonText: "Keep Unchanged",
+      focusConfirm: false,
+      buttonsStyling: false,
+      customClass: {
+        popup: "border-0 shadow-sm",
+        confirmButton: "btn btn-warning fw-bold px-4 me-2",
+        cancelButton: "btn btn-light border fw-bold px-4",
+      },
+      preConfirm: () => {
+        const scheduledDate = document.getElementById("aoRescheduleDate").value;
+        const timeSlot = document.getElementById("aoRescheduleTime").value;
+        const reason = document.getElementById("aoRescheduleReason").value.trim();
+        if (!scheduledDate || !timeSlot) {
+          Swal.showValidationMessage("Select both a future date and time.");
+          return false;
+        }
+        return { scheduledDate, timeSlot, reason };
+      },
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/admin-reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result.value),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update the order schedule");
+      await Swal.fire({ title:"Schedule Updated", text:data.message, icon:"success", timer:1700, showConfirmButton:false });
+      loadTab(currentTab);
+      if (modal && modalEl.classList.contains("show")) window._aoViewOrder(orderId);
+    } catch (err) {
+      Swal.fire({
+        title:"Schedule Not Updated",
+        text:err.message || "The order schedule could not be changed.",
+        icon:"error",
+        buttonsStyling:false,
+        customClass:{ confirmButton:"btn btn-primary px-4 fw-bold", popup:"border-0 shadow-sm" },
+      });
+    }
+  };
+
+  window._aoRequeueAssignment = async function(orderId, ref) {
+    const result = await Swal.fire({
+      title:"Return to Assignment Queue?",
+      html:`The technician has not accepted <strong>${esc(ref)}</strong>. Release this assignment so another technician can be selected?`,
+      icon:"warning",
+      input:"text",
+      inputPlaceholder:"Reason (optional)",
+      showCancelButton:true,
+      confirmButtonText:"Requeue Order",
+      cancelButtonText:"Keep Assignment",
+      buttonsStyling:false,
+      customClass:{ confirmButton:"btn btn-warning fw-bold px-4 me-2", cancelButton:"btn btn-light border fw-bold px-4", popup:"border-0 shadow-sm" },
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/requeue-assignment`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ reason:result.value || "Technician did not accept within the review window" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to requeue order");
+      await Swal.fire({ title:"Order Requeued", text:data.message, icon:"success", timer:1500, showConfirmButton:false });
+      loadTab(currentTab);
+    } catch (err) {
+      Swal.fire({ title:"Order Not Requeued", text:err.message || "The assignment could not be released.", icon:"error", buttonsStyling:false, customClass:{confirmButton:"btn btn-primary px-4 fw-bold",popup:"border-0 shadow-sm"} });
+    }
+  };
+
   // ═══ VERIFY PAYMENT ══════════════════════════════════════════════════════════
   window._aoVerifyPayment = async function (orderId) {
     const result = await Swal.fire({
-      title:"Verify Payment?",html:`Mark payment as <strong>Paid</strong>?<br><small class="text-muted">This moves the order to "Preparing Unit".</small>`,
+      title:"Verify Payment?",html:`Mark payment as <strong>Paid</strong>?<br><small class="text-muted">This moves the order to its preparation and assignment queue.</small>`,
       icon:"question",showCancelButton:true,confirmButtonText:"Yes, Verify Payment",cancelButtonText:"Cancel",
       input:"text",inputPlaceholder:"Verification note (optional)...",
       buttonsStyling:false,
@@ -667,6 +1298,25 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch(err) {
       Swal.fire({title:"Error",text:err.message||"Network error",icon:"error",buttonsStyling:false,customClass:{confirmButton:"btn btn-primary px-4 py-2 rounded-pill fw-bold",popup:"rounded-4"}});
     }
+  };
+
+  // ═══ CONFIRM PHYSICAL UNIT PREPARATION ═════════════════════════════════════
+  window._aoMarkDispatchReady = async function (orderId) {
+    const result = await Swal.fire({
+      title:"Confirm Unit Preparation",
+      html:'<div class="text-start small"><div class="alert alert-info py-2">Confirm that every ordered air-conditioner unit and included accessory has been physically checked and prepared.</div><label class="form-label fw-semibold">Preparation note</label><textarea id="aoDispatchNote" class="form-control" maxlength="500" rows="3" placeholder="Unit, accessories, serial and packing checks..."></textarea></div>',
+      icon:"question",showCancelButton:true,confirmButtonText:"Confirm Unit Prepared",cancelButtonText:"Cancel",
+      preConfirm:()=>({note:(document.getElementById('aoDispatchNote').value||'').trim()})
+    });
+    if(!result.isConfirmed) return;
+    try {
+      const res=await fetch(`/api/orders/${encodeURIComponent(orderId)}/dispatch-ready`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(result.value)});
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error||'Could not confirm unit preparation');
+      await Swal.fire({title:'Unit Prepared',text:'The ordered unit is now cleared for technician departure.',icon:'success',timer:1800,showConfirmButton:false});
+      loadTab(currentTab);
+      if(modal) window._aoViewOrder(orderId);
+    } catch(error) { Swal.fire({title:'Update Failed',text:error.message,icon:'error'}); }
   };
 
   // ═══ MARK READY FOR PICKUP ══════════════════════════════════════════════════
@@ -698,11 +1348,34 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ═══ CONFIRM PICKUP ═════════════════════════════════════════════════════════
   window._aoConfirmPickup = async function (orderId) {
+    let order;
+    try {
+      const orderResponse = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(orderData.error || "Could not load order");
+      order = orderData.order;
+    } catch (error) {
+      return Swal.fire({ title: "Unable to Confirm", text: error.message, icon: "error" });
+    }
+    const unitCount = (order.items || []).reduce((sum, item) =>
+      sum + ((item.isHvac !== false || item.parentHvacId || item.capacity) ? Math.max(1, Number(item.quantity) || 1) : 0), 0);
     const result = await Swal.fire({
       title: "Confirm Pickup?",
-      html: `Confirm that the customer has <strong>picked up</strong> their unit?<br><small class="text-muted">This will mark the order as completed.</small>`,
+      html: `<div class="text-start"><p>Confirm that the customer has <strong>picked up</strong> the unit?</p><label class="form-label fw-bold small">Serial number${unitCount === 1 ? "" : "s"} (${unitCount} required)</label><textarea id="aoPickupSerials" class="form-control mb-2" rows="${Math.min(5, Math.max(2, unitCount))}" placeholder="One serial number per line"></textarea><label class="form-label fw-bold small">Pickup note</label><input id="aoPickupNote" class="form-control" placeholder="Optional handover note"><small class="text-muted d-block mt-2">Completion activates the product warranty and customer aftercare record. Cash-at-pickup payment is also recorded in the ledger.</small></div>`,
       icon: "question", showCancelButton: true, confirmButtonText: "Yes, Confirm Pickup", cancelButtonText: "Cancel",
-      input: "text", inputPlaceholder: "Pickup note (optional)...",
+      focusConfirm: false,
+      preConfirm: () => {
+        const serialNumbers = document.getElementById("aoPickupSerials").value.split(/\r?\n|,/).map(value => value.trim()).filter(Boolean);
+        if (serialNumbers.length !== unitCount) {
+          Swal.showValidationMessage(`Enter exactly ${unitCount} unique serial number${unitCount === 1 ? "" : "s"}.`);
+          return false;
+        }
+        if (new Set(serialNumbers.map(value => value.toLowerCase())).size !== serialNumbers.length) {
+          Swal.showValidationMessage("Serial numbers must be unique.");
+          return false;
+        }
+        return { serialNumbers, note: document.getElementById("aoPickupNote").value.trim() };
+      },
       buttonsStyling: false,
       customClass: { popup: "rounded-4 border-0 shadow-sm", title: "fw-bolder fs-5 text-dark", confirmButton: "btn btn-dark px-4 py-2 rounded-pill me-2 fw-bold", cancelButton: "btn btn-light border px-4 py-2 rounded-pill fw-bold" }
     });
@@ -711,11 +1384,11 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/confirm-pickup`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: result.value || "Customer picked up unit" })
+        body: JSON.stringify({ note: result.value.note || "Customer picked up unit", serialNumbers: result.value.serialNumbers })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
-      Swal.fire({ title: "Completed!", text: "Order marked as completed.", icon: "success", timer: 1500, showConfirmButton: false, customClass: { popup: "rounded-4" } });
+      Swal.fire({ title: "Completed!", text: data.paymentCollected ? "Pickup and counter payment were recorded." : "Order marked as completed.", icon: "success", timer: 1800, showConfirmButton: false, customClass: { popup: "rounded-4" } });
       loadTab(currentTab);
       if (modal && orderId) window._aoViewOrder(orderId);
     } catch (err) {
@@ -995,10 +1668,43 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ EVENT LISTENERS ══════════════════════════════════════════════════════════
   filterBtn.addEventListener("click", () => loadOverview(1));
   searchInput.addEventListener("keyup", e => { if (e.key==="Enter") loadOverview(1); });
+  let overviewSearchTimer;
+  searchInput.addEventListener("input", () => {
+    window.clearTimeout(overviewSearchTimer);
+    overviewSearchTimer = window.setTimeout(() => loadOverview(1), 350);
+  });
+  [statusFilter, fulfillFilter, preparationFilter].filter(Boolean).forEach(control => control.addEventListener("change", () => loadOverview(1)));
+  document.getElementById("aoClearDates")?.addEventListener("click", () => {
+    scheduledFrom.value = "";
+    scheduledTo.value = "";
+    loadOverview(1);
+  });
+  document.getElementById("aoRefreshOverview")?.addEventListener("click", () => loadOverview(currentPage));
+  let assignSearchTimer;
+  document.getElementById("aoAssignSearchInput")?.addEventListener("input", () => {
+    window.clearTimeout(assignSearchTimer);
+    assignSearchTimer = window.setTimeout(renderAssignQueue, 250);
+  });
+  document.querySelectorAll("#aoAssignFilterPills [data-assign-filter]").forEach(button => {
+    button.addEventListener("click", () => {
+      assignQueueFilter = button.dataset.assignFilter || "all";
+      document.querySelectorAll("#aoAssignFilterPills [data-assign-filter]").forEach(item => item.classList.remove("active"));
+      button.classList.add("active");
+      renderAssignQueue();
+    });
+  });
+  document.getElementById("aoAssignRefresh")?.addEventListener("click", loadAssignTab);
+  document.getElementById("aoOpenBulkPlan")?.addEventListener("click", openOrderBulkPlan);
+  document.getElementById("aoConfirmBulkPlan")?.addEventListener("click", confirmOrderBulkPlan);
 
   // ═══ UTILS ════════════════════════════════════════════════════════════════════
   function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
   // ═══ INITIAL LOAD ════════════════════════════════════════════════════════════
+  setFulfillmentScope(initialScope, { load: false });
   loadOverview(1);
+  const linkedOrderId = new URLSearchParams(window.location.search).get("order");
+  if (linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) {
+    window.setTimeout(() => window._aoViewOrder(linkedOrderId), 150);
+  }
 });

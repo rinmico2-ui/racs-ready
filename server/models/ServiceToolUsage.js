@@ -10,6 +10,13 @@ const serviceToolUsageSchema = new mongoose.Schema(
       set: (v) => (v === "" || v === null ? undefined : v),
       // null means the usage is not tied to a specific appointment
     },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      required: false,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
     serviceItemId: {
       type: mongoose.Schema.Types.ObjectId,
       index: true,
@@ -95,6 +102,7 @@ const serviceToolUsageSchema = new mongoose.Schema(
 );
 
 serviceToolUsageSchema.index({ bookingId: 1, usedAt: -1 });
+serviceToolUsageSchema.index({ orderId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ bookingId: 1, serviceItemId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ technicianId: 1, usedAt: -1 });
 

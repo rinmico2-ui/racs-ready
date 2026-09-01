@@ -1,0 +1,440 @@
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <%- include('../../../partials/dashboard-styles') %>
+  <link rel="stylesheet" href="/css/enterprise-calendar.css">
+  <style>
+    .inventory-premium .dash-card {
+      background: #fff; border-radius: 18px; padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12); flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+
+    .problem-card {
+      background: #fff; border-radius: 14px; padding: 1.25rem;
+      border: 1px solid #e2e8f0; margin-bottom: 12px;
+      transition: all 0.2s ease; position: relative;
+    }
+    .problem-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #cbd5e1; }
+    .problem-card.severity-critical { border-left: 4px solid #ef4444; }
+    .problem-card.severity-high { border-left: 4px solid #f59e0b; }
+    .problem-card.severity-medium { border-left: 4px solid #3b82f6; }
+    .problem-card .problem-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .problem-card .problem-ref { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+    .problem-card .problem-customer { font-size: 0.85rem; color: #475569; }
+    .problem-card .problem-reason { font-size: 0.82rem; color: #64748b; margin: 6px 0; padding: 8px 12px; background: #f8fafc; border-radius: 8px; }
+    .problem-card .problem-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: #94a3b8; margin-top: 8px; }
+    .problem-card .problem-meta span { display: flex; align-items: center; gap: 4px; }
+    .problem-card .problem-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+    .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .rp-filter-btn { height: 38px; border-radius: 10px; padding: 0 16px; font-weight: 600; font-size: 0.82rem; }
+    .rp-filter-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+
+    .scan-pulse { animation: scanPulse 2s ease-in-out infinite; }
+    @keyframes scanPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-calendar2-check"></i></div>
+        <div>
+          <h1>Review & Reschedule</h1>
+          <p>Scan and fix bookings with scheduling issues before the next dispatch cycle.</p>
+        </div>
+      </div>
+      <div class="au-hero-right">
+        <button class="btn btn-primary" onclick="runScan()" id="scanBtn">
+          <i class="bi bi-arrow-clockwise me-1"></i>Scan Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row g-3 mb-4" id="kpiRow" style="display:none;">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Total Issues</div>
+            <div class="inv-kpi-value" id="kpiTotal">0</div>
+            <span class="inv-kpi-sub">Bookings needing action</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);"><i class="bi bi-exclamation-triangle"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">No Technician</div>
+            <div class="inv-kpi-value" id="kpiNoTech">0</div>
+            <span class="inv-kpi-sub">Past date, unassigned</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><i class="bi bi-person-x"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Stalled</div>
+            <div class="inv-kpi-value" id="kpiStalled">0</div>
+            <span class="inv-kpi-sub">Stuck in queue 24h+</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Overdue Jobs</div>
+            <div class="inv-kpi-value" id="kpiOverdue">0</div>
+            <span class="inv-kpi-sub">Should be completed</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #b91c1c);"><i class="bi bi-clock-history"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="rp-toolbar" id="filterBar" style="display:none;">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Category</label>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-light rp-filter-btn active" onclick="filterCategory('all',this)">All</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterCategory('past_date_no_tech',this)">No Tech</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterCategory('stalled_in_queue',this)">Stalled</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterCategory('expiring_proposal',this)">Expiring</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterCategory('overdue_job',this)">Overdue</button>
+      </div>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Severity</label>
+      <div class="d-flex gap-2">
+        <button class="btn btn-light rp-filter-btn active" onclick="filterSeverity('all',this)">All</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterSeverity('critical',this)" style="color:#ef4444;">Critical</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterSeverity('high',this)" style="color:#f59e0b;">High</button>
+        <button class="btn btn-light rp-filter-btn" onclick="filterSeverity('medium',this)" style="color:#3b82f6;">Medium</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Problem List -->
+  <div id="problemList">
+    <div class="text-center py-5">
+      <div class="scan-pulse" style="font-size:3rem; color:#94a3b8;"><i class="bi bi-radar"></i></div>
+      <p class="text-muted mt-2">Click <strong>Scan Now</strong> to find scheduling issues.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule Modal -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius: 16px;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-calendar-event me-2"></i>Reschedule Booking</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 p-3 rounded-3" style="background:#f8fafc;">
+          <div class="fw-bold" id="rschRef">—</div>
+          <div class="text-muted small" id="rschCustomer">—</div>
+        </div>
+        <div id="rschCalendarInfo" class="mb-3" style="display:none;">
+          <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:#eff6ff; border:1px solid #bfdbfe;">
+            <i class="bi bi-calendar-check text-primary"></i>
+            <span class="fw-semibold text-primary" id="rschSelectedDate">—</span>
+            <span class="text-muted mx-1">|</span>
+            <i class="bi bi-clock text-primary"></i>
+            <span class="fw-semibold text-primary" id="rschSelectedTime">—</span>
+          </div>
+        </div>
+        <div id="calendarGrid"></div>
+        <div id="timeSelection" class="mt-3 d-none">
+          <div id="timeSlots"></div>
+        </div>
+        <div class="mt-3">
+          <label class="form-label fw-semibold">Reason (optional)</label>
+          <input type="text" class="form-control" id="rschReason" placeholder="Why rescheduling...">
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="rschSubmitBtn" disabled onclick="submitReschedule()"><i class="bi bi-check-lg me-1"></i>Reschedule</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius: 16px;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-x-circle me-2 text-danger"></i>Cancel Booking</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 p-3 rounded-3" style="background:#fef2f2;">
+          <div class="fw-bold text-danger" id="cancelRef">—</div>
+          <div class="text-muted small">This action cannot be undone.</div>
+        </div>
+        <label class="form-label fw-semibold">Reason</label>
+        <input type="text" class="form-control" id="cancelReason" placeholder="Why cancelling...">
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep</button>
+        <button type="button" class="btn btn-danger" onclick="submitCancel()"><i class="bi bi-trash me-1"></i>Cancel Booking</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/enterprise-calendar.js"></script>
+<script>
+let allProblems = [];
+let filteredProblems = [];
+let currentCategory = 'all';
+let currentSeverity = 'all';
+let selectedBookingId = null;
+let rschSelectedDate = null;
+let rschSelectedTime = null;
+
+const categoryLabels = {
+  past_date_no_tech: { label: 'No Technician', icon: 'bi-person-x', color: '#f59e0b' },
+  stalled_in_queue: { label: 'Stalled', icon: 'bi-hourglass-split', color: '#8b5cf6' },
+  expiring_proposal: { label: 'Expiring Proposal', icon: 'bi-clock-history', color: '#f97316' },
+  overdue_job: { label: 'Overdue Job', icon: 'bi-exclamation-triangle', color: '#ef4444' },
+};
+const statusColors = {
+  scheduled: 'bg-primary', confirmed: 'bg-success', awaiting_assignment: 'bg-purple',
+  pending_reassignment: 'bg-warning text-dark', 're-scheduled': 'bg-info',
+  'on-the-way': 'bg-dark', arrived: 'bg-secondary', 'in-progress': 'bg-success',
+};
+const severityColors = { critical: 'bg-danger', high: 'bg-warning text-dark', medium: 'bg-primary-subtle text-primary' };
+const re = v => String(v ?? '—').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+async function runScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+
+  try {
+    const res = await fetch('/api/admin/review-reschedule');
+    const data = await res.json();
+    allProblems = data.problems || [];
+    filteredProblems = [...allProblems];
+
+    // Update KPIs
+    document.getElementById('kpiRow').style.display = '';
+    document.getElementById('filterBar').style.display = '';
+    document.getElementById('kpiTotal').textContent = allProblems.length;
+    document.getElementById('kpiNoTech').textContent = data.summary?.byCategory?.past_date_no_tech || 0;
+    document.getElementById('kpiStalled').textContent = (data.summary?.byCategory?.stalled_in_queue || 0) + (data.summary?.byCategory?.expiring_proposal || 0);
+    document.getElementById('kpiOverdue').textContent = data.summary?.byCategory?.overdue_job || 0;
+
+    renderProblems();
+  } catch (e) {
+    console.error('Scan failed:', e);
+    document.getElementById('problemList').innerHTML = '<div class="text-center py-5 text-danger"><i class="bi bi-exclamation-circle fs-4 d-block mb-2"></i>Scan failed. Please try again.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Scan Now';
+  }
+}
+
+function filterCategory(cat, btn) {
+  currentCategory = cat;
+  btn.closest('.rp-filter-group').querySelectorAll('.rp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function filterSeverity(sev, btn) {
+  currentSeverity = sev;
+  btn.closest('.rp-filter-group').querySelectorAll('.rp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  filteredProblems = allProblems.filter(p => {
+    if (currentCategory !== 'all' && p.category !== currentCategory) return false;
+    if (currentSeverity !== 'all' && p.severity !== currentSeverity) return false;
+    return true;
+  });
+  renderProblems();
+}
+
+function renderProblems() {
+  const el = document.getElementById('problemList');
+  if (!filteredProblems.length) {
+    el.innerHTML = '<div class="text-center py-5"><i class="bi bi-check-circle text-success fs-1 d-block mb-2"></i><h5 class="text-success">All Clear!</h5><p class="text-muted">No scheduling issues found. All bookings are on track.</p></div>';
+    return;
+  }
+
+  el.innerHTML = filteredProblems.map(p => {
+    const cat = categoryLabels[p.category] || {};
+    const bDate = p.bookingDate ? new Date(p.bookingDate).toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric', year:'numeric' }) : '—';
+    const statusClass = statusColors[p.status] || 'bg-secondary';
+    const sevClass = severityColors[p.severity] || 'bg-secondary';
+
+    let proposalHtml = '';
+    if (p.proposedReschedule && p.proposedReschedule.status === 'pending') {
+      const pDate = p.proposedReschedule.date ? new Date(p.proposedReschedule.date).toLocaleDateString('en-PH', { month:'short', day:'numeric' }) : '—';
+      proposalHtml = `<div class="mt-2 p-2 rounded" style="background:#eff6ff; border:1px solid #bfdbfe;">
+        <small class="text-primary fw-semibold"><i class="bi bi-calendar-check me-1"></i>Proposed: ${pDate} ${re(p.proposedReschedule.timeLabel || '')}</small>
+        <span class="badge bg-info ms-2">Awaiting Response</span>
+      </div>`;
+    }
+
+    return `<div class="problem-card severity-${p.severity}">
+      <div class="problem-header">
+        <span class="badge ${sevClass}">${p.severity.toUpperCase()}</span>
+        <span class="badge ${statusClass}">${re(p.status)}</span>
+        <span class="problem-ref">${re(p.reference)}</span>
+        <span class="badge" style="background:${cat.color}20; color:${cat.color};"><i class="bi ${cat.icon} me-1"></i>${cat.label}</span>
+      </div>
+      <div class="problem-customer"><i class="bi bi-person me-1"></i>${re(p.customer)}</div>
+      <div class="problem-reason"><i class="bi bi-info-circle me-1"></i>${re(p.reason)}</div>
+      <div class="problem-meta">
+        <span><i class="bi bi-calendar"></i>${bDate} ${re(p.startTime)}</span>
+        <span><i class="bi bi-tools"></i>${re(p.serviceName)}</span>
+        <span><i class="bi bi-person-badge"></i>${p.technician ? re(p.technician) : '<em class="text-danger">Unassigned</em>'}</span>
+      </div>
+      ${proposalHtml}
+      <div class="problem-actions">
+        <button class="btn btn-sm btn-outline-primary" onclick="viewBooking('${p.bookingId}','${p.category}')"><i class="bi bi-eye me-1"></i>View</button>
+        <button class="btn btn-sm btn-outline-warning" onclick="openReschedule('${p.bookingId}','${re(p.reference)}','${re(p.customer)}')"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="openCancel('${p.bookingId}','${re(p.reference)}')"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+        ${p.customerPhone ? `<a href="tel:${p.customerPhone}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-telephone me-1"></i>Call</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewBooking(id, category) {
+  window.location.href = `/admin/appointments?booking=${id}`;
+}
+
+function openReschedule(id, ref, customer) {
+  selectedBookingId = id;
+  rschSelectedDate = null;
+  rschSelectedTime = null;
+  document.getElementById('rschRef').textContent = ref;
+  document.getElementById('rschCustomer').textContent = customer;
+  document.getElementById('rschReason').value = '';
+  document.getElementById('rschCalendarInfo').style.display = 'none';
+  document.getElementById('rschSubmitBtn').disabled = true;
+
+  const modalEl = document.getElementById('rescheduleModal');
+  const calGrid = document.getElementById('calendarGrid');
+  const timeSel = document.getElementById('timeSelection');
+
+  // Clear previous calendar
+  calGrid.innerHTML = '';
+  timeSel.classList.add('d-none');
+  timeSel.innerHTML = '<div id="timeSlots"></div>';
+
+  new bootstrap.Modal(modalEl).show();
+
+  // Initialize EnterpriseCalendar
+  setTimeout(async () => {
+    try {
+      await EnterpriseCalendar.init({
+        duration: 60,
+        mode: 'appointment',
+        resetSelection: true,
+        onSelect: rschOnCalendarSelect,
+      });
+    } catch (e) {
+      console.error('Calendar init failed:', e);
+      calGrid.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-calendar-x fs-4 d-block mb-2"></i>Failed to load calendar. Please try again.</div>';
+    }
+  }, 300);
+}
+
+function rschOnCalendarSelect({ date, slot }) {
+  if (!date || !slot) return;
+  rschSelectedDate = EnterpriseCalendar.formatDateKey(date);
+  rschSelectedTime = slot.startTime || slot.label;
+
+  const dateLabel = date.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  document.getElementById('rschSelectedDate').textContent = dateLabel;
+  document.getElementById('rschSelectedTime').textContent = rschSelectedTime;
+  document.getElementById('rschCalendarInfo').style.display = '';
+  document.getElementById('rschSubmitBtn').disabled = false;
+}
+
+async function submitReschedule() {
+  if (!selectedBookingId || !rschSelectedDate || !rschSelectedTime) return alert('Please select a date and time.');
+  const reason = document.getElementById('rschReason').value;
+
+  try {
+    const res = await fetch(`/api/admin/review-reschedule/${selectedBookingId}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: rschSelectedDate, time: rschSelectedTime, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Failed to reschedule');
+
+    bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
+    runScan();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function openCancel(id, ref) {
+  selectedBookingId = id;
+  document.getElementById('cancelRef').textContent = ref;
+  document.getElementById('cancelReason').value = '';
+  new bootstrap.Modal(document.getElementById('cancelModal')).show();
+}
+
+async function submitCancel() {
+  if (!selectedBookingId) return;
+  const reason = document.getElementById('cancelReason').value || 'Cancelled via Review & Reschedule';
+
+  if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+  try {
+    const res = await fetch(`/api/admin/review-reschedule/${selectedBookingId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Failed to cancel');
+
+    bootstrap.Modal.getInstance(document.getElementById('cancelModal')).hide();
+    runScan();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// Auto-scan on load
+document.addEventListener('DOMContentLoaded', () => { runScan(); });
+</script>

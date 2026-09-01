@@ -1,0 +1,318 @@
+/*
+ * Shared enterprise record-list language for Admin Bookings and Orders.
+ * This file intentionally styles both card and table renderers: the workflow
+ * pages keep the layout that best fits their data while sharing one visual API.
+ */
+
+:root {
+  --workflow-record-border: #e2e8f0;
+  --workflow-record-border-strong: #cbd5e1;
+  --workflow-record-surface: #ffffff;
+  --workflow-record-subtle: #f8fafc;
+  --workflow-record-text: #0f172a;
+  --workflow-record-muted: #64748b;
+  --workflow-record-faint: #94a3b8;
+  --workflow-record-primary: #2563eb;
+  --workflow-record-radius: 14px;
+  --workflow-record-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+/* List regions */
+.workflow-record-list {
+  display: grid;
+  gap: 12px;
+}
+
+.workflow-record-list > .ao-order-card,
+.workflow-record-list > .aq-booking-card,
+.workflow-record-list > .workflow-record-card {
+  margin-bottom: 0;
+}
+
+/* Card records used by order queues and booking assignment/repair queues. */
+.workflow-record-card,
+.ao-order-card,
+.aq-booking-card {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 18px;
+  overflow: hidden;
+  background: var(--workflow-record-surface);
+  border: 1px solid var(--workflow-record-border);
+  border-radius: var(--workflow-record-radius);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.workflow-record-card::before,
+.ao-order-card::before,
+.aq-booking-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: linear-gradient(180deg, #2563eb, #60a5fa);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.workflow-record-card:hover,
+.ao-order-card:hover,
+.aq-booking-card:hover {
+  border-color: var(--workflow-record-border-strong);
+  box-shadow: var(--workflow-record-shadow);
+  transform: translateY(-1px);
+}
+
+.workflow-record-card:hover::before,
+.ao-order-card:hover::before,
+.aq-booking-card:hover::before {
+  opacity: 1;
+}
+
+.workflow-record-head,
+.ao-order-header,
+.aq-booking-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.workflow-record-ref,
+.ao-order-ref,
+.aq-booking-id {
+  margin-bottom: 3px;
+  color: var(--workflow-record-primary);
+  font-family: "Outfit", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.workflow-record-title,
+.ao-order-customer,
+.aq-booking-customer {
+  margin: 0 0 3px;
+  color: var(--workflow-record-text);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.workflow-record-subtitle,
+.ao-order-fulfill,
+.aq-booking-service {
+  color: var(--workflow-record-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.workflow-record-grid,
+.ao-detail-grid,
+.aq-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.workflow-record-meta,
+.workflow-record-grid > span,
+.ao-detail-item,
+.aq-detail-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: #475569;
+  background: var(--workflow-record-subtle);
+  border: 1px solid #f1f5f9;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.workflow-record-meta i,
+.workflow-record-grid > span > i,
+.ao-detail-item i,
+.aq-detail-item i {
+  width: 15px;
+  flex: 0 0 15px;
+  color: var(--workflow-record-faint);
+  text-align: center;
+}
+
+.workflow-record-alert,
+.ao-overdue-alert,
+.aq-reassign-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.workflow-record-actions,
+.ao-action-bar,
+.aq-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.workflow-record-actions .btn,
+.workflow-record-actions .au-btn,
+.ao-action-bar .btn,
+.ao-action-bar .au-btn,
+.aq-action-bar .btn,
+.aq-action-bar .au-btn,
+.workflow-record-table .btn,
+.workflow-record-table .au-btn {
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Card-like table rows for high-density booking/order lists. */
+.workflow-record-table-shell {
+  padding: 0 12px 12px;
+  overflow-x: auto;
+  background: var(--workflow-record-subtle);
+}
+
+.workflow-record-table {
+  min-width: 940px;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+  background: transparent;
+}
+
+.workflow-record-table > thead > tr > th {
+  padding: 4px 12px 2px;
+  color: var(--workflow-record-muted);
+  background: transparent;
+  border: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.workflow-record-table > tbody > tr > td {
+  padding: 12px;
+  color: #334155;
+  background: var(--workflow-record-surface);
+  border-top: 1px solid var(--workflow-record-border);
+  border-bottom: 1px solid var(--workflow-record-border);
+  font-size: 0.8rem;
+  vertical-align: middle;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.workflow-record-table > tbody > tr {
+  transition: filter 160ms ease;
+}
+
+.workflow-record-table > tbody > tr > td:first-child {
+  border-left: 1px solid var(--workflow-record-border);
+  border-radius: 11px 0 0 11px;
+}
+
+.workflow-record-table > tbody > tr > td:last-child {
+  border-right: 1px solid var(--workflow-record-border);
+  border-radius: 0 11px 11px 0;
+}
+
+.workflow-record-table > tbody > tr:hover > td {
+  background: #ffffff;
+  border-color: var(--workflow-record-border-strong);
+}
+
+.workflow-record-table > tbody > tr:hover {
+  filter: drop-shadow(0 8px 11px rgba(15, 23, 42, 0.07));
+}
+
+.workflow-record-table code,
+.workflow-record-table .workflow-record-ref {
+  display: inline-flex;
+  min-height: 0;
+  padding: 4px 7px !important;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  font-family: "Outfit", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+}
+
+.workflow-record-table .badge,
+.workflow-record-card .badge,
+.ao-order-card .badge,
+.aq-booking-card .badge {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  padding: 5px 9px;
+}
+
+.workflow-record-empty {
+  padding: 48px 20px;
+  color: var(--workflow-record-muted);
+  text-align: center;
+  background: #fff;
+  border: 1px dashed var(--workflow-record-border-strong);
+  border-radius: var(--workflow-record-radius);
+}
+
+@media (max-width: 767.98px) {
+  .workflow-record-card,
+  .ao-order-card,
+  .aq-booking-card {
+    padding: 15px;
+  }
+
+  .workflow-record-head,
+  .ao-order-header,
+  .aq-booking-header {
+    gap: 10px;
+  }
+
+  .workflow-record-grid,
+  .ao-detail-grid,
+  .aq-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-record-actions,
+  .ao-action-bar,
+  .aq-action-bar {
+    justify-content: flex-start;
+  }
+
+  .workflow-record-table-shell {
+    padding-inline: 8px;
+  }
+}

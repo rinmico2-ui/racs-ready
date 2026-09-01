@@ -537,6 +537,7 @@
       .filter-controls { gap: 6px; }
     }
   </style>
+  <link rel="stylesheet" href="/css/admin-appointments-calendar.css?v=1">
 
   <!-- Hero Header -->
   <div class="cal-hero mb-4">
@@ -545,15 +546,35 @@
       <div class="cal-hero-left">
         <div class="cal-hero-icon"><i class="bi bi-calendar4-week"></i></div>
         <div>
-          <h1 class="cal-hero-title">Appointments Calendar</h1>
-          <p class="cal-hero-sub">View and manage all scheduled appointments across your team.</p>
+          <h1 class="cal-hero-title">Operations Calendar</h1>
+          <p class="cal-hero-sub">Coordinate service bookings, deliveries, installations, and customer pickups.</p>
         </div>
       </div>
       <div class="cal-hero-right">
-        <span class="cal-hero-range" id="calendarRangeLabel" style="display:none;"></span>
+        <span class="cal-live-badge">Live schedule</span>
+        <span class="cal-hero-range" id="calendarRangeLabel">Current range</span>
       </div>
     </div>
   </div>
+
+  <section class="cal-summary-grid" aria-label="Visible schedule summary">
+    <article class="cal-summary-card" style="--metric-color:#2563eb;--metric-bg:#eff6ff;">
+      <span class="cal-summary-icon"><i class="bi bi-calendar2-check"></i></span>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricBookings">0</div><div class="cal-summary-label">Visible bookings</div></div>
+    </article>
+    <article class="cal-summary-card" style="--metric-color:#d97706;--metric-bg:#fffbeb;">
+      <span class="cal-summary-icon"><i class="bi bi-person-exclamation"></i></span>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricUnassigned">0</div><div class="cal-summary-label">Unassigned bookings</div></div>
+    </article>
+    <article class="cal-summary-card" style="--metric-color:#059669;--metric-bg:#ecfdf5;">
+      <span class="cal-summary-icon"><i class="bi bi-activity"></i></span>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricActive">0</div><div class="cal-summary-label">Active field work</div></div>
+    </article>
+    <article class="cal-summary-card" style="--metric-color:#ea580c;--metric-bg:#fff7ed;">
+      <span class="cal-summary-icon"><i class="bi bi-truck"></i></span>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricOrders">0</div><div class="cal-summary-label">Scheduled orders</div></div>
+    </article>
+  </section>
 
   <!-- Main Layout -->
   <div class="page-shell">
@@ -564,6 +585,11 @@
           <span class="filter-label">Filter</span>
         </div>
         <div class="filter-controls">
+          <div class="cal-search" id="calSearchWrap">
+            <i class="bi bi-search"></i>
+            <input type="search" id="calSearchInput" placeholder="Search customer, reference, service..." aria-label="Search calendar records" autocomplete="off">
+            <button type="button" class="cal-search-clear" id="calSearchClear" aria-label="Clear calendar search"><i class="bi bi-x-lg"></i></button>
+          </div>
           <div class="tech-filter-wrapper" id="techFilterWrapper">
             <button class="tech-filter-trigger" id="techFilterTrigger">
               <i class="bi bi-person-badge"></i>
@@ -587,6 +613,7 @@
             <button data-view="dayGridMonth" class="active"><i class="bi bi-calendar-month"></i> Month</button>
             <button data-view="timeGridWeek"><i class="bi bi-calendar-week"></i> Week</button>
             <button data-view="timeGridDay"><i class="bi bi-calendar-day"></i> Day</button>
+            <button data-view="listWeek"><i class="bi bi-list-ul"></i> List</button>
           </div>
         </div>
       </div>
@@ -618,13 +645,17 @@
             <div class="ent-modal-icon bg-white bg-opacity-25"><i class="bi bi-calendar-check text-white"></i></div>
             <div style="min-width:0;">
               <h6 class="modal-title fw-bold mb-0" id="calDetailTitle" style="font-size:1rem;">Appointment Details</h6>
-              <small class="text-white text-opacity-75" style="font-size:0.78rem;">Complete booking information</small>
+              <small class="text-white text-opacity-75" id="calDetailSubtitle" style="font-size:0.78rem;">Scheduled record information</small>
             </div>
           </div>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body ent-modal-body" id="calDetailBody">
           <div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>
+        </div>
+        <div class="modal-footer border-0 bg-light px-4 py-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <a class="btn btn-sm btn-primary fw-semibold" id="calDetailOpenRecord" href="/admin/appointments"><i class="bi bi-box-arrow-up-right me-1"></i>Open full record</a>
         </div>
       </div>
     </div>
@@ -659,6 +690,13 @@
         techSelectAll: byId("techSelectAll"),
         techSelectAllCheckbox: byId("techSelectAllCheckbox"),
         viewToggle: byId("viewToggle"),
+        searchWrap: byId("calSearchWrap"),
+        searchInput: byId("calSearchInput"),
+        searchClear: byId("calSearchClear"),
+        metricBookings: byId("calMetricBookings"),
+        metricUnassigned: byId("calMetricUnassigned"),
+        metricActive: byId("calMetricActive"),
+        metricOrders: byId("calMetricOrders"),
       };
 
       const TECH_COLORS = [
@@ -669,6 +707,7 @@
 
       const state = {
         appointments: [],
+        orders: [],
         allAppointments: [],
         allOrders: [],
         selectedDateKey: toDateKey(new Date()),
@@ -680,6 +719,7 @@
         technicians: [],
         selectedTechIds: [],
         technicianColorMap: {},
+        query: "",
       };
 
       const STATUS_DEFS = [
@@ -693,6 +733,14 @@
         { key: "on-the-way",           label: "On The Way",          color: "#3b82f6" },
         { key: "arrived",              label: "Arrived",             color: "#14b8a6" },
         { key: "in-progress",          label: "In Progress",         color: "#22c55e" },
+        { key: "waiting-for-customer", label: "Waiting Customer",    color: "#d97706" },
+        { key: "no-show-reported",     label: "No-Show Review",      color: "#dc2626" },
+        { key: "no-show",              label: "No-Show",             color: "#b91c1c" },
+        { key: "inspection_scheduled", label: "Inspection",          color: "#0891b2" },
+        { key: "inspection_in_progress", label: "Inspecting",        color: "#0e7490" },
+        { key: "repair_scheduled",     label: "Repair Scheduled",    color: "#7c3aed" },
+        { key: "repair_in_progress",   label: "Repair Active",       color: "#16a34a" },
+        { key: "waiting_parts",        label: "Waiting Parts",       color: "#ea580c" },
         { key: "completed",            label: "Completed",           color: "#16a34a" },
         { key: "repair_approved",      label: "Repair Approved",     color: "#059669" },
         { key: "rejected",             label: "Rejected",            color: "#dc2626" },
@@ -721,6 +769,46 @@
 
       function toDateKey(input) { const d = new Date(input); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
       function toPrettyDate(input) { return new Date(input).toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" }); }
+      function escHtml(value) { return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]); }
+      function prettyStatus(value) { return String(value || "pending").replace(/[_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
+      function orderScheduledDate(order) { return order.fulfillmentType === "customer_pickup" ? order.pickupDate : order.delivery && order.delivery.preferredDate; }
+      function parseTimeMinutes(value) {
+        const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (!match) return null;
+        let hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        if (minutes > 59 || hours > 23) return null;
+        if (match[3]) {
+          const meridiem = match[3].toUpperCase();
+          if (hours > 12 || hours === 0) return null;
+          if (meridiem === "PM" && hours < 12) hours += 12;
+          if (meridiem === "AM" && hours === 12) hours = 0;
+        }
+        return (hours * 60) + minutes;
+      }
+      function orderEventStart(order) {
+        const base = new Date(orderScheduledDate(order));
+        const minutes = parseTimeMinutes(order.timeSlot);
+        if (minutes !== null) base.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+        return base;
+      }
+      function orderTimeLabel(order) {
+        const minutes = parseTimeMinutes(order.timeSlot);
+        if (minutes === null) return order.timeSlot || "All day";
+        const date = new Date();
+        date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+        return date.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+      }
+      function appointmentTimeMinutes(appointment) {
+        const raw = appointment && appointment.startTime;
+        if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+        if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+        if (/^\d{1,4}$/.test(String(raw).trim())) {
+          const minutes = Number(raw);
+          return minutes >= 0 && minutes < 1440 ? minutes : null;
+        }
+        return parseTimeMinutes(raw);
+      }
       function statusBadge(s) {
         if (s === "pending") return "warning";
         if (s === "payment_verified") return "primary";
@@ -743,21 +831,68 @@
       function technicianId(a) { return (a.technicianId && (a.technicianId._id || a.technicianId)) || (a.technician && a.technician._id) || null; }
 
       function timeLabel(a) {
-        const raw = a.startTime; const parsed = Number(raw);
-        if (Number.isFinite(parsed)) { const h = Math.floor(parsed / 60); const m = parsed % 60; const dt = new Date(); dt.setHours(h, m, 0, 0); return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-        if (raw && /^\d{1,2}:\d{2}/.test(String(raw))) { const dt = new Date("1970-01-01T"+String(raw).slice(0,5)+":00"); if (!Number.isNaN(dt.getTime())) return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-        return raw || "Time not set";
+        const minutes = appointmentTimeMinutes(a);
+        if (minutes === null) return "Time not set";
+        const dt = new Date();
+        dt.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+        return dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       }
 
       function eventStart(a) {
         const base = new Date(a.bookingDate || a.date || a.start || new Date());
-        const startNum = Number(a.startTime);
-        if (Number.isFinite(startNum)) { const dt = new Date(base); dt.setHours(0,0,0,0); dt.setMinutes(startNum); return dt; }
-        if (a.startTime && /^\d{1,2}:\d{2}/.test(String(a.startTime))) { const [hh, mm] = String(a.startTime).slice(0, 5).split(":").map(x => Number(x)); if (Number.isFinite(hh) && Number.isFinite(mm)) { const dt = new Date(base); dt.setHours(hh, mm, 0, 0); return dt; } }
+        const minutes = appointmentTimeMinutes(a);
+        if (minutes !== null) { const dt = new Date(base); dt.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0); return dt; }
         return base;
       }
 
-      function updateRangeLabel(viewTitle) { if (dom.calendarRangeLabel) dom.calendarRangeLabel.textContent = viewTitle; }
+      function updateRangeLabel(viewTitle) {
+        if (!dom.calendarRangeLabel) return;
+        dom.calendarRangeLabel.textContent = viewTitle;
+        dom.calendarRangeLabel.style.display = "inline-flex";
+      }
+
+      function matchesQuery(values) {
+        if (!state.query) return true;
+        return values.filter(Boolean).join(" ").toLowerCase().includes(state.query);
+      }
+
+      function appointmentMatchesQuery(appointment) {
+        return matchesQuery([
+          appointment.bookingReference, appointment.workOrderNumber, customerName(appointment),
+          serviceName(appointment), technicianName(appointment), appointment.status,
+        ]);
+      }
+
+      function orderMatchesQuery(order) {
+        return matchesQuery([
+          order.orderReference, order.customer && order.customer.name, order.customer && order.customer.phone,
+          order.status, order.fulfillmentType, technicianName(order),
+          ...(order.items || []).map(item => [item.brand, item.modelLine, item.capacity].filter(Boolean).join(" ")),
+        ]);
+      }
+
+      function updateSummary() {
+        const activeStatuses = new Set(["confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "inspection_in_progress", "repair_in_progress"]);
+        const unassigned = state.appointments.filter(item => !technicianId(item) && !["completed", "cancelled", "rejected", "expired"].includes(String(item.status || "").toLowerCase())).length;
+        const active = state.appointments.filter(item => activeStatuses.has(String(item.status || "").toLowerCase())).length;
+        if (dom.metricBookings) dom.metricBookings.textContent = Number(state.appointments.length).toLocaleString();
+        if (dom.metricUnassigned) dom.metricUnassigned.textContent = Number(unassigned).toLocaleString();
+        if (dom.metricActive) dom.metricActive.textContent = Number(active).toLocaleString();
+        if (dom.metricOrders) dom.metricOrders.textContent = Number(state.showOrders ? state.orders.length : 0).toLocaleString();
+      }
+
+      function resetCalendarFilters() {
+        state.activeFilters.clear();
+        state.selectedTechIds = [];
+        state.query = "";
+        state.showOrders = true;
+        if (dom.searchInput) dom.searchInput.value = "";
+        if (dom.searchWrap) dom.searchWrap.classList.remove("has-value");
+        updateTechFilterUI();
+        buildTechDropdown();
+        applyFilters();
+        buildFilterBar();
+      }
 
       /* ── Technician Filter ─────────────────────────────────────── */
       function techStatusClass(status) {
@@ -788,10 +923,10 @@
           const tid = String(t._id);
           const sel = state.selectedTechIds.length === 0 || state.selectedTechIds.includes(tid);
           const color = getTechColor(tid);
-          return `<div class="tech-option ${sel ? 'selected' : ''}" data-tech-id="${tid}">
+          return `<div class="tech-option ${sel ? 'selected' : ''}" data-tech-id="${escHtml(tid)}">
             <span class="tech-checkbox">${sel ? '<i class="bi bi-check"></i>' : ''}</span>
             <span class="tech-color-dot" style="background:${color};color:${color};"></span>
-            <span class="tech-name">${t.name || t.userEmail || "Unknown"}</span>
+            <span class="tech-name">${escHtml(t.name || t.userEmail || "Unknown")}</span>
             <span class="tech-status-dot ${techStatusClass(t.availabilityStatus)}"></span>
           </div>`;
         }).join("");
@@ -931,13 +1066,16 @@
         let html = '<span class="filter-label">Filter</span>';
         STATUS_DEFS.forEach(def => {
           const count = counts[def.key] || 0;
+          if (count === 0 && !state.activeFilters.has(def.key)) return;
           html += `<button class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`;
         });
 
         html += `<div class="cal-filter-divider"></div>`;
-        html += `<button class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders"><i class="bi bi-truck"></i> Deliveries<span class="chip-count">${orderCount}</span></button>`;
+        html += `<button class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders"><i class="bi bi-truck"></i> Orders<span class="chip-count">${orderCount}</span></button>`;
 
-        if (state.activeFilters.size > 0) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Clear</button>`;
+        const hasFilters = state.activeFilters.size > 0 || state.selectedTechIds.length > 0 || Boolean(state.query) || !state.showOrders;
+        if (hasFilters) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Reset all</button>`;
+        html += `<span class="cal-filter-summary"><i class="bi bi-eye"></i>${state.appointments.length + (state.showOrders ? state.orders.length : 0)} visible</span>`;
 
         if (state.currentViewType === "timeGridWeek" || state.currentViewType === "timeGridDay") {
           const focusDate = calendar.getDate ? calendar.getDate() : new Date();
@@ -954,17 +1092,18 @@
 
         dom.filterChips.innerHTML = html;
 
-        dom.filterChips.querySelectorAll('.cal-filter-chip').forEach(chip => {
+        dom.filterChips.querySelectorAll('.cal-filter-chip[data-status]').forEach(chip => {
           chip.addEventListener('click', () => { const s = chip.dataset.status; if (state.activeFilters.has(s)) state.activeFilters.delete(s); else state.activeFilters.add(s); applyFilters(); buildFilterBar(); });
         });
         const toggleOrdersBtn = dom.filterChips.querySelector('#calToggleOrders');
         if (toggleOrdersBtn) toggleOrdersBtn.addEventListener('click', () => { state.showOrders = !state.showOrders; applyFilters(); buildFilterBar(); });
         const clearBtn = dom.filterChips.querySelector('#calClearFilters');
-        if (clearBtn) clearBtn.addEventListener('click', () => { state.activeFilters.clear(); applyFilters(); buildFilterBar(); });
+        if (clearBtn) clearBtn.addEventListener('click', resetCalendarFilters);
       }
 
       function applyFilters() {
-        let filtered = state.allAppointments;
+        let filtered = state.allAppointments.filter(appointmentMatchesQuery);
+        let filteredOrders = state.allOrders.filter(orderMatchesQuery);
 
         if (state.activeFilters.size > 0) {
           filtered = filtered.filter(a => {
@@ -979,9 +1118,14 @@
             const tid = technicianId(a);
             return tid && state.selectedTechIds.includes(String(tid));
           });
+          filteredOrders = filteredOrders.filter(order => {
+            const tid = technicianId(order);
+            return tid && state.selectedTechIds.includes(String(tid));
+          });
         }
 
         state.appointments = filtered;
+        state.orders = filteredOrders;
         calendar.removeAllEvents();
 
         // Add appointment events
@@ -991,10 +1135,12 @@
             const s = String(a.status || "pending").toLowerCase();
             const tid = technicianId(a);
             const techColor = tid ? getTechColor(tid) : null;
+            const hasTime = appointmentTimeMinutes(a) !== null;
             return {
               id: "appt-" + id,
               title: customerName(a) + " \u2022 " + serviceName(a),
               start: eventStart(a),
+              allDay: !hasTime,
               color: techColor || getColor(s),
               classNames: [s, tid ? "tech-"+String(tid) : ""].filter(Boolean),
               extendedProps: { raw: a, type: "appointment" },
@@ -1003,21 +1149,21 @@
         }
 
         // Add order/delivery events
-        if (state.showOrders && state.allOrders.length > 0) {
-          calendar.addEventSource(state.allOrders.map(o => {
+        if (state.showOrders && filteredOrders.length > 0) {
+          calendar.addEventSource(filteredOrders.map(o => {
             const id = String(o._id || "");
             const s = "order-" + (o.status || "pending_payment");
-            const prefDate = o.delivery && o.delivery.preferredDate;
+            const prefDate = orderScheduledDate(o);
             if (!prefDate) return null;
-            const start = new Date(prefDate);
+            const start = orderEventStart(o);
             const cust = (o.customer && o.customer.name) || "Customer";
             const items = (o.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "")).join(", ");
-            const techName = (o.technician && o.technician.name) || (o.technicianId && o.technicianId.name) || null;
+            const hasTime = parseTimeMinutes(o.timeSlot) !== null;
             return {
               id: "order-" + id,
               title: cust + " \u2022 " + items.substring(0, 30),
               start,
-              allDay: true,
+              allDay: !hasTime,
               display: "block",
               classNames: [s, "order-event"],
               extendedProps: { raw: o, type: "order" },
@@ -1025,23 +1171,24 @@
           }).filter(Boolean));
         }
 
+        updateSummary();
         renderDateList();
       }
 
       /* ── Sidebar List ───────────────────────────────────────────── */
       function renderDateList() {
         const dayItems = state.appointments.filter(a => toDateKey(a.bookingDate || a.date || a.start || new Date()) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
-        const orderItems = state.showOrders ? state.allOrders.filter(o => {
-          const d = o.delivery && o.delivery.preferredDate;
+        const orderItems = state.showOrders ? state.orders.filter(o => {
+          const d = orderScheduledDate(o);
           return d && toDateKey(d) === state.selectedDateKey;
-        }) : [];
+        }).sort((a, b) => orderEventStart(a).getTime() - orderEventStart(b).getTime()) : [];
         const totalItems = dayItems.length + orderItems.length;
 
         dom.selectedDateLabel.textContent = toPrettyDate(state.selectedDateKey);
-        dom.selectedDateSub.textContent = totalItems > 0 ? "Appointments & deliveries for this date" : "No items for this date";
+        dom.selectedDateSub.textContent = totalItems > 0 ? "Bookings and orders scheduled for this date" : "No scheduled work for this date";
         dom.selectedDateCount.textContent = String(totalItems);
 
-        if (!totalItems) { dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i>No appointments or deliveries for this date.</div>'; return; }
+        if (!totalItems) { dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i>No bookings or orders for this date.</div>'; return; }
 
         let html = '';
         // Appointment items
@@ -1051,7 +1198,7 @@
           const tid = technicianId(a);
           const tname = technicianName(a);
           const tcolor = tid ? getTechColor(tid) : "#94a3b8";
-          html += `<article class="appt-item" data-id="${id}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${id}','appt')"><div class="appt-row1"><span class="appt-time">${timeLabel(a)}</span><span class="appt-name">${customerName(a)}</span><span class="appt-status-dot" style="background:${getColor(s)}" title="${s}"></span></div><div class="appt-row2"><span>${serviceName(a)}</span><span class="appt-sep">·</span><span><span class="tdot" style="background:${tcolor}"></span>${tname}</span><span class="appt-sep">·</span><span>${a.bookingReference || a.workOrderNumber || "\u2014"}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${id}','appt')" title="View details"><i class="bi bi-chevron-right"></i></button></article>`;
+          html += `<article class="appt-item" data-id="${escHtml(id)}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${escHtml(id)}','appt')"><div class="appt-row1"><span class="appt-time">${escHtml(timeLabel(a))}</span><span class="appt-name">${escHtml(customerName(a))}</span><span class="appt-status-label">${escHtml(prettyStatus(s))}</span></div><div class="appt-row2"><span>${escHtml(serviceName(a))}</span><span class="appt-sep">&middot;</span><span><span class="tdot" style="background:${tcolor}"></span>${escHtml(tname)}</span><span class="appt-sep">&middot;</span><span>${escHtml(a.bookingReference || a.workOrderNumber || "\u2014")}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(id)}','appt')" title="View details" aria-label="View ${escHtml(customerName(a))} booking"><i class="bi bi-chevron-right"></i></button></article>`;
         });
         // Order items
         orderItems.forEach(o => {
@@ -1061,7 +1208,8 @@
           const items = (o.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "") + (it.capacityUnit || "HP")).join(", ");
           const fulfillLabel = ({ delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" })[o.fulfillmentType] || o.fulfillmentType;
           const tech = (o.technician && o.technician.name) || "Unassigned";
-          html += `<article class="appt-item order-item" data-id="${id}" data-type="order"><div class="appt-marker" style="background:#f97316"></div><div class="appt-body" onclick="openCalDetail('${id}','order')"><div class="appt-row1"><span class="appt-type-badge"><i class="bi bi-truck"></i>Order</span><span class="appt-name">${cust}</span><span class="appt-status-dot" style="background:#f97316" title="${o.status}"></span></div><div class="appt-row2"><span>${fulfillLabel}</span><span class="appt-sep">·</span><span>${items.substring(0, 30)}</span><span class="appt-sep">·</span><span>${oRef}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${id}','order')" title="View details"><i class="bi bi-chevron-right"></i></button></article>`;
+          const orderIcon = o.fulfillmentType === "customer_pickup" ? "bi-bag-check" : o.fulfillmentType === "delivery_installation" ? "bi-tools" : "bi-truck";
+          html += `<article class="appt-item order-item" data-id="${escHtml(id)}" data-type="order"><div class="appt-marker" style="background:#f97316"></div><div class="appt-body" onclick="openCalDetail('${escHtml(id)}','order')"><div class="appt-row1"><span class="appt-time">${escHtml(orderTimeLabel(o))}</span><span class="appt-type-badge"><i class="bi ${orderIcon}"></i>Order</span><span class="appt-name">${escHtml(cust)}</span><span class="appt-status-label">${escHtml(prettyStatus(o.status))}</span></div><div class="appt-row2"><span>${escHtml(fulfillLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(items.substring(0, 36))}</span><span class="appt-sep">&middot;</span><span>${escHtml(tech)}</span><span class="appt-sep">&middot;</span><span>${escHtml(oRef)}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(id)}','order')" title="View details" aria-label="View ${escHtml(cust)} order"><i class="bi bi-chevron-right"></i></button></article>`;
         });
 
         dom.selectedDateList.innerHTML = html;
@@ -1071,13 +1219,18 @@
       window.openCalDetail = async function(id, type) {
         try {
           const isOrder = type === 'order';
+          const openRecord = document.getElementById("calDetailOpenRecord");
+          const detailSubtitle = document.getElementById("calDetailSubtitle");
+          if (openRecord) openRecord.href = isOrder ? "/admin/orders?order=" + encodeURIComponent(id) : "/admin/appointments?sel=" + encodeURIComponent(id);
+          if (detailSubtitle) detailSubtitle.textContent = isOrder ? "Order fulfillment schedule" : "Service booking schedule";
           if (isOrder) {
             const res = await fetch("/api/orders/" + id);
             if (!res.ok) throw new Error("Failed to fetch order");
             const data = await res.json();
             const o = data.order;
             const oRef = o.orderReference || '#' + o._id.toString().slice(-8).toUpperCase();
-            const date = o.delivery && o.delivery.preferredDate ? new Date(o.delivery.preferredDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" }) : "—";
+            const scheduledDate = orderScheduledDate(o);
+            const date = scheduledDate ? new Date(scheduledDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" }) : "—";
             const stLabel = (o.status || "pending_payment").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
             const stColor = o.status === "completed" ? "success" : o.status === "cancelled" ? "danger" : o.status === "out_for_delivery" || o.status === "arrived" ? "info" : o.status === "installing" ? "primary" : "warning";
             document.getElementById("calDetailTitle").textContent = "Order " + oRef;
@@ -1123,24 +1276,46 @@
           }
         } catch (e) {
           console.error(e);
-          window.location.href = "/admin/appointments?sel=" + encodeURIComponent(id);
+          window.location.href = type === "order"
+            ? "/admin/orders?order=" + encodeURIComponent(id)
+            : "/admin/appointments?sel=" + encodeURIComponent(id);
         }
       };
 
       /* ── Fetch Data ─────────────────────────────────────────────── */
       async function fetchAppointmentsForRange(start, end) {
-        const params = new URLSearchParams({ limit: "1000", start, end });
+        const params = new URLSearchParams({ limit: "2000", start, end });
         const res = await fetch("/api/appointments?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
         if (!res.ok) throw new Error("appointments fetch failed: " + res.status);
         const json = await res.json();
         return json.items || json.appointments || [];
       }
 
+      async function fetchOrdersForRange(start, end) {
+        const params = new URLSearchParams({ limit: "100", page: "1", scheduledFrom: start, scheduledTo: end });
+        const firstResponse = await fetch("/api/orders/all?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        if (!firstResponse.ok) throw new Error("orders fetch failed: " + firstResponse.status);
+        const firstPage = await firstResponse.json();
+        const orders = [...(firstPage.orders || [])];
+        const pages = Math.max(1, Number(firstPage.pages) || 1);
+        if (pages > 1) {
+          const requests = [];
+          for (let page = 2; page <= pages; page += 1) {
+            const nextParams = new URLSearchParams(params);
+            nextParams.set("page", String(page));
+            requests.push(fetch("/api/orders/all?" + nextParams.toString(), { credentials: "same-origin", cache: "no-store" }).then(response => response.ok ? response.json() : { orders: [] }));
+          }
+          const remainingPages = await Promise.all(requests);
+          remainingPages.forEach(result => orders.push(...(result.orders || [])));
+        }
+        return orders;
+      }
+
       /* ── Calendar Init ──────────────────────────────────────────── */
       const initView = window.innerWidth < 600 ? "listWeek" : "dayGridMonth";
       const calendar = new FullCalendar.Calendar(dom.calendarEl, {
         initialView: initView,
-        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek" },
+        headerToolbar: { left: "prev,next today", center: "", right: "" },
         buttonText: { today: "Today", month: "Month", week: "Week", day: "Day", list: "List" },
         height: "auto",
         slotMinTime: "06:00:00",
@@ -1149,14 +1324,17 @@
         slotLabelInterval: "01:00",
         slotLabelFormat: { hour: "numeric", minute: "2-digit", hour12: true, meridiem: "short" },
         eventMinHeight: 70,
-        allDaySlot: false,
+        allDaySlot: true,
+        allDayText: "Unscheduled",
         dayMaxEvents: 4,
         moreLinkContent: args => "+" + args.num + " more",
         eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
 
-        dateClick(info) { state.selectedDateKey = toDateKey(info.date); renderDateList(); },
+        dayCellClassNames(info) { return toDateKey(info.date) === state.selectedDateKey ? ["cal-selected-day"] : []; },
+        dateClick(info) { state.selectedDateKey = toDateKey(info.date); calendar.rerenderDates(); renderDateList(); },
         eventClick(info) {
           state.selectedDateKey = toDateKey(info.event.start || new Date());
+          calendar.rerenderDates();
           renderDateList();
           const id = info.event.id;
           const type = info.event.extendedProps.type || 'appt';
@@ -1173,17 +1351,29 @@
             const cust = (raw.customer && raw.customer.name) || "Customer";
             const items = (raw.items || []).map(it => (it.modelLine || "Aircon") + " " + (it.capacity || "")).join(", ");
             const fulfillLabel = ({ delivery_only: "Deliver", delivery_installation: "Install", customer_pickup: "Pickup" })[raw.fulfillmentType] || "Deliver";
-            return { html: '<div class="event-content-wrapper"><div class="event-customer"><i class="bi bi-truck me-1" style="font-size:0.65rem;"></i>' + cust + '</div><div class="event-service">' + fulfillLabel + ': ' + items.substring(0, 25) + '</div></div>' };
+            const icon = raw.fulfillmentType === "customer_pickup" ? "bi-bag-check" : raw.fulfillmentType === "delivery_installation" ? "bi-tools" : "bi-truck";
+            return { html: '<div class="event-content-wrapper"><div class="event-time">' + escHtml(orderTimeLabel(raw)) + '</div><div class="event-customer"><i class="bi ' + icon + ' me-1" style="font-size:0.65rem;"></i>' + escHtml(cust) + '</div><div class="event-service">' + escHtml(fulfillLabel + ': ' + items.substring(0, 25)) + '</div></div>' };
           }
           const tname = technicianName(raw);
           const sname = serviceName(raw);
-          const serviceText = tname !== "Unassigned" ? (sname + ' <span style="opacity:0.8;">· ' + tname + '</span>') : sname;
-          return { html: '<div class="event-content-wrapper"><div class="event-time">' + timeLabel(raw) + '</div><div class="event-customer">' + customerName(raw) + '</div><div class="event-service">' + serviceText + '</div></div>' };
+          const serviceText = tname !== "Unassigned" ? (escHtml(sname) + ' <span style="opacity:0.8;">&middot; ' + escHtml(tname) + '</span>') : escHtml(sname);
+          return { html: '<div class="event-content-wrapper"><div class="event-time">' + escHtml(timeLabel(raw)) + '</div><div class="event-customer">' + escHtml(customerName(raw)) + '</div><div class="event-service">' + serviceText + '</div></div>' };
+        },
+
+        eventDidMount(info) {
+          const raw = info.event.extendedProps.raw || {};
+          const isOrder = info.event.extendedProps.type === "order";
+          const label = isOrder
+            ? `${orderTimeLabel(raw)} · ${(raw.customer && raw.customer.name) || "Customer"} · ${prettyStatus(raw.status)}`
+            : `${timeLabel(raw)} · ${customerName(raw)} · ${serviceName(raw)} · ${prettyStatus(raw.status)}`;
+          info.el.setAttribute("title", label);
+          info.el.setAttribute("aria-label", label);
         },
 
         viewDidMount(info) {
           state.currentViewType = info.view.type;
           updateTimeGridHours(info.view.type, info.view.currentStart);
+          if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(button => button.classList.toggle("active", button.dataset.view === info.view.type));
           buildFilterBar();
         },
 
@@ -1194,7 +1384,7 @@
             state.currentViewType = arg.view.type;
 
             const isTimegrid = arg.view.type === "timeGridWeek" || arg.view.type === "timeGridDay";
-            calendar.setOption("height", isTimegrid ? "calc(100vh - 220px)" : "auto");
+            calendar.setOption("height", isTimegrid ? Math.max(640, window.innerHeight - 320) : "auto");
 
             if (isTimegrid) updateTimeGridHours(arg.view.type, arg.view.currentStart);
 
@@ -1203,15 +1393,15 @@
             const end = toDateKey(endDate);
             if (dom.calendarSpinner) dom.calendarSpinner.style.display = "block";
             try {
-              const [appts, orderRes, schedules] = await Promise.all([
+              const [appts, orders, schedules] = await Promise.all([
                 fetchAppointmentsForRange(start, end),
-                fetch("/api/orders/all?limit=500&from=" + start + "&to=" + end).then(r => r.ok ? r.json() : { orders: [] }).catch(() => ({ orders: [] })),
+                fetchOrdersForRange(start, end).catch(() => []),
                 Object.keys(state.schedules).length === 0 ? fetchTechnicianSchedules() : Promise.resolve(state.schedules),
               ]);
               state.schedules = schedules;
               state.workingDaysMap = computeWorkingDaysMap(schedules);
               state.allAppointments = appts;
-              state.allOrders = (orderRes.orders || []).filter(o => o.status !== "cancelled" && o.status !== "completed" && o.delivery && o.delivery.preferredDate);
+              state.allOrders = orders.filter(o => o.status !== "cancelled" && o.status !== "completed" && orderScheduledDate(o));
               applyFilters();
               buildFilterBar();
             } catch (err) {
@@ -1234,7 +1424,20 @@
       }
       calendar.on("viewDidMount", updateNavButtons); updateNavButtons();
 
-      window.addEventListener("resize", () => { const nv = window.innerWidth < 600 ? "listWeek" : "dayGridMonth"; if (calendar.view && calendar.view.type !== nv) calendar.changeView(nv); setTimeout(() => calendar.updateSize(), 100); });
+      let calendarWasMobile = window.innerWidth < 600;
+      let calendarResizeTimer;
+      window.addEventListener("resize", () => {
+        window.clearTimeout(calendarResizeTimer);
+        calendarResizeTimer = window.setTimeout(() => {
+          const isMobile = window.innerWidth < 600;
+          if (isMobile !== calendarWasMobile) {
+            if (isMobile) calendar.changeView("listWeek");
+            else if (calendar.view && calendar.view.type === "listWeek") calendar.changeView("dayGridMonth");
+            calendarWasMobile = isMobile;
+          }
+          calendar.updateSize();
+        }, 120);
+      });
       const ro = new ResizeObserver(() => calendar.updateSize()); ro.observe(dom.calendarEl);
       const ps = document.querySelector(".page-shell"); if (ps) ro.observe(ps);
       const md = document.querySelector(".admin-dashboard"); if (md) ro.observe(md);
@@ -1271,6 +1474,20 @@
             const name = el.querySelector(".tech-name")?.textContent?.toLowerCase() || "";
             el.style.display = name.includes(q) ? "flex" : "none";
           });
+        });
+
+        if (dom.searchInput) dom.searchInput.addEventListener("input", () => {
+          state.query = dom.searchInput.value.trim().toLowerCase();
+          if (dom.searchWrap) dom.searchWrap.classList.toggle("has-value", Boolean(state.query));
+          applyFilters();
+          buildFilterBar();
+        });
+        if (dom.searchClear) dom.searchClear.addEventListener("click", () => {
+          if (dom.searchInput) { dom.searchInput.value = ""; dom.searchInput.focus(); }
+          state.query = "";
+          if (dom.searchWrap) dom.searchWrap.classList.remove("has-value");
+          applyFilters();
+          buildFilterBar();
         });
 
         if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(btn => {

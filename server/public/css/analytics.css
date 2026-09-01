@@ -5,9 +5,9 @@
 /* ── Modal Chrome ── */
 .cdm-content {
   border: none;
-  border-radius: 20px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 25px 80px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08);
   max-height: 90vh;
 }
 .cdm-content .modal-content { border: none; }
@@ -17,14 +17,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.75rem;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+  padding: 1rem 1.25rem;
+  background: #0f172a;
   color: #fff;
 }
 .cdm-header-left { display: flex; align-items: center; gap: 1rem; }
 .cdm-header-icon {
-  width: 44px; height: 44px;
-  border-radius: 12px;
+  width: 40px; height: 40px;
+  border-radius: 6px;
   background: rgba(255,255,255,0.15);
   backdrop-filter: blur(8px);
   display: flex; align-items: center; justify-content: center;
@@ -32,10 +32,12 @@
 }
 .cdm-title { margin: 0; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
 .cdm-subtitle { margin: 0; font-size: 0.78rem; opacity: 0.7; font-weight: 400; }
+.cdm-header-actions { display: flex; align-items: center; gap: 0.65rem; }
+.cdm-live-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.28rem 0.55rem; border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; color: #d1fae5; background: rgba(16,185,129,0.12); font-size: 0.68rem; font-weight: 700; }
 .cdm-close {
   background: rgba(255,255,255,0.12);
   border: none; color: #fff;
-  width: 36px; height: 36px; border-radius: 10px;
+  width: 34px; height: 34px; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all 0.2s;
 }
@@ -50,17 +52,21 @@
 
 /* ── Left: Chart Panel ── */
 .cdm-chart-panel {
-  flex: 0 0 42%;
-  max-width: 42%;
+  flex: 0 0 44%;
+  max-width: 44%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #fff;
 }
+.cdm-panel-heading, .cdm-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 58px; padding: 0.8rem 1.25rem; border-bottom: 1px solid #e2e8f0; }
+.cdm-panel-heading { align-items: flex-start; flex-direction: column; justify-content: center; gap: 0.1rem; }
+.cdm-panel-heading strong, .cdm-detail-heading strong { display: block; color: #0f172a; font-size: 0.88rem; font-weight: 700; }
+.cdm-panel-kicker { display: block; color: #64748b; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .cdm-chart-wrapper {
   flex: 1;
-  padding: 1.5rem;
+  padding: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -85,8 +91,9 @@
   min-width: 80px;
   text-align: center;
   padding: 0.5rem 0.25rem;
-  border-radius: 10px;
-  background: #f1f5f9;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 .cdm-stat-value { font-size: 1.05rem; font-weight: 700; color: #0f172a; display: block; }
 .cdm-stat-label { font-size: 0.68rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
@@ -98,6 +105,7 @@
   flex-direction: column;
   min-width: 0;
 }
+.cdm-detail-heading > div { min-width: 0; }
 
 /* ── Filter Bar ── */
 .cdm-filter-bar {
@@ -167,6 +175,14 @@
   overflow: auto;
   padding: 0;
 }
+.cdm-table-wrap[hidden] { display: none; }
+.cdm-state { flex: 1; min-height: 280px; padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem; color: #475569; text-align: center; }
+.cdm-state[hidden] { display: none; }
+.cdm-state strong { color: #0f172a; font-size: 0.88rem; }
+.cdm-state small { color: #94a3b8; font-size: 0.72rem; }
+.cdm-state-error i { color: #dc2626; font-size: 1.5rem; }
+.cdm-spinner { width: 26px; height: 26px; border: 3px solid #dbeafe; border-top-color: #2563eb; border-radius: 50%; animation: cdm-spin 0.75s linear infinite; }
+@keyframes cdm-spin { to { transform: rotate(360deg); } }
 .cdm-table {
   width: 100%;
   border-collapse: collapse;
@@ -198,6 +214,15 @@
   color: #334155;
   vertical-align: middle;
 }
+.cdm-reference { color: #1d4ed8; font-size: 0.75rem; white-space: nowrap; }
+.cdm-money { color: #0f172a !important; font-weight: 700; white-space: nowrap; }
+.cdm-rating { color: #b45309 !important; font-weight: 700; white-space: nowrap; }
+.cdm-status, .cdm-payment { display: inline-flex; align-items: center; padding: 0.2rem 0.45rem; border-radius: 999px; font-size: 0.62rem; font-weight: 700; text-transform: capitalize; white-space: nowrap; }
+.cdm-status.success { color: #047857; background: #ecfdf5; }
+.cdm-status.danger { color: #b91c1c; background: #fef2f2; }
+.cdm-status.info { color: #0369a1; background: #f0f9ff; }
+.cdm-status.warning { color: #a16207; background: #fefce8; }
+.cdm-payment { color: #4338ca; background: #eef2ff; }
 .cdm-table .cdm-row-label {
   font-weight: 600;
   color: #1e293b;
@@ -239,7 +264,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.85rem;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1.5px solid #e2e8f0;
   background: #fff;
   color: #475569;
@@ -253,6 +278,7 @@
   color: #2563eb;
   background: rgba(37, 99, 235, 0.04);
 }
+.cdm-export-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: #e2e8f0; color: #94a3b8; background: #fff; }
 .cdm-row-count {
   font-size: 0.72rem;
   color: #94a3b8;
@@ -302,6 +328,7 @@ canvas[data-clickable="true"] {
   .cdm-filter-bar { padding: 0.6rem 0.75rem; }
   .cdm-table thead th,
   .cdm-table tbody td { padding: 0.5rem 0.75rem; }
+  .cdm-live-badge { display: none; }
 }
 
 /* ── Drilldown trigger cards (enterprise hover effect) ── */

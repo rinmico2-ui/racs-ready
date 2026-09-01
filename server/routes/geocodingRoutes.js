@@ -100,7 +100,7 @@ router.get('/search', async (req, res) => {
     
     res.status(500).json({ 
       error: 'Failed to search addresses',
-      details: error.message 
+      details: "The geocoding provider is unavailable"
     });
   }
 });
@@ -174,7 +174,7 @@ router.get('/reverse', async (req, res) => {
     
     res.status(500).json({ 
       error: 'Failed to reverse geocode',
-      details: error.message 
+      details: "The geocoding provider is unavailable"
     });
   }
 });

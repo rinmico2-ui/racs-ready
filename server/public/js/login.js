@@ -18,9 +18,12 @@
     removeFieldError(input);
     if (!message) return;
     input.classList.add('error');
+    input.setAttribute('aria-invalid', 'true');
     var err = document.createElement('div');
     err.className = 'field-error';
-    err.textContent = message;
+    err.setAttribute('role', 'alert');
+    err.innerHTML = '<i class="bi bi-exclamation-circle"></i> ';
+    err.appendChild(document.createTextNode(message));
     var field = input.closest('.auth-field') || input.parentElement;
     field.appendChild(err);
   }
@@ -28,6 +31,7 @@
   function removeFieldError(input) {
     input.classList.remove('error');
     input.classList.remove('success');
+    input.removeAttribute('aria-invalid');
     var field = input.closest('.auth-field') || input.parentElement;
     var existing = field.querySelector('.field-error');
     if (existing) existing.remove();
@@ -65,6 +69,18 @@
     });
   }
   setupToggle(document.getElementById('togglePassword'));
+
+  // --- Caps Lock Detection ---
+  var capsHint = document.getElementById('capsLockHint');
+  if (passwordInput && capsHint) {
+    var updateCaps = function (e) {
+      var on = e && typeof e.getModifierState === 'function' && e.getModifierState('CapsLock');
+      capsHint.classList.toggle('d-none', !on);
+    };
+    passwordInput.addEventListener('keydown', updateCaps);
+    passwordInput.addEventListener('keyup', updateCaps);
+    passwordInput.addEventListener('blur', function () { capsHint.classList.add('d-none'); });
+  }
 
   // --- OTP Resend ---
   function startResendCooldown(button, duration) {

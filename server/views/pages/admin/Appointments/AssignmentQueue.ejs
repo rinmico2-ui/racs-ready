@@ -561,6 +561,17 @@
                 <strong>Needs Reassignment</strong> — Previous technician ${lastEntry ? lastEntry.action : 'declined'} this job.
               </div>
             ` : ''}
+            ${b.rescheduleRequest && b.rescheduleRequest.requested ? `
+              <div class="alert alert-info py-2 px-3 mb-2 small d-flex align-items-center gap-2" style="background:#e0f2fe; border:1px solid #7dd3fc; border-radius:8px;">
+                <i class="bi bi-calendar-event text-primary"></i>
+                <div>
+                  <strong class="text-primary">Customer Preferred:</strong>
+                  ${b.rescheduleRequest.requestedDate ? new Date(b.rescheduleRequest.requestedDate).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                  ${b.rescheduleRequest.requestedTime || ''}
+                  ${b.rescheduleRequest.reason ? `<span class="text-muted ms-1">— ${b.rescheduleRequest.reason}</span>` : ''}
+                </div>
+              </div>
+            ` : ''}
             ${history.length > 0 ? `
               <div class="aq-cancel-history">
                 <div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>
@@ -1360,9 +1371,9 @@
         </div>` : ''}
 
         ${b.rescheduleRequest && b.rescheduleRequest.requested ? `
-        <div class="pm-alert" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-top:16px;">
+        <div class="pm-alert" style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0369a1;margin-top:16px;">
           <i class="bi bi-calendar-event"></i>
-          <div><strong>Reschedule Request:</strong> ${b.rescheduleRequest.requestedDate || ''} ${b.rescheduleRequest.requestedTime || ''}${b.rescheduleRequest.reason ? ' — ' + b.rescheduleRequest.reason : ''} <small style="color:#94a3b8;">(${b.rescheduleRequest.status || 'pending'})</small></div>
+          <div><strong>Customer Preferred Schedule:</strong> ${b.rescheduleRequest.requestedDate ? new Date(b.rescheduleRequest.requestedDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''} at ${b.rescheduleRequest.requestedTime || ''}${b.rescheduleRequest.reason ? ' — ' + b.rescheduleRequest.reason : ''} <small style="color:#64748b;">(${b.rescheduleRequest.status || 'pending'})</small></div>
         </div>` : ''}
 
         ${b.notes ? `<div class="pm-alert" style="background:#f8fafc;border:1px solid #e2e8f0;color:#475569;margin-top:16px;"><i class="bi bi-journal-text"></i><div><strong>Notes:</strong> ${b.notes}</div></div>` : ''}

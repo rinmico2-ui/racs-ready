@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const router = express.Router();
 const HVACProduct = require("../models/HVACProduct");
 const auth = require("../middleware/authenticate");
+const { escapeRegex } = require("../utils/stringSecurity");
 
 // Protect all secretary API routes
 router.use(auth.authenticate);
@@ -22,7 +23,7 @@ router.get("/hvac", async (req, res, next) => {
     const filter = { active: true };
     
     if (search) {
-      filter.modelLine = new RegExp(search, 'i');
+      filter.modelLine = new RegExp(escapeRegex(search), 'i');
     }
     
     if (brand) {
@@ -210,7 +211,7 @@ router.get("/hvac/search", async (req, res, next) => {
       return res.status(400).json({ error: "Search query is required" });
     }
     
-    const regex = new RegExp(query, 'i');
+    const regex = new RegExp(escapeRegex(query), 'i');
     
     const products = await HVACProduct.find({
       active: true,

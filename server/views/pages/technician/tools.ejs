@@ -1,15 +1,32 @@
-<div class="technician-page">
-  <div class="container-fluid px-4 py-4">
+<script>
+  (function() {
+    const s = document.currentScript;
+    const main = s && s.parentElement;
+    if (main) {
+      main.classList.remove('p-4');
+      main.style.setProperty('display', 'block', 'important');
+      main.style.setProperty('padding', '0', 'important');
+      main.style.setProperty('max-width', 'none', 'important');
+      main.style.setProperty('margin-left', '0', 'important');
+      main.style.setProperty('margin-right', '0', 'important');
+      main.style.setProperty('width', '100%', 'important');
+    }
+  })();
+</script>
 
-    <div class="d-flex align-items-center justify-content-between mb-4">
+<link rel="stylesheet" href="/css/technician/technician-tools.css?v=7">
+
+<div class="technician-page tt-page">
+  <div class="container-fluid">
+    <div class="tt-page-header">
       <div>
-        <h4 class="mb-0 fw-bold"><i class="bi bi-tools me-2"></i>My Assigned Tools</h4>
-        <small class="text-muted">Tools currently assigned to you</small>
+        <h4><i class="bi bi-tools"></i>My Assigned Tools</h4>
+        <small>Tools currently assigned to you</small>
       </div>
     </div>
 
     <!-- Currently Assigned -->
-    <div class="td-panel mb-4">
+    <div class="td-panel">
       <div class="td-panel-header">
         <h6 class="td-panel-title"><i class="bi bi-box-seam me-2 text-primary"></i>General Tools Issued</h6>
         <span class="badge bg-primary" id="assignedCount">0</span>
@@ -21,7 +38,7 @@
     </div>
 
     <!-- Equipment Used Per Date -->
-    <div class="td-panel mb-4">
+    <div class="td-panel">
       <div class="td-panel-header">
         <h6 class="td-panel-title"><i class="bi bi-calendar-check me-2 text-success"></i>Equipment Used Per Date</h6>
         <button class="btn btn-sm btn-success" style="border-radius:8px;font-size:0.75rem;font-weight:600;" onclick="openLogEquipmentModal()"><i class="bi bi-plus-lg me-1"></i>Log Usage</button>
@@ -33,7 +50,7 @@
     </div>
 
     <!-- Booking Equipment -->
-    <div class="td-panel mb-4">
+    <div class="td-panel">
       <div class="td-panel-header">
         <h6 class="td-panel-title"><i class="bi bi-box-seam me-2 text-info"></i>Equipment By Booking</h6>
         <span class="badge bg-info" id="bookingEquipmentCount">0</span>
@@ -111,35 +128,6 @@
     </div>
   </div>
 </div>
-
-<style>
-  .td-panel { background: #fff; border-radius: 14px; border: 1px solid #eef2f7; overflow: hidden; }
-  .td-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
-  .td-panel-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin: 0; }
-  .td-panel-body { padding: 16px 20px; }
-  .tool-card {
-    display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 10px;
-    background: #f8fafc; border: 1px solid #eef2f7; margin-bottom: 10px;
-  }
-  .tool-card:last-child { margin-bottom: 0; }
-  .tool-icon { width: 42px; height: 42px; min-width: 42px; border-radius: 10px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-  .tool-info { flex: 1; }
-  .tool-info h6 { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin: 0; }
-  .tool-info p { font-size: 0.75rem; color: #64748b; margin: 0; }
-  .tool-history-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.82rem; }
-  .tool-history-item:last-child { border-bottom: none; }
-  .td-panel-header-sub { padding: 8px 20px 0; font-size: 0.75rem; }
-  .booking-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; margin-bottom: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
-  .booking-row:hover { border-color: #3b82f6; background: #f8faff; }
-  .booking-row:last-child { margin-bottom: 0; }
-  .booking-row-orphan { border-style: dashed; background: #fffdf5; }
-  .booking-row-orphan:hover { background: #fef9e7; }
-  .booking-row-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .booking-ref { font-weight: 700; font-size: 0.85rem; color: #0f172a; }
-  .booking-meta { font-size: 0.75rem; color: #64748b; }
-  .booking-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .booking-row-right .bi-chevron-right { color: #94a3b8; }
-</style>
 
 <script>
 (function() {

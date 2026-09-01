@@ -1,8 +1,7 @@
 /**
  * CheckoutCalendar — Capacity-Based Scheduling for Product Orders
- * Uses /api/products/schedule/available-dates and /api/products/schedule/time-slots
- * Matches EnterpriseCalendar logic (booking/repair flow)
- * Fetches ALL tech schedules and applies same date/time selection logic
+ * Uses the shared /api/schedule availability and time-slot endpoints.
+ * Matches EnterpriseCalendar workload, advance-notice, and 30-minute start logic.
  */
 
 class CheckoutCalendar {
@@ -12,6 +11,9 @@ class CheckoutCalendar {
 
         this.options = Object.assign({
             fulfillmentType: 'delivery_installation',
+            duration: 60,
+            quantity: 1,
+            travelTime: 30,
             onDateSelect: () => {},
             onTimeSelect: () => {}
         }, options);
@@ -20,7 +22,9 @@ class CheckoutCalendar {
             activeMonth: new Date(),
             selectedDate: null,
             selectedTimeSlot: null,
-            duration: this.options.duration || (this.options.fulfillmentType === 'delivery_installation' ? 120 : 60)
+            duration: Math.max(30, Number(this.options.duration) || 60),
+            quantity: Math.max(1, Number(this.options.quantity) || 1),
+            travelTime: Math.max(0, Number(this.options.travelTime) || 30)
         };
         this.state.activeMonth.setDate(1);
         this.state.activeMonth.setHours(0, 0, 0, 0);
@@ -252,24 +256,65 @@ class CheckoutCalendar {
     }
 
     setDuration(minutes) {
-        this.state.duration = Math.max(30, minutes);
+        const nextDuration = Math.max(30, Number(minutes) || 60);
+        if (nextDuration === this.state.duration) return;
+        this.state.duration = nextDuration;
         this.options.duration = this.state.duration;
+        this._resetScheduleSelection();
         this.fetchData();
-        if (this.state.selectedDate) {
-            this.loadTimeSlots(this.state.selectedDate);
-        }
+    }
+
+    setQuantity(quantity) {
+        const nextQuantity = Math.max(1, Number(quantity) || 1);
+        if (nextQuantity === this.state.quantity) return;
+        this.state.quantity = nextQuantity;
+        this.options.quantity = nextQuantity;
+        this._resetScheduleSelection();
+        this.fetchData();
+    }
+
+    setTravelTime(minutes) {
+        const nextTravelTime = Math.max(0, Number(minutes) || 30);
+        if (nextTravelTime === this.state.travelTime) return;
+        this.state.travelTime = nextTravelTime;
+        this.options.travelTime = nextTravelTime;
+        this._resetScheduleSelection();
+        this.fetchData();
+    }
+
+    _resetScheduleSelection() {
+        this.state.selectedDate = null;
+        this.state.selectedTimeSlot = null;
+        if (this.dom.timeSection) this.dom.timeSection.style.display = 'none';
+        this.options.onDateSelect('');
+        this.options.onTimeSelect('');
     }
 
     async fetchData() {
         this.dom.grid.style.opacity = '0.5';
         try {
-            const params = new URLSearchParams({ duration: this.state.duration, mode: 'manual' });
-            const [schRes, holRes] = await Promise.all([
-                fetch(`/api/products/schedule/available-dates?${params.toString()}`),
-                fetch('/api/schedule/holidays-and-nonworking')
+            const params = new URLSearchParams({
+                duration: this.state.duration,
+                quantity: this.state.quantity,
+                travelTime: this.state.travelTime,
+                mode: 'manual'
+            });
+            const [schRes, holRes, policyRes] = await Promise.all([
+                fetch(`/api/schedule/available-dates?${params.toString()}`, { cache: 'no-store' }),
+                fetch('/api/schedule/holidays-and-nonworking', { cache: 'no-store' }),
+                fetch('/api/schedule/booking-policy', { cache: 'no-store' })
             ]);
             this.scheduleData = schRes.ok ? await schRes.json() : { availableDates: [] };
             this.holidaysData = holRes.ok ? await holRes.json() : { holidays: [], nonWorkingDays: [] };
+            if (policyRes.ok) window.__bookingPolicy = await policyRes.json();
+            const projectThresholdHours = Number(window.__bookingPolicy?.largeProjectThresholdHours) || 8;
+            if (this.state.quantity >= 8 || this.state.duration * this.state.quantity > projectThresholdHours * 60) {
+                this.scheduleData = {
+                    availableDates: [],
+                    blocked: true,
+                    message: 'This installation must be handled as a large-scale project.'
+                };
+            }
         } catch (e) {
             console.error('CheckoutCalendar: load error', e);
             this.scheduleData = { availableDates: [] };
@@ -296,6 +341,12 @@ class CheckoutCalendar {
         const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
         this.dom.label.textContent = `${MONTHS[month]} ${year}`;
+
+        if (this.scheduleData?.blocked) {
+            this.dom.grid.innerHTML = '<div class="co-no-slots" style="grid-column:1/-1"><i class="bi bi-kanban"></i>This installation requires project scheduling because it exceeds one appointment window. Reduce the quantity or contact Operations.</div>';
+            this.dom.timeSection.style.display = 'none';
+            return;
+        }
 
         const currentMonth = new Date();
         currentMonth.setDate(1);
@@ -324,7 +375,7 @@ class CheckoutCalendar {
         for (let day = 1; day <= daysInMonth; day++) {
             const dateObj = new Date(year, month, day);
             const key = this._formatKey(dateObj);
-            const isPast = key < this._formatKey(today);
+            const isPast = key <= this._formatKey(today);
             const isToday = key === this._formatKey(today);
             const holInfo = holMap[key];
             const availInfo = availMap[key];
@@ -441,7 +492,7 @@ class CheckoutCalendar {
         const today = new Date(); today.setHours(0,0,0,0);
         const parts = dateStr.split('-');
         const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        if (dateObj < today) return;
+        if (dateObj <= today) return;
         this.state.selectedDate = dateObj;
         this.state.selectedTimeSlot = null;
         this.render();
@@ -468,10 +519,20 @@ class CheckoutCalendar {
         const dateStr = formatDateKey(date);
 
         try {
-            const params = new URLSearchParams({ date: dateStr, duration: this.state.duration });
-            const resp = await fetch(`/api/products/schedule/time-slots?${params.toString()}`);
+            const params = new URLSearchParams({
+                date: dateStr,
+                duration: this.state.duration,
+                quantity: this.state.quantity,
+                travelTime: this.state.travelTime
+            });
+            const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`, { cache: 'no-store' });
             if (!resp.ok) throw new Error('time-slots fetch failed');
             const data = await resp.json();
+
+            if (data.blocked) {
+                this.dom.timeGrid.innerHTML = '<div class="co-no-slots"><i class="bi bi-kanban"></i>This installation requires project scheduling. Reduce the quantity or contact Operations.</div>';
+                return;
+            }
 
             if (data.timeSlots && data.timeSlots.length > 0) {
                 const now = new Date();
@@ -516,7 +577,7 @@ class CheckoutCalendar {
         const availInfo = (this.scheduleData?.availableDates || []).find(d => d.date === dateStr);
         const startMin = 480;
         const endMin = 1020;
-        const interval = Math.max(30, this.state.duration);
+        const interval = 30;
         const now = new Date();
         const isToday = dateStr === formatDateKey(now);
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -536,7 +597,7 @@ class CheckoutCalendar {
         const reservedCount = availInfo?.reservedSlots || 0;
 
         const slots = [];
-        for (let s = startMin; s + this.state.duration <= endMin; s += interval) {
+        for (let s = startMin; s < endMin; s += interval) {
             const isPastSlot = isToday && (s < cutoff || s < earliestMinutes);
             const slotIdx = slots.length;
             const isBooked = !isPastSlot && reservedCount > 0 && slotIdx >= (totalSlotsCount - reservedCount);
@@ -581,7 +642,7 @@ class CheckoutCalendar {
                     : 'Fully Booked';
             } else if (slot.availableCount > 0) {
                 statusCls += ' available';
-                statusLabel = `${slot.availableCount} tech${slot.availableCount !== 1 ? 's' : ''}`;
+                statusLabel = slot.availableCount === 1 ? 'Limited: 1 Team' : `${slot.availableCount} Teams Available`;
             } else {
                 statusCls += ' available';
                 statusLabel = 'Open';
@@ -616,19 +677,26 @@ class CheckoutCalendar {
     }
 
     _formatDisplayTime(value) {
-        const parts = String(value || '').split(':');
-        if (parts.length < 2) return value;
-        const hour = Number(parts[0]);
-        const minute = parts[1];
-        if (!Number.isFinite(hour)) return value;
+        const minutes = this._timeToMinutes(value);
+        if (!Number.isFinite(minutes)) return value;
+        const hour = Math.floor(minutes / 60);
+        const minute = String(minutes % 60).padStart(2, '0');
         const period = hour >= 12 ? 'PM' : 'AM';
         const displayHour = hour % 12 || 12;
         return `${displayHour}:${minute} ${period}`;
     }
 
     _timeToMinutes(t) {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
+        const match = String(t || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+        if (!match) return NaN;
+        let hour = Number(match[1]);
+        const minute = Number(match[2]);
+        const period = String(match[3] || '').toUpperCase();
+        if (period) {
+            hour %= 12;
+            if (period === 'PM') hour += 12;
+        }
+        return hour * 60 + minute;
     }
 
     _minutesToTime(m) {

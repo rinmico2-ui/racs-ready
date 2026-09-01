@@ -8,6 +8,7 @@ const CoreService = require('../models/CoreService');
 const RepairService = require('../models/RepairService');
 const BookingService = require('../models/BookingService');
 const LeaveRequest = require('../models/LeaveRequest');
+const Assignment = require('../models/Assignment');
 const {
   getMinAdvanceMinutes,
   getBufferMinutes,
@@ -56,7 +57,14 @@ function formatDateKey(d) {
  */
 router.get('/available-dates', async (req, res) => {
   try {
-    const { serviceId, duration: queryDuration, quantity: queryQuantity, mode = 'ai-suggested' } = req.query;
+    const {
+      serviceId,
+      technicianId,
+      duration: queryDuration,
+      quantity: queryQuantity,
+      travelTime: queryTravelTime,
+      mode = 'ai-suggested',
+    } = req.query;
 
     if (!serviceId && !queryDuration) {
       return res.status(400).json({ error: 'Service ID or duration is required' });
@@ -87,7 +95,7 @@ router.get('/available-dates', async (req, res) => {
     // Quantity multiplier: Total Duration = (Service Duration × Quantity) + Buffer + Travel
     const quantity = Math.max(1, Number(queryQuantity) || 1);
     const totalServiceDuration = serviceDuration * quantity;
-    const travelTime = 30; // default travel buffer
+    const travelTime = Math.min(360, Math.max(0, Number(queryTravelTime) || 30));
     const bufferTime = await getBufferMinutes();
     const capacityPerSlot = totalServiceDuration + travelTime + bufferTime;
 
@@ -110,7 +118,12 @@ router.get('/available-dates', async (req, res) => {
     }
 
     // ── 3. Load ALL active technicians (internal only — never exposed) ────
-    const technicians = await Technician.find({ active: { $ne: false } });
+    if (technicianId && !mongoose.Types.ObjectId.isValid(technicianId)) {
+      return res.status(400).json({ error: 'Invalid technician ID format' });
+    }
+    const technicianQuery = { active: { $ne: false } };
+    if (technicianId) technicianQuery._id = technicianId;
+    const technicians = await Technician.find(technicianQuery);
     const techIds = technicians.map(t => t._id);
 
     if (techIds.length === 0) {
@@ -452,30 +465,24 @@ router.get('/bookings/technician/:technicianId/date/:date', async (req, res) => 
         $in: ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress'] 
       }
     })
-    .select('startTime endTime status bookingDate bookingReference customerName serviceName services totalPrice')
+    .select('startTime endTime status bookingDate')
     .lean();
     
     console.log(`📋 Found ${bookings.length} active bookings for ${date}`);
     
     // Return bookings with formatted data
     const formattedBookings = bookings.map(booking => ({
-      _id: booking._id,
       startTime: booking.startTime,
       endTime: booking.endTime,
       status: booking.status,
       bookingDate: booking.bookingDate,
-      bookingReference: booking.bookingReference,
-      customerName: booking.customerName || booking.customer?.name,
-      serviceName: booking.serviceName || (booking.services && booking.services.length > 0 ? 
-        booking.services.map(s => s.name).join(', ') : 'Service'),
-      totalPrice: booking.totalPrice
     }));
     
     res.json(formattedBookings);
     
   } catch (error) {
     console.error('❌ Error fetching technician bookings:', error);
-    res.status(500).json({ error: 'Failed to fetch bookings', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 });
 
@@ -549,7 +556,7 @@ router.get('/technician/:technicianId/booked-dates', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error fetching booked dates:', error);
-    res.status(500).json({ error: 'Failed to fetch booked dates', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch booked dates' });
   }
 });
 
@@ -582,10 +589,19 @@ router.get('/projects', async (req, res) => {
       ? await schedulingEngine.getProjectReservationsForMonth(rangeStart, rangeEnd)
       : [];
 
-    res.json({ projects, month: month || null });
+    const publicProjects = projects.map((project) => ({
+      name: project.name || "Commercial Project",
+      start: project.start,
+      end: project.end,
+      reservedTechnicians: project.reservedTechnicians,
+      status: project.status,
+      isLargeScale: Boolean(project.isLargeScale),
+      reservedByDate: project.reservedByDate || {},
+    }));
+    res.json({ projects: publicProjects, month: month || null });
   } catch (error) {
     console.error('❌ Error fetching project bars:', error);
-    res.status(500).json({ error: 'Failed to fetch projects', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch projects' });
   }
 });
 
@@ -703,9 +719,16 @@ router.get('/holidays-and-nonworking', async (req, res) => {
  *
  * Supports both technician-specific (admin) and capacity-based (customer) modes.
  */
-router.get('/time-slots', async (req, res) => {
+async function handleTimeSlots(req, res) {
   try {
-    const { technicianId, serviceId, date, duration: queryDuration, quantity: queryQuantity } = req.query;
+    const {
+      technicianId,
+      serviceId,
+      date,
+      duration: queryDuration,
+      quantity: queryQuantity,
+      travelTime: queryTravelTime,
+    } = req.query;
 
     if ((!serviceId && !queryDuration) || !date) {
       return res.status(400).json({ error: 'Service ID (or duration) and date are required' });
@@ -735,7 +758,7 @@ router.get('/time-slots', async (req, res) => {
     // Quantity multiplier: Total Duration = (Service Duration × Quantity) + Buffer + Travel
     const quantity = Math.max(1, Number(queryQuantity) || 1);
     const totalServiceDuration = serviceDuration * quantity;
-    const travelTime = 30;
+    const travelTime = Math.min(360, Math.max(0, Number(queryTravelTime) || 30));
     const bufferTime = await getBufferMinutes();
     const capacityPerSlot = totalServiceDuration + travelTime + bufferTime;
 
@@ -789,36 +812,136 @@ router.get('/time-slots', async (req, res) => {
         await schedule.save();
       }
 
+      // Check rest dates
+      const isRestDate = schedule.restDates?.some(rd => {
+        const rdDate = new Date(rd.date || rd);
+        rdDate.setHours(0, 0, 0, 0);
+        return rdDate.getTime() === selectedDate.getTime();
+      });
+      if (isRestDate) {
+        return res.json({ timeSlots: [], message: 'Technician on rest day' });
+      }
+
+      // Check non-working weekdays
+      const isNonWorkingWeekday = schedule.nonWorkingWeekdays?.some(nwd => nwd.dayOfWeek === dayOfWeek);
+      if (isNonWorkingWeekday) {
+        return res.json({ timeSlots: [], message: 'Technician not working on this day' });
+      }
+
       const workingDay = schedule.workingDays.find(wd => wd.dayOfWeek === dayOfWeek);
       if (!workingDay) {
         return res.json({ timeSlots: [], message: 'Technician not working on this day' });
       }
 
-      const timeSlots = await generateTimeSlots(technicianId, selectedDate, workingDay, capacityPerSlot);
+      // Check approved leave
+      const onLeave = await LeaveRequest.findOne({
+        technicianId, status: 'approved',
+        startDate: { $lte: selectedDate }, endDate: { $gte: selectedDate },
+      }).lean();
+      if (onLeave) {
+        return res.json({ timeSlots: [], message: 'Technician on approved leave' });
+      }
+
+      // ── Generate 30-minute interval slots (same as customer service page) ──
+      const workStartMin = workingDay.startMinutes || 480;
+      const workEndMin = workingDay.endMinutes || 1020;
+      const SLOT_INTERVAL = 30;
+
+      // Fetch existing bookings for this technician on this date
+      const dayStart = new Date(selectedDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(selectedDate);
+      dayEnd.setHours(23, 59, 59, 999);
+      const activeStatuses = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress'];
+
+      const existingBookings = await BookingService.find({
+        technicianId,
+        bookingDate: { $gte: dayStart, $lte: dayEnd },
+        status: { $in: activeStatuses },
+      }).select('startTime endTime serviceDurationMinutes travelTime').lean();
+
+      // Also check Assignment model
+      const existingAssignments = await Assignment.find({
+        technicianId,
+        status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress', 'pending_acceptance'] },
+        bookingDate: { $gte: dayStart, $lte: dayEnd },
+      }).select('startTime endTime serviceDurationMinutes').lean();
+
+      // Build booked intervals
+      const bookedIntervals = [];
+      const bufferTime = await getBufferMinutes();
+
+      function parseTimeStr(val) {
+        if (val === null || val === undefined) return NaN;
+        const num = Number(val);
+        if (Number.isFinite(num)) return num;
+        const str = String(val).trim();
+        const ampm = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (ampm) {
+          let hh = Number(ampm[1]) % 12;
+          if (ampm[3].toUpperCase() === 'PM') hh += 12;
+          return hh * 60 + Number(ampm[2]);
+        }
+        const hm = str.match(/^(\d{1,2}):(\d{2})$/);
+        if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+        return NaN;
+      }
+
+      for (const b of [...existingBookings, ...existingAssignments]) {
+        const s = parseTimeStr(b.startTime);
+        if (!Number.isFinite(s)) continue;
+        const explicitEnd = parseTimeStr(b.endTime);
+        let e;
+        if (Number.isFinite(explicitEnd) && explicitEnd > s) {
+          e = explicitEnd;
+        } else {
+          const svc = Number(b.serviceDurationMinutes) || serviceDuration;
+          const travel = Math.max(0, Number(b.travelTime) || 30);
+          e = s + svc + travel + bufferTime;
+        }
+        if (Number.isFinite(e) && e > s) {
+          bookedIntervals.push({ start: s, end: e });
+        }
+      }
+
+      // Advance notice filtering
       const minAdvMinutes = await getMinAdvanceMinutes();
       const earliestAllowed = earliestAllowedDateTime(minAdvMinutes);
       const earliestMinutes = earliestAllowed.getHours() * 60 + earliestAllowed.getMinutes();
-      const isTechToday = selectedDate.getTime() === new Date().setHours(0, 0, 0, 0);
-      const filteredSlots = timeSlots.filter(slot => {
-        let slotStartMin = parseInt(slot.startTime.split(':')[0]) * 60 + parseInt(slot.startTime.split(':')[1]);
-        // Handle 12h AM/PM format (e.g. "1:00 PM")
-        const ampmMatch = slot.startTime.match(/(AM|PM)$/i);
-        if (ampmMatch) {
-          const isPM = ampmMatch[1].toUpperCase() === 'PM';
-          const rawH = parseInt(slot.startTime.split(':')[0]);
-          if (isPM && rawH < 12) slotStartMin = (rawH + 12) * 60 + parseInt(slot.startTime.split(':')[1]);
-          else if (!isPM && rawH === 12) slotStartMin = parseInt(slot.startTime.split(':')[1]);
+      const isToday = selectedDate.getTime() === new Date().setHours(0, 0, 0, 0);
+      const now = new Date();
+      const cutoff = now.getHours() * 60 + now.getMinutes() + 30;
+
+      const timeSlots = [];
+      for (let slotStart = workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
+        const slotEnd = slotStart + capacityPerSlot;
+
+        // Skip past slots for today
+        if (isToday && slotStart < cutoff) continue;
+        if (isToday && slotStart < earliestMinutes) continue;
+
+        // Check if this slot conflicts with any existing booking
+        const hasConflict = bookedIntervals.some(b => slotStart < b.end && slotEnd > b.start);
+
+        if (!hasConflict) {
+          timeSlots.push({
+            startTime: minutesToTime(slotStart),
+            label: minutesToTime(slotStart),
+            duration: serviceDuration,
+            available: true,
+            availableCount: 1,
+            isPast: false,
+          });
         }
-        if (isTechToday && slotStartMin < earliestMinutes) return false;
-        return true;
-      });
+      }
+
       return res.json({
-        timeSlots: filteredSlots,
+        timeSlots,
         date,
         capacityPerSlot,
         mode: 'technician',
         minAdvanceNoticeMinutes: minAdvMinutes,
-        workingHours: { start: workingDay.startMinutes, end: workingDay.endMinutes },
+        workingHours: { start: workStartMin, end: workEndMin },
       });
     }
 
@@ -1034,7 +1157,29 @@ router.get('/time-slots', async (req, res) => {
     console.error('❌ Error getting time slots:', error);
     res.status(500).json({ error: 'Failed to get time slots' });
   }
-});
+}
+
+router.get('/time-slots', handleTimeSlots);
+
+// Server-side consumers (for example customer reschedule submission) use the
+// exact same capacity engine as /services instead of maintaining a second
+// conflict checker that can drift from the calendar.
+router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query) {
+  return new Promise((resolve, reject) => {
+    let statusCode = 200;
+    const response = {
+      status(code) {
+        statusCode = code;
+        return response;
+      },
+      json(payload) {
+        resolve({ statusCode, payload });
+        return payload;
+      },
+    };
+    Promise.resolve(handleTimeSlots({ query }, response)).catch(reject);
+  });
+};
 
 /**
  * GET /api/schedule/technician/:technicianId/available-slots

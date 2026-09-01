@@ -11,6 +11,27 @@
   const userId = root.getAttribute("data-user-id") || "";
   const userEmail = (root.getAttribute("data-user-email") || "").toLowerCase();
 
+  // True when the booking belongs to the currently logged-in user.
+  // Handles both raw and populated customer references, plus email fallback.
+  function bookingBelongsToUser(b) {
+    if (!b) return false;
+    const idOf = (v) => (v && typeof v === "object" ? String(v._id || v.id || "") : String(v || ""));
+    const uid = String(userId || "");
+    // No identity info available — don't filter (the API already scopes results)
+    if (!uid && !userEmail) return true;
+    if (uid) {
+      if (idOf(b.customerId) === uid) return true;
+      if (idOf(b.customer && (b.customer._id || b.customer.id)) === uid) return true;
+      if (idOf(b.userId) === uid) return true;
+      if (idOf(b.user) === uid) return true;
+    }
+    if (userEmail) {
+      const email = String((b.customer && b.customer.email) || b.email || "").toLowerCase();
+      if (email && email === userEmail) return true;
+    }
+    return false;
+  }
+
   const perPage = 8;
   let bookings = [];
   let originalBookings = [];
@@ -52,7 +73,7 @@
     if (el.modal) return el.modal;
     if (!el.modalElement) return null;
     if (window.bootstrap && window.bootstrap.Modal) {
-      el.modal = new window.bootstrap.Modal(el.modalElement, { backdrop: true, keyboard: true });
+      el.modal = new window.bootstrap.Modal(el.modalElement, { backdrop: 'static', keyboard: true });
       return el.modal;
     }
     return null;
@@ -65,6 +86,7 @@
       completed: "secondary",
       cancelled: "danger",
       "re-scheduled": "info",
+      awaiting_confirmation: "warning",
       // Enterprise Repair statuses
       repair_requested: "warning",
       pending_inspection: "info",
@@ -87,6 +109,33 @@
     const cls = map[String(status || "").toLowerCase()] || "secondary";
     const label = String(status || "unknown").replace(/_/g, " ");
     return `<span class="badge bg-${cls} text-capitalize">${label}</span>`;
+  }
+
+  // True when the scheduled service window has fully elapsed and the booking
+  // is still unresolved (mirrors server-side isBookingPast: endTime,
+  // else startTime + serviceDurationMinutes).
+  function isBookingPast(b) {
+    if (!b || !b.bookingDate) return false;
+    const TERMINAL = ['completed', 'cancelled', 'declined', 'rejected', 'closed', 'repair_completed', 'repair_declined'];
+    if (TERMINAL.includes(b.status)) return false;
+    const parseMin = (t) => {
+      if (!t) return NaN;
+      const m = String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+      if (!m) return NaN;
+      let h = Number(m[1]) % 12;
+      if (m[3] && /pm/i.test(m[3])) h += 12;
+      return h * 60 + Number(m[2] || 0);
+    };
+    const vd = new Date(b.bookingDate);
+    if (isNaN(vd.getTime())) return false;
+    let endMin = parseMin(b.endTime);
+    if (!Number.isFinite(endMin)) {
+      const startMin = parseMin(b.startTime);
+      endMin = Number.isFinite(startMin) ? startMin + (Number(b.serviceDurationMinutes) || 60) : NaN;
+    }
+    if (Number.isFinite(endMin)) vd.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
+    else vd.setHours(23, 59, 59, 999);
+    return vd.getTime() < Date.now();
   }
 
   function shortId(id) {
@@ -197,126 +246,13 @@
   };
 
   window.bhRequestNewSchedule = function (id) {
-    const b = bookings.find((x) => String(x._id) === String(id));
-    if (!b) return;
-    bhOpenRequestNewCalendar(id, b);
-  };
-
-  function bhOpenRequestNewCalendar(id, b) {
-    const existing = document.getElementById('bhRequestNewCalendarModal');
-    if (existing) existing.remove();
-
-    const modalHtml = `
-    <div class="modal fade" id="bhRequestNewCalendarModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content rounded-4 shadow-lg border-0">
-          <div class="modal-header bg-primary text-white rounded-top-4">
-            <h5 class="modal-title"><i class="bi bi-calendar-event me-2"></i>Request New Schedule</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-4">
-            <div id="bhRequestNewLoading" class="text-center py-4">
-              <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
-              <p class="mt-2 text-muted">Loading available dates...</p>
-            </div>
-            <div id="bhRequestNewError" class="alert alert-danger d-none"></div>
-            <div id="bhRequestNewCalendar" class="d-none">
-              <div class="alert alert-info d-flex align-items-center gap-3 mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
-                  <i class="bi bi-info-circle fs-5"></i>
-                </div>
-                <div>
-                  <div class="fw-bold">Choose a new date & time</div>
-                  <div class="small">Pick an available slot for your service.</div>
-                </div>
-              </div>
-              <div id="calendarGrid"></div>
-              <div id="timeSelection" class="d-none mt-3">
-                <div id="timeSlots"></div>
-              </div>
-              <div id="bhRequestNewSelection" class="alert alert-success d-none mt-3">
-                <div class="fw-bold">Selected</div>
-                <div id="bhRequestNewSelectionText"></div>
-              </div>
-              <div class="mt-3">
-                <label for="bhRequestNewReason" class="form-label fw-semibold">Reason for rescheduling</label>
-                <textarea class="form-control" id="bhRequestNewReason" rows="2" placeholder="Optional reason"></textarea>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer rounded-bottom-4">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" id="bhRequestNewSubmit" disabled>
-              <i class="bi bi-check-lg me-1"></i>Submit Request
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    let selectedDate = null;
-    let selectedTime = null;
-    const submitBtn = document.getElementById('bhRequestNewSubmit');
-    const reasonInput = document.getElementById('bhRequestNewReason');
-    const loading = document.getElementById('bhRequestNewLoading');
-    const content = document.getElementById('bhRequestNewCalendar');
-    const error = document.getElementById('bhRequestNewError');
-
-    const modal = new bootstrap.Modal(document.getElementById('bhRequestNewCalendarModal'));
-    modal.show();
-
-    submitBtn.addEventListener('click', async () => {
-      if (!selectedDate || !selectedTime) return;
-      const reason = reasonInput ? reasonInput.value.trim() : '';
-      submitBtn.disabled = true;
-      const prev = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
-      try {
-        await submitRescheduleAction(id, 'request_new', { requestedDate: selectedDate, requestedTime: selectedTime, reason });
-        bootstrap.Modal.getInstance(document.getElementById('bhRequestNewCalendarModal'))?.hide();
-      } catch (_) { /* handled in submitRescheduleAction */ } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = prev;
-      }
-    });
-
-    if (reasonInput) {
-      reasonInput.addEventListener('input', () => {
-        submitBtn.disabled = !(selectedDate && selectedTime);
-      });
+    const detailModal = document.getElementById('bhDetailModal');
+    if (detailModal) {
+      const inst = bootstrap.Modal.getInstance(detailModal);
+      if (inst) inst.hide();
     }
-
-    (async () => {
-      try {
-        if (typeof EnterpriseCalendar === 'undefined') throw new Error('Calendar module not loaded');
-        const serviceId = (b.serviceId && (b.serviceId._id || b.serviceId)) || (b.service && b.service._id) || null;
-        await EnterpriseCalendar.init({
-          serviceId,
-          duration: Number(b.serviceDurationMinutes) || 90,
-          quantity: Number(b.quantity) || 1,
-          onSelect: ({ date, slot }) => {
-            if (!date || !slot) return;
-            selectedDate = EnterpriseCalendar.formatDateKey(date);
-            selectedTime = slot.startTime || slot.label;
-            const selBox = document.getElementById('bhRequestNewSelection');
-            const selText = document.getElementById('bhRequestNewSelectionText');
-            selBox.classList.remove('d-none');
-            const dObj = new Date(selectedDate + 'T00:00:00');
-            selText.innerHTML = `<strong>Date:</strong> ${dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}<br><strong>Time:</strong> ${selectedTime}`;
-            submitBtn.disabled = false;
-          }
-        });
-        loading.classList.add('d-none');
-        content.classList.remove('d-none');
-      } catch (err) {
-        console.error(err);
-        loading.classList.add('d-none');
-        error.textContent = 'Could not load available slots. Please try again.';
-        error.classList.remove('d-none');
-      }
-    })();
-  }
+    setTimeout(() => openBookingEditor(id, "schedule"), 400);
+  };
 
   async function submitRescheduleAction(id, action, extras = {}) {
     try {
@@ -343,11 +279,27 @@
 
     el.tbody.innerHTML = pageItems
       .map((b) => {
+        const needsConfirmation = ['re-scheduled', 'awaiting_assignment'].includes(b.status) && b.proposedReschedule && b.proposedReschedule.status === 'pending';
+        const displayStatus = needsConfirmation ? 'awaiting_confirmation' : b.status;
+
         const dateText = b.bookingDate
           ? new Date(b.bookingDate).toLocaleDateString()
           : "-";
         const timeText = b.startTime || "-";
-        const svc = (b.serviceType || "service") + (b.serviceId ? "" : "");
+
+        const rescheduleIndicator = needsConfirmation
+          ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Needs Confirmation</span></div>`
+          : '';
+
+        // Past-schedule indicator: the visit time has passed while the booking
+        // is still unresolved — the company will reschedule it.
+        const missedIndicator = isBookingPast(b)
+          ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — being rescheduled</span></div>`
+          : '';
+
+        const svc = b.serviceType || "service";
+        const svcIcon = svc === 'core' ? 'bi-gear' : svc === 'repair' ? 'bi-wrench' : 'bi-tools';
+        const rowType = svc === 'core' ? 'bh-row--core' : svc === 'repair' ? 'bh-row--repair' : 'bh-row--mixed';
         const location =
           b.location && b.location.address ? b.location.address : "-";
         const rated = b.customerRating != null && b.customerRating !== "";
@@ -356,34 +308,60 @@
           if (rated) {
             return `<div class="text-warning" style="white-space:nowrap">${ratingStars(b.customerRating)}</div>`;
           }
-          return `<button class="btn btn-sm btn-outline-success bh-rate" data-id="${b._id}">Rate</button>`;
+          return `<button class="bh-action-btn bh-action-btn--success bh-rate" data-id="${b._id}" title="Rate"><i class="bi bi-star"></i></button>`;
         })();
+
+        const reviewAction = ['re-scheduled', 'awaiting_assignment'].includes(b.status) && b.proposedReschedule && b.proposedReschedule.status === 'pending'
+          ? `<button class="bh-action-btn bh-action-btn--warning bh-view" data-id="${b._id}" title="Review Reschedule"><i class="bi bi-calendar-check"></i></button>`
+          : `<button class="bh-action-btn bh-action-btn--primary bh-view" data-id="${b._id}" title="View Details"><i class="bi bi-eye"></i></button>`;
+
+        const pendingActions = b.status === 'pending'
+          ? `<button class="bh-action-btn bh-action-btn--warning bh-reschedule" data-id="${b._id}" title="Re-schedule"><i class="bi bi-calendar-event"></i></button>
+             <button class="bh-action-btn bh-action-btn--danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>`
+          : '';
+
+        const repairAction = b.status === 'repair_approved'
+          ? `<button class="bh-action-btn bh-action-btn--primary bh-schedule-later" data-id="${b._id}" title="Schedule Repair"><i class="bi bi-calendar-plus"></i></button>`
+          : '';
+
+        const approvalAction = b.status === 'awaiting_approval'
+          ? `<button class="bh-action-btn bh-action-btn--success bh-view" data-id="${b._id}" title="Review Quotation"><i class="bi bi-receipt"></i></button>`
+          : '';
+
+        const editAction = ['pending','payment_verified','confirmed','awaiting_assignment'].includes(b.status)
+          ? `<button class="bh-action-btn bh-edit-services" data-id="${b._id}" title="Edit services" style="color:#0ea5e9;border-color:#bae6fd;"><i class="bi bi-list-check"></i></button>`
+          : '';
+        const maintenanceAction = b.maintenanceSummary || b.maintenance?.isMaintenance
+          ? `<a class="bh-action-btn" href="/maintenance" title="View maintenance" style="color:#0f766e;border-color:#99f6e4;"><i class="bi bi-calendar2-check"></i></a>`
+          : '';
+
         return `
-        <tr data-id="${b._id}">
-          <td><div class="fw-semibold">${shortId(b._id)}</div><div class="small text-muted">Created: ${formatDateTime(b.createdAt)}</div></td>
-          <td>${escapeHtml(svc)}</td>
-          <td><div class="fw-semibold">${escapeHtml(dateText)}</div><div class="small text-muted">${escapeHtml(timeText)}</div></td>
-          <td>${statusBadge(b.status)}</td>
-          <td class="text-truncate" style="max-width:220px">${escapeHtml(location)}</td>
+        <tr data-id="${b._id}" class="bh-row ${rowType}">
+          <td>
+            <div class="bh-cell-title">#${shortId(b._id)}</div>
+            <div class="bh-cell-meta">Created ${formatDateTime(b.createdAt)}</div>
+          </td>
+          <td>
+            <div class="bh-cell-service"><i class="bi ${svcIcon}"></i><span class="text-capitalize">${escapeHtml(svc)}</span></div>
+          </td>
+          <td>
+            <div class="bh-cell-title">${escapeHtml(dateText)}</div>
+            <div class="bh-cell-meta">${escapeHtml(timeText)}</div>
+            ${rescheduleIndicator}
+          </td>
+          <td>${statusBadge(displayStatus)}${missedIndicator}</td>
+          <td class="bh-location" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
           <td class="text-center">${ratingCell}</td>
-          <td class="text-end">
-            <div class="btn-group" role="group">
-              ${b.status === 're-scheduled' && b.proposedReschedule && b.proposedReschedule.status === 'pending' ? `
-                <button class="btn btn-sm btn-warning bh-view" data-id="${b._id}"><i class="bi bi-calendar-check me-1"></i>Review</button>
-              ` : `<button class="btn btn-sm btn-outline-primary bh-view" data-id="${b._id}"><i class="bi bi-eye"></i></button>`}
-              <button class="btn btn-sm btn-outline-secondary bh-download" data-id="${b._id}"><i class="bi bi-download"></i></button>
-              ${b.status === 'pending' ? `
-                <button class="btn btn-sm btn-outline-warning bh-reschedule" data-id="${b._id}" title="Re-schedule"><i class="bi bi-calendar-event"></i></button>
-                <button class="btn btn-sm btn-outline-danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>
-              ` : ''}
-              ${b.status === 'repair_approved' ? `
-                <button class="btn btn-sm btn-outline-primary bh-schedule-later" data-id="${b._id}" title="Schedule Repair" style="white-space:nowrap;"><i class="bi bi-calendar-plus me-1"></i>Schedule</button>
-              ` : ''}
-              ${b.status === 'awaiting_approval' ? `
-                <button class="btn btn-sm btn-outline-success bh-view" data-id="${b._id}" title="Review Quotation" style="white-space:nowrap;"><i class="bi bi-receipt me-1"></i>Review</button>
-              ` : ''}
-              ${!['completed','cancelled','closed'].includes(b.status) ? `<button class="btn btn-sm btn-outline-info bh-edit-services" data-id="${b._id}" title="Edit services"><i class="bi bi-list-check"></i></button>` : ''}
-              <a class="btn btn-sm btn-primary" href="/services" title="Rebook"><i class="bi bi-arrow-repeat"></i></a>
+          <td>
+            <div class="bh-actions">
+              ${reviewAction}
+              <button class="bh-action-btn bh-download" data-id="${b._id}" title="Download JSON"><i class="bi bi-download"></i></button>
+              ${pendingActions}
+              ${repairAction}
+              ${approvalAction}
+              ${editAction}
+              ${maintenanceAction}
+              <a class="bh-action-btn" href="/services" title="Rebook" style="color:#2563eb;border-color:#bfdbfe;"><i class="bi bi-arrow-repeat"></i></a>
             </div>
           </td>
         </tr>`;
@@ -430,6 +408,18 @@
     });
   }
 
+  function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function attachRowHandlers() {
     document.querySelectorAll(".bh-view").forEach((btn) => {
       btn.onclick = function () {
@@ -450,7 +440,7 @@
     });
 
     document.querySelectorAll(".bh-edit-services").forEach((btn) => {
-      btn.onclick = () => openServiceItemsEditor(btn.getAttribute("data-id"));
+      btn.onclick = () => openBookingEditor(btn.getAttribute("data-id"), "services");
     });
 
     // rating buttons - use premium modal
@@ -510,381 +500,373 @@
   }
 
   function showDetailModal(b) {
-    const isRepair = b.serviceType === 'repair' || b.serviceModel === 'RepairService' || b.unitInfo;
+    // Data normalisation
+    const isRepair = b.serviceType === 'repair' || b.serviceModel === 'RepairService' || !!b.unitInfo;
     const serviceTypeLabel = isRepair ? 'Repair Service' : 'Core Service';
-    const serviceName =
-      (b.service && b.service.name) ||
-      (b.serviceId && b.serviceId.name) ||
-      b.serviceType ||
-      "Service";
-    const bookingRef = b.bookingReference || b.workOrderNumber || "—";
-    // For repair bookings, use preferredDate/preferredTime as the primary schedule
-    // since bookingDate is set to creation date, not the intended service date.
-    // For core service bookings, bookingDate is the actual service date.
+    const serviceName = (b.service && b.service.name) || (b.serviceId && b.serviceId.name) || b.serviceType || 'Service';
+    const bookingRef = b.bookingReference || b.workOrderNumber || '—';
     const scheduleDate = b.preferredDate || b.bookingDate;
-    const dateText = scheduleDate
-      ? new Date(scheduleDate).toLocaleDateString()
-      : "—";
-    const timeText = b.selectedTimeLabel || b.preferredTime || b.startTime || "—";
-    const occupiedBlock =
-      b.startTime && b.endTime ? `${formatTime(b.startTime)} – ${formatTime(b.endTime)}` : "—";
-    const techText =
-      b.technicianName ||
-      (b.technician && b.technician.name) ||
-      b.technicianId ||
-      "—";
-    const locationText = (b.location && b.location.address) || "—";
-    const feeText =
-      b.estimatedFee != null && b.estimatedFee !== ""
-        ? `₱${Number(b.estimatedFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : "—";
-
-    // Ensure modal close buttons work reliably
-    const closeModalFn = () => {
-      const inst = ensureModalInstance();
-      if (inst) inst.hide();
-    };
-
-    el.modalBody.innerHTML = `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="text-primary fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;">
-            <div class="bg-primary text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-info-circle"></i></div>
-            Booking Information
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Reference</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(String(bookingRef))}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Booking ID</div>
-              <div class="fw-bold fs-6 text-dark text-truncate" title="${escapeHtml(String(b._id || "—"))}"><code>${escapeHtml(String(b._id || "—"))}</code></div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Status</div>
-              <div>${statusBadge(b.status)}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Created</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(formatDateTime(b.createdAt))}</div>
-            </div>
-          </div>
+    const dateText = scheduleDate ? new Date(scheduleDate).toLocaleDateString() : '—';
+    const timeText = b.selectedTimeLabel || b.preferredTime || b.startTime || '—';
+    const occupiedBlock = (b.startTime && b.endTime) ? `${formatTime(b.startTime)} – ${formatTime(b.endTime)}` : '—';
+    const techText = b.technicianName || (b.technician && b.technician.name) || b.technicianId || '—';
+    const locationText = (b.location && b.location.address) || '—';
+  
+    const fmtCurrency = (n) =>
+      n != null && n !== ''
+        ? `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '—';
+    const fmtLongDate = (d) =>
+      d ? new Date(d).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+  
+    // Markup primitives
+    const section = (title, icon, items, extra = '', accent = 'blue') => `
+      <div class="bh-section-card bh-section--${accent}">
+        <div class="bh-section-header">
+          <div class="bh-section-icon bh-section-icon--${accent}"><i class="bi ${icon}"></i></div>
+          <h6 class="bh-section-title">${escapeHtml(title)}</h6>
         </div>
+        ${items ? `<div class="bh-kv-grid">${items}</div>` : ''}
+        ${extra}
       </div>
-
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="text-success fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;">
-            <div class="bg-success text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-clock-history"></i></div>
-            Schedule
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Date</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(dateText)}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Selected Time</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(timeText)}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Occupied Block</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(occupiedBlock)}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Travel Time</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(b.travelTime != null ? String(b.travelTime) + " min" : "—")}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="text-purple fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #8b5cf6;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #8b5cf6;"><i class="bi bi-tools"></i></div>
-            Service & Assignment
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Service</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(serviceTypeLabel)}${!isRepair && serviceName !== 'Service' ? ' — ' + escapeHtml(serviceName) : ''}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Technician</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(String(techText))}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Estimated Fee</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(feeText)}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small fw-semibold text-uppercase mb-1">Location</div>
-              <div class="fw-bold fs-6 text-dark">${escapeHtml(locationText)}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      ${(b.services && b.services.length ? b.services : []).length ? `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle"><h6 class="fw-bold text-uppercase mb-3" style="font-size:.85rem;color:#2563eb"><i class="bi bi-list-check me-2"></i>Service Items</h6>${b.services.map((item,index)=>`<div class="p-3 mb-2 bg-white border rounded-3"><div class="d-flex justify-content-between gap-2"><strong>${index+1}. ${escapeHtml(item.name || (item.type === 'repair' ? 'Repair' : 'Core Service'))}</strong>${statusBadge(item.status || 'pending')}</div><div class="small text-muted mt-1">${escapeHtml([item.brand,item.model,item.applianceTypeName || item.airconTypeName].filter(Boolean).join(' · ') || 'Unit details not recorded')} · ${escapeHtml(item.type === 'repair' ? 'Repair — '+String(item.phase || 'repair_phase_1').replaceAll('_',' ') : 'Core service')}</div>${item.problemDescription || item.repairIssue ? `<div class="small mt-2"><strong>Problem:</strong> ${escapeHtml(item.problemDescription || item.repairIssue)}</div>` : ''}${item.quotation?.status==='submitted'?`<div class="mt-2 p-2 rounded bg-light"><strong>Quotation: ₱${Number(item.quotation.totalCost||0).toLocaleString()}</strong><div class="mt-2 d-flex gap-2"><button class="btn btn-sm btn-success" onclick="window.bhDecideItemQuotation('${b._id}','${item._id}',true)">Approve</button><button class="btn btn-sm btn-outline-danger" onclick="window.bhDecideItemQuotation('${b._id}','${item._id}',false)">Decline</button></div></div>`:''}</div>`).join('')}</div></div>` : ''}
-
-      ${(() => {
-        const pm = b.paymentMethod || '';
-        const total = b.totalPrice || b.estimatedFee || 0;
-        const dp = b.downpaymentAmount || Math.round(total * (Number(b.downpaymentPercentage) || 10) / 100);
-        const amountPaid = b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0);
-        const balance = b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0);
-        const isPaid = b.paymentStatus === 'paid';
-        const isPartial = b.paymentStatus === 'partial';
-
-        if (!pm) return '';
-
-        const methodLabel = pm === 'cod' ? 'Cash on Delivery' : pm === 'gcash' ? 'GCash' : pm.toUpperCase();
-        const statusLabel = isPaid ? 'Paid in Full' : isPartial ? 'Downpayment Received' : 'Pending';
-        const statusClass = isPaid ? 'bg-success' : isPartial ? 'bg-info text-dark' : 'bg-warning text-dark';
-
-        let breakdown = '';
-        if (pm === 'cod') {
-          breakdown = `
-            <div class="p-3 rounded-3 mt-3" style="background:#fffbeb;border:1px solid #fde68a;">
-              <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
-                <span class="text-muted">Total Service Fee</span>
-                <span class="fw-bold">₱${Number(total).toLocaleString()}</span>
-              </div>
-              <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
-                <span class="text-muted">Downpayment (paid now)</span>
-                <span class="fw-bold text-primary">-₱${Number(dp).toLocaleString()}</span>
-              </div>
-              <hr class="my-2" style="border-color:#fde68a;">
-              <div class="d-flex justify-content-between" style="font-size:0.9rem;">
-                <span class="fw-bold">Balance on Completion</span>
-                <span class="fw-bold ${balance <= 0 ? 'text-success' : 'text-warning'}">₱${Number(balance).toLocaleString()}</span>
-              </div>
-              ${amountPaid > dp ? `
-              <div class="d-flex justify-content-between mt-2 pt-2 border-top" style="border-color:#fde68a !important;font-size:0.85rem;">
-                <span class="text-success"><i class="bi bi-check-circle me-1"></i>Total Paid</span>
-                <span class="fw-bold text-success">₱${Number(amountPaid).toLocaleString()}</span>
-              </div>` : ''}
-            </div>`;
-        }
-
-        return `
-          <div class="card border-0 bg-transparent mb-4">
-            <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-              <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #059669;">
-                <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #059669;"><i class="bi bi-cash-coin"></i></div>
-                Payment Details
-              </h6>
-              <div class="row g-3">
-                <div class="col-sm-6">
-                  <div class="text-muted small fw-semibold text-uppercase mb-1">Method</div>
-                  <div class="fw-bold fs-6 text-dark">${escapeHtml(methodLabel)}</div>
-                </div>
-                <div class="col-sm-6">
-                  <div class="text-muted small fw-semibold text-uppercase mb-1">Status</div>
-                  <div><span class="badge ${statusClass}" style="font-size:0.78rem;">${statusLabel}</span></div>
-                </div>
-              </div>
-              ${breakdown}
-            </div>
-          </div>`;
-      })()}
-
-      ${b.unitInfo || b.serviceType === 'repair' || (b.status && b.status.startsWith('repair_')) || ['pending_inspection','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','repair_declined','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','repair_completed','under_warranty','warranty_claim','closed'].includes(b.status) ? `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #d97706;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #d97706;"><i class="bi bi-wrench"></i></div>
-            Unit Information
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Unit Type</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.unitType || '—')}</div></div>
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Brand</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.brand || '—')}</div></div>
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Model</div><div class="fw-bold text-dark">${escapeHtml(b.unitInfo?.model || 'N/A')}</div></div>
-            <div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Problem</div><div class="fw-bold text-dark" style="font-size:0.9rem;line-height:1.5;">${escapeHtml(b.unitInfo?.problemDescription || b.issueDescription || '—')}</div></div>
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${b.preferredDate && !isRepair ? `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #d97706;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #d97706;"><i class="bi bi-calendar-event"></i></div>
-            Preferred Schedule
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Date</div><div class="fw-bold text-dark">${escapeHtml(new Date(b.preferredDate).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}</div></div>
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Time</div><div class="fw-bold text-dark">${escapeHtml(b.preferredTime || '—')}</div></div>
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${b.inspection?.completedAt ? `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #059669;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #059669;"><i class="bi bi-clipboard-check"></i></div>
-            Inspection Results
-          </h6>
-          <div class="row g-3">
-            <div class="col-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Findings</div><div class="fw-bold text-dark" style="font-size:0.9rem;line-height:1.5;">${escapeHtml(b.inspection.findings || '—')}</div></div>
-            ${b.inspection.damagedParts?.length ? `<div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Damaged Parts</div><div class="fw-bold text-dark">${escapeHtml(b.inspection.damagedParts.join(', '))}</div></div>` : ''}
-            ${b.inspection.laborRequired ? `<div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">Labor Required</div><div class="fw-bold text-dark">${escapeHtml(b.inspection.laborRequired)}</div></div>` : ''}
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${b.quotation?.totalCost ? `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #7c3aed;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #7c3aed;"><i class="bi bi-receipt"></i></div>
-            Repair Quotation
-            ${b.approval?.status ? `<span class="badge ${b.approval.status === 'approved' ? 'bg-success' : b.approval.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:0.65rem;margin-left:auto;">${b.approval.status.toUpperCase()}</span>` : ''}
-          </h6>
-          ${b.quotation.parts?.length ? b.quotation.parts.map(p => `
-            <div class="d-flex justify-content-between align-items-center py-1" style="font-size:0.88rem;">
-              <span class="text-muted">${escapeHtml(p.name)} <span class="text-secondary">×${p.quantity || 1}</span></span>
-              <span class="fw-bold text-dark">₱${Number((p.cost||0)*(p.quantity||1)).toLocaleString()}</span>
-            </div>
-          `).join('') : ''}
-          <div class="d-flex justify-content-between align-items-center py-1" style="font-size:0.88rem;">
-            <span class="text-muted">Labor</span>
-            <span class="fw-bold text-dark">₱${Number(b.quotation.laborCost || 0).toLocaleString()}</span>
-          </div>
-          <hr class="my-2">
-          <div class="d-flex justify-content-between align-items-center py-1">
-            <span class="fw-bold">Total</span>
-            <span class="fw-bold fs-5 text-primary">₱${Number(b.quotation.totalCost).toLocaleString()}</span>
-          </div>
-          ${b.quotation.notes ? `<div class="mt-2 p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:0.82rem;color:#64748b;"><i class="bi bi-info-circle me-1"></i>${escapeHtml(b.quotation.notes)}</div>` : ''}
-
-          ${b.status === 'awaiting_approval' ? `
-          <div class="mt-3 pt-3 border-top d-flex gap-2">
-            <button class="btn btn-success flex-fill fw-bold" onclick="bhApproveQuotation('${b._id}')">
-              <i class="bi bi-check-circle me-2"></i>Approve Quotation
-            </button>
-            <button class="btn btn-outline-danger fw-bold" onclick="bhDeclineQuotation('${b._id}')">
-              <i class="bi bi-x-circle me-2"></i>Decline
-            </button>
-          </div>` : ''}
-        </div>
-      </div>` : ''}
-
-      ${b.warranty?.startDate ? `
-      <div class="card border-0 bg-transparent mb-4">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #16a34a;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #16a34a;"><i class="bi bi-shield-check"></i></div>
-            Warranty ${b.warranty.status === 'claimed' ? '<span class="badge bg-warning text-dark ms-2">CLAIMED</span>' : b.warranty.status === 'expired' ? '<span class="badge bg-secondary ms-2">EXPIRED</span>' : '<span class="badge bg-success ms-2">ACTIVE</span>'}
-          </h6>
-          <div class="row g-3">
-            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">Duration</div><div class="fw-bold text-dark">${b.warranty.days || 30} days</div></div>
-            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">Start</div><div class="fw-bold text-dark">${new Date(b.warranty.startDate).toLocaleDateString()}</div></div>
-            <div class="col-sm-4"><div class="text-muted small fw-semibold text-uppercase mb-1">End</div><div class="fw-bold text-dark">${b.warranty.endDate ? new Date(b.warranty.endDate).toLocaleDateString() : '—'}</div></div>
-          </div>
-          ${b.status === 'under_warranty' && b.warranty.status === 'active' ? `
-          <div class="mt-3 pt-3 border-top">
-            <button class="btn btn-outline-warning btn-sm" onclick="window.bhWarrantyClaim('${b._id}')">
-              <i class="bi bi-exclamation-triangle me-1"></i>File Warranty Claim
-            </button>
-          </div>` : ''}
-        </div>
-      </div>` : ''}
-
-      ${b.status === 're-scheduled' && b.proposedReschedule && b.proposedReschedule.status === 'pending' ? `
-      <div class="card border-0 bg-transparent mb-4" id="bhRescheduleActionPanel" data-booking-id="${b._id}">
-        <div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle">
-          <h6 class="fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px; color: #2563eb;">
-            <div class="text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background: #2563eb;"><i class="bi bi-calendar-check"></i></div>
-            Proposed Reschedule
-          </h6>
-          <div class="row g-3 mb-3">
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">New Date</div><div class="fw-bold text-dark">${escapeHtml(new Date(b.proposedReschedule.date).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}</div></div>
-            <div class="col-sm-6"><div class="text-muted small fw-semibold text-uppercase mb-1">New Time</div><div class="fw-bold text-dark">${escapeHtml(b.proposedReschedule.timeLabel || b.proposedReschedule.time)}</div></div>
-            <div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Proposed Technician</div><div class="fw-bold text-dark">${escapeHtml(b.proposedReschedule.technicianName || 'To be assigned')}</div></div>
-          </div>
-          ${isProposedDateTimePassed(b.proposedReschedule) ? `<div class="alert alert-danger small py-2 mb-2"><i class="bi bi-exclamation-circle me-1"></i>This proposed schedule has already passed. Please request a new schedule.</div>` : ''}
-          <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-success" onclick="window.bhRescheduleAction('${b._id}', 'accept')" data-action="accept" ${isProposedDateTimePassed(b.proposedReschedule) ? 'disabled' : ''}><i class="bi bi-check-circle me-1"></i>Accept Schedule</button>
-            <button class="btn btn-outline-primary" onclick="window.bhRequestNewSchedule('${b._id}')" data-action="request_new"><i class="bi bi-calendar-event me-1"></i>Request New Schedule</button>
-            <button class="btn btn-outline-danger" onclick="window.bhRescheduleAction('${b._id}', 'cancel')" data-action="cancel"><i class="bi bi-x-circle me-1"></i>Cancel Booking</button>
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${b.notes ? `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle"><h6 class="text-secondary fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-secondary text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-file-text"></i></div>Notes</h6><div class="text-dark">${escapeHtml(String(b.notes))}</div></div></div>` : ""}
     `;
-
-    // wire download button inside modal
-    el.downloadJsonBtn.onclick = function () {
-      downloadJSON(b, `booking-${shortId(b._id)}.json`);
+  
+    const kv = (label, value, opt = {}) => {
+      const classes = ['bh-kv-item'];
+      if (opt.full) classes.push('bh-kv-full');
+      return `
+        <div class="${classes.join(' ')}">
+          <div class="bh-kv-label">${escapeHtml(label)}</div>
+          <div class="bh-kv-value ${opt.code ? 'bh-kv-value--code' : ''} ${opt.problem ? 'bh-kv-problem' : ''}">${value}</div>
+        </div>
+      `;
     };
-
-    // show rating inside modal if present or allow rating
-    if (b.status === "completed") {
-      const existing = b.customerRating != null && b.customerRating !== "";
-      const rateSection = existing
-        ? `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle"><h6 class="text-warning fw-bold text-uppercase mb-3 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-warning text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-star-fill"></i></div>Your Rating</h6><div class="row g-3"><div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Score</div><div class="text-warning fs-5" style="white-space:nowrap">${ratingStars(b.customerRating)}</div></div>${
-            b.customerRatingComment
-              ? `<div class="col-sm-12"><div class="text-muted small fw-semibold text-uppercase mb-1">Comment</div><div class="fw-bold fs-6 text-dark">${escapeHtml(b.customerRatingComment)}</div></div>`
-              : ""
-          }</div></div></div>`
-        : `<div class="card border-0 bg-transparent mb-4"><div class="card-body p-4 bg-light rounded-4 shadow-sm border border-light-subtle d-flex justify-content-between align-items-center"><h6 class="text-warning fw-bold text-uppercase mb-0 d-flex align-items-center gap-2" style="font-size: 0.85rem; letter-spacing: 0.5px;"><div class="bg-warning text-white rounded p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-chat-right-text"></i></div>Leave Feedback</h6><button class="btn btn-outline-warning fw-bold rounded-pill px-4 bh-rate" data-id="${b._id}">Rate this booking</button></div></div>`;
-      el.modalBody.innerHTML += rateSection;
+  
+    // Status timeline
+    const repairStatuses = ['repair_requested','pending_inspection','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','repair_declined','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','repair_completed','under_warranty','warranty_claim','closed'];
+    const timelineSteps = [
+      { key: 'pending', label: 'Booked', icon: 'bi-calendar-check' },
+      { key: 'confirmed', label: 'Confirmed', icon: 'bi-check-circle' },
+      { key: 'repair_requested', label: 'Repair Requested', icon: 'bi-tools' },
+      { key: 'inspection_completed', label: 'Inspected', icon: 'bi-clipboard-check' },
+      { key: 'awaiting_approval', label: 'Awaiting Approval', icon: 'bi-hourglass-split' },
+      { key: 'repair_completed', label: 'Repair Done', icon: 'bi-wrench-adjustable' },
+      { key: 'completed', label: 'Completed', icon: 'bi-trophy' },
+    ];
+    const currentStepIdx = (() => {
+      const s = String(b.status || '').toLowerCase();
+      if (s === 'completed') return 6;
+      if (s === 'repair_completed') return 5;
+      if (['awaiting_approval','repair_approved','repair_declined'].includes(s)) return 4;
+      if (['inspection_completed','inspection_scheduled','inspection_in_progress','pending_inspection'].includes(s)) return 3;
+      if (['repair_requested','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress'].includes(s)) return 2;
+      if (s === 'confirmed') return 1;
+      if (['pending','awaiting_confirmation','payment_verified','awaiting_assignment','re-scheduled'].includes(s)) return 0;
+      return -1;
+    })();
+    const timelineHtml = currentStepIdx >= 0 ? `
+      <div class="bh-timeline">
+        ${timelineSteps.map((step, i) => `
+          <div class="bh-timeline-step ${i < currentStepIdx ? 'bh-timeline--done' : i === currentStepIdx ? 'bh-timeline--current' : ''}">
+            <div class="bh-timeline-dot"><i class="bi ${i < currentStepIdx ? 'bi-check-lg' : step.icon}"></i></div>
+            <div class="bh-timeline-label">${escapeHtml(step.label)}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+  
+    // Hero
+    const heroHtml = `
+      <div class="bh-hero">
+        <div class="bh-hero-top">
+          <div class="bh-hero-left">
+            <div class="bh-hero-status">${statusBadge(b.status)}</div>
+            <h4 class="bh-hero-ref">${escapeHtml(String(bookingRef))}</h4>
+            <div class="bh-hero-type"><i class="bi ${isRepair ? 'bi-wrench-adjustable' : 'bi-gear'}"></i> ${escapeHtml(serviceTypeLabel)}${serviceName !== 'Service' ? ` · ${escapeHtml(serviceName)}` : ''}</div>
+          </div>
+          <div class="bh-hero-right">
+            <div class="bh-hero-id">ID: <code>${escapeHtml(String(b._id || '—').slice(-12))}</code></div>
+            <div class="bh-hero-created">${escapeHtml(formatDateTime(b.createdAt))}</div>
+          </div>
+        </div>
+        <div class="bh-hero-meta">
+          <div class="bh-hero-meta-item"><i class="bi bi-calendar3"></i><span>${escapeHtml(dateText)}</span></div>
+          <div class="bh-hero-meta-item"><i class="bi bi-clock"></i><span>${escapeHtml(timeText)}</span></div>
+          <div class="bh-hero-meta-item"><i class="bi bi-person-gear"></i><span>${escapeHtml(techText)}</span></div>
+          <div class="bh-hero-meta-item"><i class="bi bi-geo-alt"></i><span>${escapeHtml(locationText)}</span></div>
+        </div>
+        ${timelineHtml}
+      </div>
+    `;
+  
+    // Payment section
+    const paymentHtml = (() => {
+      const pm = b.paymentMethod || '';
+      if (!pm) return '';
+      const total = Number(b.totalPrice || b.estimatedFee || 0);
+      const dp = Number(b.downpaymentAmount || Math.round(total * (Number(b.downpaymentPercentage) || 10) / 100));
+      const amountPaid = Number(b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
+      const balance = Number(b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0));
+      const methodName = pm === 'cod' ? 'Cash on Delivery' : pm === 'gcash' ? 'GCash' : pm.toUpperCase();
+  
+      let breakdown = '';
+      if (pm === 'cod' && total > 0) {
+        breakdown = `
+          <div class="bh-payment-card">
+            <div class="bh-payment-row">
+              <span class="bh-payment-label">Total Service Fee</span>
+              <span class="bh-payment-value">${fmtCurrency(total)}</span>
+            </div>
+            <div class="bh-payment-row">
+              <span class="bh-payment-label">Downpayment (paid now)</span>
+              <span class="bh-payment-value bh-payment-value--negative">-${fmtCurrency(dp)}</span>
+            </div>
+            <div class="bh-payment-row bh-payment-total">
+              <span class="bh-payment-label">Balance on Completion</span>
+              <span class="bh-payment-value ${balance <= 0 ? 'bh-payment-value--success' : 'bh-payment-value--warning'}">${fmtCurrency(balance)}</span>
+            </div>
+            ${amountPaid > dp ? `
+            <div class="bh-payment-row bh-payment-paid">
+              <span class="bh-payment-label"><i class="bi bi-check-circle me-1"></i>Total Paid</span>
+              <span class="bh-payment-value bh-payment-value--success">${fmtCurrency(amountPaid)}</span>
+            </div>` : ''}
+          </div>`;
+      }
+  
+      return section('Payment Details', 'bi-cash-coin', `
+        ${kv('Method', escapeHtml(methodName))}
+        ${kv('Payment Status', statusBadge(b.paymentStatus || 'pending'))}
+        ${kv('Total Fee', fmtCurrency(total))}
+      `, breakdown, 'blue');
+    })();
+  
+    // Service items
+    const serviceItemsHtml = (() => {
+      const services = (b.services || []).filter(Boolean);
+      if (!services.length) return '';
+      const cards = services.map((item, index) => {
+        const meta = [item.brand, item.model, item.applianceTypeName || item.airconTypeName]
+          .filter(Boolean)
+          .join(' · ') || 'Unit details not recorded';
+        const typeText = item.type === 'repair'
+          ? 'Repair · ' + String(item.phase || 'repair_phase_1').replace(/_/g, ' ')
+          : 'Core Service';
+        return `
+          <div class="bh-service-card">
+            <div class="bh-service-head">
+              <div>
+                <div class="bh-service-name">${index + 1}. ${escapeHtml(item.name || (item.type === 'repair' ? 'Repair' : 'Core Service'))}</div>
+                <div class="bh-service-meta">${escapeHtml(meta)} · ${escapeHtml(typeText)}</div>
+              </div>
+              ${statusBadge(item.status || 'pending')}
+            </div>
+            ${item.problemDescription || item.repairIssue ? `<div class="bh-service-problem"><strong>Problem:</strong> ${escapeHtml(item.problemDescription || item.repairIssue)}</div>` : ''}
+            ${item.quotation?.status === 'submitted' ? `
+              <div class="bh-item-quotation">
+                <div class="bh-payment-row bh-payment-total">
+                  <span class="bh-payment-label">Quoted</span>
+                  <span class="bh-payment-value">${fmtCurrency(item.quotation.totalCost)}</span>
+                </div>
+                <div class="bh-actions-bar bh-actions-bar--inline">
+                  <button class="bh-btn bh-btn--success" onclick="window.bhDecideItemQuotation('${b._id}','${item._id}',true)"><i class="bi bi-check-lg me-1"></i>Approve</button>
+                  <button class="bh-btn bh-btn--danger" onclick="window.bhDecideItemQuotation('${b._id}','${item._id}',false)"><i class="bi bi-x-lg me-1"></i>Decline</button>
+                </div>
+              </div>` : ''}
+          </div>
+        `;
+      }).join('');
+      return section('Service Items', 'bi-list-check', '', cards, 'purple');
+    })();
+  
+    // Repair quotation
+    const quotationHtml = (() => {
+      if (!b.quotation?.totalCost) return '';
+      const partRows = (b.quotation.parts || []).map(p => `
+        <div class="bh-payment-row">
+          <span class="bh-payment-label">${escapeHtml(p.name)} <span class="text-muted">×${p.quantity || 1}</span></span>
+          <span class="bh-payment-value">${fmtCurrency((p.cost || 0) * (p.quantity || 1))}</span>
+        </div>
+      `).join('');
+      const actions = b.status === 'awaiting_approval' ? `
+        <div class="bh-actions-bar bh-actions-bar--inline mt-3">
+          <button class="bh-btn bh-btn--success" onclick="bhApproveQuotation('${b._id}')"><i class="bi bi-check-lg me-1"></i>Approve Quotation</button>
+          <button class="bh-btn bh-btn--danger" onclick="bhDeclineQuotation('${b._id}')"><i class="bi bi-x-lg me-1"></i>Decline</button>
+        </div>` : '';
+      return section('Repair Quotation', 'bi-receipt', `
+        ${kv('Total', `<span class="bh-kv-value--xl">${fmtCurrency(b.quotation.totalCost)}</span>`)}
+        ${b.quotation.notes ? kv('Notes', `<div class="bh-kv-problem">${escapeHtml(b.quotation.notes)}</div>`, { full: true, problem: true }) : ''}
+      `, `
+        <div class="bh-quotation-card">
+          ${partRows}
+          <div class="bh-payment-row">
+            <span class="bh-payment-label">Labor</span>
+            <span class="bh-payment-value">${fmtCurrency(b.quotation.laborCost)}</span>
+          </div>
+          <div class="bh-payment-row bh-payment-total">
+            <span class="bh-payment-label">Quotation Total</span>
+            <span class="bh-payment-value bh-payment-value--xl">${fmtCurrency(b.quotation.totalCost)}</span>
+          </div>
+        </div>
+        ${actions}
+      `, 'blue');
+    })();
+  
+    // Warranty
+    const warrantyHtml = (() => {
+      if (!b.warranty?.startDate) return '';
+      const chip = b.warranty.status === 'claimed' ? '<span class="badge bg-warning text-dark ms-2">CLAIMED</span>'
+        : b.warranty.status === 'expired' ? '<span class="badge bg-secondary ms-2">EXPIRED</span>'
+        : '<span class="badge bg-success ms-2">ACTIVE</span>';
+      const action = (['completed','repair_completed','under_warranty','warranty_claim'].includes(b.status) && b.warranty.status !== 'expired') ? `
+        <div class="bh-actions-bar bh-actions-bar--inline mt-3">
+          <button class="bh-btn bh-btn--warning" onclick="window.bhWarrantyClaim('${b._id}')"><i class="bi bi-exclamation-triangle me-1"></i>Report Warranty Issue</button>
+        </div>` : '';
+      const coverageRows = (b.warranty.coverages || []).map(coverage => kv(
+        coverage.serviceName || coverage.coverageType || 'Coverage',
+        `${coverage.days || b.warranty.days || 90} days · until ${fmtLongDate(coverage.endDate)}`,
+        { full: true }
+      )).join('');
+      return section('Warranty', 'bi-shield-check', `
+        ${kv('Duration', `${b.warranty.days || 90} days`)}
+        ${kv('Start', fmtLongDate(b.warranty.startDate))}
+        ${kv('End', fmtLongDate(b.warranty.endDate))}
+        ${kv('Status', chip)}
+        ${coverageRows}
+      `, action, 'green');
+    })();
+  
+    // Proposed reschedule
+    const proposedRescheduleHtml = (() => {
+      if (!['re-scheduled', 'awaiting_assignment'].includes(b.status) || !b.proposedReschedule || b.proposedReschedule.status !== 'pending') return '';
+      const passed = isProposedDateTimePassed(b.proposedReschedule);
+      const alert = passed ? `<div class="bh-alert bh-alert--danger"><i class="bi bi-exclamation-circle me-1"></i>This proposed schedule has already passed. Please request a new schedule.</div>` : '';
+      return section('Proposed Reschedule', 'bi-calendar-check', `
+        ${kv('New Date', escapeHtml(fmtLongDate(b.proposedReschedule.date)))}
+        ${kv('New Time', escapeHtml(b.proposedReschedule.timeLabel || b.proposedReschedule.time))}
+        ${kv('Technician', escapeHtml(b.proposedReschedule.technicianName || 'To be assigned'), { full: true })}
+      `, `
+        ${alert}
+        <div class="bh-actions-bar bh-actions-bar--inline mt-3">
+          <button class="bh-btn bh-btn--success" data-reschedule-action="accept" ${passed ? 'disabled' : ''}><i class="bi bi-check-lg me-1"></i>Accept Schedule</button>
+          <button class="bh-btn bh-btn--secondary" data-reschedule-action="request_new"><i class="bi bi-calendar-event me-1"></i>Request New Schedule</button>
+          <button class="bh-btn bh-btn--danger" data-reschedule-action="cancel"><i class="bi bi-x-lg me-1"></i>Cancel Booking</button>
+        </div>
+      `, 'blue');
+    })();
+  
+    // Rating
+    const ratingHtml = (() => {
+      if (b.status !== 'completed') return '';
+      if (b.customerRating != null && b.customerRating !== '') {
+        return section('Your Rating', 'bi-star-fill', `
+          ${kv('Score', `<span class="bh-stars">${ratingStars(b.customerRating)}</span>`)}
+          ${b.customerRatingComment ? kv('Comment', `<div class="bh-kv-problem">${escapeHtml(b.customerRatingComment)}</div>`, { full: true, problem: true }) : ''}
+        `, '', 'yellow');
+      }
+      return section('Leave Feedback', 'bi-chat-right-text', '', `
+        <div class="bh-rating-cta">
+          <span class="text-muted">How was your service experience?</span>
+          <button class="bh-rate" data-id="${b._id}"><i class="bi bi-star me-1"></i>Rate this booking</button>
+        </div>
+      `, 'yellow');
+    })();
+  
+    // Assemble body
+    let html = '';
+    html += heroHtml;
+  
+    html += section('Schedule', 'bi-clock-history', `
+      ${kv('Date', escapeHtml(dateText))}
+      ${kv('Selected Time', escapeHtml(timeText))}
+      ${kv('Occupied Block', escapeHtml(occupiedBlock))}
+      ${kv('Travel Time', b.travelTime != null ? escapeHtml(String(b.travelTime) + ' min') : '—')}
+    `, '', 'green');
+  
+    html += section('Service & Assignment', 'bi-tools', `
+      ${kv('Service', escapeHtml(serviceTypeLabel) + (serviceName !== 'Service' ? ` · ${escapeHtml(serviceName)}` : ''))}
+      ${kv('Technician', escapeHtml(String(techText)))}
+      ${kv('Estimated Fee', fmtCurrency(b.estimatedFee))}
+      ${kv('Location', escapeHtml(locationText), { full: true })}
+    `, '', 'purple');
+  
+    if (b.unitInfo || isRepair || (b.status && String(b.status).startsWith('repair_')) || repairStatuses.includes(b.status)) {
+      html += section('Unit Information', 'bi-wrench', `
+        ${kv('Unit Type', escapeHtml(b.unitInfo?.unitType || '—'))}
+        ${kv('Brand', escapeHtml(b.unitInfo?.brand || '—'))}
+        ${kv('Model', escapeHtml(b.unitInfo?.model || 'N/A'))}
+        ${kv('Problem', `<div class="bh-kv-problem">${escapeHtml(b.unitInfo?.problemDescription || b.issueDescription || '—')}</div>`, { full: true, problem: true })}
+      `, '', 'orange');
     }
-
+  
+    if (b.preferredDate && !isRepair) {
+      html += section('Preferred Schedule', 'bi-calendar-event', `
+        ${kv('Date', escapeHtml(fmtLongDate(b.preferredDate)))}
+        ${kv('Time', escapeHtml(b.preferredTime || '—'))}
+      `, '', 'green');
+    }
+  
+    if (serviceItemsHtml) {
+      html += serviceItemsHtml;
+    }
+  
+    html += paymentHtml;
+  
+    if (b.inspection?.completedAt) {
+      html += section('Inspection Results', 'bi-clipboard-check', `
+        ${kv('Findings', `<div class="bh-kv-problem">${escapeHtml(b.inspection.findings || '—')}</div>`, { full: true, problem: true })}
+        ${b.inspection.damagedParts?.length ? kv('Damaged Parts', escapeHtml(b.inspection.damagedParts.join(', '))) : ''}
+        ${b.inspection.laborRequired ? kv('Labor Required', escapeHtml(b.inspection.laborRequired)) : ''}
+      `, '', 'orange');
+    }
+  
+    html += quotationHtml;
+    html += warrantyHtml;
+  
+    if (proposedRescheduleHtml) {
+      html += `<div id="bhRescheduleActionPanel" data-booking-id="${b._id}">${proposedRescheduleHtml}</div>`;
+    }
+  
+    if (b.notes) {
+      html += section('Notes', 'bi-file-text', kv('Notes', `<div class="bh-kv-problem">${escapeHtml(String(b.notes))}</div>`, { full: true, problem: true }), '', 'slate');
+    }
+  
+    html += ratingHtml;
+  
+    el.modalBody.innerHTML = html;
+  
+    // Wire controls
+    el.downloadJsonBtn.onclick = () => downloadJSON(b, `booking-${shortId(b._id)}.json`);
+  
+    setTimeout(() => {
+      el.modalBody.querySelectorAll('[data-reschedule-action]').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const action = this.getAttribute('data-reschedule-action');
+          if (action === 'accept' || action === 'cancel') window.bhRescheduleAction(b._id, action);
+          else if (action === 'request_new') window.bhRequestNewSchedule(b._id);
+        });
+      });
+      const rateBtn = el.modalBody.querySelector('.bh-rate');
+      if (rateBtn) {
+        rateBtn.addEventListener('click', function () {
+          const techText = b.technicianName || (b.technician && b.technician.name) || null;
+          if (window.openRatingModal) window.openRatingModal(b._id, b.serviceType || 'Service', techText);
+        });
+      }
+    }, 0);
+  
     const modalInstance = ensureModalInstance();
     if (modalInstance) {
       modalInstance.show();
-
-      // Fallback: ensure close buttons dismiss the modal even if data-bs-dismiss
-      // isn't working (e.g. due to Bootstrap version quirks or backdrop config)
-      const xBtn = document.querySelector('#bhDetailModal .bh-modal-close');
-      const closeBtn = document.querySelector('#bhDetailModal .bh-modal-footer .bh-btn-primary');
-      const doClose = () => { try { modalInstance.hide(); } catch(e) {} };
+      const xBtn = el.modalElement.querySelector('.bh-modal-close');
+      const closeBtn = el.modalElement.querySelector('.bh-modal-footer .bh-btn-primary');
+      const doClose = () => { try { modalInstance.hide(); } catch (e) { /* ignore */ } };
       if (xBtn) xBtn.addEventListener('click', doClose);
       if (closeBtn) closeBtn.addEventListener('click', doClose);
     } else {
-      console.warn(
-        "Bootstrap Modal is unavailable. Ensure bootstrap.bundle is loaded before /js/book-history.js",
-      );
-      alert("Booking details loaded, but modal UI is unavailable right now.");
+      console.warn('Bootstrap Modal unavailable.');
     }
-  }
-
-  function downloadJSON(obj, filename) {
-    try {
-      const blob = new Blob([JSON.stringify(obj, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename || "booking.json";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("Download error", e);
-    }
-  }
-
-  function bookingBelongsToUser(b) {
-    if (!b) return false;
-    // customerId can be a plain string, ObjectId-like, or an object with _id
-    const cidRaw = b.customerId || b.customer_id || b.customer || "";
-    const cid =
-      cidRaw && typeof cidRaw === "object"
-        ? cidRaw._id || (cidRaw.toString && cidRaw.toString())
-        : String(cidRaw || "");
-    if (cid && userId && String(cid) === String(userId)) return true;
-    const cust = String(b.customer || b.customerEmail || "").toLowerCase();
-    if (cust && userEmail && cust.indexOf(userEmail) !== -1) return true;
-    return false;
   }
 
   function applyFilters() {
@@ -1010,8 +992,9 @@
     } catch (error) { alert(error.message); }
   };
 
-  async function openServiceItemsEditor(bookingId) {
+  async function openBookingEditor(bookingId, focusTab) {
     try {
+      const booking = bookings.find(x => String(x._id) === String(bookingId));
       const [itemsResponse, catalogResponse, categoriesResponse] = await Promise.all([
         fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-items`, { credentials: "include" }),
         fetch("/api/services", { credentials: "include" }),
@@ -1026,81 +1009,150 @@
       const repair = catalog.repairs || [];
       const categories = categoriesData.categories || [];
       const rows = (state.services || []).map(item => ({ ...item }));
+      let selectedDate = null;
+      let selectedTime = null;
 
-      let host = document.getElementById("bhServiceItemsModal");
-      if (!host) {
-        host = document.createElement("div");
-        host.id = "bhServiceItemsModal"; host.className = "modal fade"; host.tabIndex = -1;
-        host.innerHTML = `<div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 rounded-4 shadow"><div class="modal-header bg-light border-bottom"><div><h5 class="modal-title fw-bold mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Booking Services</h5><div class="small text-muted mt-1" id="bhServicePolicy"></div></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="bhModalBody"></div><div class="modal-footer bg-light border-top"><button class="btn btn-light" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button><button class="btn btn-primary" id="bhSaveServiceItems"><i class="bi bi-check-lg me-1"></i>Save Changes</button></div></div></div>`;
-        document.body.appendChild(host);
-      }
-      host.querySelector("#bhServicePolicy").textContent = state.policy?.direct ? "Changes can be applied now because this booking is not assigned." : "Changes will be submitted to an administrator for scheduling and capacity review.";
-      const scheduleProposal = [...(state.changeRequests || [])].reverse().find(change => change.status === "schedule_proposed");
-      const bodyHost = host.querySelector("#bhModalBody");
-      bodyHost.innerHTML = `
-        <div id="bhScheduleProposal"></div>
-        <div class="mb-3">
-          <h6 class="fw-bold text-uppercase text-muted mb-2" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-list-check me-1"></i>Current Service Items</h6>
-          <div id="bhCurrentItems"></div>
-        </div>
-        <hr class="my-3">
-        <h6 class="fw-bold text-uppercase text-muted mb-2" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-plus-circle me-1"></i>Add Service</h6>
-        <ul class="nav nav-pills mb-3" id="bhAddTabs" role="tablist">
-          <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="pill"><i class="bi bi-gear me-2"></i>Core Services</button></li>
-          <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="pill"><i class="bi bi-tools me-2"></i>Repair Services</button></li>
-        </ul>
-        <div class="tab-content" id="bhAddTabContent">
-          <div class="tab-pane fade show active" id="bh-core-pane" role="tabpanel">
-            <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
-              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:56px;height:56px;background:#fff"><i class="bi bi-gear fs-2 text-primary"></i></div>
-              <div><h5 class="fw-bold mb-1" style="color:#1e293b">Core Services</h5><p class="mb-0 small text-muted">Professional maintenance, installation & servicing</p></div>
+      const activeTab = focusTab === "schedule" ? "schedule" : "services";
+
+      let host = document.getElementById("bhBookingEditorModal");
+      if (!host) host = document.createElement("div");
+      host.id = "bhBookingEditorModal";
+      host.className = "modal fade";
+      host.tabIndex = -1;
+      host.innerHTML = `
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow-lg" style="overflow:hidden">
+          <div class="modal-header border-bottom" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);padding:20px 28px 16px">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:linear-gradient(135deg,#2563eb,#1d4ed8)"><i class="bi bi-pencil-square text-white fs-5"></i></div>
+              <div>
+                <h5 class="modal-title fw-bold mb-0" style="color:#1e293b;font-size:1.1rem">Edit Booking</h5>
+                <div class="small text-muted mt-1" id="bhEditorPolicy">${state.policy?.direct ? "Changes apply immediately — this booking is not yet assigned." : "Changes will be submitted for administrator review."}</div>
+              </div>
             </div>
-            <div class="row g-3" id="bhCoreGrid"></div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="tab-pane fade" id="bh-repair-pane" role="tabpanel">
-            <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
-              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:56px;height:56px;background:#fff"><i class="bi bi-wrench-adjustable-circle fs-2 text-primary"></i></div>
-              <div><h5 class="fw-bold mb-1" style="color:#1e293b">Repair Service Configuration</h5><p class="mb-0 small text-muted">Configure your repair request step by step. Our technician will be prepared with the right tools and parts.</p></div>
-            </div>
-            <div class="d-flex flex-column gap-3" id="bhRepairSteps">
-              <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="1">
-                <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">1</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Service Category</h6><p class="small text-muted mb-0">Select the type of equipment that needs repair.</p></div></div>
-                <div class="row g-2" id="bhCatGrid"></div>
-              </div>
-              <div class="p-3 rounded-4 d-none" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="2">
-                <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">2</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Specific Unit Type</h6><p class="small text-muted mb-0">Choose the exact model or configuration.</p></div></div>
-                <div class="d-flex flex-wrap gap-2" id="bhUnitChips"></div>
-              </div>
-              <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="3">
-                <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">3</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Unit Specifications</h6><p class="small text-muted mb-0">Basic identifiers to help the technician prepare.</p></div></div>
-                <div class="row g-2">
-                  <div class="col-md-6"><label class="form-label small text-muted">Brand <span class="text-danger">*</span></label><input class="form-control" id="bhRepairBrand" placeholder="e.g. Carrier, Samsung, LG" maxlength="100"></div>
-                  <div class="col-md-6"><label class="form-label small text-muted">Model Number <span class="text-muted">(optional)</span></label><input class="form-control" id="bhRepairModel" placeholder="e.g. 42KDPV48" maxlength="100"></div>
-                  <div class="col-md-6">
-                    <label class="form-label small text-muted">Number of Units</label>
-                    <div class="input-group" style="max-width:160px"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyMinus">&minus;</button><input class="form-control text-center" id="bhRepairQty" type="number" min="1" max="40" value="1"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyPlus">+</button></div>
+          <div class="modal-body p-0" style="background:#fff">
+            <ul class="nav nav-tabs nav-fill border-bottom fw-semibold" id="bhEditorTabs" role="tablist" style="background:#f8fafc">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link ${activeTab === 'services' ? 'active' : ''}" id="bh-tab-services" data-bs-toggle="tab" data-bs-target="#bh-pane-services" type="button" role="tab" aria-selected="${activeTab === 'services'}">
+                  <i class="bi bi-list-check me-2"></i>Services
+                  <span class="badge bg-primary rounded-pill ms-1" style="font-size:.65rem" id="bhServiceCount">${rows.length}</span>
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link ${activeTab === 'schedule' ? 'active' : ''}" id="bh-tab-schedule" data-bs-toggle="tab" data-bs-target="#bh-pane-schedule" type="button" role="tab" aria-selected="${activeTab === 'schedule'}">
+                  <i class="bi bi-calendar-event me-2"></i>Schedule
+                  ${booking?.bookingDate ? `<span class="badge bg-secondary rounded-pill ms-1" style="font-size:.65rem">${new Date(booking.bookingDate).toLocaleDateString('en-PH',{month:'short',day:'numeric'})}</span>` : ''}
+                </button>
+              </li>
+            </ul>
+            <div class="tab-content p-4" id="bhEditorTabContent">
+              <div class="tab-pane fade ${activeTab === 'services' ? 'show active' : ''}" id="bh-pane-services" role="tabpanel">
+                <div id="bhScheduleProposal"></div>
+                <div class="mb-4">
+                  <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-list-check me-1"></i>Current Service Items</h6>
+                  <div id="bhCurrentItems"></div>
+                </div>
+                <hr class="my-3">
+                <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-plus-circle me-1"></i>Add Service</h6>
+                <ul class="nav nav-pills mb-3" id="bhAddTabs" role="tablist">
+                  <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="pill"><i class="bi bi-gear me-2"></i>Core Services</button></li>
+                  <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="pill"><i class="bi bi-tools me-2"></i>Repair Services</button></li>
+                </ul>
+                <div class="tab-content" id="bhAddTabContent">
+                  <div class="tab-pane fade show active" id="bh-core-pane" role="tabpanel">
+                    <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
+                      <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff"><i class="bi bi-gear fs-4 text-primary"></i></div>
+                      <div><h6 class="fw-bold mb-0" style="color:#1e293b;font-size:.95rem">Core Services</h6><p class="mb-0 small text-muted">Professional maintenance, installation & servicing</p></div>
+                    </div>
+                    <div class="row g-3" id="bhCoreGrid"></div>
                   </div>
-                  <div class="col-md-6"><label class="form-label small text-muted">Repair Service <span class="text-danger">*</span></label><select class="form-select" id="bhRepairSelect"></select></div>
+                  <div class="tab-pane fade" id="bh-repair-pane" role="tabpanel">
+                    <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
+                      <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff"><i class="bi bi-wrench-adjustable-circle fs-4 text-primary"></i></div>
+                      <div><h6 class="fw-bold mb-0" style="color:#1e293b;font-size:.95rem">Repair Service Configuration</h6><p class="mb-0 small text-muted">Configure repair request step by step.</p></div>
+                    </div>
+                    <div class="d-flex flex-column gap-3" id="bhRepairSteps">
+                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="1">
+                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">1</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Service Category</h6><p class="small text-muted mb-0">Select the type of equipment.</p></div></div>
+                        <div class="row g-2" id="bhCatGrid"></div>
+                      </div>
+                      <div class="p-3 rounded-4 d-none" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="2">
+                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">2</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Specific Unit Type</h6><p class="small text-muted mb-0">Choose the model or configuration.</p></div></div>
+                        <div class="d-flex flex-wrap gap-2" id="bhUnitChips"></div>
+                      </div>
+                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="3">
+                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">3</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Unit Specifications</h6><p class="small text-muted mb-0">Basic identifiers for the technician.</p></div></div>
+                        <div class="row g-2">
+                          <div class="col-md-6"><label class="form-label small text-muted">Brand <span class="text-danger">*</span></label><input class="form-control" id="bhRepairBrand" placeholder="e.g. Carrier, Samsung, LG" maxlength="100"></div>
+                          <div class="col-md-6"><label class="form-label small text-muted">Model Number <span class="text-muted">(optional)</span></label><input class="form-control" id="bhRepairModel" placeholder="e.g. 42KDPV48" maxlength="100"></div>
+                          <div class="col-md-6">
+                            <label class="form-label small text-muted">Number of Units</label>
+                            <div class="input-group" style="max-width:160px"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyMinus">&minus;</button><input class="form-control text-center" id="bhRepairQty" type="number" min="1" max="40" value="1"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyPlus">+</button></div>
+                          </div>
+                          <div class="col-md-6"><label class="form-label small text-muted">Repair Service <span class="text-danger">*</span></label><select class="form-select" id="bhRepairSelect"></select></div>
+                        </div>
+                      </div>
+                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="4">
+                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">4</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Problem Description</h6><p class="small text-muted mb-0">Tap symptoms, then add details.</p></div></div>
+                        <div class="d-flex flex-wrap gap-2 mb-2" id="bhSymptomChips">
+                          ${["Not Cooling","Strange Noise","Leaking Water","Not Turning On","Bad Smell","Error Code","Overheating","Electrical Issue"].map(s => `<button type="button" class="btn btn-sm btn-outline-secondary bh-symptom rounded-pill" data-symptom="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
+                        </div>
+                        <label class="form-label small text-muted">Detailed Issue <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="bhRepairProblem" rows="3" maxlength="2000" placeholder="Describe the problem in detail."></textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-2"><span class="small text-muted"><i class="bi bi-info-circle me-1"></i>The more details, the better.</span><span class="small text-muted" id="bhCharCount">0 / 500</span></div>
+                      </div>
+                      <button class="btn btn-primary" id="bhAddRepair" disabled><i class="bi bi-plus-circle me-2"></i>Add Repair Service</button>
+                    </div>
+                  </div>
+                </div>
+                <hr class="my-3">
+                <div><label class="form-label fw-bold small text-uppercase text-muted" style="font-size:.65rem;letter-spacing:.05em;"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea class="form-control" id="bhServiceChangeReason" rows="2" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
+              </div>
+              <div class="tab-pane fade ${activeTab === 'schedule' ? 'show active' : ''}" id="bh-pane-schedule" role="tabpanel">
+                <div class="d-flex align-items-start gap-3 p-3 rounded-4 mb-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
+                  <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff;flex-shrink:0"><i class="bi bi-calendar-event fs-4 text-primary"></i></div>
+                  <div><h6 class="fw-bold mb-1" style="color:#1e293b">Reschedule this booking</h6><p class="small text-muted mb-0">Choose a new available date and time slot. Your request will be sent for confirmation.</p></div>
+                </div>
+                ${booking ? `<div class="row g-3 mb-4">
+                  <div class="col-md-6"><div class="p-3 rounded-4 border"><div class="small text-muted text-uppercase fw-semibold mb-1" style="font-size:.65rem">Current Date</div><div class="fw-bold" style="color:#1e293b">${booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : 'Not set'}</div></div></div>
+                  <div class="col-md-6"><div class="p-3 rounded-4 border"><div class="small text-muted text-uppercase fw-semibold mb-1" style="font-size:.65rem">Current Time</div><div class="fw-bold" style="color:#1e293b">${escapeHtml(booking.startTime || booking.selectedTimeLabel || 'Not set')}</div></div></div>
+                </div>` : ''}
+                <div class="p-3 rounded-4 border mb-3" style="background:#f8fafc">
+                  <div class="fw-semibold mb-2" style="font-size:.85rem"><i class="bi bi-calendar3 me-2 text-primary"></i>Select New Date & Time</div>
+                  <div id="bhEditorCalendarLoading" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><p class="small text-muted mt-1 mb-0">Loading available dates...</p></div>
+                  <div id="bhEditorCalendarError" class="alert alert-danger d-none small mb-0"></div>
+                  <div id="bhEditorCalendarContent" class="d-none">
+                    <div id="calendarGrid"></div>
+                    <div id="timeSelection" class="d-none mt-3"><div id="timeSlots"></div></div>
+                  </div>
+                </div>
+                <div id="bhEditorSelection" class="alert alert-success d-none">
+                  <div class="fw-bold"><i class="bi bi-check-circle me-1"></i>New Selection</div>
+                  <div id="bhEditorSelectionText"></div>
+                </div>
+                <div class="mt-3">
+                  <label class="form-label fw-semibold">Reason for rescheduling</label>
+                  <textarea class="form-control" id="bhEditorRescheduleReason" rows="2" placeholder="Optional: why do you need to reschedule?"></textarea>
                 </div>
               </div>
-              <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="4">
-                <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">4</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Problem Description</h6><p class="small text-muted mb-0">Tap the symptoms, then add details.</p></div></div>
-                <div class="d-flex flex-wrap gap-2 mb-2" id="bhSymptomChips">
-                  ${["Not Cooling","Strange Noise","Leaking Water","Not Turning On","Bad Smell","Error Code","Overheating","Electrical Issue"].map(s => `<button type="button" class="btn btn-sm btn-outline-secondary bh-symptom rounded-pill" data-symptom="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
-                </div>
-                <label class="form-label small text-muted">Detailed Issue <span class="text-danger">*</span></label>
-                <textarea class="form-control" id="bhRepairProblem" rows="3" maxlength="2000" placeholder="Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water..."></textarea>
-                <div class="d-flex justify-content-between align-items-center mt-2"><span class="small text-muted"><i class="bi bi-info-circle me-1"></i>The more details you provide, the better our technician can prepare.</span><span class="small text-muted" id="bhCharCount">0 / 500</span></div>
-              </div>
-              <button class="btn btn-primary" id="bhAddRepair" disabled><i class="bi bi-plus-circle me-2"></i>Add Repair Service</button>
+            </div>
+          </div>
+          <div class="modal-footer border-top" style="background:#f8fafc;padding:16px 28px">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-primary" id="bhEditorSave"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
             </div>
           </div>
         </div>
-        <hr class="my-3">
-        <div><label class="form-label fw-bold small text-uppercase text-muted" style="font-size:.65rem;letter-spacing:.05em;"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea class="form-control" id="bhServiceChangeReason" rows="2" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
-      `;
+      </div>`;
+      if (!host.parentNode) document.body.appendChild(host);
+      const bodyHost = host.querySelector("#bhEditorTabContent");
+
+      const scheduleProposal = [...(state.changeRequests || [])].reverse().find(change => change.status === "schedule_proposed");
       const proposalHost = bodyHost.querySelector("#bhScheduleProposal");
-      proposalHost.innerHTML = scheduleProposal ? `<div class="alert alert-warning border-warning-subtle rounded-3"><div class="fw-bold mb-1"><i class="bi bi-calendar2-check me-2"></i>Administrator proposed a new schedule</div><div class="mb-3">${escapeHtml(new Date(scheduleProposal.proposedSchedule.date).toLocaleDateString())}, ${escapeHtml(scheduleProposal.proposedSchedule.startTime)}–${escapeHtml(scheduleProposal.proposedSchedule.endTime)}</div><div class="d-flex gap-2"><button class="btn btn-success btn-sm bh-schedule-response" data-accept="true">Accept schedule</button><button class="btn btn-outline-danger btn-sm bh-schedule-response" data-accept="false">Decline</button></div></div>` : "";
+      proposalHost.innerHTML = scheduleProposal ? `<div class="alert alert-warning border-warning-subtle rounded-3 mb-3"><div class="fw-bold mb-1"><i class="bi bi-calendar2-check me-2"></i>Administrator proposed a new schedule</div><div class="mb-3">${escapeHtml(new Date(scheduleProposal.proposedSchedule.date).toLocaleDateString())}, ${escapeHtml(scheduleProposal.proposedSchedule.startTime)}–${escapeHtml(scheduleProposal.proposedSchedule.endTime)}</div><div class="d-flex gap-2"><button class="btn btn-success btn-sm bh-schedule-response" data-accept="true">Accept schedule</button><button class="btn btn-outline-danger btn-sm bh-schedule-response" data-accept="false">Decline</button></div></div>` : "";
       proposalHost.querySelectorAll(".bh-schedule-response").forEach(button => button.onclick = async () => {
         const accept = button.dataset.accept === "true";
         if (!confirm(`${accept ? "Accept" : "Decline"} the proposed schedule?`)) return;
@@ -1118,9 +1170,14 @@
       let selectedUnitType = null;
       let selectedSymptoms = [];
 
+      function updateServiceCount() {
+        const badge = host.querySelector("#bhServiceCount");
+        if (badge) badge.textContent = rows.length;
+      }
+
       function renderCurrentItems() {
         const itemsHost = bodyHost.querySelector("#bhCurrentItems");
-        if (!rows.length) { itemsHost.innerHTML = '<div class="text-muted small py-2"><i class="bi bi-info-circle me-1"></i>No service items yet. Add one below.</div>'; return; }
+        if (!rows.length) { itemsHost.innerHTML = '<div class="text-muted small py-3 text-center"><i class="bi bi-inbox d-block fs-3 mb-2" style="color:#cbd5e1"></i>No service items yet. Add one below.</div>'; updateServiceCount(); return; }
         itemsHost.innerHTML = rows.map((row, index) => {
           const svc = (row.type === "repair" ? repair : core).find(s => String(s._id) === String(row.serviceId));
           const svcName = svc?.name || row.name || "Service";
@@ -1129,6 +1186,7 @@
           const price = Number(row.totalPrice || row.unitPrice || 0);
           return `<div class="card border rounded-3 mb-2" style="border-color:#e2e8f0!important"><div class="card-body py-2 px-3"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1"><div class="d-flex align-items-center gap-2 mb-1"><span class="badge rounded-pill ${row.type === 'repair' ? 'bg-warning text-dark' : 'bg-primary'}" style="font-size:.6rem">${row.type === 'repair' ? 'Repair' : 'Core'}</span><strong style="font-size:.85rem">${escapeHtml(svcName)}</strong>${price ? `<span class="badge bg-light text-muted rounded-pill" style="font-size:.6rem">₱${price.toLocaleString()}</span>` : ''}</div>${details ? `<div class="small text-muted">${escapeHtml(details)} · Qty ${Number(row.quantity||1)}</div>` : ''}${problem ? `<div class="small text-muted mt-1"><i class="bi bi-chat-square-text me-1"></i>${escapeHtml(problem)}</div>` : ''}</div><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="window._bhRemoveItem(${index})" title="Remove"><i class="bi bi-trash"></i></button></div></div></div>`;
         }).join("");
+        updateServiceCount();
       }
       window._bhRemoveItem = function(idx) { rows.splice(idx, 1); renderCurrentItems(); };
 
@@ -1155,15 +1213,33 @@
         const allPrices = allTypes.flatMap(at => (at.hpPricing || []).map(h => h.price)).filter(Boolean);
         const globalMin = allPrices.length ? Math.min(...allPrices) : 0;
         const globalMax = allPrices.length ? Math.max(...allPrices) : 0;
-        const typeCards = allTypes.map((at, i) => `<div class="col-md-4"><div class="card border rounded-4 h-100 text-center" style="cursor:pointer;transition:all .15s" data-aircon-index="${i}" onmouseover="this.style.borderColor='#2563eb';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.transform=''"><div class="card-body py-3"><i class="bi bi-snow fs-1 text-info"></i><h6 class="fw-bold mt-2 mb-1" style="font-size:.9rem">${escapeHtml(at.name)}</h6><p class="small text-muted mb-1">${escapeHtml(at.description || 'Standard aircon unit')}</p><span class="badge bg-success-subtle text-success" style="background:#dcfce7;color:#166534">₱${Math.min(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()} - ₱${Math.max(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()}</span></div></div></div>`).join("");
+        const typeCards = allTypes.map((at, i) => `<div class="col-6 col-md-4"><div class="card bh-aircon-type-card h-100 text-center" data-aircon-index="${i}"><div class="card-body py-3 px-2"><i class="bi bi-snow fs-1 text-info"></i><h6 class="fw-bold mt-2 mb-1" style="font-size:.85rem">${escapeHtml(at.name)}</h6><p class="small text-muted mb-1 d-none d-md-block" style="font-size:.72rem;line-height:1.3">${escapeHtml(at.description || 'Standard aircon unit')}</p><span class="badge bg-success-subtle text-success" style="background:#dcfce7;color:#166534;font-size:.65rem">₱${Math.min(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()} - ₱${Math.max(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()}</span></div></div></div>`).join("");
         hpModal.innerHTML = `
-          <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 rounded-4 shadow">
+          <div class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 rounded-4 shadow" data-bh-hp-modal>
+              <style data-bh-hp-style>
+                [data-bh-hp-modal] .bh-aircon-type-card{border:1.5px solid #e2e8f0;border-radius:1rem;cursor:pointer;transition:all .15s;background:#fff}
+                [data-bh-hp-modal] .bh-aircon-type-card:hover,[data-bh-hp-modal] .bh-aircon-type-card.active{border-color:#2563eb;background:#eff6ff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(37,99,235,.12)}
+                [data-bh-hp-modal] .bh-hp-card{border:1.5px solid #e2e8f0;border-radius:1rem;cursor:pointer;transition:all .15s;background:#fff}
+                [data-bh-hp-modal] .bh-hp-card:hover,[data-bh-hp-modal] .bh-hp-card.selected{border-color:#2563eb;background:#eff6ff;box-shadow:0 4px 12px rgba(37,99,235,.12)}
+                [data-bh-hp-modal] .bh-hp-card .form-check-input{cursor:pointer;width:1.15rem;height:1.15rem}
+                [data-bh-hp-modal] .bh-qty-group{flex:0 0 auto}
+                [data-bh-hp-modal] .modal-footer .btn{min-height:44px}
+                @media(max-width:575.98px){
+                  [data-bh-hp-modal] .modal-body{padding:1rem}
+                  [data-bh-hp-modal] .bh-hp-card .card-body{flex-direction:column;align-items:flex-start;gap:.75rem}
+                  [data-bh-hp-modal] .bh-hp-card .bh-hp-meta{width:100%;text-align:left}
+                  [data-bh-hp-modal] .bh-qty-group{margin-left:0;width:100%;justify-content:space-between}
+                  [data-bh-hp-modal] .modal-footer{flex-wrap:wrap;gap:.5rem;padding:.75rem}
+                  [data-bh-hp-modal] .modal-footer .btn,[data-bh-hp-modal] .modal-footer>div{flex:1 1 auto;min-width:120px}
+                  [data-bh-hp-modal] .modal-footer .btn-primary{order:3;width:100%}
+                }
+              </style>
               <div class="modal-header text-white" style="background:linear-gradient(135deg,#2563eb,#1d4ed8)">
                 <div class="d-flex align-items-center gap-2"><div class="rounded-3 d-flex align-items-center justify-content-center" style="width:40px;height:40px;background:rgba(255,255,255,.2)"><i class="bi bi-box-seam"></i></div><div><h5 class="modal-title fw-bold mb-0" style="font-size:1.05rem">Configure Service</h5><p class="mb-0 small" style="opacity:.85">Select aircon type & HP rating</p></div></div>
                 <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
               </div>
-              <div class="modal-body p-4">
+              <div class="modal-body p-3 p-md-4">
                 <h5 class="fw-bold mb-3" style="color:#1e293b">${escapeHtml(svc.name)}</h5>
                 <div class="mb-3"><label class="form-label fw-bold small">Brand Name <span class="text-danger">*</span></label><select class="form-select" id="bhHpBrandSelect"><option value="">Select brand...</option>${(svc.brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("")}</select><input class="form-control mt-2 d-none" id="bhHpBrandOther" placeholder="Enter brand" maxlength="100"></div>
                 <div class="d-flex align-items-center gap-2 mb-3"><div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">1</div><h6 class="fw-bold mb-0" style="font-size:.9rem">Select Aircon Type</h6></div>
@@ -1176,10 +1252,10 @@
                 </div>
                 <div class="alert alert-light border rounded-3 mt-3" role="alert"><i class="bi bi-info-circle me-2 text-info"></i>Final pricing may be confirmed by the technician after inspection.</div>
               </div>
-              <div class="modal-footer bg-light border-top">
+              <div class="modal-footer bg-light border-top flex-wrap justify-content-between gap-2">
                 <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <div class="d-flex align-items-center gap-2 p-2 rounded-3" style="background:#fff;border:1px solid #e2e8f0"><div><div class="small text-muted">Estimated Price:</div><div class="small" style="color:#64748b">Includes service & travel</div></div><div class="fw-bold fs-5 text-primary" id="bhHpEstimatedPrice">₱0</div></div>
-                <button class="btn btn-primary" id="bhHpAddToBooking" disabled><i class="bi bi-check-lg me-1"></i>Add to Booking</button>
+                <div class="d-flex align-items-center gap-2 p-2 rounded-3 flex-fill justify-content-center" style="background:#fff;border:1px solid #e2e8f0;min-width:140px"><div><div class="small text-muted">Estimated Price:</div><div class="small" style="color:#64748b">Includes service & travel</div></div><div class="fw-bold fs-5 text-primary" id="bhHpEstimatedPrice">₱0</div></div>
+                <button class="btn btn-primary ms-md-auto" id="bhHpAddToBooking" disabled><i class="bi bi-check-lg me-1"></i>Add to Booking</button>
               </div>
             </div>
           </div>`;
@@ -1205,15 +1281,15 @@
           const list = hpModal.querySelector("#bhHpOptionsList");
           list.innerHTML = (type.hpPricing || []).map((hp, i) => {
             const duration = formatDuration(svc, hp);
-            return `<div class="card border rounded-4" style="cursor:pointer" data-hp-index="${i}" data-hp="${hp.hp}" data-price="${hp.price}" data-duration="${hp.durationMinutes || ''}">
-              <div class="card-body d-flex justify-content-between align-items-center py-3">
+            return `<div class="card bh-hp-card" data-hp-index="${i}" data-hp="${hp.hp}" data-price="${hp.price}" data-duration="${hp.durationMinutes || ''}">
+              <div class="card-body d-flex justify-content-between align-items-center gap-3 py-3">
                 <div class="d-flex align-items-center gap-3">
                   <input class="form-check-input" type="radio" name="bhHpOption" value="${i}">
                   <div><span class="badge bg-primary rounded-pill mb-1">${hp.hp} HP</span><div class="fw-bold fs-5 text-primary">₱${Number(hp.price).toLocaleString()}</div></div>
                 </div>
-                <div class="text-center" style="min-width:120px"><div class="small text-muted"><i class="bi bi-clock me-1"></i>${duration}</div><div class="small text-muted">${escapeHtml(hp.description || '')}</div></div>
-                <div class="d-flex align-items-center gap-2">
-                  <span class="small text-muted">Quantity:</span>
+                <div class="bh-hp-meta text-center" style="min-width:120px"><div class="small text-muted"><i class="bi bi-clock me-1"></i>${duration}</div><div class="small text-muted">${escapeHtml(hp.description || '')}</div></div>
+                <div class="bh-qty-group d-flex align-items-center gap-2">
+                  <span class="small text-muted d-none d-md-inline">Quantity:</span>
                   <div class="input-group" style="width:120px"><button class="btn btn-outline-secondary" type="button" id="bhHpQtyMinus">&minus;</button><input class="form-control text-center" id="bhHpQtyInput" type="number" min="1" max="40" value="1" readonly><button class="btn btn-outline-secondary" type="button" id="bhHpQtyPlus">+</button></div>
                 </div>
               </div>
@@ -1222,9 +1298,9 @@
           list.querySelectorAll("[data-hp-index]").forEach(card => {
             card.onclick = (e) => {
               if (e.target.tagName === "BUTTON" || e.target.id === "bhHpQtyInput") return;
-              list.querySelectorAll("[data-hp-index]").forEach(c => c.classList.remove("border-primary", "bg-primary-subtle"));
+              list.querySelectorAll("[data-hp-index]").forEach(c => c.classList.remove("selected"));
               list.querySelectorAll("[data-hp-index] input").forEach(c => c.checked = false);
-              card.classList.add("border-primary", "bg-primary-subtle");
+              card.classList.add("selected");
               card.querySelector("input").checked = true;
               selectedHp = { hp: parseFloat(card.dataset.hp), price: parseFloat(card.dataset.price), durationMinutes: parseFloat(card.dataset.duration) || null };
               hpModal.querySelector("#bhHpAddToBooking").disabled = false;
@@ -1237,9 +1313,8 @@
         }
 
         hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(card => card.onclick = () => {
-          hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(c => { c.classList.remove("border-primary", "bg-light"); c.style.borderColor = "#e2e8f0"; });
-          card.classList.add("border-primary", "bg-light");
-          card.style.borderColor = "#2563eb";
+          hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(c => c.classList.remove("active"));
+          card.classList.add("active");
           selectedAirconIndex = parseInt(card.dataset.airconIndex);
           hpModal.querySelector("#bhHpOptionsSection").classList.remove("d-none");
           renderHpOptions(allTypes[selectedAirconIndex]);
@@ -1269,8 +1344,6 @@
         };
 
         bootstrap.Modal.getOrCreateInstance(hpModal).show();
-        host.querySelector("#bhSaveServiceItems").onclick = null;
-        attachSaveHandler();
       }
 
       function renderCoreGrid() {
@@ -1405,27 +1478,89 @@
       };
 
       function attachSaveHandler() {
-        host.querySelector("#bhSaveServiceItems").onclick = async event => {
+        host.querySelector("#bhEditorSave").onclick = async event => {
           const button = event.currentTarget; button.disabled = true;
           try {
-            if (!rows.length) { alert("Add at least one service item."); return; }
-            const services = rows.map(row => ({
-              _id: row._id, type: row.type,
-              serviceId: row.serviceId,
-              quantity: Number(row.quantity || 1),
-              brand: row.brand || "", model: row.model || "",
-              problemDescription: row.problemDescription || row.repairIssue || "",
-              applianceType: row.applianceType || "", applianceTypeName: row.applianceTypeName || "",
-              airconType: row.airconType || "", airconTypeName: row.airconTypeName || "", hp: row.hp,
-            }));
-            const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-change-requests`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ services, reason: host.querySelector("#bhServiceChangeReason").value }) });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || "Unable to save changes");
-            alert(result.applied ? "Services updated successfully." : "Your change request was sent for administrator review.");
-            bootstrap.Modal.getOrCreateInstance(host).hide(); await fetchBookings();
-          } catch (error) { alert(error.message); } finally { button.disabled = false; }
+            const promises = [];
+            let hasServices = rows.length > 0;
+            const reasonEl = host.querySelector("#bhServiceChangeReason");
+            const reason = reasonEl ? reasonEl.value.trim() : "";
+
+            if (hasServices) {
+              const rescheduleReason = host.querySelector("#bhEditorRescheduleReason")?.value?.trim() || reason || "";
+              const services = rows.map(row => ({
+                _id: row._id, type: row.type,
+                serviceId: row.serviceId,
+                quantity: Number(row.quantity || 1),
+                brand: row.brand || "", model: row.model || "",
+                problemDescription: row.problemDescription || row.repairIssue || "",
+                applianceType: row.applianceType || "", applianceTypeName: row.applianceTypeName || "",
+                airconType: row.airconType || "", airconTypeName: row.airconTypeName || "", hp: row.hp,
+              }));
+              promises.push(
+                fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-change-requests`, {
+                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                  body: JSON.stringify({
+                    services,
+                    reason: reason || rescheduleReason,
+                    requestedSchedule: selectedDate && selectedTime
+                      ? { date: selectedDate, startTime: selectedTime, notes: rescheduleReason }
+                      : undefined,
+                  })
+                }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Unable to save service changes"); return d; })
+              );
+            }
+
+            if (!promises.length) {
+              alert("Make a change to services or schedule before saving.");
+              button.disabled = false;
+              return;
+            }
+
+            const results = await Promise.allSettled(promises);
+            const errors = results.filter(r => r.status === "rejected").map(r => r.reason?.message || "Unknown error");
+            if (errors.length) {
+              alert("Some changes failed:\n" + errors.join("\n"));
+            } else {
+              const msgs = results.map(r => r.value?.applied ? "Services updated" : r.value?.message || "Changes saved").filter(Boolean);
+              alert(msgs.length ? msgs.join(". ") + "." : "Changes saved successfully.");
+              bootstrap.Modal.getOrCreateInstance(host).hide();
+              await fetchBookings();
+            }
+          } catch (error) { alert(error.message || "Unable to save changes"); } finally { button.disabled = false; }
         };
       }
+
+      (async () => {
+        try {
+          if (typeof EnterpriseCalendar === 'undefined') throw new Error('Calendar module not loaded');
+          const serviceId = booking ? ((booking.serviceId && (booking.serviceId._id || booking.serviceId)) || (booking.service && booking.service._id) || null) : null;
+          await EnterpriseCalendar.init({
+            serviceId,
+            duration: booking ? (Number(booking.serviceDurationMinutes) || 90) : 90,
+            quantity: booking ? (Number(booking.quantity) || 1) : 1,
+            onSelect: ({ date, slot }) => {
+              if (!date || !slot) return;
+              selectedDate = EnterpriseCalendar.formatDateKey(date);
+              selectedTime = slot.startTime || slot.label;
+              const selBox = host.querySelector('#bhEditorSelection');
+              const selText = host.querySelector('#bhEditorSelectionText');
+              selBox.classList.remove('d-none');
+              const dObj = new Date(selectedDate + 'T00:00:00');
+              selText.innerHTML = `<strong>Date:</strong> ${dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}<br><strong>Time:</strong> ${selectedTime}`;
+              updateServiceCount();
+            }
+          });
+          host.querySelector('#bhEditorCalendarLoading')?.classList.add('d-none');
+          host.querySelector('#bhEditorCalendarContent')?.classList.remove('d-none');
+        } catch (err) {
+          console.error(err);
+          host.querySelector('#bhEditorCalendarLoading')?.classList.add('d-none');
+          const calErr = host.querySelector('#bhEditorCalendarError');
+          if (calErr) { calErr.textContent = 'Could not load available dates. You can still edit services.'; calErr.classList.remove('d-none'); }
+        }
+      })();
+
       attachSaveHandler();
       renderCurrentItems();
       renderCoreGrid();
@@ -1433,7 +1568,7 @@
       renderRepairSelect();
       renderSymptomChips();
       bootstrap.Modal.getOrCreateInstance(host).show();
-    } catch (error) { alert(error.message || "Unable to open service editor"); }
+    } catch (error) { alert(error.message || "Unable to open booking editor"); }
   }
 
   async function fetchBookings() {
@@ -2335,23 +2470,57 @@
   }
 
   // ── Warranty Claim ──
-  window.bhWarrantyClaim = function(bookingId) {
-    const issue = prompt("Describe the issue you are experiencing (warranty claim):");
-    if (!issue || !issue.trim()) return;
-    fetch(`/api/bookings/${encodeURIComponent(bookingId)}/warranty-claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ issue: issue.trim() }),
-      credentials: "same-origin"
-    })
-      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
-      .then(data => {
-        alert("Warranty claim submitted. We will contact you shortly.");
-        fetchBookings();
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Failed to submit warranty claim: " + (err.message || "Unknown error"));
-      });
+  window.bhWarrantyClaim = async function(bookingId) {
+    try {
+      const response = await fetch(`/api/warranty-claims/eligibility/booking/${encodeURIComponent(bookingId)}`, { credentials:'same-origin', headers:{Accept:'application/json'} });
+      const eligibility = await response.json();
+      if (!response.ok) throw new Error(eligibility.error || 'Warranty coverage could not be loaded.');
+      if (eligibility.activeClaims?.length) {
+        const activeClaim = eligibility.activeClaims[0];
+        if (activeClaim.status === 'resolved' && confirm(`Claim ${activeClaim.claimReference} is marked resolved. Confirm that the remedy was completed to your satisfaction?`)) {
+          const confirmed = await fetch(`/api/warranty-claims/${encodeURIComponent(activeClaim._id)}/confirm-resolution`, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json',Accept:'application/json'}, body:'{}' });
+          const result = await confirmed.json();
+          if (!confirmed.ok) throw new Error(result.error || 'Resolution could not be confirmed.');
+          alert('Resolution confirmed. The warranty claim is now closed.'); fetchBookings();
+        } else if (activeClaim.status !== 'resolved') {
+          alert(`Claim ${activeClaim.claimReference} is already active. Current status: ${String(activeClaim.status).replace(/_/g,' ')}.`);
+        }
+        return;
+      }
+      if (!eligibility.eligible) throw new Error(eligibility.activeClaims?.length ? `An active claim already exists: ${eligibility.activeClaims[0].claimReference}` : 'No active warranty coverage is available.');
+      let modalEl = document.getElementById('bhWarrantyClaimModal');
+      if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.className = 'modal fade'; modalEl.id = 'bhWarrantyClaimModal'; modalEl.tabIndex = -1;
+        modalEl.innerHTML = `<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><form class="modal-content border-0 shadow-lg" id="bhWarrantyClaimForm"><div class="modal-header bg-dark text-white"><div><h5 class="modal-title fw-bold">Report a warranty issue</h5><div class="small text-white-50">Select the completed service and provide inspection-ready details.</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light"><div class="alert alert-info small"><strong>Safety first:</strong> Stop operating unsafe equipment and select Safety defect below.</div><div class="row g-3"><div class="col-md-6"><label class="form-label small fw-bold">Coverage</label><select class="form-select" name="coverageId" id="bhClaimCoverage" required></select></div><div class="col-md-6"><label class="form-label small fw-bold">Affected service / unit</label><select class="form-select" name="itemKey" id="bhClaimItem" required></select></div><div class="col-md-6"><label class="form-label small fw-bold">Issue type</label><select class="form-select" name="claimType" id="bhClaimType" required></select></div><div class="col-md-6"><label class="form-label small fw-bold">Date discovered</label><input class="form-control" type="date" name="discoveredAt" id="bhClaimDiscovered" required></div><div class="col-md-6"><label class="form-label small fw-bold">Unit model / serial (if available)</label><input class="form-control" name="serialNumber" maxlength="120"></div><div class="col-md-6"><label class="form-label small fw-bold">Preferred remedy</label><select class="form-select" name="requestedRemedy"><option value="inspection">Inspection first</option><option value="repair">Repair</option><option value="replacement">Replacement part</option><option value="refund">Refund review</option></select></div><div class="col-12"><label class="form-label small fw-bold">Issue description</label><textarea class="form-control" name="description" rows="4" minlength="10" maxlength="3000" required></textarea></div><div class="col-12"><label class="form-label small fw-bold">Evidence (up to 5 JPG, PNG, or WEBP images)</label><input class="form-control" type="file" name="evidence" multiple accept="image/jpeg,image/png,image/webp"></div><div class="col-12"><label class="form-check"><input class="form-check-input" type="checkbox" name="safetyRisk" value="true" id="bhClaimSafety"><span class="form-check-label small ms-1">This may be unsafe to operate.</span></label></div></div><div class="alert alert-danger d-none mt-3 mb-0" id="bhClaimError"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="bhClaimSubmit" type="submit">Submit claim</button></div></form></div>`;
+        document.body.appendChild(modalEl);
+      }
+      modalEl.dataset.bookingId = bookingId;
+      modalEl._eligibility = eligibility;
+      const coverage = modalEl.querySelector('#bhClaimCoverage');
+      coverage.innerHTML = eligibility.coverages.map(item => `<option value="${escapeHtml(item.coverageId)}">${escapeHtml(item.serviceName || item.coverageType || 'Coverage')} · until ${escapeHtml(fmtLongDate(item.endDate))}</option>`).join('');
+      modalEl.querySelector('#bhClaimDiscovered').value = new Date().toISOString().slice(0,10);
+      const updateTypes = () => {
+        const selected = eligibility.coverages.find(item => item.coverageId === coverage.value);
+        const labels = { installation_workmanship:'Installation workmanship', repair_workmanship:'Repair workmanship', replacement_part:'Replacement part', diagnostic_accuracy:'Diagnostic accuracy', safety_defect:'Safety defect', product_defect:'Product defect' };
+        modalEl.querySelector('#bhClaimType').innerHTML = (selected?.allowedClaimTypes || []).map(type => `<option value="${escapeHtml(type)}">${escapeHtml(labels[type] || type)}</option>`).join('');
+        const coverageItemKey = String(selected?.itemKey || selected?.serviceId || '');
+        const items = eligibility.items.filter(item => !coverageItemKey || String(item.itemKey) === coverageItemKey);
+        modalEl.querySelector('#bhClaimItem').innerHTML = items.map(item => `<option value="${escapeHtml(item.itemKey)}">${escapeHtml(item.name)}</option>`).join('');
+      };
+      coverage.onchange = updateTypes; updateTypes();
+      const form = modalEl.querySelector('#bhWarrantyClaimForm');
+      form.onsubmit = async event => {
+        event.preventDefault(); const button=modalEl.querySelector('#bhClaimSubmit'); const errorBox=modalEl.querySelector('#bhClaimError'); button.disabled=true; errorBox.classList.add('d-none');
+        try {
+          const data = new FormData(form); data.set('sourceType','booking'); data.set('sourceId',bookingId); data.set('safetyRisk',modalEl.querySelector('#bhClaimSafety').checked?'true':'false');
+          const submitted = await fetch('/api/warranty-claims',{method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}}); const result=await submitted.json();
+          if(!submitted.ok) throw new Error(result.error || 'Claim could not be submitted.');
+          bootstrap.Modal.getInstance(modalEl)?.hide(); alert(`Warranty claim ${result.claim.claimReference} was submitted.`); fetchBookings();
+        } catch(error) { errorBox.textContent=error.message; errorBox.classList.remove('d-none'); }
+        finally { button.disabled=false; }
+      };
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    } catch(error) { alert(error.message || 'Warranty claim could not be started.'); }
   };
 })();

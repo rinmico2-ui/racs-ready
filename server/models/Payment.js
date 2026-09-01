@@ -6,6 +6,7 @@ const paymentSchema = new mongoose.Schema({
   orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order" },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
   workOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" },
+  clientSubmissionId: { type: String, trim: true, maxlength: 100 },
 
   // amount paid (may be downpayment or full amount)
   amount: { type: Number, required: true },
@@ -63,6 +64,15 @@ const paymentSchema = new mongoose.Schema({
   refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   refundedAt: Date,
   refundReason: String,
+  refundAmount: { type: Number, default: 0 },
+  refundMethod: { type: String, enum: ["original", "gcash", "bank", "cash", "other"] },
+  refundProofUrl: { type: String },
+  refundNotes: { type: String },
+  refundStatus: {
+    type: String,
+    enum: ["none", "pending", "processing", "completed", "partial"],
+    default: "none",
+  },
   events: [{
     status: { type: String, required: true }, actor: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     actorName: String, actorRole: String, note: String,
@@ -79,6 +89,14 @@ const paymentSchema = new mongoose.Schema({
 paymentSchema.index({ bookingId: 1 });
 paymentSchema.index({ orderId: 1 });
 paymentSchema.index({ projectId: 1 });
+paymentSchema.index(
+  { projectId: 1, clientSubmissionId: 1 },
+  { unique: true, partialFilterExpression: { clientSubmissionId: { $type: "string" } } },
+);
 paymentSchema.index({ status: 1, collectedAt: -1 });
+paymentSchema.index({ status: 1, submittedAt: -1 });
+paymentSchema.index({ status: 1, verifiedAt: -1 });
+paymentSchema.index({ status: 1, completedAt: -1 });
+paymentSchema.index({ status: 1, refundedAt: -1 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

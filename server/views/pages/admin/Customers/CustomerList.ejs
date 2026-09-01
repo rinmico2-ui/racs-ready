@@ -57,6 +57,22 @@
     .empty-state i { font-size: 3rem; margin-bottom: 1rem; display: block; }
     .loading-spinner { display: flex; justify-content: center; align-items: center; padding: 3rem; }
     .loading-spinner .spinner-border { width: 2rem; height: 2rem; color: #2563eb; }
+
+    .ent-modal { border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+    .ent-modal-header { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%); color: #fff; padding: 20px 24px; border: none; display: flex; align-items: center; justify-content: space-between; }
+    .ent-modal-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+    .ent-modal-body { padding: 24px; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #334155; max-height: calc(100vh - 200px); overflow-y: auto; }
+    .ent-detail-label { font-family: 'Outfit', sans-serif; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8; }
+    .ent-detail-value { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+    .ent-detail-card { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 14px 16px; }
+    .ent-detail-card:hover { background: #f1f5f9; }
+    .cust-modal-avatar { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.4rem; flex-shrink: 0; border: 3px solid rgba(255,255,255,0.2); }
+    .cust-modal-section-title { font-family: 'Outfit', sans-serif; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+    .cust-violation-item { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+    .cust-violation-item:last-child { margin-bottom: 0; }
+    .ent-modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fafbfc; display: flex; gap: 10px; flex-wrap: wrap; }
+    .ent-modal-footer .btn { font-family: 'Inter', sans-serif; font-weight: 600; border-radius: 8px; font-size: 0.85rem; }
+    #customerDetailModal .modal-lg { max-width: 600px; }
   </style>
 
   <div class="au-hero mb-4">
@@ -201,13 +217,19 @@
 
 <!-- Customer Detail Modal -->
 <div class="modal fade" id="customerDetailModal" tabindex="-1" aria-labelledby="customerDetailModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:16px;overflow:hidden;">
-      <div class="modal-header border-0 pb-0">
-        <h6 class="modal-title fw-bold" id="customerDetailModalLabel">Customer Details</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <div class="ent-modal-icon bg-info-subtle"><i class="bi bi-person-badge text-info"></i></div>
+          <div>
+            <h6 class="modal-title fw-bold mb-0" id="customerDetailModalLabel">Customer Details</h6>
+            <small class="text-white-50">Account overview and management</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body" id="customerModalBody">
+      <div class="modal-body ent-modal-body" id="customerModalBody">
         <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
       </div>
     </div>
@@ -384,71 +406,177 @@
       .then(function(data) {
         var c = data.user;
         if (!c) { body.innerHTML = '<p class="text-danger">Customer not found.</p>'; return; }
-        var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
-        var initials = ((c.firstName || '')[0] || '') + ((c.lastName || '')[0] || '');
-        var statusLabel = c.blocked ? 'Blocked' : c.vip ? 'VIP' : 'Active';
-        var statusCls = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success';
-        var addr = [c.address && c.address.barangay, c.address && c.address.city, c.address && c.address.province].filter(Boolean).join(', ') || '--';
-        var joined = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }) : '--';
-        var lastLogin = c.lastLogin ? new Date(c.lastLogin).toLocaleString() : 'Never';
 
-        var html = '<div class="d-flex align-items-center mb-4">' +
-          '<div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-bold me-3" style="width:56px;height:56px;font-size:1.2rem;">' + initials + '</div>' +
-          '<div><h5 class="mb-0 fw-bold">' + fullName + '</h5>' +
-          '<span class="badge ' + statusCls + ' mt-1">' + statusLabel + '</span>' +
-          (c.vip ? ' <span class="badge bg-warning-subtle text-warning mt-1"><i class="bi bi-star-fill me-1"></i>VIP</span>' : '') +
-          '</div></div>';
+        // Collect PSGC codes to resolve
+        var codesToResolve = [];
+        if (c.address && c.address.barangay) codesToResolve.push(c.address.barangay);
+        if (c.address && c.address.city) codesToResolve.push(c.address.city);
+        if (c.address && c.address.province) codesToResolve.push(c.address.province);
 
-        html += '<div class="row g-3 mb-3">' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-envelope me-1"></i>Email</div><div class="fw-semibold">' + (c.email || '--') + '</div></div>' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-phone me-1"></i>Phone</div><div class="fw-semibold">' + (c.phone || '--') + '</div></div>' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i>Address</div><div class="fw-semibold">' + addr + '</div></div>' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-calendar me-1"></i>Joined</div><div class="fw-semibold">' + joined + '</div></div>' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Last Login</div><div class="fw-semibold">' + lastLogin + '</div></div>' +
-          '<div class="col-sm-6"><div class="text-muted small mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Violations</div><div class="fw-semibold">' + (c.violations ? c.violations.length : 0) + '</div></div>' +
+        var resolvePromise = codesToResolve.length > 0
+          ? fetch('/api/psgc/resolve?codes=' + encodeURIComponent(codesToResolve.join(',')), { credentials: 'same-origin' })
+              .then(function(r) { return r.json(); })
+              .then(function(d) { return d.resolved || {}; })
+              .catch(function() { return {}; })
+          : Promise.resolve({});
+
+        return resolvePromise.then(function(resolved) {
+          var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
+          var initials = ((c.firstName || '')[0] || '') + ((c.lastName || '')[0] || '');
+          var statusLabel = c.blocked ? 'Blocked' : c.vip ? 'VIP' : 'Active';
+          var statusCls = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success';
+          var avatarBg = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary';
+          var barangay = resolved[(c.address && c.address.barangay)] || (c.address && c.address.barangay) || '--';
+          var city = resolved[(c.address && c.address.city)] || (c.address && c.address.city) || '--';
+          var province = resolved[(c.address && c.address.province)] || (c.address && c.address.province) || '--';
+          var postal = (c.address && c.address.postalCode) || '--';
+          var joined = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }) : '--';
+          var lastLogin = c.lastLogin ? new Date(c.lastLogin).toLocaleString('en', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never';
+          var violations = c.violations || [];
+
+          var html = '';
+
+          // Profile header
+          html += '<div class="d-flex align-items-center mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0;">' +
+            '<div class="cust-modal-avatar ' + avatarBg + ' me-3">' + initials + '</div>' +
+            '<div class="flex-grow-1">' +
+              '<h5 class="mb-1 fw-bold text-dark">' + fullName + '</h5>' +
+              '<div class="d-flex align-items-center gap-2 flex-wrap">' +
+                '<span class="badge ' + statusCls + '">' + statusLabel + '</span>' +
+                (c.vip ? '<span class="badge bg-warning-subtle text-warning"><i class="bi bi-star-fill me-1"></i>VIP</span>' : '') +
+                '<span class="text-muted" style="font-size:0.75rem;">ID: ' + c._id.slice(-8).toUpperCase() + '</span>' +
+              '</div>' +
+            '</div>' +
           '</div>';
 
-        html += '<hr><div class="d-flex gap-2">' +
-          '<button class="btn btn-sm ' + (c.blocked ? 'btn-outline-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
-            '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock' : 'Block') + '</button>' +
-          '<button class="btn btn-sm ' + (c.vip ? 'btn-outline-warning' : 'btn-outline-info') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
-            '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') + '</button>' +
+          // Contact Information
+          html += '<div class="mb-4">' +
+            '<div class="cust-modal-section-title"><i class="bi bi-person-lines-fill me-1"></i>Contact Information</div>' +
+            '<div class="row g-3">' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-envelope me-1"></i>Email</div>' +
+                '<div class="ent-detail-value">' + (c.email || '--') + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-phone me-1"></i>Phone</div>' +
+                '<div class="ent-detail-value">' + (c.phone || '--') + '</div>' +
+              '</div></div>' +
+            '</div>' +
           '</div>';
 
-        body.innerHTML = html;
+          // Address
+          html += '<div class="mb-4">' +
+            '<div class="cust-modal-section-title"><i class="bi bi-geo-alt me-1"></i>Address</div>' +
+            '<div class="row g-3">' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1">Barangay</div>' +
+                '<div class="ent-detail-value">' + barangay + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1">City</div>' +
+                '<div class="ent-detail-value">' + city + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1">Province</div>' +
+                '<div class="ent-detail-value">' + province + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1">Postal Code</div>' +
+                '<div class="ent-detail-value">' + postal + '</div>' +
+              '</div></div>' +
+            '</div>' +
+          '</div>';
 
-        body.querySelectorAll('.action-btn').forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            var action = btn.getAttribute('data-action');
-            var custId = btn.getAttribute('data-id');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
-            fetch('/api/admin/customers/' + custId, {
-              method: 'PATCH',
-              credentials: 'same-origin',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: action })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function() {
-              bsModal.hide();
-              return fetch('/api/admin/customers', { credentials: 'same-origin' });
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              allCustomers = data.customers || [];
-              filteredCustomers = allCustomers.slice();
-              renderKPIs();
-              renderTable();
-              renderPagination();
-              applyFilter();
-            })
-            .catch(function(err) { alert('Action failed: ' + err.message); btn.disabled = false; });
+          // Account Activity
+          html += '<div class="mb-4">' +
+            '<div class="cust-modal-section-title"><i class="bi bi-activity me-1"></i>Account Activity</div>' +
+            '<div class="row g-3">' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-calendar-check me-1"></i>Date Joined</div>' +
+                '<div class="ent-detail-value">' + joined + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-clock-history me-1"></i>Last Login</div>' +
+                '<div class="ent-detail-value">' + lastLogin + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Violations</div>' +
+                '<div class="ent-detail-value">' + violations.length + (violations.length === 1 ? ' record' : ' records') + '</div>' +
+              '</div></div>' +
+              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
+                '<div class="ent-detail-label mb-1"><i class="bi bi-bookmark me-1"></i>Booking Limit</div>' +
+                '<div class="ent-detail-value">' + (c.bookingLimit || 'Unlimited') + '</div>' +
+              '</div></div>' +
+            '</div>' +
+          '</div>';
+
+          // Violations list (if any)
+          if (violations.length > 0) {
+            html += '<div class="mb-3">' +
+              '<div class="cust-modal-section-title"><i class="bi bi-shield-exclamation me-1"></i>Violation History</div>';
+            violations.forEach(function(v) {
+              var vDate = v.createdAt ? new Date(v.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+              html += '<div class="cust-violation-item">' +
+                '<div class="d-flex justify-content-between align-items-start">' +
+                  '<div><span class="fw-semibold text-danger">' + (v.type || 'Violation') + '</span>' +
+                  (v.message ? '<div class="text-muted mt-1" style="font-size:0.82rem;">' + v.message + '</div>' : '') + '</div>' +
+                  '<small class="text-muted">' + vDate + '</small>' +
+                '</div>' +
+              '</div>';
+            });
+            html += '</div>';
+          }
+
+          body.innerHTML = html;
+
+          // Build footer with action buttons
+          var existingFooter = modal.querySelector('.ent-modal-footer');
+          if (existingFooter) existingFooter.remove();
+
+          var footer = document.createElement('div');
+          footer.className = 'ent-modal-footer';
+          footer.innerHTML =
+            '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
+              '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock Account' : 'Block Account') +
+            '</button>' +
+            '<button class="btn ' + (c.vip ? 'btn-outline-warning' : 'btn-warning') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
+              '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') +
+            '</button>';
+          modal.querySelector('.modal-content').appendChild(footer);
+
+          footer.querySelectorAll('.action-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var action = btn.getAttribute('data-action');
+              var custId = btn.getAttribute('data-id');
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+              fetch('/api/admin/customers/' + custId, {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: action })
+              })
+              .then(function(r) { return r.json(); })
+              .then(function() {
+                bsModal.hide();
+                return fetch('/api/admin/customers', { credentials: 'same-origin' });
+              })
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                allCustomers = data.customers || [];
+                filteredCustomers = allCustomers.slice();
+                renderKPIs();
+                renderTable();
+                renderPagination();
+                applyFilter();
+              })
+              .catch(function(err) { alert('Action failed: ' + err.message); btn.disabled = false; });
+            });
           });
         });
       })
       .catch(function(err) {
-        body.innerHTML = '<p class="text-danger">Failed to load customer details.</p>';
+        body.innerHTML = '<div class="text-center py-4"><i class="bi bi-exclamation-triangle text-warning" style="font-size:2rem;"></i><p class="text-danger mt-2 mb-0">Failed to load customer details.</p></div>';
       });
   }
 

@@ -2,6 +2,24 @@ const express = require("express");
 
 const router = express.Router();
 const SiteSetting = require("../models/SiteSetting");
+const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
+
+/** GET /api/public/company/stats — database-backed public proof metrics. */
+router.get("/stats", async (_req, res, next) => {
+  try {
+    const stats = await getPublicBusinessStats();
+    return res.json({
+      servicesCompleted: stats.servicesCompleted,
+      customersServed: stats.customersServed,
+      satisfactionPercentage: stats.satisfactionPercentage,
+      averageRating: stats.averageRating,
+      ratingCount: stats.ratingCount,
+      activeTechnicians: stats.activeTechnicians,
+      yearsExperience: stats.yearsExperience,
+      foundedYear: stats.foundedYear,
+    });
+  } catch (err) { next(err); }
+});
 
 /**
  * GET /api/public/company/location

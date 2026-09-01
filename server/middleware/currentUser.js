@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { isAccountEnabled } = require("./accountState");
 
 function parseCookies(header) {
   const h = header || "";
@@ -27,17 +28,23 @@ module.exports = async function (req, res, next) {
         const payload = jwt.verify(
           token,
           process.env.JWT_SECRET,
+          { algorithms: ["HS256"] },
         );
         if (payload && payload.id) {
           const user = await User.findById(payload.id).select("-passwordHash");
-          if (user) {
+          if (isAccountEnabled(user)) {
             try {
               if (
                 payload.sessionId &&
-                user.currentSessionId &&
-                payload.sessionId !== user.currentSessionId
+                payload.sessionId !== String(user.currentSessionId || "")
               ) {
                 // mismatch -> fall back to session below
+              } else if (
+                user.lastPasswordChange &&
+                payload.iat &&
+                payload.iat * 1000 < user.lastPasswordChange.getTime()
+              ) {
+                // Password changes invalidate previously issued tokens.
               } else {
                 res.locals.user = user;
                 req.user = user;
@@ -57,7 +64,7 @@ module.exports = async function (req, res, next) {
         const sidUser = await User.findById(req.session.userId).select(
           "-passwordHash",
         );
-        if (sidUser) {
+        if (isAccountEnabled(sidUser)) {
           res.locals.user = sidUser;
           req.user = sidUser;
           return next();

@@ -13,7 +13,7 @@
     .pos-header::after { content:''; position:absolute; bottom:-40%; left:-10%; width:300px; height:300px; background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%); pointer-events:none; }
     .pos-header-left { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
     .pos-header-icon { color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); width: 56px; height: 56px; border-radius: 16px; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-    .pos-header-title { display: flex; flex-direction: column; gap: 3px; }
+    .pos-header-title { display: flex; flex-direction: column; gap: 3px; }+
     .pos-header h5 { color: #fff; font-weight: 700; font-size: 1.4rem; margin: 0; white-space: nowrap; font-family: "Outfit", "Inter", sans-serif; letter-spacing: -0.02em; line-height: 1.2; }
     .pos-header-title small { font-size: 0.85rem; color: rgba(255,255,255,0.65); font-weight: 400; line-height: 1.4; }
 
@@ -238,6 +238,20 @@
     .pos-amount-input label { font-size: 0.8rem; color: #475569; }
     .pos-change-row { padding: 10px 14px; border-radius: 10px; }
     .pos-checkout-btn { box-shadow: 0 4px 18px rgba(34,197,94,0.3); }
+    .pos-aircon-order-options { margin: 0 20px 12px; padding: 14px; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; }
+    .pos-aircon-order-title { display:flex;align-items:center;gap:8px;margin-bottom:10px;color:#1e3a8a;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em; }
+    .pos-aircon-order-options label { display:block;margin-bottom:4px;color:#475569;font-size:.72rem;font-weight:700; }
+    .pos-aircon-order-options input, .pos-aircon-order-options select, .pos-aircon-order-options textarea { width:100%;padding:8px 10px;border:1.5px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;font-size:.8rem;outline:none; }
+    .pos-aircon-order-options input:focus, .pos-aircon-order-options select:focus, .pos-aircon-order-options textarea:focus { border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+    .pos-aircon-fields { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; }
+    .pos-aircon-field-wide { grid-column:1/-1; }
+    .pos-address-results { display:none;max-height:150px;overflow:auto;margin-top:4px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.12); }
+    .pos-address-result { display:block;width:100%;padding:8px 10px;border:0;border-bottom:1px solid #f1f5f9;background:#fff;color:#334155;text-align:left;font-size:.75rem; }
+    .pos-address-result:hover { background:#eff6ff; }
+    .pos-order-quote { display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 10px;border-radius:8px;background:#fff;border:1px solid #dbeafe;color:#475569;font-size:.75rem; }
+    .pos-order-quote strong { color:#1d4ed8; }
+    .pos-summary-fee { display:none; }
+    @media (max-width: 640px) { .pos-aircon-fields { grid-template-columns:1fr; } .pos-aircon-field-wide { grid-column:auto; } }
   </style>
 
   <div class="pos-layout">
@@ -295,13 +309,53 @@
         <span class="pos-cart-count" id="cartCount">0</span>
       </div>
       <div class="pos-customer-bar">
-        <div class="pos-customer-label"><i class="bi bi-person"></i>Customer (optional)</div>
+        <div class="pos-customer-label" id="posCustomerLabel"><i class="bi bi-person"></i>Customer (optional for parts)</div>
         <input type="text" id="customerName" placeholder="Customer name" style="margin-bottom:6px;">
         <div style="display:flex;gap:6px;margin-bottom:6px;">
           <input type="text" id="customerPhone" placeholder="Phone" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
           <input type="text" id="customerTin" placeholder="TIN" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
         </div>
+        <input type="email" id="customerEmail" placeholder="Email (required for aircon warranty)" style="margin-bottom:6px;">
         <input type="text" id="customerAddress" placeholder="Address" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
+      </div>
+      <div class="pos-aircon-order-options" id="airconOrderOptions" style="display:none;">
+        <div class="pos-aircon-order-title"><i class="bi bi-shield-check"></i>Aircon fulfillment and aftercare</div>
+        <div class="pos-aircon-fields">
+          <div class="pos-aircon-field-wide">
+            <label for="posFulfillmentType">How will the customer receive the unit?</label>
+            <select id="posFulfillmentType" onchange="onPosFulfillmentChange()">
+              <option value="carry_out">Take home now</option>
+              <option value="customer_pickup">Pick up later</option>
+              <option value="delivery_installation">Delivery + installation</option>
+            </select>
+          </div>
+          <div id="posPickupDateGroup" class="pos-aircon-field-wide" style="display:none;">
+            <label for="posPickupDate">Pickup date</label>
+            <input type="date" id="posPickupDate">
+          </div>
+          <div id="posDeliveryFields" class="pos-aircon-field-wide" style="display:none;">
+            <div class="pos-aircon-fields">
+              <div class="pos-aircon-field-wide">
+                <label for="posDeliveryAddress">Installation address</label>
+                <input type="text" id="posDeliveryAddress" placeholder="Search and select the complete address" autocomplete="off" oninput="searchPosAddress()">
+                <input type="hidden" id="posDeliveryLat"><input type="hidden" id="posDeliveryLng">
+                <div class="pos-address-results" id="posAddressResults"></div>
+              </div>
+              <div><label for="posDeliveryDate">Installation date</label><input type="date" id="posDeliveryDate" onchange="loadPosTimeSlots()"></div>
+              <div><label for="posTimeSlot">Available time</label><select id="posTimeSlot"><option value="">Select date first</option></select></div>
+            </div>
+            <div class="pos-order-quote" id="posOrderQuote"><span>Select an address to calculate travel and installation fees.</span></div>
+          </div>
+          <div id="posSerialGroup" class="pos-aircon-field-wide">
+            <label for="posSerialNumbers">Unit serial numbers — one per unit</label>
+            <textarea id="posSerialNumbers" rows="2" placeholder="Example: SN-UNIT-0001"></textarea>
+            <small style="display:block;margin-top:4px;color:#64748b;font-size:.68rem;">Required before immediate handover and warranty activation.</small>
+          </div>
+          <div id="posPaymentReferenceGroup" class="pos-aircon-field-wide" style="display:none;">
+            <label for="posPaymentReference">Payment reference</label>
+            <input type="text" id="posPaymentReference" maxlength="160" placeholder="Transaction/reference number">
+          </div>
+        </div>
       </div>
       <div class="pos-cart-items" id="cartItems">
         <div class="pos-cart-empty">
@@ -315,6 +369,8 @@
           <input type="number" id="discountInput" placeholder="Discount (₱)" min="0" step="0.01" oninput="recalcCart()">
         </div>
         <div class="pos-summary-row discount"><span class="label">Discount</span><span class="value" id="summaryDiscount">-₱0.00</span></div>
+        <div class="pos-summary-row pos-summary-fee" id="summaryInstallationRow"><span class="label">Installation</span><span class="value" id="summaryInstallation">₱0.00</span></div>
+        <div class="pos-summary-row pos-summary-fee" id="summaryTransportRow"><span class="label">Transportation</span><span class="value" id="summaryTransport">₱0.00</span></div>
         <div class="pos-summary-row total"><span class="label">TOTAL</span><span class="value" id="summaryTotal">₱0.00</span></div>
       </div>
       <div class="pos-payment" id="posPayment" style="display:none;">
@@ -349,7 +405,10 @@
   <div class="pos-receipt-overlay" id="historyOverlay" onclick="if(event.target===this)toggleSalesHistory()">
     <div class="pos-history-modal" style="background:#fff;border-radius:16px;width:700px;box-shadow:0 25px 60px rgba(0,0,0,0.3);">
       <div style="padding:20px 24px;background:linear-gradient(135deg,#0f172a,#1e40af);color:#fff;display:flex;justify-content:space-between;align-items:center;">
-        <h5 style="margin:0;font-weight:700;"><i class="bi bi-clock-history me-2"></i>Sales History</h5>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;backdrop-filter:blur(10px);flex-shrink:0;"><i class="bi bi-clock-history"></i></div>
+          <h5 style="margin:0;font-weight:700;">Sales History</h5>
+        </div>
         <button onclick="toggleSalesHistory()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;"><i class="bi bi-x-lg"></i></button>
       </div>
       <div class="pos-history-controls">
@@ -377,11 +436,28 @@ let historyPage = 1;
 let historyTotalPages = 1;
 const historyLimit = 10;
 let historySales = [];
+let posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
+let posCheckoutRequestId = createPosCheckoutRequestId();
+let posAddressTimer = null;
+
+function createPosCheckoutRequestId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "");
+  return `pos${Date.now()}${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function cartHasAircon() { return cart.some(item => item.source === "aircon" || item.source === "aircon_legacy"); }
+function cartUnitCount() { return cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   loadCategories();
   loadTools();
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minimumDate = tomorrow.toISOString().slice(0, 10);
+  document.getElementById("posPickupDate").min = minimumDate;
+  document.getElementById("posDeliveryDate").min = minimumDate;
 
   document.getElementById("posSearch").addEventListener("input", debounce(() => { if (currentTab === "tools") loadTools(); else loadAircons(); }, 300));
   document.getElementById("historySearch").addEventListener("input", debounce(() => { historyPage = 1; loadSalesHistory(); }, 300));
@@ -615,6 +691,11 @@ function filterCategory(cat, btn) {
 
 // ── Cart Operations ───────────────────────────────────────────────────────────
 function addToCart(tool) {
+  const incomingAircon = tool.source === "aircon" || tool.source === "aircon_legacy";
+  if (cart.length && incomingAircon !== cartHasAircon()) {
+    showToast("Process aircons and parts as separate transactions so warranty and inventory records remain correct.", "warning");
+    return;
+  }
   const existing = cart.find(i => i.toolId === tool._id);
   if (existing) {
     if (existing.quantity >= tool.available) { showToast("No more stock available", "warning"); return; }
@@ -655,6 +736,14 @@ function renderCart() {
   const summaryEl = document.getElementById("cartSummary");
   const paymentEl = document.getElementById("posPayment");
   const countEl = document.getElementById("cartCount");
+  const airconOptions = document.getElementById("airconOrderOptions");
+  const customerLabel = document.getElementById("posCustomerLabel");
+  const isAirconOrder = cartHasAircon();
+
+  airconOptions.style.display = isAirconOrder ? "block" : "none";
+  customerLabel.innerHTML = isAirconOrder
+    ? '<i class="bi bi-person-check"></i>Customer identity (required for warranty)'
+    : '<i class="bi bi-person"></i>Customer (optional for parts)';
 
   countEl.textContent = cart.reduce((s, i) => s + i.quantity, 0);
 
@@ -662,6 +751,7 @@ function renderCart() {
     itemsEl.innerHTML = '<div class="pos-cart-empty"><i class="bi bi-cart-x"></i><p>No items in cart</p></div>';
     summaryEl.style.display = "none";
     paymentEl.style.display = "none";
+    posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
     return;
   }
 
@@ -685,17 +775,29 @@ function renderCart() {
   itemsEl.innerHTML = html;
   summaryEl.style.display = "block";
   paymentEl.style.display = "block";
+  if (isAirconOrder) {
+    onPosFulfillmentChange(false);
+    document.getElementById("posPaymentReferenceGroup").style.display = selectedPayment !== "cash" ? "block" : "none";
+  }
   recalcCart();
 }
 
 function recalcCart() {
   const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
   const discount = Math.max(0, parseFloat(document.getElementById("discountInput").value) || 0);
-  const total = Math.max(0, subtotal - discount);
+  const isDeliveryInstall = cartHasAircon() && document.getElementById("posFulfillmentType").value === "delivery_installation";
+  const installation = isDeliveryInstall ? Number(posOrderFees.installationFee || 0) : 0;
+  const transportation = isDeliveryInstall ? Number(posOrderFees.transportationFee || 0) : 0;
+  const total = Math.max(0, subtotal - discount) + installation + transportation;
 
   document.getElementById("summarySubtotal").textContent = "₱" + subtotal.toLocaleString("en-PH", { minimumFractionDigits: 2 });
   document.getElementById("summaryDiscount").textContent = "-₱" + discount.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  document.getElementById("summaryInstallationRow").style.display = isDeliveryInstall ? "flex" : "none";
+  document.getElementById("summaryTransportRow").style.display = isDeliveryInstall ? "flex" : "none";
+  document.getElementById("summaryInstallation").textContent = "₱" + installation.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  document.getElementById("summaryTransport").textContent = "₱" + transportation.toLocaleString("en-PH", { minimumFractionDigits: 2 });
   document.getElementById("summaryTotal").textContent = "₱" + total.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  if (selectedPayment !== "cash") document.getElementById("amountPaid").value = total.toFixed(2);
   calcChange();
 }
 
@@ -704,6 +806,7 @@ function selectPayment(method) {
   document.querySelectorAll(".pos-pay-btn").forEach(b => b.classList.toggle("active", b.dataset.method === method));
   const cashRow = document.getElementById("cashInputRow");
   cashRow.style.display = method === "cash" ? "flex" : "none";
+  document.getElementById("posPaymentReferenceGroup").style.display = cartHasAircon() && method !== "cash" ? "block" : "none";
   if (method !== "cash") {
     document.getElementById("amountPaid").value = cart.reduce((s, i) => s + i.totalPrice, 0) - (parseFloat(document.getElementById("discountInput").value) || 0);
   }
@@ -713,7 +816,9 @@ function selectPayment(method) {
 function calcChange() {
   const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
   const discount = Math.max(0, parseFloat(document.getElementById("discountInput").value) || 0);
-  const total = Math.max(0, subtotal - discount);
+  const deliveryInstall = cartHasAircon() && document.getElementById("posFulfillmentType").value === "delivery_installation";
+  const total = Math.max(0, subtotal - discount)
+    + (deliveryInstall ? Number(posOrderFees.installationFee || 0) + Number(posOrderFees.transportationFee || 0) : 0);
   const paid = parseFloat(document.getElementById("amountPaid").value) || 0;
   const change = paid - total;
 
@@ -732,55 +837,229 @@ function calcChange() {
   checkoutBtn.disabled = cart.length === 0 || (selectedPayment === "cash" && paid < total);
 }
 
+function onPosFulfillmentChange(resetQuote = true) {
+  if (!cartHasAircon()) return;
+  const choice = document.getElementById("posFulfillmentType").value;
+  document.getElementById("posPickupDateGroup").style.display = choice === "customer_pickup" ? "block" : "none";
+  document.getElementById("posDeliveryFields").style.display = choice === "delivery_installation" ? "block" : "none";
+  document.getElementById("posSerialGroup").style.display = choice === "carry_out" ? "block" : "none";
+  if (choice !== "delivery_installation" || resetQuote) {
+    posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
+    if (choice === "delivery_installation") {
+      document.getElementById("posOrderQuote").innerHTML = "<span>Select an address to calculate travel and installation fees.</span>";
+    }
+  }
+  if (choice === "delivery_installation" && document.getElementById("posDeliveryDate").value) loadPosTimeSlots();
+  recalcCart();
+}
+
+function searchPosAddress() {
+  clearTimeout(posAddressTimer);
+  document.getElementById("posDeliveryLat").value = "";
+  document.getElementById("posDeliveryLng").value = "";
+  posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
+  recalcCart();
+  const query = document.getElementById("posDeliveryAddress").value.trim();
+  const results = document.getElementById("posAddressResults");
+  if (query.length < 5) { results.style.display = "none"; return; }
+  posAddressTimer = setTimeout(async () => {
+    try {
+      const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`);
+      const rows = await response.json();
+      if (!response.ok || !Array.isArray(rows)) throw new Error("Address search failed");
+      results.innerHTML = rows.length ? rows.map((row, index) =>
+        `<button type="button" class="pos-address-result" data-address-index="${index}">${escapeHtml(row.display_name || "Address")}</button>`
+      ).join("") : '<div style="padding:10px;color:#64748b;font-size:.75rem;">No matching address found.</div>';
+      results.style.display = "block";
+      results.querySelectorAll("[data-address-index]").forEach((button) => {
+        button.addEventListener("click", () => selectPosAddress(rows[Number(button.dataset.addressIndex)]));
+      });
+    } catch (_) {
+      results.innerHTML = '<div style="padding:10px;color:#b91c1c;font-size:.75rem;">Could not search addresses. Try again.</div>';
+      results.style.display = "block";
+    }
+  }, 450);
+}
+
+async function selectPosAddress(row) {
+  document.getElementById("posDeliveryAddress").value = row.display_name || "";
+  document.getElementById("posDeliveryLat").value = row.lat || "";
+  document.getElementById("posDeliveryLng").value = row.lon || "";
+  document.getElementById("posAddressResults").style.display = "none";
+  const quoteBox = document.getElementById("posOrderQuote");
+  quoteBox.innerHTML = '<span><span class="spinner-border spinner-border-sm me-1"></span>Calculating authoritative route...</span>';
+  try {
+    const response = await fetch("/api/pos/aircon-quote", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fulfillmentType: "delivery_installation", coordinates: { lat: row.lat, lng: row.lon } }),
+    });
+    const quote = await response.json();
+    if (!response.ok) throw new Error(quote.error || "Quote failed");
+    posOrderFees = quote;
+    quoteBox.innerHTML = `<span>${Number(quote.distanceKm || 0).toFixed(1)} km · about ${Number(quote.durationMin || 0)} min</span><strong>Fees ₱${Number(quote.additionalTotal || 0).toLocaleString("en-PH")}</strong>`;
+    recalcCart();
+    loadPosTimeSlots();
+  } catch (error) {
+    posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
+    quoteBox.innerHTML = `<span style="color:#b91c1c;">${escapeHtml(error.message || "Could not calculate route")}</span>`;
+    recalcCart();
+  }
+}
+
+async function loadPosTimeSlots() {
+  const date = document.getElementById("posDeliveryDate").value;
+  const select = document.getElementById("posTimeSlot");
+  if (!date) { select.innerHTML = '<option value="">Select date first</option>'; return; }
+  select.innerHTML = '<option value="">Loading available times...</option>';
+  try {
+    const params = new URLSearchParams({
+      date,
+      duration: "60",
+      quantity: String(cartUnitCount()),
+      travelTime: String(Number(posOrderFees.durationMin || 0)),
+    });
+    const response = await fetch(`/api/schedule/time-slots?${params}`);
+    const data = await response.json();
+    const slots = (data.timeSlots || []).filter((slot) => slot.available === true);
+    select.innerHTML = slots.length
+      ? '<option value="">Select available time</option>' + slots.map((slot) => `<option value="${escapeHtml(slot.startTime)}">${escapeHtml(slot.startTime)}</option>`).join("")
+      : '<option value="">No available times</option>';
+  } catch (_) {
+    select.innerHTML = '<option value="">Could not load times</option>';
+  }
+}
+
 // ── Checkout ──────────────────────────────────────────────────────────────────
 async function processCheckout() {
   if (!cart.length) return;
+  if (cartHasAircon() && selectedPayment !== "cash" && document.getElementById("posPaymentReference").value.trim().length < 4) {
+    showToast("Enter the electronic payment or card authorization reference.", "error");
+    document.getElementById("posPaymentReference").focus();
+    return;
+  }
   const btn = document.getElementById("checkoutBtn");
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div>Processing...';
 
   const subtotal = cart.reduce((s, i) => s + i.totalPrice, 0);
   const discount = parseFloat(document.getElementById("discountInput").value) || 0;
-  const total = subtotal - discount;
+  const fulfillmentChoice = document.getElementById("posFulfillmentType").value;
+  const deliveryInstall = cartHasAircon() && fulfillmentChoice === "delivery_installation";
+  const total = subtotal - discount
+    + (deliveryInstall ? Number(posOrderFees.installationFee || 0) + Number(posOrderFees.transportationFee || 0) : 0);
   const paid = parseFloat(document.getElementById("amountPaid").value) || 0;
 
   try {
-    const res = await fetch("/api/pos/checkout", {
+    const isAirconOrder = cartHasAircon();
+    const endpoint = isAirconOrder ? "/api/pos/aircon-checkout" : "/api/pos/checkout";
+    const payload = isAirconOrder ? {
+      checkoutRequestId: posCheckoutRequestId,
+      customer: {
+        name: document.getElementById("customerName").value.trim(),
+        email: document.getElementById("customerEmail").value.trim(),
+        phone: document.getElementById("customerPhone").value.trim(),
+        address: document.getElementById("customerAddress").value.trim(),
+      },
+      items: cart.map(i => ({ toolId: i.toolId, quantity: i.quantity, source: i.source })),
+      fulfillmentType: fulfillmentChoice,
+      pickupDate: document.getElementById("posPickupDate").value,
+      delivery: deliveryInstall ? {
+        address: document.getElementById("posDeliveryAddress").value.trim(),
+        preferredDate: document.getElementById("posDeliveryDate").value,
+        coordinates: {
+          lat: document.getElementById("posDeliveryLat").value,
+          lng: document.getElementById("posDeliveryLng").value,
+        },
+      } : null,
+      timeSlot: deliveryInstall ? document.getElementById("posTimeSlot").value : null,
+      serialNumbers: fulfillmentChoice === "carry_out"
+        ? document.getElementById("posSerialNumbers").value.split(/\r?\n|,/).map(value => value.trim()).filter(Boolean)
+        : [],
+      paymentMethod: selectedPayment,
+      paymentReference: document.getElementById("posPaymentReference").value.trim(),
+      amountPaid: selectedPayment === "cash" ? paid : total,
+      discount,
+    } : {
+      customerName: document.getElementById("customerName").value.trim(),
+      customerPhone: document.getElementById("customerPhone").value.trim(),
+      customerTin: document.getElementById("customerTin").value.trim(),
+      customerAddress: document.getElementById("customerAddress").value.trim(),
+      items: cart.map(i => ({ toolId: i.toolId, quantity: i.quantity, source: i.source || "tool" })),
+      paymentMethod: selectedPayment,
+      amountPaid: selectedPayment === "cash" ? paid : total,
+      discount,
+    };
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerName: document.getElementById("customerName").value.trim(),
-        customerPhone: document.getElementById("customerPhone").value.trim(),
-        customerTin: document.getElementById("customerTin").value.trim(),
-        customerAddress: document.getElementById("customerAddress").value.trim(),
-        items: cart.map(i => ({ toolId: i.toolId, quantity: i.quantity, source: i.source || "tool" })),
-        paymentMethod: selectedPayment,
-        amountPaid: selectedPayment === "cash" ? paid : total,
-        discount,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Checkout failed");
 
-    showReceipt(data.sale);
+    if (isAirconOrder) showOrderReceipt(data);
+    else showReceipt(data.sale);
     cart = [];
     document.getElementById("discountInput").value = "";
     document.getElementById("amountPaid").value = "";
     document.getElementById("customerName").value = "";
     document.getElementById("customerPhone").value = "";
+    document.getElementById("customerEmail").value = "";
     document.getElementById("customerTin").value = "";
     document.getElementById("customerAddress").value = "";
+    document.getElementById("posSerialNumbers").value = "";
+    document.getElementById("posPaymentReference").value = "";
+    posCheckoutRequestId = createPosCheckoutRequestId();
     renderCart();
     if (currentTab === "tools") loadTools(); else loadAircons();
-    showToast("Sale completed!", "success");
+    showToast(isAirconOrder
+      ? (data.order?.status === "completed" ? "Aircon handover completed with warranty activated." : "Aircon order created and sent to the Orders workflow.")
+      : "Sale completed!", "success");
   } catch (e) {
     showToast(e.message || "Checkout failed", "error");
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check-circle"></i>Complete Sale';
+    btn.innerHTML = '<i class="bi bi-check-circle"></i>Complete Transaction';
   }
 }
 
 // ── Receipt ───────────────────────────────────────────────────────────────────
+function showOrderReceipt(result) {
+  const order = result.order || {};
+  const fulfillmentLabels = {
+    customer_pickup: order.status === "completed" ? "Taken home now" : "Customer pickup",
+    delivery_installation: "Delivery + installation",
+  };
+  showReceipt({
+    recordType: "order",
+    invoiceNumber: order.orderReference,
+    customerName: order.customer?.name,
+    customerPhone: order.customer?.phone,
+    customerEmail: order.customer?.email,
+    customerAddress: order.delivery?.address || document.getElementById("customerAddress").value.trim(),
+    items: (order.items || []).map(item => ({
+      itemName: [item.brand, item.modelLine, item.capacity ? `${item.capacity}${item.capacityUnit || "HP"}` : ""].filter(Boolean).join(" "),
+      quantity: item.quantity,
+      unit: "unit",
+      totalPrice: item.totalPrice,
+      serialNumber: (item.serialNumbers || []).join(", "),
+    })),
+    subtotal: order.subtotal,
+    discount: order.discount || 0,
+    installationFee: order.installationFee || 0,
+    transportationFee: order.transportationFee || 0,
+    totalAmount: order.total,
+    paymentMethod: selectedPayment,
+    amountPaid: result.amountPaid ?? order.total,
+    change: result.change || 0,
+    completedAt: order.completedAt,
+    createdAt: order.createdAt,
+    processedByName: "Walk-in POS",
+    fulfillmentLabel: fulfillmentLabels[order.fulfillmentType] || order.fulfillmentType,
+    orderStatus: order.status,
+    customerAccountCreated: result.customerAccountCreated,
+  });
+}
+
 function showReceipt(sale) {
   const el = document.getElementById("receiptContent");
   const date = new Date(sale.completedAt || sale.createdAt);
@@ -795,7 +1074,7 @@ function showReceipt(sale) {
   el.innerHTML = `
     <div class="pos-receipt-header">
       <h4>CALIDRO RACS</h4>
-      <p>Parts & Tools Point of Sale</p>
+      <p>${sale.recordType === "order" ? "Walk-in Aircon Order" : "Parts & Tools Point of Sale"}</p>
       <p style="margin-top:8px;font-size:0.7rem;opacity:0.7;">${date.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${date.toLocaleTimeString("en-PH")}</p>
     </div>
     <div class="pos-receipt-body">
@@ -804,6 +1083,7 @@ function showReceipt(sale) {
       </div>
       <div style="font-size:0.82rem;font-weight:600;color:#0f172a;margin-bottom:4px;">${sale.customerName || "Walk-In Customer"}</div>
       ${sale.customerPhone ? `<div style="font-size:0.72rem;color:#64748b;">Phone: ${escapeHtml(sale.customerPhone)}</div>` : ""}
+      ${sale.customerEmail ? `<div style="font-size:0.72rem;color:#64748b;">Email: ${escapeHtml(sale.customerEmail)}</div>` : ""}
       ${sale.customerTin ? `<div style="font-size:0.72rem;color:#64748b;">TIN: ${escapeHtml(sale.customerTin)}</div>` : ""}
       ${sale.customerAddress ? `<div style="font-size:0.72rem;color:#64748b;">Address: ${escapeHtml(sale.customerAddress)}</div>` : ""}
       <hr class="pos-receipt-divider">
@@ -825,6 +1105,8 @@ function showReceipt(sale) {
       ${sale.discount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;color:#ef4444;">
         <span>Discount</span><span style="font-weight:600;">-₱${Number(sale.discount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
       </div>` : ""}
+      ${sale.installationFee > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;"><span style="color:#64748b;">Installation</span><span>₱${Number(sale.installationFee).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span></div>` : ""}
+      ${sale.transportationFee > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;"><span style="color:#64748b;">Transportation</span><span>₱${Number(sale.transportationFee).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span></div>` : ""}
       <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:600;margin-top:10px;padding-top:10px;border-top:2px solid #0f172a;">
         <span>TOTAL</span><span>₱${Number(sale.totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
       </div>
@@ -835,6 +1117,9 @@ function showReceipt(sale) {
       ${sale.change > 0 ? `<div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#16a34a;font-weight:700;">
         <span>Change</span><span>₱${Number(sale.change).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
       </div>` : ""}
+      ${sale.fulfillmentLabel ? `<div style="margin-top:12px;padding:9px 10px;border-radius:8px;background:#eff6ff;color:#1e40af;font-size:.75rem;"><strong>Fulfillment:</strong> ${escapeHtml(sale.fulfillmentLabel)} · ${escapeHtml(String(sale.orderStatus || "").replace(/_/g, " "))}</div>` : ""}
+      ${sale.recordType === "order" ? '<div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:#f0fdf4;color:#166534;font-size:.72rem;"><i class="bi bi-shield-check me-1"></i>Warranty and aftercare are linked to this customer order.</div>' : ""}
+      ${sale.customerAccountCreated ? '<div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:#fffbeb;color:#92400e;font-size:.72rem;">A customer account was created. The customer can use Forgot Password with their email to access orders and warranty.</div>' : ""}
     </div>
     <div class="pos-receipt-footer">
       <div style="margin-bottom:16px;padding-top:4px;text-align:center;">
@@ -857,6 +1142,10 @@ function closeReceipt() { document.getElementById("receiptOverlay").classList.re
 
 // ── Sales History ─────────────────────────────────────────────────────────────
 async function toggleSalesHistory() {
+  if (currentTab === "aircons") {
+    window.location.href = "/admin/appointments/orders";
+    return;
+  }
   const overlay = document.getElementById("historyOverlay");
   overlay.classList.toggle("show");
   if (overlay.classList.contains("show")) loadSalesHistory();

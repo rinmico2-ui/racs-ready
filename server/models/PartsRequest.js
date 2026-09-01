@@ -182,7 +182,7 @@ partsRequestSchema.statics.startProcurement = async function (requestId, userId)
       procuringAt: new Date(),
       procuredBy: userId,
     },
-    { new: true }
+    { returnDocument: "after" }
   );
 };
 

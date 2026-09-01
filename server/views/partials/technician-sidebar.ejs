@@ -51,6 +51,13 @@
       </a>
     </li>
     <li class="nav-item">
+      <a href="/technician/warranty-claims" class="nav-link">
+        <i class="bi bi-shield-check nav-icon"></i>
+        <span class="nav-label">Warranty Inspections</span>
+        <span class="nav-tooltip">Assigned warranty inspections</span>
+      </a>
+    </li>
+    <li class="nav-item">
       <a href="/technician/remittances" class="nav-link">
         <i class="bi bi-cash-stack nav-icon"></i>
         <span class="nav-label">My Remittances</span>
@@ -127,16 +134,30 @@
   }
 
   .nav-badge {
+    flex: 0 0 auto;
     background: #ef4444;
     color: #fff;
     font-size: 0.65rem;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 10px;
-    margin-left: auto;
+    margin-left: 8px;
     min-width: 18px;
     text-align: center;
     line-height: 1.2;
+  }
+
+  .technician-layout .sidebar-nav .nav-link {
+    min-height: 44px;
+  }
+
+  .technician-layout .sidebar-nav .nav-label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .technician-layout .sidebar.collapsed .nav-badge {
+    display: none !important;
   }
 </style>
 

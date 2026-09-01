@@ -103,8 +103,11 @@
   .st-in-progress { background: #dbeafe; color: #1e40af; }
   .st-completed { background: #d1fae5; color: #065f46; }
   .st-rejected { background: #fee2e2; color: #991b1b; }
+  .st-needs-resolution { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
   .st-cancelled { background: #f1f5f9; color: #64748b; }
   .st-expired { background: #fffbeb; color: #92400e; }
+  .st-no-show { background: #fee2e2; color: #991b1b; }
+  .st-waiting { background: #fffbeb; color: #92400e; }
 
   /* ═══ OVERVIEW: PIPELINE ═══ */
   .au-pipeline-card { background: #fff; border: 1px solid var(--au-border); border-radius: var(--au-radius); box-shadow: var(--au-shadow); overflow: hidden; }
@@ -278,6 +281,12 @@
   .asgn-ai-reason { font-size: 0.78rem; color: #64748b; }
   .asgn-tech-list-wrap { max-height: 340px; overflow-y: auto; padding-right: 4px; }
   @media (max-width: 991px) { .asgn-tech-list-wrap { max-height: 280px; } }
+  #assignModal .ent-modal { border-radius: 16px; }
+  #assignModal .ent-modal-header { background: #1d4ed8; padding: 20px 24px; }
+  #assignModal .ent-modal-body { padding: 24px; }
+  #assignModal .ent-modal-footer { padding: 16px 24px; }
+  #assignModal .aq-tech-list { grid-template-columns: 1fr; margin: 0; }
+  #assignModal .aq-tech-option { padding: 12px; border-radius: 12px; }
 
   .aq-empty { text-align: center; padding: 56px 24px; color: #94a3b8; }
   .aq-empty i { font-size: 3.5rem; display: block; margin-bottom: 16px; opacity: 0.5; }
@@ -587,6 +596,9 @@
   .ms-summary-value { font-family:'Inter',sans-serif; font-size:0.88rem; font-weight:700; color:#0f172a; margin-top:2px; }
   @media (max-width: 767px) { .ms-service-grid { grid-template-columns:repeat(2,1fr); } .ms-summary-bar { flex-direction:column; } .ms-summary-cell { border-right:none; border-bottom:1px solid #e2e8f0; } .ms-summary-cell:last-child { border-bottom:none; } }
 </style>
+<link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
+<link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
+<link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
 
 <div class="au-page">
   <!-- Hero -->
@@ -599,6 +611,7 @@
           <p>Full booking lifecycle pipeline &mdash; from request to completion</p>
         </div>
       </div>
+      <a class="btn btn-light fw-bold" href="/admin/operations/resolution-center?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
       <div class="au-hero-stats">
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
@@ -612,22 +625,22 @@
   <div class="modal fade" id="serviceChangeQueueModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 rounded-4"><div class="modal-header"><div><h5 class="modal-title fw-bold">Service Change Review</h5><div class="small text-muted">Compare customer requests, verify capacity, and decide before notifying technicians.</div></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="serviceChangeQueueBody"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div></div></div></div>
 
   <!-- Tab Navigation -->
-  <div class="au-tabs-wrapper">
-    <ul class="au-tabs" role="tablist">
-      <li role="presentation"><button class="au-tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab"><i class="bi bi-pie-chart-fill"></i> Overview</button></li>
-      <li role="presentation"><button class="au-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab"><i class="bi bi-hourglass-split"></i> Pending Payment <span class="au-tab-badge" id="tabPendingBadge"></span></button></li>
-      <li role="presentation"><button class="au-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-queue" type="button" role="tab"><i class="bi bi-clipboard-check"></i> Assignment Queue <span class="au-tab-badge" id="tabQueueBadge"></span></button></li>
-      <li role="presentation"><button class="au-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-waiting" type="button" role="tab"><i class="bi bi-hourglass-split"></i> Waiting for Acceptance <span class="au-tab-badge" id="tabWaitingBadge"></span></button></li>
-      <li role="presentation"><button class="au-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-active" type="button" role="tab"><i class="bi bi-play-circle-fill"></i> In Progress <span class="au-tab-badge" id="tabActiveBadge"></span></button></li>
-      <li role="presentation"><button class="au-tab-btn" data-bs-toggle="tab" data-bs-target="#tab-completed" type="button" role="tab"><i class="bi bi-check-circle-fill"></i> Completed <span class="au-tab-badge" id="tabCompletedBadge"></span></button></li>
+  <div class="au-tabs-wrapper workflow-tabs-shell">
+    <ul class="au-tabs workflow-tabs-list" role="tablist">
+      <li role="presentation"><button class="au-tab-btn workflow-tab active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button" role="tab"><i class="bi bi-pie-chart-fill"></i> Overview <span class="au-tab-badge workflow-tab-badge" id="tabOverviewBadge"></span></button></li>
+      <li role="presentation"><button class="au-tab-btn workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab"><i class="bi bi-hourglass-split"></i> Pending Payment <span class="au-tab-badge workflow-tab-badge" id="tabPendingBadge"></span></button></li>
+      <li role="presentation"><button class="au-tab-btn workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-queue" type="button" role="tab"><i class="bi bi-clipboard-check"></i> Assignment Queue <span class="au-tab-badge workflow-tab-badge" id="tabQueueBadge"></span></button></li>
+      <li role="presentation"><button class="au-tab-btn workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-waiting" type="button" role="tab"><i class="bi bi-hourglass-split"></i> Waiting for Acceptance <span class="au-tab-badge workflow-tab-badge" id="tabWaitingBadge"></span></button></li>
+      <li role="presentation"><button class="au-tab-btn workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-active" type="button" role="tab"><i class="bi bi-play-circle-fill"></i> In Progress <span class="au-tab-badge workflow-tab-badge" id="tabActiveBadge"></span></button></li>
+      <li role="presentation"><button class="au-tab-btn workflow-tab" data-bs-toggle="tab" data-bs-target="#tab-completed" type="button" role="tab"><i class="bi bi-check-circle-fill"></i> Completed <span class="au-tab-badge workflow-tab-badge" id="tabCompletedBadge"></span></button></li>
     </ul>
   </div>
 
   <div class="tab-content">
     <!-- ═══ OVERVIEW TAB ═══ -->
     <div class="tab-pane fade show active" id="tab-overview" role="tabpanel">
-      <div class="au-filter-bar au-overview-bar d-flex justify-content-between align-items-center mb-4">
-        <div class="d-flex align-items-center gap-2 au-date-filter">
+      <div class="au-filter-bar au-overview-bar workflow-overview-filter">
+        <div class="d-flex align-items-center gap-2 au-date-filter workflow-overview-filter-group">
           <div class="position-relative au-date-wrap">
             <i class="bi bi-calendar3 au-date-icon"></i>
             <input type="text" class="form-control form-control-sm" id="filterStartDate" placeholder="Start date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Overview.load();" style="width:150px;">
@@ -641,17 +654,17 @@
           <button class="au-btn au-btn-ghost" onclick="AU.Overview.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         </div>
       </div>
-      <div class="au-pipeline-card mb-4">
-        <div class="au-pipeline-header">
+      <div class="au-pipeline-card workflow-overview-pipeline">
+        <div class="au-pipeline-header workflow-overview-section-head">
           <h6><i class="bi bi-diagram-3 me-2 text-primary"></i>Booking Pipeline</h6>
         </div>
-        <div class="au-pipeline-body">
-          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap" id="pipeline"></div>
+        <div class="au-pipeline-body workflow-overview-pipeline-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap workflow-pipeline" id="pipeline"></div>
         </div>
       </div>
-      <div class="row g-3 mb-4" id="kpiCards">
+      <div class="row g-3 workflow-overview-kpis" id="kpiCards">
         <div class="col-lg-3 col-md-6">
-          <div class="stat-card h-100" data-spark-color="#f59e0b">
+          <div class="stat-card workflow-overview-kpi" data-spark-color="#f59e0b">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Total Bookings</h6>
@@ -672,7 +685,7 @@
           </div>
         </div>
         <div class="col-lg-3 col-md-6">
-          <div class="stat-card h-100" data-spark-color="#2563eb">
+          <div class="stat-card workflow-overview-kpi" data-spark-color="#2563eb">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Pending Payment</h6>
@@ -693,7 +706,7 @@
           </div>
         </div>
         <div class="col-lg-3 col-md-6">
-          <div class="stat-card h-100" data-spark-color="#10b981">
+          <div class="stat-card workflow-overview-kpi" data-spark-color="#10b981">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">In Progress</h6>
@@ -714,7 +727,7 @@
           </div>
         </div>
         <div class="col-lg-3 col-md-6">
-          <div class="stat-card h-100" data-spark-color="#8b5cf6">
+          <div class="stat-card workflow-overview-kpi" data-spark-color="#8b5cf6">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Revenue (All Time)</h6>
@@ -735,18 +748,18 @@
           </div>
         </div>
       </div>
-      <div class="au-table-card">
-        <div class="au-table-header">
+      <div class="au-table-card workflow-overview-table">
+        <div class="au-table-header workflow-overview-table-head">
           <h6><i class="bi bi-list-ul me-2 text-primary"></i>Recent Bookings</h6>
           <div class="d-flex align-items-center gap-2">
             <input type="text" class="form-control form-control-sm" id="overviewSearchInput" placeholder="Search reference, customer or service..." oninput="AU.Overview.searchRecent()" style="width:260px;border-radius:10px;">
             <select class="form-select form-select-sm" id="statusFilter" style="width:160px;border-radius:10px;" onchange="AU.Overview.loadRecent(1)">
-              <option value="">All Statuses</option><option value="pending">Pending</option><option value="awaiting_assignment">Awaiting Assignment</option><option value="assigned">Assigned</option><option value="confirmed">Confirmed</option><option value="on-the-way">On The Way</option><option value="in-progress">In Progress</option><option value="completed">Completed</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option>
+              <option value="">All Statuses</option><option value="pending">Pending</option><option value="awaiting_assignment">Awaiting Assignment</option><option value="assigned">Assigned</option><option value="confirmed">Confirmed</option><option value="on-the-way">On The Way</option><option value="arrived">Arrived</option><option value="waiting-for-customer">Waiting for Customer</option><option value="no-show-reported">No-Show Review</option><option value="in-progress">In Progress</option><option value="completed">Completed</option><option value="no-show">No-Show</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option>
             </select>
           </div>
         </div>
-        <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Date</th><th>Amount</th><th>Status</th><th>Technician</th><th class="text-center">Actions</th></tr></thead><tbody id="overviewTable"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div></td></tr></tbody></table></div>
-        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top"><small class="text-muted" id="overviewPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="overviewPag"></ul></nav></div>
+        <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Amount</th><th>Status</th><th>Technician</th><th class="text-center">Actions</th></tr></thead><tbody id="overviewTable"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div></td></tr></tbody></table></div>
+        <div class="workflow-overview-table-footer"><small class="text-muted" id="overviewPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="overviewPag"></ul></nav></div>
       </div>
     </div>
 
@@ -831,16 +844,16 @@
               <div class="stat-card h-100" data-spark-color="#8b5cf6">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                   <div>
-                    <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">In Queue</h6>
+                    <h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Review Overdue</h6>
                     <div class="d-flex align-items-baseline gap-2">
                       <span class="h3 mb-0 fw-bold text-dark" id="queueCount">-</span>
                       <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
-                      <span class="kpi-percent-badge">Queue</span>
+                      <span class="kpi-percent-badge">Urgent</span>
                     </div>
-                    <small class="text-muted">All queued jobs</small>
+                    <small class="text-muted">Requested schedule passed</small>
                   </div>
                   <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);">
-                    <i class="bi bi-clipboard-check text-white"></i>
+                    <i class="bi bi-exclamation-triangle text-white"></i>
                   </div>
                 </div>
                 <div class="stat-sparkline"><canvas height="40"></canvas></div>
@@ -849,8 +862,8 @@
           </div>
           <div class="au-table-card">
             <div class="au-table-header"><h6>All Pending Bookings</h6><span class="badge bg-warning text-dark" id="resultCount">0</span></div>
-            <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Type</th><th>Service Details</th><th>Date</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
-            <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top"><small class="text-muted" id="pendingPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="pendingPag"></ul></nav></div>
+            <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Customer</th><th>Type</th><th>Service Details</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
+            <div class="workflow-overview-table-footer"><small class="text-muted" id="pendingPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="pendingPag"></ul></nav></div>
           </div>
         </div>
         <!-- Repair Requests -->
@@ -984,7 +997,7 @@
             </div>
             <input type="text" class="form-control form-control-sm rq-search" id="rqSearchInput" placeholder="Search...">
           </div></div>
-          <div id="rqContainer"><div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading repair requests...</p></div></div>
+          <div id="rqContainer" class="workflow-record-list"><div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading repair requests...</p></div></div>
         </div>
       </div>
     </div>
@@ -1070,12 +1083,19 @@
         </div>
       </div>
       <div id="aqWarnings"></div>
-      <div class="au-filter-bar mb-4"><div class="d-flex gap-2 align-items-center flex-wrap">
-        <div class="aj-search-box" style="flex:1;"><i class="bi bi-search aj-search-icon"></i><input type="text" class="aj-search-input" placeholder="Search customer, service..." id="aqSearchInput" style="width:100%;"></div>
-        <select class="form-select form-select-sm" id="aqFilterStatus" style="width:220px;border-radius:10px;"><option value="awaiting_assignment">Awaiting Assignment</option><option value="pending_reassignment">Need Reassignment</option><option value="all_active">All Queue</option></select>
-        <button class="au-btn au-btn-primary" type="button" onclick="AU.Queue.openBulkPlan()"><i class="bi bi-stars me-1"></i>Auto Assign Unassigned Bookings</button>
-      </div></div>
-      <div id="queueContainer"><div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div></div>
+      <div class="au-filter-bar mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <div class="aj-search-box" style="flex:1;min-width:200px;"><i class="bi bi-search aj-search-icon"></i><input type="text" class="aj-search-input" placeholder="Search customer, service..." id="aqSearchInput" style="width:100%;"></div>
+          <button class="au-btn au-btn-primary" type="button" onclick="AU.Queue.openBulkPlan()"><i class="bi bi-stars me-1"></i>Auto Assign Unassigned Bookings</button>
+        </div>
+        <div class="aj-filter-bar" style="border:none;background:transparent;padding:0;margin:0;box-shadow:none;"><div class="aj-filter-pills" id="aqFilterPills">
+          <button class="aj-pill active" onclick="AU.Queue.filterByStatus(this,'all_active')"><span class="aj-pill-icon"><i class="bi bi-clipboard-check-fill"></i></span><span class="aj-pill-text">All Queue</span><span class="aj-pill-badge" id="aqPillAll">0</span></button>
+          <div class="aj-pill-divider"></div>
+          <button class="aj-pill" onclick="AU.Queue.filterByStatus(this,'awaiting_assignment')"><span class="aj-pill-dot" style="background:#f59e0b;"></span><span class="aj-pill-text">Awaiting Assignment</span><span class="aj-pill-badge" id="aqPillAwaiting">0</span></button>
+          <button class="aj-pill" onclick="AU.Queue.filterByStatus(this,'pending_reassignment')"><span class="aj-pill-dot" style="background:#ef4444;"></span><span class="aj-pill-text">Need Reassignment</span><span class="aj-pill-badge" id="aqPillReassign">0</span></button>
+        </div></div>
+      </div>
+      <div id="queueContainer" class="workflow-record-list"><div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div></div>
       <div class="d-flex justify-content-center mt-3" id="aqPagination"></div>
     </div>
 
@@ -1095,7 +1115,7 @@
       </div>
       <div class="row g-3 mb-3" id="waitingKpiContainer"></div>
       <p class="text-muted small mb-3">Bookings assigned to technicians awaiting their confirmation.</p>
-      <div id="waitingAcceptContainer">
+      <div id="waitingAcceptContainer" class="workflow-record-list">
         <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
       </div>
     </div>
@@ -1178,24 +1198,23 @@
       </div>
       <div class="au-table-card">
         <div class="au-table-header"><h6><i class="bi bi-list-ul me-2 text-primary"></i>Active Jobs</h6><span class="badge bg-primary" id="activeJobCount">0</span></div>
-        <div class="table-responsive"><table class="table rq-table mb-0 align-middle"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th>Date</th><th>Amount</th><th>Status</th><th class="text-center">Actions</th></tr></thead><tbody id="jobsContainer"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading active jobs...</div></td></tr></tbody></table></div>
+        <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th>Amount</th><th>Status</th><th class="text-center">Actions</th></tr></thead><tbody id="jobsContainer"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading active jobs...</div></td></tr></tbody></table></div>
       </div>
     </div>
 
     <!-- ═══ COMPLETED TAB ═══ -->
     <div class="tab-pane fade" id="tab-completed" role="tabpanel">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h5 class="fw-bold mb-0"><i class="bi bi-check-circle text-success me-2"></i>Completed Jobs</h5>
-          <p class="text-muted small mb-0">All successfully completed service bookings</p>
-        </div>
-        <div class="d-flex gap-2">
-          <div class="position-relative au-date-wrap">
-            <i class="bi bi-calendar3 au-date-icon"></i>
-            <input type="text" class="form-control form-control-sm" id="cjDateFilter" placeholder="Filter by date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Completed.load();">
+      <div class="au-filter-bar au-overview-bar workflow-overview-filter">
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+          <div><h5 class="fw-bold mb-0"><i class="bi bi-check-circle text-success me-2"></i>Completed Jobs</h5><p class="text-muted small mb-0">All successfully completed service bookings</p></div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="position-relative au-date-wrap">
+              <i class="bi bi-calendar3 au-date-icon"></i>
+              <input type="text" class="form-control form-control-sm" id="cjDateFilter" placeholder="Filter by date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Completed.load();">
+            </div>
+            <input type="text" class="form-control form-control-sm" placeholder="Search..." id="cjSearchInput" style="width:200px;border-radius:10px;">
+            <button class="au-btn au-btn-ghost" onclick="AU.Completed.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
           </div>
-          <input type="text" class="form-control form-control-sm" placeholder="Search..." id="cjSearchInput" style="width:200px;border-radius:10px;">
-          <button class="au-btn au-btn-ghost" onclick="AU.Completed.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         </div>
       </div>
       <div class="row g-3 mb-4">
@@ -1276,10 +1295,10 @@
           </div>
         </div>
       </div>
-      <div class="row g-3" id="cjJobsContainer">
-        <div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div></div>
+      <div id="cjJobsContainer">
+        <div class="au-table-card workflow-overview-table"><div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div></th></tr></thead></table></div></div>
       </div>
-      <div class="d-flex justify-content-center mt-3" id="cjPagination"></div>
+      <div class="workflow-overview-table-footer" id="cjPaginationWrap"><small class="text-muted" id="cjPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="cjPagination"></ul></nav></div>
     </div>
   </div>
 </div>
@@ -1303,15 +1322,15 @@
 </div>
 
 <!-- Assign Technician Modal (Upgraded UX) -->
-<div class="modal fade" id="assignModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:980px;margin:auto;">
+<div class="modal fade" id="assignModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1100px;margin:auto;">
     <div class="modal-content ent-modal">
       <div class="modal-header ent-modal-header">
         <div class="d-flex align-items-center gap-3">
-          <div class="ent-modal-icon bg-primary-subtle"><i class="bi bi-person-check text-primary"></i></div>
+          <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-person-check"></i></div>
           <div>
             <h6 class="modal-title fw-bold mb-0">Assign Technician</h6>
-            <small class="text-white-50">Recommended technician + map-based selection</small>
+            <small style="opacity:0.85;font-size:0.8rem;">Select an available technician for this booking</small>
           </div>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1319,67 +1338,50 @@
 
       <div class="modal-body ent-modal-body">
         <!-- Job Dossier -->
-        <div class="asgn-hero">
-          <div class="asgn-hero-icon"><i class="bi bi-briefcase-fill"></i></div>
-          <div class="asgn-hero-main">
-            <div class="asgn-hero-label">Booking</div>
-            <div class="asgn-hero-title" id="assignCustomerName">—</div>
-            <div class="asgn-hero-sub" id="assignServiceInfo">—</div>
+        <div class="ent-detail-card ent-detail-card-wide mb-3">
+          <div class="ent-detail-card-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-calendar2-check"></i></div>
+          <div class="ent-detail-card-content" style="flex:1;">
+            <span class="ent-detail-label">Booking</span>
+            <span class="ent-detail-value fw-bold" id="assignCustomerName">—</span>
+            <span class="ent-detail-sub" id="assignServiceInfo">—</span>
           </div>
-          <div class="asgn-hero-side">
-            <span class="badge asgn-status-badge bg-light text-dark border">Awaiting Assignment</span>
+          <div class="ms-auto">
+            <span class="badge bg-light text-dark border" style="padding:6px 12px;border-radius:20px;font-size:0.7rem;font-weight:700;">Awaiting Assignment</span>
           </div>
         </div>
 
         <!-- AI Recommendation -->
-        <div class="asgn-section" id="aiRecommendSection">
-          <div class="asgn-section-title"><i class="bi bi-stars me-2"></i>AI Recommendation</div>
-          <div class="asgn-ai-card">
-            <div class="asgn-ai-body">
-              <div class="asgn-ai-name" id="aiRecommendName">—</div>
-              <div class="asgn-ai-reason" id="aiRecommendReason">—</div>
-            </div>
+        <div id="aiRecommendSection" class="ent-detail-card ent-detail-card-wide" style="display:none;background:linear-gradient(135deg,#fffbeb,#fff);border-color:#fde68a;margin-bottom:16px;">
+          <div class="ent-detail-card-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-stars"></i></div>
+          <div class="ent-detail-card-content" style="flex:1;">
+            <span class="ent-detail-label">AI Recommendation</span>
+            <span class="ent-detail-value" id="aiRecommendName">—</span>
+            <span class="ent-detail-sub" id="aiRecommendReason">—</span>
           </div>
+          <button type="button" class="btn btn-sm btn-warning fw-bold ms-auto" onclick="AU.Queue.selectRecommended()" style="border-radius:8px;white-space:nowrap;"><i class="bi bi-check-lg me-1"></i>Select</button>
         </div>
 
-        <!-- Main Workspace: Technicians (left) | Map + Equipment (right) -->
-        <div class="row g-4 asgn-layout">
-          <div class="col-lg-5">
-            <div class="asgn-section asgn-tech-section">
+        <!-- Main Workspace: Technicians (left) | Map (right) -->
+        <div class="row g-4">
+          <div class="col-md-5">
+            <div>
               <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="asgn-section-title mb-0"><i class="bi bi-people me-2"></i>Technicians</div>
-                <span class="badge bg-primary" id="techCountBadge">—</span>
+                <h6 class="fw-bold mb-0" style="font-size:0.85rem;"><i class="bi bi-people me-2"></i>Available Technicians <span class="badge bg-primary rounded-pill" id="techCountBadge">—</span></h6>
               </div>
               <div class="small text-muted mb-2" id="assignAvailabilityHint"></div>
-              <div id="techListContainer" class="asgn-tech-list-wrap">
+              <div id="techListContainer" class="border rounded bg-white p-2" style="max-height:280px;overflow-y:auto;padding-right:4px;">
                 <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
               </div>
             </div>
-
-            <div class="asgn-section mt-3">
-              <div class="asgn-section-title"><i class="bi bi-sliders me-2"></i>Assignment Options</div>
-              <div class="row g-2">
-                <div class="col-6">
-                  <label class="form-label small fw-semibold">Priority</label>
-                  <select class="form-select form-select-sm" id="assignPriority">
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <label class="form-label small fw-semibold">Notes <small class="text-muted">(optional)</small></label>
-                  <input type="text" class="form-control form-control-sm" id="assignNotes" placeholder="Special instructions...">
-                </div>
-              </div>
-            </div>
           </div>
 
-          <div class="col-lg-7">
-            <div class="asgn-section">
-              <div class="asgn-section-title"><i class="bi bi-geo-alt-fill me-2"></i>Service Location</div>
+          <div class="col-md-7">
+            <div>
               <div class="asgn-map-wrap" id="assignMapContainer"></div>
-              <small class="text-muted d-block mt-2" id="assignLocationSub">Map preview</small>
+              <div class="d-flex align-items-center justify-content-between mt-2">
+                <small class="text-muted" id="assignLocationSub"><i class="bi bi-geo-alt me-1"></i>Technician locations relative to the service address</small>
+                <small class="text-muted" id="assignMapTechCount">0 technicians</small>
+              </div>
             </div>
 
             <div class="asgn-section d-none" id="adminAssignmentEquipmentSection" aria-hidden="true">
@@ -1453,15 +1455,63 @@
             </div>
           </div>
         </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Priority</label>
+            <select class="form-select form-select-sm bg-light" id="assignPriority" style="border-radius:8px;border:1px solid #e2e8f0;">
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Customer Scheduled Date</label>
+            <input type="date" class="form-control form-control-sm bg-light" id="assignDate" readonly style="border-radius:8px;border:1px solid #e2e8f0;pointer-events:none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1 text-muted">Customer Scheduled Time</label>
+            <input type="text" class="form-control form-control-sm bg-light" id="assignTimeSlot" readonly style="border-radius:8px;border:1px solid #e2e8f0;pointer-events:none;">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">Notes <small class="text-muted">(optional)</small></label>
+            <input type="text" class="form-control form-control-sm" id="assignNotes" placeholder="Special instructions..." style="border-radius:8px;border:2px solid #e2e8f0;">
+          </div>
+        </div>
       </div>
 
-      <div class="modal-footer ent-modal-footer">
-        <div class="d-flex w-100 justify-content-between align-items-center">
-          <small class="text-muted" id="assignFooterSub">—</small>
-          <button type="button" class="btn btn-primary btn-sm fw-semibold" id="btnConfirmAssign" onclick="AU.Queue.confirmAssign()" disabled>
-            <i class="bi bi-check-lg me-1"></i>Assign Technician
-          </button>
+      <div class="modal-footer ent-modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-sm btn-light border fw-semibold" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+        <small class="text-muted flex-grow-1 ms-2" id="assignFooterSub">—</small>
+        <button type="button" class="btn btn-primary btn-sm fw-bold" id="btnConfirmAssign" onclick="AU.Queue.confirmAssign()" disabled style="border-radius:8px;">
+          <i class="bi bi-check-lg me-1"></i>Assign Selected Technician
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overdue Pending Review Reschedule Modal -->
+<div class="modal fade" id="reviewRescheduleModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content ent-modal">
+      <div class="modal-header ent-modal-header">
+        <div class="d-flex align-items-center gap-3"><div class="ent-modal-icon bg-warning-subtle"><i class="bi bi-calendar2-week text-warning"></i></div><div><h6 class="modal-title fw-bold mb-0">Replace Requested Schedule</h6><small class="text-white-50">The booking will remain Pending Review</small></div></div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body ent-modal-body" style="max-height:75vh;overflow-y:auto;">
+        <input type="hidden" id="reviewRescheduleBookingId">
+        <div class="alert alert-warning small"><i class="bi bi-telephone me-1"></i>Contact the customer and confirm the new schedule before saving.</div>
+        <div class="row g-3">
+          <div class="col-7"><label class="form-label small fw-semibold">New Date</label><input type="date" class="form-control" id="reviewRescheduleDate" required></div>
+          <div class="col-5"><label class="form-label small fw-semibold">Start Time</label><input type="time" class="form-control" id="reviewRescheduleTime" required></div>
+          <div class="col-12"><label class="form-label small fw-semibold">Contact Notes</label><textarea class="form-control" id="reviewRescheduleNotes" rows="2" placeholder="Customer confirmation or scheduling notes"></textarea></div>
+          <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="reviewRescheduleConfirmed"><label class="form-check-label small fw-semibold" for="reviewRescheduleConfirmed">Customer agreed to this replacement schedule</label></div></div>
         </div>
+      </div>
+      <div class="modal-footer ent-modal-footer">
+        <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold" id="reviewRescheduleSubmit" onclick="AU.Pending.submitReviewReschedule()"><i class="bi bi-calendar-check me-1"></i>Update Schedule</button>
       </div>
     </div>
   </div>
@@ -1754,7 +1804,8 @@
     'pending':'st-pending','payment_verified':'st-payment_verified','awaiting_assignment':'st-awaiting_assignment',
     'assigned':'st-assigned','confirmed':'st-confirmed','on-the-way':'st-on-the-way',
     'arrived':'st-arrived','in-progress':'st-in-progress','completed':'st-completed',
-    'rejected':'st-rejected','cancelled':'st-cancelled','expired':'st-expired'
+    'rejected':'st-rejected','cancelled':'st-cancelled','expired':'st-expired','no-show':'st-no-show',
+    'waiting-for-customer':'st-waiting','no-show-reported':'st-no-show'
   };
 
   var RQ_STATUS_LABELS = {
@@ -1779,7 +1830,10 @@
 
   var STATUS_LABELS = {
     'confirmed':'Confirmed','scheduled':'Scheduled','on-the-way':'On The Way',
-    'arrived':'Arrived','in-progress':'In Progress'
+    'arrived':'Arrived','waiting-for-customer':'Waiting for Customer','no-show-reported':'No-Show Reported',
+    'in-progress':'In Progress','no-show':'No Show','pending':'Pending',
+    'awaiting_assignment':'Awaiting Assignment','assigned':'Assigned',
+    'rejected':'Rejected','cancelled':'Cancelled','expired':'Expired'
   };
 
   var STATUS_CLASSES_ACTIVE = {
@@ -1811,6 +1865,54 @@
   }
   function statusLabel(s) {
     return (s||'').replace(/_/g,' ').replace(/-/g,' ').replace(/\b\w/g,function(l){return l.toUpperCase();});
+  }
+
+  function bookingNeedsResolution(b) {
+    if (!b) return false;
+    if (b.isReviewOverdue===true||b.autoReschedulePending===true||b.status==='reschedule-required') return true;
+    var actionableStatuses=[
+      'pending','payment_verified','awaiting_assignment','assigned','pending_reassignment',
+      'confirmed','scheduled','re-scheduled','repair_requested','pending_inspection',
+      'inspection_scheduled','ready_for_repair','repair_scheduled'
+    ];
+    if (actionableStatuses.indexOf(b.status)===-1) return false;
+    var rawDate=b.preferredDate||b.bookingDate;
+    if (!rawDate) return false;
+    var cutoff=new Date(rawDate);
+    if (Number.isNaN(cutoff.getTime())) return false;
+    function toMinutes(value) {
+      if (!value) return NaN;
+      var match=String(value).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+      if (!match) return NaN;
+      var hours=Number(match[1]);
+      var minutes=Number(match[2]||0);
+      if (minutes>59||hours>24) return NaN;
+      if (match[3]) {
+        hours=hours%12;
+        if (/pm/i.test(match[3])) hours+=12;
+      }
+      return hours*60+minutes;
+    }
+    var endMinutes=toMinutes(b.endTime);
+    if (!Number.isFinite(endMinutes)) {
+      var startMinutes=toMinutes(b.startTime||b.preferredTime);
+      endMinutes=Number.isFinite(startMinutes)?startMinutes+(Number(b.serviceDurationMinutes||b.duration)||60):NaN;
+    }
+    if (Number.isFinite(endMinutes)) cutoff.setHours(Math.floor(endMinutes/60),endMinutes%60,0,0);
+    else cutoff.setHours(23,59,59,999);
+    return cutoff.getTime()<Date.now();
+  }
+
+  function bookingResolutionUrl(b) {
+    var reference=b.bookingReference||b.workOrderNumber||b._id||'Booking';
+    var params=new URLSearchParams({
+      source:'booking',
+      issue:'past_date',
+      q:String(reference),
+      focus:'booking:'+String(b._id||''),
+      open:'resolve'
+    });
+    return ('/admin/operations/resolution-center?'+params.toString()).replace(/&/g,'&amp;');
   }
 
   function showNotification(opts) {
@@ -1895,16 +1997,25 @@
     if (Array.isArray(b.services)) b.services.forEach(function(s){ if(s&&Array.isArray(s.units)) s.units.forEach(function(u){ if(u&&u.inspection&&Array.isArray(u.inspection.photos)) u.inspection.photos.forEach(function(p){addPhoto(p,'Inspection Photo');}); }); });
 
     var ref = b.bookingReference||b.workOrderNumber||b._id.toString().slice(-8).toUpperCase();
-    var statusColor = b.paymentStatus==='paid'?'success':(b.paymentStatus==='partial'?'warning':'secondary');
-    var heroBg = b.paymentStatus==='paid'?'#f0fdf4':(b.paymentStatus==='partial'?'#fffbeb':'#eff6ff');
-    var heroColor = b.paymentStatus==='paid'?'#059669':(b.paymentStatus==='partial'?'#d97706':'#2563eb');
+    var needsResolution=bookingNeedsResolution(b);
+    var statusColor = needsResolution?'danger':(b.paymentStatus==='paid'?'success':(b.paymentStatus==='partial'?'warning':'secondary'));
+    var heroBg = needsResolution?'#fef2f2':(b.paymentStatus==='paid'?'#f0fdf4':(b.paymentStatus==='partial'?'#fffbeb':'#eff6ff'));
+    var heroColor = needsResolution?'#dc2626':(b.paymentStatus==='paid'?'#059669':(b.paymentStatus==='partial'?'#d97706':'#2563eb'));
+    var displayedStatus=needsResolution?'Needs Resolution':stL;
+    var resolutionUrl=bookingResolutionUrl(b);
+    var overdueReviewHtml = needsResolution ? '<div class="alert alert-warning border-warning mb-3">'+
+      '<div class="d-flex gap-2 align-items-start"><i class="bi bi-exclamation-triangle-fill text-danger mt-1"></i><div class="flex-grow-1">'+
+      '<div class="fw-bold text-uppercase small">Past Schedule &middot; Needs Resolution</div><div class="small mt-1">The requested service window has passed. Normal payment verification, assignment, and field-work actions are paused for this booking.</div>'+
+      '<div class="small mt-2"><strong>Next step:</strong> review the case, contact the customer when needed, and record the approved outcome in the Resolution Center.</div>'+
+      '<div class="d-flex flex-wrap gap-2 mt-3">'+((customer.phone||'')?'<a class="btn btn-sm btn-outline-success" href="tel:'+qEsc(customer.phone)+'"><i class="bi bi-telephone me-1"></i>Contact Customer</a>':'')+'<a class="btn btn-sm btn-warning" href="'+resolutionUrl+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a></div>'+
+      '</div></div></div>' : '';
 
     var paymentRows = '<div class="dv2-payment-row"><span class="dv2-payment-label">Total Amount</span><span class="dv2-payment-value">\u20B1'+total.toLocaleString()+'</span></div>'+
       (travelFee>0?'<div class="dv2-payment-row" style="padding-left:12px;"><span class="dv2-payment-label" style="font-size:0.72rem;"><i class="bi bi-arrow-return-right me-1"></i>Incl. Travel Fee</span><span class="dv2-payment-value" style="font-size:0.72rem;">\u20B1'+travelFee.toLocaleString()+'</span></div>':'')+
       '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Method</span><span class="dv2-payment-value">'+(b.paymentMethod||'N/A').toUpperCase()+'</span></div>';
     if (isCOD) {
-      paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Downpayment</span><span class="dv2-payment-value">\u20B1'+dp.toLocaleString()+'</span></div>'+
-        '<div class="dv2-payment-row"><span class="dv2-payment-label">Balance (on-site)</span><span class="dv2-payment-value">\u20B1'+bal.toLocaleString()+'</span></div>';
+      paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Downpayment '+(b.paymentStatus==='pending'?'Submitted':'Received')+'</span><span class="dv2-payment-value">\u20B1'+dp.toLocaleString()+'</span></div>'+
+        '<div class="dv2-payment-row"><span class="dv2-payment-label">Balance '+(b.paymentStatus==='pending'?'after verification ':'')+'(on-site)</span><span class="dv2-payment-value">\u20B1'+bal.toLocaleString()+'</span></div>';
       if (b.amountPaid) paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Collected so far</span><span class="dv2-payment-value" style="color:#16a34a;">\u20B1'+b.amountPaid.toLocaleString()+'</span></div>';
     }
     paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Status</span><span class="dv2-payment-value" style="color:'+(b.paymentStatus==='paid'?'#16a34a':(b.paymentStatus==='partial'?'#d97706':'#64748b'))+';">'+(b.paymentStatus==='paid'?'Paid in full':(b.paymentStatus==='partial'?'Partial payment received':'Payment pending'))+'</span></div>';
@@ -2063,7 +2174,7 @@
       '</div>';
     }
 
-    var html='<div class="dv2-wrap">'+
+    var html='<div class="dv2-wrap">'+overdueReviewHtml+
       '<div class="dv2-hero" style="border-left:4px solid '+heroColor+';">'+
         '<div class="dv2-hero-main">'+
           '<div class="dv2-hero-icon" style="background:'+heroBg+';color:'+heroColor+';"><i class="bi bi-file-earmark-text"></i></div>'+
@@ -2075,7 +2186,7 @@
         '</div>'+
         '<div class="dv2-hero-side">'+
           '<div class="dv2-hero-amount">\u20B1'+total.toLocaleString()+'</div>'+
-          '<span class="badge bg-'+statusColor+'" style="font-size:0.7rem;padding:6px 10px;">'+stL+'</span>'+
+          '<span class="badge bg-'+statusColor+'" style="font-size:0.7rem;padding:6px 10px;">'+displayedStatus+'</span>'+
         '</div>'+
       '</div>'+
       '<div class="dv2-grid">'+
@@ -2329,6 +2440,19 @@
     }
   }
 
+  function loadBookingResolutionCount(){
+    var badge=document.getElementById('bookingResolutionCount');
+    if(!badge)return;
+    fetch('/api/admin/resolution-center?source=booking&page=1&perPage=1')
+      .then(function(r){if(!r.ok)throw new Error('Resolution count unavailable');return r.json();})
+      .then(function(data){
+        var count=Number(data&&data.summary&&data.summary.bySource&&data.summary.bySource.booking)||0;
+        badge.textContent=count;
+        badge.setAttribute('aria-label',count+' booking cases need resolution');
+      })
+      .catch(function(){badge.textContent='0';});
+  }
+
   function loadWaitingAcceptTab(){
     var container=document.getElementById('waitingAcceptContainer');
     container.innerHTML='<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
@@ -2353,7 +2477,7 @@
         container.innerHTML='<div class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-1 d-block mb-2"></i><p>All assigned bookings have been accepted.</p></div>';
         return;
       }
-      container.innerHTML='<div style="display:flex;flex-direction:column;gap:10px;">'+bookings.map(function(b){
+      container.innerHTML='<div class="workflow-record-list">'+bookings.map(function(b){
         var tech=b.technician;
         var assignedAt=b.assignedAt?new Date(b.assignedAt).toLocaleString():'—';
         var bDate=b.bookingDate?new Date(b.bookingDate).toLocaleDateString():'—';
@@ -2367,21 +2491,21 @@
           else {deadlineText='Accept by '+deadline.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});deadlineClass='bg-info text-dark';}
         }
         var assignmentId=b.assignmentId||'';
-        return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;">'+
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">'+
+        return '<div class="workflow-record-card">'+
+          '<div class="workflow-record-head">'+
             '<div>'+
-              '<div style="font-size:.72rem;color:#94a3b8;font-weight:600;">'+(b.bookingReference||b._id.slice(-8).toUpperCase())+'</div>'+
-              '<div style="font-size:.95rem;font-weight:700;color:#1e293b;">'+(b.customer?.name||'Unknown')+'</div>'+
+              '<div class="workflow-record-ref">'+(b.bookingReference||b._id.slice(-8).toUpperCase())+'</div>'+
+              '<div class="workflow-record-title">'+(b.customer?.name||'Unknown')+'</div>'+
               '<div style="font-size:.82rem;color:#64748b;">'+(b.service?.name||'—')+'</div>'+
             '</div>'+
             '<span class="badge '+deadlineClass+'" style="white-space:nowrap;"><i class="bi bi-clock me-1"></i>'+deadlineText+'</span>'+
           '</div>'+
-          '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:#475569;">'+
+          '<div class="workflow-record-grid">'+
             '<span><i class="bi bi-calendar3 me-1" style="color:#94a3b8;"></i>'+bDate+'</span>'+
             '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>'+(b.startTime||'—')+' - '+(b.endTime||'—')+'</span>'+
             '<span><i class="bi bi-geo-alt me-1" style="color:#94a3b8;"></i>'+(b.address||'—')+'</span>'+
           '</div>'+
-          (tech?'<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">'+
+          (tech?'<div class="workflow-record-actions">'+
             '<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">'+(tech.name||'T')[0].toUpperCase()+'</div>'+
             '<div style="font-size:.78rem;">'+
               '<div style="font-weight:600;color:#1e293b;">'+tech.name+'</div>'+
@@ -2500,6 +2624,7 @@
     document.getElementById('kpiRevenue').textContent='\u20B1'+displayRevenue.toLocaleString();
     // Hero stats
     var hToday=document.getElementById('heroToday');if(hToday)hToday.textContent=total;
+    var overviewBadge=document.getElementById('tabOverviewBadge');if(overviewBadge)overviewBadge.textContent=total>0?total:'';
     var hPending=document.getElementById('heroPending');if(hPending)hPending.textContent=pending;
     var hActive=document.getElementById('heroActive');if(hActive)hActive.textContent=active;
     var hRevenue=document.getElementById('heroRevenue');if(hRevenue)hRevenue.textContent='\u20B1'+displayRevenue.toLocaleString();
@@ -2511,20 +2636,29 @@
     if(kpiTodayLabel) kpiTodayLabel.textContent=dateFilter?'Filtered bookings':'All bookings';
   };
 
+  function _ovViewBtn(id){return '<button class="btn btn-sm btn-primary" onclick="AU.Overview.viewDetail(\''+id+'\')"><i class="bi bi-eye me-1"></i>View</button>';}
+
   AU.Overview.renderTable=function(bookings){
     var tbody=document.getElementById('overviewTable');if(!tbody)return;
-    if(!bookings||!bookings.length){tbody.innerHTML='<tr><td colspan="8" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Bookings Found</h6><p>No bookings match the selected filters</p></div></td></tr>';return;}
+    if(!bookings||!bookings.length){tbody.innerHTML='<tr><td colspan="7" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Bookings Found</h6><p>No bookings match the selected filters</p></div></td></tr>';return;}
     tbody.innerHTML=bookings.map(function(b){
       var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      var sc=STATUS_CLASSES[b.status]||'st-pending';
-      return '<tr><td><code class="small">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></td>'+
-        '<td><div class="fw-semibold small">'+(b.customer?b.customer.name:'N/A')+'</div><div class="text-muted" style="font-size:0.68rem;">'+(b.customer?b.customer.phone:'')+'</div></td>'+
-        '<td class="small">'+(b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A')))+'</td>'+
-        '<td class="small">'+dt+'</td>'+
-        '<td class="fw-semibold">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
-        '<td><span class="st-badge '+sc+'">'+statusLabel(b.status)+'</span></td>'+
-        '<td class="small">'+(b.technician?b.technician.name:'<span class="text-muted">\u2014</span>')+'</td>'+
-        '<td class="text-center"><button class="btn btn-sm btn-outline-secondary" onclick="AU.Overview.viewDetail(\''+b._id+'\')" title="View"><i class="bi bi-eye"></i></button></td></tr>';
+      var needsResolution=bookingNeedsResolution(b);
+      var sc=needsResolution?'st-needs-resolution':(STATUS_CLASSES[b.status]||'st-pending');
+      var ref=b.bookingReference||b.workOrderNumber||'N/A';
+      var svc=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
+      var tech=b.technician?b.technician.name:'';
+      var actions=_ovViewBtn(b._id);
+      if(needsResolution) actions+='<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Resolve</a>';
+      return '<tr>'+
+        '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Overview.viewDetail(\''+b._id+'\')">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
+        '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
+        '<td class="small">'+svc+'</td>'+
+        '<td class="fw-bold text-nowrap">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
+        '<td><span class="st-badge '+sc+'">'+(needsResolution?'Needs Resolution':statusLabel(b.status))+'</span>'+(needsResolution?'<div class="small text-danger fw-semibold mt-1"><i class="bi bi-clock-history me-1"></i>Past schedule</div>':'')+'</td>'+
+        '<td>'+(tech?'<strong>'+tech+'</strong>':'<span class="text-muted">Unassigned</span>')+'</td>'+
+        '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+actions+'</div></td>'+
+        '</tr>';
     }).join('');
   };
 
@@ -2562,8 +2696,8 @@
       fetch('/api/admin/appointments/list?stage=pending_review&page=1&limit=500').then(function(r){return r.json();}),
       fetch('/api/admin/appointments/flow-stats').then(function(r){return r.json();})
     ]).then(function(res){
-      AU.Pending.renderStats(res[1].stages);
       _pdAll=res[0].bookings||[];
+      AU.Pending.renderStats(res[1].stages);
       AU.Pending.applyFilters(1);
     }).catch(function(e){console.error('Failed to load pending bookings:',e);});
   };
@@ -2615,14 +2749,14 @@
     document.getElementById('pendingCount').textContent=stages.PENDING_REVIEW?stages.PENDING_REVIEW.count||0:0;
     document.getElementById('awaitingCount').textContent=stages.ASSIGNMENT_QUEUE?stages.ASSIGNMENT_QUEUE.count||0:0;
     document.getElementById('rejectedCount').textContent=stages.REJECTED?stages.REJECTED.count||0:0;
-    document.getElementById('queueCount').textContent=stages.ASSIGNMENT_QUEUE?stages.ASSIGNMENT_QUEUE.count||0:0;
+    document.getElementById('queueCount').textContent=_pdAll.filter(function(b){return b.isReviewOverdue;}).length;
   };
 
   AU.Pending.renderTable=function(bookings){
     var tbody=document.getElementById('bookingsTableBody');
     var rc=document.getElementById('resultCount');if(rc)rc.textContent=bookings.length;
     if(!tbody)return;
-    if(!bookings.length){tbody.innerHTML='<tr><td colspan="8" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
+    if(!bookings.length){tbody.innerHTML='<tr><td colspan="7" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
     tbody.innerHTML=bookings.map(function(b){
       var dt=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       var isCOD=b.paymentMethod==='cod';
@@ -2634,17 +2768,17 @@
       var serviceType=AU.Pending.getServiceType(b);
       var typeMeta=serviceType==='mixed'?{label:'Mixed',icon:'bi-layers',style:'background:#ede9fe;color:#6d28d9;'}:serviceType==='repair'?{label:'Repair',icon:'bi-wrench-adjustable-circle',style:'background:#fef3c7;color:#92400e;'}:{label:'Core',icon:'bi-gear-wide-connected',style:'background:#dbeafe;color:#1e40af;'};
       var serviceDetails=AU.Pending.getServiceDetails(b);
-      return '<tr><td><code class="small">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></td>'+
-        '<td><div class="fw-semibold small">'+(b.customer?b.customer.name:'N/A')+'</div><div class="text-muted" style="font-size:0.7rem;">'+(b.customer?b.customer.email:'')+'</div></td>'+
+      var overdue=b.isReviewOverdue===true;
+      var ref=b.bookingReference||b.workOrderNumber||'N/A';
+      return '<tr'+(overdue?' style="background:#fff7ed;"':'')+'><td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div>'+(overdue?'<div class="mt-1"><span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span></div>':'')+'</td>'+
+        '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.email:'')+'</div></td>'+
         '<td><span class="badge" style="'+typeMeta.style+'"><i class="bi '+typeMeta.icon+' me-1"></i>'+typeMeta.label+'</span></td>'+
-        '<td>'+serviceDetails+'</td>'+
-        '<td><span class="small">'+dt+'</span></td>'+
-        '<td><div class="fw-semibold">\u20B1'+tot.toLocaleString()+'</div>'+(isCOD?'<div style="font-size:0.7rem;color:#64748b;">DP \u20B1'+dp.toLocaleString()+' + Bal \u20B1'+bal.toLocaleString()+'</div>':'')+'</td>'+
+        '<td class="small">'+serviceDetails+'</td>'+
+        '<td class="fw-bold text-nowrap">\u20B1'+tot.toLocaleString()+'</td>'+
         '<td><span class="payment-badge '+pc+'">'+pl+'</span>'+(isCOD&&b.paymentStatus!=='paid'?'<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>':'')+'</td>'+
-        '<td class="text-center"><div class="d-flex gap-1 justify-content-center">'+
-        '<button class="au-btn au-btn-ghost action-btn" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye"></i></button>'+
-        '<button class="au-btn au-btn-success action-btn" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg"></i> Verify</button>'+
-        '<button class="au-btn au-btn-danger action-btn" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg"></i></button>'+
+        '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+
+        '<button class="btn btn-sm btn-primary" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye me-1"></i>View</button>'+
+        (overdue?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
         '</div></td></tr>';
     }).join('');
   };
@@ -2703,6 +2837,33 @@
     }).catch(function(){showNotification({type:'error',title:'Error',message:'An error occurred while verifying payment.',duration:5000});});
   };
 
+  AU.Pending.openReviewReschedule=function(id){
+    document.getElementById('reviewRescheduleBookingId').value=id;
+    var now=new Date();
+    var localDate=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    document.getElementById('reviewRescheduleDate').min=localDate;
+    document.getElementById('reviewRescheduleDate').value='';
+    document.getElementById('reviewRescheduleTime').value='';
+    document.getElementById('reviewRescheduleNotes').value='';
+    document.getElementById('reviewRescheduleConfirmed').checked=false;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewRescheduleModal')).show();
+  };
+
+  AU.Pending.submitReviewReschedule=function(){
+    var id=document.getElementById('reviewRescheduleBookingId').value;
+    var newDate=document.getElementById('reviewRescheduleDate').value;
+    var newTime=document.getElementById('reviewRescheduleTime').value;
+    var notes=document.getElementById('reviewRescheduleNotes').value.trim();
+    var contactConfirmed=document.getElementById('reviewRescheduleConfirmed').checked;
+    if(!newDate||!newTime||!contactConfirmed){showNotification({type:'warning',title:'Confirmation Required',message:'Choose a future schedule and confirm that the customer agreed.',duration:4000});return;}
+    var button=document.getElementById('reviewRescheduleSubmit');button.disabled=true;
+    fetch('/api/admin/appointments/'+id+'/review-reschedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newDate:newDate,newTime:newTime,notes:notes,contactConfirmed:contactConfirmed})})
+    .then(function(r){return r.json().then(function(data){if(!r.ok)throw new Error(data.error||'Failed to update schedule.');return data;});})
+    .then(function(data){bootstrap.Modal.getInstance(document.getElementById('reviewRescheduleModal')).hide();showNotification({type:'success',title:'Schedule Updated',message:data.message||'The booking remains Pending Review.',duration:4500});AU.Pending.load();})
+    .catch(function(error){showNotification({type:'error',title:'Reschedule Failed',message:error.message,duration:5000});})
+    .finally(function(){button.disabled=false;});
+  };
+
   AU.Pending.openReject=function(id){
     document.getElementById('rejectBookingId').value=id;
     document.getElementById('rejectReason').value='';
@@ -2742,7 +2903,7 @@
       var b=data.booking;
       if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Booking not found</div>';return;}
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
-      document.getElementById('detailModalSubtitle').textContent='Complete booking information';
+      document.getElementById('detailModalSubtitle').textContent=bookingNeedsResolution(b)?'Past schedule \u00b7 Needs resolution':'Complete booking information';
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
     }).catch(function(e){
       console.error(e);
@@ -2966,8 +3127,9 @@
 
   // â•â•â• QUEUE â•â•â•
   AU.Queue={};
-  var _qCurrentBookingId=null,_qSelectedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[];
+  var _qCurrentBookingId=null,_qSelectedTechId=null,_qRecommendedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[];
 
+  var _qStatusFilter='all_active';
   AU.Queue.loadStats=function(){
     Promise.all([
       fetch('/api/admin/appointments/list?status=awaiting_assignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
@@ -2982,14 +3144,23 @@
       document.getElementById('statTotal').textContent=awaiting+reassign;
       document.getElementById('statEscalated').textContent=escalated;
       var tq=document.getElementById('tabQueueBadge');if(tq)tq.textContent=(awaiting+reassign)>0?(awaiting+reassign):'';
+      var allEl=document.getElementById('aqPillAll');if(allEl)allEl.textContent=awaiting+reassign||'';
+      var awEl=document.getElementById('aqPillAwaiting');if(awEl)awEl.textContent=awaiting||'';
+      var reEl=document.getElementById('aqPillReassign');if(reEl)reEl.textContent=reassign||'';
     }).catch(function(){});
+  };
+  AU.Queue.filterByStatus=function(btn,status){
+    _qStatusFilter=status;
+    document.querySelectorAll('#aqFilterPills .aj-pill').forEach(function(p){p.classList.remove('active');});
+    btn.classList.add('active');
+    AU.Queue.loadQueue(1);
+    AU.Queue.loadRecommendations();
   };
 
   AU.Queue.loadQueue=function(page){
     page=page||1;_qPage=page;
-    var filterEl=document.getElementById('aqFilterStatus');
     var searchEl=document.getElementById('aqSearchInput');
-    var filter=filterEl?filterEl.value:'awaiting_assignment';
+    var filter=_qStatusFilter||'all_active';
     var search=searchEl?searchEl.value:'';
     var url;
     if(filter==='all_active')url='/api/admin/appointments/list?page='+page+'&limit=20&status=awaiting_assignment,pending_reassignment';
@@ -2998,22 +3169,37 @@
     var container=document.getElementById('queueContainer');
     fetch(url).then(function(r){return r.json();}).then(function(data){
       if(!data.bookings||!data.bookings.length){container.innerHTML='<div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Bookings in Queue</h6><p>All assignments have been handled</p></div>';document.getElementById('aqPagination').innerHTML='';return;}
-      var statusColors={awaiting_assignment:'bg-warning text-dark',assigned:'bg-info text-dark',pending_reassignment:'bg-danger',payment_verified:'bg-success',confirmed:'bg-primary'};
+      var statusColors={awaiting_assignment:'bg-warning text-dark',assigned:'bg-info text-dark',pending_reassignment:'bg-danger',payment_verified:'bg-success',confirmed:'bg-primary','waiting-for-customer':'bg-warning text-dark'};
       container.innerHTML=data.bookings.map(function(b){
         var canAssign=['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1;
+        var isWaitingCustomer=b.status==='waiting-for-customer';
         var rc=b.reassignmentCount||0;
         var isEsc=b.escalated||rc>=3;
         var hist=b.cancellationHistory||[];
         var last=hist.length>0?hist[hist.length-1]:null;
-        var overdue=!!b.autoReschedulePending;
+        // Overdue when the scheduled service window has fully elapsed
+        // (mirrors server-side isBookingPast: endTime, else start + duration)
+        var overdue=false;
+        if(b.bookingDate){
+          var aqParseMin=function(t){if(!t)return NaN;var m=String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);if(!m)return NaN;var h=Number(m[1])%12;if(m[3]&&/pm/i.test(m[3]))h+=12;return h*60+Number(m[2]||0);};
+          var vd=new Date(b.bookingDate);
+          var eMin=aqParseMin(b.endTime);
+          if(!Number.isFinite(eMin)){var sMin=aqParseMin(b.startTime);eMin=Number.isFinite(sMin)?sMin+(Number(b.serviceDurationMinutes)||60):NaN;}
+          if(Number.isFinite(eMin))vd.setHours(Math.floor(eMin/60),eMin%60,0,0);else vd.setHours(23,59,59,999);
+          overdue=vd.getTime()<Date.now();
+        }
+        if(!overdue)overdue=!!b.autoReschedulePending;
         var custName=(b.customer?b.customer.name:'').replace(/'/g,"\\'");
         var servName=((b.service?b.service.name:'')||(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'')).replace(/'/g,"\\'");
-        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(overdue?'<span class="aq-overdue-badge"><i class="bi bi-alarm-fill"></i>Overdue — Reschedule</span>':'')+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+statusLabel(b.status)+'</span></div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
-        (overdue?'<div class="aq-reassign-alert aq-overdue-alert"><i class="bi bi-alarm me-1"></i><strong>Exceeded Schedule</strong> \u2014 No technician was assigned before the scheduled time. Reschedule this appointment.</div>':'')+
+        var schedDate=b.bookingDate?new Date(b.bookingDate).toISOString().slice(0,10):'';
+        var schedTime=String(b.startTime||'').replace(/'/g,"\\'");
+        var queueStatusLabel=statusLabel(b.status);
+        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(b.maintenance&&b.maintenance.isMaintenance?'<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-calendar2-check me-1"></i>Preventive Maintenance</span>':'')+(overdue?'<span class="aq-overdue-badge"><i class="bi bi-alarm-fill"></i>Past Schedule &middot; Needs Resolution</span>':'')+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+(isWaitingCustomer?'<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Waiting for Customer</span>':'')+(overdue?'':'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+queueStatusLabel+'</span>')+'</div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
+        (overdue?'<div class="aq-reassign-alert aq-overdue-alert"><i class="bi bi-alarm me-1"></i><strong>Exceeded Schedule</strong> \u2014 The scheduled time has already passed. Resolve this booking via the Resolution Center before assigning.</div>':'')+
         (b.status==='pending_reassignment'&&!overdue?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 Previous technician '+(last?last.action:'declined')+' this job.</div>':'')+
         (hist.length>0?'<div class="aq-cancel-history"><div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>'+hist.slice(-3).reverse().map(function(h){return '<div class="aq-cancel-history-item"><span class="action-badge action-'+(h.action==='auto_reschedule'?'reassigned':h.action)+'">'+h.action+'</span><span><strong>'+h.technicianName+'</strong> \u2014 '+(h.reason||'No reason')+' <small class="text-muted">'+new Date(h.timestamp).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</small></span></div>';}).join('')+'</div>':'')+
         (canAssign&&!overdue?'<div id="aqRec-'+b._id+'" class="border rounded-3 p-3 mt-3" style="background:#f8fafc"><div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div></div>':'')+
-        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?'<button class="au-btn au-btn-danger" onclick="AU.Queue.openReschedule(\''+b._id+'\',\''+custName+'\',\''+servName+'\')" style="font-size:0.75rem;"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>':'')+'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button></div>':'')+
+        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
         '</div>';
       }).join('');
       AU.Queue.loadRecommendations();
@@ -3030,7 +3216,7 @@
   function qEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
   AU.Queue.loadRecommendations=function(){
-    var filter=document.getElementById('aqFilterStatus')?.value||'awaiting_assignment';
+    var filter=_qStatusFilter||'all_active';
     var statuses=filter==='all_active'?'awaiting_assignment,pending_reassignment':filter;
     fetch('/api/admin/appointments/assignment-plan?status='+encodeURIComponent(statuses)).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(data){
       _qRecommendations={};
@@ -3089,7 +3275,7 @@
     fetch('/api/admin/appointments/verification-warnings').then(function(r){return r.json();}).then(function(d){
       var html='';
       if(d.overdueCount>0){
-        html+='<div class="aq-warning-banner overdue"><i class="bi bi-alarm-fill"></i><div><strong>'+d.overdueCount+' booking(s)</strong> exceeded their schedule without a technician assigned. Reschedule them before the next dispatch cycle.</div><button class="au-btn au-btn-danger aq-wb-btn" onclick="document.getElementById(\'aqFilterStatus\').value=\'pending_reassignment\';AU.Queue.loadQueue(1);"><i class="bi bi-calendar-event me-1"></i>Review & Reschedule</button></div>';
+        html+='<div class="aq-warning-banner overdue"><i class="bi bi-alarm-fill"></i><div><strong>'+d.overdueCount+' booking(s)</strong> exceeded their schedule without a technician assigned. Review the approved outcome in the Resolution Center before continuing.</div><a class="au-btn au-btn-danger aq-wb-btn" href="/admin/operations/resolution-center?source=booking&amp;issue=past_date"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a></div>';
       }
       if(d.verifyCount>0){
         html+='<div class="aq-warning-banner verify"><i class="bi bi-exclamation-circle-fill"></i><div><strong>'+d.verifyCount+' booking(s)</strong> need verification before their schedule time. Verify payments and assignments to avoid delays.</div></div>';
@@ -3171,8 +3357,8 @@
     });
   };
 
-  AU.Queue.openAssignModal=function(bookingId,customerName,serviceName){
-    _qCurrentBookingId=bookingId;_qSelectedTechId=null;_qEquipment=[];
+  AU.Queue.openAssignModal=function(bookingId,customerName,serviceName,bookingDate,startTime){
+    _qCurrentBookingId=bookingId;_qSelectedTechId=null;_qRecommendedTechId=null;_qEquipment=[];
 
     var modalEl=document.getElementById('assignModal');
     var mapEl=document.getElementById('assignMapContainer');
@@ -3181,6 +3367,8 @@
     document.getElementById('assignServiceInfo').textContent=serviceName;
     document.getElementById('assignNotes').value='';
     document.getElementById('assignPriority').value='normal';
+    document.getElementById('assignDate').value=bookingDate||'';
+    document.getElementById('assignTimeSlot').value=startTime||'';
     document.getElementById('btnConfirmAssign').disabled=true;
 
     document.getElementById('aiRecommendName').textContent='—';
@@ -3189,6 +3377,7 @@
     document.getElementById('assignFooterSub').textContent='—';
     document.getElementById('techCountBadge').textContent='—';
     document.getElementById('assignAvailabilityHint').textContent='';
+    document.getElementById('assignMapTechCount').textContent='0 technicians';
     // Core and repair bookings use the same dispatch modal. Inventory is
     // prepared by the technician only after accepting the assignment.
     var adminEqSection=document.getElementById('adminAssignmentEquipmentSection');
@@ -3244,8 +3433,8 @@
       var avail=data.available||[];
       var unavail=data.offlinePresent||[];
 
-      var eligibleCount=avail.length+(unavail.length||0);
-      document.getElementById('techCountBadge').textContent=(eligibleCount>0?eligibleCount:0);
+      document.getElementById('techCountBadge').textContent=avail.length;
+      document.getElementById('assignAvailabilityHint').textContent=avail.length+' available'+(unavail.length?' · '+unavail.length+' unavailable':'');
 
       var ai=data.aiRecommendation||data.ai||data.recommendation||null;
 
@@ -3326,26 +3515,26 @@
         document.getElementById('aiRecommendReason').textContent='—';
         document.getElementById('aiRecommendSection').style.display='none';
       }
+      _qRecommendedTechId=aiTechId?String(aiTechId):null;
 
       if(!avail.length&&!unavail.length){
         container.innerHTML='<div class="alert alert-warning small mb-0">No eligible technicians found.</div>';
-        document.getElementById('assignLocationSub').textContent='No location available';
-        return;
+        document.getElementById('assignAvailabilityHint').textContent='No technicians are eligible for this schedule';
       }
 
       // Render technician cards
-      var html='';
+      var html=!avail.length&&!unavail.length?'<div class="alert alert-warning small mb-0">No eligible technicians found. Review attendance, leave, schedule conflicts, and capacity.</div>':'';
       if(avail.length>0){
         html+='<div class="aq-tech-list">'+avail.map(function(t){
           var isRecommended=(aiTechId&&String(t._id)===String(aiTechId));
-          var selectedClass=isRecommended?' selected':'';
+          var selectedClass='';
           var statusColor=t.availabilityStatus==='Available'?'#22c55e':(t.availabilityStatus==='Online'?'#f59e0b':'#94a3b8');
           var recommendedBadge=isRecommended?'<span class="badge" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;font-weight:600;font-size:0.65rem;padding:2px 6px;border-radius:6px;">AI Recommended</span>':'';
           var dist=t.distanceKm!=null?'<span class="aq-tech-badge"><i class="bi bi-geo me-1"></i>'+t.distanceKm+' km</span>':'';
           var eta=t.etaMin!=null?'<span class="aq-tech-badge"><i class="bi bi-clock me-1"></i>'+t.etaMin+' min</span>':'';
           var rating=t.rating?'<div class="aq-tech-card-rating">\u2605 '+Number(t.rating).toFixed(1)+'</div>':'';
           var jobs='<span class="aq-tech-badge"><i class="bi bi-briefcase me-1"></i>'+(t.currentWorkload||0)+' jobs</span>';
-          var radioChecked=isRecommended?'checked':'';
+          var radioChecked='';
           return '<div class="aq-tech-option'+selectedClass+'" onclick="AU.Queue.selectTech(\''+t._id+'\',this)" data-tech-id="'+t._id+'">'+
             '<div class="aq-tech-card-top">'+
               '<div class="aq-tech-avatar" style="--status-color:'+statusColor+';">'+((t.name||'?')[0].toUpperCase())+'</div>'+
@@ -3382,30 +3571,11 @@
       }
       container.innerHTML=html;
 
-      // Auto-select AI recommended (if present in available list)
-      if(aiTechId){
-        var firstRecEl=document.querySelector('.aq-tech-option[data-tech-id="'+String(aiTechId)+'"]');
-        if(firstRecEl && !firstRecEl.classList.contains('disabled')){
-          AU.Queue.selectTech(String(aiTechId), firstRecEl);
-          document.getElementById('assignFooterSub').textContent='AI recommended technician selected';
-        }else{
-          // if AI id didn't match exactly, attempt by scanning card names
-          var aiNameText = (document.getElementById('aiRecommendName')||{}).textContent || '';
-          if(aiNameText){
-            var cardEl=[].slice.call(document.querySelectorAll('.aq-tech-option')).find(function(el){
-              var nm=(el.querySelector('.aq-tech-name span')||{}).textContent||'';
-              return nm && nm.toLowerCase()===aiNameText.toLowerCase();
-            });
-            if(cardEl){
-              var tId=cardEl.getAttribute('data-tech-id');
-              if(tId && !cardEl.classList.contains('disabled')){
-                AU.Queue.selectTech(String(tId), cardEl);
-                document.getElementById('assignFooterSub').textContent='AI recommended technician selected';
-              }
-            }
-          }
-        }
-      }
+      // Keep assignment explicit. The recommendation is highlighted, but the
+      // admin must select it (or another technician) before confirmation.
+      _qSelectedTechId=null;
+      document.getElementById('btnConfirmAssign').disabled=true;
+      document.getElementById('assignFooterSub').textContent='Select a technician to continue';
 
       // Leaflet map
       ensureAssignLeaflet().then(function(){
@@ -3422,16 +3592,18 @@
           bookingLoc=parseCoords(data.serviceCoordinates||data.service_coordinates);
         }
 
-        // Collect markers (booking + up to 8 techs)
-        var techsToPlot=avail.slice(0,8);
+        // Plot both eligible and unavailable technicians so dispatch sees the
+        // full field picture without treating an unavailable tech as assignable.
+        var techsToPlot=avail.concat(unavail).slice(0,12);
         var markers=[];
         techsToPlot.forEach(function(t){
           var loc=parseCoords(t.location||t.coords||t.coordinates||t.geo||t.position);
           if(loc) markers.push({tech:t,loc:loc});
         });
+        document.getElementById('assignMapTechCount').textContent=markers.length+' technician'+(markers.length===1?'':'s')+' on map';
 
-        if(markers.length){
-          document.getElementById('assignLocationSub').textContent='Location preview';
+        if(bookingLoc||markers.length){
+          document.getElementById('assignLocationSub').textContent='Technician locations relative to the service address';
 
           // create map (destroy if already exists)
           if(window.__assignMap){
@@ -3464,13 +3636,14 @@
           markers.forEach(function(m){
             var isRec=(aiTechId&&m.tech && m.tech._id && String(m.tech._id)===String(aiTechId));
             var isNearest=nearestTech && m.tech && nearestTech.tech && m.tech._id === nearestTech.tech._id;
-            var iconColor=isRec?'#4f46e5':isNearest?'#22c55e':'#16a34a';
+            var isUnavailable=!!m.tech.reason;
+            var iconColor=isUnavailable?'#94a3b8':isRec?'#4f46e5':isNearest?'#22c55e':'#16a34a';
             var size=isNearest?36:32;
             var border=isNearest?'3px solid #fbbf24':'3px solid #fff';
             var labelHtml=isNearest?'<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;white-space:nowrap;">Nearest</div>':'';
             var iconHtml='<div style="position:relative;"><div style="width:'+size+'px;height:'+size+'px;background:'+iconColor+';border-radius:50%;border:'+border+';box-shadow:0 3px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;"><i class="bi bi-person-fill" style="color:#fff;font-size:'+(isNearest?16:14)+'px;"></i></div>'+labelHtml+'</div>';
             var ti=L.divIcon({className:'',html:iconHtml,iconSize:[size,size],iconAnchor:[size/2,size/2]});
-            var popupContent='<b>'+m.tech.name+'</b>'+(isNearest?' <span style="color:#f59e0b;">★ Nearest</span>':'')+'<br/><span style="font-size:0.8rem;color:#666;">'+(m.tech.availabilityStatus||'')+'</span>'+(m.tech.distanceKm!=null?'<br/>'+m.tech.distanceKm+' km away':'')+(m.tech.etaMin!=null?'<br/>ETA ~'+m.tech.etaMin+' min':'');
+            var popupContent='<b>'+m.tech.name+'</b>'+(isNearest?' <span style="color:#f59e0b;">★ Nearest</span>':'')+'<br/><span style="font-size:0.8rem;color:#666;">'+(isUnavailable?(m.tech.reason||'Unavailable'):(m.tech.availabilityStatus||''))+'</span>'+(m.tech.distanceKm!=null?'<br/>'+m.tech.distanceKm+' km away':'')+(m.tech.etaMin!=null?'<br/>ETA ~'+m.tech.etaMin+' min':'');
             L.marker([m.loc.lat,m.loc.lng],{icon:ti}).addTo(window.__assignMap).bindPopup(popupContent);
           });
 
@@ -3498,9 +3671,11 @@
           }, 600);
         }else{
           document.getElementById('assignLocationSub').textContent='Map not available';
+          document.getElementById('assignMapTechCount').textContent='0 technicians';
         }
       }).catch(function(){
         document.getElementById('assignLocationSub').textContent='Map unavailable';
+        document.getElementById('assignMapTechCount').textContent='0 technicians';
       });
 
       // If no AI auto-selected, disable confirm unless user picks
@@ -3512,6 +3687,7 @@
     }).catch(function(){
       container.innerHTML='<div class="alert alert-danger small">Failed to load technicians</div>';
       document.getElementById('assignLocationSub').textContent='Map not available';
+      document.getElementById('assignMapTechCount').textContent='0 technicians';
     });
   };
 
@@ -3526,6 +3702,19 @@
     var nameEl=(el.querySelector('.aq-tech-card-info .aq-tech-name')||{}).firstChild;
     var techName=nameEl?nameEl.textContent.trim():'Technician';
     document.getElementById('assignFooterSub').textContent='Selected: '+techName;
+  };
+
+  AU.Queue.selectRecommended=function(){
+    if(!_qRecommendedTechId){
+      showNotification({type:'warning',title:'Recommendation Unavailable',message:'Select a technician from the available list.',duration:3000});
+      return;
+    }
+    var card=document.querySelector('#assignModal .aq-tech-option[data-tech-id="'+String(_qRecommendedTechId)+'"]');
+    if(!card||card.classList.contains('disabled')){
+      showNotification({type:'warning',title:'Technician Unavailable',message:'The recommended technician is no longer eligible. Choose another technician.',duration:4000});
+      return;
+    }
+    AU.Queue.selectTech(String(_qRecommendedTechId),card);
   };
 
   AU.Queue.updateSelectedToolId=function(){
@@ -3662,12 +3851,19 @@
       if(!b){body.innerHTML='<div class="alert alert-danger">Booking not found</div>';return;}
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Booking '+refText;
-      subtitle.textContent=refText;
+      var needsResolution=bookingNeedsResolution(b);
+      subtitle.textContent=needsResolution?'Past schedule \u00b7 Needs resolution':refText;
       body.innerHTML=buildDetailHTML(b,data);
-      if(['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1){
+      if(needsResolution){
+        var resolutionFooter=document.createElement('div');resolutionFooter.className='pm-footer';
+        resolutionFooter.innerHTML='<a class="btn btn-warning btn-sm fw-semibold" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
+        body.appendChild(resolutionFooter);
+      }else if(['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1){
         var footer=document.createElement('div');footer.className='pm-footer';
         var isRepair=b.serviceModel==='RepairService'||b.serviceType==='repair';
-        footer.innerHTML='<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Queue.openAssignModal(\''+b._id+'\',\''+(b.customer?b.customer.name:'').replace(/'/g,"\\'")+'\',\''+((b.service?b.service.name:'')||(isRepair?'Repair Service':'')).replace(/'/g,"\\'")+'\');},300);"><i class="bi bi-person-plus me-1"></i>Assign Technician</button><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
+        var detailScheduleDate=b.bookingDate?new Date(b.bookingDate).toISOString().slice(0,10):'';
+        var detailScheduleTime=String(b.startTime||'').replace(/'/g,"\\'");
+        footer.innerHTML='<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Queue.openAssignModal(\''+b._id+'\',\''+(b.customer?b.customer.name:'').replace(/'/g,"\\'")+'\',\''+((b.service?b.service.name:'')||(isRepair?'Repair Service':'')).replace(/'/g,"\\'")+'\',\''+detailScheduleDate+'\',\''+detailScheduleTime+'\');},300);"><i class="bi bi-person-plus me-1"></i>Assign Technician</button><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
         body.appendChild(footer);
       }
     }).catch(function(e){body.innerHTML='<div class="alert alert-danger">Failed to load booking details: '+e.message+'</div>';});
@@ -3715,27 +3911,23 @@
     var container=document.getElementById('jobsContainer');
     var countBadge=document.getElementById('activeJobCount');
     if(countBadge) countBadge.textContent=bookings?bookings.length:0;
-    if(!bookings||!bookings.length){container.innerHTML='<tr><td colspan="8" class="text-center py-5 text-muted"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No In Progress Jobs</h6><p>All clear \u2014 no jobs in this status</p></div></td></tr>';return;}
-    var statusColors={confirmed:'#10b981','on-the-way':'#3b82f6',arrived:'#f59e0b','in-progress':'#8b5cf6'};
-    var statusBg={confirmed:'#d1fae5','on-the-way':'#dbeafe',arrived:'#fef3c7','in-progress':'#ede9fe'};
+    if(!bookings||!bookings.length){container.innerHTML='<tr><td colspan="7" class="text-center py-5 text-muted"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No In Progress Jobs</h6><p>All clear \u2014 no jobs in this status</p></div></td></tr>';return;}
     container.innerHTML=bookings.map(function(b){
       var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      var sl=STATUS_LABELS[b.status]||b.status;
-      var sc=statusColors[b.status]||'#3b82f6';
-      var sbg=statusBg[b.status]||'#dbeafe';
+      var sc=STATUS_CLASSES[b.status]||'st-pending';
       var svcName=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
-      var techName=b.technician&&b.technician.name?b.technician.name:'<span class="text-muted">Unassigned</span>';
-      var amount='\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString();
+      var techName=b.technician&&b.technician.name?b.technician.name:'';
       var ref=b.bookingReference||b.workOrderNumber||'N/A';
+      var actions='<button class="btn btn-sm btn-primary" onclick="AU.Active.viewDetail(\''+b._id+'\')"><i class="bi bi-eye me-1"></i>View</button>';
+      actions+='<button class="btn btn-sm btn-outline-info" onclick="AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);" title="Track"><i class="bi bi-geo-alt me-1"></i>Track</button>';
       return '<tr>'+
-        '<td><code>'+ref+'</code></td>'+
-        '<td><div class="fw-semibold" style="font-size:0.84rem;color:#0f172a;">'+(b.customer?b.customer.name:'N/A')+'</div><div style="font-size:0.72rem;color:#94a3b8;">'+(b.customer?b.customer.phone:'')+'</div></td>'+
-        '<td style="font-size:0.82rem;color:#64748b;"><i class="bi bi-tools me-1"></i>'+svcName+'</td>'+
-        '<td style="font-size:0.82rem;">'+techName+'</td>'+
-        '<td style="font-size:0.78rem;color:#94a3b8;"><i class="bi bi-calendar3 me-1"></i>'+dt+'</td>'+
-        '<td style="font-weight:600;color:#059669;font-size:0.86rem;">'+amount+'</td>'+
-        '<td><span style="background:'+sbg+';color:'+sc+';padding:4px 10px;border-radius:8px;font-size:0.7rem;font-weight:700;">'+sl+'</span></td>'+
-        '<td class="text-center"><div class="d-flex gap-1 justify-content-center"><button class="au-btn au-btn-ghost" onclick="AU.Active.viewDetail(\''+b._id+'\')" style="font-size:0.72rem;padding:6px 10px;"><i class="bi bi-eye"></i></button><button class="au-btn au-btn-ghost" onclick="AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);" title="Track" style="padding:6px 10px;"><i class="bi bi-geo-alt"></i></button></div></td>'+
+        '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Active.viewDetail(\''+b._id+'\')">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
+        '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
+        '<td class="small">'+svcName+'</td>'+
+        '<td>'+(techName?'<strong>'+techName+'</strong>':'<span class="text-muted">Unassigned</span>')+'</td>'+
+        '<td class="fw-bold text-nowrap">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
+        '<td><span class="st-badge '+sc+'">'+(STATUS_LABELS[b.status]||b.status)+'</span></td>'+
+        '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+actions+'</div></td>'+
       '</tr>';
     }).join('');
   };
@@ -3992,43 +4184,42 @@
     var container=document.getElementById('cjJobsContainer');
     if(!container)return;
     if(!bookings||!bookings.length){
-      container.innerHTML='<div class="col-12"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Completed Jobs</h6><p>Completed jobs will appear here</p></div></div>';
+      container.innerHTML='<div class="au-table-card workflow-overview-table"><div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><tbody><tr><td colspan="7" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Completed Jobs</h6><p>Completed jobs will appear here</p></div></td></tr></tbody></table></div></div>';
       return;
     }
-    container.innerHTML='<div class="col-12"><div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead style="background:#f8fafc;"><tr>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Reference</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Customer</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Service</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Technician</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;">Date</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:right;">Amount</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Status</th>'+
-      '<th style="font-size:0.75rem;font-weight:600;color:#64748b;padding:12px 16px;text-align:center;">Action</th>'+
+    container.innerHTML='<div class="au-table-card workflow-overview-table"><div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr>'+
+      '<th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th>Amount</th><th>Status</th><th class="text-center">Actions</th>'+
       '</tr></thead><tbody>'+
       bookings.map(function(b){
-        var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
         var svc=b.service?b.service.name:(b.services&&b.services[0]?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
-        return '<tr style="border-bottom:1px solid #f1f5f9;">'+
-          '<td style="padding:12px 16px;"><code style="font-size:0.78rem;background:#f1f5f9;padding:3px 8px;border-radius:6px;">'+(b.bookingReference||b.workOrderNumber||'N/A')+'</code></td>'+
-          '<td style="padding:12px 16px;"><div style="font-weight:600;font-size:0.85rem;color:#1e293b;">'+(b.customer?b.customer.name:'N/A')+'</div><div style="font-size:0.72rem;color:#64748b;">'+(b.customer?b.customer.phone:'')+'</div></td>'+
-          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+svc+'</div></td>'+
-          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+(b.technician&&b.technician.name?b.technician.name:'Unassigned')+'</div></td>'+
-          '<td style="padding:12px 16px;"><div style="font-size:0.82rem;color:#334155;">'+dt+'</div></td>'+
-          '<td style="padding:12px 16px;text-align:right;"><div style="font-weight:700;font-size:0.88rem;color:#059669;">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div style="font-size:0.68rem;color:#64748b;">'+(b.paymentMethod||'cod').toUpperCase()+'</div></td>'+
-          '<td style="padding:12px 16px;text-align:center;"><span style="background:#dcfce7;color:#166534;padding:4px 10px;border-radius:20px;font-size:0.7rem;font-weight:600;">Completed</span></td>'+
-          '<td style="padding:12px 16px;text-align:center;"><button class="au-btn au-btn-ghost" onclick="AU.Completed.viewDetail(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button></td>'+
+        var ref=b.bookingReference||b.workOrderNumber||'N/A';
+        return '<tr>'+
+          '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Completed.viewDetail(\''+b._id+'\')">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
+          '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
+          '<td class="small">'+svc+'</td>'+
+          '<td>'+(b.technician&&b.technician.name?'<strong>'+b.technician.name+'</strong>':'<span class="text-muted">Unassigned</span>')+'</td>'+
+          '<td class="fw-bold text-nowrap">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
+          '<td><span class="st-badge st-completed">Completed</span></td>'+
+          '<td><div class="d-flex flex-wrap justify-content-center gap-1"><button class="btn btn-sm btn-primary" onclick="AU.Completed.viewDetail(\''+b._id+'\')"><i class="bi bi-eye me-1"></i>View</button></div></td>'+
           '</tr>';
       }).join('')+
-      '</tbody></table></div></div></div>';
+      '</tbody></table></div></div>';
   };
 
   AU.Completed._renderPagination=function(pag){
+    var info=document.getElementById('cjPagInfo');
     var el=document.getElementById('cjPagination');
+    if(info) info.textContent=pag&&pag.total?'Showing '+(((pag.page-1)*pag.limit)+1)+'-'+Math.min(pag.page*pag.limit,pag.total)+' of '+pag.total:'Showing 0 of 0';
     if(!el)return;
     if(!pag||pag.pages<=1){el.innerHTML='';return;}
-    var h='<ul class="pagination pagination-sm">';
-    for(var i=1;i<=pag.pages;i++)h+='<li class="page-item '+(i===pag.page?'active':'')+'"><button class="page-link" onclick="AU.Completed.goPage('+i+')">'+i+'</button></li>';
-    el.innerHTML=h+'</ul>';
+    var h='<li class="page-item '+(pag.page===1?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Completed.goPage('+(pag.page-1)+');return false;">&laquo;</a></li>';
+    var blockSize=10;
+    var start=Math.floor((pag.page-1)/blockSize)*blockSize+1;
+    var end=Math.min(start+blockSize-1, pag.pages);
+    for(var i=start;i<=end;i++) h+='<li class="page-item '+(i===pag.page?'active':'')+'"><a class="page-link" href="#" onclick="AU.Completed.goPage('+i+');return false;">'+i+'</a></li>';
+    h+='<li class="page-item '+(pag.page===pag.pages?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Completed.goPage('+(pag.page+1)+');return false;">&raquo;</a></li>';
+    el.innerHTML=h;
   };
 
   AU.Completed.goPage=function(p){_cjPage=p;AU.Completed.load();};
@@ -4071,11 +4262,8 @@
   var rqSearchEl=document.getElementById('rqSearchInput');
   if(rqSearchEl){var rqST;rqSearchEl.addEventListener('input',function(){clearTimeout(rqST);rqST=setTimeout(function(){AU.Pending.renderRepairRequests();},300);});}
 
-  var aqFilterEl=document.getElementById('aqFilterStatus');
-  if(aqFilterEl)aqFilterEl.addEventListener('change',function(){AU.Queue.loadQueue(1);AU.Queue.loadStats();});
   var aqSearchEl=document.getElementById('aqSearchInput');
   if(aqSearchEl){var aqST;aqSearchEl.addEventListener('input',function(){clearTimeout(aqST);aqST=setTimeout(function(){AU.Queue.loadQueue(1);},300);});}
-
   var actSearchEl=document.getElementById('activeSearchInput');
   if(actSearchEl){var actST;actSearchEl.addEventListener('input',function(){clearTimeout(actST);actST=setTimeout(function(){AU.Active.load();},400);});}
 
@@ -4211,6 +4399,7 @@
     }
     loaded[initialTab]=true;
     loadTab(initialTab);
+    loadBookingResolutionCount();
   }
   if(typeof bootstrap!=='undefined'){auInit();}
   else{window.addEventListener('load',auInit);}
@@ -4322,9 +4511,44 @@ window.AU = window.AU || {};
   if(!button||!body||!modal)return;
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const itemRows=items=>(items||[]).map((item,index)=>`<div class="border rounded-3 p-2 mb-2"><strong>${index+1}. ${esc(item.name||item.type||'Service')}</strong><div class="small text-muted">${esc([item.type,item.brand,item.model,item.applianceTypeName].filter(Boolean).join(' · '))} · Qty ${Number(item.quantity||1)}</div>${item.problemDescription||item.repairIssue?`<div class="small mt-1">${esc(item.problemDescription||item.repairIssue)}</div>`:''}</div>`).join('')||'<div class="text-muted small">No service items</div>';
+  const formatChangeSchedule=schedule=>{
+    if(!schedule?.date||!schedule?.startTime)return'';
+    const date=new Date(schedule.date);
+    const dateLabel=Number.isNaN(date.getTime())?String(schedule.date):date.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    return `${esc(dateLabel)} at ${esc(schedule.startTime)}${schedule.endTime?` - ${esc(schedule.endTime)}`:''}`;
+  };
+
+  const changeSchedulePanel=row=>{
+    const requested=formatChangeSchedule(row.requestedSchedule);
+    const adminProposed=formatChangeSchedule(row.proposedSchedule);
+    if(!requested&&!adminProposed)return'';
+    return `<div class="row g-3 mt-1">
+      ${requested?`<div class="col-md-6"><div class="h-100 rounded-3 p-3" style="background:#eff6ff;border:1px solid #bfdbfe"><div class="small fw-bold text-uppercase text-primary mb-1"><i class="bi bi-calendar2-check me-1"></i>Customer Requested Schedule</div><div class="fw-semibold text-dark">${requested}</div>${row.requestedSchedule?.notes?`<div class="small text-muted mt-1">${esc(row.requestedSchedule.notes)}</div>`:''}</div></div>`:''}
+      ${adminProposed?`<div class="col-md-6"><div class="h-100 rounded-3 p-3" style="background:#fffbeb;border:1px solid #fde68a"><div class="small fw-bold text-uppercase text-warning-emphasis mb-1"><i class="bi bi-calendar-event me-1"></i>Admin Proposed Schedule</div><div class="fw-semibold text-dark">${adminProposed}</div></div></div>`:''}
+    </div>`;
+  };
   async function load(){
     body.innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-    try{const response=await fetch('/api/appointments/service-change-requests/pending',{credentials:'include'}),data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to load requests');const rows=data.requests||[];badge.textContent=rows.length;badge.style.display=rows.length?'inline-block':'none';body.innerHTML=rows.length?rows.map(row=>`<article class="card border mb-3" data-booking="${row.bookingId}" data-request="${row._id}"><div class="card-header bg-white d-flex justify-content-between"><div><strong>${esc(row.bookingReference||row.bookingId)}</strong><div class="small text-muted">${esc(row.customer?.name||'Customer')} · ${new Date(row.requestedAt).toLocaleString()}</div></div><span class="badge bg-warning text-dark">${esc(row.status)}</span></div><div class="card-body"><div class="row g-3"><div class="col-md-6"><div class="small fw-bold text-uppercase text-muted mb-2">Before</div>${itemRows(row.beforeServices)}</div><div class="col-md-6"><div class="small fw-bold text-uppercase text-primary mb-2">Proposed</div>${itemRows(row.proposedServices)}</div></div><div class="small mt-2"><strong>Change:</strong> ${Number(row.summary?.added||0)} added, ${Number(row.summary?.edited||0)} edited, ${Number(row.summary?.removed||0)} removed${row.reason?' · '+esc(row.reason):''}</div></div><div class="card-footer bg-white d-flex flex-wrap justify-content-end gap-2"><button class="btn btn-sm btn-outline-warning sc-schedule">Propose Schedule</button><button class="btn btn-sm btn-outline-danger sc-reject">Reject</button><button class="btn btn-sm btn-success sc-approve">Approve</button></div></article>`).join(''):'<div class="text-center text-muted py-5"><i class="bi bi-check2-circle fs-2 d-block mb-2"></i>No pending service changes.</div>';attach();}catch(error){body.innerHTML=`<div class="alert alert-danger">${esc(error.message)}</div>`;}
+    try {
+      const response=await fetch('/api/appointments/service-change-requests/pending',{credentials:'include'});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||'Unable to load requests');
+      const rows=data.requests||[];
+      badge.textContent=rows.length;
+      badge.style.display=rows.length?'inline-block':'none';
+      body.innerHTML=rows.length?rows.map(row=>{
+        const added=Number(row.summary?.added||0),edited=Number(row.summary?.edited||0),removed=Number(row.summary?.removed||0);
+        const serviceSummary=added||edited||removed?`${added} added, ${edited} edited, ${removed} removed`:'No service-item changes';
+        return `<article class="card border mb-3" data-booking="${row.bookingId}" data-request="${row._id}">
+          <div class="card-header bg-white d-flex justify-content-between"><div><strong>${esc(row.bookingReference||row.bookingId)}</strong><div class="small text-muted">${esc(row.customer?.name||'Customer')} · ${new Date(row.requestedAt).toLocaleString()}</div></div><span class="badge bg-warning text-dark">${esc(row.status)}</span></div>
+          <div class="card-body"><div class="row g-3"><div class="col-md-6"><div class="small fw-bold text-uppercase text-muted mb-2">Before</div>${itemRows(row.beforeServices)}</div><div class="col-md-6"><div class="small fw-bold text-uppercase text-primary mb-2">Proposed Services</div>${itemRows(row.proposedServices)}</div></div>${changeSchedulePanel(row)}<div class="small mt-3"><strong>Change:</strong> ${serviceSummary}${row.reason?' · '+esc(row.reason):''}</div></div>
+          <div class="card-footer bg-white d-flex flex-wrap justify-content-end gap-2"><button class="btn btn-sm btn-outline-warning sc-schedule">Propose Different Schedule</button><button class="btn btn-sm btn-outline-danger sc-reject">Reject</button><button class="btn btn-sm btn-success sc-approve">Approve Requested Changes</button></div>
+        </article>`;
+      }).join(''):'<div class="text-center text-muted py-5"><i class="bi bi-check2-circle fs-2 d-block mb-2"></i>No pending service changes.</div>';
+      attach();
+    } catch(error) {
+      body.innerHTML=`<div class="alert alert-danger">${esc(error.message)}</div>`;
+    }
   }
   function attach(){body.querySelectorAll('article[data-request]').forEach(card=>{const decide=async(action,payload={})=>{const reason=payload.reason??prompt(action==='reject'?'Reason for rejection:':'Decision note (optional):','');if(reason===null)return;const response=await fetch(`/api/appointments/${card.dataset.booking}/service-change-requests/${card.dataset.request}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({action,reason,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Decision failed');await load();};card.querySelector('.sc-approve').onclick=()=>decide('approve').catch(e=>alert(e.message));card.querySelector('.sc-reject').onclick=()=>decide('reject').catch(e=>alert(e.message));card.querySelector('.sc-schedule').onclick=()=>{const date=prompt('Proposed date (YYYY-MM-DD):');if(!date)return;const startTime=prompt('Proposed start time (HH:MM):');if(!startTime)return;decide('propose_schedule',{date,startTime}).catch(e=>alert(e.message));};});}
   button.onclick=()=>{bootstrap.Modal.getOrCreateInstance(modal).show();load();};load();

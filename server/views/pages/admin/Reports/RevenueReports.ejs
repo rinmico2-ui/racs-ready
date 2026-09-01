@@ -4,6 +4,7 @@
   <style>
     .rr-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}.rr-card{background:#fff;border:1px solid #e5ebf3;border-radius:16px;box-shadow:0 3px 18px rgba(15,23,42,.045)}.rr-kpi{padding:18px;position:relative;overflow:hidden}.rr-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--a,#2563eb)}.rr-kpi-top{display:flex;justify-content:space-between;align-items:center}.rr-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;color:var(--a);background:color-mix(in srgb,var(--a) 12%,white)}.rr-delta{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:999px;background:#ecfdf5;color:#047857}.rr-delta.down{background:#fef2f2;color:#b91c1c}.rr-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.055em;color:#64748b;margin-top:13px}.rr-value{font:700 1.38rem/1.2 Outfit,Inter,sans-serif;color:#0f172a;margin-top:4px}.rr-meta{font-size:.68rem;color:#94a3b8;margin-top:5px;line-height:1.4}.rr-section{display:flex;align-items:center;justify-content:space-between;margin:28px 0 12px}.rr-section h2{font:700 .9rem Outfit,Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#334155;border-left:4px solid #2563eb;padding-left:10px;margin:0}.rr-two{display:grid;grid-template-columns:2fr 1fr;gap:16px}.rr-equal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.rr-three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.rr-head{padding:15px 18px;border-bottom:1px solid #edf1f6;display:flex;justify-content:space-between;align-items:center}.rr-head h3{font-size:.82rem;font-weight:700;color:#1e293b;margin:0}.rr-body{padding:16px 18px}.rr-chart{height:280px;padding:16px}.rr-badge{font-size:.63rem;font-weight:700;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#475569}.rr-source{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rr-source-card{padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #edf2f7}.rr-source-card.service{border-top:4px solid #2563eb}.rr-source-card.orders{border-top:4px solid #10b981}.rr-source-card.pos{border-top:4px solid #f59e0b}.rr-source-title{font-size:.75rem;font-weight:700;color:#334155}.rr-source-value{font:700 1.5rem Outfit,Inter,sans-serif;margin:8px 0 4px;color:#0f172a}.rr-progress{height:7px;background:#e9eef5;border-radius:99px;overflow:hidden;margin-top:12px}.rr-progress>span{display:block;height:100%;border-radius:99px}.rr-insight{padding:16px;display:flex;gap:11px}.rr-insight-icon{width:36px;height:36px;flex:none;border-radius:10px;display:grid;place-items:center;background:#eff6ff;color:#2563eb}.rr-insight.warning .rr-insight-icon{background:#fffbeb;color:#d97706}.rr-insight.danger .rr-insight-icon{background:#fef2f2;color:#dc2626}.rr-insight.success .rr-insight-icon{background:#ecfdf5;color:#059669}.rr-insight h4{font-size:.78rem;font-weight:700;margin:1px 0 4px;color:#1e293b}.rr-insight p{font-size:.7rem;line-height:1.45;color:#64748b;margin:0}.rr-table{width:100%;border-collapse:collapse;font-size:.78rem}.rr-table th{padding:9px 8px;border-bottom:1px solid #e2e8f0;color:#94a3b8;font-size:.63rem;text-transform:uppercase;letter-spacing:.05em}.rr-table td{padding:11px 8px;border-bottom:1px solid #f1f5f9;color:#475569}.rr-table tr:last-child td{border:0}.rr-type{font-size:.62rem;font-weight:700;border-radius:99px;padding:4px 8px;background:#eff6ff;color:#2563eb}.rr-type.order{background:#ecfdf5;color:#047857}.rr-type.pos{background:#fffbeb;color:#b45309}.rr-status{font-size:.62rem;font-weight:700;border-radius:99px;padding:4px 8px;background:#fffbeb;color:#b45309}.rr-status.paid,.rr-status.verified,.rr-status.remitted,.rr-status.completed{background:#ecfdf5;color:#047857}.rr-note{padding:13px 16px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;font-size:.7rem;color:#92400e;line-height:1.5}.rr-actions{display:flex;gap:8px}.rr-btn{padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.3);font-size:.72rem;font-weight:700;text-decoration:none;color:#fff}.rr-btn.light{background:#fff;color:#1d4ed8}.rr-empty{text-align:center;color:#94a3b8;padding:24px}
     .rr-cost-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.rr-cost-metric{padding:15px;background:#f8fafc;border-radius:12px;border:1px solid #edf2f7}.rr-cost-metric .rr-value{font-size:1.08rem}.rr-service-detail summary{cursor:pointer;list-style:none}.rr-service-detail summary::-webkit-details-marker{display:none}.rr-resource-list{font-size:.68rem;color:#64748b;margin:6px 0 0;padding-left:16px}
+    .rr-collection-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
     /* --- Enterprise KPI Cards (matching Service Report) --- */
     .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:1.5rem}
     @media(max-width:1199px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
@@ -41,7 +42,7 @@
     .kpi-enterprise-sparkline{margin-top:4px;height:28px;position:relative}
     .kpi-enterprise-sparkline canvas{width:100%!important;height:100%!important}
     @media(max-width:767px){.kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}.kpi-enterprise-value{font-size:1.15rem}}
-    @media(max-width:1199px){.rr-grid,.rr-cost-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:900px){.rr-two,.rr-equal{grid-template-columns:1fr}.rr-three{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rr-grid,.rr-cost-grid{grid-template-columns:repeat(2,1fr)}.rr-three,.rr-source{grid-template-columns:1fr}.rr-value{font-size:1.15rem}.rr-actions{width:100%}.rr-btn{flex:1;text-align:center}}
+    @media(max-width:1199px){.rr-grid,.rr-cost-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:900px){.rr-two,.rr-equal{grid-template-columns:1fr}.rr-three{grid-template-columns:1fr 1fr}}@media(max-width:600px){.rr-grid,.rr-cost-grid,.rr-collection-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rr-three,.rr-source{grid-template-columns:1fr}.rr-value{font-size:1.15rem}.rr-actions{width:100%}.rr-btn{flex:1;text-align:center}}
     /* --- Report Section Navigation --- */
     .report-nav{position:fixed;right:1.5rem;top:9rem;transform:translateX(calc(100% + 1.5rem));opacity:0;pointer-events:none;z-index:110;display:flex;flex-direction:column;gap:8px;padding:10px;background:rgba(255,255,255,0.96);border:1px solid rgba(226,232,240,0.8);border-radius:14px;box-shadow:0 4px 20px rgba(15,23,42,0.06);overflow-y:auto;max-height:calc(100vh - 11rem);scrollbar-width:none;-webkit-overflow-scrolling:touch;backdrop-filter:blur(8px);transition:all 0.25s ease;width:fit-content}
     .report-nav.open{transform:translateX(0);opacity:1;pointer-events:auto}
@@ -197,61 +198,59 @@
     </div>
     <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="50">
       <div class="kpi-enterprise-top">
-        <div class="kpi-enterprise-icon cyan"><i class="bi bi-bank"></i></div>
-        <span class="kpi-enterprise-badge cyan"><%= pct(A.collectionRate) %></span>
+        <div class="kpi-enterprise-icon cyan"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="kpi-enterprise-badge cyan">Completed work</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Cash Recorded</p>
-        <div class="kpi-enterprise-value"><span id="kpiCashRecorded"><%= peso(A.paymentRevenue) %></span></div>
-        <small style="color:#64748b;">Accepted payment records + completed POS</small>
+        <p class="kpi-enterprise-label">Recognized Revenue</p>
+        <div class="kpi-enterprise-value"><span id="kpiCashRecorded"><%= peso(A.recognizedRevenue) %></span></div>
+        <small style="color:#64748b;">Completed work and sales, net of refunds</small>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkCash"></canvas></div>
     </div>
     <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
       <div class="kpi-enterprise-top">
-        <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+        <div class="kpi-enterprise-icon amber"><i class="bi bi-bank"></i></div>
+        <span class="kpi-enterprise-badge amber"><%= peso(A.refunds) %> refunded</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Outstanding Value</p>
-        <div class="kpi-enterprise-value"><span style="color:#d97706"><%= peso(A.outstandingValue) %></span></div>
-        <small style="color:#64748b;">Approved value − collected cash</small>
+        <p class="kpi-enterprise-label">Net Collections</p>
+        <div class="kpi-enterprise-value"><span style="color:#d97706"><%= peso(A.netCollections) %></span></div>
+        <small style="color:#64748b;">Gross collections less period refunds</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
       <div class="kpi-enterprise-top">
-        <div class="kpi-enterprise-icon red"><i class="bi bi-boxes"></i></div>
-        <span class="kpi-enterprise-badge red"><%= pct(A.directCostCoverage) %></span>
+        <div class="kpi-enterprise-icon red"><i class="bi bi-hourglass-split"></i></div>
+        <span class="kpi-enterprise-badge red"><%= pct(A.collectionRate) %> collected</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Known Direct Costs</p>
-        <div class="kpi-enterprise-value"><span><%= peso(A.totalPartsCost) %></span></div>
-        <small style="color:#64748b;">Parts & tool usage</small>
+        <p class="kpi-enterprise-label">Outstanding Receivables</p>
+        <div class="kpi-enterprise-value"><span><%= peso(A.outstandingValue) %></span></div>
+        <small style="color:#64748b;">Booked cohort value less net collections</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
       <div class="kpi-enterprise-top">
-        <div class="kpi-enterprise-icon green"><i class="bi bi-graph-up-arrow"></i></div>
-        <span class="kpi-enterprise-badge green"><%= A.grossProfit >= 0 ? 'Profitable' : 'Check costs' %></span>
+        <div class="kpi-enterprise-icon green"><i class="bi bi-boxes"></i></div>
+        <span class="kpi-enterprise-badge green"><%= pct(A.costDataCoverage) %> covered</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Indicative Contribution</p>
-        <div class="kpi-enterprise-value"><span style="color:<%= A.grossProfit >= 0 ? '#059669' : '#dc2626' %>"><%= peso(A.grossProfit) %></span></div>
-        <small style="color:#64748b;"><%= pct(A.grossProfitMargin) %> indicative margin</small>
+        <p class="kpi-enterprise-label">Known Direct Costs</p>
+        <div class="kpi-enterprise-value"><span><%= peso(A.totalPartsCost) %></span></div>
+        <small style="color:#64748b;">Service, POS, order COGS and project materials</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
       <div class="kpi-enterprise-top">
-        <div class="kpi-enterprise-icon purple"><i class="bi bi-receipt"></i></div>
-        <% if(typeof A.growthRate === 'number' || typeof A.growthRate === 'string') { %>
-        <span class="kpi-enterprise-badge <%= Number(A.growthRate) >= 0 ? 'green' : 'red' %>"><i class="bi <%= Number(A.growthRate) >= 0 ? 'bi-arrow-up' : 'bi-arrow-down' %>"></i> <%= Math.abs(Number(A.growthRate||0)).toFixed(1) %>%</span>
-        <% } %>
+        <div class="kpi-enterprise-icon purple"><i class="bi bi-calculator"></i></div>
+        <span class="kpi-enterprise-badge <%= Number(A.operatingProfit||0) >= 0 ? 'green' : 'red' %>"><%= pct(A.operatingProfitMargin) %> margin</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Average Transaction</p>
-        <div class="kpi-enterprise-value"><span id="kpiAvgTxn"><%= peso(A.avgTransactionValue) %></span></div>
-        <small style="color:#64748b;">Across all sources</small>
+        <p class="kpi-enterprise-label">Operating Profit</p>
+        <div class="kpi-enterprise-value"><span style="color:<%= Number(A.operatingProfit||0) >= 0 ? '#059669' : '#dc2626' %>"><%= peso(A.operatingProfit) %></span></div>
+        <small style="color:#64748b;">After known direct costs, approved expenses and payroll</small>
       </div>
-      <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkAvgTxn"></canvas></div>
     </div>
   </div>
 
@@ -299,28 +298,32 @@
   <div id="section-collection" class="rr-section"><h2><i class="bi bi-bank me-2" style="color:#0891b2;"></i>Cash Collection & Payment Intelligence</h2><span class="text-muted small">How revenue converts to actual cash — collection health and payment channel mix</span></div>
   <div class="rr-equal">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-credit-card me-2 text-info"></i>Recorded Payments by Method</h3><span class="rr-badge"><%= peso(A.paymentRevenue) %> collected · <%= pct(A.collectionRate) %> rate</span></div>
+      <div class="rr-head"><h3><i class="bi bi-credit-card me-2 text-info"></i>Gross Collections by Method</h3><span class="rr-badge"><%= peso(A.grossCollections) %> gross · refunds shown separately</span></div>
       <div class="rr-chart"><canvas id="paymentMix"></canvas></div>
     </article>
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-hourglass-split me-2 text-warning"></i>Collection Health</h3></div>
       <div class="rr-body" id="collectionHealthBody" style="padding:20px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
-          <div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:10px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#059669;margin-bottom:4px;">Collected</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#059669;"><%= peso(A.paymentRevenue) %></div>
+        <div class="rr-collection-grid">
+          <div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:8px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#059669;margin-bottom:4px;">Gross Collections</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#059669;"><%= peso(A.grossCollections) %></div>
           </div>
-          <div style="text-align:center;padding:12px;background:#fefce8;border-radius:10px;">
+          <div style="text-align:center;padding:12px;background:#fef2f2;border-radius:8px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#b91c1c;margin-bottom:4px;">Refunds</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#dc2626;"><%= peso(A.refunds) %></div>
+          </div>
+          <div style="text-align:center;padding:12px;background:#fefce8;border-radius:8px;">
             <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#92400e;margin-bottom:4px;">Outstanding</div>
             <div style="font-size:1.15rem;font-weight:700;color:#d97706;"><%= peso(A.outstandingValue) %></div>
           </div>
-          <div style="text-align:center;padding:12px;background:#eff6ff;border-radius:10px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#1d4ed8;margin-bottom:4px;">Approved Value</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#2563eb;"><%= peso(A.totalRevenue) %></div>
+          <div style="text-align:center;padding:12px;background:#eff6ff;border-radius:8px;">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#1d4ed8;margin-bottom:4px;">Net Collections</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#2563eb;"><%= peso(A.netCollections) %></div>
           </div>
         </div>
         <div style="font-size:.78rem;color:#475569;line-height:1.6;">
-          <div style="margin-bottom:6px;"><strong>Collection Rate:</strong> <%= pct(A.collectionRate) %> of approved booked value has an accepted payment record.</div>
+          <div style="margin-bottom:6px;"><strong>Collection Rate:</strong> <%= pct(A.collectionRate) %> of the approved booking cohort has been collected net of refunds through the report end date.</div>
           <div style="margin-bottom:6px;"><strong>GCash:</strong> <%= peso(A.gcashRevenue) %> · <strong>Cash/COD:</strong> <%= peso(A.codRevenue) %> · <strong>Bank:</strong> <%= peso(A.bankRevenue) %></div>
           <div><strong>Outstanding Receivable:</strong> <%= peso(A.outstandingValue) %> remains between approved value and accepted collections.</div>
         </div>
@@ -332,27 +335,29 @@
   <div id="section-cost" class="rr-section"><h2><i class="bi bi-calculator me-2" style="color:#7c3aed;"></i>Cost Intelligence & Margin Analysis</h2><span class="text-muted small">Direct cost structure, contribution margins, and profitability trend</span></div>
   <div class="rr-equal">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Revenue vs Known Direct Cost</h3><span class="rr-badge">Indicative contribution margin</span></div>
+      <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Recognized Revenue vs Known Direct Cost</h3><span class="rr-badge">Completion-date basis</span></div>
       <div class="rr-chart"><canvas id="marginTrend"></canvas></div>
     </article>
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-boxes me-2 text-danger"></i>Cost Breakdown Summary</h3><span class="rr-badge">Completed services only</span></div>
-      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>This card only counts <strong>completed</strong> service jobs, so its "Service Revenue" figure will be lower than the "Services" KPI above, which counts all approved (not-yet-completed) bookings too.</div>
+      <div class="rr-head"><h3><i class="bi bi-boxes me-2 text-danger"></i>Cost Breakdown Summary</h3><span class="rr-badge"><%= pct(A.costDataCoverage) %> direct-cost coverage</span></div>
+      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>Costs are matched to completed activity in the selected period. Order COGS uses current inventory cost because order lines do not retain a historical unit-cost snapshot.</div>
       <div class="rr-body">
         <% const C=A.serviceCosts||{}; %>
         <div class="rr-cost-grid" id="costBreakdownGrid" style="grid-template-columns:repeat(3,1fr);">
-          <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Service Revenue</div><div class="rr-value"><%= peso(C.revenue) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Repair Parts</div><div class="rr-value"><%= peso(C.partsCost) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Consumables</div><div class="rr-value"><%= peso(C.consumablesCost) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Local Purchases</div><div class="rr-value"><%= peso(C.localPurchaseCost) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Actual Direct Labor</div><div class="rr-value"><%= peso(C.laborCost) %></div><div class="rr-meta">Recorded internal cost only</div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:<%= C.grossProfit>=0?'#059669':'#dc2626' %>;"><%= peso(C.grossProfit) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Gross Margin</div><div class="rr-value"><%= pct(C.grossProfitMargin) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Recognized Net Revenue</div><div class="rr-value"><%= peso(A.recognizedRevenue) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Service Direct Cost</div><div class="rr-value"><%= peso(A.serviceDirectCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order COGS</div><div class="rr-value"><%= peso(A.orderCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">POS COGS</div><div class="rr-value"><%= peso(A.posCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value"><%= peso(A.projectMaterialCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Operating Expenses</div><div class="rr-value"><%= peso(A.operatingExpenses) %></div><div class="rr-meta">Approved expenses + payroll</div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:<%= A.grossProfit>=0?'#059669':'#dc2626' %>;"><%= peso(A.grossProfit) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Operating Profit</div><div class="rr-value" style="color:<%= A.operatingProfit>=0?'#059669':'#dc2626' %>;"><%= peso(A.operatingProfit) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #0f766e;"><div class="rr-label">Operating Margin</div><div class="rr-value"><%= pct(A.operatingProfitMargin) %></div></div>
         </div>
       </div>
     </article>
   </div>
-  <div class="rr-note mt-3"><i class="bi bi-info-circle-fill me-2"></i><strong>Management note:</strong> "Contribution after known costs" subtracts recorded service parts, consumables, local purchases, and actual direct labor only when the internal labor expense is explicitly recorded. Customer quotation labor fees remain in revenue; missing internal labor cost defaults to zero. Historical order items do not store acquisition cost, so this is not an audited accounting gross-profit or net-income figure.</div>
+  <div class="rr-note mt-3"><i class="bi bi-info-circle-fill me-2"></i><strong>Management note:</strong> This is a management accounting view, not an audited ledger. Revenue is recognized on completed work, refunds are contra-revenue on their event date, and only approved expenses and payroll are included. Historical order items do not retain acquisition cost, so order COGS is explicitly reported with estimated coverage.</div>
 
   <!-- ═══ SECTION 5: SERVICE PROFITABILITY DEEP DIVE ═══ -->
   <div id="section-service-profit" class="rr-section"><h2><i class="bi bi-clipboard-check me-2" style="color:#2563eb;"></i>Service Profitability Deep Dive</h2><span class="text-muted small">Per-service financial breakdown with resource detail — core vs repair contribution</span></div>
@@ -562,8 +567,8 @@
   const costs=Object.values(A.monthlyPartsCost||{}).reverse();
   document.getElementById('exportRevenue')?.addEventListener('click',()=>{
     const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';
-    const rows=[['Month','Service Revenue','Online Order Revenue','POS Revenue','POS COGS','Total Revenue','Known Direct Cost'],
-      ...months.map((m,i)=>[labels[i],m.service||0,m.orders||0,m.pos||0,m.posCost||0,m.total||0,(costs[i]||0)+(m.posCost||0)])];
+    const rows=[['Month','Booked Service Value','Booked Order Value','POS Revenue','Total Booked Value','Recognized Net Revenue','Gross Collections','Refunds','Net Collections','Known Direct Cost'],
+      ...months.map((m,i)=>[labels[i],m.service||0,m.orders||0,m.pos||0,m.total||0,m.recognized||0,(m.collections||0)+(m.refunds||0),m.refunds||0,m.collections||0,costs[i]||0])];
     const b=new Blob([rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='revenue-intelligence.csv';a.click();URL.revokeObjectURL(a.href);
   });
@@ -717,59 +722,58 @@
       </div>
       <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="50">
         <div class="kpi-enterprise-top">
-          <div class="kpi-enterprise-icon cyan"><i class="bi bi-bank"></i></div>
-          <span class="kpi-enterprise-badge cyan">${pct(A.collectionRate)}</span>
+          <div class="kpi-enterprise-icon cyan"><i class="bi bi-clipboard-check"></i></div>
+          <span class="kpi-enterprise-badge cyan">${A.recognizedTransactions||0} completed</span>
         </div>
         <div class="kpi-enterprise-body">
-          <p class="kpi-enterprise-label">Cash Recorded</p>
-          <div class="kpi-enterprise-value"><span id="kpiCashRecorded">${peso(A.paymentRevenue)}</span></div>
-          <small style="color:#64748b;">Accepted payments + completed POS</small>
+          <p class="kpi-enterprise-label">Recognized Revenue</p>
+          <div class="kpi-enterprise-value"><span>${peso(A.recognizedRevenue)}</span></div>
+          <small style="color:#64748b;">Completed work net of period refunds</small>
         </div>
-        <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkCash"></canvas></div>
       </div>
       <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
         <div class="kpi-enterprise-top">
-          <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
+          <div class="kpi-enterprise-icon amber"><i class="bi bi-bank"></i></div>
+          <span class="kpi-enterprise-badge amber">${peso(A.refunds)} refunds</span>
         </div>
         <div class="kpi-enterprise-body">
-          <p class="kpi-enterprise-label">Outstanding Value</p>
-          <div class="kpi-enterprise-value"><span style="color:#d97706">${peso(A.outstandingValue)}</span></div>
-          <small style="color:#64748b;">Approved value − collected cash</small>
+          <p class="kpi-enterprise-label">Net Collections</p>
+          <div class="kpi-enterprise-value"><span>${peso(A.netCollections)}</span></div>
+          <small style="color:#64748b;">Gross collections less period refunds</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
         <div class="kpi-enterprise-top">
-          <div class="kpi-enterprise-icon red"><i class="bi bi-boxes"></i></div>
-          <span class="kpi-enterprise-badge red">${pct(A.directCostCoverage || (A.totalRevenue > 0 ? (A.totalPartsCost / A.totalRevenue * 100) : 0))}</span>
+          <div class="kpi-enterprise-icon red"><i class="bi bi-hourglass-split"></i></div>
+          <span class="kpi-enterprise-badge red">${pct(A.collectionRate)} collected</span>
         </div>
         <div class="kpi-enterprise-body">
-          <p class="kpi-enterprise-label">Known Direct Costs</p>
-          <div class="kpi-enterprise-value"><span>${peso(A.totalPartsCost)}</span></div>
-          <small style="color:#64748b;">Parts & tool usage</small>
+          <p class="kpi-enterprise-label">Outstanding Receivables</p>
+          <div class="kpi-enterprise-value"><span>${peso(A.outstandingValue)}</span></div>
+          <small style="color:#64748b;">Booked cohort value less net collections</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
         <div class="kpi-enterprise-top">
-          <div class="kpi-enterprise-icon green"><i class="bi bi-graph-up-arrow"></i></div>
-          <span class="kpi-enterprise-badge green">${A.grossProfit >= 0 ? 'Profitable' : 'Check costs'}</span>
+          <div class="kpi-enterprise-icon green"><i class="bi bi-boxes"></i></div>
+          <span class="kpi-enterprise-badge green">${pct(A.costDataCoverage)} covered</span>
         </div>
         <div class="kpi-enterprise-body">
-          <p class="kpi-enterprise-label">Indicative Contribution</p>
-          <div class="kpi-enterprise-value"><span style="color:${A.grossProfit >= 0 ? '#059669' : '#dc2626'}">${peso(A.grossProfit)}</span></div>
-          <small style="color:#64748b;">${pct(A.grossProfitMargin)} indicative margin</small>
+          <p class="kpi-enterprise-label">Known Direct Costs</p>
+          <div class="kpi-enterprise-value"><span>${peso(A.totalPartsCost)}</span></div>
+          <small style="color:#64748b;">Service, POS, order COGS and project materials</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
         <div class="kpi-enterprise-top">
-          <div class="kpi-enterprise-icon purple"><i class="bi bi-receipt"></i></div>
-          ${typeof A.growthRate === 'number' || typeof A.growthRate === 'string' ? `<span class="kpi-enterprise-badge ${Number(A.growthRate) >= 0 ? 'green' : 'red'}"><i class="bi ${Number(A.growthRate) >= 0 ? 'bi-arrow-up' : 'bi-arrow-down'}"></i> ${Math.abs(Number(A.growthRate||0)).toFixed(1)}%</span>` : ''}
+          <div class="kpi-enterprise-icon purple"><i class="bi bi-calculator"></i></div>
+          <span class="kpi-enterprise-badge ${Number(A.operatingProfit||0) >= 0 ? 'green' : 'red'}">${pct(A.operatingProfitMargin)} margin</span>
         </div>
         <div class="kpi-enterprise-body">
-          <p class="kpi-enterprise-label">Average Transaction</p>
-          <div class="kpi-enterprise-value"><span id="kpiAvgTxn">${peso(A.avgTransactionValue)}</span></div>
-          <small style="color:#64748b;">Across all sources</small>
+          <p class="kpi-enterprise-label">Operating Profit</p>
+          <div class="kpi-enterprise-value"><span style="color:${Number(A.operatingProfit||0) >= 0 ? '#059669' : '#dc2626'}">${peso(A.operatingProfit)}</span></div>
+          <small style="color:#64748b;">After known direct costs, approved expenses and payroll</small>
         </div>
-        <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkAvgTxn"></canvas></div>
       </div>`;
     document.getElementById('kpiGrid').innerHTML = kpiHtml;
 
@@ -778,7 +782,7 @@
     document.querySelector('.rr-source').innerHTML = sourceCards;
 
     const collectionBody = document.getElementById('collectionHealthBody');
-    if (collectionBody) collectionBody.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px"><div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:10px"><div class="rr-label" style="color:#059669">Collected</div><div class="rr-value" style="color:#059669">${peso(A.paymentRevenue)}</div></div><div style="text-align:center;padding:12px;background:#fefce8;border-radius:10px"><div class="rr-label" style="color:#92400e">Outstanding</div><div class="rr-value" style="color:#d97706">${peso(A.outstandingValue)}</div></div><div style="text-align:center;padding:12px;background:#eff6ff;border-radius:10px"><div class="rr-label" style="color:#1d4ed8">Approved Value</div><div class="rr-value" style="color:#2563eb">${peso(A.totalRevenue)}</div></div></div><div style="font-size:.78rem;color:#475569;line-height:1.6"><div><strong>Collection Rate:</strong> ${pct(A.collectionRate)} of approved booked value has an accepted payment record.</div><div><strong>GCash:</strong> ${peso(A.gcashRevenue)} · <strong>Cash/COD:</strong> ${peso(A.codRevenue)} · <strong>Bank:</strong> ${peso(A.bankRevenue)}</div><div><strong>Outstanding Receivable:</strong> ${peso(A.outstandingValue)}</div></div>`;
+    if (collectionBody) collectionBody.innerHTML = `<div class="rr-collection-grid"><div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:8px"><div class="rr-label" style="color:#059669">Gross Collections</div><div class="rr-value" style="color:#059669">${peso(A.grossCollections)}</div></div><div style="text-align:center;padding:12px;background:#fef2f2;border-radius:8px"><div class="rr-label" style="color:#b91c1c">Refunds</div><div class="rr-value" style="color:#dc2626">${peso(A.refunds)}</div></div><div style="text-align:center;padding:12px;background:#fefce8;border-radius:8px"><div class="rr-label" style="color:#92400e">Outstanding</div><div class="rr-value" style="color:#d97706">${peso(A.outstandingValue)}</div></div><div style="text-align:center;padding:12px;background:#eff6ff;border-radius:8px"><div class="rr-label" style="color:#1d4ed8">Net Collections</div><div class="rr-value" style="color:#2563eb">${peso(A.netCollections)}</div></div></div><div style="font-size:.78rem;color:#475569;line-height:1.6"><div><strong>Collection Rate:</strong> ${pct(A.collectionRate)} of the approved booking cohort has been collected net of refunds through the report end date.</div><div><strong>GCash:</strong> ${peso(A.gcashRevenue)} · <strong>Cash/COD:</strong> ${peso(A.codRevenue)} · <strong>Bank:</strong> ${peso(A.bankRevenue)}</div><div><strong>Outstanding Receivable:</strong> ${peso(A.outstandingValue)}</div></div>`;
 
     const technicianBody = document.getElementById('topTechniciansBody');
     if (technicianBody) technicianBody.innerHTML = (A.topTechnicians || []).length
@@ -793,15 +797,16 @@
     // Update cost breakdown summary
     const costGrid = document.getElementById('costBreakdownGrid');
     if (costGrid) {
-      const C = A.serviceCosts || {};
       costGrid.innerHTML = `
-        <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Service Revenue</div><div class="rr-value">${peso(C.revenue)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Repair Parts</div><div class="rr-value">${peso(C.partsCost)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Consumables</div><div class="rr-value">${peso(C.consumablesCost)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Local Purchases</div><div class="rr-value">${peso(C.localPurchaseCost)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Actual Direct Labor</div><div class="rr-value">${peso(C.laborCost)}</div><div class="rr-meta">Recorded internal cost only</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:${(C.grossProfit||0)>=0?'#059669':'#dc2626'};">${peso(C.grossProfit)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Gross Margin</div><div class="rr-value">${pct(C.grossProfitMargin)}</div></div>`;
+        <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Recognized Net Revenue</div><div class="rr-value">${peso(A.recognizedRevenue)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Service Direct Cost</div><div class="rr-value">${peso(A.serviceDirectCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order COGS</div><div class="rr-value">${peso(A.orderCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">POS COGS</div><div class="rr-value">${peso(A.posCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value">${peso(A.projectMaterialCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Operating Expenses</div><div class="rr-value">${peso(A.operatingExpenses)}</div><div class="rr-meta">Approved expenses + payroll</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Gross Profit</div><div class="rr-value" style="color:${(A.grossProfit||0)>=0?'#059669':'#dc2626'};">${peso(A.grossProfit)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Operating Profit</div><div class="rr-value" style="color:${(A.operatingProfit||0)>=0?'#059669':'#dc2626'};">${peso(A.operatingProfit)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #0f766e;"><div class="rr-label">Operating Margin</div><div class="rr-value">${pct(A.operatingProfitMargin)}</div></div>`;
     }
 
     // Update service profitability deep dive
@@ -988,15 +993,16 @@
     }
 
     donut('sourceMix', ['Services', 'Online Orders', 'POS'], [A.serviceRevenue || 0, A.orderRevenue || 0, A.posRevenue || 0]);
-    donut('paymentMix', ['GCash', 'COD / Cash', 'Bank', 'Other'], [A.gcashRevenue || 0, A.codRevenue || 0, A.bankRevenue || 0, A.otherRevenue || 0]);
+    const grossMethods = A.grossCollectionMethods || {};
+    donut('paymentMix', ['GCash', 'COD / Cash', 'Bank', 'Other'], [grossMethods.gcash || 0, grossMethods.cash || 0, grossMethods.bank || 0, grossMethods.other || 0]);
 
     const posMethods = A.posPaymentMethods || {};
     donut('posPaymentMix', Object.keys(posMethods).map(x => x.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())), Object.values(posMethods));
 
     charts.marginTrend = new Chart(document.getElementById('marginTrend'), {
       type: 'line', data: { labels, datasets: [
-        { label: 'Revenue', data: months.map(x => x.total || 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
-        { label: 'Known Direct Cost', data: months.map((x, i) => (costs[i] || 0) + (x.posCost || 0)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
+        { label: 'Recognized Net Revenue', data: months.map(x => x.recognized || 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
+        { label: 'Known Direct Cost', data: months.map((x, i) => costs[i] || 0), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
       ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.marginTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
     });
 
@@ -1151,8 +1157,8 @@
   // ── Chart detail configs ──
   const chartConfigs = {
     revenueTrend: {
-      icon: 'bar-chart-line', title: 'Monthly Approved Value', subtitle: 'Revenue by business line — click a month to see transactions',
-      chartTitle: 'Monthly Revenue Breakdown', chartSubtitle: 'Services · Online Orders · POS',
+      icon: 'bar-chart-line', title: 'Monthly Approved Value', subtitle: 'Booked value by business line — click a month to see transactions',
+      chartTitle: 'Monthly Booked Value Breakdown', chartSubtitle: 'Services · Online Orders · POS',
       dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Method','Amount'],
       type: 'bar',
       chartData: () => {
@@ -1168,9 +1174,9 @@
       getFilterLabel: (i) => { const labels = Object.keys(currentA.monthlyRevenue || {}).reverse(); return labels[i] || 'Unknown'; },
       getSummary: (i) => {
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
-        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Transactions',value:(currentA.totalTransactions||0)}];
+        if (i === null) return [{label:'Total Booked Value',value:pesoFmt(currentA.totalRevenue)},{label:'Transactions',value:(currentA.totalTransactions||0)}];
         const m = months[i] || {};
-        return [{label:'Month Revenue',value:pesoFmt(m.total||0)},{label:'Services',value:pesoFmt(m.service||0)},{label:'Orders',value:pesoFmt(m.orders||0)},{label:'POS',value:pesoFmt(m.pos||0)}];
+        return [{label:'Month Booked Value',value:pesoFmt(m.total||0)},{label:'Services',value:pesoFmt(m.service||0)},{label:'Orders',value:pesoFmt(m.orders||0)},{label:'POS',value:pesoFmt(m.pos||0)}];
       },
       getRows: (i) => {
         const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
@@ -1180,8 +1186,8 @@
       }
     },
     sourceMix: {
-      icon: 'pie-chart', title: 'Business Mix', subtitle: 'Revenue share by source — click a slice to see transactions',
-      chartTitle: 'Revenue by Source', chartSubtitle: 'Services · Online Orders · POS',
+      icon: 'pie-chart', title: 'Business Mix', subtitle: 'Booked value share by source — click a slice to see transactions',
+      chartTitle: 'Booked Value by Source', chartSubtitle: 'Services · Online Orders · POS',
       dataTitle: 'Transactions', headers: ['Date','Reference','Customer','Method','Amount'],
       type: 'doughnut', cutout: '68%',
       chartData: () => ({ labels: ['Services','Online Orders','POS'], datasets: [{ data: [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
@@ -1189,8 +1195,8 @@
       getSummary: (i) => {
         const vals = [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0];
         const counts = [currentA.serviceTransactions||0, currentA.orderTransactions||0, currentA.posTransactions||0];
-        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Total Txns',value:(currentA.totalTransactions||0)}];
-        return [{label:'Revenue',value:pesoFmt(vals[i])},{label:'Transactions',value:counts[i]},{label:'Avg',value:pesoFmt(vals[i]/Math.max(1,counts[i]))}];
+        if (i === null) return [{label:'Total Booked Value',value:pesoFmt(currentA.totalRevenue)},{label:'Total Txns',value:(currentA.totalTransactions||0)}];
+        return [{label:'Booked Value',value:pesoFmt(vals[i])},{label:'Transactions',value:counts[i]},{label:'Avg',value:pesoFmt(vals[i]/Math.max(1,counts[i]))}];
       },
       getRows: (i) => {
         const types = ['service','order','pos'];
@@ -1200,16 +1206,17 @@
       }
     },
     paymentMix: {
-      icon: 'credit-card', title: 'Payment Method Mix', subtitle: 'Recorded payments by method — click a slice to see transactions',
+      icon: 'credit-card', title: 'Payment Method Mix', subtitle: 'Gross collections by method — click a slice to see transactions',
       chartTitle: 'Payments by Method', chartSubtitle: 'GCash · COD/Cash · Bank · Other',
       dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Amount'],
       type: 'doughnut', cutout: '68%',
-      chartData: () => ({ labels: ['GCash','COD / Cash','Bank','Other'], datasets: [{ data: [currentA.gcashRevenue||0, currentA.codRevenue||0, currentA.bankRevenue||0, currentA.otherRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'], borderColor: '#fff', borderWidth: 3 }] }),
+      chartData: () => { const m=currentA.grossCollectionMethods||{}; return { labels: ['GCash','COD / Cash','Bank','Other'], datasets: [{ data: [m.gcash||0, m.cash||0, m.bank||0, m.other||0], backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'], borderColor: '#fff', borderWidth: 3 }] }; },
       getFilterLabel: (i) => ['GCash','COD / Cash','Bank','Other'][i] || 'All',
       getSummary: (i) => {
-        const vals = [currentA.gcashRevenue||0, currentA.codRevenue||0, currentA.bankRevenue||0, currentA.otherRevenue||0];
-        if (i === null) return [{label:'Total Collected',value:pesoFmt(currentA.paymentRevenue)},{label:'Collection Rate',value:pct(currentA.collectionRate)}];
-        return [{label:'Method Total',value:pesoFmt(vals[i])},{label:'Share',value:pct(vals[i]/Math.max(1,currentA.paymentRevenue)*100)}];
+        const m=currentA.grossCollectionMethods||{};
+        const vals = [m.gcash||0, m.cash||0, m.bank||0, m.other||0];
+        if (i === null) return [{label:'Gross Collections',value:pesoFmt(currentA.grossCollections)},{label:'Period Refunds',value:pesoFmt(currentA.refunds)}];
+        return [{label:'Method Total',value:pesoFmt(vals[i])},{label:'Share',value:pct(vals[i]/Math.max(1,currentA.grossCollections)*100)}];
       },
       getRows: (i) => {
         const methodGroups = [['gcash'],['cash'],['bank'],['other']];
@@ -1240,17 +1247,17 @@
       }
     },
     marginTrend: {
-      icon: 'graph-up-arrow', title: 'Revenue vs Cost Trend', subtitle: 'Monthly revenue and direct cost — click a month for breakdown',
-      chartTitle: 'Revenue vs Known Direct Cost', chartSubtitle: 'Monthly trend',
-      dataTitle: 'Monthly Breakdown', headers: ['Month','Revenue','Direct Cost','Contribution'],
+      icon: 'graph-up-arrow', title: 'Recognized Revenue vs Cost Trend', subtitle: 'Completion-date revenue and matched direct cost — click a month for breakdown',
+      chartTitle: 'Recognized Revenue vs Known Direct Cost', chartSubtitle: 'Monthly completion-date basis',
+      dataTitle: 'Monthly Breakdown', headers: ['Month','Recognized Revenue','Direct Cost','Gross Contribution'],
       type: 'line',
       chartData: () => {
         const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
         const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
         return { labels, datasets: [
-          { label: 'Revenue', data: months.map(x => x.total||0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
-          { label: 'Known Direct Cost', data: months.map((x,i) => (costs[i]||0) + (x.posCost||0)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
+          { label: 'Recognized Net Revenue', data: months.map(x => x.recognized||0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
+          { label: 'Known Direct Cost', data: months.map((x,i) => costs[i]||0), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 4 },
         ]};
       },
       scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
@@ -1258,27 +1265,25 @@
       getSummary: (i) => {
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
         const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
-        if (i === null) return [{label:'Total Revenue',value:pesoFmt(currentA.totalRevenue)},{label:'Total Cost',value:pesoFmt(currentA.totalPartsCost)},{label:'Contribution',value:pesoFmt(currentA.grossProfit)}];
-        const m = months[i]||{}; const c = (costs[i]||0) + (m.posCost||0);
-        return [{label:'Revenue',value:pesoFmt(m.total||0)},{label:'Direct Cost',value:pesoFmt(c)},{label:'Contribution',value:pesoFmt((m.total||0)-c)}];
+        if (i === null) return [{label:'Recognized Net Revenue',value:pesoFmt(currentA.recognizedRevenue)},{label:'Known Direct Cost',value:pesoFmt(currentA.totalPartsCost)},{label:'Gross Contribution',value:pesoFmt(currentA.grossProfit)}];
+        const m = months[i]||{}; const c = costs[i]||0;
+        return [{label:'Recognized Revenue',value:pesoFmt(m.recognized||0)},{label:'Direct Cost',value:pesoFmt(c)},{label:'Gross Contribution',value:pesoFmt((m.recognized||0)-c)}];
       },
       getRows: (i) => {
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
         const costs = Object.values(currentA.monthlyPartsCost || {}).reverse();
         if (i === null) {
           const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
-          return labels.map((l, idx) => { const m = months[idx]||{}; const c = (costs[idx]||0)+(m.posCost||0); return [l, pesoFmt(m.total||0), pesoFmt(c), `<span style="color:${(m.total||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.total||0)-c)}</span>`]; });
+          return labels.map((l, idx) => { const m = months[idx]||{}; const c = costs[idx]||0; return [l, pesoFmt(m.recognized||0), pesoFmt(c), `<span style="color:${(m.recognized||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.recognized||0)-c)}</span>`]; });
         }
-        const m = months[i]||{}; const c = (costs[i]||0) + (m.posCost||0);
+        const m = months[i]||{}; const c = costs[i]||0;
         return [
-          ['Service Revenue', pesoFmt(m.service||0), '', ''],
-          ['Online Order Revenue', pesoFmt(m.orders||0), '', ''],
-          ['POS Revenue', pesoFmt(m.pos||0), '', ''],
-          ['POS COGS', '', pesoFmt(m.posCost||0), ''],
-          ['Service Parts Cost', '', pesoFmt(costs[i]||0), ''],
-          ['Total Revenue', pesoFmt(m.total||0), '', ''],
-          ['Total Direct Cost', '', pesoFmt(c), ''],
-          ['Contribution', '', '', `<strong style="color:${(m.total||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.total||0)-c)}</strong>`]
+          ['Approved Booked Value', pesoFmt(m.total||0), '', ''],
+          ['Recognized Net Revenue', pesoFmt(m.recognized||0), '', ''],
+          ['Net Collections', pesoFmt(m.collections||0), '', ''],
+          ['Refunds', pesoFmt(m.refunds||0), '', ''],
+          ['Known Direct Cost', '', pesoFmt(c), ''],
+          ['Gross Contribution', '', '', `<strong style="color:${(m.recognized||0)-c>=0?'#059669':'#dc2626'}">${pesoFmt((m.recognized||0)-c)}</strong>`]
         ];
       }
     },

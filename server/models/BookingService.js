@@ -5,6 +5,10 @@ const bookingSchema = new mongoose.Schema({
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
 
+  // Installation orders keep a linked booking for calendar/customer history,
+  // but the Order remains the operational and inventory source of truth.
+  sourceOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, index: true },
+
   // snapshots of the customer/technician info at the time of booking
   // this allows us to show the name/contact even if either account is later
   customer: {
@@ -231,6 +235,9 @@ const bookingSchema = new mongoose.Schema({
       edited: { type: Number, default: 0 },
       removed: { type: Number, default: 0 },
     },
+    // Schedule selected by the customer as part of this same change request.
+    // This is distinct from proposedSchedule, which is an admin counterproposal.
+    requestedSchedule: { date: Date, startTime: String, endTime: String, notes: String },
     proposedSchedule: { date: Date, startTime: String, endTime: String, notes: String },
     adminDecision: { decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, decidedByName: String, decidedAt: Date, reason: String },
     technicianAcknowledgedAt: Date,
@@ -429,12 +436,15 @@ const bookingSchema = new mongoose.Schema({
 
   // ── Warranty ────────────────────────────────────────────────────────────
   warranty: {
-    days: { type: Number, default: 30 },
+    days: { type: Number, default: 0 },
     startDate: Date,
     endDate: Date,
-    status: { type: String, enum: ["active", "expired", "claimed"], default: "active" },
+    status: { type: String, enum: ["active", "expired", "claimed"], default: null },
     claimIssue: { type: String, trim: true },
     claimedAt: Date,
+    // Immutable per-service terms captured when work is completed. The legacy
+    // top-level dates remain as the booking-level coverage summary.
+    coverages: { type: [mongoose.Schema.Types.Mixed], default: [] },
   },
 
   // ── Repair Completion Data (materials used, actions performed) ────────
@@ -454,6 +464,16 @@ const bookingSchema = new mongoose.Schema({
     scheduledDate: Date,
     completedAt: Date,
     notes: String,
+  },
+
+  // Preventive-maintenance bookings keep the normal booking lifecycle while
+  // linking back to the customer's equipment and one maintenance cycle.
+  maintenance: {
+    isMaintenance: { type: Boolean, default: false, index: true },
+    assetId: { type: mongoose.Schema.Types.ObjectId, ref: "CustomerAsset", default: null },
+    scheduleId: { type: mongoose.Schema.Types.ObjectId, ref: "MaintenanceSchedule", default: null },
+    nextRecommendedDays: { type: Number, min: 30, max: 730, default: 90 },
+    nextRecommendationNotes: { type: String, trim: true, maxlength: 1000, default: "" },
   },
 
   // ── Scheduling Request (customer preferred dates for repair) ────────────
@@ -529,11 +549,14 @@ const bookingSchema = new mongoose.Schema({
       "scheduled",
       "on-the-way",
       "arrived",
+      "waiting-for-customer",
+      "no-show-reported",
       "in-progress",
       "completed",
       "cancelled",
       "no-show",
       "re-scheduled",
+      "reschedule-required",
       "repair_requested",
       "pending_inspection",
       "inspection_scheduled",
@@ -556,8 +579,52 @@ const bookingSchema = new mongoose.Schema({
   },
   // when an appointment is moved, record the reason
   rescheduleReason: { type: String },
+  // Customer-driven reschedule authorization. The customer selects a slot
+  // from the same capacity calendar as /services; no second admin approval.
+  rescheduleAccessToken: { type: String, index: true, sparse: true },
+  rescheduleAccessExpiry: { type: Date },
+  rescheduleAccessStatus: {
+    type: String,
+    enum: ["allowed", "submitted", "cancelled", "expired"],
+  },
+  rescheduleSource: {
+    type: String,
+    enum: ["customer", "admin_on_behalf_of_customer"],
+  },
+  rescheduleReasonType: {
+    type: String,
+    enum: ["no_show", "customer_request", "cancelled", "admin_approved"],
+  },
+  rescheduleHistory: [{
+    previousDate: { type: Date },
+    previousTime: { type: String },
+    newDate: { type: Date },
+    newTime: { type: String },
+    reasonType: { type: String, enum: ["no_show", "customer_request", "cancelled", "admin_approved"] },
+    source: { type: String, enum: ["customer", "admin_on_behalf_of_customer"] },
+    authorizedAt: { type: Date },
+    authorizedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    selectedAt: { type: Date },
+  }],
   // when an appointment is cancelled, record the reason
   cancellationReason: { type: String },
+
+  // Admin decisions made in the Booking Resolution Center. The booking itself
+  // remains the source of truth; these entries close only a specific exception.
+  resolutionCases: [{
+    issueType: {
+      type: String,
+      enum: ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"],
+      required: true,
+    },
+    sourceStatus: { type: String, required: true },
+    state: { type: String, enum: ["closed", "rescheduled", "reassigned"], required: true },
+    action: { type: String, enum: ["close", "reschedule", "reassign"], required: true },
+    note: { type: String, trim: true, maxlength: 1000 },
+    decidedAt: { type: Date, default: Date.now },
+    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    decidedByName: { type: String },
+  }],
 
   // ── Admin-Initiated Reschedule Proposal (awaiting customer response) ──────
   proposedReschedule: {
@@ -594,6 +661,31 @@ const bookingSchema = new mongoose.Schema({
   noShowRescheduleExpiry: { type: Date },
   noShowRescheduleStatus: { type: String, enum: ['pending', 'rescheduled', 'cancelled'], default: 'pending' },
   noShowAt:               { type: Date },
+
+  // ── No-Show Report (waiting-for-customer → no-show-reported → decision) ──
+  // Filled when the technician reports that the customer was not available.
+  // Holds evidence (contact attempts + arrival proof) and the admin decision.
+  noShowReport: {
+    reportedAt:        { type: Date },
+    reportedBy:        { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    reportedByName:    { type: String },
+    contactAttempts:   { type: [String], default: [] },   // ['Call','SMS','In-app notification']
+    arrivalProofUrl:   { type: String, trim: true },       // proof-of-arrival photo
+    arrivalProofCapturedAt: { type: Date },
+    arrivedAt:         { type: Date },                     // when tech arrived on site
+    waitedMinutes:     { type: Number, default: 0 },       // minutes tech waited before reporting
+    waitingUntil:      { type: Date },                     // arrivedAt + configured wait window
+    reviewStatus:      { type: String, enum: ['pending', 'confirmed', 'rescheduled', 'cancelled'], default: 'pending' },
+    decisionAt:        { type: Date },
+    decisionBy:        { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    decisionByName:    { type: String },
+    customerNotified:  { type: Boolean, default: false },
+    customerNotifiedAt:{ type: Date },
+  },
+
+  // ── No-Show Fee (configurable policy applied on confirmation) ────────────
+  noShowFeeType:   { type: String, enum: ['none', 'travel_fee', 'fixed_fee'], default: 'none' },
+  noShowFeeAmount: { type: Number, default: 0, min: 0 },
 
   // when admin rejects booking, record the reason
   rejectionReason: { type: String },
@@ -654,6 +746,17 @@ const bookingSchema = new mongoose.Schema({
   balanceCollected: { type: Boolean, default: false }, // true when technician collects final payment
   balanceCollectedAt: { type: Date },
   balanceCollectedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
+
+  // refund tracking (set when cancellation involves a refund)
+  refundStatus: {
+    type: String,
+    enum: ["none", "pending", "processing", "completed", "partial"],
+    default: "none",
+  },
+  refundAmount: { type: Number, default: 0 },
+  refundMethod: { type: String, enum: ["original", "gcash", "bank", "cash", "other"] },
+  refundProofUrl: { type: String },
+  refundNotes: { type: String },
 
   // repair quotation payment tracking (separate from inspection)
   repairPaymentCollected: { type: Boolean, default: false },
@@ -743,6 +846,7 @@ const bookingSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date },
+  completedAt: { type: Date, default: null, index: true },
 
   // optional feedback/rating provided by customer after service
   customerRating: { type: Number, min: 1, max: 5, default: null },
@@ -785,7 +889,10 @@ const bookingSchema = new mongoose.Schema({
   // Decision-support tool: provides preliminary recommendations, NOT a final diagnosis
   technicianAssistant: {
     generatedAt: { type: Date },
-    source: { type: String, enum: ['ai', 'ai-groq', 'fallback'] },
+    source: { type: String, enum: ['ai', 'ai-groq', 'fallback', 'mixed'] },
+    provider: { type: String, enum: ['gemini', 'groq', 'local', 'mixed'] },
+    model: { type: String },
+    webResearchFetched: { type: Boolean, default: false },
     webResearchUsed: { type: Boolean, default: false },
     webSources: [{ type: String }],
     summary: { type: String },
@@ -1270,8 +1377,7 @@ bookingSchema.pre("save", async function () {
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
 bookingSchema.index({ status: 1, bookingDate: 1 }); // For filtering by status and date
-bookingSchema.index({ bookingReference: 1 }); // For quick reference lookup
-bookingSchema.index({ workOrderNumber: 1 }); // For work order lookup
+// bookingReference and workOrderNumber already have unique: true which creates an index
 bookingSchema.index({ serviceModel: 1, status: 1 }); // For repair queue queries
 bookingSchema.index({ 'services.type': 1, 'services.costUpdatedByTechnician': 1 }); // For repair workflow queries
 bookingSchema.index({ priority: 1, status: 1 }); // For priority-based repair queue
@@ -1279,5 +1385,8 @@ bookingSchema.index({ 'slaTracking.responseTarget': 1, 'slaTracking.responseBrea
 bookingSchema.index({ 'slaTracking.resolutionTarget': 1, 'slaTracking.resolutionBreached': 1 }); // For resolution SLA
 bookingSchema.index({ 'technicianAssistant.repairComplexity': 1 }); // For complexity-based queries
 bookingSchema.index({ createdAt: -1 }); // For recent repairs listing
+bookingSchema.index({ status: 1, updatedAt: -1 }); // For completion-based revenue reporting
+bookingSchema.index({ customerRating: 1, updatedAt: -1 }); // For service-rating analytics and legacy review reconciliation
+bookingSchema.index({ technicianId: 1, customerRating: 1, updatedAt: -1 }); // For technician quality reporting
 
 module.exports = mongoose.model("BookingService", bookingSchema);

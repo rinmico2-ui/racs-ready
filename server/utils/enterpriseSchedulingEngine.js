@@ -44,6 +44,15 @@ const DEFAULT_TRAVEL_TIME = 20;
 const PREP_BUFFER_MINUTES = 15;
 const COMPLETION_BUFFER_MINUTES = 15;
 
+// Local-calendar date key (YYYY-MM-DD). Always derive keys from the LOCAL
+// year/month/day — toISOString().slice(0,10) shifts dates one day back for
+// any stored date that is not UTC-midnight (e.g. local-midnight holiday
+// entries), which silently turns holidays into working days.
+function toLocalDateKey(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
 async function getProjectThresholdHours() {
   const now = Date.now();
   if (cachedProjectThreshold !== null && now - projectThresholdTimestamp < CACHE_TTL_MS) {
@@ -103,10 +112,12 @@ function classifyBooking(params) {
 
 async function isLargeProject(params) {
   const suppliedUnits = params.totalUnits ?? params.quantity;
-  if (suppliedUnits !== undefined && suppliedUnits !== null) {
-    return Number(suppliedUnits) >= LARGE_SCALE_MIN_UNITS;
-  }
-  const { totalEstimatedMinutes } = params;
+  const exceedsUnitThreshold = suppliedUnits !== undefined && suppliedUnits !== null
+    ? Number(suppliedUnits) >= LARGE_SCALE_MIN_UNITS
+    : false;
+  const totalEstimatedMinutes = Number(params.totalEstimatedMinutes) || 0;
+  if (exceedsUnitThreshold) return true;
+  if (totalEstimatedMinutes <= 0) return false;
   const thresholdMinutes = (await getProjectThresholdHours()) * 60;
   return totalEstimatedMinutes > thresholdMinutes;
 }
@@ -291,7 +302,7 @@ async function generateAvailableDates(params) {
   const nonWorkingDays = await NonWorkingDay.find({
     date: { $gte: startDate, $lte: endDate },
   }).lean();
-  const nwdSet = new Set(nonWorkingDays.map((d) => d.date.toISOString().slice(0, 10)));
+  const nwdSet = new Set(nonWorkingDays.map((d) => toLocalDateKey(d.date)));
 
   const allTechs = await Technician.find({ active: { $ne: false } }).select("_id").lean();
   const techIds = allTechs.map((t) => t._id);
@@ -307,7 +318,7 @@ async function generateAvailableDates(params) {
   const availableDates = [];
 
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = toLocalDateKey(d);
     if (nwdSet.has(dateStr)) continue;
 
     const dow = d.getDay();
@@ -377,7 +388,7 @@ async function generateTimeWindowsForDate(date, params) {
   } = computeReservationMinutes({ totalEstimatedMinutes, travelTime });
 
   const availableWindows = [];
-  const dayStr = date.toISOString().slice(0, 10);
+  const dayStr = toLocalDateKey(date);
 
   const capacity = await getCompanyCapacity(date);
   const remainingTechnicians = capacity.available || 0;
@@ -416,15 +427,17 @@ async function generateTimeWindowsForDate(date, params) {
   }
 
   // Effective free technicians per window: a tech free in this window is
-  // still blocked if active in any earlier window that day.
+  // still blocked if active in any earlier window that day. techWindows is
+  // keyed by real technician IDs — count idle techs (no bookings today)
+  // plus booked techs whose windows all start after this one.
   function freeTechCount(winStart) {
-    let free = 0;
-    for (let i = 0; i < remainingTechnicians; i++) {
-      const booked = techWindows.get(String(i + 1));
-      const blockedEarlier = booked && Array.from(booked).some((s) => s < winStart);
-      if (!booked || (!booked.has(winStart) && !blockedEarlier)) free++;
+    let freeBooked = 0;
+    for (const [, wins] of techWindows.entries()) {
+      const blockedEarlier = Array.from(wins).some((s) => s < winStart);
+      if (!blockedEarlier && !wins.has(winStart)) freeBooked++;
     }
-    return free;
+    const idleTechs = Math.max(0, remainingTechnicians - techWindows.size);
+    return idleTechs + freeBooked;
   }
 
   for (const window of APPOINTMENT_WINDOWS) {
@@ -737,7 +750,7 @@ async function validateProjectDateRange(params) {
   const nonWorkingDays = await NonWorkingDay.find({
     date: { $gte: sDate, $lte: eDate },
   }).lean();
-  const nwdSet = new Set(nonWorkingDays.map((d) => d.date.toISOString().slice(0, 10)));
+  const nwdSet = new Set(nonWorkingDays.map((d) => toLocalDateKey(d.date)));
 
   const techIds = activeTechs.map((t) => t._id);
   const schedules = await TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean();
@@ -864,8 +877,7 @@ async function validateProjectDateRange(params) {
       const isNonWork = sched.nonWorkingWeekdays && sched.nonWorkingWeekdays.some((n) => n.dayOfWeek === dow);
       if (isNonWork) continue;
       const isRest = sched.restDates && sched.restDates.some((rd) => {
-        const rdDate = new Date(rd.date);
-        return rdDate.toISOString().slice(0, 10) === dateKey;
+        return toLocalDateKey(rd.date) === dateKey;
       });
       if (isRest) continue;
 
@@ -965,8 +977,7 @@ async function validateProjectDateRange(params) {
         const isNonWork = sched.nonWorkingWeekdays && sched.nonWorkingWeekdays.some((n) => n.dayOfWeek === dow);
         if (isNonWork) continue;
         const isRest = sched.restDates && sched.restDates.some((rd) => {
-          const rdDate = new Date(rd.date);
-          return rdDate.toISOString().slice(0, 10) === dateKey;
+          return toLocalDateKey(rd.date) === dateKey;
         });
         if (isRest) continue;
         const techLeaves = leaveMap.get(tid) || [];
@@ -1018,6 +1029,214 @@ async function validateProjectDateRange(params) {
     dailyBreakdown,
     nextAvailableRange: null,
   };
+}
+
+/**
+ * Per-day project capacity snapshot for a date range.
+ *
+ * Thin adapter over validateProjectDateRange with requiredTechnicians = 0:
+ * the day loop runs identically (schedules, leaves, bookings, project
+ * reservations, non-working days) but no per-day requirement is enforced and
+ * the expensive "next available range" suggestion scan is skipped, so this is
+ * safe to call for wide horizons (e.g. a 75-day calendar map).
+ *
+ * @param {Object} params
+ * @param {Date|string} params.startDate
+ * @param {Date|string} params.endDate
+ * @returns {Promise<{dailyHours:number, days:Array<Object>}>}
+ */
+async function computeProjectDailyCapacity(params) {
+  const { startDate, endDate } = params;
+  const result = await validateProjectDateRange({
+    startDate,
+    endDate,
+    requiredTechnicians: 0, // pure availability snapshot — nothing is "insufficient"
+  });
+  const dailyHours = await getDailyHours();
+  const rows = Array.isArray(result.dailyBreakdown) ? result.dailyBreakdown : [];
+  const days = rows.map((row) => {
+    const isWorkingDay = row.isWorkingDay !== false;
+    const totalTechs = row.totalActiveTechs ?? 0;
+    const avail = isWorkingDay ? Math.max(0, row.availableCapacity ?? 0) : 0;
+    return {
+      date: row.date,
+      isWorkingDay,
+      reason: row.reason || null,
+      totalTechnicians: totalTechs,
+      workingTechnicians: isWorkingDay ? (row.workingTechs ?? 0) : 0,
+      bookedTechnicians: isWorkingDay ? (row.existingBookings ?? 0) : 0,
+      unassignedBookings: isWorkingDay ? (row.unassignedBookings ?? 0) : 0,
+      projectReserved: isWorkingDay ? (row.projectReservedTechs ?? 0) : 0,
+      availableTechnicians: avail,
+      // One technician contributes `dailyHours` work-hours per day.
+      capacityHours: round1(avail * dailyHours),
+      status: !isWorkingDay ? "nonworking"
+        : avail <= 0 ? "none"
+        : avail < totalTechs ? "partial"
+        : "full",
+    };
+  });
+  return { dailyHours, days };
+}
+
+function round1(n) {
+  return Math.round(Number(n) * 10) / 10;
+}
+
+/**
+ * Preferred-window capacity analysis for large-scale projects.
+ *
+ * The customer-selected [startDate, endDate] range is a PREFERRED WINDOW, not
+ * a continuous schedule: unavailable dates inside it are simply skipped, and
+ * the project may finish before the window's end. Feasibility is judged by
+ * comparing required labor hours against the SUM of available technician
+ * capacity across all workable dates in the window.
+ *
+ * @param {Object} params
+ * @param {string} params.startDate - YYYY-MM-DD preferred start
+ * @param {string} params.endDate - YYYY-MM-DD latest acceptable completion
+ * @param {number} [params.requiredHours] - Total estimated labor hours
+ * @param {number} [params.totalUnits] - Units of work (for per-day unit preview)
+ * @returns {Promise<Object>} per-day availability + verdict + draft schedule
+ */
+async function getProjectWindowAvailability(params) {
+  const {
+    startDate,
+    endDate,
+    requiredHours = null,
+    totalUnits = null,
+  } = params;
+
+  if (!startDate || !endDate) {
+    return { error: "Start date and end date are required." };
+  }
+
+  const sDate = new Date(startDate + "T00:00:00");
+  const eDate = new Date(endDate + "T00:00:00");
+  if (isNaN(sDate.getTime()) || isNaN(eDate.getTime())) {
+    return { error: "Invalid start or end date." };
+  }
+  sDate.setHours(0, 0, 0, 0);
+  eDate.setHours(0, 0, 0, 0);
+  if (eDate < sDate) {
+    return { error: "End date must be on or after the start date." };
+  }
+
+  // Snapshot a wide horizon once so the earliest-completion scan never needs
+  // extra queries.
+  const scanEnd = new Date(eDate);
+  scanEnd.setDate(scanEnd.getDate() + 180);
+  const snap = await computeProjectDailyCapacity({ startDate: sDate, endDate: scanEnd });
+  const dailyHours = snap.dailyHours || 8;
+
+  const startKey = toLocalDateKey(sDate);
+  const endKey = toLocalDateKey(eDate);
+  const allDays = snap.days || [];
+  const windowDays = allDays.filter((d) => d.date >= startKey && d.date <= endKey);
+
+  const totalTechs = allDays.reduce((m, d) => Math.max(m, d.totalTechnicians || 0), 0);
+  const teamDailyCapacity = round1(Math.max(1, totalTechs) * dailyHours);
+
+  const totals = {
+    calendarDays: windowDays.length,
+    workableDays: 0,
+    fullDays: 0,
+    partialDays: 0,
+    noCapacityDays: 0,
+    nonWorkingDays: 0,
+    totalAvailableHours: 0,
+    teamDailyCapacity,
+  };
+  for (const d of windowDays) {
+    if (!d.isWorkingDay) { totals.nonWorkingDays++; continue; }
+    if (d.status === "full") totals.fullDays++;
+    else if (d.status === "partial") totals.partialDays++;
+    else totals.noCapacityDays++;
+    if (d.capacityHours > 0) {
+      totals.workableDays++;
+      totals.totalAvailableHours += d.capacityHours;
+    }
+  }
+  totals.totalAvailableHours = round1(totals.totalAvailableHours);
+
+  const response = {
+    totalActiveTechnicians: totalTechs,
+    dailyHours,
+    window: { startDate: startKey, endDate: endKey },
+    days: windowDays,
+    totals,
+  };
+
+  const req = Number(requiredHours);
+  if (!Number.isFinite(req) || req <= 0) {
+    return response; // availability-map mode (calendar rendering)
+  }
+
+  // ── Capacity verdict ────────────────────────────────────────────────────
+  const required = round1(req);
+  const sufficient = totals.totalAvailableHours + 1e-9 >= required;
+  response.requiredHours = required;
+  response.sufficient = sufficient;
+  response.minimumRequiredDays = Math.max(1, Math.ceil(required / teamDailyCapacity));
+
+  // Greedy allocation across the preferred window — skips days without
+  // capacity; the project finishes as soon as all required hours fit.
+  const unitsTotal = Number(totalUnits);
+  const hasUnits = Number.isFinite(unitsTotal) && unitsTotal > 0;
+  const hoursPerUnit = hasUnits ? required / unitsTotal : 0;
+  let remainingHours = required;
+  let remainingUnits = hasUnits ? unitsTotal : 0;
+  let completionDate = null;
+  const draftSchedule = [];
+
+  for (const d of windowDays) {
+    if (!d.isWorkingDay) {
+      draftSchedule.push({ date: d.date, status: "skipped", reason: d.reason || "Non-working day" });
+      continue;
+    }
+    if (d.capacityHours <= 0) {
+      draftSchedule.push({ date: d.date, status: "skipped", reason: "No project capacity available" });
+      continue;
+    }
+    const take = Math.min(d.capacityHours, remainingHours);
+    const entry = {
+      date: d.date,
+      status: "work",
+      hours: round1(take),
+      technicians: d.availableTechnicians,
+    };
+    if (hasUnits && hoursPerUnit > 0) {
+      // Ceil so the taken hours are always covered by allocated units; the
+      // last work day absorbs any rounding remainder.
+      const units = Math.min(remainingUnits, Math.ceil(take / hoursPerUnit - 1e-9));
+      entry.units = units;
+      remainingUnits -= units;
+    }
+    draftSchedule.push(entry);
+    remainingHours = round1(remainingHours - take);
+    completionDate = d.date;
+    if (remainingHours <= 1e-9) break;
+  }
+
+  response.draftSchedule = draftSchedule;
+
+  if (remainingHours <= 1e-9) {
+    // Fits inside the window — may finish earlier than the preferred end.
+    response.estimatedCompletionDate = completionDate;
+  } else {
+    // Window too short — find earliest realistic completion scanning forward
+    // from the preferred start using the already-loaded horizon data.
+    let acc = 0;
+    let earliest = null;
+    for (const d of allDays) {
+      acc += d.capacityHours || 0;
+      if (acc + 1e-9 >= required) { earliest = d.date; break; }
+    }
+    response.earliestCompletionDate = earliest; // null → not feasible within 180 days
+    response.shortfallHours = round1(remainingHours);
+  }
+
+  return response;
 }
 
 /**
@@ -1116,5 +1335,7 @@ module.exports = {
   getProjectReservationsForMonth,
   getProjectReservedByDateMap,
   validateProjectDateRange,
+  computeProjectDailyCapacity,
+  getProjectWindowAvailability,
   reserveProjectCapacity,
 };

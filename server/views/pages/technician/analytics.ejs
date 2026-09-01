@@ -1,7 +1,25 @@
-<div class="admin-dashboard container-fluid px-0 py-4">
+<script>
+  (function() {
+    const s = document.currentScript;
+    const main = s && s.parentElement;
+    if (main) {
+      main.classList.remove('p-4');
+      main.style.setProperty('display', 'block', 'important');
+      main.style.setProperty('padding', '0', 'important');
+      main.style.setProperty('max-width', 'none', 'important');
+      main.style.setProperty('margin-left', '0', 'important');
+      main.style.setProperty('margin-right', '0', 'important');
+      main.style.setProperty('width', '100%', 'important');
+    }
+  })();
+</script>
+
+<link rel="stylesheet" href="/css/technician/technician-analytics.css?v=4">
+
+<div class="admin-dashboard container-fluid analytics-page">
   <%- include('../../partials/dashboard-styles') %>
 
-  <div class="container pb-4">
+  <div class="container-fluid pb-4 analytics-page-inner">
     <!-- ─── HERO ─── -->
     <div class="dashboard-hero mb-4">
       <div class="row align-items-center">
@@ -59,7 +77,7 @@
 
     <!-- ─── ENTERPRISE KPI ROW ─── -->
     <div class="row g-3 schedule-kpi-row align-items-stretch mb-4">
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
         <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
           <div class="kpi-enterprise-top">
             <div class="kpi-enterprise-icon blue"><i class="bi bi-clipboard2-check-fill"></i></div>
@@ -73,7 +91,7 @@
           <div class="kpi-enterprise-sparkline"><canvas id="spark_kTotal"></canvas></div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
         <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="50">
           <div class="kpi-enterprise-top">
             <div class="kpi-enterprise-icon green"><i class="bi bi-check-circle-fill"></i></div>
@@ -87,7 +105,7 @@
           <div class="kpi-enterprise-sparkline"><canvas id="spark_kCompleted"></canvas></div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
         <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
           <div class="kpi-enterprise-top">
             <div class="kpi-enterprise-icon amber"><i class="bi bi-hourglass-split"></i></div>
@@ -101,7 +119,7 @@
           <div class="kpi-enterprise-sparkline"><canvas id="spark_kPending"></canvas></div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
           <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="150">
             <div class="kpi-enterprise-top">
               <div class="kpi-enterprise-icon cyan"><i class="bi bi-currency-exchange"></i></div>
@@ -115,7 +133,7 @@
             <div class="kpi-enterprise-sparkline"><canvas id="spark_kRevenue"></canvas></div>
           </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
           <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="175">
             <div class="kpi-enterprise-top">
               <div class="kpi-enterprise-icon red"><i class="bi bi-receipt-cutoff"></i></div>
@@ -129,7 +147,7 @@
             <div class="kpi-enterprise-sparkline"><canvas id="spark_kExpenses"></canvas></div>
           </div>
         </div>
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
         <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="200">
           <div class="kpi-enterprise-top">
             <div class="kpi-enterprise-icon red"><i class="bi bi-star-fill"></i></div>
@@ -143,7 +161,7 @@
           <div class="kpi-enterprise-sparkline"><canvas id="spark_kRating"></canvas></div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xxl-2">
         <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="250">
           <div class="kpi-enterprise-top">
             <div class="kpi-enterprise-icon purple"><i class="bi bi-percent"></i></div>
@@ -172,64 +190,63 @@
       </div>
     </div>
 
-    <!-- ─── CHARTS ROW 1 ─── -->
-    <div class="row mb-4 g-3">
-      <div class="col-md-8">
-        <div class="analytics-chart-card h-100">
+    <!-- ─── MAIN CHART GRID (dashboard two-col pattern: stacks below 992) ─── -->
+    <div class="row g-4 mt-1 analytics-chart-row">
+
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-bar-chart-line me-2" style="color:#3b82f6;"></i>Monthly Trends</h6>
           </div>
           <div class="analytics-chart-body"><canvas id="chartMonthly" height="280"></canvas></div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="analytics-chart-card h-100">
+
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-pie-chart me-2" style="color:#8b5cf6;"></i>Status Breakdown</h6>
           </div>
           <div class="analytics-chart-body d-flex align-items-center justify-content-center"><canvas id="chartStatus" height="250"></canvas></div>
         </div>
       </div>
-    </div>
 
-    <!-- ─── CHARTS ROW 2 ─── -->
-    <div class="row mb-4 g-3">
-      <div class="col-md-6">
-        <div class="analytics-chart-card h-100">
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-cash-stack me-2" style="color:#059669;"></i>Revenue Breakdown</h6>
           </div>
           <div class="analytics-chart-body"><canvas id="chartRevenue" height="260"></canvas></div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="analytics-chart-card h-100">
+
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-activity me-2" style="color:#d97706;"></i>Daily Activity Heatmap</h6>
           </div>
           <div class="analytics-chart-body"><canvas id="chartWeekday" height="260"></canvas></div>
         </div>
       </div>
-    </div>
 
-    <!-- ─── CHARTS ROW 3 ─── -->
-    <div class="row mb-4 g-3">
-      <div class="col-md-6">
-        <div class="analytics-chart-card h-100">
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-receipt me-2" style="color:#ef4444;"></i>Expenses by Type</h6>
           </div>
           <div class="analytics-chart-body"><canvas id="chartExpense" height="260"></canvas></div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="analytics-chart-card h-100">
+
+      <div class="col-12 col-lg-6">
+        <div class="analytics-chart-card">
           <div class="analytics-chart-header">
             <h6><i class="bi bi-people me-2" style="color:#0891b2;"></i>Top Customers</h6>
           </div>
           <div class="analytics-chart-body"><canvas id="chartCustomers" height="260"></canvas></div>
         </div>
       </div>
+
     </div>
 
     <!-- ─── SUMMARY TABLE (Enterprise) ─── -->
@@ -262,13 +279,6 @@
 <style>
   canvas { max-width: 100%; }
 
-  /* ── KPI row flex ── */
-  .schedule-kpi-row { display:flex;flex-wrap:wrap; }
-  .schedule-kpi-row > [class*="col-"] { display:flex;min-width:180px;flex:1 1 180px; }
-  .schedule-kpi-row .kpi-enterprise { width:100%; }
-  @media (max-width:1199px) { .schedule-kpi-row > [class*="col-"] { min-width:220px; } }
-  @media (max-width:767px) { .schedule-kpi-row > [class*="col-"] { min-width:calc(50% - 0.75rem); } }
-
   /* ── Premium Card ── */
   .schedule-premium-card {
     border-radius: 14px;
@@ -287,7 +297,7 @@
   }
   .schedule-card-header h6 { font-size:0.9rem;color:#0f172a; }
 
-  /* ── Analytics Chart Card ── */
+  /* ── Analytics Chart Card (matches dashboard td-panel) ── */
   .analytics-chart-card {
     border-radius: 14px;
     background: #ffffff;
@@ -300,18 +310,20 @@
   }
   .analytics-chart-card:hover { box-shadow:0 8px 32px rgba(15,23,42,0.08),0 2px 8px rgba(15,23,42,0.04); }
   .analytics-chart-header {
-    padding: 0.9rem 1.25rem 0;
-    border-bottom: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
   }
   .analytics-chart-header h6 {
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 700;
-    color: #0f172a;
+    color: #1e293b;
     margin: 0;
   }
   .analytics-chart-body {
-    padding: 0.75rem 1.25rem 1.25rem;
-    flex: 1;
+    padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -375,13 +387,11 @@
     .page-title { font-size: 1.35rem; }
     .admin-filter-bar { flex-direction: column; align-items: flex-start; gap: 1rem; }
     .admin-filter-bar .filter-group { flex-wrap: wrap; width: 100%; }
-    .analytics-chart-card { margin-bottom: 1rem; }
   }
   @media (max-width: 767px) {
     .dashboard-hero .row { flex-direction: column; align-items: flex-start; }
     .admin-filter-bar .filter-item { width: 100%; }
     .admin-filter-bar .form-select { width: 100%; }
-    .schedule-kpi-row > [class*="col-"] { min-width: 100%; flex: 1 1 100%; }
     .schedule-table { border: 0; }
     .schedule-table thead { display: none; }
     .schedule-table tbody, .schedule-table tr { display: block; }
@@ -660,7 +670,7 @@
       type: "doughnut",
       data: { labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)), datasets: [{ data: Object.values(counts), backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: "60%",
+        responsive: true, maintainAspectRatio: true, cutout: "60%",
         plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 12 } } }
       }
     });
@@ -721,7 +731,7 @@
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: true,
         plugins: { legend: { display: false } },
         scales: { r: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: "rgba(0,0,0,0.06)" } } }
       }
@@ -751,7 +761,7 @@
         datasets: [{ data: labels.map(l => byType[l]), backgroundColor: labels.map((_, i) => palette[i % palette.length]), borderWidth: 2, borderColor: "#fff" }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: "58%",
+        responsive: true, maintainAspectRatio: true, cutout: "58%",
         plugins: {
           legend: { position: "bottom", labels: { usePointStyle: true, padding: 12 } },
           tooltip: { callbacks: { label: (c) => c.label + ": ₱" + Number(c.raw).toLocaleString() } }

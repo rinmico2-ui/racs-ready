@@ -49,7 +49,7 @@ router.get('/provinces', async (req, res) => {
     console.error('Error fetching provinces:', err.response?.status || err.code || err.message, err.response?.data ? JSON.stringify(err.response.data).slice(0, 200) : '');
     const stale = getCache('psgc:provinces');
     if (stale) return res.json({ data: stale });
-    res.status(502).json({ error: 'Failed to fetch provinces', details: err.message });
+    res.status(502).json({ error: 'Failed to fetch provinces' });
   }
 });
 
@@ -68,7 +68,7 @@ router.get('/cities', async (req, res) => {
     console.error('Error fetching cities:', err.response?.status || err.code || err.message, err.response?.data ? JSON.stringify(err.response.data).slice(0, 200) : '');
     const stale = getCache('psgc:cities');
     if (stale) return res.json({ data: stale });
-    res.status(502).json({ error: 'Failed to fetch cities', details: err.message });
+    res.status(502).json({ error: 'Failed to fetch cities' });
   }
 });
 
@@ -166,6 +166,45 @@ router.get('/search', async (req, res) => {
   } catch (err) {
     console.warn('PSGC search error:', err && err.message);
     res.json({ results: [] });
+  }
+});
+
+// ── Resolve PSGC codes to human-readable names ──
+router.get('/resolve', async (req, res) => {
+  try {
+    const codes = String(req.query.codes || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!codes.length) return res.json({ resolved: {} });
+
+    const provinces = getCache('psgc:provinces') || [];
+    const cities = getCache('psgc:cities') || [];
+
+    const resolved = {};
+
+    for (const code of codes) {
+      if (resolved[code]) continue;
+
+      // Check provinces
+      const prov = provinces.find(p => String(p.code) === code);
+      if (prov) { resolved[code] = prov.name; continue; }
+
+      // Check cities
+      const city = cities.find(c => String(c.code) === code);
+      if (city) { resolved[code] = city.name; continue; }
+
+      // Check barangays (need to search cached barangay lists)
+      let found = false;
+      for (const cityObj of cities) {
+        const barangays = getCache(`psgc:barangays:${cityObj.code}`) || [];
+        const bgy = barangays.find(b => String(b.code) === code);
+        if (bgy) { resolved[code] = bgy.name; found = true; break; }
+      }
+      if (!found) resolved[code] = null;
+    }
+
+    res.json({ resolved });
+  } catch (err) {
+    console.error('PSGC resolve error:', err.message);
+    res.json({ resolved: {} });
   }
 });
 

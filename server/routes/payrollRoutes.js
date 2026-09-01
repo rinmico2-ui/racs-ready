@@ -9,6 +9,14 @@ const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const EmployeeCompensation = require("../models/EmployeeCompensation");
 const { createNotification } = require("../utils/notify");
+const {
+  calculateBasicPay,
+  calculateOvertimePay,
+  attendanceQualityWarnings,
+  hasBlockingAttendanceExceptions,
+  separationOfDutiesViolation,
+  payrollTotals,
+} = require("../utils/payrollPolicy");
 
 router.use(auth.authenticate);
 
@@ -56,32 +64,142 @@ function lineItems(value, field) {
 }
 
 function totals(data) {
-  const allowanceTotal = (data.allowances || []).reduce((sum, item) => sum + item.amount, 0);
-  const deductionTotal = (data.deductions || []).reduce((sum, item) => sum + item.amount, 0);
-  const grossPay = money(data.basicPay + data.overtimePay + allowanceTotal, "grossPay");
-  return {
-    grossPay,
-    totalDeductions: money(deductionTotal, "totalDeductions"),
-    netPay: money(Math.max(0, grossPay - deductionTotal), "netPay"),
+  return payrollTotals(data);
+}
+
+function hours(value, field = "Overtime hours", fallback = 0) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 744) {
+    const error = new Error(`${field} must be between 0 and 744.`);
+    error.status = 400;
+    throw error;
+  }
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
+}
+
+function assertPayDateForPeriod(payDate, periodEnd) {
+  const payableDay = new Date(payDate);
+  payableDay.setHours(0, 0, 0, 0);
+  const finalPeriodDay = new Date(periodEnd);
+  finalPeriodDay.setHours(0, 0, 0, 0);
+  if (payableDay < finalPeriodDay) {
+    const error = new Error("Pay date cannot be before the end of the payroll period.");
+    error.status = 400;
+    throw error;
+  }
+}
+
+async function assertPayrollSeparationOfDuties(record, actorId, action) {
+  const activeAdminCount = await User.countDocuments({ role: "admin", active: { $ne: false } });
+  const violation = separationOfDutiesViolation({
+    activeAdminCount,
+    createdBy: record.createdBy,
+    approvedBy: record.approvedBy,
+    actorId,
+    action,
+  });
+  if (violation === "creator_cannot_approve") {
+    const error = new Error("A different administrator must approve payroll created by you.");
+    error.status = 409;
+    throw error;
+  }
+  if (violation === "approver_cannot_pay") {
+    const error = new Error("A different administrator must record payment for payroll you approved.");
+    error.status = 409;
+    throw error;
+  }
+}
+
+function normalizePeriod(periodStartValue, periodEndValue) {
+  const periodStart = parseDate(periodStartValue, "Period start");
+  periodStart.setHours(0, 0, 0, 0);
+  const periodEnd = parseDate(periodEndValue, "Period end");
+  periodEnd.setHours(23, 59, 59, 999);
+  if (periodEnd < periodStart) {
+    const error = new Error("Period end cannot be before period start.");
+    error.status = 400;
+    throw error;
+  }
+  if ((periodEnd - periodStart) / 86400000 > 62) {
+    const error = new Error("A payroll period cannot exceed 62 days.");
+    error.status = 400;
+    throw error;
+  }
+  return { periodStart, periodEnd };
+}
+
+async function compensationForPeriod(employeeId, periodStart, periodEnd) {
+  const compensation = await EmployeeCompensation.findOne({
+    employee: employeeId,
+    effectiveFrom: { $lte: periodStart },
+    $or: [{ effectiveTo: null }, { effectiveTo: { $gte: periodEnd } }],
+  }).sort({ effectiveFrom: -1 }).lean();
+
+  if (compensation) return compensation;
+
+  const intersects = await EmployeeCompensation.exists({
+    employee: employeeId,
+    effectiveFrom: { $lte: periodEnd },
+    $or: [{ effectiveTo: null }, { effectiveTo: { $gte: periodStart } }],
+  });
+  const error = new Error(intersects
+    ? "The pay rate changes inside this period. Split it into separate payroll periods."
+    : "No pay rate covers the selected payroll period. Configure compensation for those dates first.");
+  error.status = 409;
+  throw error;
+}
+
+async function findOverlap(employeeId, periodStart, periodEnd, excludeId = null) {
+  const filter = {
+    employee: employeeId,
+    status: { $ne: "voided" },
+    periodStart: { $lte: periodEnd },
+    periodEnd: { $gte: periodStart },
   };
+  if (excludeId) filter._id = { $ne: excludeId };
+  return Payroll.findOne(filter).select("_id periodStart periodEnd status").lean();
+}
+
+function overlapError(record) {
+  const error = new Error(`This period overlaps an existing ${record.status} payroll. Void or adjust that record first.`);
+  error.status = 409;
+  return error;
 }
 
 async function attendanceFor(employeeId, periodStart, periodEnd) {
-  const summary = { present: 0, late: 0, absent: 0, onLeave: 0, sickLeave: 0, hoursWorked: 0 };
+  const summary = {
+    present: 0,
+    late: 0,
+    absent: 0,
+    onLeave: 0,
+    sickLeave: 0,
+    hoursWorked: 0,
+    recordedDays: 0,
+    incompleteShifts: 0,
+    manualEntries: 0,
+    unverifiedEntries: 0,
+  };
   const technician = await Technician.findOne({ user: employeeId }).select("_id").lean();
   if (!technician) return summary;
 
   const records = await TechnicianAttendance.find({
     technicianId: technician._id,
     date: { $gte: periodStart, $lte: periodEnd },
-  }).select("status checkInTime checkOutTime").lean();
+  }).select("status checkInTime checkOutTime qrVerified method").lean();
 
   records.forEach((record) => {
+    summary.recordedDays += 1;
     if (record.status === "Present") summary.present += 1;
     else if (record.status === "Late") summary.late += 1;
     else if (record.status === "Absent") summary.absent += 1;
     else if (record.status === "On Leave") summary.onLeave += 1;
     else if (record.status === "Sick Leave") summary.sickLeave += 1;
+    if (record.method === "manual") summary.manualEntries += 1;
+    if (record.method === "qr_scan" && !record.qrVerified) summary.unverifiedEntries += 1;
+    if (["Present", "Late"].includes(record.status) && (!record.checkInTime || !record.checkOutTime)) {
+      summary.incompleteShifts += 1;
+    }
     if (record.checkInTime && record.checkOutTime) {
       const hours = (new Date(record.checkOutTime) - new Date(record.checkInTime)) / 3600000;
       if (hours > 0 && hours < 24) summary.hoursWorked += hours;
@@ -91,12 +209,35 @@ async function attendanceFor(employeeId, periodStart, periodEnd) {
   return summary;
 }
 
+async function calculatePayroll(employeeId, periodStart, periodEnd, overtimeHours = 0) {
+  const compensation = await compensationForPeriod(employeeId, periodStart, periodEnd);
+  const attendance = await attendanceFor(employeeId, periodStart, periodEnd);
+  const normalizedOvertimeHours = hours(overtimeHours);
+  if (normalizedOvertimeHours > 0 && Number(compensation.overtimeRate || 0) <= 0) {
+    const error = new Error("Configure an overtime rate before adding overtime hours.");
+    error.status = 409;
+    throw error;
+  }
+  const basicPay = calculateBasicPay(compensation, attendance, periodStart, periodEnd);
+  const overtimePay = calculateOvertimePay(compensation, normalizedOvertimeHours);
+  return {
+    compensation,
+    attendance,
+    basicPay,
+    overtimeHours: normalizedOvertimeHours,
+    overtimePay,
+    warnings: attendanceQualityWarnings(compensation, attendance),
+  };
+}
+
 function populatePayroll(query) {
   return query
     .populate("employee", "firstName lastName email role active")
     .populate("createdBy", "firstName lastName")
     .populate("approvedBy", "firstName lastName")
-    .populate("paidBy", "firstName lastName");
+    .populate("paidBy", "firstName lastName")
+    .populate("voidedBy", "firstName lastName")
+    .populate("compensationRecord", "payType baseRate overtimeRate effectiveFrom effectiveTo");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -152,30 +293,56 @@ router.post("/compensation", requireAdmin, async (req, res, next) => {
     if (!["daily", "hourly", "monthly"].includes(payType)) {
       return res.status(400).json({ error: "Pay type must be daily, hourly, or monthly." });
     }
-    const emp = await User.findOne({ _id: employee, role: { $in: ["technician", "secretary"] } }).lean();
+    const emp = await User.findOne({
+      _id: employee,
+      role: { $in: ["technician", "secretary"] },
+      active: { $ne: false },
+    }).lean();
     if (!emp) return res.status(404).json({ error: "Employee not found." });
+    if (emp.role === "secretary" && payType !== "monthly") {
+      return res.status(400).json({ error: "Secretary payroll must use a monthly rate because secretary attendance is not tracked." });
+    }
 
     const from = parseDate(effectiveFrom, "Effective from");
     from.setHours(0, 0, 0, 0);
+    const latest = await EmployeeCompensation.findOne({ employee }).sort({ effectiveFrom: -1 }).select("effectiveFrom").lean();
+    if (latest && from < latest.effectiveFrom) {
+      return res.status(409).json({ error: "A new pay rate cannot start before the latest rate. End or correct the latest record first." });
+    }
+    const normalizedBaseRate = money(baseRate, "Base rate");
+    if (normalizedBaseRate <= 0) return res.status(400).json({ error: "Base rate must be greater than zero." });
+    const normalizedOvertimeRate = money(overtimeRate, "Overtime rate");
+    if (normalizedOvertimeRate > 100000) {
+      return res.status(400).json({ error: "Overtime rate cannot exceed 100,000." });
+    }
+    const previousMoment = new Date(from.getTime() - 1);
 
-    // Deactivate any existing active compensation for this employee
-    await EmployeeCompensation.updateMany(
-      { employee, active: true },
-      { active: false, effectiveTo: from },
-    );
-
-    // Remove stale inactive records with the same effectiveFrom to avoid unique-index conflicts
-    await EmployeeCompensation.deleteMany({ employee, active: false, effectiveFrom: from });
+    const sameEffectiveDate = await EmployeeCompensation.exists({ employee, effectiveFrom: from });
+    if (sameEffectiveDate) {
+      return res.status(409).json({ error: "A compensation record already exists for this effective date. Preserve it and choose a new effective date." });
+    }
 
     const record = await EmployeeCompensation.create({
       employee,
       payType,
-      baseRate: money(baseRate, "Base rate"),
-      overtimeRate: money(overtimeRate, "Overtime rate"),
+      baseRate: normalizedBaseRate,
+      overtimeRate: normalizedOvertimeRate,
       effectiveFrom: from,
       active: true,
       createdBy: req.user._id,
     });
+
+    // Preserve the full rate history. Only close records that preceded this one;
+    // never delete an old compensation row to make a new rate fit.
+    try {
+      await EmployeeCompensation.updateMany(
+        { employee, active: true, _id: { $ne: record._id }, effectiveFrom: { $lt: from } },
+        { active: false, effectiveTo: previousMoment },
+      );
+    } catch (error) {
+      await EmployeeCompensation.deleteOne({ _id: record._id });
+      throw error;
+    }
 
     await audit.logEvent({
       actor: req.user._id, target: employee, action: "payroll.compensation_created",
@@ -204,9 +371,36 @@ router.patch("/compensation/:id", requireAdmin, async (req, res, next) => {
     if (!record) return res.status(404).json({ error: "Compensation record not found." });
     if (!record.active) return res.status(409).json({ error: "Only active compensation records can be edited." });
 
-    if (req.body.payType !== undefined) record.payType = req.body.payType;
-    if (req.body.baseRate !== undefined) record.baseRate = money(req.body.baseRate, "Base rate");
-    if (req.body.overtimeRate !== undefined) record.overtimeRate = money(req.body.overtimeRate, "Overtime rate");
+    const finalizedPayroll = await Payroll.exists({
+      employee: record.employee,
+      status: { $in: ["approved", "paid"] },
+      periodEnd: { $gte: record.effectiveFrom },
+      ...(record.effectiveTo ? { periodStart: { $lte: record.effectiveTo } } : {}),
+    });
+    if (finalizedPayroll) {
+      return res.status(409).json({ error: "This rate is already referenced by finalized payroll. Add a new effective-dated rate instead of editing payroll history." });
+    }
+
+    if (req.body.payType !== undefined) {
+      if (!["daily", "hourly", "monthly"].includes(req.body.payType)) {
+        return res.status(400).json({ error: "Pay type must be daily, hourly, or monthly." });
+      }
+      record.payType = req.body.payType;
+    }
+    const employee = await User.findById(record.employee).select("role").lean();
+    if (employee?.role === "secretary" && record.payType !== "monthly") {
+      return res.status(400).json({ error: "Secretary payroll must use a monthly rate because secretary attendance is not tracked." });
+    }
+    if (req.body.baseRate !== undefined) {
+      const baseRate = money(req.body.baseRate, "Base rate");
+      if (baseRate <= 0) return res.status(400).json({ error: "Base rate must be greater than zero." });
+      record.baseRate = baseRate;
+    }
+    if (req.body.overtimeRate !== undefined) {
+      const overtimeRate = money(req.body.overtimeRate, "Overtime rate");
+      if (overtimeRate > 100000) return res.status(400).json({ error: "Overtime rate cannot exceed 100,000." });
+      record.overtimeRate = overtimeRate;
+    }
     await record.save();
 
     await audit.logEvent({
@@ -239,6 +433,16 @@ router.post("/compensation/:id/end", requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: "End date cannot be before the start date." });
     }
 
+    const payrollAfterEnd = await Payroll.exists({
+      employee: record.employee,
+      status: { $in: ["approved", "paid"] },
+      periodStart: { $lte: to },
+      periodEnd: { $gt: to },
+    });
+    if (payrollAfterEnd) {
+      return res.status(409).json({ error: "This end date would cut through a finalized payroll period." });
+    }
+
     record.effectiveTo = to;
     record.active = false;
     await record.save();
@@ -265,40 +469,19 @@ router.post("/calculate", requireAdmin, async (req, res, next) => {
     if (!mongoose.isValidObjectId(employeeId)) {
       return res.status(400).json({ error: "Select a valid employee." });
     }
-    const start = parseDate(periodStart, "Period start");
-    start.setHours(0, 0, 0, 0);
-    const end = parseDate(periodEnd, "Period end");
-    end.setHours(23, 59, 59, 999);
-    if (end < start) return res.status(400).json({ error: "Period end cannot be before period start." });
+    const { periodStart: start, periodEnd: end } = normalizePeriod(periodStart, periodEnd);
+    const employee = await User.exists({
+      _id: employeeId,
+      role: { $in: ["technician", "secretary"] },
+      active: { $ne: false },
+    });
+    if (!employee) return res.status(404).json({ error: "Active staff member not found." });
 
-    const compensation = await EmployeeCompensation.findOne({ employee: employeeId, active: true }).lean();
-    if (!compensation) {
-      return res.status(404).json({ error: "No active pay rate configured for this employee. Please set up compensation first." });
-    }
+    const overlap = await findOverlap(employeeId, start, end, req.body.excludePayrollId);
+    if (overlap) throw overlapError(overlap);
 
-    const attendance = await attendanceFor(employeeId, start, end);
-    let basicPay = 0;
-
-    if (compensation.payType === "daily") {
-      const billableDays = attendance.present + attendance.late;
-      basicPay = billableDays * compensation.baseRate;
-    } else if (compensation.payType === "hourly") {
-      basicPay = attendance.hoursWorked * compensation.baseRate;
-    } else if (compensation.payType === "monthly") {
-      // For monthly: full base rate if covering a full month (>=28 days), otherwise prorate
-      const totalDays = Math.ceil((end - start) / 86400000) + 1;
-      if (totalDays >= 28) {
-        basicPay = compensation.baseRate;
-      } else {
-        basicPay = (compensation.baseRate / 30) * totalDays;
-      }
-    }
-
-    const overtimePay = attendance.hoursWorked > 0 && compensation.overtimeRate > 0
-      ? 0 // OT must be separately approved — admin can manually add
-      : 0;
-
-    basicPay = Math.round((basicPay + Number.EPSILON) * 100) / 100;
+    const calculation = await calculatePayroll(employeeId, start, end, req.body.overtimeHours);
+    const { compensation, attendance, basicPay, overtimeHours, overtimePay, warnings } = calculation;
 
     res.json({
       compensation: {
@@ -308,8 +491,11 @@ router.post("/calculate", requireAdmin, async (req, res, next) => {
       },
       attendanceSummary: attendance,
       basicPay,
+      overtimeHours,
       overtimePay,
       grossPay: basicPay + overtimePay,
+      calculationWarnings: warnings,
+      calculationSource: "attendance_compensation",
     });
   } catch (error) {
     next(error);
@@ -348,14 +534,18 @@ router.get("/due-today", requireAdmin, async (req, res, next) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Find all active daily-rate employees
-    const dailyEmployees = await EmployeeCompensation.find({ active: true, payType: "daily" })
+    // Resolve rates by effective dates so future rate changes do not replace today's rate.
+    const dailyEmployees = await EmployeeCompensation.find({
+      payType: "daily",
+      effectiveFrom: { $lte: today },
+      $or: [{ effectiveTo: null }, { effectiveTo: { $gte: today } }],
+    })
       .populate("employee", "firstName lastName email role")
       .lean();
 
     // Get employee IDs that already have a payroll record covering today
     const existingPayrolls = await Payroll.find({
-      periodStart: { $lte: tomorrow },
+      periodStart: { $lt: tomorrow },
       periodEnd: { $gte: today },
       status: { $in: ["draft", "approved", "paid"] },
     }).select("employee").lean();
@@ -416,27 +606,32 @@ router.get("/", async (req, res, next) => {
       filter.employeeRole = req.query.role;
     }
     if (isAdmin && req.query.employee && mongoose.isValidObjectId(req.query.employee)) {
-      filter.employee = req.query.employee;
+      filter.employee = new mongoose.Types.ObjectId(req.query.employee);
     }
     if (req.query.year && /^\d{4}$/.test(req.query.year)) {
       const year = Number(req.query.year);
       filter.payDate = { $gte: new Date(year, 0, 1), $lt: new Date(year + 1, 0, 1) };
     }
 
-    const records = await populatePayroll(Payroll.find(filter).sort({ payDate: -1, createdAt: -1 }).limit(250)).lean();
-    const stats = records.reduce(
-      (result, item) => {
-        result.count += 1;
-        if (item.status !== "voided") result.netTotal += item.netPay || 0;
-        if (item.status === "draft") result.draft += 1;
-        if (item.status === "approved") result.approved += 1;
-        if (item.status === "paid") result.paid += 1;
-        return result;
-      },
-      { count: 0, netTotal: 0, draft: 0, approved: 0, paid: 0 },
-    );
-    stats.netTotal = Math.round(stats.netTotal * 100) / 100;
-    res.json({ records, stats });
+    const [records, statsRows] = await Promise.all([
+      populatePayroll(Payroll.find(filter).sort({ payDate: -1, createdAt: -1 }).limit(250)).lean(),
+      Payroll.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            netTotal: { $sum: { $cond: [{ $ne: ["$status", "voided"] }, "$netPay", 0] } },
+            draft: { $sum: { $cond: [{ $eq: ["$status", "draft"] }, 1, 0] } },
+            approved: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] } },
+            paid: { $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] } },
+          },
+        },
+      ]),
+    ]);
+    const stats = statsRows[0] || { count: 0, netTotal: 0, draft: 0, approved: 0, paid: 0 };
+    stats.netTotal = Math.round(Number(stats.netTotal || 0) * 100) / 100;
+    res.json({ records, stats, resultLimit: 250, hasMore: stats.count > records.length });
   } catch (error) {
     next(error);
   }
@@ -460,19 +655,24 @@ router.get("/:id", async (req, res, next) => {
 router.post("/", requireAdmin, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.body.employee)) return res.status(400).json({ error: "Select a valid staff member." });
-    const employee = await User.findOne({ _id: req.body.employee, role: { $in: ["technician", "secretary"] } }).lean();
+    const employee = await User.findOne({
+      _id: req.body.employee,
+      role: { $in: ["technician", "secretary"] },
+      active: { $ne: false },
+    }).lean();
     if (!employee) return res.status(404).json({ error: "Staff member not found." });
 
-    const periodStart = parseDate(req.body.periodStart, "Period start");
-    periodStart.setHours(0, 0, 0, 0);
-    const periodEnd = parseDate(req.body.periodEnd, "Period end");
-    periodEnd.setHours(23, 59, 59, 999);
+    const { periodStart, periodEnd } = normalizePeriod(req.body.periodStart, req.body.periodEnd);
     const payDate = parseDate(req.body.payDate, "Pay date");
-    if (periodEnd < periodStart) return res.status(400).json({ error: "Period end cannot be before period start." });
-    if ((periodEnd - periodStart) / 86400000 > 62) return res.status(400).json({ error: "A payroll period cannot exceed 62 days." });
+    assertPayDateForPeriod(payDate, periodEnd);
+    const overlap = await findOverlap(employee._id, periodStart, periodEnd);
+    if (overlap) throw overlapError(overlap);
 
-    // Snapshot compensation if available
-    const compensation = await EmployeeCompensation.findOne({ employee: employee._id, active: true }).lean();
+    const calculation = await calculatePayroll(employee._id, periodStart, periodEnd, req.body.overtimeHours);
+    const overtimeNote = String(req.body.overtimeNote || "").trim().slice(0, 300);
+    if (calculation.overtimeHours > 0 && !overtimeNote) {
+      return res.status(400).json({ error: "An overtime approval reason is required when overtime hours are added." });
+    }
 
     const data = {
       employee: employee._id,
@@ -480,22 +680,36 @@ router.post("/", requireAdmin, async (req, res, next) => {
       periodStart,
       periodEnd,
       payDate,
-      basicPay: money(req.body.basicPay, "Basic pay"),
-      overtimePay: money(req.body.overtimePay, "Overtime pay"),
+      basicPay: calculation.basicPay,
+      overtimeHours: calculation.overtimeHours,
+      overtimePay: calculation.overtimePay,
+      overtimeNote,
       allowances: lineItems(req.body.allowances, "Allowances") || [],
       deductions: lineItems(req.body.deductions, "Deductions") || [],
       notes: String(req.body.notes || "").trim().slice(0, 1000),
       createdBy: req.user._id,
-      attendanceSummary: await attendanceFor(employee._id, periodStart, periodEnd),
-      payType: compensation ? compensation.payType : undefined,
-      baseRate: compensation ? compensation.baseRate : undefined,
+      attendanceSummary: calculation.attendance,
+      payType: calculation.compensation.payType,
+      baseRate: calculation.compensation.baseRate,
+      overtimeRate: calculation.compensation.overtimeRate,
+      compensationRecord: calculation.compensation._id,
+      calculationWarnings: calculation.warnings,
+      calculationSource: "attendance_compensation",
+      calculationVersion: 1,
+      calculatedAt: new Date(),
     };
     Object.assign(data, totals(data));
     const record = await Payroll.create(data);
     await audit.logEvent({
       actor: req.user._id, target: employee._id, action: "payroll.created", module: "payroll", req,
       entityId: record._id, entityType: "Payroll", category: "payment",
-      details: { periodStart, periodEnd, netPay: record.netPay },
+      details: {
+        periodStart,
+        periodEnd,
+        netPay: record.netPay,
+        calculationSource: record.calculationSource,
+        calculationVersion: record.calculationVersion,
+      },
     });
     const populated = await populatePayroll(Payroll.findById(record._id)).lean();
     res.status(201).json({ message: "Draft payroll created.", record: populated });
@@ -507,6 +721,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
 
 router.patch("/:id", requireAdmin, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: "Payroll record not found." });
     const record = await Payroll.findById(req.params.id);
     if (!record) return res.status(404).json({ error: "Payroll record not found." });
     if (record.status !== "draft") return res.status(409).json({ error: "Only draft payroll can be edited." });
@@ -519,14 +734,39 @@ router.patch("/:id", requireAdmin, async (req, res, next) => {
       record.periodEnd = parseDate(req.body.periodEnd, "Period end");
       record.periodEnd.setHours(23, 59, 59, 999);
     }
+
     if (record.periodEnd < record.periodStart) return res.status(400).json({ error: "Period end cannot be before period start." });
+    if ((record.periodEnd - record.periodStart) / 86400000 > 62) {
+      return res.status(400).json({ error: "A payroll period cannot exceed 62 days." });
+    }
+    const overlap = await findOverlap(record.employee, record.periodStart, record.periodEnd, record._id);
+    if (overlap) throw overlapError(overlap);
     if (req.body.payDate !== undefined) record.payDate = parseDate(req.body.payDate, "Pay date");
-    if (req.body.basicPay !== undefined) record.basicPay = money(req.body.basicPay, "Basic pay");
-    if (req.body.overtimePay !== undefined) record.overtimePay = money(req.body.overtimePay, "Overtime pay");
+    assertPayDateForPeriod(record.payDate, record.periodEnd);
+    const requestedOvertimeHours = req.body.overtimeHours !== undefined
+      ? req.body.overtimeHours
+      : record.overtimeHours;
+    const calculation = await calculatePayroll(record.employee, record.periodStart, record.periodEnd, requestedOvertimeHours);
+    const overtimeNote = req.body.overtimeNote !== undefined
+      ? String(req.body.overtimeNote || "").trim().slice(0, 300)
+      : record.overtimeNote;
+    if (calculation.overtimeHours > 0 && !overtimeNote) {
+      return res.status(400).json({ error: "An overtime approval reason is required when overtime hours are added." });
+    }
     if (req.body.allowances !== undefined) record.allowances = lineItems(req.body.allowances, "Allowances");
     if (req.body.deductions !== undefined) record.deductions = lineItems(req.body.deductions, "Deductions");
     if (req.body.notes !== undefined) record.notes = String(req.body.notes || "").trim().slice(0, 1000);
-    record.attendanceSummary = await attendanceFor(record.employee, record.periodStart, record.periodEnd);
+    record.basicPay = calculation.basicPay;
+    record.overtimeHours = calculation.overtimeHours;
+    record.overtimePay = calculation.overtimePay;
+    record.overtimeNote = overtimeNote;
+    record.attendanceSummary = calculation.attendance;
+    record.payType = calculation.compensation.payType;
+    record.baseRate = calculation.compensation.baseRate;
+    record.overtimeRate = calculation.compensation.overtimeRate;
+    record.compensationRecord = calculation.compensation._id;
+    record.calculationWarnings = calculation.warnings;
+    record.calculatedAt = new Date();
     Object.assign(record, totals(record));
     await record.save();
     await audit.logEvent({ actor: req.user._id, target: record.employee, action: "payroll.updated", module: "payroll", req, entityId: record._id, entityType: "Payroll", category: "payment" });
@@ -539,28 +779,74 @@ router.patch("/:id", requireAdmin, async (req, res, next) => {
 
 router.post("/:id/approve", requireAdmin, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: "Payroll record not found." });
     const record = await Payroll.findById(req.params.id);
     if (!record) return res.status(404).json({ error: "Payroll record not found." });
     if (record.status !== "draft") return res.status(409).json({ error: "Only draft payroll can be approved." });
-    record.status = "approved";
-    record.approvedBy = req.user._id;
-    record.approvedAt = new Date();
-    await record.save();
-    await audit.logEvent({ actor: req.user._id, target: record.employee, action: "payroll.approved", module: "payroll", req, entityId: record._id, entityType: "Payroll", category: "payment", details: { netPay: record.netPay } });
+    await assertPayrollSeparationOfDuties(record, req.user._id, "approve");
+    const overlap = await findOverlap(record.employee, record.periodStart, record.periodEnd, record._id);
+    if (overlap) throw overlapError(overlap);
+    assertPayDateForPeriod(record.payDate, record.periodEnd);
+    const calculation = await calculatePayroll(record.employee, record.periodStart, record.periodEnd, record.overtimeHours);
+    if (calculation.overtimeHours > 0 && !String(record.overtimeNote || "").trim()) {
+      return res.status(409).json({ error: "Add an overtime approval reason before approving this payroll." });
+    }
+    if (hasBlockingAttendanceExceptions(calculation.compensation, calculation.attendance)) {
+      return res.status(409).json({
+        error: "Resolve missing, incomplete, or unverified attendance before approval.",
+        warnings: calculation.warnings,
+      });
+    }
+    const computedTotals = totals({
+      basicPay: calculation.basicPay,
+      overtimePay: calculation.overtimePay,
+      allowances: record.allowances,
+      deductions: record.deductions,
+    });
+    if (computedTotals.totalDeductions >= computedTotals.grossPay) {
+      return res.status(409).json({ error: "Deductions must be lower than gross pay before approval." });
+    }
+    const approvedAt = new Date();
+    const approvedRecord = await Payroll.findOneAndUpdate(
+      { _id: record._id, status: "draft", updatedAt: record.updatedAt },
+      {
+        $set: {
+          status: "approved",
+          approvedBy: req.user._id,
+          approvedAt,
+          basicPay: calculation.basicPay,
+          overtimeHours: calculation.overtimeHours,
+          overtimePay: calculation.overtimePay,
+          attendanceSummary: calculation.attendance,
+          payType: calculation.compensation.payType,
+          baseRate: calculation.compensation.baseRate,
+          overtimeRate: calculation.compensation.overtimeRate,
+          compensationRecord: calculation.compensation._id,
+          calculationWarnings: calculation.warnings,
+          calculatedAt: approvedAt,
+          ...computedTotals,
+        },
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    if (!approvedRecord) {
+      return res.status(409).json({ error: "Payroll changed while it was being approved. Refresh and review the latest draft." });
+    }
+    await audit.logEvent({ actor: req.user._id, target: approvedRecord.employee, action: "payroll.approved", module: "payroll", req, entityId: approvedRecord._id, entityType: "Payroll", category: "payment", details: { netPay: approvedRecord.netPay, calculationWarnings: approvedRecord.calculationWarnings } });
 
     // Notify the employee
     const io = req.app.get("io");
     const fmtMoney = (n) => "\u20B1" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const periodLabel = new Date(record.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) + " \u2013 " + new Date(record.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+    const periodLabel = new Date(approvedRecord.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) + " \u2013 " + new Date(approvedRecord.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
     await createNotification({
       type: "payroll_approved",
       title: "Payroll Approved",
-      message: `Your payroll for ${periodLabel} (${fmtMoney(record.netPay)}) has been approved and is ready for payment.`,
-      userId: record.employee,
-      role: "technician",
-      referenceId: record._id,
+      message: `Your payroll for ${periodLabel} (${fmtMoney(approvedRecord.netPay)}) has been approved and is ready for payment.`,
+      userId: approvedRecord.employee,
+      role: approvedRecord.employeeRole,
+      referenceId: approvedRecord._id,
       referenceModel: "Payroll",
-      link: "/technician/my-payroll",
+      link: `/${approvedRecord.employeeRole}/payroll`,
       priority: "normal",
       io,
     });
@@ -571,38 +857,64 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
 
 router.post("/:id/paid", requireAdmin, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: "Payroll record not found." });
     const record = await Payroll.findById(req.params.id);
     if (!record) return res.status(404).json({ error: "Payroll record not found." });
     if (record.status !== "approved") return res.status(409).json({ error: "Approve the payroll before marking it paid." });
+    await assertPayrollSeparationOfDuties(record, req.user._id, "pay");
 
     const paymentMethod = req.body.paymentMethod;
     if (!paymentMethod || !["cash", "bank_transfer", "gcash", "other"].includes(paymentMethod)) {
       return res.status(400).json({ error: "Select a valid payment method (cash, bank_transfer, gcash, other)." });
     }
+    const paymentReference = String(req.body.paymentReference || "").trim().slice(0, 120);
+    if (paymentMethod !== "cash" && !paymentReference) {
+      return res.status(400).json({ error: "A transaction reference is required for non-cash payroll payments." });
+    }
+    const paymentProof = String(req.body.paymentProof || "").trim().slice(0, 500);
+    if (paymentProof && !/^https?:\/\//i.test(paymentProof)) {
+      return res.status(400).json({ error: "Payment proof must be a valid HTTP or HTTPS URL." });
+    }
+    const paymentDate = req.body.paymentDate ? parseDate(req.body.paymentDate, "Payment date") : new Date();
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    if (paymentDate > endOfToday) return res.status(400).json({ error: "Payment date cannot be in the future." });
+    assertPayDateForPeriod(paymentDate, record.periodEnd);
 
-    record.status = "paid";
-    record.paymentMethod = paymentMethod;
-    record.paymentReference = String(req.body.paymentReference || "").trim().slice(0, 120);
-    record.paymentProof = String(req.body.paymentProof || "").trim().slice(0, 500);
-    record.paymentDate = req.body.paymentDate ? parseDate(req.body.paymentDate, "Payment date") : new Date();
-    record.paidBy = req.user._id;
-    record.paidAt = new Date();
-    await record.save();
-    await audit.logEvent({ actor: req.user._id, target: record.employee, action: "payroll.paid", module: "payroll", req, entityId: record._id, entityType: "Payroll", category: "payment", details: { netPay: record.netPay, paymentMethod, paymentReference: record.paymentReference } });
+    const paidAt = new Date();
+    const paidRecord = await Payroll.findOneAndUpdate(
+      { _id: record._id, status: "approved", updatedAt: record.updatedAt },
+      {
+        $set: {
+          status: "paid",
+          paymentMethod,
+          paymentReference,
+          paymentProof,
+          paymentDate,
+          paidBy: req.user._id,
+          paidAt,
+        },
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    if (!paidRecord) {
+      return res.status(409).json({ error: "Payroll changed while payment was being recorded. Refresh and review its latest status." });
+    }
+    await audit.logEvent({ actor: req.user._id, target: paidRecord.employee, action: "payroll.paid", module: "payroll", req, entityId: paidRecord._id, entityType: "Payroll", category: "payment", details: { netPay: paidRecord.netPay, paymentMethod, paymentReference: paidRecord.paymentReference } });
 
     // Notify the employee
     const io = req.app.get("io");
     const fmtMoney = (n) => "\u20B1" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const periodLabel = new Date(record.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) + " \u2013 " + new Date(record.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+    const periodLabel = new Date(paidRecord.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) + " \u2013 " + new Date(paidRecord.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
     await createNotification({
       type: "payroll_paid",
       title: "Payment Processed",
-      message: `Payment of ${fmtMoney(record.netPay)} for ${periodLabel} has been processed via ${paymentMethod.replace("_", " ")}.`,
-      userId: record.employee,
-      role: "technician",
-      referenceId: record._id,
+      message: `Payment of ${fmtMoney(paidRecord.netPay)} for ${periodLabel} has been processed via ${paymentMethod.replace("_", " ")}.`,
+      userId: paidRecord.employee,
+      role: paidRecord.employeeRole,
+      referenceId: paidRecord._id,
       referenceModel: "Payroll",
-      link: "/technician/my-payroll",
+      link: `/${paidRecord.employeeRole}/payroll`,
       priority: "high",
       io,
     });
@@ -615,15 +927,19 @@ router.post("/:id/void", requireAdmin, async (req, res, next) => {
   try {
     const reason = String(req.body.reason || "").trim().slice(0, 300);
     if (!reason) return res.status(400).json({ error: "A reason is required to void payroll." });
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: "Payroll record not found." });
     const record = await Payroll.findById(req.params.id);
     if (!record) return res.status(404).json({ error: "Payroll record not found." });
     if (record.status === "paid" || record.status === "voided") return res.status(409).json({ error: "Paid or already voided payroll cannot be voided." });
-    record.status = "voided";
-    record.voidReason = reason;
-    record.voidedBy = req.user._id;
-    record.voidedAt = new Date();
-    await record.save();
-    await audit.logEvent({ actor: req.user._id, target: record.employee, action: "payroll.voided", module: "payroll", req, entityId: record._id, entityType: "Payroll", category: "payment", details: { reason } });
+    const voidedRecord = await Payroll.findOneAndUpdate(
+      { _id: record._id, status: { $in: ["draft", "approved"] }, updatedAt: record.updatedAt },
+      { $set: { status: "voided", voidReason: reason, voidedBy: req.user._id, voidedAt: new Date() } },
+      { returnDocument: "after", runValidators: true },
+    );
+    if (!voidedRecord) {
+      return res.status(409).json({ error: "Payroll changed while it was being voided. Refresh and review its latest status." });
+    }
+    await audit.logEvent({ actor: req.user._id, target: voidedRecord.employee, action: "payroll.voided", module: "payroll", req, entityId: voidedRecord._id, entityType: "Payroll", category: "payment", details: { reason } });
     res.json({ message: "Payroll voided." });
   } catch (error) { next(error); }
 });

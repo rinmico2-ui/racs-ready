@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function validateCaptchaField() {
     var val = mathInput.value.trim();
-    if (!val || !/^[0-9]{1,2}$/.test(val)) {
+    if (!val || !/^[0-9]{1,3}$/.test(val)) {
       setFieldFeedback(mathInput, captchaFeedback, null);
       return false;
     }

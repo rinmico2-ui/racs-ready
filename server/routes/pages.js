@@ -8,6 +8,7 @@ const defaultTechnicianLocation = {
 
 const auth = require("../middleware/authenticate");
 const pageAuth = require("../middleware/pageAuth");
+const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
 
 let farePerKm = 40;
 
@@ -29,6 +30,7 @@ router.get("/math-captcha", (req, res) => {
 // Landing page
 router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let featuredProducts = [];
+  let publicStats = { servicesCompleted: 0, satisfactionPercentage: 0, activeTechnicians: 0, yearsExperience: 0, averageRating: 0, ratingCount: 0 };
   try {
     const HVACProduct = require("../models/HVACProduct");
     const products = await HVACProduct.find({
@@ -112,8 +114,14 @@ router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
     console.error("Landing page failed to load ratings:", err && err.message);
   }
 
-  const displayRating = avgRating || 4.9;
-  const displayCount = ratingCount || 3;
+  try {
+    publicStats = await getPublicBusinessStats();
+  } catch (err) {
+    console.error("Landing page failed to load public business statistics:", err && err.message);
+  }
+
+  const displayRating = publicStats.averageRating || avgRating || 0;
+  const displayCount = publicStats.ratingCount || ratingCount || 0;
 
   const businessHours = await getBusinessHours();
   const companyLocation = await getCompanyLocation();
@@ -126,6 +134,7 @@ router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
     testimonials,
     displayRating,
     displayCount,
+    publicStats,
     businessHours,
     companyLocation,
   });
@@ -142,6 +151,7 @@ const RepairService = require("../models/RepairService");
 
 router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let initialServices = { coreServices: [], repairs: [] };
+  let publicStats = { servicesCompleted: 0, satisfactionPercentage: 0, activeTechnicians: 0, yearsExperience: 0, averageRating: 0, ratingCount: 0 };
   try {
     const core = await CoreService.find({ active: true }).lean().limit(100);
     const repairs = await RepairService.find({ active: true })
@@ -178,6 +188,12 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     if (setting && typeof setting.value === "number") projectLaborRatePerDay = setting.value;
   } catch (e) { /* ignore — fallback already set */ }
 
+  try {
+    publicStats = await getPublicBusinessStats();
+  } catch (err) {
+    console.error("/services page failed to load public business statistics:", err && err.message);
+  }
+
   res.render("pages/services", {
     title: "Book a Service",
     googleCalendarClientId: process.env.GOOGLE_CALENDAR_CLIENT_ID || "",
@@ -189,6 +205,7 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || "",
     farePerKm,
     projectLaborRatePerDay,
+    publicStats,
   });
 });
 
@@ -419,10 +436,87 @@ router.get("/my-orders", pageAuth.requireRole("customer"), async (req, res, next
     const orders = await Order.find({ userId: req.user._id })
       .sort({ createdAt: -1 })
       .lean();
+    if (orders.length) {
+      const CustomerAsset = require("../models/CustomerAsset");
+      const MaintenanceSchedule = require("../models/MaintenanceSchedule");
+      const assets = await CustomerAsset.find({
+        customerId: req.user._id,
+        originType: "order",
+        originId: { $in: orders.map((order) => order._id) },
+      }).lean();
+      const schedules = await MaintenanceSchedule.find({ assetId: { $in: assets.map((asset) => asset._id) } })
+        .sort({ cycleNumber: -1 })
+        .lean();
+      const scheduleByAsset = new Map();
+      schedules.forEach((schedule) => {
+        const key = String(schedule.assetId);
+        if (!scheduleByAsset.has(key)) scheduleByAsset.set(key, schedule);
+      });
+      const assetsByOrder = new Map();
+      assets.forEach((asset) => {
+        const key = String(asset.originId);
+        if (!assetsByOrder.has(key)) assetsByOrder.set(key, []);
+        assetsByOrder.get(key).push({ ...asset, maintenanceSchedule: scheduleByAsset.get(String(asset._id)) || null });
+      });
+      orders.forEach((order) => { order.maintenanceAssets = assetsByOrder.get(String(order._id)) || []; });
+    }
     res.render("pages/my-orders", { title: "My Orders", orders });
   } catch (err) {
     next(err);
   }
+});
+
+// Dedicated customer order record. The ownership predicate is part of the
+// database query to prevent IDOR access to another customer's order.
+router.get("/my-orders/:id", pageAuth.requireRole("customer"), async (req, res, next) => {
+  try {
+    const mongoose = require("mongoose");
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).render("pages/404", { title: "Order Not Found" });
+    }
+
+    const Order = require("../models/Order");
+    const order = await Order.findOne({ _id: req.params.id, userId: req.user._id })
+      .populate("technicianId", "name phone email")
+      .lean();
+    if (!order) return res.status(404).render("pages/404", { title: "Order Not Found" });
+
+    if ((!order.technician || !order.technician.name) && order.technicianId && typeof order.technicianId === "object") {
+      order.technician = {
+        _id: order.technicianId._id,
+        name: order.technicianId.name,
+        phone: order.technicianId.phone,
+        email: order.technicianId.email,
+      };
+    }
+
+    const CustomerAsset = require("../models/CustomerAsset");
+    const MaintenanceSchedule = require("../models/MaintenanceSchedule");
+    const assets = await CustomerAsset.find({
+      customerId: req.user._id,
+      originType: "order",
+      originId: order._id,
+    }).lean();
+    const schedules = assets.length
+      ? await MaintenanceSchedule.find({ assetId: { $in: assets.map(asset => asset._id) } }).sort({ dueDate: 1 }).lean()
+      : [];
+    const scheduleByAsset = new Map(schedules.map(schedule => [String(schedule.assetId), schedule]));
+    order.maintenanceAssets = assets.map(asset => ({
+      ...asset,
+      maintenanceSchedule: scheduleByAsset.get(String(asset._id)) || null,
+    }));
+
+    return res.render("pages/order-details", {
+      title: `Order ${order.orderReference || "Details"}`,
+      order,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get("/maintenance", pageAuth.requireRole("customer"), (req, res) => {
+  res.render("pages/maintenance", { title: "My Maintenance" });
 });
 
 // Friendly cart URL for customer navigation and shared links.
@@ -508,14 +602,18 @@ router.get("/aircon-history", pageAuth.requireRole("customer"), async (req, res,
 
 // About page
 router.get("/about", pageAuth.requireCustomerOrGuest, async (req, res) => {
-  const companyAddress = await getCompanyAddress();
-  const companyLocation = await getCompanyLocation();
-  const businessHours = await getBusinessHours();
+  const [companyAddress, companyLocation, businessHours, publicStats] = await Promise.all([
+    getCompanyAddress(),
+    getCompanyLocation(),
+    getBusinessHours(),
+    getPublicBusinessStats().catch(() => ({ yearsExperience: 0 })),
+  ]);
   res.render("pages/about", {
     title: "About Us",
     companyAddress,
     companyLocation,
     businessHours,
+    publicStats,
   });
 });
 
@@ -1195,6 +1293,9 @@ router.get(
   "/admin/appointments",
   pageAuth.requireRole("admin"),
   (req, res) => {
+    if (req.query.tab === "noshow") {
+      return res.redirect("/admin/appointments/attention?status=no-show-reported");
+    }
     res.render("pages/admin/Appointments/AppointmentsUnified", {
       title: "Appointment Management",
       layout: "layouts/admin",
@@ -1245,10 +1346,7 @@ router.get(
   "/admin/appointments/reschedule",
   pageAuth.requireRole("admin"),
   (req, res) => {
-    res.render("pages/admin/Appointments/Reschedule", {
-      title: "Reschedule Appointment",
-      layout: "layouts/admin",
-    });
+    res.redirect("/admin/appointments/attention");
   },
 );
 router.get(
@@ -1298,15 +1396,36 @@ router.get(
   },
 );
 
-// Admin - Attention Required Queue
+// Admin - unified booking and order Resolution Center. The legacy appointments
+// URL remains available because notifications and historical links use it.
+router.get(
+  "/admin/operations/resolution-center",
+  pageAuth.requireRole("admin"),
+  (req, res) => {
+    res.render("pages/admin/Appointments/AttentionQueue", {
+      title: "Resolution Center",
+      layout: "layouts/admin",
+    });
+  },
+);
+
 router.get(
   "/admin/appointments/attention",
   pageAuth.requireRole("admin"),
   (req, res) => {
     res.render("pages/admin/Appointments/AttentionQueue", {
-      title: "Attention Required",
+      title: "Resolution Center",
       layout: "layouts/admin",
     });
+  },
+);
+
+// Legacy Review & Reschedule URL redirects to the unified center
+router.get(
+  "/admin/appointments/review-reschedule",
+  pageAuth.requireRole("admin"),
+  (req, res) => {
+    res.redirect("/admin/appointments/attention");
   },
 );
 
@@ -1358,6 +1477,12 @@ router.get("/admin/jobs/completed", pageAuth.requireRole("admin"), (req, res) =>
 router.get("/admin/inventory", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Inventory/InventoryList", {
     title: "Inventory",
+    layout: "layouts/admin",
+  });
+});
+router.get("/admin/inventory/equipment-returns", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Inventory/EquipmentReturns", {
+    title: "Equipment Returns Queue",
     layout: "layouts/admin",
   });
 });
@@ -1679,56 +1804,12 @@ router.get(
   async (req, res, next) => {
     try {
       const Technician = require("../models/Technician");
-      const BookingService = require("../models/BookingService");
       const tech = await Technician.findOne({ user: req.user._id }).lean();
-
-      let appointments = [];
-      if (tech && tech._id) {
-        const technicianIds = [String(tech._id)];
-        if (tech.user) technicianIds.push(String(tech.user));
-        if (req.user && req.user._id) technicianIds.push(String(req.user._id));
-
-        const since = new Date();
-        since.setDate(since.getDate() - 1);
-        since.setHours(0, 0, 0, 0);
-
-        appointments = await BookingService.find({
-          technicianId: { $in: Array.from(new Set(technicianIds)) },
-          bookingDate: { $gte: since },
-          status: {
-            $in: [
-              "pending",
-              "confirmed",
-              "scheduled",
-              "on-the-way",
-              "in-progress",
-              "re-scheduled",
-            ],
-          },
-        })
-          .sort({ bookingDate: 1, startTime: 1 })
-          .limit(120)
-          .lean();
-      }
-      // Also fetch product order delivery/installation tasks
-      let productOrders = [];
-      if (tech && tech._id) {
-        const Order = require("../models/Order");
-        productOrders = await Order.find({
-          technicianId: tech._id,
-          status: { $nin: ["cancelled", "completed"] },
-        })
-          .sort({ "delivery.preferredDate": 1, createdAt: 1 })
-          .limit(50)
-          .lean();
-      }
 
       res.render("pages/technician/techniciandashboard", {
         title: "Technician Dashboard",
         layout: "layouts/technician",
         technician: tech || {},
-        initialAppointments: appointments,
-        initialProductOrders: productOrders,
       });
     } catch (e) {
       next(e);
@@ -2114,105 +2195,140 @@ router.get(
   "/admin/reports/orders",
   pageAuth.requireRole("admin"),
   async (req, res) => {
-    const empty = { totalOrders: 0, grossRevenue: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, pendingPaymentValue: 0, avgCycleHours: 0, orderGrowth: 0, revenueGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
+    const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
+    const { parseOrderReportFilters, serializableOrderFilters } = require("../utils/orderReportFilters");
+    const reportFilters = parseOrderReportFilters(req.query);
+    let filters = { range: "90", from: "", to: "", ...reportFilters };
+    let filterOptions = { brands: [], technicians: [] };
     try {
       const Order = require("../models/Order");
-      const allowedRanges = new Set(["7", "30", "90", "365", "custom"]);
+      const Payment = require("../models/Payment");
+      const Inventory = require("../models/Inventory");
+      const Technician = require("../models/Technician");
+      const mongoose = require("mongoose");
+      const { buildOrderAnalytics } = require("../utils/orderAnalytics");
+      const { buildOrderFilter, combineOrderFilters } = require("../utils/orderReportFilters");
+      const allowedRanges = new Set(["today", "7", "30", "mtd", "qtd", "ytd", "90", "365", "custom"]);
       const range = allowedRanges.has(String(req.query.range)) ? String(req.query.range) : "90";
       const now = new Date();
       let start = new Date(now);
       let end = new Date(now);
-      if (range === "custom" && req.query.from && !Number.isNaN(Date.parse(req.query.from))) start = new Date(`${req.query.from}T00:00:00`);
-      else start.setDate(start.getDate() - Number(range === "custom" ? 90 : range));
-      if (range === "custom" && req.query.to && !Number.isNaN(Date.parse(req.query.to))) end = new Date(`${req.query.to}T23:59:59.999`);
+      const validDateInput = value => {
+        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        const [year, month, day] = value.split("-").map(Number);
+        const parsed = new Date(year, month - 1, day);
+        return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+      };
+      if (range === "custom" && validDateInput(req.query.from)) start = new Date(`${req.query.from}T00:00:00`);
+      else if (range === "mtd") start = new Date(now.getFullYear(), now.getMonth(), 1);
+      else if (range === "qtd") start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+      else if (range === "ytd") start = new Date(now.getFullYear(), 0, 1);
+      else if (range !== "today") start.setDate(start.getDate() - (Number(range === "custom" ? 90 : range) - 1));
+      if (range === "custom" && validDateInput(req.query.to)) end = new Date(`${req.query.to}T23:59:59.999`);
+      end.setHours(23, 59, 59, 999);
       if (start > end) [start, end] = [new Date(end.setHours(0, 0, 0, 0)), new Date(start.setHours(23, 59, 59, 999))];
+      start.setHours(0, 0, 0, 0);
+      if (end - start > 365 * 86400000) {
+        start = new Date(end);
+        start.setDate(start.getDate() - 365);
+        start.setHours(0, 0, 0, 0);
+      }
 
-      const periodMs = Math.max(86400000, end.getTime() - start.getTime());
+      const periodMs = Math.max(1, end.getTime() - start.getTime());
       const previousEnd = new Date(start.getTime() - 1);
       const previousStart = new Date(previousEnd.getTime() - periodMs);
-      const [orders, previousOrders] = await Promise.all([
-        Order.find({ createdAt: { $gte: start, $lte: end } }).lean(),
-        Order.find({ createdAt: { $gte: previousStart, $lte: previousEnd } }).select("total status").lean(),
-      ]);
-      const money = o => Number(o.total || 0);
-      const growth = (current, previous) => previous > 0 ? ((current - previous) / previous) * 100 : (current > 0 ? 100 : 0);
-      const totalOrders = orders.length;
-      const grossRevenue = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + money(o), 0);
-      const previousRevenue = previousOrders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + money(o), 0);
-      const completedOrders = orders.filter(o => o.status === "completed");
-      const cancelledOrders = orders.filter(o => o.status === "cancelled");
-      const unitsSold = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + (o.items || []).reduce((n, item) => n + Number(item.quantity || 0), 0), 0);
-      const statusBreakdown = {};
-      const fulfillmentBreakdown = {};
-      const paymentBreakdown = {};
-      const productMap = {};
-      const brandMap = {};
-      const techMap = {};
-      const cycleHours = [];
-      orders.forEach(order => {
-        statusBreakdown[order.status || "unknown"] = (statusBreakdown[order.status || "unknown"] || 0) + 1;
-        fulfillmentBreakdown[order.fulfillmentType || "unknown"] = (fulfillmentBreakdown[order.fulfillmentType || "unknown"] || 0) + 1;
-        paymentBreakdown[order.paymentStatus || "pending"] = (paymentBreakdown[order.paymentStatus || "pending"] || 0) + 1;
-        (order.items || []).forEach(item => {
-          const key = [item.brand, item.modelLine, item.capacity && `${item.capacity}${item.capacityUnit || " HP"}`].filter(Boolean).join(" ") || "Unnamed product";
-          if (!productMap[key]) productMap[key] = { name: key, units: 0, revenue: 0, orders: 0 };
-          productMap[key].units += Number(item.quantity || 0);
-          productMap[key].revenue += Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.quantity || 0)));
-          productMap[key].orders += 1;
-          const brand = item.brand || "Unspecified";
-          if (!brandMap[brand]) brandMap[brand] = { name: brand, units: 0, revenue: 0 };
-          brandMap[brand].units += Number(item.quantity || 0);
-          brandMap[brand].revenue += Number(item.totalPrice || 0);
-        });
-        if (order.technicianId || (order.technician && order.technician.name)) {
-          const key = String(order.technicianId || order.technician.name);
-          if (!techMap[key]) techMap[key] = { name: (order.technician && order.technician.name) || "Assigned technician", orders: 0, completed: 0, value: 0 };
-          techMap[key].orders += 1;
-          techMap[key].value += money(order);
-          if (order.status === "completed") techMap[key].completed += 1;
-        }
-        if (order.status === "completed") {
-          const completedEvent = (order.statusHistory || []).find(h => h.status === "completed");
-          const completedAt = completedEvent && completedEvent.timestamp ? new Date(completedEvent.timestamp) : new Date(order.updatedAt);
-          const hours = (completedAt - new Date(order.createdAt)) / 3600000;
-          if (Number.isFinite(hours) && hours >= 0) cycleHours.push(hours);
-        }
+      const orderFilter = buildOrderFilter(reportFilters);
+      const currentCohortFilter = combineOrderFilters(orderFilter, { createdAt: { $gte: start, $lte: end } });
+      const previousCohortFilter = combineOrderFilters(orderFilter, { createdAt: { $gte: previousStart, $lte: previousEnd } });
+      const completionRange = { $gte: previousStart, $lte: end };
+      const completionFilter = combineOrderFilters(orderFilter, {
+        status: "completed",
+        $or: [
+          { completedAt: completionRange },
+          { statusHistory: { $elemMatch: { status: "completed", timestamp: completionRange } } },
+          { completedAt: null, "statusHistory.status": { $ne: "completed" }, updatedAt: completionRange },
+        ],
       });
-      const bucketCount = Math.min(range === "365" ? 12 : 30, Math.max(7, Math.ceil(periodMs / 86400000)));
-      const bucketMs = periodMs / bucketCount;
-      const dailyTrend = Array.from({ length: bucketCount }, (_, index) => {
-        const bucketStart = new Date(start.getTime() + (index * bucketMs));
-        const bucketEnd = index === bucketCount - 1 ? end : new Date(start.getTime() + ((index + 1) * bucketMs));
-        const rows = orders.filter(o => new Date(o.createdAt) >= bucketStart && new Date(o.createdAt) < bucketEnd);
-        return { label: bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric" }), orders: rows.length, revenue: rows.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + money(o), 0) };
-      });
-      const completionRate = totalOrders ? (completedOrders.length / totalOrders) * 100 : 0;
-      const cancellationRate = totalOrders ? (cancelledOrders.length / totalOrders) * 100 : 0;
-      const pendingPaymentValue = orders.filter(o => !["paid", "verified", "remitted", "refunded"].includes(o.paymentStatus) && o.status !== "cancelled").reduce((sum, o) => sum + money(o), 0);
-      const insights = [];
-      const revenueGrowth = growth(grossRevenue, previousRevenue);
-      if (revenueGrowth < -10) insights.push({ tone: "danger", icon: "bi-graph-down-arrow", title: "Revenue contraction", text: `Order revenue is ${Math.abs(revenueGrowth).toFixed(1)}% below the preceding period. Review traffic, stock availability, and checkout completion.` });
-      else if (revenueGrowth > 10) insights.push({ tone: "success", icon: "bi-graph-up-arrow", title: "Revenue momentum", text: `Order revenue grew ${revenueGrowth.toFixed(1)}% period over period. Protect availability for the leading products.` });
-      if (cancellationRate > 10) insights.push({ tone: "danger", icon: "bi-exclamation-triangle", title: "Cancellation leakage", text: `${cancellationRate.toFixed(1)}% of orders were cancelled, representing ${cancelledOrders.length} lost transactions.` });
-      if (pendingPaymentValue > 0) insights.push({ tone: "warning", icon: "bi-wallet2", title: "Cash collection exposure", text: `${pendingPaymentValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} remains tied to orders without a final payment status.` });
-      if (!insights.length) insights.push({ tone: "info", icon: "bi-check2-circle", title: "Stable order operation", text: "No material revenue, cancellation, or collection exception is visible in this reporting window." });
-      const analytics = {
-        totalOrders, grossRevenue, avgOrderValue: totalOrders ? grossRevenue / Math.max(1, totalOrders - cancelledOrders.length) : 0, unitsSold,
-        unitsPerOrder: totalOrders ? unitsSold / totalOrders : 0, completedOrders: completedOrders.length, cancelledOrders: cancelledOrders.length,
-        completionRate, cancellationRate, pendingPaymentValue, avgCycleHours: cycleHours.length ? cycleHours.reduce((a, b) => a + b, 0) / cycleHours.length : 0,
-        orderGrowth: growth(totalOrders, previousOrders.length), revenueGrowth, statusBreakdown, fulfillmentBreakdown, paymentBreakdown, dailyTrend,
-        topProducts: Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8),
-        topBrands: Object.values(brandMap).sort((a, b) => b.revenue - a.revenue).slice(0, 6),
-        technicians: Object.values(techMap).map(t => ({ ...t, completionRate: t.orders ? (t.completed / t.orders) * 100 : 0 })).sort((a, b) => b.orders - a.orders).slice(0, 8),
-        recentOrders: orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 12).map(o => ({ reference: o.orderReference || String(o._id), customer: (o.customer && o.customer.name) || "Customer", items: (o.items || []).reduce((n, i) => n + Number(i.quantity || 0), 0), fulfillment: o.fulfillmentType, payment: o.paymentStatus, status: o.status, total: money(o), date: o.createdAt })),
-        insights,
+      const ledgerStatuses = ["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid", "partial", "refunded"];
+      const paymentActivityFilter = {
+        orderId: { $ne: null },
+        status: { $in: ledgerStatuses },
+        $or: [
+          { submittedAt: completionRange },
+          { verifiedAt: completionRange },
+          { completedAt: completionRange },
+          { collectedAt: completionRange },
+          { refundedAt: completionRange },
+        ],
       };
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters: { range, from: req.query.from || "", to: req.query.to || "", start, end } });
+      const [orders, previousOrders, completionCandidates, activityPayments, brands, technicians] = await Promise.all([
+        Order.find(currentCohortFilter).lean(),
+        Order.find(previousCohortFilter).select("total status").lean(),
+        Order.find(completionFilter).lean(),
+        Payment.find(paymentActivityFilter).select("orderId").lean(),
+        Order.distinct("items.brand"),
+        Technician.find({}).select("name active").sort({ active: -1, name: 1 }).lean(),
+      ]);
+
+      const activityOrderIds = [...new Set(activityPayments.map(payment => String(payment.orderId || "")).filter(mongoose.isValidObjectId))];
+      const eligibleActivityIds = reportFilters.activeCount && activityOrderIds.length
+        ? await Order.find(combineOrderFilters(orderFilter, { _id: { $in: activityOrderIds } })).distinct("_id")
+        : activityOrderIds;
+      const ledgerOrderIds = [...new Set([
+        ...orders.map(order => String(order._id)),
+        ...completionCandidates.map(order => String(order._id)),
+        ...eligibleActivityIds.map(String),
+      ])];
+      const payments = ledgerOrderIds.length
+        ? await Payment.find({ orderId: { $in: ledgerOrderIds }, status: { $in: ledgerStatuses } }).lean()
+        : [];
+      const inventoryIds = [...new Set(completionCandidates.flatMap(order => (order.items || []).map(item => String(item.inventoryId || ""))).filter(mongoose.isValidObjectId))];
+      const inventoryItems = inventoryIds.length
+        ? await Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice").lean()
+        : [];
+      const analytics = buildOrderAnalytics({
+        cohortOrders: orders,
+        previousCohortOrders: previousOrders,
+        completionCandidates,
+        payments,
+        inventoryItems,
+        startDate: start,
+        endDate: end,
+        previousStart,
+        previousEnd,
+      });
+      const { localDateKey } = require("../utils/enterpriseRevenue");
+      analytics.reportStart = localDateKey(start);
+      analytics.reportEnd = localDateKey(end);
+      analytics.appliedFilters = serializableOrderFilters(reportFilters);
+      filters = { range, from: req.query.from || "", to: req.query.to || "", start, end, ...reportFilters };
+      filterOptions = {
+        brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
+        technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
+      };
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions });
     } catch (err) {
       console.error("Order reports error:", err);
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters: { range: "90", from: "", to: "" } });
+      empty.appliedFilters = serializableOrderFilters(reportFilters);
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions });
     }
   }
+);
+
+router.get(
+  "/technician/warranty-claims",
+  pageAuth.requireRole("technician"),
+  async (req, res, next) => {
+    try {
+      const Technician = require("../models/Technician");
+      const tech = await Technician.findOne({ user: req.user._id }).lean();
+      res.render("pages/technician/warranty-claims", {
+        title: "Warranty Inspections",
+        layout: "layouts/technician",
+        technician: tech || {},
+      });
+    } catch (error) { next(error); }
+  },
 );
 
 router.get(
@@ -2222,26 +2338,47 @@ router.get(
     try {
       const BookingService = require("../models/BookingService");
       const Technician = require("../models/Technician");
-      const User = require("../models/User");
       const Order = require("../models/Order");
+      const Rating = require("../models/Rating");
+      const mongoose = require("mongoose");
+      const {
+        allocateServiceRevenue,
+        buildDailyTrend,
+        buildWeekdayForecast,
+        getWeekBounds,
+        isRepairBooking,
+        ratingForBooking,
+        resolveBookedValue,
+        statusGroup,
+        summarizeLifecycle,
+      } = require("../utils/serviceAnalytics");
       
       // Reporting window and server-side filter state. The same filtered
       // booking collection drives every KPI, chart and ranking on the page.
       const now = new Date();
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const sixtyDaysAgo = new Date(now);
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-      const ninetyDaysAgo = new Date(now);
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
       const allowedRanges = new Set(["7", "30", "90", "365", "custom"]);
       const range = allowedRanges.has(String(req.query.range)) ? String(req.query.range) : "90";
       let reportStart = new Date(now);
-      if (range === "custom" && req.query.from && !Number.isNaN(Date.parse(req.query.from))) reportStart = new Date(`${req.query.from}T00:00:00`);
-      else reportStart.setDate(reportStart.getDate() - Number(range === "custom" ? 90 : range));
+      const isDateOnly = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+      if (range === "custom" && isDateOnly(req.query.from)) reportStart = new Date(`${req.query.from}T00:00:00`);
+      else reportStart.setDate(reportStart.getDate() - (Number(range === "custom" ? 90 : range) - 1));
       let reportEnd = new Date(now);
-      if (range === "custom" && req.query.to && !Number.isNaN(Date.parse(req.query.to))) reportEnd = new Date(`${req.query.to}T23:59:59.999`);
-      if (reportStart > reportEnd) [reportStart, reportEnd] = [new Date(reportEnd.setHours(0, 0, 0, 0)), new Date(reportStart.setHours(23, 59, 59, 999))];
+      if (range === "custom" && isDateOnly(req.query.to)) reportEnd = new Date(`${req.query.to}T23:59:59.999`);
+      if (reportStart > reportEnd) {
+        const earlier = new Date(reportEnd);
+        const later = new Date(reportStart);
+        earlier.setHours(0, 0, 0, 0);
+        later.setHours(23, 59, 59, 999);
+        reportStart = earlier;
+        reportEnd = later;
+      }
+      reportStart.setHours(0, 0, 0, 0);
+      const maxReportDays = 366;
+      if (reportEnd - reportStart > maxReportDays * 86400000) {
+        reportStart = new Date(reportEnd);
+        reportStart.setDate(reportStart.getDate() - (maxReportDays - 1));
+        reportStart.setHours(0, 0, 0, 0);
+      }
       
       // Fetch bookings with all needed data
       let bookings = await BookingService.find({
@@ -2256,41 +2393,24 @@ router.get(
       const TechnicianAttendance = require("../models/TechnicianAttendance");
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date(startOfToday);
+      endOfToday.setDate(endOfToday.getDate() + 1);
       const todayAttendance = await TechnicianAttendance.find({
-        date: startOfToday,
+        date: { $gte: startOfToday, $lt: endOfToday },
         status: { $in: ["Present", "Late"] },
-        checkOutTime: { $exists: false },
+        checkInTime: { $ne: null },
+        checkOutTime: null,
       }).select("technicianId").lean();
       const activeTechIds = new Set(todayAttendance.map(a => a.technicianId.toString()));
-      const activeTechnicians = technicians.filter(t => t.active && activeTechIds.has(String(t._id)));
+      const activeTechnicians = technicians.filter(t => t.active !== false && activeTechIds.has(String(t._id)));
       const activeTechnicianCount = activeTechnicians.length;
 
       // One canonical classifier for current and legacy records. Older repair
       // records can be missing serviceType, so repair-workflow evidence is used
       // as a safe fallback instead of incorrectly reporting them as core jobs.
       const normalizedType = value => String(value || "").trim().toLowerCase();
-      const isRepairBooking = b => normalizedType(b.serviceType) === "repair" ||
-        normalizedType(b.serviceModel) === "repairservice" ||
-        (Array.isArray(b.services) && b.services.some(s => normalizedType(s.type) === "repair")) ||
-        Boolean(b.workOrderNumber || b.repairIssues || b.issueDescription || b.unitInfo?.problemDescription ||
-          b.inspection?.completedAt || b.diagnosis?.completedAt || b.quotation?.createdAt ||
-          b.repairPaymentCollected || Number(b.repairPaymentAmount) > 0 || Number(b.inspectionFeeTotalCollected) > 0);
       const isCoreBooking = b => !isRepairBooking(b);
-
-      function getBookingRevenue(b) {
-        if (isRepairBooking(b)) {
-          // Collected amounts are authoritative. Fall back to the approved/final
-          // job value for older records which predate collection tracking.
-          const inspection = Number(b.inspectionFeeTotalCollected) ||
-            (b.inspectionFeeCollected ? (Number(b.inspectionFeeAmount) + Number(b.inspectionFeeDistanceFare)) : 0);
-          const repair = Number(b.repairPaymentAmount) || Number(b.totalFinalCost) || Number(b.finalCost) ||
-            (normalizedType(b.approval?.status) === "approved" ? Number(b.quotation?.totalCost) : 0);
-          const tracked = inspection + repair;
-          if (tracked > 0) return tracked;
-          return Number(b.amountPaid) || Number(b.totalPrice) || Number(b.estimatedFee) || Number(b.initialCost) || 0;
-        }
-        return Number(b.totalPrice) || Number(b.estimatedFee) || Number(b.amountPaid) || Number(b.servicePrice) || 0;
-      }
+      const getBookingRevenue = resolveBookedValue;
 
       const unfilteredBookings = bookings.slice();
       const filterContext = {
@@ -2307,8 +2427,14 @@ router.get(
         if (filterContext.status !== "all" && normalizedType(b.status) !== normalizedType(filterContext.status)) return false;
         if (filterContext.scale === "standard" && b.isProject) return false;
         if (filterContext.scale === "large" && !b.isProject) return false;
-        if (filterContext.payment !== "all" && normalizedType(b.paymentMethod) !== normalizedType(filterContext.payment)) return false;
-        if (filterContext.technician !== "all" && String(b.technicianId || b.technician?._id || "") !== filterContext.technician) return false;
+        if (filterContext.payment !== "all") {
+          const method = normalizedType(b.paymentMethod);
+          if (filterContext.payment === "other" ? ["gcash", "cod", "cash"].includes(method) : method !== normalizedType(filterContext.payment)) return false;
+        }
+        if (filterContext.technician !== "all") {
+          const assignedTechnicians = [b.technicianId, b.technician?._id, ...(b.services || []).map(s => s.technicianId)].filter(Boolean).map(String);
+          if (!assignedTechnicians.includes(filterContext.technician)) return false;
+        }
         if (filterContext.brand !== "all") {
           const brands = [b.brand, b.unitInfo?.brand, ...(b.services || []).map(s => s.brand)].filter(Boolean).map(v => normalizedType(v));
           if (!brands.includes(normalizedType(filterContext.brand))) return false;
@@ -2324,11 +2450,12 @@ router.get(
       if (filterContext.segment !== "all" || filterContext.status !== "all" || filterContext.scale !== "all" ||
           filterContext.payment !== "all" || filterContext.technician !== "all" || filterContext.brand !== "all" || filterContext.search) orders = [];
 
-      const inProgressCount = bookings.filter(b => ["on-the-way", "in-progress", "arrived"].includes(b.status)).length;
+      const lifecycle = summarizeLifecycle(bookings);
+      const inProgressCount = lifecycle.inProgress;
       const totalBookings = bookings.length;
-      const completedBookings = bookings.filter(b => b.status === "completed").length;
-      const pendingBookings = bookings.filter(b => ["pending", "confirmed", "scheduled"].includes(b.status)).length;
-      const cancelledBookings = bookings.filter(b => b.status === "cancelled").length;
+      const completedBookings = lifecycle.completed;
+      const pendingBookings = lifecycle.pending;
+      const cancelledBookings = lifecycle.cancelled;
       const inProgressBookings = inProgressCount;
       const statusBreakdown = {};
       bookings.forEach(b => { statusBreakdown[b.status] = (statusBreakdown[b.status] || 0) + 1; });
@@ -2339,29 +2466,50 @@ router.get(
       const coreServiceBookings = bookings.filter(b => !isRepairBooking(b)).length;
       const orderBookings = orders.length;
       const multiServiceBookings = bookings.filter(b => b.isMultiService).length;
+      const valueBookings = bookings.filter(b => statusGroup(b.status) !== "cancelled");
+
+      const filteredBookingIdsForRatings = bookings.map(b => b._id);
+      const ratingRows = filteredBookingIdsForRatings.length
+        ? await Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings } }).select("targetId score").lean()
+        : [];
+      const ratingTotals = new Map();
+      ratingRows.forEach((row) => {
+        const key = String(row.targetId);
+        const current = ratingTotals.get(key) || { total: 0, count: 0 };
+        current.total += Number(row.score) || 0;
+        current.count += 1;
+        ratingTotals.set(key, current);
+      });
+      const ratingByBooking = new Map([...ratingTotals].map(([key, value]) => [key, value.count ? value.total / value.count : 0]));
+      const technicianById = new Map(technicians.map(t => [String(t._id), t]));
 
       const bookingDrilldown = bookings.map(b => ({
+        id: String(b._id),
+        recordType: "booking",
         category: isRepairBooking(b) ? "Repair" : "Core Service",
         segment: isRepairBooking(b) ? "Repair" : "Core Service",
         day: new Date(b.createdAt).toLocaleDateString("en-US", { weekday: "short" }),
         date: b.createdAt,
         reference: b.bookingReference || `#${String(b._id).slice(-6).toUpperCase()}`,
+        customerId: String(b.customerId || b.customer?._id || ""),
         customer: b.customer?.name || "Unknown Customer",
         contact: b.customer?.phone || b.customer?.email || "—",
         service: b.service?.name || b.services?.map(s => s.name).filter(Boolean).join(", ") || b.serviceType || "Service",
         status: b.status || "pending",
-        technician: b.technician?.name || "Unassigned",
+        statusGroup: statusGroup(b.status),
+        technician: b.technician?.name || technicianById.get(String(b.technicianId || ""))?.name || "Unassigned",
         amount: getBookingRevenue(b),
         payment: normalizedType(b.paymentMethod) === "gcash" ? "GCash" : (normalizedType(b.paymentMethod) === "cod" ? "COD" : "Other"),
         scale: b.isProject ? "Large-scale" : "Standard",
         brand: b.unitInfo?.brand || b.brand || b.services?.map(s => s.brand).filter(Boolean).join(", ") || "Unspecified",
         issue: b.unitInfo?.problemDescription || b.issueDescription || b.repairIssues || b.services?.map(s => s.repairIssue).filter(Boolean).join(", ") || "—",
-        rating: Number(b.customerRating) || 0,
+        rating: ratingForBooking(b, ratingByBooking),
         priority: b.priority || "medium",
         appliance: b.unitInfo?.unitType || b.applianceTypeName || b.applianceType || b.services?.map(s => s.applianceTypeName || s.airconTypeName).filter(Boolean).join(", ") || "Unknown",
         month: new Date(b.createdAt).toLocaleString("en-US", { month: "short" }),
       }));
       const orderDrilldown = orders.map(o => ({
+        id: String(o._id), recordType: "order",
         category: "Orders", day: new Date(o.createdAt).toLocaleDateString("en-US", { weekday: "short" }), date: o.createdAt,
         reference: o.orderReference || `#${String(o._id).slice(-6).toUpperCase()}`,
         customer: o.customer?.name || "Unknown Customer", contact: o.customer?.phone || o.customer?.email || "—",
@@ -2370,15 +2518,15 @@ router.get(
       }));
       
       // Calculate revenue from bookings
-      const totalRevenue = bookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
+      const totalRevenue = valueBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
       const completedRevenue = bookings
-        .filter(b => b.status === "completed")
+        .filter(b => statusGroup(b.status) === "completed")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
       const pendingRevenue = bookings
-        .filter(b => ["pending", "confirmed", "scheduled"].includes(b.status))
+        .filter(b => statusGroup(b.status) === "pending")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
       
-      const avgBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+      const avgBookingValue = valueBookings.length > 0 ? totalRevenue / valueBookings.length : 0;
       
       // Technician utilization analysis
       const technicianStats = {};
@@ -2388,7 +2536,7 @@ router.get(
           if (!technicianStats[techId]) {
             technicianStats[techId] = {
               id: techId,
-              name: b.technician?.name || "Unknown",
+              name: b.technician?.name || technicianById.get(techId)?.name || "Unknown",
               totalBookings: 0,
               completedBookings: 0,
               cancelledBookings: 0,
@@ -2397,10 +2545,11 @@ router.get(
             };
           }
           technicianStats[techId].totalBookings++;
-          technicianStats[techId].revenue += getBookingRevenue(b);
-          if (b.status === "completed") technicianStats[techId].completedBookings++;
-          if (b.status === "cancelled") technicianStats[techId].cancelledBookings++;
-          if (b.customerRating) technicianStats[techId].ratings.push(b.customerRating);
+          if (statusGroup(b.status) !== "cancelled") technicianStats[techId].revenue += getBookingRevenue(b);
+          if (statusGroup(b.status) === "completed") technicianStats[techId].completedBookings++;
+          if (statusGroup(b.status) === "cancelled") technicianStats[techId].cancelledBookings++;
+          const bookingRating = ratingForBooking(b, ratingByBooking);
+          if (bookingRating) technicianStats[techId].ratings.push(bookingRating);
         }
       });
       
@@ -2415,26 +2564,23 @@ router.get(
         .slice(0, 5);
       
       // Ratings analysis
-      const ratedBookings = bookings.filter(b => b.customerRating);
-      const avgRating = ratedBookings.length > 0 
-        ? ratedBookings.reduce((sum, b) => sum + b.customerRating, 0) / ratedBookings.length 
+      const ratedBookings = bookings.filter(b => ratingForBooking(b, ratingByBooking));
+      const avgRating = ratedBookings.length > 0
+        ? ratedBookings.reduce((sum, b) => sum + ratingForBooking(b, ratingByBooking), 0) / ratedBookings.length
         : 0;
       
       const ratingDistribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
       ratedBookings.forEach(b => {
-        if (b.customerRating >= 1 && b.customerRating <= 5) {
-          ratingDistribution[b.customerRating]++;
+        const roundedRating = Math.max(1, Math.min(5, Math.round(ratingForBooking(b, ratingByBooking))));
+        if (roundedRating >= 1 && roundedRating <= 5) {
+          ratingDistribution[roundedRating]++;
         }
       });
       
       // Weekly trend data (last 12 weeks)
       const weeklyData = {};
-      for (let i = 0; i < 12; i++) {
-        const weekStart = new Date(now);
-        weekStart.setDate(weekStart.getDate() - (i * 7));
-        weekStart.setHours(0, 0, 0, 0);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
+      for (let i = 11; i >= 0; i--) {
+        const { start: weekStart, endExclusive: weekEnd } = getWeekBounds(reportEnd, i);
         
         const weekBookings = bookings.filter(b => {
           const date = new Date(b.createdAt);
@@ -2444,40 +2590,22 @@ router.get(
         const weekKey = `W${12-i}`;
         weeklyData[weekKey] = {
           bookings: weekBookings.length,
-          revenue: weekBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0),
-          completed: weekBookings.filter(b => b.status === "completed").length
+          revenue: weekBookings
+            .filter(b => statusGroup(b.status) !== "cancelled")
+            .reduce((sum, b) => sum + getBookingRevenue(b), 0),
+          completed: weekBookings.filter(b => statusGroup(b.status) === "completed").length
         };
       }
       
       // Daily booking trend (last 7 days) for booking volume chart
-      const dailyTrend = [];
-      for (let i = 6; i >= 0; i--) {
-        const dayStart = new Date(now);
-        dayStart.setDate(dayStart.getDate() - i);
-        dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(dayStart);
-        dayEnd.setDate(dayEnd.getDate() + 1);
-        const dayBookings = bookings.filter(b => {
-          const d = new Date(b.createdAt);
-          return d >= dayStart && d < dayEnd;
-        });
-        dailyTrend.push({
-          day: dayStart.toLocaleDateString("en-US", { weekday: "short" }),
-          date: dayStart.toISOString().slice(0, 10),
-          bookings: dayBookings.length,
-          completed: dayBookings.filter(b => b.status === "completed").length,
-        });
-      }
+      const dailyTrend = buildDailyTrend(bookings, reportEnd, 7);
+      const bookingForecast = buildWeekdayForecast(bookings, reportStart, reportEnd);
 
       // Service-level aggregation. Multi-service bookings are expanded so each
       // selected service (and its quantity) contributes to its own ranking.
       const serviceAggMap = {};
       bookings.forEach(b => {
-        const lines = Array.isArray(b.services) && b.services.length ? b.services : [{
-          name: b.service?.name || (isRepairBooking(b) ? "Repair Service" : "Core Service"),
-          type: isRepairBooking(b) ? "repair" : "core", quantity: b.quantity || 1,
-          totalPrice: getBookingRevenue(b)
-        }];
+        const lines = allocateServiceRevenue(b, getBookingRevenue(b));
         lines.forEach(line => {
           const type = normalizedType(line.type) === "repair" ? "repair" : "core";
           const name = String(line.name || (type === "repair" ? "Repair Service" : "Core Service")).trim();
@@ -2485,11 +2613,12 @@ router.get(
           if (!serviceAggMap[key]) serviceAggMap[key] = { name, type, bookings: 0, units: 0, completed: 0, revenue: 0, ratings: [], bookingIds: new Set(), completedIds: new Set(), ratedIds: new Set() };
           const quantity = Math.max(1, Number(line.quantity) || 1);
           serviceAggMap[key].units += quantity;
-          serviceAggMap[key].revenue += Number(line.totalPrice) || Number(line.finalCost) * quantity || Number(line.unitPrice) * quantity || 0;
+          if (statusGroup(b.status) !== "cancelled") serviceAggMap[key].revenue += Number(line.allocatedRevenue) || 0;
           const bookingId = String(b._id);
           if (!serviceAggMap[key].bookingIds.has(bookingId)) { serviceAggMap[key].bookingIds.add(bookingId); serviceAggMap[key].bookings++; }
-          if (b.status === "completed" && !serviceAggMap[key].completedIds.has(bookingId)) { serviceAggMap[key].completedIds.add(bookingId); serviceAggMap[key].completed++; }
-          if (b.customerRating && !serviceAggMap[key].ratedIds.has(bookingId)) { serviceAggMap[key].ratedIds.add(bookingId); serviceAggMap[key].ratings.push(Number(b.customerRating)); }
+          if (statusGroup(b.status) === "completed" && !serviceAggMap[key].completedIds.has(bookingId)) { serviceAggMap[key].completedIds.add(bookingId); serviceAggMap[key].completed++; }
+          const bookingRating = ratingForBooking(b, ratingByBooking);
+          if (bookingRating && !serviceAggMap[key].ratedIds.has(bookingId)) { serviceAggMap[key].ratedIds.add(bookingId); serviceAggMap[key].ratings.push(bookingRating); }
         });
       });
       const allServicePerformance = Object.values(serviceAggMap)
@@ -2553,16 +2682,12 @@ router.get(
       // Weekly customer satisfaction data (last 6 weeks average rating)
       const weeklyCsat = [];
       for (let i = 5; i >= 0; i--) {
-        const weekStart = new Date(now);
-        weekStart.setDate(weekStart.getDate() - (i * 7));
-        weekStart.setHours(0, 0, 0, 0);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
+        const { start: weekStart, endExclusive: weekEnd } = getWeekBounds(reportEnd, i);
         const weekRated = bookings.filter(b => {
           const d = new Date(b.createdAt);
-          return d >= weekStart && d < weekEnd && b.customerRating;
+          return d >= weekStart && d < weekEnd && ratingForBooking(b, ratingByBooking);
         });
-        const avg = weekRated.length > 0 ? weekRated.reduce((s, b) => s + b.customerRating, 0) / weekRated.length : 0;
+        const avg = weekRated.length > 0 ? weekRated.reduce((s, b) => s + ratingForBooking(b, ratingByBooking), 0) / weekRated.length : 0;
         weeklyCsat.push({ week: `W${i + 1}`, avg });
       }
 
@@ -2584,18 +2709,18 @@ router.get(
       // ── Senior Analyst: Advanced Analytics ──────────────────────────────
 
       // Recalculate revenue with proper logic
-      const accurateTotalRevenue = bookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
+      const accurateTotalRevenue = valueBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
       const accurateCompletedRevenue = bookings
-        .filter(b => b.status === "completed")
+        .filter(b => statusGroup(b.status) === "completed")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
-      const accurateAvgBookingValue = totalBookings > 0 ? accurateTotalRevenue / totalBookings : 0;
+      const accurateAvgBookingValue = valueBookings.length > 0 ? accurateTotalRevenue / valueBookings.length : 0;
 
       // Revenue by service type (proper calc)
       const coreRevenueAccurate = bookings
-        .filter(isCoreBooking)
+        .filter(b => isCoreBooking(b) && statusGroup(b.status) !== "cancelled")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
       const repairRevenueAccurate = bookings
-        .filter(isRepairBooking)
+        .filter(b => isRepairBooking(b) && statusGroup(b.status) !== "cancelled")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
 
       // ── Service Report Workflow Stats (from ServiceReport model) ────────
@@ -2625,7 +2750,7 @@ router.get(
       } catch (e) { /* ServiceReport model may not exist yet */ }
 
       // ── Cancellation Analysis ────────────────────────────────────────────
-      const cancelledBookingsList = bookings.filter(b => b.status === "cancelled");
+      const cancelledBookingsList = bookings.filter(b => statusGroup(b.status) === "cancelled");
       const cancellationRate = totalBookings > 0 ? (cancelledBookingsList.length / totalBookings) * 100 : 0;
       const cancellationReasons = {};
       cancelledBookingsList.forEach(b => {
@@ -2640,14 +2765,10 @@ router.get(
       // Weekly cancellation trend
       const weeklyCancellation = [];
       for (let i = 11; i >= 0; i--) {
-        const weekStart = new Date(now);
-        weekStart.setDate(weekStart.getDate() - (i * 7));
-        weekStart.setHours(0, 0, 0, 0);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
+        const { start: weekStart, endExclusive: weekEnd } = getWeekBounds(reportEnd, i);
         const weekCancelled = bookings.filter(b => {
           const d = new Date(b.createdAt);
-          return d >= weekStart && d < weekEnd && b.status === "cancelled";
+          return d >= weekStart && d < weekEnd && statusGroup(b.status) === "cancelled";
         }).length;
         const weekTotal = bookings.filter(b => {
           const d = new Date(b.createdAt);
@@ -2661,14 +2782,17 @@ router.get(
       }
 
       // ── Customer Retention Analysis ─────────────────────────────────────
-      const customerBookingCounts = {};
-      bookings.forEach(b => {
-        if (b.customerId) {
-          const cid = b.customerId.toString();
-          customerBookingCounts[cid] = (customerBookingCounts[cid] || 0) + 1;
-        }
-      });
+      const cohortCustomerIds = [...new Set(bookings.map(b => String(b.customerId || b.customer?._id || "")).filter(id => mongoose.isValidObjectId(id)))];
+      const customerHistory = cohortCustomerIds.length ? await BookingService.aggregate([
+        { $match: { customerId: { $in: cohortCustomerIds.map(id => new mongoose.Types.ObjectId(id)) }, status: { $nin: ["cancelled", "rejected", "repair_declined", "no-show"] } } },
+        { $group: { _id: "$customerId", count: { $sum: 1 } } },
+      ]) : [];
+      const customerBookingCounts = Object.fromEntries(customerHistory.map(row => [String(row._id), row.count]));
       const uniqueCustomers = Object.keys(customerBookingCounts).length;
+      bookingDrilldown.forEach((row) => {
+        const count = customerBookingCounts[row.customerId] || 1;
+        row.customerSegment = count >= 5 ? "Loyal" : count >= 2 ? "Returning" : "One-Time";
+      });
       const repeatCustomers = Object.values(customerBookingCounts).filter(c => c > 1).length;
       const retentionRate = uniqueCustomers > 0 ? (repeatCustomers / uniqueCustomers) * 100 : 0;
       const customerSegments = {
@@ -2775,7 +2899,7 @@ router.get(
       // ── Revenue Trend (monthly, last 6 months) ──────────────────────────
       const monthlyRevenueTrend = [];
       for (let i = 5; i >= 0; i--) {
-        const monthStart = new Date(now);
+        const monthStart = new Date(reportEnd);
         monthStart.setMonth(monthStart.getMonth() - i);
         monthStart.setDate(1);
         monthStart.setHours(0, 0, 0, 0);
@@ -2785,12 +2909,12 @@ router.get(
           const d = new Date(b.createdAt);
           return d >= monthStart && d < monthEnd;
         });
-        const monthRevenue = monthBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
+        const monthRevenue = monthBookings.filter(b => statusGroup(b.status) !== "cancelled").reduce((sum, b) => sum + getBookingRevenue(b), 0);
         const monthCore = monthBookings
-          .filter(isCoreBooking)
+          .filter(b => isCoreBooking(b) && statusGroup(b.status) !== "cancelled")
           .reduce((sum, b) => sum + getBookingRevenue(b), 0);
         const monthRepair = monthBookings
-          .filter(isRepairBooking)
+          .filter(b => isRepairBooking(b) && statusGroup(b.status) !== "cancelled")
           .reduce((sum, b) => sum + getBookingRevenue(b), 0);
         monthlyRevenueTrend.push({
           month: monthStart.toLocaleString('default', { month: 'short' }),
@@ -2804,12 +2928,11 @@ router.get(
       // ── Parts Cost, Expenses, Gross Profit (all technicians) ────────────
       let totalPartsCost = 0;
       let totalExpenses = 0;
+      let approvedExpenses = [];
       try {
-        const ServiceToolUsage = require("../models/ServiceToolUsage");
         const Expense = require("../models/Expense");
         const filteredBookingIds = bookings.map(b => b._id);
-        const partsMatch = filteredBookingIds.length ? { bookingId: { $in: filteredBookingIds } } : { _id: null };
-        const expenseMatch = { status: { $ne: "rejected" }, expenseDate: { $gte: reportStart, $lte: reportEnd } };
+        const expenseMatch = { status: "approved", expenseDate: { $gte: reportStart, $lte: reportEnd } };
         if (filterContext.technician !== "all") {
           const selectedTechnician = technicians.find(t => String(t._id) === filterContext.technician);
           if (selectedTechnician) expenseMatch.technicianId = selectedTechnician._id;
@@ -2817,47 +2940,39 @@ router.get(
         if (filterContext.segment !== "all" || filterContext.status !== "all" || filterContext.scale !== "all" || filterContext.payment !== "all" || filterContext.brand !== "all" || filterContext.search) {
           expenseMatch.bookingId = filteredBookingIds.length ? { $in: filteredBookingIds } : { $in: [] };
         }
-        const [partsResult, expenseResult] = await Promise.all([
-          ServiceToolUsage.aggregate([
-            { $match: partsMatch },
-            { $lookup: { from: "tools", localField: "toolItemId", foreignField: "_id", as: "catalogItem" } },
-            { $unwind: { path: "$catalogItem", preserveNullAndEmptyArrays: true } },
-            { $match: { $or: [
-              { "catalogItem.inventoryClass": "merchandise" },
-              { "catalogItem.inventoryClass": { $exists: false }, "catalogItem.type": { $nin: ["equipment", "tool"] }, itemType: { $ne: "equipment" } },
-            ] } },
-            { $group: { _id: null, total: { $sum: { $ifNull: ["$toolCost", 0] } } } }
-          ]),
-          Expense.aggregate([
-            { $match: expenseMatch },
-            { $group: { _id: null, total: { $sum: "$amount" } } }
-          ]),
-        ]);
-        totalPartsCost = partsResult.length > 0 ? partsResult[0].total : 0;
-        totalExpenses = expenseResult.length > 0 ? expenseResult[0].total : 0;
+        approvedExpenses = await Expense.find(expenseMatch).select("amount type bookingId projectId").lean();
       } catch (e) { /* models may not exist */ }
 
       const serviceCostAnalytics = await require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
         revenueResolver: getBookingRevenue,
       });
+      totalPartsCost = Number(serviceCostAnalytics.totals.partsCost || 0)
+        + Number(serviceCostAnalytics.totals.consumablesCost || 0)
+        + Number(serviceCostAnalytics.totals.localPurchaseCost || 0)
+        + Number(serviceCostAnalytics.totals.laborCost || 0);
+      const directlyCostedBookingIds = new Set(serviceCostAnalytics.services
+        .filter(row => Number(row.partsCost || 0) + Number(row.consumablesCost || 0) + Number(row.localPurchaseCost || 0) > 0)
+        .map(row => String(row.bookingId)));
+      totalExpenses = approvedExpenses
+        .filter(expense => !(["external_parts", "material"].includes(expense.type)
+          && expense.bookingId && directlyCostedBookingIds.has(String(expense.bookingId))))
+        .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
       // Enterprise service-control measures. These are derived from the
       // workflow records tied to the currently filtered booking population so
       // every KPI has the same scope as the report.
       const filteredBookingIds = bookings.map(b => b._id);
-      const completedBookingIds = bookings.filter(b => b.status === "completed").map(b => b._id);
+      const completedBookingIds = bookings.filter(b => statusGroup(b.status) === "completed").map(b => b._id);
       const Assignment = require("../models/Assignment");
       const ServiceReport = require("../models/ServiceReport");
       const PartsRequest = require("../models/PartsRequest");
       const EquipmentAssignment = require("../models/EquipmentAssignment");
-      const Rating = require("../models/Rating");
       const workflowMatch = filteredBookingIds.length ? { bookingId: { $in: filteredBookingIds } } : { _id: null };
       const completedMatch = completedBookingIds.length ? { bookingId: { $in: completedBookingIds } } : { _id: null };
-      const [workflowAssignments, completedReports, partsRequests, completedEquipment, bookingRatings] = await Promise.all([
+      const [workflowAssignments, completedReports, partsRequests, completedEquipment] = await Promise.all([
         Assignment.find(workflowMatch).select("acceptedAt startedAt completedAt status slaBreached").lean(),
         ServiceReport.find(completedMatch).select("bookingId followUpRequired actualLaborCost status").lean(),
         PartsRequest.find(workflowMatch).select("status requestedAt completedAt").lean(),
         EquipmentAssignment.find({ ...completedMatch, consumable: { $ne: true } }).select("status returnedAt").lean(),
-        Rating.find({ targetType: "booking", targetId: { $in: completedBookingIds } }).select("targetId score").lean(),
       ]);
       const completedAssignmentCycles = workflowAssignments
         .filter(a => a.completedAt && (a.startedAt || a.acceptedAt))
@@ -2868,7 +2983,7 @@ router.get(
       const reviewableReports = completedReports.filter(r => r.status !== "draft");
       const followUpRequiredCount = completedReports.filter(r => r.followUpRequired).length;
       const actionablePartsRequests = partsRequests.filter(r => r.status !== "cancelled");
-      const fulfilledPartsRequests = actionablePartsRequests.filter(r => r.status === "received").length;
+      const fulfilledPartsRequests = actionablePartsRequests.filter(r => ["received", "fulfilled", "completed"].includes(r.status)).length;
       const closedEquipment = completedEquipment.filter(e => e.returnedAt || ["returned", "consumed"].includes(e.status)).length;
       const rescheduledBookings = bookings.filter(b => b.status === "re-scheduled" || b.rescheduleReason || b.rescheduleRequest?.requestedAt).length;
       const noShowBookings = bookings.filter(b => b.noShowAt).length;
@@ -2878,8 +2993,8 @@ router.get(
       const repairPopulation = bookings.filter(isRepairBooking);
       const recurringRepairBookings = repairPopulation.filter(b => (b.previousRepairs || []).some(r => r.recurring)).length;
       const ratedCompletedIds = new Set([
-        ...bookings.filter(b => b.status === "completed" && Number(b.customerRating) > 0).map(b => String(b._id)),
-        ...bookingRatings.map(r => String(r.targetId)),
+        ...bookings.filter(b => statusGroup(b.status) === "completed" && ratingForBooking(b, ratingByBooking) > 0).map(b => String(b._id)),
+        ...ratingRows.map(r => String(r.targetId)),
       ]);
       const serviceControls = {
         avgCompletionCycleHours: completedAssignmentCycles.length ? completedAssignmentCycles.reduce((a, b) => a + b, 0) / completedAssignmentCycles.length : 0,
@@ -2932,6 +3047,7 @@ router.get(
           topTechnicians,
           weeklyData,
           dailyTrend,
+          bookingForecast,
           topServices,
           topCoreServices,
           topRepairServices,
@@ -2951,6 +3067,8 @@ router.get(
             active: t.active
           })),
           filterContext,
+          reportStart: reportStart.toISOString(),
+          reportEnd: reportEnd.toISOString(),
           bookingBrands,
           // Senior Analyst additions
           accurateTotalRevenue,
@@ -2985,14 +3103,16 @@ router.get(
           completedServiceCosts: serviceCostAnalytics.services,
           equipmentUsage: serviceCostAnalytics.equipment,
           serviceControls,
-        }
+        },
+        reportError: null,
       });
     } catch (err) {
       console.error("Service reports error:", err);
       res.render("pages/admin/Reports/ServiceReport", {
         title: "Services",
         layout: "layouts/admin",
-        analytics: null
+        analytics: null,
+        reportError: "Service analytics could not be loaded. Please retry or check the server log.",
       });
     }
   },
@@ -3009,6 +3129,7 @@ router.get(
       const StockAdjustment = require("../models/StockAdjustment");
       const StockReservation = require("../models/StockReservation");
       const Order = require("../models/Order");
+      const WalkInSale = require("../models/WalkInSale");
       
       const filterContext = {
         range: ["7", "30", "90", "365"].includes(String(req.query.range)) ? String(req.query.range) : "30",
@@ -3351,6 +3472,16 @@ router.get(
   },
 );
 router.get(
+  "/admin/settings/aftercare",
+  pageAuth.requireRole("admin"),
+  (req, res) => {
+    res.render("pages/admin/Settings/Aftercare", {
+      title: "Aftercare & Warranty Governance",
+      layout: "layouts/admin",
+    });
+  },
+);
+router.get(
   "/admin/settings/system",
   pageAuth.requireRole("admin"),
   (req, res) => {
@@ -3415,6 +3546,21 @@ router.get("/admin/logs", pageAuth.requireRole("admin"), (req, res) => {
 router.get("/admin/audit-trail", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/AuditTrail", {
     title: "Audit Trail",
+    layout: "layouts/admin",
+  });
+});
+
+// Admin - Warranty Management page
+router.get("/admin/warranty", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Warranty/Warranty", {
+    title: "Warranty Management",
+    layout: "layouts/admin",
+  });
+});
+
+router.get("/admin/maintenance", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Maintenance/Maintenance", {
+    title: "Maintenance Management",
     layout: "layouts/admin",
   });
 });
@@ -3577,10 +3723,7 @@ router.get(
   "/secretary/appointments/reschedule",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Appointments/Reschedule", {
-      title: "Reschedule Appointment",
-      layout: "layouts/secretary",
-    });
+    res.redirect("/admin/appointments/review-reschedule");
   },
 );
 
@@ -3705,6 +3848,24 @@ router.get(
 );
 
 // Secretary reports routes
+
+router.get(
+  "/secretary/reports/revenue",
+  pageAuth.requireRole("secretary"),
+  async (req, res, next) => {
+    try {
+      const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
+      const { analytics } = await buildRevenueAnalytics(req.query);
+      return res.render("pages/secretary/Reports/RevenueReports", {
+        title: "Revenue Reports",
+        layout: "layouts/secretary",
+        analytics,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
 
 
 router.get(
@@ -3901,11 +4062,12 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
   try {
     const BookingService = require("../models/BookingService");
     const token = req.params.token;
-    
-    // Find booking with this token
-    const booking = await BookingService.findOne({ noShowRescheduleToken: token })
-      .populate("service")
-      .lean();
+    const booking = await BookingService.findOne({
+      $or: [
+        { rescheduleAccessToken: token },
+        { noShowRescheduleToken: token },
+      ],
+    }).lean();
       
     if (!booking) {
       return res.render("pages/noShowReschedule", { 
@@ -3916,8 +4078,10 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
       });
     }
     
-    // Check expiry
-    if (booking.noShowRescheduleExpiry && new Date() > new Date(booking.noShowRescheduleExpiry)) {
+    const expiry = booking.rescheduleAccessToken === token
+      ? booking.rescheduleAccessExpiry
+      : booking.noShowRescheduleExpiry;
+    if (expiry && new Date() > new Date(expiry)) {
       return res.render("pages/noShowReschedule", { 
         title: "Reschedule Service", 
         error: "This reschedule link has expired. Links are only valid for 72 hours.", 
@@ -3926,11 +4090,18 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
       });
     }
 
-    // Check status
-    if (booking.noShowRescheduleStatus !== "pending") {
+    const accessAllowed = booking.rescheduleAccessToken === token
+      ? booking.rescheduleAccessStatus === "allowed"
+      : booking.noShowRescheduleStatus === "pending" && (
+        // classic no-show flow: admin confirmed the technician's report
+        booking.noShowReport?.reviewStatus === "confirmed" ||
+        // past-date flow: admin sent the reschedule link from the resolution center
+        booking.rescheduleSource === "admin_on_behalf_of_customer"
+      );
+    if (!accessAllowed || !["reschedule-required", "no-show"].includes(booking.status)) {
       return res.render("pages/noShowReschedule", { 
         title: "Reschedule Service", 
-        error: `This booking has already been ${booking.noShowRescheduleStatus}.`, 
+        error: "This booking has already been processed or is no longer available for rescheduling.",
         booking: null, 
         token: null 
       });
@@ -3953,67 +4124,286 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
   }
 });
 
+// ── API: Send Customer Reschedule Link (admin-initiated) ─────────────
+router.post(
+  "/api/reschedule/:bookingId/send-link",
+  auth.authenticate,
+  auth.requireRole(["admin", "secretary"]),
+  async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    const BookingService = require("../models/BookingService");
+    const { bookingId } = req.params;
+    const { sendRescheduleLinkEmail } = require("../utils/mailer");
+    const crypto = require("crypto");
+    const audit = require("../utils/audit");
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await BookingService.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (["cancelled", "completed", "closed"].includes(booking.status)) {
+      return res.status(400).json({ error: `Cannot send reschedule link for a booking with status "${booking.status}".` });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiryMs = 7 * 24 * 60 * 60 * 1000;
+
+    booking.noShowRescheduleToken = token;
+    booking.noShowRescheduleExpiry = new Date(Date.now() + expiryMs);
+    booking.noShowRescheduleStatus = "pending";
+    booking.rescheduleSource = "admin_on_behalf_of_customer";
+    await booking.save();
+
+    const base = req.protocol + "://" + req.get("host");
+    const link = base + "/reschedule/no-show/" + token;
+
+    const customerEmail = booking.customer?.email;
+    if (customerEmail) {
+      try {
+        await sendRescheduleLinkEmail({
+          to: customerEmail,
+          customerName: booking.customer?.name || "Customer",
+          bookingReference: booking.bookingReference || "",
+          serviceName: booking.service?.name || booking.serviceName || "Service",
+          rescheduleLink: link,
+          expiryDays: 7,
+        });
+      } catch (mailErr) {
+        console.error("[MAILER] Failed to send reschedule link:", mailErr.message);
+      }
+    }
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.reschedule_link_sent",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, emailSent: !!customerEmail },
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: customerEmail
+        ? `Reschedule link sent to ${customerEmail}.`
+        : "Reschedule link generated (no email on file — share manually).",
+      link,
+    });
+  } catch (err) {
+    console.error("Send reschedule link error:", err);
+    return res.status(500).json({ error: "Failed to generate reschedule link" });
+  }
+  },
+);
+
 // API: Confirm Reschedule
 router.post("/api/reschedule/no-show/:token", async (req, res) => {
   try {
     const BookingService = require("../models/BookingService");
     const Assignment = require("../models/Assignment");
-    const { newDate, newTime } = req.body;
+    const { createNotification } = require("../utils/notify");
+    const { sendRescheduleApprovedEmail } = require("../utils/mailer");
+    const scheduleRoutes = require("./scheduleRoutes");
+    const { newDate, newTime } = req.body || {};
     const token = req.params.token;
 
-    const booking = await BookingService.findOne({ noShowRescheduleToken: token });
-    if (!booking) return res.status(404).json({ error: "Invalid token" });
-    if (booking.noShowRescheduleExpiry && new Date() > new Date(booking.noShowRescheduleExpiry)) {
-      return res.status(400).json({ error: "Token expired" });
-    }
-    if (booking.noShowRescheduleStatus !== "pending") {
-      return res.status(400).json({ error: "Booking already processed" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(newDate || "")) || !String(newTime || "").trim()) {
+      return res.status(400).json({ error: "Select an available date and time." });
     }
 
-    // -- Conflict check: ensure new date/time slot is available ----------------
-    if (newDate && newTime) {
-      const hasConflict = await BookingService.findOne({
-        _id: { $ne: booking._id },
-        bookingDate: new Date(newDate),
-        startTime: newTime,
-        status: { $in: ["confirmed", "scheduled", "in-progress", "en-route", "on-the-way"] },
-      });
-      if (hasConflict) {
-        return res.status(409).json({ error: "The selected time slot is already booked. Please choose a different time." });
+    const tokenFilter = {
+      $or: [
+        { rescheduleAccessToken: token },
+        { noShowRescheduleToken: token },
+      ],
+    };
+    const booking = await BookingService.findOne(tokenFilter);
+    if (!booking) return res.status(404).json({ error: "This reschedule link is invalid or has already been used." });
+
+    const usesAccessToken = booking.rescheduleAccessToken === token;
+    const expiry = usesAccessToken ? booking.rescheduleAccessExpiry : booking.noShowRescheduleExpiry;
+    const accessAllowed = usesAccessToken
+      ? booking.rescheduleAccessStatus === "allowed"
+      : booking.noShowRescheduleStatus === "pending" && (
+        // classic no-show flow: admin confirmed the technician's report
+        booking.noShowReport?.reviewStatus === "confirmed" ||
+        // past-date flow: admin sent the reschedule link from the resolution center
+        booking.rescheduleSource === "admin_on_behalf_of_customer"
+      );
+    if (expiry && new Date() > new Date(expiry)) {
+      return res.status(410).json({ error: "This reschedule link has expired. Please contact support." });
+    }
+    if (!accessAllowed || !["reschedule-required", "no-show"].includes(booking.status)) {
+      return res.status(409).json({ error: "This booking has already been processed." });
+    }
+
+    const duration = Math.max(1, Number(booking.serviceDurationMinutes) || 60);
+    const quantity = Math.max(1, Number(booking.quantity) || 1);
+    // Modern bookings persist serviceDurationMinutes as the total across all
+    // units. Only multiply by quantity for legacy records without that snapshot.
+    const capacityQuantity = Number(booking.serviceDurationMinutes) > 0 ? 1 : quantity;
+    const serviceId = booking.serviceId || booking.service?._id;
+    const slotResult = await scheduleRoutes.getTimeSlotsForQuery({
+      date: String(newDate),
+      serviceId: serviceId ? String(serviceId) : undefined,
+      duration: String(duration),
+      quantity: String(capacityQuantity),
+    });
+    if (slotResult.statusCode >= 500) {
+      return res.status(503).json({ error: "Availability could not be checked. Please try again." });
+    }
+
+    const toMinutes = (value) => {
+      const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return null;
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      if (minute > 59 || hour > (match[3] ? 12 : 23)) return null;
+      if (match[3]) {
+        const period = match[3].toUpperCase();
+        if (period === "PM" && hour < 12) hour += 12;
+        if (period === "AM" && hour === 12) hour = 0;
       }
+      return hour * 60 + minute;
+    };
+    const selectedMinutes = toMinutes(newTime);
+    const availableSlot = Array.isArray(slotResult.payload?.timeSlots)
+      ? slotResult.payload.timeSlots.find((slot) => slot.available !== false && toMinutes(slot.startTime) === selectedMinutes)
+      : null;
+    if (selectedMinutes === null || !availableSlot) {
+      return res.status(409).json({
+        error: "That time slot is no longer available. Please select another available time.",
+        code: "SLOT_UNAVAILABLE",
+        refreshSlots: true,
+      });
     }
 
-    // Update booking
-    booking.bookingDate = new Date(newDate);
-    booking.startTime = newTime;
-    booking.selectedTimeLabel = newTime;
-    booking.status = "re-scheduled";
-    booking.noShowRescheduleStatus = "rescheduled";
-    booking.noShowRescheduleToken = undefined; // One-time use
-    
-    // Push status history
-    if (!booking.statusHistory) booking.statusHistory = [];
-    booking.statusHistory.push({
-      status: "re-scheduled",
-      message: `Customer rescheduled from No-Show to ${newDate} at ${newTime}`,
-      date: new Date(),
-      by: "Customer"
-    });
+    const now = new Date();
+    const previousStatus = booking.status;
+    const previousDate = booking.bookingDate;
+    const previousTime = booking.startTime;
+    const canonicalTime = availableSlot.startTime;
+    const capacityEndMinutes = selectedMinutes + Math.max(duration, Number(slotResult.payload?.capacityPerSlot) || duration);
+    const updatedBooking = await BookingService.findOneAndUpdate({
+      _id: booking._id,
+      status: { $in: ["reschedule-required", "no-show"] },
+      ...tokenFilter,
+    }, {
+      $set: {
+        bookingDate: new Date(`${newDate}T00:00:00`),
+        startTime: canonicalTime,
+        selectedTimeLabel: canonicalTime,
+        endTime: String(capacityEndMinutes),
+        status: "awaiting_assignment",
+        assignmentId: null,
+        technicianId: null,
+        technician: null,
+        noShowRescheduleStatus: "rescheduled",
+        rescheduleAccessStatus: "submitted",
+        rescheduleSource: "customer",
+        autoReschedulePending: false,
+        rescheduleReasonType: "no_show",
+        rescheduleReason: "Customer selected a new visit after an admin-approved no-show resolution.",
+        "noShowReport.reviewStatus": "rescheduled",
+      },
+      $unset: {
+        noShowRescheduleToken: 1,
+        noShowRescheduleExpiry: 1,
+        rescheduleAccessToken: 1,
+        rescheduleAccessExpiry: 1,
+        proposedReschedule: "",
+      },
+      $push: {
+        statusHistory: {
+          fromStatus: previousStatus,
+          toStatus: "awaiting_assignment",
+          reason: `Customer selected a new available visit: ${newDate} ${canonicalTime}.`,
+          timestamp: now,
+          changedByName: "Customer",
+          changedByModel: "User",
+          metadata: { previousDate, previousTime, newDate, newTime: canonicalTime, source: "customer" },
+        },
+        rescheduleHistory: {
+          previousDate,
+          previousTime,
+          newDate: new Date(`${newDate}T00:00:00`),
+          newTime: canonicalTime,
+          reasonType: "no_show",
+          source: "customer",
+          selectedAt: now,
+        },
+      },
+    }, { returnDocument: "after" });
 
-    await booking.save();
+    if (!updatedBooking) {
+      return res.status(409).json({ error: "This reschedule link has already been used." });
+    }
 
-    // Create a new assignment in pending_acceptance to find a new tech
-    await Assignment.create({
+    await Assignment.updateMany({
       bookingId: booking._id,
-      customerName: booking.customer?.name || "Customer",
-      serviceName: booking.serviceName || "Service",
-      serviceType: booking.serviceType || "core",
-      bookingDate: booking.bookingDate,
-      startTime: booking.startTime,
-      status: "pending_acceptance"
+      status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "waiting_for_customer", "no_show_reported", "no_show", "in_progress"] },
+    }, {
+      $set: { status: "expired", expiredAt: now, expiredReason: "Customer selected a new visit after no-show resolution" },
     });
 
-    res.json({ ok: true });
+    // Close any open past_date resolution cases — scheduling issue is resolved
+    await BookingService.findByIdAndUpdate(booking._id, {
+      $set: {
+        "resolutionCases.$[rc].state": "rescheduled",
+        "resolutionCases.$[rc].action": "reschedule",
+        "resolutionCases.$[rc].note": `Customer selected new schedule: ${newDate} ${canonicalTime}`,
+        "resolutionCases.$[rc].decidedAt": now,
+        "resolutionCases.$[rc].decidedByName": "Customer",
+      },
+    }, {
+      arrayFilters: [{ "rc.issueType": "past_date", "rc.state": { $nin: ["closed", "rescheduled", "reassigned"] } }],
+    }).catch(() => {});
+
+    const bookingRef = booking.bookingReference || booking.workOrderNumber || `#${String(booking._id).slice(-6).toUpperCase()}`;
+    await createNotification({
+      role: "admin",
+      type: "booking_schedule_proposed",
+      title: "Customer Selected a New Visit",
+      message: `${bookingRef} is scheduled for ${newDate} ${canonicalTime} and is awaiting technician assignment.`,
+      referenceId: booking._id,
+      referenceModel: "BookingService",
+      link: "/admin/appointments?tab=queue",
+      priority: "high",
+      io: req.app.get("io"),
+    }).catch(() => {});
+
+    if (booking.customer?.email) {
+      await sendRescheduleApprovedEmail({
+        to: booking.customer.email,
+        customerName: booking.customer.name,
+        bookingReference: bookingRef,
+        serviceName: booking.service?.name || booking.serviceName || "Service",
+        newDateLabel: new Date(`${newDate}T00:00:00`).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }),
+        newTimeLabel: canonicalTime,
+      }).catch((error) => console.error("[MAILER] Customer reschedule confirmation error:", error.message));
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to("admin-room").emit("booking:rescheduled", {
+        bookingId: String(booking._id),
+        status: "awaiting_assignment",
+        bookingDate: newDate,
+        startTime: canonicalTime,
+      });
+    }
+
+    res.json({
+      ok: true,
+      status: "awaiting_assignment",
+      bookingReference: bookingRef,
+      newDate,
+      newTime: canonicalTime,
+      message: "Your new visit is confirmed and is awaiting technician assignment.",
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -4026,26 +4416,43 @@ router.post("/api/reschedule/no-show/:token/cancel", async (req, res) => {
     const BookingService = require("../models/BookingService");
     const token = req.params.token;
 
-    const booking = await BookingService.findOne({ noShowRescheduleToken: token });
+    const booking = await BookingService.findOne({
+      $or: [{ rescheduleAccessToken: token }, { noShowRescheduleToken: token }],
+    });
     if (!booking) return res.status(404).json({ error: "Invalid token" });
-    if (booking.noShowRescheduleExpiry && new Date() > new Date(booking.noShowRescheduleExpiry)) {
+    const usesAccessToken = booking.rescheduleAccessToken === token;
+    const expiry = usesAccessToken ? booking.rescheduleAccessExpiry : booking.noShowRescheduleExpiry;
+    if (expiry && new Date() > new Date(expiry)) {
       return res.status(400).json({ error: "Token expired" });
     }
-    if (booking.noShowRescheduleStatus !== "pending") {
+    const accessAllowed = usesAccessToken
+      ? booking.rescheduleAccessStatus === "allowed"
+      : booking.noShowRescheduleStatus === "pending" && (
+        booking.noShowReport?.reviewStatus === "confirmed" ||
+        booking.rescheduleSource === "admin_on_behalf_of_customer"
+      );
+    if (!accessAllowed) {
       return res.status(400).json({ error: "Booking already processed" });
     }
 
+    const previousStatus = booking.status;
     booking.status = "cancelled";
     booking.cancellationReason = "Customer cancelled via No-Show reschedule link.";
     booking.noShowRescheduleStatus = "cancelled";
+    booking.rescheduleAccessStatus = "cancelled";
     booking.noShowRescheduleToken = undefined;
+    booking.noShowRescheduleExpiry = undefined;
+    booking.rescheduleAccessToken = undefined;
+    booking.rescheduleAccessExpiry = undefined;
 
     if (!booking.statusHistory) booking.statusHistory = [];
     booking.statusHistory.push({
-      status: "cancelled",
-      message: "Customer cancelled their No-Show booking.",
-      date: new Date(),
-      by: "Customer"
+      fromStatus: previousStatus,
+      toStatus: "cancelled",
+      reason: "Customer cancelled their no-show booking from the resolution link.",
+      timestamp: new Date(),
+      changedByName: "Customer",
+      changedByModel: "User",
     });
 
     await booking.save();

@@ -16,10 +16,6 @@ router.use(auth.requireRole("customer"));
 router.post('/create', async (req, res) => {
   try {
     console.log('📝 Creating new booking...');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-    console.log('Services field type:', typeof req.body.services);
-    console.log('Services is array:', Array.isArray(req.body.services));
-    console.log('Services value:', req.body.services);
     
     // Parse services if it comes as a string (fix for double-stringification)
     let parsedServices = req.body.services;
@@ -113,7 +109,6 @@ router.post('/create', async (req, res) => {
     // For testing: if no user session, log warning but allow booking
     if (!userId) {
       console.warn('⚠️ No user session found - this should not happen in production');
-      console.warn('Session data:', req.session);
       console.warn('User data:', req.user);
       
       // Try to get from session in different ways

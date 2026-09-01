@@ -1,5 +1,6 @@
 const https = require("https");
 const http = require("http");
+const nodemailer = require("nodemailer");
 const logger = require("./logger").create("mailer");
 
 // Brevo API config
@@ -8,15 +9,86 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const FROM_EMAIL = process.env.FROM_EMAIL || "mxwllmallari@gmail.com";
 const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
+// Nodemailer SMTP transport (used when Brevo API key is not set, e.g. localhost)
+let _smtpTransport = null;
+function getSmtpTransport() {
+  if (_smtpTransport) return _smtpTransport;
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    logger.warn("SMTP credentials not configured; no email transport available.");
+    return null;
+  }
+  _smtpTransport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+  console.log(`[MAILER] Nodemailer SMTP transport created (${host}:${port})`);
+  return _smtpTransport;
+}
+
 function sendMail({ to, subject, html, text }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
 
-  if (!BREVO_API_KEY) {
-    console.log("[MAILER] Brevo API key not configured - email not sent");
-    logger.warn("Brevo API key not configured; emails will not be sent.");
-    return Promise.resolve(false);
+  // Use Nodemailer SMTP in development / localhost
+  if (process.env.NODE_ENV !== "production") {
+    const transport = getSmtpTransport();
+    if (!transport) {
+      console.log("[MAILER] No email transport available - email not sent");
+      logger.warn("No email transport available; emails will not be sent.");
+      return Promise.resolve(false);
+    }
+    return transport
+      .sendMail({
+        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+        to,
+        subject,
+        html,
+        text: text || "",
+      })
+      .then((info) => {
+        console.log("[MAILER] (SMTP) Email sent successfully:", info.messageId);
+        return { messageId: info.messageId };
+      })
+      .catch((err) => {
+        console.log("[MAILER] (SMTP) Send failed:", err.message);
+        logger.warn("SMTP send failed %s", err.message);
+        throw err;
+      });
   }
 
+  // Use Brevo API in production
+  if (BREVO_API_KEY) {
+    return sendViaBrevo({ to, subject, html, text });
+  }
+
+  console.log("[MAILER] No email transport available - email not sent");
+  return Promise.resolve(false);
+
+  return transport
+    .sendMail({
+      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html,
+      text: text || "",
+    })
+    .then((info) => {
+      console.log("[MAILER] (SMTP) Email sent successfully:", info.messageId);
+      return { messageId: info.messageId };
+    })
+    .catch((err) => {
+      console.log("[MAILER] (SMTP) Send failed:", err.message);
+      logger.warn("SMTP send failed %s", err.message);
+      throw err;
+    });
+}
+
+function sendViaBrevo({ to, subject, html, text }) {
   const payload = JSON.stringify({
     sender: { email: FROM_EMAIL, name: FROM_NAME },
     to: [{ email: to }],
@@ -44,11 +116,11 @@ function sendMail({ to, subject, html, text }) {
       res.on("end", () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           const parsed = JSON.parse(body || "{}");
-          console.log("[MAILER] Email sent successfully:", parsed.messageId || res.statusCode);
+          console.log("[MAILER] (Brevo) Email sent successfully:", parsed.messageId || res.statusCode);
           resolve({ messageId: parsed.messageId || `brevo-${res.statusCode}` });
         } else {
           const errMsg = `Brevo API ${res.statusCode}: ${body}`;
-          console.log("[MAILER] Send failed:", errMsg);
+          console.log("[MAILER] (Brevo) Send failed:", errMsg);
           logger.warn("Brevo send failed %s", errMsg);
           reject(new Error(errMsg));
         }
@@ -58,12 +130,12 @@ function sendMail({ to, subject, html, text }) {
     req.on("timeout", () => {
       req.destroy();
       const err = new Error("Brevo API request timed out");
-      console.log("[MAILER] Timeout:", err.message);
+      console.log("[MAILER] (Brevo) Timeout:", err.message);
       reject(err);
     });
 
     req.on("error", (err) => {
-      console.log("[MAILER] Request error:", err.message);
+      console.log("[MAILER] (Brevo) Request error:", err.message);
       reject(err);
     });
 
@@ -666,7 +738,7 @@ async function sendTechnicianCancelledEmail({ to, customerName, bookingReference
 }
 
 // ─── No-Show Reschedule Email ─────────────────────────────────────────────────
-async function sendNoShowRescheduleEmail({ to, customerName, bookingReference, serviceName }) {
+async function sendNoShowRescheduleEmail({ to, customerName, bookingReference, serviceName, dateLabel, timeLabel, rescheduleUrl }) {
   if (!to) return false;
   const subject = `Rescheduling Required – ${bookingReference} | CALIDRO RACS`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles('#f59e0b','#d97706')}</head><body>
@@ -674,14 +746,43 @@ async function sendNoShowRescheduleEmail({ to, customerName, bookingReference, s
   <div class="header"><h1>Rescheduling Required</h1><div class="ref-badge">${bookingReference}</div></div>
   <div class="body">
     <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${customerName || 'Customer'}</strong>,</p>
-    <p style="color:#475569;line-height:1.6;">Our technician was unable to reach you at the scheduled time. Please contact us to reschedule your appointment.</p>
+    <p style="color:#475569;line-height:1.6;">The no-show report has been reviewed. You may now choose a new visit from our live service availability.</p>
     <div class="status-pill" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">⚠️ Reschedule Needed</div>
     <div class="section-title">Booking Details</div>
     <table>
       <tr class="detail-row"><td>Reference</td><td style="font-weight:700;">${bookingReference}</td></tr>
       <tr class="detail-row"><td>Service</td><td>${serviceName || 'N/A'}</td></tr>
+      ${dateLabel ? `<tr class="detail-row"><td>Previous Date</td><td>${dateLabel}</td></tr>` : ''}
+      ${timeLabel ? `<tr class="detail-row"><td>Previous Time</td><td>${timeLabel}</td></tr>` : ''}
     </table>
-    <a href="${process.env.APP_BASE_URL || ''}/book-history" class="btn" style="background:#f59e0b;">Reschedule</a>
+    <div class="info-box"><p style="margin:0;font-size:13px;color:#475569;">This secure link is valid for 72 hours. Your selected slot is rechecked before it is confirmed.</p></div>
+    <a href="${rescheduleUrl || `${process.env.APP_BASE_URL || ''}/book-history`}" class="btn" style="background:#f59e0b;">Choose New Schedule</a>
+  </div>
+  ${premiumFooter()}
+</div></body></html>`;
+  return sendMail({ to, subject, html });
+}
+
+// ─── No-Show Reported Email (awaiting admin review) ───────────────────────────
+async function sendNoShowReportedEmail({ to, customerName, bookingReference, serviceName, technicianName, dateLabel, timeLabel, rescheduleUrl }) {
+  if (!to) return false;
+  const subject = `We Missed You – ${bookingReference} | CALIDRO RACS`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles('#dc2626','#991b1b')}</head><body>
+<div class="wrap">
+  <div class="header"><h1>We Missed You</h1><div class="ref-badge">${bookingReference}</div></div>
+  <div class="body">
+    <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${customerName || 'Customer'}</strong>,</p>
+    <p style="color:#475569;line-height:1.6;">Your technician has arrived at the service location, but you were unavailable at the scheduled time.</p>
+    <div class="status-pill" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;">🕐 No-Show Reported</div>
+    <div class="section-title">Booking Details</div>
+    <table>
+      <tr class="detail-row"><td>Reference</td><td style="font-weight:700;">${bookingReference}</td></tr>
+      <tr class="detail-row"><td>Service</td><td>${serviceName || 'N/A'}</td></tr>
+      <tr class="detail-row"><td>Scheduled Date</td><td>${dateLabel || 'N/A'}</td></tr>
+      <tr class="detail-row"><td>Scheduled Time</td><td>${timeLabel || 'N/A'}</td></tr>
+    </table>
+    <p style="color:#475569;line-height:1.6;">Please contact us to confirm your availability, or reschedule your appointment so we can serve you at a time that works for you.</p>
+    ${rescheduleUrl ? `<a href="${rescheduleUrl}" class="btn" style="background:#dc2626;">Request Reschedule</a>` : `<a href="${process.env.APP_BASE_URL || ''}/book-history" class="btn" style="background:#dc2626;">Reschedule</a>`}
   </div>
   ${premiumFooter()}
 </div></body></html>`;
@@ -921,6 +1022,30 @@ async function sendRescheduleRejectedEmail({ to, customerName, bookingReference,
   return sendMail({ to, subject, html });
 }
 
+/**
+ * Send a reschedule link to the customer so they can pick a new date/time.
+ */
+async function sendRescheduleLinkEmail({ to, customerName, bookingReference, serviceName, rescheduleLink, expiryDays = 7 }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+      <h2 style="color:#1a5276;">Schedule Your New Visit</h2>
+      <p>Hello ${customerName},</p>
+      <p>Based on a past or missed appointment for <strong>${bookingReference || ""}</strong> (${serviceName || "your service"}), please use the link below to select a new date and time:</p>
+      <div style="text-align:center;margin:30px 0;">
+        <a href="${rescheduleLink}" style="background:#2e86c1;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:1rem;">Choose New Schedule</a>
+      </div>
+      <p style="color:#6c757d;font-size:0.9rem;">This link expires in <strong>${expiryDays} days</strong>.</p>
+      <hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">
+      <p style="color:#999;font-size:0.8rem;">RACS Ready App — Team Task Management</p>
+    </div>`;
+
+  await sendMail({
+    to,
+    subject: `Choose Your New Schedule — ${bookingReference || "Reschedule"}`,
+    html,
+    text: `Hi ${customerName}, choose your new visit: ${rescheduleLink} (expires in ${expiryDays} days)`,
+  });
+}
 
 function sendPartsRequestEmail({ to, customerName, bookingReference, serviceName, missingParts = [] }) {
   const subject = `Parts Availability Update — Booking #${bookingReference}`;
@@ -1019,6 +1144,7 @@ module.exports = {
   sendBookingCompletedEmail,
   sendTechnicianCancelledEmail,
   sendNoShowRescheduleEmail,
+  sendNoShowReportedEmail,
   sendInspectionCompletedEmail,
   sendQuotationReadyEmail,
   sendRepairCompletedEmail,
@@ -1027,4 +1153,5 @@ module.exports = {
   sendRescheduleRejectedEmail,
   sendRescheduleNotificationEmail,
   sendPartsRequestEmail,
+  sendRescheduleLinkEmail,
 };

@@ -114,6 +114,7 @@
     .pw-input-wrap { position: relative; }
     .pw-input { width: 100%; height: 42px; border-radius: 10px; border: 1.5px solid #e2e8f0; padding: 0 12px; font-size: 0.85rem; color: #0f172a; background: #f8fafc; transition: all 0.2s ease; }
     .pw-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); background: #fff; }
+    .pw-input[readonly] { background:#eef2f7; color:#334155; cursor:not-allowed; font-weight:700; }
     .pw-input-icon-field { padding-left: 38px; }
     .pw-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem; pointer-events: none; }
     .pw-input-prefix-field { padding-left: 30px; }
@@ -547,6 +548,7 @@
                 <div class="pw-att-item"><div class="pw-att-num" id="attSick">0</div><div class="pw-att-lbl">Sick Leave</div><div class="pw-att-dot" style="background:#ec4899;"></div></div>
                 <div class="pw-att-item pw-att-hours"><div class="pw-att-num" id="attHours">0</div><div class="pw-att-lbl">Hours Worked</div><div class="pw-att-dot" style="background:#0ea5e9;"></div></div>
               </div>
+              <div id="calcWarnings" class="alert alert-warning mt-3 mb-0" style="display:none;font-size:0.78rem;"></div>
             </div>
 
             <div class="pw-step-actions">
@@ -561,30 +563,44 @@
               <div class="pw-section-header">
                 <div class="pw-section-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-cash-coin"></i></div>
                 <div>
-                  <h6 class="pw-section-title">Compensation</h6>
-                  <p class="pw-section-desc">Enter base pay and overtime amounts</p>
+                  <h6 class="pw-section-title">System-calculated compensation</h6>
+                  <p class="pw-section-desc">Basic and overtime pay are calculated by the backend from the effective rate and attendance</p>
                 </div>
               </div>
               <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="pw-label">Basic Pay *</label>
                   <div class="pw-input-wrap">
                     <span class="pw-input-prefix">₱</span>
-                    <input type="number" id="pfBasicPay" class="pw-input pw-input-prefix-field" min="0" step="0.01" required />
+                    <input type="number" id="pfBasicPay" class="pw-input pw-input-prefix-field" min="0" step="0.01" readonly aria-readonly="true" />
                   </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                  <label class="pw-label">Approved OT Hours</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-clock-history pw-input-icon"></i>
+                    <input type="number" id="pfOvertimeHours" class="pw-input pw-input-icon-field" min="0" max="744" step="0.25" value="0" />
+                  </div>
+                </div>
+                <div class="col-md-3">
                   <label class="pw-label">Overtime Pay</label>
                   <div class="pw-input-wrap">
                     <span class="pw-input-prefix">₱</span>
-                    <input type="number" id="pfOvertimePay" class="pw-input pw-input-prefix-field" min="0" step="0.01" value="0" />
+                    <input type="number" id="pfOvertimePay" class="pw-input pw-input-prefix-field" min="0" step="0.01" value="0" readonly aria-readonly="true" />
                   </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="pw-label">Notes</label>
                   <div class="pw-input-wrap">
                     <i class="bi bi-text-left pw-input-icon"></i>
                     <input type="text" id="pfNotes" class="pw-input pw-input-icon-field" maxlength="1000" placeholder="Optional notes..." />
+                  </div>
+                </div>
+                <div class="col-12" id="overtimeNoteWrap" style="display:none;">
+                  <label class="pw-label">Overtime approval reason *</label>
+                  <div class="pw-input-wrap">
+                    <i class="bi bi-shield-check pw-input-icon"></i>
+                    <input type="text" id="pfOvertimeNote" class="pw-input pw-input-icon-field" maxlength="300" placeholder="Reference the approved overtime work or authorization..." />
                   </div>
                 </div>
               </div>
@@ -793,12 +809,12 @@
           </div>
           <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label-sm">Reference No.</label>
+              <label class="form-label-sm" id="paidReferenceLabel">Reference No.</label>
               <input type="text" id="paidReference" class="form-control-sm-custom" maxlength="120" placeholder="Optional reference..." />
             </div>
             <div class="col-md-6">
               <label class="form-label-sm">Proof URL</label>
-              <input type="text" id="paidProof" class="form-control-sm-custom" maxlength="500" placeholder="Optional URL..." />
+              <input type="url" id="paidProof" class="form-control-sm-custom" maxlength="500" placeholder="Optional https:// URL..." />
             </div>
           </div>
         </form>
@@ -930,7 +946,7 @@
                 <label class="pw-label">Base Rate *</label>
                 <div class="pw-input-wrap">
                   <span class="pw-input-prefix">₱</span>
-                  <input type="number" id="compBaseRate" class="pw-input pw-input-prefix-field" min="0" step="0.01" required placeholder="0.00" />
+                  <input type="number" id="compBaseRate" class="pw-input pw-input-prefix-field" min="0.01" step="0.01" required placeholder="0.00" />
                 </div>
               </div>
               <div class="col-md-6">
@@ -1057,6 +1073,11 @@
 
     // Auto-calculate
     document.getElementById('btnAutoCalc').addEventListener('click', autoCalculate);
+    document.getElementById('pfOvertimeHours').addEventListener('input', syncOvertimeControls);
+    document.getElementById('pfOvertimeHours').addEventListener('change', autoCalculate);
+    ['pfEmployee', 'pfPeriodStart', 'pfPeriodEnd'].forEach(id => {
+      document.getElementById(id).addEventListener('change', invalidatePayrollCalculation);
+    });
 
     // Live summary update
     ['pfBasicPay', 'pfOvertimePay'].forEach(id => {
@@ -1074,6 +1095,7 @@
     document.getElementById('btnConfirmApprove').addEventListener('click', confirmApprove);
     // Paid
     document.getElementById('btnConfirmPaid').addEventListener('click', confirmPaid);
+    document.getElementById('paidMethod').addEventListener('change', syncPaymentEvidence);
     // Void
     document.getElementById('btnConfirmVoid').addEventListener('click', confirmVoid);
     // Save compensation
@@ -1129,6 +1151,9 @@
       const role = emp.role || r.employeeRole || '';
       const statusCls = 'status-' + r.status;
       const actions = getRecordActions(r);
+      const warningIcon = (r.calculationWarnings || []).length
+        ? `<i class="bi bi-exclamation-triangle-fill ms-1" style="color:#d97706;" title="${esc((r.calculationWarnings || []).join(' '))}"></i>`
+        : '';
       return `<tr>
         <td>
           <div style="font-weight:600;color:#0f172a;">${esc(name)}</div>
@@ -1140,7 +1165,7 @@
         <td class="text-end">${fmt((r.allowances||[]).reduce((s,i)=>s+i.amount,0))}</td>
         <td class="text-end">${fmt(r.totalDeductions)}</td>
         <td class="text-end" style="font-weight:700;color:#0f172a;">${fmt(r.netPay)}</td>
-        <td><span class="status-badge ${statusCls}">${r.status}</span></td>
+        <td><span class="status-badge ${statusCls}">${r.status}</span>${warningIcon}</td>
         <td class="text-center">${actions}</td>
       </tr>`;
     }).join('');
@@ -1320,12 +1345,16 @@
     document.getElementById('pfPeriodStart').value = '';
     document.getElementById('pfPeriodEnd').value = '';
     document.getElementById('pfBasicPay').value = '';
+    document.getElementById('pfOvertimeHours').value = '0';
     document.getElementById('pfOvertimePay').value = '0';
+    document.getElementById('pfOvertimeNote').value = '';
     document.getElementById('pfNotes').value = '';
     document.getElementById('btnSavePayroll').innerHTML = '<i class="bi bi-check2-circle"></i> Save Draft';
     clearLineItems('allowancesContainer');
     clearLineItems('deductionsContainer');
     document.getElementById('calcAttendanceWrap').style.display = 'none';
+    renderCalculationWarnings([]);
+    syncOvertimeControls();
     updateSummary();
     pwGoStep(1);
     new bootstrap.Modal(document.getElementById('payrollModal')).show();
@@ -1348,7 +1377,9 @@
       document.getElementById('pfPeriodStart').value = r.periodStart ? new Date(r.periodStart).toISOString().split('T')[0] : '';
       document.getElementById('pfPeriodEnd').value = r.periodEnd ? new Date(r.periodEnd).toISOString().split('T')[0] : '';
       document.getElementById('pfBasicPay').value = r.basicPay;
+      document.getElementById('pfOvertimeHours').value = r.overtimeHours || 0;
       document.getElementById('pfOvertimePay').value = r.overtimePay || 0;
+      document.getElementById('pfOvertimeNote').value = r.overtimeNote || '';
       document.getElementById('pfNotes').value = r.notes || '';
       document.getElementById('btnSavePayroll').innerHTML = '<i class="bi bi-check2-circle"></i> Update Draft';
 
@@ -1358,7 +1389,16 @@
       clearLineItems('deductionsContainer');
       (r.deductions || []).forEach(d => addLineItem('deductionsContainer', d.name, d.amount));
 
-      document.getElementById('calcAttendanceWrap').style.display = 'none';
+      document.getElementById('calcAttendanceWrap').style.display = 'block';
+      const att = r.attendanceSummary || {};
+      document.getElementById('attPresent').textContent = att.present || 0;
+      document.getElementById('attLate').textContent = att.late || 0;
+      document.getElementById('attAbsent').textContent = att.absent || 0;
+      document.getElementById('attLeave').textContent = att.onLeave || 0;
+      document.getElementById('attSick').textContent = att.sickLeave || 0;
+      document.getElementById('attHours').textContent = att.hoursWorked || 0;
+      renderCalculationWarnings(r.calculationWarnings || []);
+      syncOvertimeControls();
       updateSummary();
       pwGoStep(1);
       new bootstrap.Modal(document.getElementById('payrollModal')).show();
@@ -1403,7 +1443,13 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ employeeId: emp, periodStart: start, periodEnd: end })
+        body: JSON.stringify({
+          employeeId: emp,
+          periodStart: start,
+          periodEnd: end,
+          overtimeHours: parseFloat(document.getElementById('pfOvertimeHours').value) || 0,
+          excludePayrollId: editingId || undefined,
+        })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1412,6 +1458,7 @@
       }
 
       document.getElementById('pfBasicPay').value = data.basicPay;
+      document.getElementById('pfOvertimeHours').value = data.overtimeHours || 0;
       document.getElementById('pfOvertimePay').value = data.overtimePay || 0;
 
       // Show attendance
@@ -1423,6 +1470,8 @@
       document.getElementById('attSick').textContent = att.sickLeave || 0;
       document.getElementById('attHours').textContent = att.hoursWorked || 0;
       document.getElementById('calcAttendanceWrap').style.display = 'block';
+      renderCalculationWarnings(data.calculationWarnings || []);
+      syncOvertimeControls();
 
       updateSummary();
       showCalcMsg('Calculated: ' + fmt(data.basicPay) + ' basic pay (' + (att.present || 0) + ' present days)', 'success');
@@ -1433,6 +1482,36 @@
       btn.innerHTML = origHTML;
       btn.disabled = false;
     }
+  }
+
+  function syncOvertimeControls() {
+    const overtimeHours = parseFloat(document.getElementById('pfOvertimeHours').value) || 0;
+    const wrap = document.getElementById('overtimeNoteWrap');
+    const note = document.getElementById('pfOvertimeNote');
+    wrap.style.display = overtimeHours > 0 ? '' : 'none';
+    note.required = overtimeHours > 0;
+    if (overtimeHours === 0) note.value = '';
+  }
+
+  function invalidatePayrollCalculation() {
+    document.getElementById('pfBasicPay').value = '';
+    document.getElementById('pfOvertimePay').value = '0';
+    document.getElementById('calcAttendanceWrap').style.display = 'none';
+    renderCalculationWarnings([]);
+    updateSummary();
+  }
+
+  function renderCalculationWarnings(warnings) {
+    const box = document.getElementById('calcWarnings');
+    const items = Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+    if (!items.length) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = '<strong><i class="bi bi-exclamation-triangle me-1"></i>Review before approval</strong><ul class="mb-0 mt-1">' +
+      items.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>';
+    box.style.display = 'block';
   }
 
   // ── Line Items ────────────────────────────────────────────────
@@ -1501,13 +1580,21 @@
     const payDate = document.getElementById('pfPayDate').value;
     if (!emp || !start || !end || !payDate) { showCalcMsg('Please fill in all required fields.', 'error'); return; }
 
+    const overtimeHours = parseFloat(document.getElementById('pfOvertimeHours').value) || 0;
+    const overtimeNote = document.getElementById('pfOvertimeNote').value.trim();
+    if (overtimeHours > 0 && !overtimeNote) {
+      showCalcMsg('Enter the overtime approval reason.', 'error');
+      pwGoStep(2);
+      return;
+    }
+
     const body = {
       employee: emp,
       periodStart: start,
       periodEnd: end,
       payDate,
-      basicPay: parseFloat(document.getElementById('pfBasicPay').value) || 0,
-      overtimePay: parseFloat(document.getElementById('pfOvertimePay').value) || 0,
+      overtimeHours,
+      overtimeNote,
       allowances: getLineItems('allowancesContainer'),
       deductions: getLineItems('deductionsContainer'),
       notes: document.getElementById('pfNotes').value || '',
@@ -1563,6 +1650,7 @@
               <div class="detail-item"><div class="detail-item-label">Date</div><div class="detail-item-value">${fmtDate(r.paymentDate)}</div></div>
               <div class="detail-item"><div class="detail-item-label">Reference</div><div class="detail-item-value">${esc(r.paymentReference || '—')}</div></div>
               <div class="detail-item"><div class="detail-item-label">Paid By</div><div class="detail-item-value">${r.paidBy ? esc(r.paidBy.firstName + ' ' + r.paidBy.lastName) : '—'}</div></div>
+              ${r.paymentProof ? `<div class="detail-item"><div class="detail-item-label">Payment Proof</div><div class="detail-item-value"><a href="${esc(r.paymentProof)}" target="_blank" rel="noopener noreferrer">Open proof <i class="bi bi-box-arrow-up-right"></i></a></div></div>` : ''}
             </div>
           </div>`;
       }
@@ -1573,6 +1661,7 @@
           <div class="detail-grid">
             <div class="detail-item"><div class="detail-item-label">Created By</div><div class="detail-item-value">${r.createdBy ? esc(r.createdBy.firstName + ' ' + r.createdBy.lastName) : '—'}</div></div>
             <div class="detail-item"><div class="detail-item-label">Created At</div><div class="detail-item-value">${fmtDate(r.createdAt)}</div></div>
+            <div class="detail-item"><div class="detail-item-label">Calculation</div><div class="detail-item-value">Server verified · v${Number(r.calculationVersion || 1)}</div></div>
             ${r.approvedBy ? `<div class="detail-item"><div class="detail-item-label">Approved By</div><div class="detail-item-value">${esc(r.approvedBy.firstName + ' ' + r.approvedBy.lastName)}</div></div><div class="detail-item"><div class="detail-item-label">Approved At</div><div class="detail-item-value">${fmtDate(r.approvedAt)}</div></div>` : ''}
             ${r.voidedBy ? `<div class="detail-item"><div class="detail-item-label">Voided By</div><div class="detail-item-value">${esc(r.voidedBy.firstName + ' ' + r.voidedBy.lastName)}</div></div><div class="detail-item"><div class="detail-item-label">Reason</div><div class="detail-item-value">${esc(r.voidReason || '—')}</div></div>` : ''}
           </div>
@@ -1600,7 +1689,8 @@
           <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;margin-bottom:6px;"><i class="bi bi-calculator me-1"></i>Pay Breakdown</div>
           <div class="calc-summary">
             <div class="calc-row"><span style="color:#64748b;">Basic Pay</span><span>${fmt(r.basicPay)}</span></div>
-            <div class="calc-row"><span style="color:#64748b;">Overtime Pay</span><span>${fmt(r.overtimePay)}</span></div>
+            <div class="calc-row"><span style="color:#64748b;">Overtime Pay (${Number(r.overtimeHours || 0)} hrs)</span><span>${fmt(r.overtimePay)}</span></div>
+            ${r.overtimeNote ? `<div class="calc-row"><span style="color:#64748b;">OT Authorization</span><span style="max-width:65%;text-align:right;">${esc(r.overtimeNote)}</span></div>` : ''}
             ${allowHtml}
             <div class="calc-row"><span style="color:#64748b;">Gross Pay</span><span style="font-weight:600;">${fmt(r.grossPay)}</span></div>
             ${dedHtml}
@@ -1624,7 +1714,8 @@
     if (!r) return;
     document.getElementById('approveModal').dataset.id = id;
     const emp = r.employee || {};
-    document.getElementById('approveSummary').innerHTML = `<strong>${esc((emp.firstName||'') + ' ' + (emp.lastName||''))}</strong> — ${fmt(r.netPay)}<br/>Period: ${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}`;
+    const warnings = (r.calculationWarnings || []).map(item => `<li>${esc(item)}</li>`).join('');
+    document.getElementById('approveSummary').innerHTML = `<strong>${esc((emp.firstName||'') + ' ' + (emp.lastName||''))}</strong> — ${fmt(r.netPay)}<br/>Period: ${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}<br/><small><i class="bi bi-lock-fill me-1"></i>Amounts will be recalculated by the server at approval.</small>${warnings ? `<ul class="mt-2 mb-0">${warnings}</ul>` : ''}`;
     new bootstrap.Modal(document.getElementById('approveModal')).show();
   }
 
@@ -1633,7 +1724,11 @@
     try {
       const res = await fetch(API + '/' + id + '/approve', { method: 'POST', credentials: 'same-origin' });
       const data = await res.json();
-      if (!res.ok) { showCalcMsg(data.error || 'Approval failed.', 'error'); return; }
+      if (!res.ok) {
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? ' ' + data.warnings.join(' ') : '';
+        showCalcMsg((data.error || 'Approval failed.') + warningText, 'error');
+        return;
+      }
       bootstrap.Modal.getInstance(document.getElementById('approveModal')).hide();
       loadRecords();
       showCalcMsg('Payroll approved.', 'success');
@@ -1649,6 +1744,7 @@
     document.getElementById('paidDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('paidReference').value = '';
     document.getElementById('paidProof').value = '';
+    syncPaymentEvidence();
     const emp = r.employee || {};
     document.getElementById('paidModalSub').textContent = `${(emp.firstName||'') + ' ' + (emp.lastName||'')} — ${fmt(r.netPay)}`;
     new bootstrap.Modal(document.getElementById('paidModal')).show();
@@ -1658,6 +1754,10 @@
     const id = document.getElementById('paidPayrollId').value;
     const method = document.getElementById('paidMethod').value;
     if (!method) { showCalcMsg('Select a payment method.', 'error'); return; }
+    const reference = document.getElementById('paidReference').value.trim();
+    if (method !== 'cash' && !reference) { showCalcMsg('Enter the transaction reference for this non-cash payment.', 'error'); return; }
+    const proof = document.getElementById('paidProof');
+    if (proof.value && !proof.checkValidity()) { showCalcMsg('Enter a valid HTTP or HTTPS proof URL.', 'error'); return; }
     try {
       const res = await fetch(API + '/' + id + '/paid', {
         method: 'POST',
@@ -1666,8 +1766,8 @@
         body: JSON.stringify({
           paymentMethod: method,
           paymentDate: document.getElementById('paidDate').value,
-          paymentReference: document.getElementById('paidReference').value,
-          paymentProof: document.getElementById('paidProof').value,
+          paymentReference: reference,
+          paymentProof: proof.value,
         })
       });
       const data = await res.json();
@@ -1676,6 +1776,14 @@
       loadRecords();
       showCalcMsg('Payment recorded.', 'success');
     } catch(e) { showCalcMsg('Failed to mark as paid.', 'error'); }
+  }
+
+  function syncPaymentEvidence() {
+    const method = document.getElementById('paidMethod').value;
+    const required = !!method && method !== 'cash';
+    const reference = document.getElementById('paidReference');
+    reference.required = required;
+    document.getElementById('paidReferenceLabel').textContent = required ? 'Reference No. *' : 'Reference No.';
   }
 
   // ── Void ──────────────────────────────────────────────────────

@@ -1,0 +1,32 @@
+<link rel="stylesheet" href="/css/maintenance.css?v=20260826">
+
+<section class="container py-5 maintenance-shell" id="maintenanceCustomerApp" style="max-width:1080px;min-height:65vh;">
+  <header class="maintenance-head">
+    <div class="d-flex align-items-center gap-3">
+      <div class="maintenance-head-icon"><i class="bi bi-tools"></i></div>
+      <div><h1>My Maintenance</h1><p>Upcoming care schedules for equipment from your bookings and orders.</p></div>
+    </div>
+    <a href="/book-history" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history me-1"></i>Booking history</a>
+  </header>
+  <div class="maintenance-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Equipment</div><div class="maintenance-kpi-value" id="customerAssetCount">0</div></div>
+    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Due Soon</div><div class="maintenance-kpi-value" id="customerDueSoon">0</div></div>
+    <div class="maintenance-kpi warning"><div class="maintenance-kpi-label">Due</div><div class="maintenance-kpi-value" id="customerDue">0</div></div>
+    <div class="maintenance-kpi danger"><div class="maintenance-kpi-label">Overdue</div><div class="maintenance-kpi-value" id="customerOverdue">0</div></div>
+  </div>
+  <div class="asset-grid" id="customerAssetGrid"></div>
+  <div class="maintenance-empty d-none" id="customerMaintenanceEmpty" style="border:1px solid #e2e8f0;border-radius:8px;">
+    <i class="bi bi-snow2 fs-3 d-block mb-2"></i>
+    No maintainable equipment is registered yet. Completed installations and service visits will appear here.
+  </div>
+</section>
+
+<div class="modal fade" id="installationDateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Record Installation Date</h5><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><label class="form-label" for="assetInstallationDate">Installation date</label><input class="form-control" id="assetInstallationDate" type="date"><div class="form-text">Maintenance reminders begin from the actual installation date.</div></div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="saveInstallationDateBtn">Save date</button></div>
+  </div></div>
+</div>
+
+<script src="/js/maintenance-customer.js?v=20260826"></script>

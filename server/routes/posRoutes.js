@@ -1,10 +1,28 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const Tool = require("../models/Tool");
 const HVACProduct = require("../models/HVACProduct");
 const Inventory = require("../models/Inventory");
 const WalkInSale = require("../models/WalkInSale");
+const Order = require("../models/Order");
+const Payment = require("../models/Payment");
+const User = require("../models/User");
+const auth = require("../middleware/authenticate");
+const { escapeRegex } = require("../utils/stringSecurity");
+const {
+  OrderCheckoutError,
+  authoritativeDeliveryQuote,
+  parseDateOnly,
+  validateCheckoutItems,
+  validatePickupDate,
+} = require("../utils/orderCheckoutPolicy");
+const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
+const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
+const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
+
+router.use(auth.authenticate, auth.requireRole("admin"));
 
 // ─── Auth middleware (admin only) ─────────────────────────────────────────────
 function requireAdmin(req, res, next) {
@@ -14,10 +32,74 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function posOrderError(message, status = 400, code = "POS_AIRCON_ORDER_INVALID") {
+  return new OrderCheckoutError(message, status, code);
+}
+
+function normalizedCustomer(value = {}) {
+  const name = String(value.name || "").trim().replace(/\s+/g, " ").slice(0, 160);
+  const email = String(value.email || "").trim().toLowerCase().slice(0, 254);
+  const phone = String(value.phone || "").replace(/\D+/g, "").slice(0, 15);
+  if (name.length < 2) throw posOrderError("Customer name is required for an aircon purchase.", 400, "POS_CUSTOMER_NAME_REQUIRED");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw posOrderError("A valid customer email is required for warranty access.", 400, "POS_CUSTOMER_EMAIL_REQUIRED");
+  if (phone.length < 7) throw posOrderError("A valid customer phone number is required.", 400, "POS_CUSTOMER_PHONE_REQUIRED");
+  const parts = name.split(" ");
+  return {
+    name,
+    email,
+    phone,
+    firstName: parts.shift() || "Walk-in",
+    lastName: parts.join(" ") || "Customer",
+    address: String(value.address || "").trim().slice(0, 500),
+  };
+}
+
+async function findOrCreatePosCustomer(customer, session) {
+  const existing = await User.findOne({ email: customer.email }).session(session);
+  if (existing) {
+    if (existing.role !== "customer") throw posOrderError("That email belongs to a staff account. Use the customer's own email.", 409, "POS_CUSTOMER_EMAIL_CONFLICT");
+    return { user: existing, created: false };
+  }
+  const user = new User({
+    email: customer.email,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    phone: customer.phone,
+    role: "customer",
+    active: true,
+  });
+  await user.setPassword(crypto.randomBytes(18).toString("base64url"));
+  await user.save({ session });
+  return { user, created: true };
+}
+
+function paymentMapping(method) {
+  const value = String(method || "").trim();
+  const map = {
+    cash: { order: "cash", payment: "cash", gateway: "cod" },
+    gcash: { order: "gcash_full", payment: "gcash", gateway: "gcash" },
+    maya: { order: "other", payment: "other", gateway: "other" },
+    card: { order: "other", payment: "other", gateway: "other" },
+    bank_transfer: { order: "other", payment: "bank", gateway: "bank" },
+  };
+  if (!map[value]) throw posOrderError("Choose a supported payment method.", 400, "POS_PAYMENT_METHOD_INVALID");
+  return { ...map[value], source: value };
+}
+
+function normalizedSerialNumbers(values) {
+  const result = (Array.isArray(values) ? values : [])
+    .map((value) => String(value || "").trim().slice(0, 120))
+    .filter(Boolean);
+  if (new Set(result.map((value) => value.toLowerCase())).size !== result.length) {
+    throw posOrderError("Every aircon unit must have a unique serial number.", 400, "POS_SERIAL_DUPLICATE");
+  }
+  return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/tools/generate-barcodes — Generate barcodes for all tools missing them
 // ─────────────────────────────────────────────────────────────────────────────
-router.post("/tools/generate-barcodes", requireAdmin, async (req, res) => {
+router.post("/tools/generate-barcodes", async (req, res) => {
   try {
     const tools = await Tool.find({
       $and: [Tool.merchandiseFilter(), { $or: [{ barcode: { $exists: false } }, { barcode: "" }, { barcode: null }] }],
@@ -41,8 +123,6 @@ router.post("/tools/generate-barcodes", requireAdmin, async (req, res) => {
   }
 });
 
-router.use(requireAdmin);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/pos/tools — Search available parts/tools for POS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,7 +132,7 @@ router.get("/tools", async (req, res) => {
     const filter = { active: true, isStockItem: true, status: { $ne: "discontinued" }, $and: [Tool.merchandiseFilter()] };
 
     if (q && q.trim()) {
-      const regex = new RegExp(q.trim(), "i");
+      const regex = new RegExp(escapeRegex(q.trim()), "i");
       filter.$or = [
         { itemName: regex },
         { barcode: regex },
@@ -169,7 +249,7 @@ router.get("/aircons", async (req, res) => {
     // Build variant-level match
     const variantMatch = {};
     if (q && q.trim()) {
-      const regex = new RegExp(q.trim(), "i");
+      const regex = new RegExp(escapeRegex(q.trim()), "i");
       variantMatch.$or = [
         { "variants.barcode": regex },
         { "variants.sku": regex },
@@ -295,6 +375,298 @@ router.get("/categories", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/pos/aircon-quote — Counter quote for delivery + installation
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/aircon-quote", async (req, res) => {
+  try {
+    const fulfillmentType = String(req.body?.fulfillmentType || "");
+    if (fulfillmentType !== "delivery_installation") {
+      return res.json({ transportationFee: 0, installationFee: 0, distanceKm: 0, durationMin: 0 });
+    }
+    const settings = await getOrderCheckoutSettings();
+    const quote = await authoritativeDeliveryQuote({
+      origin: settings.companyLocation,
+      destination: req.body?.coordinates,
+      farePerKm: settings.farePerKm,
+    });
+    return res.json({
+      ...quote,
+      installationFee: settings.installationFee,
+      additionalTotal: quote.transportationFee + settings.installationFee,
+    });
+  } catch (error) {
+    return res.status(Number(error.status) || 400).json({ error: error.message, code: error.code });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/pos/aircon-checkout — Create a walk-in Order, never a WalkInSale
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/aircon-checkout", async (req, res) => {
+  let session;
+  try {
+    const customer = normalizedCustomer(req.body?.customer);
+    const payment = paymentMapping(req.body?.paymentMethod);
+    const checkoutRequestId = String(req.body?.checkoutRequestId || "").trim();
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(checkoutRequestId)) {
+      throw posOrderError("The checkout request is invalid. Refresh the POS and try again.", 400, "POS_CHECKOUT_ID_INVALID");
+    }
+    const existingCustomer = await User.findOne({ email: customer.email, role: "customer" }).select("_id").lean();
+    if (existingCustomer) {
+      const existingOrder = await Order.findOne({
+        userId: existingCustomer._id,
+        checkoutRequestId,
+        salesChannel: "walk_in",
+      }).lean();
+      if (existingOrder) {
+        return res.json({ success: true, duplicate: true, order: existingOrder, customerAccountCreated: false });
+      }
+    }
+
+    const paymentReference = String(req.body?.paymentReference || "").trim().slice(0, 160);
+    if (payment.source !== "cash" && paymentReference.length < 4) {
+      throw posOrderError("Record the electronic payment or card authorization reference.", 400, "POS_PAYMENT_REFERENCE_REQUIRED");
+    }
+
+    const requestedItems = validateCheckoutItems(
+      (req.body?.items || []).map((item) => ({ inventoryId: item?.toolId || item?.inventoryId, quantity: item?.quantity })),
+    );
+    const fulfillmentChoice = String(req.body?.fulfillmentType || "").trim();
+    if (!["carry_out", "customer_pickup", "delivery_installation"].includes(fulfillmentChoice)) {
+      throw posOrderError("Choose carry-out, pickup later, or delivery with installation.", 400, "POS_FULFILLMENT_REQUIRED");
+    }
+
+    const settings = await getOrderCheckoutSettings();
+    const enrichedItems = [];
+    for (const requestedItem of requestedItems) {
+      const product = await HVACProduct.findOne({ "variants._id": requestedItem.inventoryId })
+        .populate("brand", "name")
+        .lean();
+      const variant = product?.variants?.find((row) => String(row._id) === requestedItem.inventoryId);
+      if (!product || !variant || variant.active === false || Number(variant.quantity || 0) < requestedItem.quantity) {
+        throw posOrderError("One of the selected aircon units is no longer available in the requested quantity.", 409, "POS_AIRCON_STOCK_UNAVAILABLE");
+      }
+      const unitPrice = Math.max(0, Number(variant.sellingPrice) || 0);
+      enrichedItems.push({
+        inventoryId: variant._id,
+        modelLine: product.modelLine,
+        brand: product.brand?.name || product.brand || "",
+        capacity: variant.capacity,
+        capacityUnit: variant.capacityUnit || "HP",
+        quantity: requestedItem.quantity,
+        unitPrice,
+        totalPrice: unitPrice * requestedItem.quantity,
+        imageUrl: product.imageUrl || "/images/products/default.png",
+        isHvac: true,
+        parentHvacId: product._id,
+        manufacturerWarranty: product.specifications?.warranty || "",
+        serialNumbers: [],
+      });
+    }
+
+    const totalUnits = enrichedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const serialNumbers = normalizedSerialNumbers(req.body?.serialNumbers);
+    if (fulfillmentChoice === "carry_out" && serialNumbers.length !== totalUnits) {
+      throw posOrderError(`Record exactly ${totalUnits} unit serial number(s) before immediate handover.`, 400, "POS_SERIALS_REQUIRED");
+    }
+
+    let fulfillmentType = "customer_pickup";
+    let pickupDate = null;
+    let delivery = null;
+    let timeSlot = null;
+    let transportationFee = 0;
+    let routeDistanceKm = 0;
+    let routeDurationMin = 0;
+    let installationFee = 0;
+    if (fulfillmentChoice === "carry_out") {
+      pickupDate = new Date();
+    } else if (fulfillmentChoice === "customer_pickup") {
+      pickupDate = validatePickupDate(req.body?.pickupDate, settings.storeHours);
+    } else {
+      fulfillmentType = "delivery_installation";
+      const address = String(req.body?.delivery?.address || "").trim().slice(0, 500);
+      const preferredDate = parseDateOnly(req.body?.delivery?.preferredDate);
+      timeSlot = String(req.body?.timeSlot || "").trim().slice(0, 40);
+      const lat = Number(req.body?.delivery?.coordinates?.lat);
+      const lng = Number(req.body?.delivery?.coordinates?.lng);
+      if (address.length < 8) throw posOrderError("Enter and select a complete installation address.", 400, "POS_DELIVERY_ADDRESS_REQUIRED");
+      if (!preferredDate || preferredDate <= new Date(new Date().setHours(0, 0, 0, 0))) throw posOrderError("Choose a future installation date.", 400, "POS_DELIVERY_DATE_REQUIRED");
+      if (!timeSlot) throw posOrderError("Choose an available installation time.", 400, "POS_DELIVERY_TIME_REQUIRED");
+      const quote = await authoritativeDeliveryQuote({
+        origin: settings.companyLocation,
+        destination: { lat, lng },
+        farePerKm: settings.farePerKm,
+      });
+      transportationFee = quote.transportationFee;
+      routeDistanceKm = quote.distanceKm;
+      routeDurationMin = quote.durationMin;
+      installationFee = settings.installationFee;
+
+      const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
+      if (await schedulingEngine.isLargeProject({ totalUnits, totalEstimatedMinutes: totalUnits * 60 })) {
+        throw posOrderError("This installation quantity requires project scheduling. Create a project quotation instead.", 409, "POS_PROJECT_SCHEDULING_REQUIRED");
+      }
+      const scheduleRoutes = require("./scheduleRoutes");
+      const slotCheck = await scheduleRoutes.getTimeSlotsForQuery({
+        date: String(req.body.delivery.preferredDate).slice(0, 10),
+        duration: "60",
+        quantity: String(totalUnits),
+        travelTime: String(routeDurationMin),
+      });
+      const slotAvailable = slotCheck.statusCode < 400
+        && Array.isArray(slotCheck.payload?.timeSlots)
+        && slotCheck.payload.timeSlots.some((slot) => slot.available === true && String(slot.startTime || "").trim().toLowerCase() === timeSlot.toLowerCase());
+      if (!slotAvailable) throw posOrderError(slotCheck.payload?.message || "That installation time is no longer available.", 409, "POS_INSTALLATION_SLOT_UNAVAILABLE");
+      delivery = {
+        address,
+        contactNumber: customer.phone,
+        preferredDate,
+        notes: String(req.body?.delivery?.notes || "Walk-in counter order").trim().slice(0, 1000),
+        coordinates: { type: "Point", coordinates: [lng, lat] },
+      };
+    }
+
+    const subtotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const discount = Math.max(0, Number(req.body?.discount) || 0);
+    if (discount > subtotal) throw posOrderError("Discount cannot exceed the product subtotal.", 400, "POS_DISCOUNT_INVALID");
+    const total = subtotal - discount + transportationFee + installationFee;
+    const amountPaid = Number(req.body?.amountPaid);
+    if (!Number.isFinite(amountPaid) || amountPaid < total) {
+      throw posOrderError(`Collect the full counter total of ₱${total.toLocaleString("en-PH", { minimumFractionDigits: 2 })}.`, 409, "POS_PAYMENT_INSUFFICIENT");
+    }
+
+    session = await mongoose.startSession();
+    session.startTransaction();
+    const { user: customerUser, created: customerAccountCreated } = await findOrCreatePosCustomer(customer, session);
+    const duplicate = await Order.findOne({ userId: customerUser._id, checkoutRequestId }).session(session);
+    if (duplicate) {
+      await session.abortTransaction();
+      return res.json({ success: true, duplicate: true, order: duplicate.toObject(), customerAccountCreated: false });
+    }
+
+    for (const item of enrichedItems) {
+      const reserved = await HVACProduct.findOneAndUpdate(
+        {
+          _id: item.parentHvacId,
+          variants: { $elemMatch: { _id: item.inventoryId, quantity: { $gte: item.quantity }, active: { $ne: false } } },
+        },
+        { $inc: { "variants.$.quantity": -item.quantity } },
+        { returnDocument: "after", session },
+      );
+      if (!reserved) throw posOrderError(`${item.modelLine} no longer has enough stock.`, 409, "POS_AIRCON_STOCK_RACE_LOST");
+    }
+
+    if (fulfillmentChoice === "carry_out") {
+      let serialIndex = 0;
+      enrichedItems.forEach((item) => {
+        item.serialNumbers = serialNumbers.slice(serialIndex, serialIndex + item.quantity);
+        serialIndex += item.quantity;
+      });
+    }
+    const now = new Date();
+    const status = fulfillmentChoice === "carry_out" ? "completed" : "preparing_unit";
+    const order = new Order({
+      userId: customerUser._id,
+      salesChannel: "walk_in",
+      createdBy: req.user._id,
+      checkoutRequestId,
+      customer: { name: customer.name, email: customer.email, phone: customer.phone },
+      items: enrichedItems,
+      fulfillmentType,
+      pickupDate,
+      delivery,
+      timeSlot,
+      status,
+      completedAt: status === "completed" ? now : null,
+      paymentMethod: payment.order,
+      paymentStatus: "paid",
+      downpaymentPercentage: 100,
+      downpaymentAmount: total,
+      balanceAmount: 0,
+      discount,
+      transportationFee,
+      routeDistanceKm,
+      routeDurationMin,
+      installationFee,
+      preparation: {
+        dispatch: { status: fulfillmentType === "customer_pickup" ? "not_required" : "pending" },
+        installation: { status: fulfillmentType === "delivery_installation" ? "pending" : "not_required" },
+      },
+      statusHistory: [{ status, timestamp: now, note: fulfillmentChoice === "carry_out" ? "Walk-in payment and immediate handover completed" : "Walk-in aircon order created and fully paid" }],
+    });
+    if (status === "completed") {
+      const warrantyRule = warrantyRuleForOrder(await getAftercarePolicy());
+      const warrantySnapshot = buildOrderWarrantySnapshot(order, now, warrantyRule);
+      if (warrantySnapshot) order.warranty = warrantySnapshot;
+    }
+    await order.save({ session });
+
+    const paymentRecord = new Payment({
+      orderId: order._id,
+      amount: order.total,
+      method: payment.payment,
+      type: "final",
+      gateway: payment.gateway,
+      reference: paymentReference || undefined,
+      status: "verified",
+      collectedAt: now,
+      verifiedAt: now,
+      completedAt: now,
+      verifiedBy: req.user._id,
+      collectionLocation: { address: "Store counter" },
+      notes: `Walk-in ${payment.source} payment received at POS`,
+      events: [{
+        status: "verified",
+        actor: req.user._id,
+        actorName: req.user.name || req.user.email || "Admin",
+        actorRole: req.user.role,
+        note: "Full payment collected and verified at the walk-in counter",
+        at: now,
+      }],
+    });
+    await paymentRecord.save({ session });
+    order.paymentId = paymentRecord._id;
+    await order.save({ session });
+    await session.commitTransaction();
+
+    if (status === "completed") {
+      try {
+        const { syncMaintenanceFromOrder } = require("../utils/maintenanceLifecycle");
+        await syncMaintenanceFromOrder(order);
+      } catch (maintenanceError) {
+        console.error("[POS] Failed to create carry-out maintenance record:", maintenanceError.message);
+      }
+    }
+    require("../utils/audit").logEvent({
+      actor: req.user._id,
+      action: "pos.aircon_order.create",
+      module: "Order",
+      details: { orderReference: order.orderReference, total: order.total, fulfillmentChoice, customerEmail: customer.email },
+      entityId: order._id,
+      entityType: "Order",
+      category: "order",
+      actionType: "created",
+      actorRole: req.user.role,
+      actorName: req.user.name || req.user.email || "Admin",
+      req,
+    });
+    return res.status(201).json({
+      success: true,
+      order: order.toObject(),
+      customerAccountCreated,
+      amountPaid,
+      change: payment.source === "cash" ? Math.max(0, amountPaid - order.total) : 0,
+    });
+  } catch (error) {
+    if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
+    console.error("POS aircon checkout error:", error);
+    return res.status(Number(error.status) || 400).json({ error: error.message || "Aircon checkout failed", code: error.code });
+  } finally {
+    if (session) await session.endSession();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/checkout — Process a walk-in sale
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/checkout", async (req, res) => {
@@ -305,13 +677,16 @@ router.post("/checkout", async (req, res) => {
     const { customerName, customerPhone, customerTin, customerAddress, items, paymentMethod, amountPaid, discount, notes } = req.body;
 
     if (!items || !items.length) {
-      return res.status(400).json({ error: "No items in cart" });
+      throw new Error("No items in cart");
+    }
+    if (items.some((item) => ["aircon", "aircon_legacy"].includes(item?.source))) {
+      throw new Error("Aircon purchases must use the walk-in Orders checkout.");
     }
     if (!paymentMethod) {
-      return res.status(400).json({ error: "Payment method is required" });
+      throw new Error("Payment method is required");
     }
     if (amountPaid == null || Number(amountPaid) < 0) {
-      return res.status(400).json({ error: "Invalid payment amount" });
+      throw new Error("Invalid payment amount");
     }
 
     // ── Validate & reserve stock ───────────────────────────────────────────
@@ -324,7 +699,7 @@ router.post("/checkout", async (req, res) => {
         throw new Error(`Invalid item: ${JSON.stringify(item)}`);
       }
 
-      let itemName, category, unit, unitPrice, costPrice, available, serialNumber;
+      let itemName, category, unit, unitPrice, costPrice, available, serialNumber, parentHvacId;
       const source = item.source || "tool";
 
       if (source === "aircon" || source === "aircon_legacy") {
@@ -345,6 +720,7 @@ router.post("/checkout", async (req, res) => {
           unitPrice = variant.sellingPrice || 0;
           costPrice = variant.costPrice || 0;
           available = variant.quantity;
+          parentHvacId = hvac._id;
           found = true;
         }
         if (!found) {
@@ -398,6 +774,8 @@ router.post("/checkout", async (req, res) => {
         costPrice,
         totalPrice,
         serialNumber,
+        source,
+        parentHvacId,
       });
 
       subtotal += totalPrice;
@@ -560,12 +938,45 @@ router.post("/sales/:id/void", async (req, res) => {
     if (!sale) throw new Error("Sale not found");
     if (sale.status === "voided") throw new Error("Sale is already voided");
 
-    // Restore stock
+    // Restore stock to the same inventory collection used at checkout.
     for (const item of sale.items) {
+      const source = String(item.source || "");
+      const hvac = (source === "aircon" || (!source && item.parentHvacId))
+        ? await HVACProduct.findOne({ "variants._id": item.toolId }).session(session)
+        : null;
+      if (hvac) {
+        const variant = hvac.variants.id(item.toolId);
+        if (!variant) throw new Error(`Aircon variant not found while restoring ${item.itemName}`);
+        variant.quantity = (variant.quantity || 0) + item.quantity;
+        await hvac.save({ session });
+        continue;
+      }
+      if (source === "aircon_legacy") {
+        const inventory = await Inventory.findById(item.toolId).session(session);
+        if (!inventory) throw new Error(`Legacy aircon stock record not found for ${item.itemName}`);
+        inventory.quantity = (inventory.quantity || 0) + item.quantity;
+        await inventory.save({ session });
+        continue;
+      }
       const tool = await Tool.findById(item.toolId).session(session);
       if (tool) {
         tool.quantity = (tool.quantity || 0) + item.quantity;
         await tool.save({ session });
+      } else {
+        // Backward compatibility for aircon POS sales created before source
+        // metadata existed.
+        const legacyHvac = await HVACProduct.findOne({ "variants._id": item.toolId }).session(session);
+        if (legacyHvac) {
+          const variant = legacyHvac.variants.id(item.toolId);
+          variant.quantity = (variant.quantity || 0) + item.quantity;
+          await legacyHvac.save({ session });
+        } else {
+          const legacyInventory = await Inventory.findById(item.toolId).session(session);
+          if (legacyInventory) {
+            legacyInventory.quantity = (legacyInventory.quantity || 0) + item.quantity;
+            await legacyInventory.save({ session });
+          }
+        }
       }
     }
 

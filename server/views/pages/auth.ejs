@@ -5,6 +5,13 @@
     <div class="auth-shape"></div>
   </div>
 
+  <!-- Aircon ambience: cool air streams + frost flakes -->
+  <div class="auth-airflow" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="auth-flake-mark auth-flake-lg" aria-hidden="true"><i class="bi bi-snow2"></i></div>
+  <div class="auth-flake-mark auth-flake-sm" aria-hidden="true"><i class="bi bi-snow2"></i></div>
+
   <!-- Brand Panel (desktop) -->
   <div class="auth-brand">
     <div class="auth-brand-inner">
@@ -59,17 +66,16 @@
           <p class="auth-form-card-subtitle">Sign in to manage your services and bookings.</p>
         </div>
 
-        <form id="auth-login-form" method="POST" novalidate autocomplete="off">
+        <form id="auth-login-form" method="POST" novalidate>
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
 
           <div class="auth-field">
             <label class="auth-field-label" for="email">Email Address</label>
             <div class="auth-field-input-wrap">
               <input id="email" name="email" type="email" class="auth-field-input"
-                placeholder="you@example.com" required autocomplete="off" maxlength="254" />
+                placeholder="you@example.com" required autocomplete="username" maxlength="254" />
               <i class="bi bi-envelope auth-field-icon"></i>
             </div>
-            <div class="auth-field-error" id="login-email-error"></div>
           </div>
 
           <div class="auth-field">
@@ -82,12 +88,15 @@
                 <i class="bi bi-eye"></i>
               </button>
             </div>
-            <div class="auth-field-error" id="login-password-error"></div>
+            <div class="auth-caps-hint d-none" id="capsLockHint">
+              <i class="bi bi-arrow-up-square-fill"></i> Caps Lock is on
+            </div>
           </div>
 
           <div class="auth-options">
             <label class="auth-remember">
               <input type="checkbox" id="rememberMe" name="rememberMe" />
+              <span class="auth-remember-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
               Remember me
             </label>
             <a href="/forgot-password" class="auth-forgot">Forgot password?</a>
@@ -95,27 +104,29 @@
 
           <div class="auth-captcha math-captcha" id="loginCaptcha">
             <div class="auth-captcha-header">
-              <span class="auth-captcha-label">Verify you're human</span>
-              <button type="button" class="auth-captcha-refresh refresh-captcha" title="New captcha">
+              <span class="auth-captcha-label"><i class="bi bi-shield-check"></i> Security check</span>
+              <button type="button" class="auth-captcha-refresh refresh-captcha" title="New captcha" aria-label="Get a new captcha">
                 <i class="bi bi-arrow-clockwise"></i>
               </button>
             </div>
-            <div class="auth-captcha-dice">
-              <span class="captcha-equation" id="loginEquation" style="font-size:20px;font-weight:700;color:var(--clr-text);"><%= num1 %> + <%= num2 %> =</span>
+            <div class="auth-captcha-row">
+              <span class="captcha-equation" id="loginEquation"><%= num1 %> + <%= num2 %> =</span>
+              <input type="text" id="login-math" name="mathCaptcha" class="auth-captcha-input"
+                placeholder="?" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}"
+                aria-label="Answer to the security question"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+              <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
             </div>
-            <input type="text" id="login-math" name="mathCaptcha" class="auth-captcha-input"
-              placeholder="Enter the sum" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}"
-              oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
-            <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
           </div>
 
           <!-- OTP Block -->
           <div class="auth-otp d-none" id="otpBlock">
-            <label class="auth-field-label">Verification Code</label>
+            <label class="auth-field-label" for="login-otp">Verification Code</label>
+            <p class="auth-otp-hint">We sent a 6-digit code to your email. It expires shortly.</p>
             <div class="auth-otp-row">
               <input id="login-otp" name="otp" type="text" inputmode="numeric"
                 pattern="[0-9]{6}" maxlength="6" class="auth-otp-input"
-                placeholder="6-digit code" />
+                placeholder="••••••" autocomplete="one-time-code" />
               <button type="button" class="auth-otp-resend" id="resendOtpBtn" disabled>
                 Resend
               </button>
@@ -356,18 +367,22 @@
   snow.className = 'auth-snow';
   snow.id = 'authSnow';
   w.insertBefore(snow, w.firstChild);
-  for(let i=0; i<80; i++){
-    const f = document.createElement('span');
-    f.className = 'auth-snowflake';
-    const size = Math.random() * 5 + 4;
-    f.style.width = size + 'px';
-    f.style.height = size + 'px';
-    f.style.left = Math.random() * 100 + 'vw';
-    f.style.opacity = Math.min(1, Math.random() * 0.4 + 0.75).toFixed(2);
-    f.style.animationDuration = (Math.random() * 8 + 6) + 's';
-    f.style.animationDelay = (Math.random() * 12) + 's';
-    f.style.setProperty('--snow-drift', (Math.random() * 140 - 70) + 'px');
-    snow.appendChild(f);
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion) {
+    for(let i=0; i<40; i++){
+      const f = document.createElement('span');
+      f.className = 'auth-snowflake';
+      const size = Math.random() * 4 + 3;
+      f.style.width = size + 'px';
+      f.style.height = size + 'px';
+      f.style.left = Math.random() * 100 + 'vw';
+      f.style.opacity = (Math.random() * 0.35 + 0.3).toFixed(2);
+      f.style.animationDuration = (Math.random() * 10 + 9) + 's';
+      f.style.animationDelay = (Math.random() * 14) + 's';
+      f.style.setProperty('--snow-drift', (Math.random() * 140 - 70) + 'px');
+      snow.appendChild(f);
+    }
   }
 })();
 </script>
+

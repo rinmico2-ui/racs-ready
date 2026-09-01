@@ -1,3 +1,4 @@
+<% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <section class="ent-hero">
   <div class="ent-hero-orb ent-hero-orb-1"></div>
   <div class="ent-hero-orb ent-hero-orb-2"></div>
@@ -20,19 +21,19 @@
         <span class="ent-trust-divider"></span>
         <span class="ent-trust-item"><i class="bi bi-lightning-charge"></i> Same-Day Service</span>
         <span class="ent-trust-divider"></span>
-        <span class="ent-trust-item"><i class="bi bi-star-fill"></i> 4.9 Rating</span>
+        <span class="ent-trust-item"><i class="bi bi-star-fill"></i> <%= Number(serviceStats.averageRating || 0) > 0 ? Number(serviceStats.averageRating).toFixed(1) + ' Rating' : 'No ratings yet' %></span>
       </div>
       <div class="ent-hero-stats">
         <div class="ent-hero-stat">
-          <div class="ent-hero-stat-value">5,000+</div>
-          <div class="ent-hero-stat-label">Bookings</div>
+          <div class="ent-hero-stat-value"><%= Number(serviceStats.servicesCompleted || 0).toLocaleString('en-PH') %></div>
+          <div class="ent-hero-stat-label">Services Completed</div>
         </div>
         <div class="ent-hero-stat">
-          <div class="ent-hero-stat-value">50+</div>
+          <div class="ent-hero-stat-value"><%= Number(serviceStats.activeTechnicians || 0).toLocaleString('en-PH') %></div>
           <div class="ent-hero-stat-label">Technicians</div>
         </div>
         <div class="ent-hero-stat">
-          <div class="ent-hero-stat-value">98%</div>
+          <div class="ent-hero-stat-value"><%= Number(serviceStats.satisfactionPercentage || 0) %>%</div>
           <div class="ent-hero-stat-label">Satisfaction</div>
         </div>
       </div>
@@ -79,9 +80,16 @@
           var i=step-1,t=n.length;
           n.forEach(function(e,j){
             e.classList.remove('active','completed','inactive');
-            if(j<i)e.classList.add('completed');
-            else if(j===i)e.classList.add('active');
-            else e.classList.add('inactive');
+            e.removeAttribute('aria-current');
+            if(j<i){e.classList.add('completed');}
+            else if(j===i){e.classList.add('active'); e.setAttribute('aria-current','step');
+              var tr=e.closest('.ent-tr');
+              if(tr && tr.scrollWidth>tr.clientWidth){
+                var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                e.scrollIntoView({inline:'center',behavior:reduce?'auto':'smooth'});
+              }
+            }
+            else{e.classList.add('inactive');}
           });
           f.style.height=(i/(t-1)*100)+'%';
           if(l)l.textContent=step;
@@ -149,12 +157,12 @@
         </div>
         <div class="ent-tr">
           <div class="ent-fill" id="stepperFill" style="height:0%;"></div>
-          <div class="ent-n active" data-step="1" onclick="navigateToStep(1)"><div class="ent-ni"><i class="bi bi-person-check"></i></div><span>Login</span></div>
-          <div class="ent-n" data-step="2" onclick="navigateToStep(2)"><div class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></div><span>Services</span></div>
-          <div class="ent-n" data-step="3" onclick="navigateToStep(3)"><div class="ent-ni"><i class="bi bi-geo-alt"></i></div><span>Location</span></div>
-          <div class="ent-n" data-step="4" onclick="navigateToStep(4)"><div class="ent-ni"><i class="bi bi-calendar3"></i></div><span>Schedule</span></div>
-          <div class="ent-n" data-step="5" onclick="navigateToStep(5)"><div class="ent-ni"><i class="bi bi-receipt"></i></div><span>Fee Review</span></div>
-          <div class="ent-n" data-step="6" onclick="navigateToStep(6)"><div class="ent-ni"><i class="bi bi-credit-card-2-front"></i></div><span>Payment</span></div>
+          <button type="button" class="ent-n active" data-step="1" aria-current="step" onclick="navigateToStep(1)"><span class="ent-ni"><i class="bi bi-person-check"></i></span><span>Login</span></button>
+          <button type="button" class="ent-n" data-step="2" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></span><span>Services</span></button>
+          <button type="button" class="ent-n" data-step="3" onclick="navigateToStep(3)"><span class="ent-ni"><i class="bi bi-geo-alt"></i></span><span>Location</span></button>
+          <button type="button" class="ent-n" data-step="4" onclick="navigateToStep(4)"><span class="ent-ni"><i class="bi bi-calendar3"></i></span><span>Schedule</span></button>
+          <button type="button" class="ent-n" data-step="5" onclick="navigateToStep(5)"><span class="ent-ni"><i class="bi bi-receipt"></i></span><span>Fee Review</span></button>
+          <button type="button" class="ent-n" data-step="6" onclick="navigateToStep(6)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
         </div>
       </div>
 
@@ -1049,32 +1057,120 @@
               <div class="racs-loader">
                 <div class="racs-scene">
                   <div class="racs-glow"></div>
-                  <div class="racs-carwrap">
-                    <svg viewBox="0 0 320 185" xmlns="http://www.w3.org/2000/svg">
+                  <div class="racs-vanwrap">
+                    <svg viewBox="0 0 380 200" xmlns="http://www.w3.org/2000/svg">
                       <defs>
-                        <linearGradient id="racsPaint" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
-                        <linearGradient id="racsWin" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#60a5fa"/></linearGradient>
-                        <radialGradient id="racsHead" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="rgba(254,240,138,0)"/></radialGradient>
-                        <filter id="racsShadow"><feGaussianBlur stdDeviation="3"/></filter>
+                        <linearGradient id="vanBody" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#3b82f6"/>
+                          <stop offset="50%" stop-color="#2563eb"/>
+                          <stop offset="100%" stop-color="#1d4ed8"/>
+                        </linearGradient>
+                        <linearGradient id="vanWindow" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0ea5e9"/>
+                          <stop offset="100%" stop-color="#0284c7"/>
+                        </linearGradient>
+                        <linearGradient id="vanAccent" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stop-color="#60a5fa"/>
+                          <stop offset="100%" stop-color="#38bdf8"/>
+                        </linearGradient>
+                        <filter id="vanShadow"><feGaussianBlur stdDeviation="4"/></filter>
+                        <filter id="vanGlow"><feGaussianBlur stdDeviation="2"/></filter>
                       </defs>
-                      <ellipse cx="160" cy="168" rx="115" ry="5" fill="rgba(0,0,0,0.3)" filter="url(#racsShadow)"/>
-                      <path d="M 40 132 L 40 108 Q 40 88 58 83 L 85 79 Q 92 62 112 59 L 208 59 Q 228 62 235 79 L 262 83 Q 280 88 280 108 L 280 132 L 248 132 Q 238 114 223 114 Q 208 114 198 132 L 122 132 Q 112 114 97 114 Q 82 114 72 132 Z" fill="url(#racsPaint)" stroke="#94a3b8" stroke-width="0.8"/>
-                      <path d="M 90 77 L 205 77 Q 220 77 224 66 L 224 62 L 112 62 Q 98 62 98 72 L 98 77 Z" fill="url(#racsWin)" opacity="0.85"/>
-                      <path d="M 95 75 L 200 75 L 215 66 L 105 66 Z" fill="rgba(255,255,255,0.2)"/>
-                      <rect x="40" y="95" width="7" height="14" rx="3.5" fill="#ef4444"/>
-                      <circle cx="265" cy="100" r="10" fill="url(#racsHead)"/>
-                      <circle cx="265" cy="100" r="6" fill="#fde047"/>
-                      <rect x="145" y="55" width="30" height="5" rx="2.5" fill="#fbbf24"/>
-                      <text x="138" y="108" font-family="Arial Black,sans-serif" font-size="12" font-weight="900" fill="#1e40af" letter-spacing="1">RACS</text>
-                      <g transform="translate(97,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
-                      <g transform="translate(223,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
+                      <!-- Ground shadow -->
+                      <ellipse cx="190" cy="178" rx="140" ry="8" fill="rgba(0,0,0,0.25)" filter="url(#vanShadow)"/>
+                      <!-- Van body - cargo area -->
+                      <rect x="95" y="75" width="180" height="85" rx="8" fill="url(#vanBody)"/>
+                      <!-- Van body - cabin -->
+                      <path d="M 50 160 L 50 110 Q 50 85 75 80 L 95 75 L 95 160 Z" fill="url(#vanBody)"/>
+                      <!-- Cabin roof curve -->
+                      <path d="M 50 110 Q 50 85 75 80 L 95 75 L 95 85 L 70 90 Q 55 95 55 110 Z" fill="#1e40af"/>
+                      <!-- Windshield -->
+                      <path d="M 55 108 L 62 92 Q 68 85 80 82 L 90 80 L 90 108 Z" fill="url(#vanWindow)" opacity="0.9"/>
+                      <!-- Windshield reflection -->
+                      <path d="M 60 105 L 65 95 L 75 92 L 75 105 Z" fill="rgba(255,255,255,0.3)"/>
+                      <!-- Side window -->
+                      <rect x="100" y="82" width="45" height="35" rx="4" fill="url(#vanWindow)" opacity="0.85"/>
+                      <rect x="105" y="87" width="15" height="25" rx="2" fill="rgba(255,255,255,0.2)"/>
+                      <!-- Cargo door lines -->
+                      <line x1="175" y1="80" x2="175" y2="155" stroke="#1e40af" stroke-width="2"/>
+                      <line x1="220" y1="80" x2="220" y2="155" stroke="#1e40af" stroke-width="2"/>
+                      <!-- Door handles -->
+                      <rect x="168" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
+                      <rect x="213" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
+                      <!-- RACS Logo panel -->
+                      <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
+                      <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
+                      <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                      <!-- AC unit icon on van -->
+                      <g transform="translate(255, 95)">
+                        <rect x="0" y="0" width="35" height="45" rx="4" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+                        <rect x="4" y="5" width="27" height="20" rx="2" fill="#dbeafe"/>
+                        <g class="racs-fan" style="transform-origin: 17.5px 15px;">
+                          <circle cx="17.5" cy="15" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                          <line x1="17.5" y1="7" x2="17.5" y2="23" stroke="#3b82f6" stroke-width="2"/>
+                          <line x1="9.5" y1="15" x2="25.5" y2="15" stroke="#3b82f6" stroke-width="2"/>
+                        </g>
+                        <rect x="6" y="30" width="23" height="3" rx="1" fill="#cbd5e1"/>
+                        <rect x="6" y="35" width="23" height="3" rx="1" fill="#cbd5e1"/>
+                      </g>
+                      <!-- Accent stripe -->
+                      <rect x="50" y="145" width="225" height="6" fill="url(#vanAccent)" opacity="0.8"/>
+                      <!-- Headlight -->
+                      <ellipse cx="52" cy="130" rx="6" ry="10" fill="#fef08a" filter="url(#vanGlow)"/>
+                      <ellipse cx="52" cy="130" rx="4" ry="7" fill="#fde047"/>
+                      <!-- Tail lights -->
+                      <rect x="272" y="120" width="5" height="20" rx="2" fill="#ef4444"/>
+                      <rect x="272" y="145" width="5" height="10" rx="2" fill="#fbbf24"/>
+                      <!-- Roof rack -->
+                      <rect x="100" y="68" width="170" height="4" rx="2" fill="#475569"/>
+                      <rect x="120" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                      <rect x="200" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                      <rect x="250" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                      <!-- Front wheel -->
+                      <g transform="translate(85,162)">
+                        <g class="racs-wheel">
+                          <circle cx="0" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="3"/>
+                          <circle cx="0" cy="0" r="16" fill="#334155"/>
+                          <circle cx="0" cy="0" r="10" fill="#64748b"/>
+                          <circle cx="0" cy="0" r="5" fill="#3b82f6"/>
+                          <circle cx="0" cy="0" r="2" fill="#fff"/>
+                          <g stroke="#475569" stroke-width="2">
+                            <line x1="0" y1="-10" x2="0" y2="10"/>
+                            <line x1="-10" y1="0" x2="10" y2="0"/>
+                            <line x1="-7" y1="-7" x2="7" y2="7"/>
+                            <line x1="-7" y1="7" x2="7" y2="-7"/>
+                          </g>
+                        </g>
+                      </g>
+                      <!-- Rear wheel -->
+                      <g transform="translate(235,162)">
+                        <g class="racs-wheel">
+                          <circle cx="0" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="3"/>
+                          <circle cx="0" cy="0" r="16" fill="#334155"/>
+                          <circle cx="0" cy="0" r="10" fill="#64748b"/>
+                          <circle cx="0" cy="0" r="5" fill="#3b82f6"/>
+                          <circle cx="0" cy="0" r="2" fill="#fff"/>
+                          <g stroke="#475569" stroke-width="2">
+                            <line x1="0" y1="-10" x2="0" y2="10"/>
+                            <line x1="-10" y1="0" x2="10" y2="0"/>
+                            <line x1="-7" y1="-7" x2="7" y2="7"/>
+                            <line x1="-7" y1="7" x2="7" y2="-7"/>
+                          </g>
+                        </g>
+                      </g>
+                      <!-- Cool air particles -->
+                      <g class="racs-particles">
+                        <circle cx="300" cy="100" r="3" fill="#60a5fa" opacity="0.6"><animate attributeName="cx" values="300;340;380" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0.3;0" dur="1.5s" repeatCount="indefinite"/></circle>
+                        <circle cx="305" cy="115" r="2" fill="#38bdf8" opacity="0.5"><animate attributeName="cx" values="305;350;395" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.2;0" dur="1.8s" repeatCount="indefinite"/></circle>
+                        <circle cx="302" cy="130" r="2.5" fill="#0ea5e9" opacity="0.5"><animate attributeName="cx" values="302;345;388" dur="1.6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.25;0" dur="1.6s" repeatCount="indefinite"/></circle>
+                      </g>
                     </svg>
                   </div>
                   <div class="racs-track"><div class="racs-track-dash"></div></div>
                 </div>
                 <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-                <span class="racs-title">Processing Request...</span>
-                <span class="racs-desc">Confirming RACS service details...</span>
+                <span class="racs-title">Processing Your Booking...</span>
+                <span class="racs-desc">Please wait while we confirm your service request</span>
                 <div class="racs-pulse"><span></span><span></span><span></span></div>
               </div>
             </div>
@@ -1082,136 +1178,51 @@
         </div>
       </div>
 
-      <!-- Configure Service Modal (Enterprise Redesign) -->
-      <div class="modal fade" id="quantitySelectionModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:720px!important;">
-          <div class="modal-content border-0" style="border-radius:22px;overflow:hidden;box-shadow:0 30px 90px rgba(15,23,42,0.22);background:#fff;border:1px solid #eef2f7;">
-            <!-- Header -->
-            <div class="cfg-header">
-              <div class="d-flex align-items-center gap-3">
-                <div class="cfg-ico" id="cfgModalIcon"><i class="bi bi-box-seam-fill"></i></div>
-                <div>
-                  <h5 class="fw-bold mb-0" style="color:#0f172a;font-size:1.15rem;letter-spacing:-0.01em;">Configure Service</h5>
-                  <p class="mb-0" style="font-size:0.78rem;color:#475569;">Select aircon type &amp; HP rating</p>
-                </div>
-              </div>
-              <button type="button" class="cfg-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-            </div>
-
-            <!-- Wizard Stepper -->
-            <div class="cfg-wizard" id="cfgWizard">
-              <div class="cfg-step is-active" id="cfgStep1">
-                <div class="cfg-dot"><i class="bi bi-1-circle-fill"></i></div>
-                <div class="cfg-step-tx"><div class="cfg-step-t">Step 1</div><div class="cfg-step-s">Aircon Type</div></div>
-              </div>
-              <div class="cfg-line"></div>
-              <div class="cfg-step" id="cfgStep2">
-                <div class="cfg-dot"><i class="bi bi-2-circle"></i></div>
-                <div class="cfg-step-tx"><div class="cfg-step-t">Step 2</div><div class="cfg-step-s">HP Rating</div></div>
-              </div>
-            </div>
-
-            <div class="modal-body" style="padding:1.25rem 1.75rem 0.75rem;max-height:calc(100vh - 220px);overflow-y:auto;">
-              <div id="modalErrorBanner" class="alert alert-danger d-none align-items-center mb-3" role="alert" style="font-size:0.9rem;">
-                <i class="bi bi-exclamation-circle-fill me-2"></i><span id="modalErrorBannerText"></span>
-              </div>
-              <div id="pricingNoteSection" class="cfg-note d-none mb-3"></div>
-
-              <div class="mb-3">
-                <span class="fw-bold d-block" id="quantityModalServiceName" style="color:#0f172a;font-size:1.05rem;"></span>
-                <div id="quantityModalDescription" class="text-muted small mt-1" style="line-height:1.5;display:none;"></div>
-              </div>
-
-              <div class="mb-3" id="brandSection" style="display:none;">
-                <label class="cfg-fl" for="brandInput"><i class="bi bi-upc-scan me-1 text-primary"></i>Brand Name <span class="text-danger">*</span></label>
-                <select class="cfg-f" id="brandInput" required>
-                  <option value="">Select brand…</option>
-                </select>
-                <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Or type your brand (e.g. Carrier, Daikin)…" required>
-              </div>
-
-              <div id="issueDescriptionSection" class="mb-3 d-none">
-                <label class="cfg-fl"><i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>Describe the Issue</label>
-                <textarea id="repairIssueDescription" class="cfg-f" rows="3" placeholder="Please describe the problem (e.g. not cooling, water leaking)..."></textarea>
-              </div>
-
-              <div class="mb-3 cfg-qty-row">
-                <div>
-                  <label class="cfg-fl">Quantity</label>
-                  <span class="cfg-fl-sub">How many <span id="quantityModalUnit">units</span>?</span>
-                </div>
-                <div class="cfg-stepper">
-                  <button type="button" id="quantityModalDecrease" aria-label="Decrease"><i class="bi bi-dash"></i></button>
-                  <input type="number" id="quantityModalInput" min="1" max="40" value="1" readonly>
-                  <button type="button" id="quantityModalIncrease" aria-label="Increase"><i class="bi bi-plus"></i></button>
-                </div>
-              </div>
-
-              <div class="mb-2" id="hpSelectionSection" style="display:none;">
-                <div id="hpOptionsContainer"></div>
-              </div>
-
-            </div>
-
-            <div class="modal-footer border-0 gap-2 cfg-footer">
-              <button type="button" class="cfg-btn-ghost" data-bs-dismiss="modal">Cancel</button>
-              <div class="cfg-price cfg-price-inline">
-                <div>
-                  <span class="cfg-price-l" id="priceLabel">Estimated Price</span>
-                  <span class="cfg-price-sub" id="cfgPriceSub">Includes service &amp; travel</span>
-                </div>
-                <span class="cfg-price-v" id="quantityModalEstimatedPrice">₱0</span>
-              </div>
-              <button type="button" class="cfg-btn-primary" id="confirmQuantitySelection"><i class="bi bi-check-lg me-2"></i>Add to Booking</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Loading Modal -->
-      <div class="modal fade" id="carLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content border-0" style="background:transparent;border-radius:20px;box-shadow:none;">
-            <div class="modal-body text-center py-0">
-              <div class="racs-loader">
-                <div class="racs-scene">
-                  <div class="racs-glow"></div>
-                  <div class="racs-carwrap">
-                    <svg viewBox="0 0 320 185" xmlns="http://www.w3.org/2000/svg">
-                      <defs>
-                        <linearGradient id="racsPaint" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
-                        <linearGradient id="racsWin" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#60a5fa"/></linearGradient>
-                        <radialGradient id="racsHead" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="rgba(254,240,138,0)"/></radialGradient>
-                        <filter id="racsShadow"><feGaussianBlur stdDeviation="3"/></filter>
-                      </defs>
-                      <ellipse cx="160" cy="168" rx="115" ry="5" fill="rgba(0,0,0,0.3)" filter="url(#racsShadow)"/>
-                      <path d="M 40 132 L 40 108 Q 40 88 58 83 L 85 79 Q 92 62 112 59 L 208 59 Q 228 62 235 79 L 262 83 Q 280 88 280 108 L 280 132 L 248 132 Q 238 114 223 114 Q 208 114 198 132 L 122 132 Q 112 114 97 114 Q 82 114 72 132 Z" fill="url(#racsPaint)" stroke="#94a3b8" stroke-width="0.8"/>
-                      <path d="M 90 77 L 205 77 Q 220 77 224 66 L 224 62 L 112 62 Q 98 62 98 72 L 98 77 Z" fill="url(#racsWin)" opacity="0.85"/>
-                      <path d="M 95 75 L 200 75 L 215 66 L 105 66 Z" fill="rgba(255,255,255,0.2)"/>
-                      <rect x="40" y="95" width="7" height="14" rx="3.5" fill="#ef4444"/>
-                      <circle cx="265" cy="100" r="10" fill="url(#racsHead)"/>
-                      <circle cx="265" cy="100" r="6" fill="#fde047"/>
-                      <rect x="145" y="55" width="30" height="5" rx="2.5" fill="#fbbf24"/>
-                      <text x="138" y="108" font-family="Arial Black,sans-serif" font-size="12" font-weight="900" fill="#1e40af" letter-spacing="1">RACS</text>
-                      <g transform="translate(97,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
-                      <g transform="translate(223,134)"><g class="racs-wheel"><circle cx="0" cy="0" r="30" fill="#0f172a" stroke="#e2e8f0" stroke-width="3"/><circle cx="0" cy="0" r="24" fill="#1e293b"/><circle cx="0" cy="0" r="16" fill="#cbd5e1"/><circle cx="0" cy="0" r="10" fill="#3b82f6"/><circle cx="0" cy="0" r="4" fill="#fff"/><line x1="0" y1="-16" x2="0" y2="16" stroke="#475569" stroke-width="3"/><line x1="-16" y1="0" x2="16" y2="0" stroke="#475569" stroke-width="3"/><line x1="-11" y1="-11" x2="11" y2="11" stroke="#475569" stroke-width="3"/><line x1="-11" y1="11" x2="11" y2="-11" stroke="#475569" stroke-width="3"/></g></g>
-                    </svg>
-                  </div>
-                  <div class="racs-track"><div class="racs-track-dash"></div></div>
-                </div>
-                <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-                <span class="racs-title">Processing Request...</span>
-                <span class="racs-desc">Confirming RACS service details...</span>
-                <div class="racs-pulse"><span></span><span></span><span></span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+</div>
   </div>
 </section>
+
+<style>
+/* Responsive Configure Service modal */
+@media(max-width:575.98px){
+  html body #quantitySelectionModal.show{padding:0!important}
+  #quantitySelectionModal .modal-dialog{max-width:100%!important;width:100%!important;margin:0!important;min-height:100vh!important;max-height:100vh!important}
+  #quantitySelectionModal .modal-content{border-radius:0!important;min-height:100vh!important;max-height:100vh!important}
+  #quantitySelectionModal .modal-body{padding:1rem!important;flex:1 1 auto!important;max-height:none!important;overflow-y:auto!important}
+  #quantitySelectionModal .modal-footer{flex-direction:column;align-items:stretch;gap:0.75rem;padding:0.75rem 1rem!important;border-radius:0!important}
+  #quantitySelectionModal .modal-footer .cfg-btn-ghost,#quantitySelectionModal .modal-footer .cfg-btn-primary{width:100%;margin-left:0}
+  #quantitySelectionModal .cfg-header{padding:0.75rem 1rem}
+  #quantitySelectionModal .cfg-ico{width:38px;height:38px;font-size:1.1rem}
+  #quantitySelectionModal .cfg-header h5{font-size:1rem!important}
+  #quantitySelectionModal .cfg-header p{font-size:0.72rem!important}
+  #quantitySelectionModal .cfg-wizard{padding:0.75rem 1rem;gap:0.35rem}
+  #quantitySelectionModal .cfg-dot{width:30px;height:30px;font-size:0.9rem}
+  #quantitySelectionModal .cfg-step-s{font-size:0.78rem}
+  #quantitySelectionModal .cfg-step-t{font-size:0.6rem}
+  #quantitySelectionModal .cfg-line{flex:1 1 100%;height:2px;margin:0.25rem 0.6rem}
+  #quantitySelectionModal .cfg-qty-row{flex-direction:column;align-items:flex-start;gap:0.75rem;padding:0.75rem}
+  #quantitySelectionModal .cfg-stepper button{width:44px;height:44px}
+  #quantitySelectionModal .cfg-stepper input{width:64px;height:44px}
+  #quantitySelectionModal .cfg-price{width:100%;justify-content:space-between}
+  #quantitySelectionModal .cfg-price-v{font-size:1.15rem}
+  #quantitySelectionModal .aircon-type-card{padding:0.75rem!important}
+  #quantitySelectionModal .aircon-type-card h6{font-size:0.85rem!important}
+  #quantitySelectionModal .aircon-type-card p{font-size:0.7rem!important}
+  #quantitySelectionModal .aircon-type-card .badge{font-size:0.65rem!important}
+  #quantitySelectionModal .aircon-type-card .text-muted.mt-1{font-size:0.65rem!important}
+  #quantitySelectionModal .hp-selection-card{padding:0.75rem!important}
+  #quantitySelectionModal .hp-selection-card .card-body{padding:0!important}
+  #quantitySelectionModal .hp-selection-card .row{align-items:flex-start;gap:0.75rem}
+  #quantitySelectionModal .hp-selection-card .col-md-6{width:100%;padding:0}
+  #quantitySelectionModal .hp-selection-card .form-check{margin-right:0.5rem}
+  #quantitySelectionModal .hp-selection-card .fw-bold.fs-5{font-size:1.1rem!important}
+  #quantitySelectionModal .hp-selection-card .badge{font-size:0.75rem!important}
+  #quantitySelectionModal .hp-quantity-control{width:100%}
+  #quantitySelectionModal .hp-quantity-control .input-group{width:100%}
+  #quantitySelectionModal .hp-quantity-control .quantity-selector{width:100%}
+  #quantitySelectionModal .hp-quantity-control .form-label{margin-bottom:0.25rem}
+}
+</style>
 
 <style>
 :root{--sv-b:#2563eb;--sv-bd:#1d4ed8;--sv-bl:#60a5fa;--sv-bs:rgba(37,99,235,0.08);--sv-g:#10b981;--sv-r:#ef4444;--sv-c:#f59e0b;--sv-f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;--sv-r1:12px;--sv-r2:16px;--sv-sh:0 2px 16px rgba(15,23,42,0.04);--sv-sh2:0 8px 32px rgba(15,23,42,0.06);--sv-e:cubic-bezier(0.16,1,0.3,1)}
@@ -1270,12 +1281,12 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .ent-h span:last-child span{color:var(--sv-b)}
 .ent-tr{display:flex;justify-content:space-between;background:#f1f5f9;border-radius:9999px;padding:3px;gap:2px}
 .ent-fill{display:none}
-.ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap}
+.ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap;border:none;background:transparent;font-family:inherit}
 .ent-n.active{background:var(--sv-b);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,0.2)}
 .ent-n.completed{background:#f0fdf4;color:#16a34a}
 .ent-n:hover{background:#e2e8f0;color:#475569}
 .ent-n.active:hover{background:var(--sv-b)}
-.ent-ni{font-size:0.85rem;display:flex}
+.ent-ni{font-size:0.85rem;display:flex;align-items:center;justify-content:center}
 
 .sv-card{width:100%;background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);box-shadow:0 2px 16px rgba(15,23,42,0.04);margin-bottom:1.5rem;overflow:visible}
 .sv-card-h{display:flex;align-items:center;gap:12px;padding:1.15rem 1.5rem;background:linear-gradient(135deg,#fafbff,#f8fafc);border-bottom:1px solid #eef2f6}
@@ -1532,25 +1543,29 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .sv-rc{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1.5px dashed #d1d5db;border-radius:14px;padding:1.25rem;margin-bottom:1rem}
 .sv-rct{color:#6b7280;letter-spacing:1.5px;font-size:0.72rem}
 
-.racs-loader{background:linear-gradient(160deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);border-radius:24px;padding:40px 32px;max-width:480px;margin:0 auto;box-shadow:0 25px 60px -15px rgba(30,58,138,0.5);position:relative;overflow:hidden}
-.racs-scene{position:relative;height:230px;margin-bottom:28px;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)}
-.racs-glow{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);width:300px;height:120px;background:radial-gradient(ellipse,rgba(96,165,250,0.2) 0%,transparent 70%);pointer-events:none}
-.racs-carwrap{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:340px;animation:racsBob 0.6s ease-in-out infinite alternate}
-@keyframes racsBob{from{transform:translateX(-50%) translateY(0)}to{transform:translateX(-50%) translateY(-4px)}}
-.racs-carwrap svg{width:100%;height:auto;display:block}
-.racs-wheel{transform-box:fill-box;transform-origin:center;animation:racsSpin 0.5s linear infinite}
+.racs-loader{background:linear-gradient(160deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);border-radius:24px;padding:40px 32px;max-width:520px;margin:0 auto;box-shadow:0 25px 60px -15px rgba(30,58,138,0.5);position:relative;overflow:hidden}
+.racs-scene{position:relative;height:220px;margin-bottom:28px;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)}
+.racs-glow{position:absolute;top:40%;left:0;width:100%;height:140px;background:linear-gradient(90deg,transparent 0%,rgba(96,165,250,0.15) 30%,rgba(96,165,250,0.25) 50%,rgba(96,165,250,0.15) 70%,transparent 100%);pointer-events:none;animation:racsGlow 3s ease-in-out infinite}
+@keyframes racsGlow{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}
+.racs-vanwrap{position:absolute;bottom:15px;left:0;width:380px;animation:racsDrive 3s ease-in-out infinite, racsBob 0.5s ease-in-out infinite alternate}
+@keyframes racsDrive{0%{left:-100px;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:calc(100% + 100px);opacity:0}}
+@keyframes racsBob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+.racs-vanwrap svg{width:100%;height:auto;display:block;transform:scaleX(-1)}
+.racs-wheel{transform-box:fill-box;transform-origin:center;animation:racsSpin 0.4s linear infinite}
 @keyframes racsSpin{to{transform:rotate(360deg)}}
+.racs-fan{transform-box:fill-box;transform-origin:17.5px 15px;animation:racsFanSpin 0.8s linear infinite}
+@keyframes racsFanSpin{to{transform:rotate(360deg)}}
 .racs-track{position:absolute;bottom:0;left:0;width:100%;height:20px}
-.racs-track-dash{position:absolute;bottom:8px;left:0;width:200%;height:4px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.5) 0,rgba(255,255,255,0.5) 30px,transparent 30px,transparent 60px);animation:racsTrack 0.6s linear infinite}
+.racs-track-dash{position:absolute;bottom:8px;left:0;width:200%;height:4px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.5) 0,rgba(255,255,255,0.5) 30px,transparent 30px,transparent 60px);animation:racsTrack 0.5s linear infinite}
 @keyframes racsTrack{from{transform:translateX(0)}to{transform:translateX(-60px)}}
-.racs-progress{width:100%;height:5px;background:rgba(255,255,255,0.12);border-radius:99px;overflow:hidden;margin-bottom:22px}
-.racs-progress-fill{height:100%;width:35%;border-radius:99px;background:linear-gradient(90deg,#60a5fa,#93c5fd,#60a5fa);background-size:200% 100%;animation:racsProg 1.5s ease-in-out infinite,racsShimmer 2s linear infinite}
+.racs-progress{width:100%;height:6px;background:rgba(255,255,255,0.12);border-radius:99px;overflow:hidden;margin-bottom:22px}
+.racs-progress-fill{height:100%;width:35%;border-radius:99px;background:linear-gradient(90deg,#60a5fa,#38bdf8,#60a5fa);background-size:200% 100%;animation:racsProg 1.5s ease-in-out infinite,racsShimmer 2s linear infinite}
 @keyframes racsProg{0%{transform:translateX(-100%)}100%{transform:translateX(386%)}}
 @keyframes racsShimmer{0%{background-position:0% 0}100%{background-position:200% 0}}
-.racs-title{display:block;text-align:center;font-size:1.2rem;font-weight:700;color:#fff;margin-bottom:8px;letter-spacing:0.3px}
-.racs-desc{display:block;text-align:center;font-size:0.88rem;color:rgba(255,255,255,0.6);margin-bottom:18px}
-.racs-pulse{display:flex;justify-content:center;gap:7px}
-.racs-pulse span{width:8px;height:8px;border-radius:50%;background:#60a5fa;animation:racsPulse 1.4s ease-in-out infinite}
+.racs-title{display:block;text-align:center;font-size:1.25rem;font-weight:700;color:#fff;margin-bottom:8px;letter-spacing:0.3px}
+.racs-desc{display:block;text-align:center;font-size:0.88rem;color:rgba(255,255,255,0.65);margin-bottom:18px}
+.racs-pulse{display:flex;justify-content:center;gap:8px}
+.racs-pulse span{width:10px;height:10px;border-radius:50%;background:#60a5fa;animation:racsPulse 1.4s ease-in-out infinite}
 .racs-pulse span:nth-child(2){animation-delay:0.2s}
 .racs-pulse span:nth-child(3){animation-delay:0.4s}
 @keyframes racsPulse{0%,100%{opacity:0.3;transform:scale(0.7)}50%{opacity:1;transform:scale(1.15)}}
@@ -1593,8 +1608,14 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 @media(max-width:767px){
   .sv-hero{padding:3.5rem 0 4rem}
   .sv-stats{gap:1.5rem;padding:1rem 1.5rem;flex-wrap:wrap}
-  .ent-tr{overflow-x:auto;padding:4px}
-  .ent-n{padding:5px 8px;font-size:0.65rem;white-space:nowrap}
+  .ent-stepper{position:sticky !important;top:68px !important;padding:0.65rem 0.75rem !important;margin-bottom:1rem !important;z-index:50}
+  .ent-h{margin-bottom:0.55rem}
+  .ent-h span:first-child{font-size:0.72rem}
+  .ent-h span:last-child{font-size:0.7rem}
+  .ent-tr{justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;padding:4px;gap:4px;scroll-snap-type:x mandatory}
+  .ent-tr::-webkit-scrollbar{display:none}
+  .ent-n{flex:0 0 auto;padding:5px 10px;font-size:0.68rem;scroll-snap-align:start}
+  .ent-n:focus-visible{outline:2px solid var(--sv-b);outline-offset:2px}
   .sv-tr{display:none}
   .sv-pt{gap:8px}
   .sv-ptb{min-height:62px;padding:0.65rem;gap:7px}
@@ -1634,6 +1655,12 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 @media(max-width:480px){
   /* Extra small mobile adjustments */
+  .ent-h span:first-child{display:none}
+  .ent-stepper{padding:0.55rem 0.6rem !important}
+  .ent-tr{padding:3px;gap:3px}
+  .ent-n{padding:4px 6px !important;gap:0}
+  .ent-n > span + span{display:none}
+  .ent-ni{display:flex !important;font-size:0.8rem}
   .service-card .card-body {
     padding: 0.7rem;
   }
@@ -2083,8 +2110,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <% if (googleMapsApiKey) { %><script src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&libraries=places,geometry"></script><% } %>
 
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260812-large-project-8-40';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260816-payment-amount-fix':'/js/services.js?v=20260816-whole-peso-downpayment';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260826-shared-slot-logic';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260826-shared-slot-logic':'/js/services.js?v=20260816-whole-peso-downpayment';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2241,7 +2268,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   s.textContent=`#bookingResultModal,#bookingSuccessModal,#carLoadingModal,#quantitySelectionModal{z-index:9999!important;position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;display:none;align-items:center!important;justify-content:center!important}
 #bookingResultModal.show,#bookingSuccessModal.show,#carLoadingModal.show,#quantitySelectionModal.show{display:flex!important}
 #bookingResultModal .modal-dialog,#bookingSuccessModal .modal-dialog,#carLoadingModal .modal-dialog{margin:auto!important;max-width:560px!important;width:92%!important;position:relative!important;z-index:10001!important;transform:none!important;pointer-events:auto!important}
-#quantitySelectionModal .modal-dialog{margin:auto!important;max-width:720px!important;width:92%!important;position:relative!important;z-index:10001!important;transform:none!important;pointer-events:auto!important}
 #bookingResultModal .modal-content,#bookingSuccessModal .modal-content,#carLoadingModal .modal-content{pointer-events:auto!important;box-shadow:0 25px 80px rgba(0,0,0,0.25)!important;border:none!important;border-radius:16px!important;overflow:hidden!important}
 #quantitySelectionModal .modal-content{pointer-events:auto!important;background-color:#fff!important;color:#0f172a!important}
 #quantitySelectionModal h5,#quantitySelectionModal h6,#quantitySelectionModal label,#quantitySelectionModal .form-label,#quantitySelectionModal .fw-bold,#quantitySelectionModal .fw-semibold{color:#0f172a!important}
@@ -2294,7 +2320,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 .cfg-btn-primary:disabled{opacity:0.55;cursor:not-allowed;transform:none;box-shadow:none;}
 
 /* Aircon type cards (injected by services-multi.js) */
-#quantitySelectionModal .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem!important;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+#quantitySelectionModal .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
 #quantitySelectionModal .aircon-type-card:hover{border-color:#3b82f6!important;background:rgba(59,130,246,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
 #quantitySelectionModal .aircon-type-card.selected{border-color:#2563eb!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 8px 24px rgba(37,99,235,0.18)!important}
 #quantitySelectionModal .aircon-type-card.selected::after{content:'\\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
@@ -2305,7 +2331,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 #quantitySelectionModal .aircon-type-card .bi{color:#2563eb!important}
 
 /* HP selection cards (injected by services-multi.js) */
-#quantitySelectionModal .hp-selection-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem!important;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+#quantitySelectionModal .hp-selection-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem;cursor:pointer;transition:all .25s cubic-bezier(0.16,1,0.3,1);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
 #quantitySelectionModal .hp-selection-card:hover{border-color:#22c55e!important;background:rgba(16,185,129,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(16,185,129,0.16)!important}
 #quantitySelectionModal .hp-selection-card.selected{border-color:#059669!important;background:linear-gradient(135deg,#ecfdf5,#d1fae5)!important;box-shadow:0 8px 24px rgba(5,150,105,0.18)!important}
 #quantitySelectionModal .hp-selection-card.selected::after{content:'\\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
@@ -2397,7 +2423,18 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(travel) travel.textContent=fmt(bs.travelFare||bs.fare||0);
     if(schedule){
       var scheduleText='Not selected';
-      if(bs.selectedDate){
+      var ps=bs.projectScheduling;
+      var isProject=bs.isProject===true||!!ps||(window.EnterpriseCalendar&&window.EnterpriseCalendar.isProjectMode&&window.EnterpriseCalendar.isProjectMode());
+      function fmtDate(d){var dt=new Date(d);return isNaN(dt.getTime())?String(d):dt.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});}
+      if(isProject&&ps&&(ps.startDate||ps.preferredStartDate)){
+        var sRaw=ps.startDate||ps.preferredStartDate||ps.date||bs.selectedDate;
+        var eRaw=ps.endDate||(ps.preferences&&ps.preferences.completionDeadline)||null;
+        var v=(bs.projectScheduling&&bs.projectScheduling.windowVerdict)||(window.EnterpriseCalendar&&window.EnterpriseCalendar.getWindowVerdict?window.EnterpriseCalendar.getWindowVerdict():null);
+        scheduleText=sRaw?(eRaw?(fmtDate(sRaw)+' – '+fmtDate(eRaw)+' · Preferred window'):fmtDate(sRaw)):'Not selected';
+        if(v&&(v.estimatedCompletionDate||v.earliestCompletionDate)){
+          scheduleText+=' · Est. completion '+fmtDate(v.estimatedCompletionDate||v.earliestCompletionDate);
+        }
+      } else if(bs.selectedDate){
         var date=new Date(bs.selectedDate);
         var dateText=isNaN(date.getTime())?String(bs.selectedDate):date.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
         var timeText=(bs.selectedTimeSlot&&bs.selectedTimeSlot.label)||bs.selectedTime||'';

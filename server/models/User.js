@@ -81,7 +81,7 @@ userSchema.methods.createPasswordResetToken = function () {
     .update(token)
     .digest("hex");
   this.resetPasswordTokenHash = hash;
-  const defaultMs = 5 * 60 * 1000; // 5 minutes (fallback)
+  const defaultMs = 15 * 60 * 1000; // 15 minutes (fallback)
   const ttl = Number(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MS) || defaultMs;
   this.resetPasswordExpires = Date.now() + ttl;
   return token;
@@ -114,6 +114,7 @@ userSchema.methods.toJSON = function () {
   delete obj.passwordHash;
   delete obj.resetPasswordTokenHash;
   delete obj.resetPasswordExpires;
+  delete obj.currentSessionId;
   return obj;
 };
 

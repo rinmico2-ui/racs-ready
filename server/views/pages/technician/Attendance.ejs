@@ -697,6 +697,21 @@
       });
       const data = await res.json();
 
+      if (!res.ok && data.code === 'REMITTANCE_REQUIRED') {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
+        await Swal.fire({
+          icon: 'error',
+          title: 'Remittance Required',
+          html: `<div style="font-size:.9rem;color:#475569;">${data.error || 'You have unsubmitted collections.'}<br><strong>Checkout is blocked until your remittance is submitted.</strong></div>`,
+          confirmButtonText: '<i class="bi bi-cash-stack me-1"></i> Go to Remittances',
+          confirmButtonColor: '#dc2626',
+          showCancelButton: true,
+          cancelButtonText: 'Later',
+        }).then(r => { if (r.isConfirmed) window.location.href = '/technician/remittances'; });
+        return;
+      }
+
       if (!res.ok && data.code === 'EXPENSE_CONFIRMATION_REQUIRED') {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';

@@ -1,0 +1,124 @@
+.workflow-tabs-shell {
+  position: relative;
+  margin-bottom: 24px;
+  padding: 5px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .04), 0 4px 20px rgba(15, 23, 42, .03);
+}
+
+.workflow-tabs-list {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: none;
+  list-style: none;
+}
+
+.workflow-tabs-list::-webkit-scrollbar {
+  display: none;
+}
+
+.workflow-tabs-list > li {
+  display: flex;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.workflow-tabs-shell .workflow-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 16px;
+  color: #64748b;
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  font-family: "Outfit", "Inter", "Segoe UI", sans-serif;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.workflow-tabs-shell .workflow-tab:hover:not(.active) {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.workflow-tabs-shell .workflow-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 3px 10px rgba(37, 99, 235, .24);
+  transform: none;
+}
+
+.workflow-tabs-shell .workflow-tab:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, .28);
+  outline-offset: 2px;
+}
+
+.workflow-tabs-shell .workflow-tab > i {
+  flex: 0 0 auto;
+  font-size: .88rem;
+}
+
+.workflow-tabs-shell .workflow-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 6px;
+  color: #64748b;
+  background: #e2e8f0;
+  border-radius: 999px;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  font-size: .62rem;
+  font-weight: 800;
+  line-height: 1;
+  transition: color .18s ease, background-color .18s ease;
+}
+
+.workflow-tabs-shell .workflow-tab.active .workflow-tab-badge {
+  color: #fff;
+  background: rgba(255, 255, 255, .24);
+}
+
+.workflow-tabs-shell .workflow-tab:not(.active) .workflow-tab-badge:empty {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .workflow-tabs-shell {
+    margin-inline: -2px;
+    padding: 4px;
+    border-radius: 14px;
+  }
+
+  .workflow-tabs-shell .workflow-tab {
+    min-height: 40px;
+    padding: 9px 13px;
+    font-size: .74rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-tabs-shell .workflow-tab,
+  .workflow-tabs-shell .workflow-tab-badge {
+    transition: none;
+  }
+}

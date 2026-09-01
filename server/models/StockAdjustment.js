@@ -59,7 +59,7 @@ const stockAdjustmentSchema = new mongoose.Schema(
 
     reason: {
       type: String,
-      enum: STOCK_ADJUSTMENT_REASONS,
+      enum: [...STOCK_ADJUSTMENT_REASONS, null],
       default: null,
     },
 

@@ -152,6 +152,34 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* ── RACS Van Loading Animation ── */
+  .racs-loader{background:linear-gradient(160deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);border-radius:24px;padding:40px 32px;max-width:520px;margin:0 auto;box-shadow:0 25px 60px -15px rgba(30,58,138,0.5);position:relative;overflow:hidden}
+  .racs-scene{position:relative;height:220px;margin-bottom:28px;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)}
+  .racs-glow{position:absolute;top:40%;left:0;width:100%;height:140px;background:linear-gradient(90deg,transparent 0%,rgba(96,165,250,0.15) 30%,rgba(96,165,250,0.25) 50%,rgba(96,165,250,0.15) 70%,transparent 100%);pointer-events:none;animation:racsGlow 3s ease-in-out infinite}
+  @keyframes racsGlow{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}
+  .racs-vanwrap{position:absolute;bottom:15px;left:0;width:380px;animation:racsDrive 3s ease-in-out infinite, racsBob 0.5s ease-in-out infinite alternate}
+  @keyframes racsDrive{0%{left:-100px;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:calc(100% + 100px);opacity:0}}
+  @keyframes racsBob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+  .racs-vanwrap svg{width:100%;height:auto;display:block;transform:scaleX(-1)}
+  .racs-wheel{transform-box:fill-box;transform-origin:center;animation:racsSpin 0.4s linear infinite}
+  @keyframes racsSpin{to{transform:rotate(360deg)}}
+  .racs-fan{transform-box:fill-box;transform-origin:17.5px 15px;animation:racsFanSpin 0.8s linear infinite}
+  @keyframes racsFanSpin{to{transform:rotate(360deg)}}
+  .racs-track{position:absolute;bottom:0;left:0;width:100%;height:20px}
+  .racs-track-dash{position:absolute;bottom:8px;left:0;width:200%;height:4px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.5) 0,rgba(255,255,255,0.5) 30px,transparent 30px,transparent 60px);animation:racsTrack 0.5s linear infinite}
+  @keyframes racsTrack{from{transform:translateX(0)}to{transform:translateX(-60px)}}
+  .racs-progress{width:100%;height:6px;background:rgba(255,255,255,0.12);border-radius:99px;overflow:hidden;margin-bottom:22px}
+  .racs-progress-fill{height:100%;width:35%;border-radius:99px;background:linear-gradient(90deg,#60a5fa,#38bdf8,#60a5fa);background-size:200% 100%;animation:racsProg 1.5s ease-in-out infinite,racsShimmer 2s linear infinite}
+  @keyframes racsProg{0%{transform:translateX(-100%)}100%{transform:translateX(386%)}}
+  @keyframes racsShimmer{0%{background-position:0% 0}100%{background-position:200% 0}}
+  .racs-title{display:block;text-align:center;font-size:1.25rem;font-weight:700;color:#fff;margin-bottom:8px;letter-spacing:0.3px}
+  .racs-desc{display:block;text-align:center;font-size:0.88rem;color:rgba(255,255,255,0.65);margin-bottom:18px}
+  .racs-pulse{display:flex;justify-content:center;gap:8px}
+  .racs-pulse span{width:10px;height:10px;border-radius:50%;background:#60a5fa;animation:racsPulse 1.4s ease-in-out infinite}
+  .racs-pulse span:nth-child(2){animation-delay:0.2s}
+  .racs-pulse span:nth-child(3){animation-delay:0.4s}
+  @keyframes racsPulse{0%,100%{opacity:0.3;transform:scale(0.7)}50%{opacity:1;transform:scale(1.15)}}
+
   .review-row {
     display: flex;
     justify-content: space-between;
@@ -627,6 +655,117 @@
   }
 </style>
 
+<!-- RACS Van Loading Modal -->
+<div class="modal fade" id="orderLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="background:transparent;border-radius:20px;box-shadow:none;">
+      <div class="modal-body text-center py-0">
+        <div class="racs-loader">
+          <div class="racs-scene">
+            <div class="racs-glow"></div>
+            <div class="racs-vanwrap">
+              <svg viewBox="0 0 380 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="vanBodyOrder" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3b82f6"/>
+                    <stop offset="50%" stop-color="#2563eb"/>
+                    <stop offset="100%" stop-color="#1d4ed8"/>
+                  </linearGradient>
+                  <linearGradient id="vanWindowOrder" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0ea5e9"/>
+                    <stop offset="100%" stop-color="#0284c7"/>
+                  </linearGradient>
+                  <linearGradient id="vanAccentOrder" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#60a5fa"/>
+                    <stop offset="100%" stop-color="#38bdf8"/>
+                  </linearGradient>
+                  <filter id="vanShadowOrder"><feGaussianBlur stdDeviation="4"/></filter>
+                  <filter id="vanGlowOrder"><feGaussianBlur stdDeviation="2"/></filter>
+                </defs>
+                <ellipse cx="190" cy="178" rx="140" ry="8" fill="rgba(0,0,0,0.25)" filter="url(#vanShadowOrder)"/>
+                <rect x="95" y="75" width="180" height="85" rx="8" fill="url(#vanBodyOrder)"/>
+                <path d="M 50 160 L 50 110 Q 50 85 75 80 L 95 75 L 95 160 Z" fill="url(#vanBodyOrder)"/>
+                <path d="M 50 110 Q 50 85 75 80 L 95 75 L 95 85 L 70 90 Q 55 95 55 110 Z" fill="#1e40af"/>
+                <path d="M 55 108 L 62 92 Q 68 85 80 82 L 90 80 L 90 108 Z" fill="url(#vanWindowOrder)" opacity="0.9"/>
+                <path d="M 60 105 L 65 95 L 75 92 L 75 105 Z" fill="rgba(255,255,255,0.3)"/>
+                <rect x="100" y="82" width="45" height="35" rx="4" fill="url(#vanWindowOrder)" opacity="0.85"/>
+                <rect x="105" y="87" width="15" height="25" rx="2" fill="rgba(255,255,255,0.2)"/>
+                <line x1="175" y1="80" x2="175" y2="155" stroke="#1e40af" stroke-width="2"/>
+                <line x1="220" y1="80" x2="220" y2="155" stroke="#1e40af" stroke-width="2"/>
+                <rect x="168" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
+                <rect x="213" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
+                <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
+                <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
+                <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                <g transform="translate(255, 95)">
+                  <rect x="0" y="0" width="35" height="45" rx="4" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+                  <rect x="4" y="5" width="27" height="20" rx="2" fill="#dbeafe"/>
+                  <g class="racs-fan" style="transform-origin: 17.5px 15px;">
+                    <circle cx="17.5" cy="15" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/>
+                    <line x1="17.5" y1="7" x2="17.5" y2="23" stroke="#3b82f6" stroke-width="2"/>
+                    <line x1="9.5" y1="15" x2="25.5" y2="15" stroke="#3b82f6" stroke-width="2"/>
+                  </g>
+                  <rect x="6" y="30" width="23" height="3" rx="1" fill="#cbd5e1"/>
+                  <rect x="6" y="35" width="23" height="3" rx="1" fill="#cbd5e1"/>
+                </g>
+                <rect x="50" y="145" width="225" height="6" fill="url(#vanAccentOrder)" opacity="0.8"/>
+                <ellipse cx="52" cy="130" rx="6" ry="10" fill="#fef08a" filter="url(#vanGlowOrder)"/>
+                <ellipse cx="52" cy="130" rx="4" ry="7" fill="#fde047"/>
+                <rect x="272" y="120" width="5" height="20" rx="2" fill="#ef4444"/>
+                <rect x="272" y="145" width="5" height="10" rx="2" fill="#fbbf24"/>
+                <rect x="100" y="68" width="170" height="4" rx="2" fill="#475569"/>
+                <rect x="120" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                <rect x="200" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                <rect x="250" y="64" width="6" height="8" rx="1" fill="#64748b"/>
+                <g transform="translate(85,162)">
+                  <g class="racs-wheel">
+                    <circle cx="0" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="3"/>
+                    <circle cx="0" cy="0" r="16" fill="#334155"/>
+                    <circle cx="0" cy="0" r="10" fill="#64748b"/>
+                    <circle cx="0" cy="0" r="5" fill="#3b82f6"/>
+                    <circle cx="0" cy="0" r="2" fill="#fff"/>
+                    <g stroke="#475569" stroke-width="2">
+                      <line x1="0" y1="-10" x2="0" y2="10"/>
+                      <line x1="-10" y1="0" x2="10" y2="0"/>
+                      <line x1="-7" y1="-7" x2="7" y2="7"/>
+                      <line x1="-7" y1="7" x2="7" y2="-7"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(235,162)">
+                  <g class="racs-wheel">
+                    <circle cx="0" cy="0" r="22" fill="#1e293b" stroke="#475569" stroke-width="3"/>
+                    <circle cx="0" cy="0" r="16" fill="#334155"/>
+                    <circle cx="0" cy="0" r="10" fill="#64748b"/>
+                    <circle cx="0" cy="0" r="5" fill="#3b82f6"/>
+                    <circle cx="0" cy="0" r="2" fill="#fff"/>
+                    <g stroke="#475569" stroke-width="2">
+                      <line x1="0" y1="-10" x2="0" y2="10"/>
+                      <line x1="-10" y1="0" x2="10" y2="0"/>
+                      <line x1="-7" y1="-7" x2="7" y2="7"/>
+                      <line x1="-7" y1="7" x2="7" y2="-7"/>
+                    </g>
+                  </g>
+                </g>
+                <g class="racs-particles">
+                  <circle cx="300" cy="100" r="3" fill="#60a5fa" opacity="0.6"><animate attributeName="cx" values="300;340;380" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0.3;0" dur="1.5s" repeatCount="indefinite"/></circle>
+                  <circle cx="305" cy="115" r="2" fill="#38bdf8" opacity="0.5"><animate attributeName="cx" values="305;350;395" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.2;0" dur="1.8s" repeatCount="indefinite"/></circle>
+                  <circle cx="302" cy="130" r="2.5" fill="#0ea5e9" opacity="0.5"><animate attributeName="cx" values="302;345;388" dur="1.6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.25;0" dur="1.6s" repeatCount="indefinite"/></circle>
+                </g>
+              </svg>
+            </div>
+            <div class="racs-track"><div class="racs-track-dash"></div></div>
+          </div>
+          <div class="racs-progress"><div class="racs-progress-fill"></div></div>
+          <span class="racs-title">Processing Your Order...</span>
+          <span class="racs-desc">Please wait while we confirm your purchase</span>
+          <div class="racs-pulse"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade wizard-modal" id="checkoutOrderModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
@@ -640,11 +779,11 @@
         <div class="wizard-pt">
           <div class="wizard-ps active" data-step="1" onclick="navigateWizardStep(1)">
             <div class="wizard-ps-icon"><i class="bi bi-truck"></i></div>
-            <span>Fulfillment</span>
+            <span>Receive Order</span>
           </div>
           <div class="wizard-ps" data-step="2" onclick="navigateWizardStep(2)">
             <div class="wizard-ps-icon"><i class="bi bi-calendar-check"></i></div>
-            <span>Details</span>
+            <span>Schedule</span>
           </div>
           <div class="wizard-ps" data-step="3" onclick="navigateWizardStep(3)">
             <div class="wizard-ps-icon"><i class="bi bi-credit-card"></i></div>
@@ -652,20 +791,16 @@
           </div>
           <div class="wizard-ps" data-step="4" onclick="navigateWizardStep(4)">
             <div class="wizard-ps-icon"><i class="bi bi-receipt"></i></div>
-            <span>Review</span>
+            <span>Confirm</span>
           </div>
         </div>
       </div>
 
       <div class="modal-header border-0 pb-0 px-4 pt-3">
         <div>
-          <div class="d-flex align-items-center gap-2 mb-1">
-            <span style="font-size:0.55rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">HVAC Solutions</span>
-            <span style="width:3px; height:3px; border-radius:50%; background:#cbd5e1; display:inline-block;"></span>
-            <span style="font-size:0.55rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">Checkout</span>
-          </div>
+          <div class="mb-1" style="font-size:0.62rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1.4px;">Secure checkout</div>
           <h5 class="modal-title fw-bolder fs-4" id="wizardModalTitle" style="color: #0f172a; letter-spacing:-0.5px;">
-            <i class="bi bi-truck me-2" style="color:#2563eb;"></i>Choose Fulfillment
+            <i class="bi bi-truck me-2" style="color:#2563eb;"></i>Choose how to receive your order
           </h5>
         </div>
         <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" style="opacity:0.5;transition:all 0.2s;" onmouseover="this.style.opacity='1';this.style.transform='rotate(90deg)'" onmouseout="this.style.opacity='0.5';this.style.transform='rotate(0deg)'"></button>
@@ -676,8 +811,8 @@
         <!-- STEP 1 — Fulfillment Option -->
         <div class="wizard-panel active" id="wizardStep1">
           <div class="text-center mb-4">
-            <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">How would you like to receive your items?</h5>
-            <p class="text-secondary fw-medium small">Select the best option tailored for your convenience.</p>
+            <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">Delivery with installation or store pickup?</h5>
+            <p class="text-secondary fw-medium small">Every delivered air conditioner includes professional installation.</p>
           </div>
           <div class="row g-3 px-md-3 justify-content-center">
             <div class="col-md-5">
@@ -720,7 +855,7 @@
                 <label class="form-label small fw-bold"><i class="bi bi-telephone me-1 text-primary"></i> Contact
                   Number</label>
                 <input type="tel" class="form-control form-control-sm rounded-3 py-2" id="wizardContact"
-                  placeholder="09XXX XXX XXX">
+                  placeholder="09XXX XXX XXX" inputmode="tel" autocomplete="tel" maxlength="50">
               </div>
 
               <!-- 2. Delivery Address -->
@@ -729,7 +864,7 @@
                   Address</label>
                 <div class="input-group input-group-sm">
                   <input type="text" class="form-control rounded-start-3 py-2" id="wizardAddress"
-                    placeholder="Enter full street address..." autocomplete="off">
+                    placeholder="Enter full street address..." autocomplete="street-address" maxlength="500">
                   <button class="btn btn-outline-primary border-start-0 rounded-end-3 px-3" type="button"
                     id="searchAddressBtn">
                     <i class="bi bi-search"></i>
@@ -838,7 +973,7 @@
                 <label class="form-label small fw-bold"><i class="bi bi-chat-left-text me-1 text-primary"></i> Notes
                   (optional)</label>
                 <textarea class="form-control form-control-sm rounded-3" id="wizardNotes" rows="2"
-                  placeholder="Specific gate codes or delivery instructions..."></textarea>
+                  placeholder="Specific gate codes or delivery instructions..." maxlength="1000"></textarea>
               </div>
             </div>
 
@@ -901,7 +1036,7 @@
               <!-- Receipt Upload -->
               <div class="mb-3">
                 <label class="form-label text-muted">Receipt Screenshot <span class="text-danger">*</span></label>
-                <input id="gcashProofWizard" type="file" class="form-control" accept="image/*" />
+                <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
                 <div class="form-text">Accepted: image files only (JPG, PNG, WEBP).</div>
                 <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:160px;border-radius:10px;" />
               </div>
@@ -1017,8 +1152,8 @@
 <script src="/js/checkout-calendar.js"></script>
 
 <script>
-  let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}) %>;
-  const USER_PHONE = '<%- (user && user.phone) ? user.phone : "" %>';
+  let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
+  const USER_PHONE = <%- JSON.stringify((user && user.phone) ? user.phone : '').replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
 
   // Fetch dynamic installation fee & fare per km
   window.airconInstallFee = 1500;
@@ -1051,6 +1186,16 @@
     .catch(() => window._companyBaseLocation);
 
   (function () {
+    function escapeCheckoutHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+    }
+
+    function safeCheckoutImageUrl(value) {
+      const url = String(value || '').trim();
+      if (/^\/(?!\/)/.test(url) || /^https:\/\//i.test(url)) return escapeCheckoutHtml(url);
+      return '/images/products/default.png';
+    }
+
     let currentStep = 1;
     let selectedFulfillment = null;
     let leafletMap = null;
@@ -1069,10 +1214,34 @@
     let _satelliteMapLayer = null;
     let _routeRequestId = 0;
     let _reverseGeocodeRequestId = 0;
+    let _routeQuotePending = null;
+    let _routeQuoteError = null;
+    let _checkoutSubmitting = false;
+    let _checkoutRequestId = '';
+
+    function createCheckoutRequestId() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      if (window.crypto?.getRandomValues) {
+        const bytes = new Uint8Array(24);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      }
+      return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+    }
+
+    function validateReceiptFile(file, notify = false) {
+      const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      let message = '';
+      if (!file) message = 'Please upload your GCash receipt screenshot.';
+      else if (!allowedTypes.has(String(file.type || '').toLowerCase())) message = 'Receipt must be a JPG, PNG, or WEBP image.';
+      else if (file.size > 5 * 1024 * 1024) message = 'Receipt image must be 5 MB or smaller.';
+      if (message && notify) Swal.fire('Invalid receipt', message, 'warning');
+      return !message;
+    }
 
     const stepTitles = {
-      1: '<i class="bi bi-truck me-2"></i>Choose Fulfillment',
-      2: '<i class="bi bi-calendar-check me-2"></i>Delivery / Pickup Details',
+      1: '<i class="bi bi-truck me-2"></i>Choose how to receive your order',
+      2: '<i class="bi bi-calendar-check me-2"></i>Schedule and contact details',
       3: '<i class="bi bi-credit-card me-2"></i>Choose Payment Method',
       4: '<i class="bi bi-receipt me-2"></i>Review & Confirm Order'
     };
@@ -1089,6 +1258,7 @@
           const data = await r.json();
           _storeHoursData = data.hours || null;
           renderStoreHoursInfo();
+          applyPickupCalendarHours();
         }
       } catch(e) { console.warn('Failed to fetch store hours'); }
     }
@@ -1104,6 +1274,14 @@
       el.innerHTML = '<i class="bi bi-clock me-1"></i>Store Hours: ' + summary;
     }
 
+    function applyPickupCalendarHours() {
+      if (!fpDatePickup || !_storeHoursData) return;
+      fpDatePickup.set('disable', [function(date) {
+        const row = _storeHoursData.find(function(item) { return Number(item.dayOfWeek) === date.getDay(); });
+        return !row || !row.open || Number(row.endMinutes) <= Number(row.startMinutes);
+      }]);
+    }
+
     window.openCheckoutWizard = function (dynamicCart) {
       if (dynamicCart) {
         CART_ITEMS = dynamicCart.items || [];
@@ -1116,6 +1294,7 @@
 
       currentStep = 1;
       selectedFulfillment = null;
+      if (!_checkoutRequestId) _checkoutRequestId = createCheckoutRequestId();
 
       // Reset status badges
       document.querySelectorAll('.fulfill-card').forEach(c => c.classList.remove('selected'));
@@ -1175,6 +1354,7 @@
         fpDatePickup.set('minDate', minPickupDate);
         fpDatePickup.clear();
       }
+      applyPickupCalendarHours();
 
       const modal = new bootstrap.Modal(document.getElementById('checkoutOrderModal'));
       modal.show();
@@ -1186,10 +1366,12 @@
       });
       if (checkoutCalendar) {
         checkoutCalendar.setFulfillmentType(type);
+        const totalQty = CART_ITEMS.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+        checkoutCalendar.setDuration(type === 'delivery_installation' ? Math.max(60, totalQty * 60) : 60);
       }
     };
 
-    window.wizardNext = function () {
+    window.wizardNext = async function () {
       if (currentStep === 1 && !selectedFulfillment) {
         Swal.fire('Attention', 'Please choose a fulfillment option.', 'warning');
         return;
@@ -1205,6 +1387,13 @@
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) { Swal.fire('Pin your delivery location', 'Select an address suggestion, use My Location, or click the exact delivery point on the map.', 'warning'); return; }
           if (!contact) { Swal.fire('Attention', 'Please enter your contact number.', 'warning'); return; }
           if (!date) { Swal.fire('Attention', 'Please select a delivery date.', 'warning'); return; }
+          if (_routeQuotePending) {
+            try { await _routeQuotePending; } catch (_) {}
+          }
+          if (_routeQuoteError || !Number.isFinite(_routeDistanceKm) || _routeDistanceKm < 0) {
+            Swal.fire('Delivery quote unavailable', _routeQuoteError || 'Select the delivery pin again so we can calculate the authoritative route and fee.', 'error');
+            return;
+          }
         } else {
           const pickupDate = document.getElementById('wizardPickupDate').value;
           if (!pickupDate) { Swal.fire('Attention', 'Please select a pickup date.', 'warning'); return; }
@@ -1216,7 +1405,7 @@
           // Validate GCash fields when GCash method is selected
           if (payMethod === 'gcash_full' || payMethod === 'cod') {
             const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
-            if (!gcashFile) { Swal.fire('Attention', 'Please upload your GCash receipt screenshot.', 'warning'); return; }
+            if (!validateReceiptFile(gcashFile, true)) return;
           }
       }
       if (currentStep === 4) {
@@ -1342,6 +1531,11 @@
       if (e.target && e.target.id === 'gcashProofWizard') {
         const file = e.target.files[0];
         const preview = document.getElementById('gcashProofPreviewWizard');
+        if (file && !validateReceiptFile(file, true)) {
+          e.target.value = '';
+          if (preview) { preview.classList.add('d-none'); preview.removeAttribute('src'); }
+          return;
+        }
         if (file && preview) {
           const reader = new FileReader();
           reader.onload = ev => { preview.src = ev.target.result; preview.classList.remove('d-none'); };
@@ -1466,75 +1660,64 @@
 
     function calcTransportFare(custLat, custLng) {
       var routeRequestId = ++_routeRequestId;
-      // Show spinner
       var spinner = document.getElementById('mapLocatingSpinner');
       var spinnerLabel = document.getElementById('mapSpinnerLabel');
       if (spinnerLabel) spinnerLabel.textContent = 'Calculating route...';
       if (spinner) spinner.classList.add('show');
-      window._companyBaseLocationPromise.then(function(base) {
+      _routeQuoteError = null;
+      _routeQuotePending = fetch('/api/orders/delivery-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: custLat, lng: custLng })
+      }).then(async function(response) {
+        const data = await response.json().catch(function() { return {}; });
+        if (!response.ok || !data.quote) throw new Error(data.error || 'Unable to calculate the delivery route.');
         if (routeRequestId !== _routeRequestId) return;
-        if (!base || !base.lat || !base.lng) { if (spinner) spinner.classList.remove('show'); return; }
-        var farePerKm = window._farePerKm || 40;
-        var url = '/api/services/osrm-route?coords=' + encodeURIComponent(base.lng + ',' + base.lat + ';' + custLng + ',' + custLat);
-        fetch(url)
-          .then(function(r) { return r.json(); })
-          .then(function(routeData) {
-            if (routeRequestId !== _routeRequestId) return;
-            var isRoad = false;
-            if (routeData && routeData.routes && routeData.routes.length > 0) {
-              var distKm = routeData.routes[0].distance / 1000;
-              var durMin = Math.round(routeData.routes[0].duration / 60);
-              _routeDistanceKm = Math.round(distKm * 10) / 10;
-              _routeDurationMin = durMin;
-              isRoad = true;
-
-              if (leafletMap && routeData.routes[0].geometry) {
-                if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
-                window._routeLayer = L.geoJSON(routeData.routes[0].geometry, {
-                  style: { color: '#6366f1', weight: 5, opacity: 0.85, dashArray: null }
-                }).addTo(leafletMap);
-                leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
-              }
-            } else {
-              var R = 6371;
-              var dLat = ((custLat - base.lat) * Math.PI) / 180;
-              var dLng = ((custLng - base.lng) * Math.PI) / 180;
-              var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-              var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-              _routeDistanceKm = Math.round(R * c * 14) / 10;
-              _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
-            }
-            _transportFee = Math.round(_routeDistanceKm * farePerKm);
-            updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, isRoad);
-          })
-          .catch(function() {
-            if (routeRequestId !== _routeRequestId) return;
-            var R = 6371;
-            var dLat = ((custLat - base.lat) * Math.PI) / 180;
-            var dLng = ((custLng - base.lng) * Math.PI) / 180;
-            var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            _routeDistanceKm = Math.round(R * c * 14) / 10;
-            _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
-            var farePerKm = window._farePerKm || 40;
-            _transportFee = Math.round(_routeDistanceKm * farePerKm);
-            updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, false);
-          });
+        const quote = data.quote;
+        _routeDistanceKm = Number(quote.distanceKm);
+        _routeDurationMin = Number(quote.durationMin);
+        _transportFee = Number(quote.transportationFee);
+        window._farePerKm = Number(quote.farePerKm) || window._farePerKm;
+        if (leafletMap && quote.geometry) {
+          if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
+          window._routeLayer = L.geoJSON(quote.geometry, {
+            style: { color: '#6366f1', weight: 5, opacity: 0.85 }
+          }).addTo(leafletMap);
+          leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
+        }
+        updateRoutePanel(
+          _routeDistanceKm,
+          _routeDurationMin,
+          Number(quote.farePerKm) || 0,
+          _transportFee,
+          quote.source === 'road'
+        );
+        if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin);
+      }).catch(function(error) {
+        if (routeRequestId !== _routeRequestId) return;
+        _routeDistanceKm = NaN;
+        _routeDurationMin = 0;
+        _transportFee = 0;
+        _routeQuoteError = error.message || 'Unable to calculate the delivery route.';
+      }).finally(function() {
+        if (routeRequestId === _routeRequestId && spinner) spinner.classList.remove('show');
       });
+      return _routeQuotePending;
     }
 
     function populateReview() {
       let html = '';
       CART_ITEMS.forEach(it => {
-        const inv = it.inventoryId;
+        const inv = it.inventoryId && typeof it.inventoryId === 'object' ? it.inventoryId : {};
+        const quantity = Math.max(1, Number(it.quantity) || 1);
         html += `
         <div class="d-flex align-items-center mb-2 pb-2 border-bottom">
-          <img src="${inv.imageUrl || '/images/products/default.png'}" style="width: 45px; height: 45px; object-fit: contain; background: #f8fafc; border-radius: 8px; padding: 4px;" class="me-3 border">
+          <img src="${safeCheckoutImageUrl(inv.imageUrl)}" alt="" style="width: 45px; height: 45px; object-fit: contain; background: #f8fafc; border-radius: 8px; padding: 4px;" class="me-3 border">
           <div class="flex-grow-1">
-            <div class="fw-bold small text-dark lh-sm">${inv.modelLine}</div>
-            <div class="text-muted" style="font-size: 0.75rem;">${inv.capacity} ${inv.capacityUnit} · ${it.quantity}x</div>
+            <div class="fw-bold small text-dark lh-sm">${escapeCheckoutHtml(inv.modelLine || 'Air conditioner')}</div>
+            <div class="text-muted" style="font-size: 0.75rem;">${escapeCheckoutHtml(inv.capacity || '')} ${escapeCheckoutHtml(inv.capacityUnit || 'HP')} · ${quantity}x</div>
           </div>
-          <div class="fw-bolder small text-primary">₱${((inv.sellingPrice || 0) * (it.quantity)).toLocaleString()}</div>
+          <div class="fw-bolder small text-primary">₱${((Number(inv.sellingPrice) || 0) * quantity).toLocaleString()}</div>
         </div>
       `;
       });
@@ -1572,7 +1755,7 @@
       };
       details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
 
-      document.getElementById('reviewDetails').innerHTML = details.map(d => `<div class="review-row py-1"><span class="review-label small">${d.label}</span><span class="review-value small">${d.value}</span></div>`).join('');
+      document.getElementById('reviewDetails').innerHTML = details.map(d => `<div class="review-row py-1"><span class="review-label small">${escapeCheckoutHtml(d.label)}</span><span class="review-value small">${escapeCheckoutHtml(d.value)}</span></div>`).join('');
 
       // Fallback: if SUB_TOTAL is 0 (API didn't compute it), derive from items
       let effectiveTotal = SUB_TOTAL;
@@ -1853,9 +2036,17 @@
     document.addEventListener('click', (e) => { if (suggestBox && !suggestBox.contains(e.target) && e.target !== addrInput) { suggestBox.style.display = 'none'; } });
 
     async function submitCartOrder() {
+      if (_checkoutSubmitting) return;
+      _checkoutSubmitting = true;
       const nextBtn = document.getElementById('wizardNextBtn');
       nextBtn.disabled = true;
       nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+      // Show the van loading modal
+      const checkoutModal = bootstrap.Modal.getInstance(document.getElementById('checkoutOrderModal'));
+      if (checkoutModal) checkoutModal.hide();
+      const loadingModal = new bootstrap.Modal(document.getElementById('orderLoadingModal'));
+      loadingModal.show();
 
       const orderItems = CART_ITEMS.map(it => ({
         inventoryId: it.inventoryId._id || it.inventoryId,
@@ -1885,11 +2076,9 @@
       fd.append('items', JSON.stringify(orderItems));
       fd.append('fulfillmentType', selectedFulfillment);
       fd.append('paymentMethod', payMethod);
+      fd.append('checkoutRequestId', _checkoutRequestId || (_checkoutRequestId = createCheckoutRequestId()));
       fd.append('technicianId', '');
       fd.append('timeSlot', document.getElementById('wizardTimeSlot')?.value || '');
-      fd.append('transportationFee', String(_transportFee));
-      fd.append('routeDistanceKm', String(_routeDistanceKm));
-      fd.append('routeDurationMin', String(_routeDurationMin));
 
       if (deliveryData) {
         fd.append('delivery', JSON.stringify(deliveryData));
@@ -1907,19 +2096,32 @@
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
           body: fd  // No Content-Type header — browser sets multipart boundary automatically
         });
         const data = await res.json();
 
         if (!res.ok) {
+          // Hide loading modal and show error
+          const loadingModalInstance = bootstrap.Modal.getInstance(document.getElementById('orderLoadingModal'));
+          if (loadingModalInstance) loadingModalInstance.hide();
           Swal.fire('Error', data.error || 'Failed to place order.', 'error');
           nextBtn.disabled = false;
           nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
+          _checkoutSubmitting = false;
           return;
         }
 
         // Order success - clear cart
         await fetch('/api/aircon-cart/clear', { method: 'POST' });
+
+        // Hide loading modal and show success in checkout modal
+        const loadingModalInstance = bootstrap.Modal.getInstance(document.getElementById('orderLoadingModal'));
+        if (loadingModalInstance) loadingModalInstance.hide();
+
+        // Show the checkout modal again with success content
+        const successModal = new bootstrap.Modal(document.getElementById('checkoutOrderModal'));
 
         const modalBody = document.querySelector('#checkoutOrderModal .modal-body');
         modalBody.innerHTML = `
@@ -1928,7 +2130,7 @@
           <h4 class="fw-bold" style="color: #0a1628;">Order Placed!</h4>
           <p style="color: #64748b;">Your order reference is:</p>
           <div class="d-inline-block px-4 py-2 rounded-pill fw-bold mb-4" style="background: #f0fdf4; color: #059669; font-size: 1.25rem; letter-spacing: 1px;">
-            ${data.order.orderReference}
+            ${escapeCheckoutHtml(data.order.orderReference)}
           </div>
           <p class="small text-muted mb-0">Check <a href="/my-orders" class="text-primary fw-bold text-decoration-none">My Orders</a> to track status.</p>
         </div>
@@ -1936,10 +2138,20 @@
         document.querySelector('#checkoutOrderModal .modal-footer').innerHTML = `
         <a href="/my-orders" class="btn btn-primary px-4 shadow-sm mx-auto" style="border-radius: 50px;">View My Orders</a>
       `;
+        // Hide wizard progress on success
+        const wizardProgress = document.getElementById('wizardProgress');
+        if (wizardProgress) wizardProgress.style.display = 'none';
+        _checkoutRequestId = '';
+
+        successModal.show();
       } catch (e) {
+        // Hide loading modal on network error
+        const loadingModalInstance = bootstrap.Modal.getInstance(document.getElementById('orderLoadingModal'));
+        if (loadingModalInstance) loadingModalInstance.hide();
         Swal.fire('Error', 'Network error. Try again.', 'error');
         nextBtn.disabled = false;
         nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
+        _checkoutSubmitting = false;
       }
     }
   })();

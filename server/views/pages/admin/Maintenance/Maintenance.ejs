@@ -1,0 +1,96 @@
+<link rel="stylesheet" href="/css/maintenance.css?v=20260826">
+
+<section class="maintenance-shell" id="maintenanceAdminApp">
+  <header class="maintenance-head">
+    <div class="d-flex align-items-center gap-3">
+      <div class="maintenance-head-icon"><i class="bi bi-calendar2-check"></i></div>
+      <div>
+        <h1>Maintenance & Aftercare</h1>
+        <p>Preventive schedules generated from completed service bookings and product installations.</p>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-primary" href="/admin/settings/aftercare"><i class="bi bi-sliders me-1"></i>Configure aftercare</a>
+      <button class="btn btn-sm btn-outline-secondary" id="maintenanceRefreshBtn" title="Refresh maintenance data">
+        <i class="bi bi-arrow-clockwise"></i><span class="ms-1">Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="maintenance-kpis" aria-label="Maintenance summary">
+    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Due Soon</div><div class="maintenance-kpi-value" id="maintKpiDueSoon">0</div></div>
+    <div class="maintenance-kpi warning"><div class="maintenance-kpi-label">Due Today</div><div class="maintenance-kpi-value" id="maintKpiDue">0</div></div>
+    <div class="maintenance-kpi danger"><div class="maintenance-kpi-label">Overdue</div><div class="maintenance-kpi-value" id="maintKpiOverdue">0</div></div>
+    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Scheduled</div><div class="maintenance-kpi-value" id="maintKpiScheduled">0</div></div>
+    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Completed</div><div class="maintenance-kpi-value" id="maintKpiCompleted">0</div></div>
+  </div>
+
+  <div class="maintenance-toolbar">
+    <div class="maintenance-tabs" role="tablist" aria-label="Maintenance status">
+      <button class="maintenance-tab active" data-status="all">All</button>
+      <button class="maintenance-tab" data-status="upcoming">Due Soon</button>
+      <button class="maintenance-tab" data-status="due">Due</button>
+      <button class="maintenance-tab" data-status="overdue">Overdue</button>
+      <button class="maintenance-tab" data-status="scheduled">Scheduled</button>
+      <button class="maintenance-tab" data-status="completed">Completed</button>
+      <button class="maintenance-tab" data-status="paused">Paused</button>
+    </div>
+    <label class="maintenance-search">
+      <i class="bi bi-search"></i>
+      <input id="maintenanceSearch" type="search" placeholder="Customer, unit, or reference" autocomplete="off">
+    </label>
+  </div>
+
+  <div class="maintenance-table-wrap" id="maintenanceTableWrap">
+    <table class="maintenance-table">
+      <thead><tr><th>Customer</th><th>Equipment</th><th>Origin</th><th>Due Date</th><th>Interval</th><th>Status</th><th>Booking</th><th></th></tr></thead>
+      <tbody id="maintenanceRows"></tbody>
+    </table>
+  </div>
+  <div class="maintenance-empty d-none" id="maintenanceEmpty"><i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>No maintenance schedules match this view.</div>
+  <div class="maintenance-pagination">
+    <span id="maintenancePageInfo">Loading maintenance schedules...</span>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" id="maintenancePrev" title="Previous page"><i class="bi bi-chevron-left"></i></button>
+      <button class="btn btn-outline-secondary" id="maintenanceNext" title="Next page"><i class="bi bi-chevron-right"></i></button>
+    </div>
+  </div>
+</section>
+
+<div class="modal fade" id="maintenanceDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Maintenance Schedule</h5><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body" id="maintenanceDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-outline-primary" id="maintenanceOutreachBtn"><i class="bi bi-chat-square-check me-1"></i>Record contact</button>
+        <button class="btn btn-success" id="maintenanceBookBtn"><i class="bi bi-calendar-plus me-1"></i>Book maintenance</button>
+        <button class="btn btn-primary" id="maintenanceSaveBtn"><i class="bi bi-check-lg me-1"></i>Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="maintenanceBookingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><div><h5 class="modal-title">Create Maintenance Booking</h5><div class="small text-muted" id="maintenanceBookingCustomer"></div></div><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i>This creates a new service booking linked to the maintenance cycle. It will enter the normal technician assignment queue.</div>
+        <div class="row g-3">
+          <div class="col-md-7"><label class="form-label">Maintenance service</label><select class="form-select" id="maintenanceBookingService"><option value="">Loading services...</option></select></div>
+          <div class="col-md-5"><label class="form-label">Contact method</label><select class="form-select" id="maintenanceBookingMethod"><option value="phone">Phone</option><option value="email">Email</option><option value="sms">SMS</option><option value="in_person">In person</option><option value="other">Other</option></select></div>
+          <div class="col-md-4"><label class="form-label">Service date</label><input class="form-control" id="maintenanceBookingDate" type="date"></div>
+          <div class="col-md-4"><label class="form-label">Available time</label><select class="form-select" id="maintenanceBookingTime"><option value="">Choose a date</option></select></div>
+          <div class="col-md-4"><label class="form-label">Estimated duration</label><input class="form-control" id="maintenanceBookingDuration" value="—" disabled></div>
+          <div class="col-12"><label class="form-label">Service address</label><input class="form-control" id="maintenanceBookingAddress" maxlength="500"></div>
+          <div class="col-12"><label class="form-label">Confirmation notes</label><textarea class="form-control" id="maintenanceBookingNotes" rows="2" maxlength="1000" placeholder="Customer confirmation, access instructions, or callback details"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="maintenanceCreateBookingBtn"><i class="bi bi-arrow-right-circle me-1"></i>Create and send to assignment queue</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/maintenance-admin.js?v=20260831"></script>

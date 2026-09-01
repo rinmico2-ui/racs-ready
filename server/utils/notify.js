@@ -27,9 +27,22 @@ async function createNotification({
   io = null,
 }) {
   try {
+    const requestedUserId = userId;
+    let technicianRoomId = null;
+    if (userId && role === "technician") {
+      const Technician = require("../models/Technician");
+      const technician = await Technician.findById(userId).select("user").lean().catch(() => null);
+      if (technician?.user) {
+        technicianRoomId = technician._id;
+        userId = technician.user;
+      }
+    }
     const notification = await Notification.create({
       userId,
-      role,
+      // A notification is either targeted to one account or broadcast to a
+      // role. Storing both made private technician updates visible to everyone
+      // with the same role because the inbox uses an OR filter.
+      role: userId ? null : role,
       type,
       title,
       message,
@@ -42,7 +55,7 @@ async function createNotification({
     // Emit via Socket.io if available
     if (io) {
       // Emit to admin room
-      if (!role || role === "admin" || role === "secretary") {
+      if (!userId && (!role || role === "admin" || role === "secretary")) {
         io.to("admin-room").emit("notification:new", {
           _id: notification._id,
           type,
@@ -67,8 +80,8 @@ async function createNotification({
         });
 
         // Technicians join room "tech:<technicianId>", not "user:<userId>"
-        if (role === "technician") {
-          io.to("tech:" + userId.toString()).emit("notification:new", {
+        if (role === "technician" && (technicianRoomId || requestedUserId)) {
+          io.to("tech:" + String(technicianRoomId || requestedUserId)).emit("notification:new", {
             _id: notification._id,
             type,
             title,

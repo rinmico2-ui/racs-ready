@@ -5,6 +5,35 @@ const fs = require("fs");
 const path = require("path");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
+
+// All project data is operational and requires a current, enabled account.
+router.use(auth.authenticate);
+
+router.use("/projects/:id", async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return next();
+  }
+  if (req.user.role === "customer") {
+    return res.status(403).json({ error: "Project operations are restricted to staff" });
+  }
+  if (req.user.role !== "technician") return next();
+  try {
+    const technician = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+    if (!technician) return res.status(403).json({ error: "Technician profile not found" });
+    const project = await Project.exists({
+      _id: req.params.id,
+      $or: [
+        { "assignedTechnicians._id": technician._id },
+        { leadTechnicianId: technician._id },
+      ],
+    });
+    if (!project) return res.status(403).json({ error: "This project is not assigned to you" });
+    req.technician = technician;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
 const Project = require("../models/Project");
 const WorkOrder = require("../models/WorkOrder");
 const DailyAssignment = require("../models/DailyAssignment");
@@ -19,6 +48,8 @@ const ProjectIssue = require("../models/ProjectIssue");
 const PartsRequest = require("../models/PartsRequest");
 const ProjectResourcePurchase = require("../models/ProjectResourcePurchase");
 const StockAdjustment = require("../models/StockAdjustment");
+const EquipmentAssignment = require("../models/EquipmentAssignment");
+const ProjectWorkSubmission = require("../models/ProjectWorkSubmission");
 const { evaluateProjectResources, cleanType, VALID_RULES, VALID_STATES } = require("../utils/projectResourcePlanning");
 const { projectUnits, validateWorkOrderPlan, resourcesForWorkOrder, hasCycle } = require("../utils/projectWorkOrderPlanning");
 const { generateProjectSchedule, validateProjectSchedule, normalizeWorkingDays } = require("../utils/enterpriseProjectScheduling");
@@ -37,6 +68,120 @@ const { ensureDailyAssignments, completeDay, nextWorkingDay } = require("../util
 const { BookingStatus } = require("../models/BookingStatus");
 const audit = require("../utils/audit");
 const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
+const { normalizeProjectWorkSubmission } = require("../utils/projectWorkSubmission");
+const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+const {
+  mergeDailySummaries,
+  normalizeRecoveryRequest,
+  riskStatus: recoveryRiskStatus,
+} = require("../utils/projectScheduleRecovery");
+const { deriveProjectScheduleHealth, summarizeScheduleHealth } = require("../utils/projectScheduleHealth");
+
+function escapeRecoveryHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]);
+}
+
+function recoveryDateLabel(value) {
+  return value ? new Date(value).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not set";
+}
+
+async function notifyCustomerOfRecovery(project, revision, req) {
+  if (!revision.customerNotification?.requested) return { status: "not_requested", inAppSent: false, emailSent: false };
+  const account = project.customerId
+    ? await User.findById(project.customerId).select("_id email firstName lastName").lean().catch(() => null)
+    : null;
+  const userId = account?._id || null;
+  const email = String(project.customer?.email || account?.email || "").trim();
+  const customerName = project.customer?.name || [account?.firstName, account?.lastName].filter(Boolean).join(" ") || "Customer";
+  const serviceName = project.service?.name || "Project";
+  const extension = revision.action === "extension";
+  const message = extension
+    ? `Your project completion date has been revised from ${recoveryDateLabel(revision.previousApprovedCompletionDate)} to ${recoveryDateLabel(revision.revisedApprovedCompletionDate)}. Reason: ${revision.reason}`
+    : `A recovery schedule has been approved for your project. The committed completion date remains ${recoveryDateLabel(revision.revisedApprovedCompletionDate)}. Reason: ${revision.reason}`;
+  let inAppSent = false;
+  let emailSent = false;
+  const errors = [];
+  if (userId) {
+    try {
+      const notification = await createNotification({
+        type: "project_schedule_update",
+        title: extension ? "Project completion date updated" : "Project recovery plan approved",
+        message,
+        userId,
+        referenceId: project._id,
+        referenceModel: "Project",
+        link: "/book-history",
+        priority: "high",
+        io: req.app.get("io") || global.io || null,
+      });
+      inAppSent = Boolean(notification);
+    } catch (error) { errors.push(`In-app: ${error.message}`); }
+  }
+  if (email) {
+    try {
+      const mailer = require("../utils/mailer");
+      const rows = [
+        ["Project", serviceName],
+        ["Previous commitment", recoveryDateLabel(revision.previousApprovedCompletionDate)],
+        [extension ? "Approved extension" : "Commitment retained", recoveryDateLabel(revision.revisedApprovedCompletionDate)],
+        ["Current forecast", recoveryDateLabel(revision.forecastAfter)],
+        ["Reason", revision.reason],
+      ];
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto"><h2 style="color:#1e293b">${extension ? "Project Schedule Extension" : "Project Recovery Plan"}</h2><p>Hi ${escapeRecoveryHtml(customerName)},</p><p>${escapeRecoveryHtml(message)}</p><table style="width:100%;border-collapse:collapse">${rows.map(([key, value]) => `<tr><td style="padding:7px 10px;background:#f1f5f9;color:#475569;width:38%">${escapeRecoveryHtml(key)}</td><td style="padding:7px 10px;color:#1e293b;font-weight:600">${escapeRecoveryHtml(value)}</td></tr>`).join("")}</table><p style="color:#64748b;font-size:12px;margin-top:18px">Your completed work and prior records remain unchanged. Contact our team if you have questions.</p></div>`;
+      await mailer.sendMail({ to: email, subject: `${extension ? "Project extension approved" : "Project recovery plan approved"} — ${serviceName}`, html, text: `${message}\nCurrent forecast: ${recoveryDateLabel(revision.forecastAfter)}` });
+      emailSent = true;
+    } catch (error) { errors.push(`Email: ${error.message}`); }
+  }
+  const status = inAppSent && emailSent ? "sent" : (inAppSent || emailSent) ? "partial" : "failed";
+  return { status, inAppSent, emailSent, sentAt: (inAppSent || emailSent) ? new Date() : null, error: errors.join("; ").slice(0, 500) };
+}
+
+// Work-order URLs do not contain a project id, so the project middleware above
+// cannot protect them. Resolve the parent project once and enforce crew
+// membership before any technician can read or mutate a work order.
+router.use("/work-orders/:id", async (req, res, next) => {
+  if (req.user.role !== "technician" || !mongoose.Types.ObjectId.isValid(req.params.id)) return next();
+  try {
+    const technician = await Technician.findOne({ user: req.user._id }).select("_id name user").lean();
+    if (!technician) return res.status(403).json({ error: "Technician profile not found" });
+    const workOrder = await WorkOrder.findById(req.params.id).select("projectId").lean();
+    if (!workOrder) return next();
+    const assigned = await Project.exists({
+      _id: workOrder.projectId,
+      $or: [
+        { "assignedTechnicians._id": technician._id },
+        { leadTechnicianId: technician._id },
+      ],
+    });
+    if (!assigned) return res.status(403).json({ error: "This work order is not assigned to you" });
+    req.technician = req.technician || technician;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const workSubmissionUploadDir = path.join(__dirname, "../public/uploads/project-work-submissions");
+if (!fs.existsSync(workSubmissionUploadDir)) fs.mkdirSync(workSubmissionUploadDir, { recursive: true });
+
+const workSubmissionUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, workSubmissionUploadDir),
+    filename: (_req, file, cb) => {
+      const extensions = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+      cb(null, `submission-${Date.now()}-${Math.round(Math.random() * 1e9)}${extensions[file.mimetype] || ".jpg"}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => cb(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)),
+}).single("proofPhoto");
+
+async function removeSubmissionUpload(file) {
+  if (!file?.path) return;
+  await fs.promises.unlink(file.path).catch(() => {});
+}
 
 async function syncPlannedResourcesToWorkOrders(project) {
   const snapshot = typeof project.toObject === "function" ? project.toObject() : project;
@@ -162,9 +307,71 @@ async function releaseUnblockedWorkOrders(projectId) {
   return released;
 }
 
+async function getProjectCompletionReadiness(project) {
+  const workOrders = await WorkOrder.find({ projectId: project._id, status: { $ne: "cancelled" } }).lean();
+  const submissions = project.isLargeScale
+    ? await ProjectWorkSubmission.find({ projectId: project._id }).select("workOrders proof consumables consumablesDeclaredNone").lean()
+    : [];
+  const evidenceByOrder = new Map();
+  for (const submission of submissions) {
+    for (const line of submission.workOrders || []) {
+      const key = String(line.workOrderId);
+      const covered = evidenceByOrder.get(key) || new Set();
+      (line.unitKeys || []).forEach(unitKey => covered.add(String(unitKey)));
+      evidenceByOrder.set(key, covered);
+    }
+  }
+
+  let missingEvidenceCount = 0;
+  for (const order of workOrders) {
+    if (!project.isLargeScale) continue;
+    const covered = evidenceByOrder.get(String(order._id)) || new Set();
+    missingEvidenceCount += (order.units || []).filter(unit => unit.status === "completed" && !covered.has(String(unit.unitKey))).length;
+  }
+
+  const workOrdersComplete = workOrders.length > 0 && workOrders.every(order => {
+    const executableUnits = (order.units || []).filter(unit => unit.status !== "cancelled").length || Number(order.unitCount || 0);
+    return order.status === "completed" && Number(order.completedUnitCount || 0) >= executableUnits;
+  });
+  const [openIssueCount, pendingExpenseCount, outstandingEquipmentCount] = await Promise.all([
+    ProjectIssue.countDocuments({ projectId: project._id, status: { $in: ["open", "in_progress"] } }),
+    Expense.countDocuments({ projectId: project._id, status: "pending" }),
+    EquipmentAssignment.countDocuments({ projectId: project._id, status: { $in: ["checked_out", "in_use"] } }),
+  ]);
+  const evidenceComplete = !project.isLargeScale || (submissions.length > 0 && missingEvidenceCount === 0);
+  const paymentStatus = String(project.payment?.paymentStatus || "unpaid");
+  const paymentVerified = ["verified", "paid"].includes(paymentStatus);
+  const blockers = [];
+  if (!workOrdersComplete) blockers.push("all work orders must be reviewed and submitted by the lead");
+  if (!evidenceComplete) blockers.push(`${missingEvidenceCount || "some"} completed unit(s) are missing proof-backed submissions`);
+  if (!paymentVerified) blockers.push("final payment must be verified");
+  if (openIssueCount) blockers.push(`${openIssueCount} project issue(s) are still open`);
+  if (pendingExpenseCount) blockers.push(`${pendingExpenseCount} expense(s) still await a decision`);
+  if (outstandingEquipmentCount) blockers.push(`${outstandingEquipmentCount} issued resource(s) need return or usage reconciliation`);
+
+  return {
+    workOrdersComplete,
+    evidenceComplete,
+    submissionCount: submissions.length,
+    missingEvidenceCount,
+    paymentVerified,
+    paymentStatus,
+    openIssueCount,
+    pendingExpenseCount,
+    outstandingEquipmentCount,
+    canClose: blockers.length === 0,
+    blockers,
+  };
+}
+
 router.get("/projects/dashboard", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const stats = await Project.getDashboardStats();
+
+    const scheduleHealthProjects = await Project.find({
+      status: { $in: ["pending_project_scheduling", "accepted", "planning", "ready", "in_progress", "on_hold"] },
+    }).select("status totalUnits completedUnits plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline schedulePlan scheduleGovernance").lean();
+    stats.scheduleHealth = summarizeScheduleHealth(scheduleHealthProjects, new Date());
 
     const recentProjects = await Project.find()
       .sort({ createdAt: -1 })
@@ -193,7 +400,7 @@ router.get("/projects/dashboard", auth.requireRole(["admin", "secretary"]), asyn
 
 router.get("/projects", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    let { status, search, page = 1, limit = 20, sort = "-createdAt" } = req.query;
+    let { status, search, serviceType, scheduleHealth, page = 1, limit = 20, sort = "-createdAt" } = req.query;
     page = parseInt(page);
     limit = Math.min(parseInt(limit) || 20, 100);
 
@@ -216,12 +423,39 @@ router.get("/projects", auth.requireRole(["admin", "secretary"]), async (req, re
       ];
     }
 
+    if (serviceType === "repair") {
+      query["repair.serviceType"] = "repair";
+    } else if (serviceType === "core") {
+      query.$and = query.$and || [];
+      query.$and.push({ $or: [
+        { "repair.serviceType": "core" },
+        { "repair.serviceType": { $exists: false } },
+        { "repair.serviceType": null },
+      ] });
+    }
+
+    const supportedHealthFilters = new Set(["past_due", "behind_schedule", "at_risk", "on_track", "unscheduled", "not_started"]);
+    const healthFilter = supportedHealthFilters.has(scheduleHealth) ? scheduleHealth : "";
+
+    if (healthFilter) {
+      const matchingProjects = (await Project.find(query).sort(sort).lean())
+        .map(project => ({ ...project, scheduleHealth: deriveProjectScheduleHealth(project, new Date()) }))
+        .filter(project => project.scheduleHealth.code === healthFilter);
+      const total = matchingProjects.length;
+      const projects = matchingProjects.slice((page - 1) * limit, page * limit);
+      return res.json({
+        projects,
+        pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+      });
+    }
+
     const total = await Project.countDocuments(query);
-    const projects = await Project.find(query)
+    const projects = (await Project.find(query)
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
-      .lean();
+      .lean())
+      .map(project => ({ ...project, scheduleHealth: deriveProjectScheduleHealth(project, new Date()) }));
 
     res.json({
       projects,
@@ -257,6 +491,11 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
     const materials = await ProjectMaterial.find({ projectId: id }).lean();
 
     const booking = await BookingService.findById(project.bookingId).lean();
+    const workSubmissions = await ProjectWorkSubmission.find({ projectId: id })
+      .populate("technicianId", "name")
+      .sort({ createdAt: -1 })
+      .lean();
+    const completionReadiness = await getProjectCompletionReadiness(project);
 
     // Recalculate team-, scope-, work-order-, and date-dependent requirements
     // whenever the Planning Studio reloads.
@@ -269,10 +508,179 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       }).catch(() => {});
     }
 
-    res.json({ project, workOrders, materials, booking });
+    res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness });
   } catch (error) {
     console.error("Error fetching project:", error);
     res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
+
+/**
+ * POST /api/projects/:id/notify-customer
+ * Push a status update to the project's customer (in-app + email).
+ * Body (optional): { message?: string } — custom note appended to the
+ * status-aware summary. Guarded by a 60s anti-spam throttle.
+ */
+router.post("/projects/:id/notify-customer", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customMessage = String(req.body?.message || "").trim().slice(0, 500);
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid project id" });
+    }
+
+    const project = await Project.findById(id).lean();
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    // ── Resolve the customer's contacts (snapshot → booking → account) ────
+    let customerName = project.customer?.name || "";
+    let email = project.customer?.email || "";
+    let phone = project.customer?.phone || "";
+    let userId = null;
+
+    if ((!email || !customerName) && project.bookingId) {
+      const booking = await BookingService.findById(project.bookingId)
+        .select("customer email phone")
+        .lean()
+        .catch(() => null);
+      if (booking) {
+        email = email || booking.customer?.email || booking.email || "";
+        phone = phone || booking.customer?.phone || booking.phone || "";
+        customerName = customerName || booking.customer?.name || "";
+      }
+    }
+    if (!userId && project.customerId) {
+      // customerId may reference the User account directly
+      const acct = await User.findById(project.customerId).select("_id email").lean().catch(() => null);
+      if (acct) {
+        userId = acct._id;
+        email = email || acct.email || "";
+      }
+    }
+
+    if (!email && !userId) {
+      return res.status(400).json({ error: "No customer contact on file for this project." });
+    }
+
+    // ── Anti-spam throttle ─────────────────────────────────────────────────
+    const THROTTLE_MS = 60 * 1000;
+    const lastSent = project.lastCustomerNotifiedAt ? new Date(project.lastCustomerNotifiedAt).getTime() : 0;
+    if (Date.now() - lastSent < THROTTLE_MS) {
+      return res.status(429).json({
+        error: "A customer notification was just sent. Please wait a minute before sending another.",
+        retryAfterSeconds: Math.ceil((THROTTLE_MS - (Date.now() - lastSent)) / 1000),
+      });
+    }
+
+    // ── Status-aware summary (same progress math as updateProjectProgress) ─
+    const workOrders = await WorkOrder.find({ projectId: id }).select("unitCount completedUnitCount status").lean();
+    const activeOrders = workOrders.filter((wo) => wo.status !== "cancelled");
+    const completedUnits = activeOrders.reduce((sum, wo) => sum + Number(wo.completedUnitCount || 0), 0);
+    const totalUnits = Math.max(Number(project.totalUnits) || 0, activeOrders.reduce((sum, wo) => sum + Number(wo.unitCount || 0), 0));
+    const doneWO = activeOrders.filter((wo) => wo.status === "completed").length;
+
+    const STATUS_COPY = {
+      pending_project_scheduling: "Your project request has been received and is awaiting scheduling review.",
+      accepted: "Your project has been accepted and is being prepared.",
+      planning: "Our team is planning your project — assigning crew, materials and schedule.",
+      ready: "Your project is fully scheduled. Work will begin on the planned start date.",
+      in_progress: `Work is underway — ${completedUnits} of ${totalUnits} unit(s) completed.`,
+      completed: "All work on your project is complete. Thank you for choosing us!",
+      closed: "This project has been closed. Thank you for choosing us!",
+      cancelled: "This project has been cancelled. Please contact us if you have questions.",
+      on_hold: "Your project is temporarily on hold. We will update you as soon as it resumes.",
+    };
+    const statusLine = STATUS_COPY[project.status] || `Project status: ${String(project.status).replace(/_/g, " ")}.`;
+    const serviceName = project.service?.name || "Large-Scale Project";
+    const refLabel = project.projectCode || (project.bookingId ? `#${String(project.bookingId).slice(-8).toUpperCase()}` : `#${id.slice(-8).toUpperCase()}`);
+
+    const fullMessage =
+      `${statusLine}` +
+      (doneWO > 0 ? ` (${doneWO}/${activeOrders.length} work order${activeOrders.length > 1 ? "s" : ""} finished.)` : "") +
+      (customMessage ? ` Note from our team: ${customMessage}` : "");
+
+    // ── Channel 1: in-app notification ─────────────────────────────────────
+    let inAppSent = false;
+    if (userId) {
+      const notification = await createNotification({
+        type: "project_status_update",
+        title: `Project Update — ${serviceName}`,
+        message: fullMessage,
+        userId,
+        referenceId: project._id,
+        referenceModel: "Project",
+        link: "/book-history",
+        priority: project.status === "completed" ? "high" : "normal",
+        io: req.app.get("io") || global.io || null,
+      });
+      inAppSent = !!notification;
+    }
+
+    // ── Channel 2: email ───────────────────────────────────────────────────
+    let emailSent = false;
+    if (email) {
+      try {
+        const mailer = require("../utils/mailer");
+        const rows = [
+          ["Project", `${serviceName} (${refLabel})`],
+          ["Status", String(project.status).replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())],
+          totalUnits > 0 ? ["Units Completed", `${completedUnits} / ${totalUnits}`] : null,
+          project.plannedStartDate ? ["Planned Start", new Date(project.plannedStartDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })] : null,
+          project.plannedCompletionDate ? ["Target Completion", new Date(project.plannedCompletionDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })] : null,
+        ].filter(Boolean);
+        const html =
+          '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;">' +
+          '<h2 style="color:#1e293b;font-size:18px;">Project Update — CALIDRO RACS</h2>' +
+          `<p style="color:#334155;font-size:14px;">Hi ${customerName || "Customer"}, here is the latest update on your project:</p>` +
+          '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+          rows.map(([k, v]) => `<tr><td style="padding:6px 10px;background:#f1f5f9;color:#475569;width:38%;">${k}</td><td style="padding:6px 10px;color:#1e293b;font-weight:600;">${v}</td></tr>`).join("") +
+          "</table>" +
+          `<p style="color:#334155;font-size:14px;margin-top:14px;">${fullMessage}</p>` +
+          '<p style="color:#94a3b8;font-size:12px;margin-top:20px;">You can also track this project under your booking history.</p>' +
+          "</div>";
+        const text = [
+          `Project Update — CALIDRO RACS`,
+          `Hi ${customerName || "Customer"}, here is the latest update on your project:`,
+          ...rows.map(([k, v]) => `${k}: ${v}`),
+          fullMessage,
+        ].join("\n");
+        // sendEmail() wraps plain text in <p> tags — use sendMail directly
+        // since this notification carries structured HTML.
+        await mailer.sendMail({ to: email, subject: `Project Update — ${serviceName} (${refLabel})`, html, text });
+        emailSent = true;
+      } catch (mailErr) {
+        console.error("[projects] notify-customer email failed:", mailErr.message);
+      }
+    }
+
+    if (!inAppSent && !emailSent) {
+      return res.status(502).json({ error: "Could not reach the customer through any channel. Please try again." });
+    }
+
+    await Project.findByIdAndUpdate(id, { lastCustomerNotifiedAt: new Date() }).catch(() => {});
+    audit.logEvent({
+      actor: req.user._id,
+      actorRole: req.user.role || "",
+      action: "project.notify_customer",
+      module: "projects",
+      req,
+      entityType: "Project",
+      entityId: project._id,
+      details: { status: project.status, inAppSent, emailSent, email },
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: inAppSent && emailSent ? "Customer notified via in-app and email." : inAppSent ? "Customer notified via in-app." : "Customer notified via email.",
+      channels: { inApp: inAppSent, email: emailSent },
+      email,
+    });
+  } catch (error) {
+    console.error("Error notifying customer:", error);
+    res.status(500).json({ error: "Failed to notify customer" });
   }
 });
 
@@ -308,8 +716,36 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
     if (project.isLargeScale && ["accepted", "planning", "ready", "in_progress"].includes(status) && !project.verifiedAt) {
       return res.status(409).json({ error: "Verify this large-scale project before moving it into planning." });
     }
+    const allowedTransitions = {
+      pending_project_scheduling: ["on_hold", "cancelled"],
+      accepted: ["planning", "ready", "on_hold", "cancelled"],
+      planning: ["ready", "on_hold", "cancelled"],
+      ready: ["planning", "on_hold", "cancelled"],
+      in_progress: ["on_hold", "cancelled"],
+      on_hold: ["planning", "cancelled"],
+      completed: ["closed"],
+      closed: [],
+      cancelled: [],
+    };
+    if (status !== project.status && !(allowedTransitions[project.status] || []).includes(status)) {
+      return res.status(409).json({
+        error: `Project cannot move from "${project.status}" to "${status}" through the admin status control.`,
+      });
+    }
     if (status === "in_progress") {
       return res.status(409).json({ error: "Only the assigned lead technician can start a Ready project." });
+    }
+    if (status === "completed") {
+      return res.status(409).json({ error: "Project completion must be finalized by the lead after proof-backed work-order review and payment settlement." });
+    }
+    if (status === "closed") {
+      const readiness = await getProjectCompletionReadiness(project);
+      if (!readiness.canClose) {
+        return res.status(409).json({
+          error: `Project cannot be closed: ${readiness.blockers.join(", ")}.`,
+          completionReadiness: readiness,
+        });
+      }
     }
     project.status = status;
     if (adminNotes !== undefined) project.adminNotes = adminNotes;
@@ -424,6 +860,14 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
       project.schedulePlan.status = "confirmed";
       project.schedulePlan.confirmedAt = new Date();
       project.scheduleLocked = true;
+      const approvedCompletion = project.schedulePlan.targetEndDate || project.preferredCompletionDeadline || project.plannedCompletionDate;
+      if (approvedCompletion) {
+        project.scheduleGovernance.originalBaselineCompletionDate = project.scheduleGovernance.originalBaselineCompletionDate || approvedCompletion;
+        project.scheduleGovernance.currentApprovedCompletionDate = project.scheduleGovernance.currentApprovedCompletionDate || approvedCompletion;
+        project.scheduleGovernance.currentForecastCompletionDate = project.schedulePlan.estimatedEndDate || project.plannedCompletionDate || approvedCompletion;
+        project.scheduleGovernance.riskStatus = recoveryRiskStatus(project.scheduleGovernance.currentForecastCompletionDate, project.scheduleGovernance.currentApprovedCompletionDate);
+        project.scheduleGovernance.lastAssessedAt = new Date();
+      }
       await DailyAssignment.updateMany({ projectId: project._id, planningOnly: true }, { $set: { planningOnly: false, status: "pending" } });
     }
 
@@ -472,7 +916,14 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
       const assignmentTechIds = (project.assignedTechnicians || []).map(t => t._id).filter(Boolean);
       if (assignmentTechIds.length > 0) {
         await Assignment.updateMany(
-          { projectId: project._id, technicianId: { $in: assignmentTechIds }, status: { $nin: ["completed", "cancelled"] } },
+          {
+            $or: [
+              { projectId: project._id },
+              ...(project.bookingId ? [{ bookingId: project.bookingId }] : []),
+            ],
+            technicianId: { $in: assignmentTechIds },
+            status: { $nin: ["completed", "cancelled"] },
+          },
           { $set: { status: status === "completed" ? "completed" : "cancelled", completedAt: new Date() } }
         ).catch(() => {});
       }
@@ -583,6 +1034,12 @@ router.put("/projects/:id/submit-inspection", auth.authenticate, auth.requireRol
     }
 
     const { notes, findings, photos, quotationItems, totalAmount, unitGroupInspections } = req.body || {};
+    if (!["arrived", "completed"].includes(project.assessmentVisit?.status)) {
+      return res.status(409).json({ error: "Record arrival at the customer site before submitting the inspection." });
+    }
+    if (!String(findings || "").trim()) {
+      return res.status(400).json({ error: "Inspection findings are required." });
+    }
 
     project.inspectionReport = {
       submittedAt: new Date(),
@@ -709,6 +1166,12 @@ router.put("/projects/:id/submit-inspection", auth.authenticate, auth.requireRol
       status: "pending",
     };
     project.projectPhase = "quotation_review";
+    project.assessmentVisit = {
+      ...(project.assessmentVisit?.toObject ? project.assessmentVisit.toObject() : project.assessmentVisit || {}),
+      status: "completed",
+      completedAt: new Date(),
+      technicianId: tech._id,
+    };
     await project.save();
 
     emitProjectPhase(req, project, "quotation_review");
@@ -751,6 +1214,9 @@ router.put("/projects/:id/review-quotation", auth.requireRole(["admin", "secreta
     const { action, rejectionReason, notes } = req.body || {};
     if (action !== "approve" && action !== "reject") {
       return res.status(400).json({ error: 'Action must be "approve" or "reject"' });
+    }
+    if (action === "reject" && !String(rejectionReason || "").trim()) {
+      return res.status(400).json({ error: "A rejection reason is required so the lead knows what to revise." });
     }
 
     if (action === "approve") {
@@ -814,20 +1280,33 @@ router.put("/projects/:id", auth.requireRole(["admin", "secretary"]), async (req
     const allowedFields = [
       "preferredStartDate", "preferredWorkingDays", "preferredWorkingHours",
       "preferredCompletionDeadline", "notes", "adminNotes", "projectManager",
-      "actualStartDate", "actualCompletionDate", "status",
+      "actualStartDate", "actualCompletionDate",
     ];
 
-    const updateData = {};
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
-      }
-    }
-
-    const project = await Project.findByIdAndUpdate(id, updateData, { new: true });
+    const project = await Project.findById(id);
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
+
+    const scheduleFields = ["preferredStartDate", "preferredWorkingDays", "preferredWorkingHours", "preferredCompletionDeadline"];
+    const changesSchedule = scheduleFields.some(field => req.body[field] !== undefined);
+    const governedSchedule = project.schedulePlan?.status === "confirmed"
+      || project.scheduleLocked
+      || ["ready", "in_progress", "on_hold"].includes(project.status);
+    if (changesSchedule && governedSchedule) {
+      return res.status(409).json({
+        code: "PROJECT_RECOVERY_REQUIRED",
+        error: "This project schedule is approved and locked. Use the Recovery Plan workflow to revise future work or approve an extension.",
+      });
+    }
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        project[field] = req.body[field];
+      }
+    }
+
+    await project.save();
 
     res.json({ project });
   } catch (error) {
@@ -914,10 +1393,24 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
       return res.status(409).json({ error: `A team cannot be assigned while the project is "${project.status}".` });
     }
 
+    const uniqueTechnicianIds = [...new Set(technicianIds.map(String))];
+    if (uniqueTechnicianIds.some((techId) => !mongoose.Types.ObjectId.isValid(techId))) {
+      return res.status(400).json({ error: "One or more technician ids are invalid" });
+    }
+    if (uniqueTechnicianIds.length !== technicianIds.length) {
+      return res.status(400).json({ error: "Duplicate technicians are not allowed" });
+    }
+    if (leadTechnicianId && !uniqueTechnicianIds.includes(String(leadTechnicianId))) {
+      return res.status(400).json({ error: "The lead technician must be part of the assigned team" });
+    }
+
     const technicians = await Technician.find({
-      _id: { $in: technicianIds },
+      _id: { $in: uniqueTechnicianIds },
       active: { $ne: false },
     }).lean();
+    if (technicians.length !== uniqueTechnicianIds.length) {
+      return res.status(400).json({ error: "Every selected technician must exist and be active" });
+    }
 
     // Remove technicians no longer selected, then add the new ones.
     const incomingIds = technicians.map((t) => t._id.toString());
@@ -926,7 +1419,11 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
     );
     for (const r of removed) {
       if (r.assignmentId) {
-        await Assignment.findByIdAndDelete(r.assignmentId).catch(() => {});
+        await Assignment.findByIdAndUpdate(r.assignmentId, {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          projectId: project._id,
+        }).catch(() => {});
       }
     }
 
@@ -936,6 +1433,21 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
         (t) => t._id.toString() === tech._id.toString()
       );
       if (existing && existing.assignmentId) {
+        const existingAssignment = await Assignment.findById(existing.assignmentId);
+        if (existingAssignment) {
+          existingAssignment.projectId = project._id;
+          if (["declined", "expired", "cancelled"].includes(existingAssignment.status)) {
+            existingAssignment.status = "pending_acceptance";
+            existingAssignment.assignedAt = new Date();
+            existingAssignment.acceptanceDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+            existingAssignment.declinedAt = undefined;
+            existingAssignment.declineReason = undefined;
+            existingAssignment.cancelledAt = undefined;
+            existingAssignment.expiredAt = undefined;
+            existingAssignment.expiredReason = undefined;
+          }
+          await existingAssignment.save();
+        }
         assigned.push(existing);
         continue;
       }
@@ -945,6 +1457,7 @@ router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), asyn
 
       const assignment = new Assignment({
         bookingId: project.bookingId,
+        projectId: project._id,
         technicianId: tech._id,
         customerName: project.customer?.name || "",
         customerPhone: project.customer?.phone || "",
@@ -1272,6 +1785,13 @@ router.get("/projects/:id/schedule-calendar", auth.requireRole(["admin", "secret
     }
     const calendar = await buildAllocationCalendar(id);
     const wos = await WorkOrder.find({ projectId: id }).select("_id title section assignedTechnicians scheduledDate sortOrder status").lean();
+    // Local-calendar key (server timezone) — toISOString().slice(0,10)
+    // shifts local-midnight dates one day back under UTC+8 (PH).
+    const localKey = (value) => {
+      const d = value ? new Date(value) : null;
+      if (!d || isNaN(d.getTime())) return "";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
     const workOrders = wos
       .map((w) => ({
         _id: String(w._id),
@@ -1279,7 +1799,7 @@ router.get("/projects/:id/schedule-calendar", auth.requireRole(["admin", "secret
         section: w.section || "",
         technicianId: w.assignedTechnicians && w.assignedTechnicians[0] ? String(w.assignedTechnicians[0]._id || w.assignedTechnicians[0]) : "",
         technicianName: w.assignedTechnicians && w.assignedTechnicians[0] ? (w.assignedTechnicians[0].name || "Unassigned") : "Unassigned",
-        scheduledDate: w.scheduledDate ? new Date(w.scheduledDate).toISOString().slice(0, 10) : "",
+        scheduledDate: localKey(w.scheduledDate),
         sortOrder: w.sortOrder || 0,
         status: w.status,
       }))
@@ -1427,6 +1947,216 @@ router.put("/projects/:id/schedule-settings", auth.requireRole(["admin", "secret
     await project.save();
     res.json({ schedulePlan:project.schedulePlan,message:"Scheduling parameters saved. Generate a new preview to calculate the end date." });
   } catch(error){res.status(500).json({error:error.message||"Failed to save schedule settings"});}
+});
+
+async function buildRecoveryProposal(project, body) {
+  const request = normalizeRecoveryRequest(body, project);
+  const result = await generateProjectSchedule(project.toObject ? project.toObject() : project, {
+    startDate: request.recoveryStartDate,
+    targetEndDate: request.revisedCompletionDate,
+    workingDays: request.workingDays,
+    startTime: request.startTime,
+    endTime: request.endTime,
+    bufferDays: project.schedulePlan?.bufferDays || 0,
+    remainingOnly: true,
+    planningOnly: false,
+  });
+  const affectedWorkOrderIds = [...new Set((result.allocations || []).map(row => String(row.workOrderId)))];
+  return { request, result, affectedWorkOrderIds };
+}
+
+/** Preview a recovery against live technician, booking, leave, and equipment capacity. */
+router.post("/projects/:id/recovery-plan/preview", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id." });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found." });
+    if (!["ready", "in_progress", "on_hold"].includes(project.status)) return res.status(409).json({ error: "Recovery planning is available only for ready, active, or on-hold projects." });
+    if (req.body?.mode === "extend" && req.user.role !== "admin") return res.status(403).json({ error: "Only an administrator can approve a completion-date extension." });
+    const proposal = await buildRecoveryProposal(project, req.body || {});
+    const blockingConflicts = (proposal.result.conflicts || []).filter(conflict => conflict.blocking);
+    return res.json({
+      viable: blockingConflicts.length === 0 && proposal.result.status === "ready",
+      mode: proposal.request.mode,
+      originalBaselineCompletionDate: proposal.request.originalBaselineCompletionDate,
+      previousApprovedCompletionDate: proposal.request.previousApprovedCompletionDate,
+      revisedApprovedCompletionDate: proposal.request.revisedCompletionDate,
+      forecastBefore: proposal.request.forecastBefore,
+      forecastAfter: proposal.result.estimatedEndDate,
+      executionEndDate: proposal.result.executionEndDate,
+      affectedWorkOrders: proposal.affectedWorkOrderIds.length,
+      workingDays: proposal.result.dailySummary?.length || 0,
+      qualityScore: proposal.result.qualityScore,
+      conflicts: proposal.result.conflicts || [],
+      message: blockingConflicts.length
+        ? `The proposal has ${blockingConflicts.length} blocking conflict(s). Resolve them before approval.`
+        : "The recovery proposal is conflict-free and ready for approval.",
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "Failed to preview the recovery plan." });
+  }
+});
+
+/**
+ * Apply a governed recovery revision. Historical/completed daily assignments
+ * remain immutable; only unfinished assignments on or after the recovery date
+ * are replaced by the validated proposal.
+ */
+router.post("/projects/:id/recovery-plan", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  let session;
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id." });
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found." });
+    if (!["ready", "in_progress", "on_hold"].includes(project.status)) return res.status(409).json({ error: "Recovery planning is available only for ready, active, or on-hold projects." });
+    if (req.body?.mode === "extend" && req.user.role !== "admin") return res.status(403).json({ error: "Only an administrator can approve a completion-date extension." });
+
+    const proposal = await buildRecoveryProposal(project, req.body || {});
+    const blockingConflicts = (proposal.result.conflicts || []).filter(conflict => conflict.blocking);
+    if (blockingConflicts.length || proposal.result.status !== "ready") {
+      return res.status(409).json({ error: "This recovery plan still has blocking schedule conflicts.", conflicts: proposal.result.conflicts || [], forecastAfter: proposal.result.estimatedEndDate });
+    }
+
+    const now = new Date();
+    const initialVersion = project.__v;
+    let historyId = null;
+    let revisionSnapshot = null;
+    session = await mongoose.startSession();
+    await session.withTransaction(async () => {
+      const lockedProject = await Project.findOne({ _id: project._id, __v: initialVersion }).session(session);
+      if (!lockedProject) throw Object.assign(new Error("The project changed while the recovery plan was being reviewed. Refresh and preview it again."), { status: 409 });
+
+      await DailyAssignment.deleteMany({
+        projectId: lockedProject._id,
+        date: { $gte: proposal.request.recoveryStartDate },
+        status: { $ne: "completed" },
+      }).session(session);
+      if (proposal.result.allocations.length) await DailyAssignment.insertMany(proposal.result.allocations, { session });
+
+      const workOrders = await WorkOrder.find({ projectId: lockedProject._id, status: { $ne: "cancelled" } }).session(session);
+      for (const order of workOrders) {
+        if (order.status === "completed" || Number(order.completedUnitCount || 0) >= Number(order.unitCount || 0)) continue;
+        const rows = proposal.result.allocations
+          .filter(row => String(row.workOrderId) === String(order._id))
+          .sort((a, b) => new Date(a.date) - new Date(b.date) || String(a.startTime || "").localeCompare(String(b.startTime || "")));
+        if (!rows.length) continue;
+        const before = { scheduledDate: order.scheduledDate, scheduledEndDate: order.scheduledEndDate, startTime: order.startTime, endTime: order.endTime };
+        if (!Number(order.completedUnitCount || 0)) order.scheduledDate = rows[0].date;
+        order.scheduledEndDate = rows[rows.length - 1].date;
+        order.startTime = rows[0].startTime;
+        order.endTime = rows[rows.length - 1].endTime;
+        order.planningStatus = "released";
+        order.scheduleConflicts = [];
+        order.activity.push({
+          action: proposal.request.mode === "extend" ? "schedule_extended" : "schedule_recovered",
+          actorId: req.user._id,
+          actorName: req.user.name || req.user.email || req.user.role,
+          reason: proposal.request.reason,
+          details: { before, recoveryStartDate: proposal.request.recoveryStartDate, scheduledEndDate: order.scheduledEndDate },
+        });
+        await order.save({ session });
+      }
+
+      const governance = lockedProject.scheduleGovernance || {};
+      const revisionNumber = Math.max(0, Number(governance.revisionNumber || 0)) + 1;
+      const previousDailySummary = lockedProject.schedulePlan?.dailySummary || [];
+      lockedProject.schedulePlan = {
+        ...(lockedProject.schedulePlan?.toObject?.() || lockedProject.schedulePlan || {}),
+        status: "confirmed",
+        startDate: lockedProject.schedulePlan?.startDate || lockedProject.plannedStartDate || lockedProject.preferredStartDate,
+        estimatedEndDate: proposal.result.estimatedEndDate,
+        targetEndDate: proposal.request.revisedCompletionDate,
+        executionEndDate: proposal.result.executionEndDate,
+        workingDays: proposal.result.workingDays,
+        workingHours: proposal.result.workingHours,
+        conflicts: proposal.result.conflicts || [],
+        qualityScore: proposal.result.qualityScore,
+        dailySummary: mergeDailySummaries(previousDailySummary, proposal.result.dailySummary, proposal.request.recoveryStartDate),
+        generatedAt: now,
+        generatedBy: req.user._id,
+        confirmedAt: now,
+      };
+      lockedProject.scheduleLocked = true;
+      lockedProject.plannedCompletionDate = proposal.result.estimatedEndDate;
+      if (proposal.request.mode === "extend") lockedProject.preferredCompletionDeadline = proposal.request.revisedCompletionDate;
+      lockedProject.preferredWorkingDays = proposal.request.workingDays.map(String);
+      lockedProject.preferredWorkingHours = { start: proposal.request.startTime, end: proposal.request.endTime };
+      lockedProject.scheduleGovernance.originalBaselineCompletionDate = governance.originalBaselineCompletionDate || proposal.request.originalBaselineCompletionDate;
+      lockedProject.scheduleGovernance.currentApprovedCompletionDate = proposal.request.revisedCompletionDate;
+      lockedProject.scheduleGovernance.currentForecastCompletionDate = proposal.result.estimatedEndDate;
+      lockedProject.scheduleGovernance.riskStatus = recoveryRiskStatus(proposal.result.estimatedEndDate, proposal.request.revisedCompletionDate);
+      lockedProject.scheduleGovernance.revisionNumber = revisionNumber;
+      lockedProject.scheduleGovernance.lastAssessedAt = now;
+      lockedProject.scheduleGovernance.lastRecoveryAt = now;
+      lockedProject.scheduleGovernance.history.push({
+        revisionNumber,
+        action: proposal.request.mode === "extend" ? "extension" : "recovery",
+        reasonCategory: proposal.request.reasonCategory,
+        reason: proposal.request.reason,
+        impactSummary: proposal.request.impactSummary,
+        originalBaselineCompletionDate: proposal.request.originalBaselineCompletionDate,
+        previousApprovedCompletionDate: proposal.request.previousApprovedCompletionDate,
+        revisedApprovedCompletionDate: proposal.request.revisedCompletionDate,
+        forecastBefore: proposal.request.forecastBefore,
+        forecastAfter: proposal.result.estimatedEndDate,
+        recoveryStartDate: proposal.request.recoveryStartDate,
+        affectedWorkOrderIds: proposal.affectedWorkOrderIds,
+        approvedBy: req.user._id,
+        approvedByName: req.user.name || req.user.email || "Administrator",
+        approvedAt: now,
+        customerNotification: { requested: proposal.request.notifyCustomer, status: proposal.request.notifyCustomer ? "pending" : "not_requested" },
+      });
+      await lockedProject.save({ session });
+      const entry = lockedProject.scheduleGovernance.history[lockedProject.scheduleGovernance.history.length - 1];
+      historyId = entry._id;
+      revisionSnapshot = entry.toObject ? entry.toObject() : entry;
+    });
+
+    const refreshedProject = await Project.findById(project._id);
+    let customerNotification = { status: "not_requested", inAppSent: false, emailSent: false };
+    if (refreshedProject && revisionSnapshot) customerNotification = await notifyCustomerOfRecovery(refreshedProject, revisionSnapshot, req);
+    if (historyId) {
+      const notificationSet = {
+        "scheduleGovernance.history.$.customerNotification.status": customerNotification.status,
+        "scheduleGovernance.history.$.customerNotification.inAppSent": Boolean(customerNotification.inAppSent),
+        "scheduleGovernance.history.$.customerNotification.emailSent": Boolean(customerNotification.emailSent),
+        "scheduleGovernance.history.$.customerNotification.sentAt": customerNotification.sentAt || null,
+        "scheduleGovernance.history.$.customerNotification.error": customerNotification.error || "",
+      };
+      if (["sent", "partial"].includes(customerNotification.status)) notificationSet.lastCustomerNotifiedAt = customerNotification.sentAt || new Date();
+      await Project.updateOne({ _id: project._id, "scheduleGovernance.history._id": historyId }, { $set: notificationSet });
+    }
+    await audit.logEvent({
+      actor: req.user._id,
+      actorRole: req.user.role,
+      target: project._id,
+      action: proposal.request.mode === "extend" ? "project.schedule_extension.approved" : "project.schedule_recovery.approved",
+      module: "projects",
+      req,
+      details: {
+        revisionNumber: revisionSnapshot?.revisionNumber,
+        originalBaselineCompletionDate: proposal.request.originalBaselineCompletionDate,
+        previousApprovedCompletionDate: proposal.request.previousApprovedCompletionDate,
+        revisedApprovedCompletionDate: proposal.request.revisedCompletionDate,
+        forecastAfter: proposal.result.estimatedEndDate,
+        affectedWorkOrders: proposal.affectedWorkOrderIds,
+        customerNotification,
+      },
+    }).catch(() => {});
+    return res.json({
+      success: true,
+      message: proposal.request.mode === "extend" ? "Schedule extension approved and future work rescheduled." : "Recovery schedule approved without changing the committed completion date.",
+      revisionNumber: revisionSnapshot?.revisionNumber,
+      forecastAfter: proposal.result.estimatedEndDate,
+      approvedCompletionDate: proposal.request.revisedCompletionDate,
+      affectedWorkOrders: proposal.affectedWorkOrderIds.length,
+      customerNotification,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "Failed to approve the recovery plan." });
+  } finally {
+    if (session) await session.endSession().catch(() => {});
+  }
 });
 
 router.get("/projects/:id/schedule-plan", auth.requireRole(["admin", "secretary"]), async (req,res)=>{
@@ -1927,7 +2657,7 @@ router.post("/projects/:id/work-orders", auth.requireRole(["admin", "secretary"]
   }
 });
 
-router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technician"]), async (req, res) => {
+router.put("/work-orders/:id", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1936,11 +2666,7 @@ router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technici
 
     const existing = await WorkOrder.findById(id);
     if (!existing) return res.status(404).json({ error: "Work order not found" });
-    const isPlanner = ["admin", "secretary"].includes(req.user.role);
     const structuralFields = ["title", "description", "section", "location", "serviceType", "serviceName", "workflowType", "units", "unitCount", "estimatedHours", "assignedTechnicians", "suggestedTechnicians", "dependencies", "priority"];
-    if (!isPlanner && structuralFields.some(field => req.body[field] !== undefined)) {
-      return res.status(403).json({ error: "Only project planners can change work-order scope." });
-    }
     if (existing.planningStatus === "released" && structuralFields.some(field => req.body[field] !== undefined)) {
       return res.status(409).json({ error: "Released work-order scope cannot be destructively edited. Cancel or create a follow-up work order." });
     }
@@ -1967,7 +2693,7 @@ router.put("/work-orders/:id", auth.requireRole(["admin", "secretary", "technici
     const workOrder = await WorkOrder.findByIdAndUpdate(id, {
       $set: updateData,
       $push: { activity: { action: "work_order_edited", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, reason: req.body.changeReason || "", details: { fields: changedFields } } },
-    }, { new: true });
+    }, { returnDocument: "after" });
     if (!workOrder) {
       return res.status(404).json({ error: "Work order not found" });
     }
@@ -2082,10 +2808,18 @@ router.post("/work-orders/:id/daily-complete", auth.authenticate, auth.requireRo
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid work order id" });
     const tech = await Technician.findOne({ user: req.user._id }).lean();
     if (!tech) return res.status(404).json({ error: "Technician profile not found" });
+    const workOrder = await WorkOrder.findById(id).select("projectId").lean();
+    if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+    const project = await Project.findById(workOrder.projectId).select("isLargeScale").lean();
+    if (project?.isLargeScale) {
+      return res.status(409).json({
+        error: "Large-scale progress requires a proof photo and consumable declaration per submission.",
+        code: "PROJECT_WORK_SUBMISSION_REQUIRED",
+      });
+    }
     const result = await completeDay(id, tech._id, date || new Date(), completedUnits);
     if (result.behindSchedule) {
       // Notify admin that the project risks falling behind.
-      const project = await Project.findById(result.workOrder.projectId).lean().catch(() => null);
       await createNotification({
         type: "project_risk",
         title: "Project schedule risk",
@@ -2460,6 +3194,20 @@ async function resolveTechnicianId(user) {
   return tech ? tech._id : null;
 }
 
+async function requireTechnicianProjectMember(user, projectId) {
+  const technician = await Technician.findOne({ user: user._id }).select("_id name user").lean();
+  if (!technician) throw Object.assign(new Error("Technician profile not found"), { status: 404 });
+  const project = await Project.findOne({
+    _id: projectId,
+    $or: [
+      { "assignedTechnicians._id": technician._id },
+      { leadTechnicianId: technician._id },
+    ],
+  }).select("_id customer service leadTechnicianId assignedTechnicians").lean();
+  if (!project) throw Object.assign(new Error("You are not assigned to this project"), { status: 403 });
+  return { technician, project };
+}
+
 // Lead technician (or admin) assigns a reserved equipment item to a technician.
 router.put("/projects/:id/materials/:mid/assign", auth.authenticate, auth.requireRole(["admin", "secretary", "technician"]), async (req, res) => {
   try {
@@ -2492,7 +3240,7 @@ router.put("/projects/:id/materials/:mid/assign", auth.authenticate, auth.requir
     const material = await ProjectMaterial.findOneAndUpdate(
       { _id: mid, projectId: id },
       { assignedToTechnicianId: technicianId, assignedBy: req.user._id, assignedAt: new Date(), scope: "assigned" },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!material) return res.status(404).json({ error: "Resource not found" });
 
@@ -2557,19 +3305,23 @@ if (!fs.existsSync(paymentProofUploadDir)) fs.mkdirSync(paymentProofUploadDir, {
 const paymentProofUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, paymentProofUploadDir),
-    filename: (req, file, cb) => cb(null, "payproof-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
+    filename: (req, file, cb) => cb(null, "payproof-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + imageExtensionFor(file)),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype));
-  },
+  fileFilter: (req, file, cb) => cb(null, isAllowedImage(file)),
 }).single("proofPhoto");
 
 router.post("/projects/:id/upload-payment-proof", auth.authenticate, auth.requireRole(["admin", "secretary", "technician"]), (req, res) => {
-  paymentProofUpload(req, res, (err) => {
+  paymentProofUpload(req, res, async (err) => {
     if (err) return res.status(400).json({ error: "Upload failed: " + err.message });
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (req.user.role === "technician") {
+      const ctx = await requireProjectLead(req, res);
+      if (!ctx) {
+        fs.unlink(req.file.path, () => {});
+        return;
+      }
+    }
     res.json({ url: "/uploads/project-payment-proofs/" + req.file.filename });
   });
 });
@@ -2582,13 +3334,10 @@ if (!fs.existsSync(completionProofUploadDir)) fs.mkdirSync(completionProofUpload
 const completionProofUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, completionProofUploadDir),
-    filename: (req, file, cb) => cb(null, "comproof-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
+    filename: (req, file, cb) => cb(null, "comproof-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + imageExtensionFor(file)),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype));
-  },
+  fileFilter: (req, file, cb) => cb(null, isAllowedImage(file)),
 }).single("completionPhoto");
 
 router.post("/projects/:id/upload-completion-proof", auth.authenticate, auth.requireRole("technician"), (req, res) => {
@@ -2597,9 +3346,22 @@ router.post("/projects/:id/upload-completion-proof", auth.authenticate, auth.req
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const url = "/uploads/project-completion-proofs/" + req.file.filename;
     try {
+      const ctx = await requireProjectLead(req, res);
+      if (!ctx) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return;
+      }
+      const readiness = await getProjectCompletionReadiness(ctx.project);
+      if (!readiness.workOrdersComplete || !readiness.evidenceComplete) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(409).json({ error: "Finish lead review of every proof-backed work order before uploading final completion evidence." });
+      }
       await Project.findByIdAndUpdate(req.params.id, { "payment.completionProofUrl": url });
-    } catch (e) { /* best-effort */ }
-    res.json({ url });
+      return res.json({ url });
+    } catch (error) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(500).json({ error: "Failed to save completion proof" });
+    }
   });
 });
 
@@ -2798,6 +3560,12 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
           isScheduledToday: woDa.length > 0 || Boolean(legacyScheduledToday),
           completionPct: woPct,
           assignedTechnicians: (project.assignedTechnicians || []).map(at => ({ _id: at._id, name: at.name || 'Technician' })),
+          checklist: (wo.checklist || []).map(ci => ({
+            label: ci.label || '',
+            completed: !!ci.completed,
+            completedAt: ci.completedAt || null,
+            completedBy: ci.completedBy || null,
+          })),
           units: (wo.units || []).map(unit => ({
             unitKey: unit.unitKey, label: unit.label || unit.unitKey,
             applianceType: unit.applianceType || '', brand: unit.brand || '', model: unit.model || '',
@@ -2819,10 +3587,16 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
       let equipment = [];
       let issues = [];
       let materialRequests = [];
+      let workSubmissions = [];
       try {
         equipment = await ProjectMaterial.find({ projectId: project._id }).lean();
         issues = await ProjectIssue.find({ projectId: project._id, status: { $ne: "resolved" } }).lean();
         materialRequests = await ProjectIssue.find({ projectId: project._id, category: "inventory", status: { $ne: "resolved" } }).lean();
+        workSubmissions = await ProjectWorkSubmission.find({ projectId: project._id })
+          .populate("technicianId", "name")
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .lean();
       } catch (_) {}
 
       // Crew-wide phase (drives the lead's single mobilize flow) + team gate.
@@ -2876,6 +3650,7 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
         equipment,
         issues,
         materialRequests,
+        workSubmissions,
         phase,
         allAccepted,
         dailyAcceptance: project.dailyAcceptance || null,
@@ -2993,10 +3768,7 @@ router.post("/projects/:id/lead-accept", auth.authenticate, auth.requireRole("te
     // Starting the project only releases those records; it must never generate
     // a second schedule or redistribute units.
     await reconcileCommittedSchedule(project).catch(error => console.warn("Committed schedule reconciliation skipped:", error.message));
-    await WorkOrder.updateMany(
-      { projectId: project._id, status: "pending" },
-      { $set: { status: "assigned" } }
-    );
+    await releaseUnblockedWorkOrders(project._id);
 
     // Notify all assigned members (except the lead) to accept / decline.
     const io = req.app.get("io");
@@ -3303,14 +4075,37 @@ router.put("/work-orders/:id/checklist", auth.authenticate, auth.requireRole("te
       return res.status(404).json({ error: "Work order not found" });
     }
 
+    // ── Membership guard ───────────────────────────────────────────────────
+    // Previously ANY technician could rewrite ANY work order's checklist.
+    // Restrict to this WO's crew, the project team, or the project lead.
     const techUser = req.user;
     const technician = await Technician.findOne({ user: techUser._id }).lean();
+    const techIdStr = String(technician?._id || "");
+    const project = await Project.findById(workOrder.projectId)
+      .select("assignedTechnicians leadTechnicianId")
+      .lean();
+    const woCrewIds = (workOrder.assignedTechnicians || []).map((t) =>
+      String(typeof t === "object" && t !== null ? (t._id || t) : t),
+    );
+    const teamIds = (project?.assignedTechnicians || []).map((t) =>
+      String(typeof t === "object" && t !== null ? (t._id || t) : t),
+    );
+    const isLead = project && String(project.leadTechnicianId || "") === techIdStr;
+    if (!technician || (!woCrewIds.includes(techIdStr) && !teamIds.includes(techIdStr) && !isLead)) {
+      return res.status(403).json({ error: "You are not part of this project's crew." });
+    }
 
-    workOrder.checklist = checklist.map((item) => ({
-      ...item,
-      completedAt: item.completed ? (item.completedAt || new Date()) : null,
-      completedBy: item.completed ? (item.completedBy || technician?.name || techUser.name) : null,
-    }));
+    // Sanitize to the WorkOrder.checklist subdoc contract ({label,completed})
+    // and cap size so a bad client can't bloat the document.
+    workOrder.checklist = checklist
+      .slice(0, 50)
+      .map((item) => ({
+        label: String(item?.label ?? item?.text ?? "").trim().slice(0, 300),
+        completed: !!item?.completed,
+        completedAt: item?.completed ? (item.completedAt || new Date()) : null,
+        completedBy: item?.completed ? (item.completedBy || technician.name || techUser.name) : null,
+      }))
+      .filter((item) => item.label);
 
     await workOrder.save();
 
@@ -3389,6 +4184,13 @@ router.put("/work-orders/:id/progress", auth.authenticate, auth.requireRole("tec
     if (!workOrder) {
       return res.status(404).json({ error: "Work order not found" });
     }
+    const project = await Project.findById(workOrder.projectId).select("isLargeScale").lean();
+    if (project?.isLargeScale) {
+      return res.status(409).json({
+        error: "Large-scale progress requires a proof photo and consumable declaration per submission.",
+        code: "PROJECT_WORK_SUBMISSION_REQUIRED",
+      });
+    }
 
     if (completedUnitCount !== undefined) {
       workOrder.completedUnitCount = Math.min(completedUnitCount, workOrder.unitCount);
@@ -3429,6 +4231,262 @@ router.put("/work-orders/:id/progress", auth.authenticate, auth.requireRole("tec
 });
 
 // ── Work Order field lifecycle (En Route / Arrived / Start) ─────────────────
+// Consumables available to the calling technician for the next project work
+// submission. Only physically issued stock can be reported as used.
+router.get("/projects/:id/submission-consumables", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician profile not found" });
+    const project = await Project.findById(req.params.id).select("isLargeScale assignedTechnicians").lean();
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (!project.isLargeScale) return res.status(409).json({ error: "Work submissions are only available for large-scale projects." });
+    const isCrewMember = (project.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
+    if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
+
+    const assignments = await EquipmentAssignment.find({
+      projectId: project._id,
+      technicianId: technician._id,
+      consumable: true,
+      status: { $in: ["checked_out", "in_use"] },
+    }).populate("equipmentId", "itemName unit").sort({ workDate: 1, equipmentName: 1 }).lean();
+    const consumables = assignments.map(item => ({
+      assignmentId: item._id,
+      toolId: item.equipmentId?._id || item.equipmentId,
+      itemName: item.equipmentName || item.equipmentId?.itemName || "Consumable",
+      unit: item.equipmentId?.unit || "pcs",
+      quantityIssued: Number(item.quantity || 0),
+      quantityUsed: Number(item.consumableUsed || 0),
+      quantityRemaining: Math.max(0, Number(item.quantity || 0) - Number(item.consumableUsed || 0)),
+      workDate: item.workDate,
+    })).filter(item => item.quantityRemaining > 0);
+    res.json({ consumables });
+  } catch (error) {
+    console.error("Failed to load submission consumables:", error);
+    res.status(500).json({ error: "Failed to load issued consumables" });
+  }
+});
+
+// One immutable evidence record covers one technician action, even when the
+// completed units span several work orders. Unit progress, inventory usage and
+// the submission ledger commit together in a MongoDB transaction.
+router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRole("technician"), (req, res) => {
+  workSubmissionUpload(req, res, async (uploadError) => {
+    let committed = false;
+    let session;
+    try {
+      if (uploadError) return res.status(400).json({ error: `Proof upload failed: ${uploadError.message}` });
+      if (!req.file) return res.status(400).json({ error: "A JPEG, PNG or WebP proof photo is required for every submission." });
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) throw Object.assign(new Error("Invalid project id"), { status: 400 });
+
+      const payload = normalizeProjectWorkSubmission(req.body);
+      if (payload.workOrders.some(row => !mongoose.Types.ObjectId.isValid(row.workOrderId))
+        || payload.consumables.some(row => !mongoose.Types.ObjectId.isValid(row.assignmentId))) {
+        throw Object.assign(new Error("The submission contains an invalid record id."), { status: 400 });
+      }
+      const technician = await Technician.findOne({ user: req.user._id }).lean();
+      if (!technician) throw Object.assign(new Error("Technician profile not found"), { status: 404 });
+
+      const duplicate = await ProjectWorkSubmission.findOne({
+        projectId: req.params.id,
+        technicianId: technician._id,
+        clientSubmissionId: payload.clientSubmissionId,
+      }).lean();
+      if (duplicate) {
+        await removeSubmissionUpload(req.file);
+        return res.json({ submission: duplicate, duplicate: true, message: "This work submission was already recorded." });
+      }
+
+      const proofUrl = `/uploads/project-work-submissions/${req.file.filename}`;
+      let createdSubmission;
+      let committedLines = [];
+      session = await mongoose.startSession();
+      await session.withTransaction(async () => {
+        const project = await Project.findById(req.params.id).session(session);
+        if (!project) throw Object.assign(new Error("Project not found"), { status: 404 });
+        if (!project.isLargeScale) throw Object.assign(new Error("Work submissions are only available for large-scale projects."), { status: 409 });
+        if (!(project.assignedTechnicians || []).some(member => String(member._id) === String(technician._id))) {
+          throw Object.assign(new Error("You are not on this project team."), { status: 403 });
+        }
+        if (project.status !== "in_progress") {
+          throw Object.assign(new Error("The project must be active before work can be submitted."), { status: 409 });
+        }
+        if (project.projectPhase && project.projectPhase !== "execution") {
+          throw Object.assign(new Error("Work completion is locked until assessment and quotation review are finished."), { status: 409 });
+        }
+
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const todayRows = await DailyAssignment.find({
+          projectId: project._id,
+          date: { $gte: dayStart, $lt: dayEnd },
+          planningOnly: false,
+          status: { $ne: "skipped" },
+        }).select("workOrderId").session(session).lean();
+        const todayWorkOrderIds = [...new Set(todayRows.map(row => String(row.workOrderId)))];
+        const startedToday = todayWorkOrderIds.length
+          ? await WorkOrder.countDocuments({
+              _id: { $in: todayWorkOrderIds },
+              projectId: project._id,
+              status: { $in: ["in_progress", "partially_completed", "awaiting_review"] },
+            }).session(session)
+          : 0;
+        if (!startedToday) throw Object.assign(new Error("The team lead must start today's project work before units can be submitted."), { status: 409 });
+
+        const requestedIds = payload.workOrders.map(row => row.workOrderId);
+        const workOrders = await WorkOrder.find({ _id: { $in: requestedIds }, projectId: project._id }).session(session);
+        if (workOrders.length !== requestedIds.length) {
+          throw Object.assign(new Error("One or more work orders do not belong to this project."), { status: 400 });
+        }
+        const byWorkOrderId = new Map(workOrders.map(order => [String(order._id), order]));
+        const now = new Date();
+        committedLines = payload.workOrders.map(line => {
+          const workOrder = byWorkOrderId.get(line.workOrderId);
+          if (workOrder.planningStatus !== "released") {
+            throw Object.assign(new Error(`${workOrder.workOrderNumber || workOrder.title || "Work order"} has not been released for execution.`), { status: 409 });
+          }
+          if (!["assigned", "accepted", "en_route", "arrived", "in_progress", "partially_completed"].includes(workOrder.status)) {
+            throw Object.assign(new Error(`${workOrder.workOrderNumber || workOrder.title || "Work order"} is not open for unit submission.`), { status: 409 });
+          }
+          const available = (workOrder.units || []).filter(unit => !["completed", "cancelled"].includes(unit.status));
+          if (line.completedUnits > available.length) {
+            throw Object.assign(new Error(`Only ${available.length} tracked unit(s) remain on ${workOrder.workOrderNumber || workOrder.title || "this work order"}.`), { status: 409 });
+          }
+          return { line, workOrder, selected: available.slice(0, line.completedUnits), now };
+        });
+
+        const consumableRecords = [];
+        if (payload.consumables.length) {
+          const assignmentIds = payload.consumables.map(row => row.assignmentId);
+          const assignments = await EquipmentAssignment.find({
+            _id: { $in: assignmentIds },
+            projectId: project._id,
+            technicianId: technician._id,
+            consumable: true,
+            status: { $in: ["checked_out", "in_use"] },
+          }).session(session);
+          if (assignments.length !== assignmentIds.length) {
+            throw Object.assign(new Error("One or more consumables were not issued to you for this project."), { status: 400 });
+          }
+          const byAssignmentId = new Map(assignments.map(item => [String(item._id), item]));
+          for (const line of payload.consumables) {
+            const assignment = byAssignmentId.get(line.assignmentId);
+            const issued = Number(assignment.quantity || 0);
+            const usedBefore = Number(assignment.consumableUsed || 0);
+            const remaining = Math.max(0, issued - usedBefore);
+            if (line.quantityUsed > remaining) {
+              throw Object.assign(new Error(`${assignment.equipmentName}: only ${remaining} of ${issued} issued remain unreported.`), { status: 409 });
+            }
+            const tool = await Tool.findById(assignment.equipmentId).session(session);
+            if (!tool) throw Object.assign(new Error(`${assignment.equipmentName} is no longer linked to inventory.`), { status: 409 });
+            if (Number(tool.quantity || 0) < line.quantityUsed) {
+              throw Object.assign(new Error(`${assignment.equipmentName}: inventory has only ${Number(tool.quantity || 0)} remaining.`), { status: 409 });
+            }
+
+            const quantityBefore = Number(tool.quantity || 0);
+            tool.quantity = quantityBefore - line.quantityUsed;
+            tool.reservedQuantity = Math.max(0, Number(tool.reservedQuantity || 0) - line.quantityUsed);
+            await tool.save({ session });
+            const cumulativeQuantityUsed = usedBefore + line.quantityUsed;
+            assignment.consumableUsed = cumulativeQuantityUsed;
+            assignment.status = cumulativeQuantityUsed >= issued ? "consumed" : "in_use";
+            await assignment.save({ session });
+            await StockAdjustment.create([{
+              toolId: tool._id,
+              type: "job_usage",
+              quantityBefore,
+              quantityAfter: Number(tool.quantity),
+              delta: -line.quantityUsed,
+              notes: `Large-scale project work submission for ${project._id}`,
+              referenceId: project.bookingId || undefined,
+              adjustedBy: req.user._id,
+            }], { session });
+            consumableRecords.push({
+              equipmentAssignmentId: assignment._id,
+              toolId: tool._id,
+              itemName: assignment.equipmentName || tool.itemName,
+              unit: tool.unit || "pcs",
+              quantityUsed: line.quantityUsed,
+              quantityIssued: issued,
+              cumulativeQuantityUsed,
+            });
+          }
+        }
+
+        [createdSubmission] = await ProjectWorkSubmission.create([{
+          projectId: project._id,
+          technicianId: technician._id,
+          submittedByUserId: req.user._id,
+          clientSubmissionId: payload.clientSubmissionId,
+          notes: payload.notes,
+          proof: { url: proofUrl, originalName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size },
+          workOrders: committedLines.map(({ line, workOrder, selected }) => ({
+            workOrderId: workOrder._id,
+            workOrderNumber: workOrder.workOrderNumber,
+            title: workOrder.title || workOrder.section,
+            completedUnits: line.completedUnits,
+            unitKeys: selected.map(unit => unit.unitKey),
+          })),
+          consumablesDeclaredNone: payload.consumablesDeclaredNone,
+          consumables: consumableRecords,
+        }], { session });
+
+        for (const { line, workOrder, selected } of committedLines) {
+          selected.forEach(unit => {
+            unit.status = "completed";
+            unit.completedAt = now;
+            unit.completedBy = technician._id;
+            if (payload.notes) unit.notes = payload.notes;
+          });
+          workOrder.completedUnitCount = (workOrder.units || []).filter(unit => unit.status === "completed").length;
+          const executableTotal = (workOrder.units || []).filter(unit => unit.status !== "cancelled").length;
+          workOrder.status = workOrder.completedUnitCount >= executableTotal ? "awaiting_review" : "partially_completed";
+          workOrder.actualCompletionDate = null;
+          workOrder.activity.push({
+            action: "units_submitted_with_evidence",
+            actorId: req.user._id,
+            actorName: technician.name || req.user.name || "Technician",
+            details: {
+              submissionId: createdSubmission._id,
+              completedUnits: line.completedUnits,
+              unitKeys: selected.map(unit => unit.unitKey),
+              proofUrl,
+              consumables: consumableRecords.map(item => ({ itemName: item.itemName, quantityUsed: item.quantityUsed, unit: item.unit })),
+              notes: payload.notes,
+            },
+            timestamp: now,
+          });
+          await workOrder.save({ session });
+        }
+      });
+      committed = true;
+
+      for (const { line, workOrder } of committedLines) {
+        const day = new Date(); day.setHours(0, 0, 0, 0);
+        await DailyAssignment.findOneAndUpdate(
+          { projectId: req.params.id, workOrderId: workOrder._id, technicianId: technician._id, date: day },
+          { $inc: { completedUnits: line.completedUnits }, $set: { planningOnly: false }, $setOnInsert: { targetUnits: 0, generatedBy: "system" } },
+          { upsert: true, returnDocument: "after", runValidators: true },
+        ).catch(error => console.warn("Submission daily summary refresh skipped:", error.message));
+        await rebalanceFutureUnitTargets(workOrder).catch(error => console.warn("Future target reconciliation skipped:", error.message));
+      }
+      await updateProjectProgress(req.params.id).catch(error => console.warn("Project progress refresh skipped:", error.message));
+      return res.status(201).json({
+        submission: createdSubmission,
+        completedUnits: committedLines.reduce((sum, item) => sum + item.line.completedUnits, 0),
+        message: "Work, proof and consumable usage submitted successfully.",
+      });
+    } catch (error) {
+      if (!committed) await removeSubmissionUpload(req.file);
+      if (error?.code === 11000) return res.status(409).json({ error: "This submission id has already been used. Refresh and try again." });
+      console.error("Failed to create project work submission:", error);
+      return res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to submit project work" });
+    } finally {
+      if (session) await session.endSession().catch(() => {});
+    }
+  });
+});
+
 router.post("/work-orders/:id/submit-units", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -3446,7 +4504,13 @@ router.post("/work-orders/:id/submit-units", auth.authenticate, auth.requireRole
     for (let attempt = 0; attempt < 3 && !updatedWorkOrder; attempt += 1) {
       const workOrder = await WorkOrder.findById(req.params.id).lean();
       if (!workOrder) return res.status(404).json({ error: "Work order not found" });
-      const project = await Project.findById(workOrder.projectId).select("assignedTechnicians status projectPhase").lean();
+      const project = await Project.findById(workOrder.projectId).select("assignedTechnicians status projectPhase isLargeScale").lean();
+      if (project?.isLargeScale) {
+        return res.status(409).json({
+          error: "Large-scale progress requires a proof photo and consumable declaration per submission.",
+          code: "PROJECT_WORK_SUBMISSION_REQUIRED",
+        });
+      }
       const isCrewMember = (project?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
       if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
       if (!["assigned", "accepted", "en_route", "arrived", "in_progress", "partially_completed"].includes(workOrder.status)) {
@@ -3496,7 +4560,7 @@ router.post("/work-orders/:id/submit-units", auth.authenticate, auth.requireRole
             timestamp: now,
           } },
         },
-        { new: true, runValidators: true }
+        { returnDocument: "after", runValidators: true }
       );
       if (updatedWorkOrder) completedUnits = selected.map(({ unit }) => unit.label || unit.unitKey);
     }
@@ -3517,7 +4581,7 @@ router.post("/work-orders/:id/submit-units", auth.authenticate, auth.requireRole
           $set: { planningOnly: false },
           $setOnInsert: { targetUnits: 0, generatedBy: "system" },
         },
-        { upsert: true, new: true, runValidators: true }
+        { upsert: true, returnDocument: "after", runValidators: true }
       );
       daily.status = Number(daily.completedUnits || 0) >= Number(daily.targetUnits || 0) ? "completed" : "in_progress";
       daily.completedAt = daily.status === "completed" ? new Date() : null;
@@ -3540,7 +4604,7 @@ router.put("/work-orders/:id/units/:unitKey", auth.authenticate, auth.requireRol
     if (!workOrder) return res.status(404).json({ error: "Work order not found" });
     if (workOrder.planningStatus !== "released") return res.status(409).json({ error: "Draft units cannot be executed." });
     const technician = await Technician.findOne({ user: req.user._id }).lean();
-    const project = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId").lean();
+    const project = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId isLargeScale").lean();
     const isCrewMember = technician && (project?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
     if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
     if (!["in_progress", "partially_completed", "awaiting_review"].includes(workOrder.status)) {
@@ -3553,6 +4617,12 @@ router.put("/work-orders/:id/units/:unitKey", auth.authenticate, auth.requireRol
     const unit = workOrder.units.find(row => row.unitKey === req.params.unitKey);
     if (!unit) return res.status(404).json({ error: "Tracked unit not found" });
     const nextStatus = ["pending", "in_progress", "completed", "on_hold"].includes(req.body.status) ? req.body.status : "completed";
+    if (project.isLargeScale && (nextStatus === "completed" || unit.status === "completed")) {
+      return res.status(409).json({
+        error: "Large-scale unit completion must be recorded with proof and a consumable declaration.",
+        code: "PROJECT_WORK_SUBMISSION_REQUIRED",
+      });
+    }
     const wasCompleted = unit.status === "completed";
     unit.status = nextStatus; unit.notes = String(req.body.notes || unit.notes || "").slice(0, 1000);
     if (nextStatus === "completed") { unit.completedAt = new Date(); unit.completedBy = technician._id; }
@@ -3607,6 +4677,24 @@ router.post("/work-orders/:id/submit", auth.authenticate, auth.requireRole("tech
       : Number(workOrder.completedUnitCount || 0);
     if (incomplete.length || completed < Number(workOrder.unitCount || 0)) {
       return res.status(409).json({ error: `${incomplete.length || Math.max(0, Number(workOrder.unitCount || 0) - completed)} unit(s) still need completion.` });
+    }
+    if (project.isLargeScale) {
+      const evidence = await ProjectWorkSubmission.find({
+        projectId: project._id,
+        "workOrders.workOrderId": workOrder._id,
+      }).select("workOrders").lean();
+      const evidencedUnitKeys = new Set(evidence.flatMap(submission =>
+        (submission.workOrders || [])
+          .filter(line => String(line.workOrderId) === String(workOrder._id))
+          .flatMap(line => line.unitKeys || [])
+      ));
+      const missingEvidence = trackedUnits.filter(unit => unit.status === "completed" && !evidencedUnitKeys.has(unit.unitKey));
+      if (missingEvidence.length) {
+        return res.status(409).json({
+          error: `${missingEvidence.length} completed unit(s) do not have a proof-backed work submission.`,
+          code: "PROJECT_WORK_SUBMISSION_REQUIRED",
+        });
+      }
     }
     workOrder.completedUnitCount = workOrder.unitCount;
     workOrder.status = "completed";
@@ -3717,7 +4805,11 @@ router.put("/work-orders/:id/start", auth.authenticate, auth.requireRole("techni
 function deriveProjectPhase(workOrders, project) {
   // Large-scale project phase gates (assessment → quotation_review → execution)
   if (project && project.isLargeScale && project.projectPhase) {
-    if (project.projectPhase === "assessment") return "assessment";
+    if (project.projectPhase === "assessment") {
+      if (project.assessmentVisit?.status === "en_route") return "assessment_en_route";
+      if (["arrived", "completed"].includes(project.assessmentVisit?.status)) return "assessment_arrived";
+      return "assessment";
+    }
     if (project.projectPhase === "quotation_review") return "quotation_review";
     // execution phase: fall through to work-order-based phase logic
     if (project.projectPhase === "execution") {
@@ -3726,7 +4818,7 @@ function deriveProjectPhase(workOrders, project) {
         return "daily_acceptance";
       }
       const active = (workOrders || []).filter((w) => w.status !== "completed" && w.status !== "cancelled" && w.status !== "declined");
-      if (active.length === 0) return "execution";
+      if (active.length === 0) return "completed";
       const statuses = active.map((w) => w.status);
       if (statuses.some((s) => ["partially_completed", "awaiting_review"].includes(s))) return "in_progress";
       if (statuses.every((s) => s === "in_progress")) return "in_progress";
@@ -3851,6 +4943,19 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     const { project } = ctx;
     if (!project.leadAcceptedAt) return res.status(400).json({ error: "Accept the project first" });
     if (!teamAllAccepted(project)) return res.status(400).json({ error: "Waiting for all team members to accept" });
+    if (project.isLargeScale && project.projectPhase === "assessment") {
+      if (!["pending", undefined].includes(project.assessmentVisit?.status)) {
+        return res.status(409).json({ error: "The assessment visit is already in progress." });
+      }
+      project.assessmentVisit = {
+        status: "en_route",
+        enRouteAt: new Date(),
+        technicianId: ctx.tech._id,
+      };
+      await project.save();
+      emitProjectPhase(req, project, "assessment_en_route");
+      return res.json({ phase: "assessment_en_route", message: "Lead technician is en route for site assessment" });
+    }
     // Large-scale: team cannot mobilize for repair work until quotation is approved
     if (project.isLargeScale && project.projectPhase !== "execution") {
       if (project.projectPhase === "assessment") return res.status(400).json({ error: "Site inspection must be completed and quotation approved before the team can mobilize for repair work", phase: "assessment" });
@@ -3876,6 +4981,17 @@ router.put("/projects/:id/mobilize/arrived", auth.authenticate, auth.requireRole
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
+    if (project.isLargeScale && project.projectPhase === "assessment") {
+      if (project.assessmentVisit?.status !== "en_route") {
+        return res.status(409).json({ error: "Mark the assessment visit en route before recording arrival." });
+      }
+      project.assessmentVisit.status = "arrived";
+      project.assessmentVisit.arrivedAt = new Date();
+      project.assessmentVisit.technicianId = ctx.tech._id;
+      await project.save();
+      emitProjectPhase(req, project, "assessment_arrived");
+      return res.json({ phase: "assessment_arrived", message: "Lead technician arrived for site assessment" });
+    }
     const wos = await scheduledWorkOrdersForDay(project._id, ["en_route", "accepted"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must be en route first" });
     for (const w of wos) { w.status = "arrived"; w.arrivedAt = new Date(); await w.save(); }
@@ -4225,18 +5341,28 @@ async function buildProjectPaymentSummary(project) {
 
 // Customer collection must use a price the customer actually saw or approved.
 // Crew size and elapsed workdays are operational metrics, not billable inputs.
-async function buildAuthoritativeProjectPaymentSummary(project) {
+async function buildAuthoritativeProjectPaymentSummary(project, session = null) {
   const moneyValue = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   };
+  const workOrderQuery = WorkOrder.find({ projectId: project._id });
+  const dailyQuery = DailyAssignment.find({ projectId: project._id, completedUnits: { $gt: 0 } });
+  const bookingQuery = project.bookingId ? BookingService.findById(project.bookingId) : null;
+  if (session) {
+    workOrderQuery.session(session);
+    dailyQuery.session(session);
+    if (bookingQuery) bookingQuery.session(session);
+  }
   const [workOrders, dailyRows, booking] = await Promise.all([
-    WorkOrder.find({ projectId: project._id }).lean(),
-    DailyAssignment.find({ projectId: project._id, completedUnits: { $gt: 0 } }).lean().catch(() => []),
-    project.bookingId ? BookingService.findById(project.bookingId).lean().catch(() => null) : null,
+    workOrderQuery.lean(),
+    dailyQuery.lean(),
+    bookingQuery ? bookingQuery.lean() : null,
   ]);
   const pricing = calculateProjectCustomerPricing({ project, booking, workOrders, dailyRows });
   const projectCrewSize = Math.max(1, (project.assignedTechnicians || []).length);
+  const activeWorkOrders = workOrders.filter(order => order.status !== "cancelled");
+  const allSubmitted = activeWorkOrders.length > 0 && activeWorkOrders.every(order => order.status === "completed");
   return {
     ...pricing,
     crewSize: projectCrewSize,
@@ -4245,6 +5371,7 @@ async function buildAuthoritativeProjectPaymentSummary(project) {
       ? "Locked to the approved unit pricing and actual productive site visits."
       : "No approved customer price is stored. An admin must set the project total before payment can be collected.",
     allDone: pricing.totalUnits > 0 && pricing.completedUnits >= pricing.totalUnits,
+    allSubmitted,
     customerName: project.customer?.name || project.service?.name || "Customer",
   };
 
@@ -4350,12 +5477,21 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
+    const b = req.body || {};
+    const clientSubmissionId = String(b.clientSubmissionId || "").trim();
+    if (!clientSubmissionId || clientSubmissionId.length > 100) {
+      return res.status(400).json({ error: "A valid client submission id is required." });
+    }
+    const existingPayment = await Payment.findOne({ projectId: project._id, clientSubmissionId }).lean();
+    if (existingPayment) {
+      return res.json({ message: "Payment was already recorded", replayed: true, payment: existingPayment });
+    }
     const summary = await buildAuthoritativeProjectPaymentSummary(project);
     if (!summary.allDone) return res.status(400).json({ error: "All units must be completed before collecting payment" });
+    if (!summary.allSubmitted) return res.status(409).json({ error: "The lead must review and submit every completed work order before collecting payment." });
     if (!summary.pricingReady) return res.status(409).json({ error: summary.pricingMessage });
     if (summary.balance <= 0) return res.status(409).json({ error: "This project has no outstanding balance." });
 
-    const b = req.body || {};
     const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : d; };
     const daysWorked = summary.daysWorked;
     const crewSize = summary.crewSize;
@@ -4382,6 +5518,10 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
 
     const amountPaid = summary.alreadyPaid + amount;
     const balanceAmount = Math.max(0, total - amountPaid);
+    const paymentSession = await mongoose.startSession();
+    try {
+      await paymentSession.withTransaction(async () => {
+    project.$session(paymentSession);
     project.payment = {
       ...(project.payment || {}),
       totalAmount: total,
@@ -4413,18 +5553,19 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
         balanceCollected: balanceAmount <= 0,
         balanceCollectedAt: balanceAmount <= 0 ? new Date() : null,
         balanceCollectedBy: ctx.tech._id,
-      }).catch(() => {});
+      }, { session: paymentSession });
     }
 
     // ── Cascade: create standalone Payment record ──
     if (amount > 0) {
-      await Payment.create({
+      await Payment.create([{
         bookingId: project.bookingId || undefined,
         projectId: project._id,
+        clientSubmissionId,
         amount,
-        method: method === "gcash" ? "gcash" : "cod",
+        method,
         type: balanceAmount <= 0 ? "final" : "downpayment",
-        gateway: method === "gcash" ? "gcash" : "cod",
+        gateway: method === "cash" ? "cod" : method,
         status: "waiting_for_remittance",
         reference: b.reference || `Project ${project._id}`,
         proofUrl: b.proofUrl || undefined,
@@ -4436,7 +5577,7 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
         events: [{ status: "payment_collected", actor: req.user._id, actorName: ctx.tech.name, actorRole: "technician", at: new Date() }, { status: "waiting_for_remittance", actor: req.user._id, actorName: ctx.tech.name, actorRole: "technician", at: new Date() }],
         notes: `Collected by ${ctx.tech.name || "lead"}. ${b.remarks || ""}`.trim(),
         submittedAt: new Date(),
-      }).catch(() => {});
+      }], { session: paymentSession });
     }
 
     // ── Cascade: complete Assignment records for project team ──
@@ -4444,10 +5585,23 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
       const assignmentIds = (project.assignedTechnicians || []).map(t => t._id).filter(Boolean);
       if (assignmentIds.length > 0) {
         await Assignment.updateMany(
-          { projectId: project._id, technicianId: { $in: assignmentIds }, status: { $nin: ["completed", "cancelled"] } },
-          { $set: { status: "completed", completedAt: new Date() } }
-        ).catch(() => {});
+          {
+            $or: [
+              { projectId: project._id },
+              ...(project.bookingId ? [{ bookingId: project.bookingId }] : []),
+            ],
+            technicianId: { $in: assignmentIds },
+            status: { $nin: ["completed", "cancelled"] },
+          },
+          { $set: { status: "completed", completedAt: new Date() } },
+          { session: paymentSession },
+        );
       }
+    }
+      });
+    } finally {
+      project.$session(null);
+      await paymentSession.endSession();
     }
 
     // Notify admin to generate the final invoice.
@@ -4468,6 +5622,86 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
   }
 });
 
+// Fully prepaid projects have no balance to collect. The lead still needs a
+// canonical completion action after reviewing every proof-backed work order.
+router.post("/projects/:id/complete", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    const ctx = await requireProjectLead(req, res); if (!ctx) return;
+    const { project, tech } = ctx;
+    if (project.status === "completed") return res.json({ project, alreadyCompleted: true });
+    if (project.status !== "in_progress") return res.status(409).json({ error: "Only an active project can be completed." });
+    const summary = await buildAuthoritativeProjectPaymentSummary(project);
+    if (!summary.pricingReady) return res.status(409).json({ error: summary.pricingMessage });
+    if (!summary.allDone || !summary.allSubmitted) {
+      return res.status(409).json({ error: "Review and submit every proof-backed work order before completing the project." });
+    }
+    if (summary.balance > 0) return res.status(409).json({ error: "Collect the outstanding customer balance before completing the project." });
+
+    const completionSession = await mongoose.startSession();
+    try {
+      await completionSession.withTransaction(async () => {
+    project.$session(completionSession);
+    project.status = "completed";
+    project.actualCompletionDate = project.actualCompletionDate || new Date();
+    project.payment = {
+      ...(project.payment || {}),
+      totalAmount: summary.total,
+      amountPaid: summary.alreadyPaid,
+      balanceAmount: 0,
+      paymentStatus: ["verified", "paid"].includes(project.payment?.paymentStatus)
+        ? project.payment.paymentStatus
+        : "paid",
+      recordedBy: req.user._id,
+      recordedAt: new Date(),
+    };
+    await project.save();
+    if (project.bookingId) {
+      await BookingService.findByIdAndUpdate(project.bookingId, {
+        status: "completed",
+        balanceAmount: 0,
+        balanceCollected: true,
+        balanceCollectedAt: new Date(),
+        balanceCollectedBy: tech._id,
+      }, { session: completionSession });
+    }
+    const technicianIds = (project.assignedTechnicians || []).map(member => member._id).filter(Boolean);
+    if (technicianIds.length) {
+      await Assignment.updateMany(
+        {
+          $or: [
+            { projectId: project._id },
+            ...(project.bookingId ? [{ bookingId: project.bookingId }] : []),
+          ],
+          technicianId: { $in: technicianIds },
+          status: { $nin: ["completed", "cancelled"] },
+        },
+        { $set: { status: "completed", completedAt: new Date() } },
+        { session: completionSession },
+      );
+    }
+      });
+    } finally {
+      project.$session(null);
+      await completionSession.endSession();
+    }
+    await createNotification({
+      type: "project_status_update",
+      title: "Project work completed",
+      message: `${tech.name || "The project lead"} completed the prepaid project for ${summary.customerName}. Review operational closeout before archiving.`,
+      role: "admin",
+      referenceId: project._id,
+      referenceModel: "Project",
+      link: `/admin/projects/${project._id}`,
+      priority: "high",
+      io: req.app.get("io"),
+    });
+    return res.json({ project, message: "Project completed and sent to admin for closeout review." });
+  } catch (error) {
+    console.error("project complete error:", error);
+    return res.status(500).json({ error: "Failed to complete project" });
+  }
+});
+
 // ── Repair Project: Get repair summary ──────────────────────────────────────
 router.get("/projects/:id/repair-summary", auth.authenticate, async (req, res) => {
   try {
@@ -4478,7 +5712,14 @@ router.get("/projects/:id/repair-summary", auth.authenticate, async (req, res) =
     if (!project.repair || project.repair.serviceType !== "repair") {
       return res.status(400).json({ error: "This is not a repair project" });
     }
-    res.json({ repair: project.repair });
+    res.json({
+      repair: project.repair,
+      project: {
+        _id: project._id,
+        projectPhase: project.projectPhase,
+        unitGroups: project.unitGroups || [],
+      },
+    });
   } catch (e) {
     console.error("repair-summary error:", e);
     res.status(500).json({ error: "Failed to load repair summary" });
@@ -4487,47 +5728,112 @@ router.get("/projects/:id/repair-summary", auth.authenticate, async (req, res) =
 
 // ── Repair Project: Record parts used (lead-only) ──────────────────────────
 router.post("/projects/:id/record-parts-used", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  const session = await mongoose.startSession();
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
-    const { project } = ctx;
+    const { project, tech } = ctx;
     if (!project.repair || project.repair.serviceType !== "repair") {
       return res.status(400).json({ error: "This is not a repair project" });
     }
-    const Tool = require("../models/Tool");
-    const parts = req.body.parts || [];
-    const recorded = [];
-    for (const p of parts) {
-      if (!p.name || !p.quantity) continue;
-      let itemType = 'part';
-      if (p.toolId) {
-        try {
-          const inv = await Tool.findById(p.toolId).select('type').lean();
-          itemType = inv ? (inv.type === 'tool' ? 'equipment' : (inv.type || 'part')) : 'part';
-        } catch (_) {}
-      }
-      const entry = {
-        name: p.name,
-        quantity: Number(p.quantity) || 1,
-        unitCost: Number(p.unitCost) || 0,
-        toolId: p.toolId || undefined,
-        itemType,
-        usedBy: req.user._id,
-        usedAt: new Date(),
-      };
-      recorded.push(entry);
-      // Deduct from Tool inventory if toolId provided and the item is part/consumable
-      if (entry.toolId && itemType !== 'equipment') {
-        try {
-          await Tool.findByIdAndUpdate(entry.toolId, { $inc: { quantity: -entry.quantity } }).catch(() => {});
-        } catch (_) {}
-      }
+    const clientSubmissionId = String(req.body.clientSubmissionId || "").trim();
+    if (!clientSubmissionId || clientSubmissionId.length > 100) {
+      return res.status(400).json({ error: "A valid client submission id is required." });
     }
-    project.repair.partsUsed = (project.repair.partsUsed || []).concat(recorded);
-    await project.save();
-    res.json({ message: "Parts recorded", partsUsed: project.repair.partsUsed });
+    if ((project.repair.partsUsageSubmissionIds || []).includes(clientSubmissionId)) {
+      return res.json({ message: "Parts were already recorded", replayed: true, partsUsed: project.repair.partsUsed || [] });
+    }
+    if (project.projectPhase !== "execution" || project.status !== "in_progress") {
+      return res.status(409).json({ error: "Parts can only be recorded while approved repair work is in progress." });
+    }
+    const rawParts = Array.isArray(req.body.parts) ? req.body.parts : [];
+    if (!rawParts.length || rawParts.length > 50) {
+      return res.status(400).json({ error: "Submit between 1 and 50 part lines." });
+    }
+    const parts = rawParts.map((part) => ({
+      name: String(part.name || "").trim().slice(0, 200),
+      quantity: Number(part.quantity),
+      unitCost: Number(part.unitCost || 0),
+      toolId: part.toolId ? String(part.toolId) : null,
+    }));
+    if (parts.some((part) => !part.name || !Number.isInteger(part.quantity) || part.quantity <= 0 || part.quantity > 10000 || !Number.isFinite(part.unitCost) || part.unitCost < 0)) {
+      return res.status(400).json({ error: "Every part requires a name, a positive whole-number quantity, and a non-negative unit cost." });
+    }
+    const linkedIds = parts.filter((part) => part.toolId).map((part) => part.toolId);
+    if (linkedIds.some((id) => !mongoose.Types.ObjectId.isValid(id)) || new Set(linkedIds).size !== linkedIds.length) {
+      return res.status(400).json({ error: "Inventory-linked parts must use valid, unique item ids." });
+    }
+
+    let savedProject;
+    let replayed = false;
+    await session.withTransaction(async () => {
+      const lockedProject = await Project.findById(project._id).session(session);
+      if ((lockedProject.repair?.partsUsageSubmissionIds || []).includes(clientSubmissionId)) {
+        savedProject = lockedProject;
+        replayed = true;
+        return;
+      }
+      const inventory = linkedIds.length
+        ? await Tool.find({ _id: { $in: linkedIds } }).session(session)
+        : [];
+      if (inventory.length !== linkedIds.length) {
+        throw Object.assign(new Error("One or more linked inventory items no longer exist."), { status: 409 });
+      }
+      const byId = new Map(inventory.map((item) => [String(item._id), item]));
+      const recorded = [];
+      for (const part of parts) {
+        let itemType = "part";
+        let name = part.name;
+        if (part.toolId) {
+          const item = byId.get(part.toolId);
+          itemType = item.type === "tool" ? "equipment" : (item.type || "part");
+          if (itemType === "equipment") {
+            throw Object.assign(new Error(`${item.itemName} is equipment and cannot be consumed as a repair part.`), { status: 400 });
+          }
+          if (Number(item.quantity || 0) < part.quantity) {
+            throw Object.assign(new Error(`${item.itemName} has only ${Number(item.quantity || 0)} available.`), { status: 409 });
+          }
+          const quantityBefore = Number(item.quantity || 0);
+          item.quantity = quantityBefore - part.quantity;
+          item.status = item.quantity <= 0 ? "out_of_stock" : (item.quantity <= Number(item.minStockLevel || 0) ? "low_stock" : "in_stock");
+          await item.save({ session });
+          await StockAdjustment.create([{
+            toolId: item._id,
+            type: "job_usage",
+            quantityBefore,
+            quantityAfter: item.quantity,
+            delta: -part.quantity,
+            reason: "repair_used",
+            notes: `Repair parts used on large-scale project ${project._id}`,
+            referenceId: project.bookingId || undefined,
+            adjustedBy: req.user._id,
+          }], { session });
+          name = item.itemName;
+        }
+        recorded.push({
+          name,
+          quantity: part.quantity,
+          unitCost: part.unitCost,
+          toolId: part.toolId || undefined,
+          itemType,
+          usedBy: tech._id,
+          usedAt: new Date(),
+        });
+      }
+      lockedProject.repair.partsUsed.push(...recorded);
+      lockedProject.repair.partsUsageSubmissionIds.push(clientSubmissionId);
+      await lockedProject.save({ session });
+      savedProject = lockedProject;
+    });
+    res.json({
+      message: replayed ? "Parts were already recorded" : "Parts recorded",
+      replayed,
+      partsUsed: savedProject.repair.partsUsed,
+    });
   } catch (e) {
     console.error("record-parts-used error:", e);
-    res.status(500).json({ error: "Failed to record parts" });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to record parts" });
+  } finally {
+    await session.endSession();
   }
 });
 
@@ -4655,10 +5961,16 @@ router.post("/issues", auth.authenticate, auth.requireRole("technician"), async 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ error: "Invalid project id" });
     }
+    const { technician, project } = await requireTechnicianProjectMember(req.user, projectId);
+    if (workOrderId) {
+      if (!mongoose.Types.ObjectId.isValid(workOrderId)) return res.status(400).json({ error: "Invalid work order id" });
+      const belongsToProject = await WorkOrder.exists({ _id: workOrderId, projectId });
+      if (!belongsToProject) return res.status(400).json({ error: "Work order does not belong to this project" });
+    }
     const issue = new ProjectIssue({
       projectId,
       workOrderId: workOrderId && mongoose.Types.ObjectId.isValid(workOrderId) ? workOrderId : null,
-      reportedBy: { _id: req.user._id, name: req.user.name || req.user.email || "Technician" },
+      reportedBy: { _id: technician._id, name: technician.name || req.user.name || "Technician" },
       category: category || "other",
       title: title || "",
       description: description || "",
@@ -4670,12 +5982,10 @@ router.post("/issues", auth.authenticate, auth.requireRole("technician"), async 
 
     const { createNotification } = require("../utils/notify");
     const io = req.app.get("io");
-    const project = await Project.findById(projectId).lean();
     await createNotification({
       type: "project_issue",
       title: "New Project Issue",
       message: `${issue.reportedBy.name} reported a ${issue.category} issue${project ? ` on ${project.customer?.name || "a project"}` : ""}.`,
-      userId: req.user._id,
       role: "admin",
       referenceId: issue._id,
       referenceModel: "ProjectIssue",
@@ -4688,7 +5998,7 @@ router.post("/issues", auth.authenticate, auth.requireRole("technician"), async 
     res.status(201).json({ issue });
   } catch (error) {
     console.error("Error submitting project issue:", error);
-    res.status(500).json({ error: "Failed to submit issue" });
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to submit issue" });
   }
 });
 
@@ -4728,15 +6038,21 @@ router.post("/expenses", auth.authenticate, auth.requireRole("technician"), asyn
   try {
     const { projectId, workOrderId, type, amount, description, fuelLiters, pricePerLiter, odometerReading, gasStation, receiptImage, expenseDate } = req.body;
     if (!mongoose.Types.ObjectId.isValid(projectId)) return res.status(400).json({ error: "Invalid project id" });
-    if (!type || !amount || !description) return res.status(400).json({ error: "type, amount and description are required" });
+    if (!type || !Number.isFinite(Number(amount)) || Number(amount) <= 0 || !String(description || "").trim()) return res.status(400).json({ error: "type, a positive amount, and description are required" });
+    const { technician } = await requireTechnicianProjectMember(req.user, projectId);
+    if (workOrderId) {
+      if (!mongoose.Types.ObjectId.isValid(workOrderId)) return res.status(400).json({ error: "Invalid work order id" });
+      const belongsToProject = await WorkOrder.exists({ _id: workOrderId, projectId });
+      if (!belongsToProject) return res.status(400).json({ error: "Work order does not belong to this project" });
+    }
     const expense = new Expense({
-      technicianId: req.user._id,
-      technicianName: req.user.name || req.user.email || "Technician",
+      technicianId: technician._id,
+      technicianName: technician.name || req.user.name || "Technician",
       projectId,
       workOrderId: workOrderId && mongoose.Types.ObjectId.isValid(workOrderId) ? workOrderId : null,
       type,
-      amount,
-      description,
+      amount: Number(amount),
+      description: String(description).trim(),
       fuelLiters: fuelLiters || 0,
       pricePerLiter: pricePerLiter || 0,
       odometerReading: odometerReading || 0,
@@ -4753,7 +6069,6 @@ router.post("/expenses", auth.authenticate, auth.requireRole("technician"), asyn
       type: "expense_submitted",
       title: "Project Expense Submitted",
       message: `${expense.technicianName} submitted a ${type} expense of ₱${amount} for a project.`,
-      userId: req.user._id,
       role: "admin",
       referenceId: expense._id,
       referenceModel: "Expense",
@@ -4766,7 +6081,7 @@ router.post("/expenses", auth.authenticate, auth.requireRole("technician"), asyn
     res.status(201).json({ expense });
   } catch (error) {
     console.error("Error submitting project expense:", error);
-    res.status(500).json({ error: "Failed to submit expense" });
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to submit expense" });
   }
 });
 
@@ -4803,12 +6118,13 @@ router.put("/expenses/:id/approve", auth.requireRole(["admin", "secretary"]), as
 
     const { createNotification } = require("../utils/notify");
     const io = req.app.get("io");
+    const technician = await Technician.findById(expense.technicianId).select("user").lean();
     await createNotification({
       type: expense.status === "approved" ? "expense_approved" : "expense_rejected",
       title: expense.status === "approved" ? "Expense Approved" : "Expense Rejected",
       message: expense.status === "approved" ? `Your ${expense.type} expense was approved.` : `Your ${expense.type} expense was rejected.`,
-      userId: expense.technicianId,
-      role: "technician",
+      userId: technician?.user || null,
+      role: technician?.user ? null : "technician",
       referenceId: expense._id,
       referenceModel: "Expense",
       priority: "normal",
@@ -4912,30 +6228,51 @@ async function updateProjectProgress(projectId) {
       const assignmentTechIds = (proj.assignedTechnicians || []).map(t => t._id).filter(Boolean);
       if (assignmentTechIds.length > 0) {
         await Assignment.updateMany(
-          { projectId: projectId, technicianId: { $in: assignmentTechIds }, status: { $nin: ["completed", "cancelled"] } },
+          {
+            $or: [
+              { projectId },
+              ...(proj.bookingId ? [{ bookingId: proj.bookingId }] : []),
+            ],
+            technicianId: { $in: assignmentTechIds },
+            status: { $nin: ["completed", "cancelled"] },
+          },
           { $set: { status: "completed", completedAt: new Date() } }
         ).catch(() => {});
       }
     }
 
     // ── Notify lead tech when all units are done (large-scale projects) ──
-    if (proj && proj.isLargeScale && totalUnits > 0 && completedUnits >= totalUnits) {
-      const alreadyNotified = proj._allUnitsNotified;
-      if (!alreadyNotified) {
+    // `totalUnits` used to be an undeclared identifier here — the
+    // ReferenceError was silently swallowed and leads never received the
+    // "collect payment" prompt. Scope = authoritative project total, widened
+    // to WO coverage when the two drift apart (same policy as the payment
+    // summary path at buildAuthoritativeProjectPaymentSummary).
+    if (proj && proj.isLargeScale && proj.status !== "cancelled") {
+      const woTotalUnits = activeOrders.reduce((sum, wo) => sum + Number(wo.unitCount || 0), 0);
+      const scopedTotalUnits = Math.max(Number(proj.totalUnits) || 0, woTotalUnits);
+      const alreadyNotified = !!proj._allUnitsNotified;
+      if (!alreadyNotified && scopedTotalUnits > 0 && completedUnits >= scopedTotalUnits) {
         const leadId = proj.leadTechnicianId;
         if (leadId) {
           const customerName = proj.customer?.name || proj.service?.name || "project";
-          await createNotification({
+          const io = global.io || null;
+          // createNotification resolves to null (never throws) on failure —
+          // only latch _allUnitsNotified when the notification actually
+          // persisted, so transient DB issues self-heal on the next sync.
+          const notification = await createNotification({
             type: "project_all_units_done",
             title: "All units completed",
-            message: `All ${totalUnits} unit(s) for "${customerName}" are complete. You can now collect payment.`,
+            message: `All ${scopedTotalUnits} unit(s) for "${customerName}" are complete. You can now collect payment.`,
             userId: leadId,
             referenceId: projectId,
             referenceModel: "Project",
             link: "/technician/assignments",
             priority: "high",
-          }).catch(() => {});
-          await Project.findByIdAndUpdate(projectId, { _allUnitsNotified: true }).catch(() => {});
+            io,
+          });
+          if (notification) {
+            await Project.findByIdAndUpdate(projectId, { _allUnitsNotified: true }).catch(() => {});
+          }
         }
       }
     }
@@ -4947,8 +6284,6 @@ async function updateProjectProgress(projectId) {
 // ════════════════════════════════════════════════════════════════════
 // EQUIPMENT CHECKOUT / CHECK-IN
 // ════════════════════════════════════════════════════════════════════
-const EquipmentAssignment = require("../models/EquipmentAssignment");
-
 // GET /api/projects/:id/equipment — list all equipment assignments for this project
 router.get("/projects/:id/equipment", auth.authenticate, auth.requireRole(["admin", "secretary", "technician"]), async (req, res) => {
   try {
@@ -5138,6 +6473,54 @@ router.post("/projects/validate-range", auth.authenticate, async (req, res) => {
   } catch (error) {
     console.error("Error validating project date range:", error);
     return res.status(500).json({ valid: false, available: false, message: "Failed to validate date range." });
+  }
+});
+
+/**
+ * POST /api/projects/window-availability
+ *
+ * Large-scale project preferred-window analysis. Treats the customer's
+ * [startDate, endDate] range as a PREFERRED WINDOW (not a continuous
+ * schedule): per-day technician availability is returned for calendar
+ * rendering, and when requiredHours is provided a capacity verdict is
+ * computed by comparing required labor hours against the sum of available
+ * technician-hours across all workable dates inside the window.
+ *
+ * Body:
+ *   startDate (string, YYYY-MM-DD) - Preferred start date
+ *   endDate (string, YYYY-MM-DD) - Latest acceptable completion date
+ *   requiredHours (number, optional) - Total estimated labor hours; when
+ *     omitted the endpoint acts as a pure availability map.
+ *   totalUnits (number, optional) - Units of work for the per-day unit preview
+ *
+ * Response:
+ *   { totalActiveTechnicians, dailyHours, days[], totals{}, sufficient?,
+ *     requiredHours?, minimumRequiredDays?, estimatedCompletionDate?,
+ *     earliestCompletionDate?, draftSchedule[]? }
+ */
+router.post("/projects/window-availability", auth.authenticate, async (req, res) => {
+  try {
+    const { startDate, endDate, requiredHours, totalUnits } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "Start date and end date are required." });
+    }
+
+    const result = await schedulingEngine.getProjectWindowAvailability({
+      startDate,
+      endDate,
+      requiredHours: requiredHours != null ? Number(requiredHours) : null,
+      totalUnits: totalUnits != null ? Number(totalUnits) : null,
+    });
+
+    if (result && result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error("Error computing project window availability:", error);
+    return res.status(500).json({ error: "Failed to compute project window availability." });
   }
 });
 

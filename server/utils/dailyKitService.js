@@ -3,8 +3,17 @@ const Assignment = require("../models/Assignment");
 const BookingService = require("../models/BookingService");
 const DailyKit = require("../models/DailyKit");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
+const Order = require("../models/Order");
+const ServiceToolUsage = require("../models/ServiceToolUsage");
+const StockReservation = require("../models/StockReservation");
 const Tool = require("../models/Tool");
 const { buildServicePreparation } = require("./servicePreparation");
+const {
+  ACTIVE_INSTALLATION_ORDER_STATUSES,
+  buildOrderInstallationPreparation,
+  orderInstallationReadiness,
+  orderUnitCount,
+} = require("./orderPreparation");
 
 const ACTIVE_ASSIGNMENT_STATUSES = ["accepted", "en_route", "on_site", "in_progress"];
 
@@ -21,46 +30,152 @@ function uniqueIds(values) {
   return [...new Set(values.filter(Boolean).map(String))].map(id => new mongoose.Types.ObjectId(id));
 }
 
-function mergeRequirement(map, rec, assignment, booking) {
-  if (!rec || !rec.name || !["equipment", "consumable"].includes(rec.kind)) return;
+function mergeRequirement(map, rec, context = {}) {
+  if (!rec || !rec.name || !["equipment", "consumable", "repair_part"].includes(rec.kind)) return;
   const key = rec.inventoryId ? `${rec.kind}:id:${rec.inventoryId}` : `${rec.kind}:name:${String(rec.name).trim().toLowerCase()}`;
-  const quantity = Math.max(1, Number(rec.quantity || 1)) * Math.max(1, Number(assignment.quantity || 1));
+  const quantity = Math.max(1, Number(rec.quantity || 1)) * Math.max(1, Number(context.multiplier || 1));
   const current = map.get(key) || {
     name: rec.name,
     quantity: 0,
     unit: rec.unit || "pcs",
     category: rec.kind,
-    source: "job_specific",
+    source: rec.kind === "repair_part" ? "quotation" : "job_specific",
     toolId: rec.inventoryId || null,
     assignmentIds: [],
     bookingIds: [],
+    orderIds: [],
+    orderAllocations: [],
   };
-  // Reusable equipment is carried once. Consumables cover total daily demand.
+  // Reusable equipment is carried once. Consumables/parts cover total daily demand.
   current.quantity = rec.kind === "equipment" ? Math.max(1, current.quantity, quantity) : current.quantity + quantity;
-  current.assignmentIds.push(assignment._id);
-  current.bookingIds.push(booking._id);
+  if (context.assignmentId) current.assignmentIds.push(context.assignmentId);
+  if (context.bookingId) current.bookingIds.push(context.bookingId);
+  if (context.orderId) {
+    current.orderIds.push(context.orderId);
+    const allocation = current.orderAllocations.find(row => String(row.orderId) === String(context.orderId));
+    if (allocation) {
+      allocation.quantity = rec.kind === "equipment"
+        ? Math.max(allocation.quantity, quantity)
+        : allocation.quantity + quantity;
+    } else {
+      current.orderAllocations.push({ orderId: context.orderId, quantity });
+    }
+  }
   map.set(key, current);
 }
 
-async function requirementsFor(assignments, bookings) {
+const REPAIR_PART_STATUSES = ["repair_scheduled", "repair_in_progress"];
+
+/**
+ * Resolve a quotation part to its inventory Tool, matching by toolId first,
+ * then falling back to name-matching against active inventory.
+ */
+async function resolvePartTool(part) {
+  if (part.toolId) {
+    const tool = await Tool.findById(part.toolId).select("quantity active itemName assetCode barcode").lean();
+    if (tool) return tool;
+  }
+  const escaped = String(part.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) return null;
+  const regex = new RegExp(escaped.replace(/\\s+/g, ".*"), "i");
+  const candidates = await Tool.find({ itemName: regex, active: true })
+    .select("quantity active itemName assetCode barcode").sort({ quantity: -1 }).lean();
+  const qty = Math.max(1, Number(part.quantity) || 1);
+  return candidates.find(t => (t.quantity || 0) >= qty) || candidates[0] || null;
+}
+
+/**
+ * Build repair-part requirements for Phase 2 (scheduled repair visit) jobs.
+ * Parts are known exactly from the approved quotation at this point.
+ */
+async function partRequirementsFor(assignments, bookings, requirements) {
   const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
-  const requirements = new Map();
   for (const assignment of assignments) {
     const booking = bookingMap.get(String(assignment.bookingId));
     if (!booking) continue;
-    const prep = await buildServicePreparation(booking);
-    for (const rec of prep.recommendations || []) mergeRequirement(requirements, rec, assignment, booking);
+    const isRepairVisit = booking.serviceType === "repair" && REPAIR_PART_STATUSES.includes(booking.status);
+    if (!isRepairVisit) continue;
+    const parts = Array.isArray(booking.quotation?.parts) ? booking.quotation.parts : [];
+    for (const part of parts) {
+      if (!part?.name) continue;
+      const tool = await resolvePartTool(part);
+      mergeRequirement(requirements, {
+        name: part.name,
+        kind: "repair_part",
+        quantity: Math.max(1, Number(part.quantity) || 1),
+        inventoryId: tool?._id || null,
+        unit: "pcs",
+      }, { assignmentId: assignment._id, bookingId: booking._id, multiplier: assignment.quantity });
+    }
   }
+}
+
+async function requirementsFor(assignments, bookings, orders, preferToolIds) {
+  const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
+  const linkedOrderBookingIds = new Set(
+    orders.map(order => order.bookingId).filter(Boolean).map(String),
+  );
+  const requirements = new Map();
+  for (const assignment of assignments) {
+    const booking = bookingMap.get(String(assignment.bookingId));
+    // A linked order booking is a calendar/history projection. The Order is
+    // the sole inventory-demand source for delivery + installation. Matching
+    // bookingId also protects legacy rows before the optional backfill runs.
+    if (!booking || booking.sourceOrderId || linkedOrderBookingIds.has(String(booking._id))) continue;
+    const prep = await buildServicePreparation(booking, { preferToolIds });
+    for (const rec of prep.recommendations || []) {
+      mergeRequirement(requirements, rec, {
+        assignmentId: assignment._id,
+        bookingId: booking._id,
+        multiplier: assignment.quantity,
+      });
+    }
+  }
+  for (const order of orders) {
+    const prep = await buildOrderInstallationPreparation(order, { preferToolIds });
+    for (const rec of prep.recommendations || []) {
+      mergeRequirement(requirements, rec, {
+        orderId: order._id,
+        multiplier: orderUnitCount(order),
+      });
+    }
+  }
+  // Phase 2 repair visits: parts are now known exactly from the approved quotation.
+  await partRequirementsFor(assignments, bookings, requirements);
   return [...requirements.values()].map(item => ({
     ...item,
     assignmentIds: uniqueIds(item.assignmentIds),
     bookingIds: uniqueIds(item.bookingIds),
+    orderIds: uniqueIds(item.orderIds),
+    orderAllocations: item.orderAllocations || [],
   }));
+}
+
+function mergeOrderAllocations(existing = [], incoming = []) {
+  const allocations = new Map(existing.map(row => [String(row.orderId), {
+    orderId: row.orderId,
+    quantity: Number(row.quantity || 0),
+  }]));
+  for (const row of incoming || []) {
+    if (!row?.orderId) continue;
+    const key = String(row.orderId);
+    const prior = allocations.get(key);
+    // Incoming rows describe the order's full requirement. A confirmed-kit
+    // delta only describes the incremental warehouse quantity, so summing the
+    // allocation would double count an order whose quantity increased.
+    allocations.set(key, {
+      orderId: row.orderId,
+      quantity: Math.max(Number(prior?.quantity || 0), Number(row.quantity || 0)),
+    });
+  }
+  return [...allocations.values()];
 }
 
 async function hydrateAvailability(items, technicianId, start, end) {
   const toolIds = uniqueIds(items.map(item => item.toolId));
-  const [tools, otherCheckouts] = await Promise.all([
+  const repairPartItems = items.filter(item => item.category === "repair_part" && item.toolId);
+  const repairPartBookingIds = uniqueIds(repairPartItems.flatMap(item => item.bookingIds || []));
+  const [tools, otherCheckouts, stockReservations] = await Promise.all([
     Tool.find({ _id: { $in: toolIds } }).lean(),
     EquipmentAssignment.find({
       equipmentId: { $in: toolIds },
@@ -69,12 +184,54 @@ async function hydrateAvailability(items, technicianId, start, end) {
       workDate: { $gte: start, $lt: end },
       consumable: { $ne: true },
     }).populate("technicianId", "name").lean(),
+    repairPartItems.length
+      ? StockReservation.find({
+          toolId: { $in: toolIds },
+          bookingId: { $in: repairPartBookingIds },
+          status: { $in: ["reserved", "checked_out"] },
+        }).lean()
+      : Promise.resolve([]),
   ]);
   const toolMap = new Map(tools.map(tool => [String(tool._id), tool]));
   const conflictMap = new Map(otherCheckouts.map(row => [String(row.equipmentId), row]));
+  const reservedPartQtyByTool = stockReservations.reduce((map, r) => {
+    const key = String(r.toolId);
+    map.set(key, (map.get(key) || 0) + (Number(r.quantity) || 0));
+    return map;
+  }, new Map());
 
   return items.map(item => {
     const tool = toolMap.get(String(item.toolId));
+
+    // Repair parts: already soft-reserved from inventory when the quotation
+    // was approved/scheduled. If a reservation covers the needed quantity,
+    // the part is ready to bring — no further availability check needed.
+    if (item.category === "repair_part") {
+      const reservedQty = reservedPartQtyByTool.get(String(item.toolId)) || 0;
+      if (reservedQty >= item.quantity) {
+        return {
+          ...item,
+          toolCode: tool?.assetCode || tool?.barcode || null,
+          checkoutStatus: "reserved",
+          conflict: { isUnavailable: false },
+        };
+      }
+      const available = Math.max(0, Number(tool?.quantity || 0));
+      const unavailable = !tool || tool.active === false || available < item.quantity;
+      return {
+        ...item,
+        toolCode: tool?.assetCode || tool?.barcode || null,
+        checkoutStatus: unavailable ? "unavailable" : "pending",
+        conflict: unavailable ? {
+          isUnavailable: true,
+          checkedOutTo: null,
+          message: !tool
+            ? `${item.name} is not linked to inventory`
+            : `${item.name} requires ${item.quantity}, but only ${available} is available`,
+        } : { isUnavailable: false },
+      };
+    }
+
     const standardQty = tool?.standardTechnicianKit ? Number(tool.standardKitQuantity || 1) : 0;
     if (standardQty >= item.quantity) return { ...item, checkoutStatus: "standard_kit", conflict: { isUnavailable: false } };
     const needed = Math.max(0, item.quantity - standardQty);
@@ -94,7 +251,7 @@ async function hydrateAvailability(items, technicianId, start, end) {
         isUnavailable: true,
         checkedOutTo: conflict?.technicianId?.name || null,
         message: !tool
-          ? `${item.name} is required but is missing or misclassified in the inventory catalog`
+          ? `${item.name} is not linked to inventory`
           : conflict?.technicianId?.name
           ? `${item.name} is checked out to ${conflict.technicianId.name}`
           : `${item.name} requires ${needed}, but only ${available} is available`,
@@ -103,41 +260,165 @@ async function hydrateAvailability(items, technicianId, start, end) {
   });
 }
 
+async function syncOrderPreparationSummaries(kit, orderIds) {
+  const ids = uniqueIds(orderIds || []);
+  if (!ids.length) return;
+  const orders = await Order.find({ _id: { $in: ids } });
+  const now = new Date();
+  await Promise.all(orders.map(async (order) => {
+    if (order.fulfillmentType !== "delivery_installation") return;
+    const readiness = orderInstallationReadiness(order, kit);
+    order.preparation = order.preparation || {};
+    order.preparation.installation = {
+      ...(order.preparation.installation?.toObject?.() || order.preparation.installation || {}),
+      status: order.status === "cancelled" ? "cancelled"
+        : order.status === "completed" ? "completed"
+        : readiness.status,
+      dailyKitId: readiness.dailyKitId,
+      requiredItems: readiness.requiredItems,
+      blockers: readiness.blockers,
+      lastSyncedAt: now,
+      confirmedAt: readiness.confirmedAt,
+    };
+    await order.save();
+  }));
+}
+
 async function syncDailyKit(technicianId, date) {
   const { start, end } = dayBounds(date);
-  const assignments = await Assignment.find({
-    technicianId,
-    status: { $in: ACTIVE_ASSIGNMENT_STATUSES },
-    bookingDate: { $gte: start, $lt: end },
-  }).sort({ startTime: 1 }).lean();
+  const [assignments, orders] = await Promise.all([
+    Assignment.find({
+      technicianId,
+      status: { $in: ACTIVE_ASSIGNMENT_STATUSES },
+      bookingDate: { $gte: start, $lt: end },
+    }).sort({ startTime: 1 }).lean(),
+    Order.find({
+      technicianId,
+      fulfillmentType: "delivery_installation",
+      status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES },
+      "delivery.preferredDate": { $gte: start, $lt: end },
+    }).sort({ timeSlot: 1, createdAt: 1 }).lean(),
+  ]);
   const bookingIds = uniqueIds(assignments.map(row => row.bookingId));
   const bookings = await BookingService.find({ _id: { $in: bookingIds } }).lean();
-  const required = await hydrateAvailability(await requirementsFor(assignments, bookings), technicianId, start, end);
+  const orderIds = uniqueIds(orders.map(row => row._id));
+  const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
   let kit = await DailyKit.findOne({ technicianId, workDate: start });
+  const previouslyLinkedOrderIds = kit ? uniqueIds(kit.orderIds || []) : [];
+  // Sticky resolution: prefer inventory items already in today's kit so
+  // requirement → item mapping stays stable across re-syncs (availability
+  // changes must not manufacture phantom new requirements).
+  const preferToolIds = new Set();
+  if (kit) {
+    for (const src of [...(kit.items || []), ...(Array.isArray(kit.deltaItems) ? kit.deltaItems : [])]) {
+      if (src?.toolId && !["returned"].includes(src.checkoutStatus)) preferToolIds.add(String(src.toolId));
+    }
+  }
+  const required = await hydrateAvailability(
+    await requirementsFor(assignments, bookings, orders, preferToolIds),
+    technicianId,
+    start,
+    end,
+  );
 
   if (!kit) {
-    kit = await DailyKit.create({ technicianId, workDate: start, items: required, assignmentIds: assignments.map(a => a._id), bookingIds });
+    kit = await DailyKit.create({
+      technicianId,
+      workDate: start,
+      items: required,
+      assignmentIds: assignments.map(a => a._id),
+      bookingIds,
+      orderIds,
+    });
+    await syncOrderPreparationSummaries(kit, orderIds);
     return kit;
   }
 
   if (!["confirmed", "in_progress"].includes(kit.status)) {
+    // Preserve technician resolutions from previous items before overwriting
+    const resolutionMap = new Map();
+    for (const oldItem of kit.items) {
+      if (oldItem.resolution && oldItem.resolution.status) {
+        const key = itemKey(oldItem);
+        resolutionMap.set(key, oldItem.resolution);
+      }
+    }
+    // Carry over resolutions to new items
+    for (const newItem of required) {
+      const key = itemKey(newItem);
+      const savedResolution = resolutionMap.get(key);
+      if (savedResolution) {
+        newItem.resolution = savedResolution;
+        // If previously resolved as confirmed_available, keep the exception status
+        if (savedResolution.status === "confirmed_available") {
+          newItem.checkoutStatus = "exception";
+        }
+      }
+    }
     kit.items = required;
     kit.assignmentIds = assignments.map(a => a._id);
     kit.bookingIds = bookingIds;
+    kit.orderIds = orderIds;
     kit.hasDelta = false;
     kit.deltaItems = [];
     await kit.save();
+    await syncOrderPreparationSummaries(kit, uniqueIds([...previouslyLinkedOrderIds, ...orderIds]));
     return kit;
   }
 
-  const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
   const existing = new Map(kit.items.map(item => [itemKey(item), item]));
+  // A confirmed kit is also a physical custody record, so removed demand does
+  // not delete checked-out rows. Clear their job links first, then rebuild the
+  // links from current work; cancelled/rescheduled/reassigned jobs cannot keep
+  // appearing as covered by an obsolete kit.
+  for (const item of kit.items) {
+    item.assignmentIds = [];
+    item.bookingIds = [];
+    item.orderIds = [];
+    item.orderAllocations = [];
+  }
+  // Same catalog entry resolved under a different inventory id (or vice versa)
+  // must not appear twice — match by category + normalized name as fallback.
+  const existingByName = new Map();
+  for (const item of kit.items) {
+    const k = `${item.category}:${String(item.name).trim().toLowerCase()}`;
+    if (!existingByName.has(k)) existingByName.set(k, item);
+  }
+  // Preserve technician decisions (not_required / alternative / admin_notified)
+  // made on previously synced delta items so they survive recomputation.
+  const priorResolutionMap = new Map();
+  for (const source of [...kit.items, ...(Array.isArray(kit.deltaItems) ? kit.deltaItems : [])]) {
+    if (source?.resolution?.status && source.resolution.status !== "admin_notified") {
+      const key = itemKey(source);
+      if (!priorResolutionMap.has(key)) priorResolutionMap.set(key, source.resolution);
+    }
+  }
   const additions = [];
   for (const requirement of required) {
     const old = existing.get(itemKey(requirement));
-    if (!old) { additions.push(requirement); continue; }
-    old.assignmentIds = uniqueIds([...old.assignmentIds, ...requirement.assignmentIds]);
-    old.bookingIds = uniqueIds([...old.bookingIds, ...requirement.bookingIds]);
+    const priorResolution = priorResolutionMap.get(itemKey(requirement));
+    if (priorResolution) requirement.resolution = priorResolution;
+    if (!old) {
+      const nameMatch = existingByName.get(`${requirement.category}:${String(requirement.name).trim().toLowerCase()}`);
+      if (nameMatch) {
+        // Same consumable/equipment under a different inventory id — merge
+        // into the kit's existing row instead of emitting a phantom delta.
+        nameMatch.assignmentIds = uniqueIds(requirement.assignmentIds || []);
+        nameMatch.bookingIds = uniqueIds(requirement.bookingIds || []);
+        nameMatch.orderIds = uniqueIds(requirement.orderIds || []);
+        nameMatch.orderAllocations = requirement.orderAllocations || [];
+        if (requirement.quantity > nameMatch.quantity && ["confirmed", "in_progress"].includes(kit.status)) {
+          additions.push({ ...requirement, quantity: requirement.quantity - nameMatch.quantity });
+        }
+        continue;
+      }
+      additions.push(requirement);
+      continue;
+    }
+    old.assignmentIds = uniqueIds(requirement.assignmentIds || []);
+    old.bookingIds = uniqueIds(requirement.bookingIds || []);
+    old.orderIds = uniqueIds(requirement.orderIds || []);
+    old.orderAllocations = requirement.orderAllocations || [];
     if (requirement.quantity > old.quantity && ["confirmed", "in_progress"].includes(kit.status)) {
       additions.push({ ...requirement, quantity: requirement.quantity - old.quantity });
     } else if (!["confirmed", "in_progress"].includes(kit.status)) {
@@ -148,10 +429,12 @@ async function syncDailyKit(technicianId, date) {
   }
   kit.assignmentIds = uniqueIds(assignments.map(a => a._id));
   kit.bookingIds = bookingIds;
+  kit.orderIds = orderIds;
   kit.deltaItems = additions;
   kit.hasDelta = additions.length > 0;
   if (!["confirmed", "in_progress"].includes(kit.status)) kit.items = [...existing.values(), ...additions];
   await kit.save();
+  await syncOrderPreparationSummaries(kit, uniqueIds([...previouslyLinkedOrderIds, ...orderIds]));
   return kit;
 }
 
@@ -159,11 +442,33 @@ async function confirmDailyKit({ technicianId, userId, date }) {
   const { start } = dayBounds(date);
   const kit = await syncDailyKit(technicianId, start);
   const items = kit.status === "confirmed" && kit.hasDelta ? kit.deltaItems : kit.items;
-  const blocked = items.filter(item => item.checkoutStatus === "unavailable" && !item.exception?.approved);
-  if (blocked.length) throw Object.assign(new Error("Resolve unavailable equipment before confirming the Daily Kit."), { status: 409, unavailable: blocked });
+  // Block if there are truly unresolved unavailable items
+  // admin_notified still blocks (admin hasn't resolved yet)
+  // Only confirmed_available, not_required, assigned_from_stock, procured are truly resolved
+  const unresolved = items.filter(item =>
+    item.checkoutStatus === "unavailable" &&
+    !item.exception?.approved &&
+    (!item.resolution?.status || item.resolution?.status === "admin_notified")
+  );
+  if (unresolved.length) throw Object.assign(new Error("Resolve unavailable equipment before confirming the Daily Kit."), { status: 409, unavailable: unresolved });
 
   for (const item of items) {
+    // Skip items that are unavailable but truly resolved (not admin_notified)
+    if (item.checkoutStatus === "unavailable" && item.resolution?.status && item.resolution?.status !== "admin_notified") continue;
     if (["standard_kit", "exception", "checked_out", "issued"].includes(item.checkoutStatus)) continue;
+    // Technician field decision: item explicitly marked not needed — never deduct.
+    if (item.resolution?.status === "not_required") {
+      item.checkoutStatus = "exception";
+      item.exception = { approved: true, reason: `Not required — technician confirmed (${item.resolution.reasonCode || "field decision"})`, approvedBy: item.resolution.resolvedBy };
+      continue;
+    }
+    if (item.checkoutStatus === "reserved" && item.category === "repair_part") {
+      // Stock was already soft-deducted via StockReservation when the
+      // quotation was approved/scheduled — do not deduct again.
+      item.quantityIssued = item.quantity;
+      item.checkoutStatus = "issued";
+      continue;
+    }
     const updated = await Tool.findOneAndUpdate({
       _id: item.toolId,
       quantity: { $gte: item.quantity },
@@ -173,15 +478,16 @@ async function confirmDailyKit({ technicianId, userId, date }) {
         ? { quantity: -item.quantity, checkedOutQuantity: item.quantity }
         : { quantity: -item.quantity },
       ...(item.category === "equipment" ? { $set: { assetStatus: "checked_out" } } : {}),
-    }, { new: true });
+    }, { returnDocument: "after" });
     if (!updated) throw Object.assign(new Error(`${item.name} became unavailable. Refresh the kit and resolve the conflict.`), { status: 409 });
 
     if (item.category === "equipment") {
       const ledger = await EquipmentAssignment.create({
         dailyKitId: kit._id, bookingId: item.bookingIds[0] || null, technicianId, workDate: start,
+        orderIds: item.orderIds || [],
         equipmentId: item.toolId, equipmentName: item.name, equipmentCode: item.toolCode || "",
         quantity: item.quantity, consumable: false, status: "checked_out", checkedOutAt: new Date(), checkedOutBy: userId,
-        notes: `Daily Kit; used for bookings: ${item.bookingIds.join(", ")}`,
+        notes: `Daily Kit; bookings: ${item.bookingIds.join(", ") || "none"}; orders: ${(item.orderIds || []).join(", ") || "none"}`,
       });
       item.equipmentAssignmentId = ledger._id;
       item.checkoutStatus = "checked_out";
@@ -197,9 +503,12 @@ async function confirmDailyKit({ technicianId, userId, date }) {
       const existing = kit.items.find(item => String(item.toolId) === String(delta.toolId) && item.category === delta.category);
       if (existing) {
         existing.quantity += delta.quantity;
-        if (delta.category === "consumable") existing.quantityIssued += delta.quantityIssued;
+        if (delta.category === "consumable") existing.quantityIssued = (existing.quantityIssued || 0) + (delta.quantityIssued || 0);
         existing.assignmentIds = uniqueIds([...existing.assignmentIds, ...delta.assignmentIds]);
         existing.bookingIds = uniqueIds([...existing.bookingIds, ...delta.bookingIds]);
+        existing.orderIds = uniqueIds([...(existing.orderIds || []), ...(delta.orderIds || [])]);
+        existing.orderAllocations = mergeOrderAllocations(existing.orderAllocations, delta.orderAllocations);
+        if (delta.resolution?.status) existing.resolution = delta.resolution;
       } else kit.items.push(delta.toObject ? delta.toObject() : delta);
     }
   }
@@ -215,7 +524,63 @@ async function confirmDailyKit({ technicianId, userId, date }) {
   await BookingService.updateMany({ _id: { $in: kit.bookingIds } }, {
     $set: { "servicePreparation.confirmed": true, "servicePreparation.confirmedAt": new Date(), "servicePreparation.confirmedBy": technicianId },
   });
+  await syncOrderPreparationSummaries(kit, kit.orderIds || []);
   return kit;
 }
 
-module.exports = { dayBounds, syncDailyKit, confirmDailyKit };
+/** Attribute already-issued Daily Kit consumables to a specific installation. */
+async function recordOrderConsumableUsage({ technicianId, userId, orderId, date, usages = [] }) {
+  if (!mongoose.isValidObjectId(orderId)) {
+    throw Object.assign(new Error("Invalid order id"), { status: 400 });
+  }
+  const { start } = dayBounds(date);
+  const kit = await DailyKit.findOne({ technicianId, workDate: start });
+  if (!kit) throw Object.assign(new Error("No Daily Kit was found for this installation date."), { status: 409 });
+
+  const normalized = new Map();
+  for (const row of usages || []) {
+    const name = String(row?.itemName || row?.name || "").trim();
+    const quantity = Number(row?.quantityUsed ?? row?.quantity ?? 0);
+    if (!name || !Number.isFinite(quantity) || quantity < 0) {
+      throw Object.assign(new Error("Consumable usage must contain a valid item name and non-negative quantity."), { status: 400 });
+    }
+    if (quantity > 0) normalized.set(name.toLowerCase(), { name, quantity });
+  }
+
+  const covered = (kit.items || []).filter((item) =>
+    item.category === "consumable" &&
+    (item.orderIds || []).some((id) => String(id) === String(orderId))
+  );
+  for (const usage of normalized.values()) {
+    const item = covered.find((candidate) => candidate.name.toLowerCase() === usage.name.toLowerCase());
+    if (!item) throw Object.assign(new Error(`${usage.name} is not assigned to this order's Daily Kit.`), { status: 403 });
+    const remaining = Number(item.quantityIssued || 0) - Number(item.quantityUsed || 0) - Number(item.quantityReturned || 0);
+    if (usage.quantity > remaining) {
+      throw Object.assign(new Error(`${usage.name} usage exceeds the ${remaining} ${item.unit || "pcs"} still available.`), { status: 409 });
+    }
+  }
+
+  for (const usage of normalized.values()) {
+    const item = covered.find((candidate) => candidate.name.toLowerCase() === usage.name.toLowerCase());
+    item.quantityUsed = Number(item.quantityUsed || 0) + usage.quantity;
+    const tool = item.toolId ? await Tool.findById(item.toolId).select("costPrice").lean() : null;
+    await ServiceToolUsage.create({
+      orderId,
+      technicianId,
+      toolItemId: item.toolId || undefined,
+      inventoryItemId: item.toolId || undefined,
+      itemName: item.name,
+      itemType: "consumable",
+      unit: item.unit || "pcs",
+      quantityUsed: usage.quantity,
+      unitPrice: Number(tool?.costPrice || 0),
+      deductedFromInventory: true,
+      notes: "Actual installation usage from Daily Kit issuance",
+      recordedBy: userId,
+    });
+  }
+  await kit.save();
+  return { kit, recorded: [...normalized.values()] };
+}
+
+module.exports = { dayBounds, syncDailyKit, confirmDailyKit, recordOrderConsumableUsage };

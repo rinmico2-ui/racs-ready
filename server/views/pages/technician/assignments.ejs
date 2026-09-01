@@ -901,22 +901,22 @@
           })();
         </script>
 
-        <!-- Daily Dispatch Kit -->
-        <div id="preparationBar" class="mw-animate-fade-in" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:14px;padding:14px 18px;margin-bottom:16px;">
+        <!-- Daily Preparation Center -->
+        <div id="preparationBar" class="mw-animate-fade-in" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #93c5fd;border-radius:14px;padding:14px 18px;margin-bottom:16px;">
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
               <div class="d-flex align-items-center justify-content-center rounded-2" style="width:32px;height:32px;background:#2563eb;color:#fff;flex-shrink:0;">
                 <i class="bi bi-briefcase" style="font-size:0.85rem;"></i>
               </div>
               <div>
-                <div style="font-weight:700;font-size:0.88rem;color:#1e40af;">Today's Preparation</div>
+                <div style="font-weight:700;font-size:0.88rem;color:#1e40af;">Daily Preparation</div>
                 <div style="font-size:0.75rem;color:#1e40afcc;" id="preparationSummaryText">Loading today's kit...</div>
               </div>
             </div>
             <div class="d-flex align-items-center gap-2">
               <span id="prepStatusBadge" style="display:none;padding:4px 10px;border-radius:8px;font-size:0.7rem;font-weight:700;"></span>
-              <button class="btn btn-sm btn-primary fw-bold" onclick="openDailyKitModal()" style="border-radius:8px;font-size:0.75rem;padding:5px 12px;" title="Review your daily dispatch kit">
-                <i class="bi bi-briefcase me-1"></i>Review Kit
+              <button class="btn btn-sm btn-primary fw-bold" onclick="openDailyKitModal()" style="border-radius:8px;font-size:0.75rem;padding:5px 12px;" title="Review and confirm your daily field kit">
+                <i class="bi bi-briefcase me-1"></i>Prepare Today's Jobs
               </button>
             </div>
           </div>
@@ -1066,6 +1066,10 @@
         <div id="standardPreparationBody" class="d-none">
           <div class="alert alert-info"><i class="bi bi-stars me-2"></i>Recommendations for <strong id="standardPreparationService">this service</strong> are based on the booked service and current available stock.</div>
           <div id="standardPreparationAiCarry" class="alert alert-secondary d-none"></div>
+          <div id="standardPreparationReservedSection" class="mb-3 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0"><i class="bi bi-box-seam me-1"></i>Repair Parts (Reserved)</h6></div>
+            <div id="standardPreparationReservedParts" class="d-flex flex-column gap-2"></div>
+          </div>
           <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0">Equipment & Consumables</h6><button class="btn btn-sm btn-outline-success" onclick="addPreparationItem()"><i class="bi bi-plus-lg me-1"></i>Add Item</button></div>
           <div id="standardPreparationItems" class="d-flex flex-column gap-2"></div>
           <div id="standardPreparationEmpty" class="text-center text-muted py-4 d-none">No items selected. Add at least one item to continue.</div>
@@ -1081,7 +1085,10 @@
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content" style="border-radius:16px;overflow:hidden;">
       <div class="modal-header" style="background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border:none;padding:16px 20px;">
-        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-briefcase me-2"></i>Today's Equipment &amp; Consumables</h6>
+        <div>
+          <h6 class="modal-title fw-bold mb-0"><i class="bi bi-briefcase me-2"></i>Today's Field Kit</h6>
+          <small style="opacity:0.8;font-size:0.72rem;" id="kitDateLabel"></small>
+        </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" style="padding:16px 20px;background:#f8fafc;">
@@ -1113,15 +1120,15 @@
         <div id="kitConsumablesSection" class="mb-3" style="display:none;">
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div style="font-size:0.72rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.05em;"><i class="bi bi-box me-1"></i>Consumables</div>
+              <div style="font-size:0.72rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.05em;"><i class="bi bi-box me-1"></i>Consumables <small style="font-weight:400;text-transform:none;letter-spacing:0;">(Estimated Daily Prep)</small></div>
               <span id="kitConsCount" class="badge bg-success" style="font-size:0.65rem;"></span>
             </div>
             <div id="kitConsumablesList"></div>
           </div>
         </div>
 
-        <!-- Repair Parts Section (shown after inspection) -->
-        <div id="kitRepairSection" class="mb-3">
+        <!-- Repair Parts (Phase 2 approved quotation) -->
+        <div id="kitRepairSection" class="mb-3" style="display:none;">
           <div style="background:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:12px;">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div style="font-size:0.72rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;"><i class="bi bi-box-seam me-1"></i>Repair Parts</div>
@@ -1131,10 +1138,22 @@
           </div>
         </div>
 
+        <!-- AI Contingency Parts (Optional) -->
+        <div id="kitAiContingencySection" class="mb-3" style="display:none;">
+          <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:12px;">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div style="font-size:0.72rem;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:0.05em;"><i class="bi bi-robot me-1"></i>Optional Repair Contingency Parts</div>
+              <span id="kitAiCount" class="badge bg-purple text-white" style="font-size:0.65rem;background:#7c3aed;"></span>
+            </div>
+            <div style="font-size:0.72rem;color:#6d28d9;margin-bottom:8px;">Based on AI diagnosis. Not required. Bring only if available.</div>
+            <div id="kitAiContingencyList"></div>
+          </div>
+        </div>
+
         <!-- Unavailable Items -->
         <div id="kitUnavailableSection" class="mb-3" style="display:none;">
           <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;"><i class="bi bi-exclamation-triangle me-1"></i>Unavailable</div>
+            <div style="font-size:0.72rem;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;"><i class="bi bi-exclamation-triangle me-1"></i>Issues Requiring Attention — <span id="kitIssueCount">0</span></div>
             <div id="kitUnavailableList"></div>
           </div>
         </div>
@@ -1147,23 +1166,36 @@
           </div>
         </div>
 
-        <!-- Add Item -->
+        <!-- Add Item from Inventory -->
         <div id="kitAddItemSection" class="mb-3">
-          <div class="d-flex gap-2">
-            <input type="text" id="kitNewItemName" class="form-control form-control-sm" placeholder="Add item..." style="font-size:0.8rem;">
-            <select id="kitNewItemCategory" class="form-select form-select-sm" style="width:auto;font-size:0.8rem;">
-              <option value="equipment">Equipment</option>
-              <option value="consumable">Consumable</option>
-            </select>
-            <input type="number" id="kitNewItemQty" class="form-control form-control-sm" value="1" min="1" style="width:60px;font-size:0.8rem;">
-            <button class="btn btn-sm btn-outline-primary" onclick="dailyKitAddItem()" style="font-size:0.75rem;"><i class="bi bi-plus-lg"></i></button>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;"><i class="bi bi-plus-circle me-1"></i>Add from Inventory</div>
+            <div class="position-relative">
+              <div class="d-flex gap-2">
+                <div style="flex:1;position:relative;">
+                  <input type="text" id="kitInventorySearch" class="form-control form-control-sm" placeholder="Search equipment or consumable..." style="font-size:0.8rem;" autocomplete="off">
+                  <div id="kitInventoryResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:200px;overflow-y:auto;"></div>
+                </div>
+                <input type="number" id="kitNewItemQty" class="form-control form-control-sm" value="1" min="1" style="width:60px;font-size:0.8rem;" title="Quantity">
+                <button class="btn btn-sm btn-primary" id="kitAddItemBtn" onclick="dailyKitAddSelected()" disabled style="font-size:0.75rem;"><i class="bi bi-plus-lg"></i></button>
+              </div>
+              <div id="kitSelectedItem" class="d-none mt-2" style="font-size:0.78rem;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preparation Summary -->
+        <div id="kitSummarySection" class="mb-2" style="display:none;">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;"><i class="bi bi-clipboard-check me-1"></i>Preparation Summary</div>
+            <div id="kitSummaryContent" style="font-size:0.78rem;"></div>
           </div>
         </div>
       </div>
       <div class="modal-footer" style="background:#f8fafc;border:none;padding:12px 20px;">
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-success btn-sm fw-bold" id="kitConfirmBtn" onclick="dailyKitConfirm()" style="display:none;">
-          <i class="bi bi-check2-circle me-1"></i>Confirm Kit Prepared
+          <i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation
         </button>
       </div>
     </div>
@@ -1731,6 +1763,23 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" style="padding:0;background:#f8fafc;">
+        <!-- Consumables Used Section -->
+        <div id="proofConsumablesSection" style="display:none;margin:24px 24px 0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+          <div style="padding:14px 18px;background:#f0fdf4;border-bottom:1px solid #d1fae5;display:flex;align-items:center;gap:8px;">
+            <i class="bi bi-clipboard-data" style="color:#059669;"></i>
+            <small class="fw-bold" style="color:#065f46;">Consumables Used <span style="color:#dc2626;">*</span></small>
+            <span class="badge bg-success bg-opacity-10 text-success ms-auto" style="font-size:0.65rem;" id="proofConsumablesCount">0 items</span>
+          </div>
+          <div id="proofConsumablesList" style="padding:12px 18px;max-height:200px;overflow-y:auto;">
+            <!-- Dynamically populated -->
+          </div>
+          <div id="proofConsumablesEmpty" style="padding:16px 18px;text-align:center;display:none;">
+            <small style="color:#64748b;">No consumables in today's kit for this booking</small>
+          </div>
+          <div id="proofConsumablesHint" style="display:none;padding:8px 18px 12px;font-size:0.68rem;color:#92400e;">
+            <i class="bi bi-requirement"></i> Required — enter how much of each consumable was used to complete this job.
+          </div>
+        </div>
         <!-- Upload Zone -->
         <div class="proof-upload-area" id="proofUploadArea"
           style="margin:24px;border:2px dashed #d1d5db;border-radius:16px;padding:40px 24px;text-align:center;cursor:pointer;transition:all 0.3s ease;background:#fff;"
@@ -1759,6 +1808,33 @@
             <div
               style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:16px;border-radius:0 0 12px 12px;">
               <small class="text-white fw-bold" id="proofFileName">filename.jpg</small>
+            </div>
+          </div>
+        </div>
+        <div style="margin:0 24px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-calendar2-check" style="color:#0f766e;"></i>
+            <div>
+              <div class="fw-bold" style="font-size:0.84rem;color:#1e293b;">Next preventive maintenance</div>
+              <small style="color:#64748b;">This recommendation creates the customer's next due cycle after completion.</small>
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-sm-4">
+              <label class="form-label fw-semibold" for="nextMaintenanceDays" style="font-size:0.76rem;">Recommended interval</label>
+              <select class="form-select" id="nextMaintenanceDays" style="border-radius:8px;font-size:0.82rem;">
+                <option value="" selected>Use admin default</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="120">120 days</option>
+                <option value="180">180 days</option>
+                <option value="365">1 year</option>
+              </select>
+              <div class="form-text" id="nextMaintenancePolicyHint">The configured admin interval is used unless you recommend another cycle.</div>
+            </div>
+            <div class="col-sm-8">
+              <label class="form-label fw-semibold" for="nextMaintenanceNotes" style="font-size:0.76rem;">Recommendation notes</label>
+              <input class="form-control" id="nextMaintenanceNotes" maxlength="1000" placeholder="Optional advice for the next visit" style="border-radius:8px;font-size:0.82rem;">
             </div>
           </div>
         </div>
@@ -4757,7 +4833,7 @@
     font-weight: 600;
   }
 
-  /* ── Tab Bar (Premium) ── */
+  /* ── Tab Bar (Premium + Sticky) ── */
   .mw-detail-tabs {
     display: flex;
     gap: 4px;
@@ -4768,6 +4844,9 @@
     overflow-x: auto;
     scrollbar-width: none;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    position: sticky;
+    top: 0;
+    z-index: 20;
   }
 
   .mw-detail-tabs::-webkit-scrollbar { display: none; }
@@ -4802,6 +4881,38 @@
   }
 
   .mw-detail-tab.active i { opacity: 1; }
+
+  /* ── Tab Status Badges ── */
+  .mw-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    font-size: 0.55rem;
+    font-weight: 800;
+    border-radius: 8px;
+    margin-left: 4px;
+    line-height: 1;
+  }
+  .mw-tab-badge.badge-done { background: #dcfce7; color: #15803d; }
+  .mw-tab-badge.badge-active { background: #dbeafe; color: #1d4ed8; }
+  .mw-tab-badge.badge-pending { background: #fef3c7; color: #b45309; }
+  .mw-tab-badge.badge-waiting { background: #f1f5f9; color: #64748b; }
+
+  /* ── Tab Attention Pulse ── */
+  .mw-detail-tab.needs-action {
+    animation: mw-tab-pulse 2s ease-in-out infinite;
+  }
+  @keyframes mw-tab-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+  }
+  .mw-detail-tab.needs-action .mw-tab-badge.badge-pending {
+    background: #f59e0b;
+    color: #fff;
+  }
 
   .mw-detail-panels { flex: 1; }
   .mw-detail-panel { display: none; }
@@ -5732,7 +5843,7 @@
 
     /* Detail tabs — icon only */
     .mw-detail-tab i { font-size: 0.7rem; }
-    .mw-detail-tab span { display: none; }
+    .mw-detail-tab span:not(.mw-tab-badge) { display: none; }
     .mw-detail-tab { 
       padding: 8px 12px; 
       gap: 0; 
@@ -6211,6 +6322,176 @@
     .kpi-enterprise-value { font-size: 1.1rem; }
     .kpi-enterprise-label { font-size: 0.62rem; }
   }
+
+  /* Booking detail content follows the technician-order visual system.
+     Work Progress intentionally keeps the booking-specific trk component. */
+  #detailPanelHeader.booking-order-detail-header { padding: 14px 20px 16px; overflow: visible; }
+  #detailPanelContent.booking-order-detail-content > .mw-detail-tabs {
+    max-width: 1180px; margin: 14px auto 0; padding: 7px; border: 1px solid #e2e8f0;
+    border-radius: 13px; background: #fff; box-shadow: 0 3px 12px rgba(15,23,42,.04);
+  }
+  #detailPanelContent.booking-order-detail-content > .mw-detail-panels { padding: 0 0 28px !important; }
+  #detailPanelContent.booking-order-detail-content .mw-detail-panel { padding: 0; }
+  #detailPanelContent.booking-order-detail-content .mw-detail-panel > .ent-panel {
+    max-width: 1180px; margin: 0 auto; padding: 14px 20px 28px;
+  }
+  .booking-order-overview { max-width: 1180px; margin: 0 auto; padding: 14px 20px 28px; }
+  .booking-detail-overview {
+    display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px;
+    margin-bottom: 14px; color: #fff; border-radius: 16px;
+    background: linear-gradient(125deg, #0f172a 0%, #1e3a8a 70%, #2563eb 100%);
+    box-shadow: 0 12px 30px rgba(15,23,42,.14);
+  }
+  .booking-detail-overview-main { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .booking-detail-overview-icon {
+    width: 46px; height: 46px; flex: 0 0 auto; border-radius: 13px; display: grid; place-items: center;
+    background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16); font-size: 1.15rem;
+  }
+  .booking-detail-eyebrow { color: #bfdbfe; font-size: .61rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .booking-detail-overview h4 { margin: 3px 0 2px; color: #fff; font-size: 1.05rem; font-weight: 800; }
+  .booking-detail-overview p { margin: 0; color: #dbeafe; font-size: .72rem; }
+  .booking-detail-total { flex: 0 0 auto; text-align: right; }
+  .booking-detail-total span { display: block; color: #bfdbfe; font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .booking-detail-total strong { display: block; margin-top: 2px; color: #fff; font-size: 1.2rem; font-weight: 850; }
+  .booking-detail-summary { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+  .booking-summary-cell { padding: 12px 13px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+  .booking-summary-cell span { display: block; margin-bottom: 4px; color: #64748b; font-size: .59rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+  .booking-summary-cell strong { display: block; color: #172033; font-size: .78rem; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+  .booking-detail-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .75fr); gap: 14px; align-items: start; }
+  .booking-detail-column { display: grid; gap: 14px; min-width: 0; }
+  .booking-detail-card { overflow: hidden; border: 1px solid #e1e8f0; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(15,23,42,.035); }
+  .booking-detail-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 15px; border-bottom: 1px solid #edf1f6; }
+  .booking-detail-card-title { display: flex; align-items: center; gap: 8px; margin: 0; color: #172033; font-size: .78rem; font-weight: 800; }
+  .booking-detail-card-title i { color: #2563eb; }
+  .booking-detail-card-body { padding: 14px 15px; }
+  .booking-info-list { display: grid; gap: 0; }
+  .booking-info-row { display: grid; grid-template-columns: 33px minmax(0,1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f3f7; }
+  .booking-info-row:first-child { padding-top: 0; }
+  .booking-info-row:last-child { padding-bottom: 0; border-bottom: 0; }
+  .booking-info-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #2563eb; background: #eff6ff; font-size: .76rem; }
+  .booking-info-label { color: #718096; font-size: .59rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+  .booking-info-value { margin-top: 2px; color: #1e293b; font-size: .76rem; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+  .booking-contact-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+  .booking-contact-action { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 9px; color: #334155; background: #fff; font-size: .68rem; font-weight: 750; text-decoration: none; }
+  .booking-contact-action:hover { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
+  .booking-service-row { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 11px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f0f3f7; }
+  .booking-service-row:first-child { padding-top: 0; }
+  .booking-service-row:last-child { padding-bottom: 0; border-bottom: 0; }
+  .booking-service-icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: #1d4ed8; background: #eff6ff; }
+  .booking-service-name { color: #172033; font-size: .77rem; font-weight: 800; line-height: 1.3; }
+  .booking-service-meta { margin-top: 3px; color: #64748b; font-size: .67rem; line-height: 1.4; }
+  .booking-service-amount { color: #172033; font-size: .75rem; font-weight: 800; text-align: right; }
+  .booking-money-row { display: flex; justify-content: space-between; gap: 15px; padding: 7px 0; color: #64748b; font-size: .7rem; }
+  .booking-money-row strong { color: #263449; font-weight: 750; text-align: right; }
+  .booking-money-row.total { margin-top: 4px; padding-top: 11px; border-top: 1px solid #e2e8f0; color: #172033; font-weight: 800; }
+  .booking-money-row.total strong { color: #0f172a; font-size: .87rem; }
+  .booking-payment-status { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; font-size: .59rem; font-weight: 800; text-transform: capitalize; }
+  .booking-payment-status.settled { color: #047857; background: #d1fae5; }
+  .booking-payment-status.unsettled { color: #92400e; background: #fef3c7; }
+  .booking-legacy-card.trk-card { margin: 0 !important; border: 1px solid #e1e8f0; border-radius: 14px; box-shadow: 0 4px 14px rgba(15,23,42,.035); }
+  .booking-legacy-card.trk-card .trk-card-header { padding: 13px 15px; background: #fff; border-bottom: 1px solid #edf1f6; }
+  .booking-legacy-card.trk-card .trk-card-title { color: #172033; font-size: .78rem; font-weight: 800; letter-spacing: 0; text-transform: none; }
+  .booking-legacy-card.trk-card .trk-card-body { padding: 14px 15px; }
+
+  @media (max-width: 850px) {
+    .booking-detail-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .booking-detail-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 575px) {
+    #detailPanelHeader.booking-order-detail-header { padding: 11px 12px 12px; }
+    #detailPanelContent.booking-order-detail-content > .mw-detail-tabs { margin: 10px 10px 0; }
+    .booking-order-overview { padding: 12px 10px 22px; }
+    .booking-detail-overview { padding: 14px; align-items: flex-start; }
+    .booking-detail-overview-icon { width: 39px; height: 39px; }
+    .booking-detail-overview h4 { font-size: .88rem; }
+    .booking-detail-overview p { font-size: .65rem; }
+    .booking-detail-total strong { font-size: .95rem; }
+    .booking-detail-summary { gap: 8px; }
+    .booking-summary-cell { padding: 10px; }
+    .booking-detail-card-head, .booking-detail-card-body { padding-left: 12px; padding-right: 12px; }
+  }
+
+  /* Canonical compact detail scale: identical hierarchy to technician orders. */
+  #detailPanelHeader.booking-order-detail-header { padding: 10px 16px 10px; }
+  .compact-work-progress.trk-card {
+    position: relative; z-index: 1; margin-top: 10px; margin-bottom: 0; overflow: hidden;
+    border: 1px solid #dbe7f1; border-radius: 11px; background: #fff;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+  }
+  .compact-work-progress .trk-card-header { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: linear-gradient(135deg,#f0f9ff,#e0f2fe); border-bottom: 1px solid #e0f2fe; }
+  .compact-work-progress .trk-card-title { display: flex; align-items: center; gap: 6px; margin: 0; color: #0f172a; font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .compact-work-progress .trk-card-body { padding: 8px 10px 9px; }
+  .compact-work-progress .trk-live-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; color: #15803d; background: #dcfce7; font-size: .55rem; font-weight: 850; letter-spacing: .08em; }
+  .compact-work-progress .trk-pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; animation: compactProgressPulse 2s ease-in-out infinite; }
+  .compact-work-progress .trk-current-action { display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 8px; border: 1px solid #bfdbfe; border-radius: 10px; background: linear-gradient(135deg,#eff6ff,#f0fdf4); }
+  .compact-work-progress .trk-current-action.live { border-color: #86efac; background: linear-gradient(135deg,#ecfdf5,#f0fdf4); }
+  .compact-work-progress .trk-current-action-icon { width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; background: #2563eb; font-size: .76rem; }
+  .compact-work-progress .trk-current-action.live .trk-current-action-icon { background: #16a34a; }
+  .compact-work-progress .trk-current-action.live .trk-current-action-icon i { animation: compactProgressSpin 1.4s linear infinite; }
+  .compact-work-progress .trk-current-action-title { color: #0f172a; font-size: .72rem; font-weight: 800; line-height: 1.2; }
+  .compact-work-progress .trk-current-action-sub { margin-top: 1px; color: #64748b; font-size: .59rem; line-height: 1.25; }
+  .compact-work-progress .trk-task-list { display: flex; flex-direction: row; gap: 0; padding: 1px 0 2px; overflow-x: auto; }
+  .compact-work-progress .trk-task { position: relative; display: flex; flex: 1; min-width: 74px; flex-direction: column; align-items: center; padding: 0 3px; text-align: center; }
+  .compact-work-progress .trk-task::before { content: ''; position: absolute; z-index: 0; top: 13px; left: -50%; width: 100%; height: 2px; background: #e2e8f0; }
+  .compact-work-progress .trk-task:first-child::before { display: none; }
+  .compact-work-progress .trk-task.done::before, .compact-work-progress .trk-task.active::before { background: #2563eb; }
+  .compact-work-progress .trk-task-dot { position: relative; z-index: 1; width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border: 2px solid #e2e8f0; border-radius: 50%; color: #94a3b8; background: #f8fafc; font-size: .7rem; }
+  .compact-work-progress .trk-task.done .trk-task-dot { color: #fff; background: #2563eb; border-color: #2563eb; }
+  .compact-work-progress .trk-task.active .trk-task-dot { color: #fff; background: #16a34a; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.13); }
+  .compact-work-progress .trk-task-body { padding-top: 5px; }
+  .compact-work-progress .trk-task-label { color: #64748b; font-size: .58rem; font-weight: 750; line-height: 1.15; }
+  .compact-work-progress .trk-task.done .trk-task-label, .compact-work-progress .trk-task.active .trk-task-label { color: #0f172a; }
+  .compact-work-progress .trk-task-desc { display: none; }
+  @keyframes compactProgressPulse { 50% { opacity: .45; transform: scale(.8); } }
+  @keyframes compactProgressSpin { to { transform: rotate(360deg); } }
+
+  #detailPanelContent.booking-order-detail-content > .mw-detail-tabs { max-width: 1040px; margin-top: 9px; padding: 5px; border-radius: 10px; }
+  .booking-order-overview { max-width: 1040px; padding: 9px 16px 18px; }
+  .booking-detail-overview { gap: 12px; padding: 12px 15px; margin-bottom: 9px; border-radius: 12px; box-shadow: 0 7px 20px rgba(15,23,42,.12); }
+  .booking-detail-overview-icon { width: 38px; height: 38px; border-radius: 10px; font-size: .94rem; }
+  .booking-detail-overview h4 { font-size: .9rem; }
+  .booking-detail-overview p { font-size: .64rem; }
+  .booking-detail-total strong { font-size: 1rem; }
+  .booking-detail-summary { gap: 7px; margin-bottom: 9px; }
+  .booking-summary-cell { padding: 8px 10px; border-radius: 10px; }
+  .booking-summary-cell span { margin-bottom: 2px; font-size: .53rem; }
+  .booking-summary-cell strong { font-size: .7rem; }
+  .booking-detail-grid, .booking-detail-column { gap: 9px; }
+  .booking-detail-grid { grid-template-columns: minmax(0,1.4fr) minmax(250px,.72fr); }
+  .booking-detail-card { border-radius: 11px; }
+  .booking-detail-card-head { padding: 9px 12px; }
+  .booking-detail-card-title { font-size: .7rem; }
+  .booking-detail-card-body { padding: 10px 12px; }
+  .booking-info-row { grid-template-columns: 29px minmax(0,1fr); gap: 8px; padding: 7px 0; }
+  .booking-info-icon { width: 28px; height: 28px; border-radius: 8px; font-size: .68rem; }
+  .booking-info-value { font-size: .7rem; }
+  .booking-contact-actions { margin-top: 9px; }
+  .booking-contact-action { padding: 6px 9px; font-size: .63rem; }
+  .booking-service-row { grid-template-columns: 32px minmax(0,1fr) auto; gap: 9px; padding: 8px 0; }
+  .booking-service-icon { width: 32px; height: 32px; border-radius: 8px; }
+  .booking-service-name { font-size: .7rem; }
+  .booking-service-meta, .booking-service-amount { font-size: .62rem; }
+  .booking-money-row { padding: 5px 0; font-size: .65rem; }
+  .booking-legacy-card.trk-card { border-radius: 11px; }
+  .booking-legacy-card.trk-card .trk-card-header { padding: 9px 12px; }
+  .booking-legacy-card.trk-card .trk-card-title { font-size: .7rem; }
+  .booking-legacy-card.trk-card .trk-card-body { padding: 10px 12px; }
+  .detail-panel-actions { padding: 8px 14px; justify-content: flex-start; }
+  .detail-panel-actions > .d-flex { width: 100%; justify-content: flex-start; }
+  .detail-panel-actions .btn { min-height: 35px; padding: 7px 13px; border-radius: 9px; font-size: .72rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+
+  @media (max-width: 850px) { .booking-detail-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 575px) {
+    #detailPanelHeader.booking-order-detail-header { padding: 9px 10px; }
+    .compact-work-progress.trk-card { margin-top: 8px; }
+    .compact-work-progress .trk-current-action-sub, .compact-work-progress .trk-live-tag { display: none; }
+    .compact-work-progress .trk-task { min-width: 62px; }
+    #detailPanelContent.booking-order-detail-content > .mw-detail-tabs { margin: 7px 8px 0; }
+    .booking-order-overview { padding: 8px 8px 16px; }
+    .booking-detail-overview { padding: 10px 11px; }
+    .booking-detail-summary { gap: 6px; }
+    .detail-panel-actions .btn { flex: 1 1 130px; }
+  }
 </style>
 
 <script>
@@ -6279,6 +6560,8 @@
       accepted: 'Accepted',
       en_route: 'En Route',
       on_site: 'On Site',
+      waiting_for_customer: 'Waiting for Customer',
+      no_show_reported: 'No-Show Reported',
       in_progress: 'In Progress',
       completed: 'Completed',
       cancelled: 'Cancelled',
@@ -6298,16 +6581,16 @@
       if (['pending-acceptance','pending','waiting-parts','expired'].includes(s)) return 'pending';
       if (['accepted','confirmed','scheduled','repair-approved','ready-for-repair','repair-scheduled'].includes(s)) return 'confirmed';
       if (['en-route','en_route','out-for-delivery','on-the-way'].includes(s)) return 'on-the-way';
-      if (['on-site','on_site','arrived'].includes(s)) return 'scheduled';
+      if (['on-site','on_site','arrived','waiting-for-customer','waiting_for_customer'].includes(s)) return 'scheduled';
       if (['in-progress','in_progress','installing','repair-in-progress','repair_in_progress'].includes(s)) return 'in-progress';
       if (['completed','repair-completed','repair_completed','under-warranty','under_warranty'].includes(s)) return 'completed';
-      if (['cancelled','canceled','declined','rejected','no-show','no_show'].includes(s)) return 'cancelled';
+      if (['cancelled','canceled','declined','rejected','no-show','no_show','no-show-reported','no_show_reported'].includes(s)) return 'cancelled';
       return 'pending';
     }
 
     const WORK_PROGRESS_ACTIONS = {
       accepted: { t: 'Technician assigned', s: 'A technician has been assigned to your job.', icon: 'bi-person-check' },
-      checkout: { t: 'Equipment prepared', s: 'Recommended equipment and consumables have been confirmed.', icon: 'bi-box-seam' },
+      daily_prep: { t: 'Equipment prepared', s: 'Equipment and consumables prepared for all of today\'s jobs.', icon: 'bi-briefcase' },
       en_route: { t: 'Heading to your location', s: 'Live GPS tracking is active — watch the map for arrival.', icon: 'bi-geo-alt' },
       on_site: { t: 'Arrived at your location', s: 'The technician is now onsite preparing for the service.', icon: 'bi-pin-map' },
       arrived: { t: 'Arrived at your location', s: 'The technician is now onsite preparing for the service.', icon: 'bi-pin-map' },
@@ -6322,6 +6605,7 @@
     const STEP_DESCRIPTIONS = {
       accepted: 'A technician has been assigned to your job.',
       ai_review: 'Review and verify the preliminary AI diagnosis before preparing equipment.',
+      daily_prep: 'Equipment and consumables are prepared once for all of today\'s jobs.',
       checkout: 'Prepare equipment and consumables after resolving the recommended parts.',
       ai_analysis: 'Open the required AI analysis for this repair.',
       reserve_parts: 'Reserve every part recommended by the AI analysis.',
@@ -6680,17 +6964,12 @@
 if (a.status === 'accepted') {
             const ta = a.bookingId?.technicianAssistant;
             if (!ta?.summary) {
-              return `<button class="btn btn-info text-white" onclick="generateAiDiagnosis('${bId}')"><i class="bi bi-robot me-2"></i>Generate AI Diagnosis</button>`;
+              return `<button class="btn btn-info text-white" disabled><span class="spinner-border spinner-border-sm me-2"></span>Generating AI Diagnosis...</button>`;
             }
             if (!ta.verifiedByTechnician) {
               return `<button class="btn btn-info text-white" onclick="verifyAiAssistant('${bId}')"><i class="bi bi-clipboard2-pulse me-2"></i>Review AI Diagnosis</button>`;
             }
-            if (!a.equipmentCheckedOut) {
-              const prepBtn = `<button type="button" class="btn btn-primary" onclick="openStandardPreparation('${a._id}');"><i class="bi bi-clipboard2-check me-2"></i>Review Equipment &amp; Consumables</button>`;
-              return `<div class="d-flex gap-2 flex-wrap align-items-center"><button class="btn btn-outline-info" onclick="switchDetailTab('ai-assistant')"><i class="bi bi-robot me-2"></i>View Reviewed AI Diagnosis</button>${prepBtn}</div>`;
-            }
-            if (!a.bookingId?.repairPreparation?.confirmed) return `<button class="btn btn-success" onclick="confirmRepairPreparation('${bId}')"><i class="bi bi-check2-circle me-2"></i>Confirm Ready</button>`;
-            return `<button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route</button>`;
+            return `<div class="d-flex gap-2 flex-wrap align-items-center"><button class="btn btn-outline-info" onclick="switchDetailTab('ai-assistant')"><i class="bi bi-robot me-2"></i>View AI Diagnosis</button><button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route</button></div>`;
           }
 
           // STEP 3: Arrived (was en_route, now at customer site)
@@ -6705,7 +6984,25 @@ if (a.status === 'accepted') {
           // STEP 4: Start Work (arrived at site, ready to begin)
           if (a.status === 'on_site') {
             return `<button class="btn btn-success" onclick="repairTransition('${bId}','in_progress', this);"><i class="bi bi-play-fill me-2"></i>Start Work</button>
-                    <button type="button" class="btn btn-warning text-dark" onclick="markNoShow('${a._id}',this);"><i class="bi bi-person-x me-2"></i>No Show</button>`;
+                    <button type="button" class="btn btn-warning text-dark" onclick="openCustomerNotAvailable('${a._id}',this);"><i class="bi bi-person-x me-2"></i>Customer Not Available</button>`;
+          }
+
+          // STEP 4b: Waiting for customer (no-show window active)
+          if (a.status === 'waiting_for_customer') {
+            const wt = a.waitingUntil || '';
+            return `<div class="d-flex flex-column gap-1 w-100">
+              <span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:0.78rem;padding:8px 16px;"><i class="bi bi-hourglass-split me-1"></i>Waiting for Customer</span>
+              <small class="text-muted" style="font-size:0.7rem;padding:0 4px;">Attempted: ${(a.contactAttempts || []).join(', ') || '—'}</small>
+              <button type="button" class="btn btn-outline-warning btn-sm" onclick="openCustomerNotAvailable('${a._id}',this,'resume');"><i class="bi bi-clock-history me-1"></i>View Waiting Timer</button>
+            </div>`;
+          }
+
+          // STEP 4c: No-show reported — pending admin review
+          if (a.status === 'no_show_reported') {
+            return `<div class="d-flex flex-column gap-1 w-100">
+              <span class="badge bg-danger" style="font-size:0.78rem;padding:8px 16px;"><i class="bi bi-person-exclamation me-1"></i>No-Show Reported</span>
+              <small class="text-muted" style="font-size:0.7rem;padding:0 4px;">Pending admin review. You may continue with other assignments.</small>
+            </div>`;
           }
 
           // STEP 5+: in_progress — depends on booking phase
@@ -6876,15 +7173,24 @@ if (a.status === 'accepted') {
           let btnIcon = icons[next[a.status]];
           let btnAction = completeAction;
           let btnClass = isCompleteStep && needsPayment ? 'btn-warning' : isCompleteStep ? 'btn-success' : 'btn-primary';
-          if (a.status === 'accepted' && !a.equipmentCheckedOut) {
-            btnLabel = 'Prepare Equipment & Consumables';
-            btnIcon = 'bi-clipboard2-check';
-            btnAction = `openStandardPreparation('${a._id}');`;
-            btnClass = 'btn-primary';
+          if (a.status === 'accepted') {
+            const kitReady = ['confirmed', 'in_progress'].includes(window._dailyKitStatus);
+            if (kitReady) {
+              btnLabel = 'En Route';
+              btnIcon = 'bi-sign-turn-right';
+              btnAction = `transitionStatus('${a._id}','en_route',this);`;
+              btnClass = 'btn-success';
+            } else {
+              btnLabel = 'Open Daily Preparation';
+              btnIcon = 'bi-briefcase';
+              btnAction = `openDailyKitModal();`;
+              btnClass = 'btn-primary';
+            }
           }
           let actionBtns = `
           ${canCancel ? `<button class="btn btn-outline-danger" onclick="openModalAfterClose(null,'assignDetailModal',()=>openCancelModal('${a._id}','${esc(a.customerName)}','${esc(a.serviceName)}'));"><i class="bi bi-x-circle me-2"></i>Cancel</button>` : ''}
-          ${a.status === 'on_site' ? `<button type="button" class="btn btn-warning text-dark" onclick="markNoShow('${a._id}',this);"><i class="bi bi-person-x me-2"></i>No Show</button>` : ''}`;
+          ${a.status === 'on_site' ? `<button type="button" class="btn btn-warning text-dark" onclick="openCustomerNotAvailable('${a._id}',this);"><i class="bi bi-person-x me-2"></i>Customer Not Available</button>` : ''}
+          ${a.status === 'waiting_for_customer' ? `<button type="button" class="btn btn-outline-warning" onclick="openCustomerNotAvailable('${a._id}',this,'resume');"><i class="bi bi-clock-history me-2"></i>Waiting Timer</button>` : ''}`;
           if (a.status === 'en_route') {
             actionBtns += `<button class="btn btn-outline-primary" onclick="openRouteMapModal();event.stopPropagation();"><i class="bi bi-map me-1"></i>View Map</button>`;
           }
@@ -6943,32 +7249,79 @@ if (a.status === 'accepted') {
       const escHtml = value => value == null ? '' : String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
       const booking = a.bookingId || {};
       const coreItems = (booking.services || []).filter(item => item.type === 'core');
-      // Include legacy mixed records that were prematurely marked completed;
-      // technicians must still be able to finish their outstanding Core item.
       const visitStarted = ['in_progress', 'completed'].includes(a.status);
       if (!coreItems.length) return '<div class="alert alert-light">No Core services in this assignment.</div>';
+
+      const PENDING_STATES = ['pending', 'awaiting_assignment', 'assigned', 'accepted', 'scheduled', 'en_route', 'arrived'];
+      const pendingItems = coreItems.filter(item => PENDING_STATES.includes(String(item.status || 'pending')));
+      const inProgressItems = coreItems.filter(item => String(item.status) === 'in_progress');
+      const completedItems = coreItems.filter(item => String(item.status) === 'completed');
+      const allCompleted = completedItems.length === coreItems.length;
+
+      const canStart = visitStarted && pendingItems.length > 0;
+      const canCompleteAll = visitStarted && inProgressItems.length > 0 && pendingItems.length === 0;
+
+      const totalAmount = coreItems.reduce((sum, item) => sum + Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1)) || 0), 0);
+      const progressPct = Math.round((completedItems.length / coreItems.length) * 100);
+
+      function statusPill(status) {
+        const s = String(status || 'pending').replace(/_/g, ' ');
+        if (status === 'completed') return `<span class="badge bg-success" style="font-size:.6rem;padding:4px 10px;border-radius:6px;text-transform:capitalize;font-weight:700;">${escHtml(s)}</span>`;
+        if (status === 'in_progress') return `<span class="badge bg-primary" style="font-size:.6rem;padding:4px 10px;border-radius:6px;text-transform:capitalize;font-weight:700;">${escHtml(s)}</span>`;
+        return `<span class="badge bg-secondary" style="font-size:.6rem;padding:4px 10px;border-radius:6px;text-transform:capitalize;font-weight:700;">${escHtml(s)}</span>`;
+      }
+
       return `<div class="ent-panel">
-        <div class="trk-card" style="margin-bottom:16px;">
-          <div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-gear-wide-connected"></i> Core Service Work</h6></div>
-          <div class="trk-card-body">
-            <div style="font-size:.75rem;color:#64748b;margin-bottom:12px;">These services keep the normal Core workflow. Repair diagnosis, inspection, and quotation do not apply here.</div>
+        <div class="trk-card" style="margin-bottom:16px;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+          <div class="trk-card-header" style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:16px 20px;border:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-gear-wide-connected" style="font-size:1.1rem;color:#fff;"></i></div>
+                <div>
+                  <h6 style="margin:0;color:#fff;font-size:.85rem;font-weight:700;letter-spacing:-0.01em;">Core Service Work</h6>
+                  <div style="font-size:.65rem;color:rgba(255,255,255,0.7);margin-top:2px;">${coreItems.length} item${coreItems.length > 1 ? 's' : ''} · ₱${totalAmount.toLocaleString()}</div>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:1.1rem;font-weight:800;color:#fff;line-height:1;">${progressPct}%</div>
+                <div style="font-size:.55rem;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;">Complete</div>
+              </div>
+            </div>
+            <div style="margin-top:12px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${progressPct}%;background:#10b981;border-radius:2px;transition:width 0.4s ease;"></div></div>
+          </div>
+          <div class="trk-card-body" style="padding:16px 20px;">
+            ${!visitStarted && !allCompleted ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;margin-bottom:14px;font-size:.72rem;color:#92400e;"><i class="bi bi-info-circle-fill" style="font-size:.85rem;flex-shrink:0;"></i><span>Core work becomes available after the shared <strong>Start Work</strong> step.</span></div>` : ''}
+
+            ${canStart ? `<button type="button" class="btn btn-primary w-100 mb-3" style="font-weight:700;padding:13px;border-radius:10px;font-size:.8rem;letter-spacing:0.01em;box-shadow:0 2px 8px rgba(37,99,235,0.25);" onclick="startAllCoreWork('${booking._id}', this)"><i class="bi bi-play-fill me-2"></i>Start Core Work${pendingItems.length > 1 ? ' · ' + pendingItems.length + ' items' : ''}</button>` : ''}
+
+            ${canCompleteAll ? `<button type="button" class="btn btn-success w-100 mb-3" style="font-weight:700;padding:13px;border-radius:10px;font-size:.8rem;letter-spacing:0.01em;box-shadow:0 2px 8px rgba(22,163,74,0.25);" onclick="completeAllCoreWork('${booking._id}', this)"><i class="bi bi-check-circle me-2"></i>Complete All Core Services${inProgressItems.length > 1 ? ' · ' + inProgressItems.length + ' items' : ''}</button>` : ''}
+
             ${coreItems.map((item, index) => {
               const status = String(item.status || 'pending');
               const completed = status === 'completed';
-              const canStart = visitStarted && ['pending', 'awaiting_assignment', 'assigned', 'accepted', 'scheduled', 'en_route', 'arrived'].includes(status);
-              const canComplete = visitStarted && status === 'in_progress';
+              const inProgress = status === 'in_progress';
               const price = Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1)) || 0);
               const details = [item.brand, item.applianceTypeName || item.airconTypeName, item.hpDescription || (item.hp ? item.hp + ' HP' : '')].filter(Boolean).join(' · ');
-              return `<div style="border:1px solid ${completed ? '#bbf7d0' : '#dbeafe'};border-radius:12px;padding:14px;margin-bottom:${index < coreItems.length - 1 ? '10px' : '0'};background:${completed ? '#f0fdf4' : '#f8fafc'};">
-                <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-                  <div><div style="font-size:.64rem;font-weight:800;color:#64748b;">CORE SERVICE ${index + 1} OF ${coreItems.length}</div><div style="font-weight:750;color:#0f172a;">${escHtml(item.name || 'Core Service')}</div></div>
-                  <span class="badge ${completed ? 'bg-success' : 'bg-primary'}" style="text-transform:capitalize;">${escHtml(status.replace(/_/g, ' '))}</span>
+              const cardBorder = completed ? '#86efac' : inProgress ? '#93c5fd' : '#e2e8f0';
+              const cardBg = completed ? '#f0fdf4' : inProgress ? '#eff6ff' : '#ffffff';
+              const numBg = completed ? '#22c55e' : inProgress ? '#3b82f6' : '#cbd5e1';
+              return `<div style="border:1px solid ${cardBorder};border-radius:12px;padding:14px 16px;margin-bottom:${index < coreItems.length - 1 ? '10px' : '0'};background:${cardBg};transition:all 0.2s ease;">
+                <div style="display:flex;align-items:flex-start;gap:12px;">
+                  <div style="width:28px;height:28px;border-radius:8px;background:${numBg};color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0;">${index + 1}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                      <div style="font-weight:700;color:#0f172a;font-size:.78rem;">${escHtml(item.name || 'Core Service')}</div>
+                      ${statusPill(status)}
+                    </div>
+                    ${details ? `<div style="font-size:.68rem;color:#64748b;margin-top:5px;">${escHtml(details)}</div>` : ''}
+                    <div style="display:flex;gap:16px;margin-top:8px;font-size:.68rem;color:#475569;">
+                      <div style="display:flex;align-items:center;gap:4px;"><i class="bi bi-box" style="font-size:.6rem;opacity:0.6;"></i> Qty: ${Number(item.quantity) || 1}</div>
+                      <div style="display:flex;align-items:center;gap:4px;"><i class="bi bi-cash" style="font-size:.6rem;opacity:0.6;"></i> ₱${price.toLocaleString()}</div>
+                    </div>
+                  </div>
                 </div>
-                ${details ? `<div style="font-size:.72rem;color:#64748b;margin-top:7px;">${escHtml(details)}</div>` : ''}
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:.72rem;"><div><strong>Quantity:</strong> ${Number(item.quantity) || 1}</div><div><strong>Service total:</strong> ₱${price.toLocaleString()}</div></div>
-                ${canStart ? `<button type="button" class="btn btn-primary btn-sm w-100 mt-3" onclick="updateMixedCoreItemStatus('${booking._id}','${item._id}','in_progress',this)"><i class="bi bi-play-fill me-1"></i>Start Core Work</button>` : ''}
-                ${canComplete ? `<button type="button" class="btn btn-success btn-sm w-100 mt-3" onclick="updateMixedCoreItemStatus('${booking._id}','${item._id}','completed',this)"><i class="bi bi-check-circle me-1"></i>Complete Core Service</button>` : ''}
-                ${!visitStarted && !completed ? `<div class="alert alert-light py-2 px-3 mt-3 mb-0" style="font-size:.7rem;"><i class="bi bi-info-circle me-1"></i>Available after the shared Start Work step.</div>` : ''}
+                ${completed ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #bbf7d0;font-size:.65rem;color:#15803d;font-weight:600;"><i class="bi bi-check-circle-fill"></i> Service completed</div>` : ''}
+                ${inProgress ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #93c5fd;font-size:.65rem;color:#1d4ed8;font-weight:600;"><i class="bi bi-arrow-repeat"></i> Work in progress</div>` : ''}
               </div>`;
             }).join('')}
           </div>
@@ -7022,6 +7375,91 @@ if (a.status === 'accepted') {
         await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
       } catch (error) {
         if (btn) btn.disabled = false;
+        Swal.fire('Unable to Complete', error.message, 'error');
+      }
+    };
+
+    window.startAllCoreWork = async function (bookingId, btn) {
+      const a = window._detailAssignment;
+      const coreItems = ((a?.bookingId?.services) || []).filter(item => item.type === 'core');
+      const pendingCount = coreItems
+        .filter(item => ['pending', 'awaiting_assignment', 'assigned', 'accepted', 'scheduled', 'en_route', 'arrived'].includes(String(item.status || 'pending')))
+        .length;
+      if (!pendingCount) return;
+      const result = await Swal.fire({
+        icon: 'question',
+        title: `Start Core Work?`,
+        text: `${pendingCount} Core service item${pendingCount > 1 ? 's' : ''} will move to In Progress at once.`,
+        showCancelButton: true,
+        confirmButtonText: 'Start Core Work',
+        confirmButtonColor: '#2563eb'
+      });
+      if (!result.isConfirmed) return;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...'; }
+      try {
+        const response = await fetch(`/api/technician/appointments/${bookingId}/core-items/batch`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: 'in_progress', reason: 'Core work started by technician' })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to start Core work.');
+        await refreshOpenAssignmentDetail('core-service');
+      } catch (error) {
+        if (btn) { btn.disabled = false; btn.innerHTML = `<i class="bi bi-play-fill me-2"></i>Start Core Work${pendingCount > 1 ? ' · ' + pendingCount + ' items' : ''}`; }
+        Swal.fire('Unable to Start', error.message, 'error');
+      }
+    };
+
+    window.completeAllCoreWork = async function (bookingId, btn) {
+      const a = window._detailAssignment;
+      const coreItems = ((a?.bookingId?.services) || []).filter(item => item.type === 'core');
+      const inProgressCount = coreItems.filter(item => String(item.status) === 'in_progress').length;
+      if (!inProgressCount) return;
+      const result = await Swal.fire({
+        icon: 'question',
+        title: `Complete All Core Services?`,
+        text: `${inProgressCount} in-progress Core service item${inProgressCount > 1 ? 's' : ''} will be marked as completed.`,
+        showCancelButton: true,
+        confirmButtonText: 'Complete All',
+        confirmButtonColor: '#16a34a'
+      });
+      if (!result.isConfirmed) return;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Completing...'; }
+      try {
+        const response = await fetch(`/api/technician/appointments/${bookingId}/core-items/batch`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: 'completed', reason: 'Core service completed by technician' })
+        });
+        const data = await response.json();
+        if (!response.ok && data.code === 'BOOKING_BALANCE_REQUIRED' && window._detailAssignment) {
+          if (btn) { btn.disabled = false; btn.innerHTML = `<i class="bi bi-check-circle me-2"></i>Complete All Core Services${inProgressCount > 1 ? ' · ' + inProgressCount + ' items' : ''}`; }
+          openCollectPaymentModal(
+            window._detailAssignment._id,
+            window._detailAssignment,
+            false,
+            () => completeAllCoreWork(bookingId, btn)
+          );
+          return;
+        }
+        if (!response.ok) throw new Error(data.error || 'Unable to complete Core services.');
+        await Swal.fire({
+          icon: 'success',
+          title: data.allServicesCompleted ? (data.hasDeclinedRepair ? 'Booking Finished' : 'Booking Completed') : 'Core Services Completed',
+          text: data.allServicesCompleted
+            ? data.hasDeclinedRepair
+              ? 'All Core work is complete and the declined Repair service is closed.'
+              : 'Every Core and Repair service in this booking is complete.'
+            : `${inProgressCount} Core service${inProgressCount > 1 ? 's' : ''} completed.`,
+          timer: 1800,
+          showConfirmButton: false
+        });
+        await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
+      } catch (error) {
+        if (btn) { btn.disabled = false; btn.innerHTML = `<i class="bi bi-check-circle me-2"></i>Complete All Core Services${inProgressCount > 1 ? ' · ' + inProgressCount + ' items' : ''}`; }
         Swal.fire('Unable to Complete', error.message, 'error');
       }
     };
@@ -7176,22 +7614,72 @@ if (a.status === 'accepted') {
       const financialStatus = b.paymentStatus || a.paymentStatus || 'pending';
       const payMethod = (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
 
+      const phoneLink = phone !== 'N/A' ? String(phone).replace(/[^+\d]/g, '') : '';
+      const hasEmail = email !== 'N/A' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email));
+      const destination = hasCoords ? `${Number(custLat)},${Number(custLng)}` : address;
+      const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+      const settledPayment = ['paid', 'verified', 'remitted', 'payment_collected'].includes(String(financialStatus));
       let h = '';
-      h += `<div class='trk-card' style='margin-bottom:16px;'>`;
-      h += `<div class='trk-card-body'>`;
-      h += `<div class='trk-detail-hero'>`;
-      h += `<div class='trk-detail-hero-icon'><i class='bi bi-${isMixed ? 'layers' : isRepair ? 'wrench' : 'gear-wide-connected'}'></i></div>`;
-      h += `<div class='trk-detail-hero-text'>`;
-      h += `<div class='trk-detail-hero-title'>${_e(serviceName)}</div>`;
-      h += `<div class='trk-detail-hero-sub'>${_e(typeText)} · Booking #${_e(bookingNumber)} · ${_e(statusText)}</div>`;
-      h += `</div></div>`;
+      let sideHtml = '';
 
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-person'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Customer</div><div class='trk-detail-value'>${_e(customer)}</div></div></div>`;
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-telephone'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Phone</div><div class='trk-detail-value'>${_e(phone)}</div></div></div>`;
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-envelope'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Email</div><div class='trk-detail-value' style='font-size:0.8rem;'>${_e(email)}</div></div></div>`;
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-calendar3'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Date & Time</div><div class='trk-detail-value'>${_e(dateTime)}</div></div></div>`;
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-geo-alt'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Location</div><div class='trk-detail-value' style='font-size:0.82rem;'>${_e(address)}</div></div></div>`;
-      h += `<div class='trk-detail-row'><div class='trk-detail-icon'><i class='bi bi-award'></i></div><div class='trk-detail-content'><div class='trk-detail-label'>Priority</div><div class='trk-detail-value'>${_e(priority)}</div></div></div>`;
+      const overviewHtml = `
+        <section class="booking-detail-overview">
+          <div class="booking-detail-overview-main">
+            <div class="booking-detail-overview-icon"><i class="bi bi-${isMixed ? 'layers' : isRepair ? 'wrench' : 'gear-wide-connected'}"></i></div>
+            <div><div class="booking-detail-eyebrow">Assigned booking</div><h4>${_e(serviceName)}</h4><p>Booking #${_e(bookingNumber)} &middot; ${_e(typeText)}</p></div>
+          </div>
+          <div class="booking-detail-total"><span>Service total</span><strong>₱${Number(total).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></div>
+        </section>
+        <div class="booking-detail-summary">
+          <div class="booking-summary-cell"><span>Schedule</span><strong>${_e(dateTime)}</strong></div>
+          <div class="booking-summary-cell"><span>Service type</span><strong>${_e(isMixed ? 'Mixed Service' : isRepair ? 'Repair Service' : 'Core Service')}</strong></div>
+          <div class="booking-summary-cell"><span>Customer</span><strong>${_e(customer)}</strong></div>
+          <div class="booking-summary-cell"><span>Current status</span><strong>${_e(statusText)}</strong></div>
+        </div>`;
+
+      h += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-geo-alt-fill"></i>Customer &amp; Service Location</h6></div><div class="booking-detail-card-body"><div class="booking-info-list">`;
+      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-person"></i></div><div><div class="booking-info-label">Customer</div><div class="booking-info-value">${_e(customer)}${phone !== 'N/A' ? ' &middot; ' + _e(phone) : ''}</div></div></div>`;
+      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-envelope"></i></div><div><div class="booking-info-label">Email</div><div class="booking-info-value">${_e(email)}</div></div></div>`;
+      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-pin-map"></i></div><div><div class="booking-info-label">Service address</div><div class="booking-info-value">${_e(address)}</div></div></div>`;
+      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-calendar3"></i></div><div><div class="booking-info-label">Appointment schedule</div><div class="booking-info-value">${_e(dateTime)}</div></div></div>`;
+      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-award"></i></div><div><div class="booking-info-label">Priority</div><div class="booking-info-value">${_e(priority)}</div></div></div>`;
+      h += `</div><div class="booking-contact-actions">`;
+      if (phoneLink) {
+        h += `<a class="booking-contact-action" href="tel:${_e(phoneLink)}"><i class="bi bi-telephone"></i>Call</a>`;
+        h += `<a class="booking-contact-action" href="sms:${_e(phoneLink)}"><i class="bi bi-chat-dots"></i>Text</a>`;
+      }
+      if (hasEmail) h += `<a class="booking-contact-action" href="mailto:${_e(email)}"><i class="bi bi-envelope"></i>Email</a>`;
+      h += `<a class="booking-contact-action" href="${_e(mapsHref)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>`;
+      h += `</div></div></section>`;
+
+      const displayServices = serviceItems.length ? serviceItems : [{
+        name: serviceName,
+        type: isRepair ? 'repair' : 'core',
+        quantity: 1,
+        totalPrice: total,
+        status: a.status
+      }];
+      h += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-list-check"></i>Booked Services</h6><span class="text-muted" style="font-size:.64rem;font-weight:700;">${displayServices.length} service${displayServices.length === 1 ? '' : 's'}</span></div><div class="booking-detail-card-body">`;
+      displayServices.forEach(item => {
+        const itemName = item.name || item.serviceName || (item.type === 'repair' ? 'Repair Service' : 'Core Service');
+        const details = [
+          item.type === 'repair' ? 'Repair' : 'Core',
+          item.brand,
+          item.applianceTypeName || item.airconTypeName,
+          item.hpDescription || (item.hp ? `${item.hp} HP` : ''),
+          `Qty ${Number(item.quantity) || 1}`,
+          String(item.status || 'pending').replace(/_/g, ' ')
+        ].filter(Boolean).map(_e).join(' &middot; ');
+        const itemTotal = Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1)) || 0);
+        h += `<div class="booking-service-row"><div class="booking-service-icon"><i class="bi ${item.type === 'repair' ? 'bi-wrench-adjustable' : 'bi-gear-wide-connected'}"></i></div><div><div class="booking-service-name">${_e(itemName)}</div><div class="booking-service-meta">${details}</div></div><div class="booking-service-amount">₱${itemTotal.toLocaleString()}</div></div>`;
+      });
+      h += `</div></section>`;
+
+      sideHtml += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-clipboard2-check"></i>Service Snapshot</h6></div><div class="booking-detail-card-body"><div class="booking-info-list">`;
+      sideHtml += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-hash"></i></div><div><div class="booking-info-label">Booking reference</div><div class="booking-info-value">${_e(bookingNumber)}</div></div></div>`;
+      sideHtml += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-tools"></i></div><div><div class="booking-info-label">Assigned service</div><div class="booking-info-value">${_e(serviceName)}</div></div></div>`;
+      sideHtml += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-diagram-3"></i></div><div><div class="booking-info-label">Workflow</div><div class="booking-info-value">${_e(typeText)}</div></div></div>`;
+      sideHtml += `</div></div></section>`;
 
       if (a.paymentMethod || total > 0) {
         const _payments = a.payments || [];
@@ -7200,15 +7688,14 @@ if (a.status === 'accepted') {
         const computedBal = Math.max(0, total - paid);
         const displayBal = _paymentsTotal > 0 ? computedBal : Number(bal);
         const isPaid = displayBal <= 0;
-        h += `<div class='trk-payment-summary'>`;
-        h += `<div class='trk-payment-line trk-payment-total'><span>Total</span><span>₱${Number(total).toLocaleString()}</span></div>`;
-        if (dp > 0) h += `<div class='trk-payment-line'><span>Downpayment</span><span>₱${Number(dp).toLocaleString()}</span></div>`;
-        h += `<div class='trk-payment-line ${isPaid ? 'ok' : ''}'><span>${isPaid ? 'Paid' : 'Paid So Far'}</span><span>₱${Number(paid).toLocaleString()}</span></div>`;
-        h += `<div class='trk-payment-line'><span>Payment Method</span><span class='trk-payment-method'>${_e(payMethod)}</span></div>`;
-        if (displayBal > 0 && !isPaid) h += `<div class='trk-payment-line due'><span>Balance Due</span><span>₱${Number(displayBal).toLocaleString()}</span></div>`;
-        h += `</div>`;
+        const paymentLabel = isPaid ? 'paid' : String(financialStatus).replace(/_/g, ' ');
+        sideHtml += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-receipt"></i>Payment Snapshot</h6><span class="booking-payment-status ${(isPaid || settledPayment) ? 'settled' : 'unsettled'}">${_e(paymentLabel)}</span></div><div class="booking-detail-card-body">`;
+        sideHtml += `<div class="booking-money-row"><span>Payment method</span><strong>${_e(payMethod)}</strong></div>`;
+        if (dp > 0) sideHtml += `<div class="booking-money-row"><span>Downpayment</span><strong>₱${Number(dp).toLocaleString()}</strong></div>`;
+        sideHtml += `<div class="booking-money-row"><span>${isPaid ? 'Paid' : 'Paid so far'}</span><strong>₱${Number(paid).toLocaleString()}</strong></div>`;
+        if (displayBal > 0 && !isPaid) sideHtml += `<div class="booking-money-row"><span>Balance due</span><strong>₱${Number(displayBal).toLocaleString()}</strong></div>`;
+        sideHtml += `<div class="booking-money-row total"><span>Service total</span><strong>₱${Number(total).toLocaleString()}</strong></div></div></section>`;
       }
-      h += `</div></div>`;
 
       if (isMixed) {
         const coreItems = serviceItems.filter(item => item.type === 'core');
@@ -7339,7 +7826,9 @@ if (a.status === 'accepted') {
         h += `<div class='trk-card-header'><h6 class='trk-card-title'><i class='bi bi-clock-history'></i> Activity</h6></div>`;
         h += `<div class='trk-card-body'>${activityHtml}</div></div>`;
       }
-      return `<div class='ent-panel'>${h}</div>`;
+      h = h.replace(/class='trk-card'/g, "class='trk-card booking-legacy-card'");
+      sideHtml = sideHtml.replace(/class='trk-card'/g, "class='trk-card booking-legacy-card'");
+      return `<div class="booking-order-overview">${overviewHtml}<div class="booking-detail-grid"><div class="booking-detail-column">${h}</div><div class="booking-detail-column">${sideHtml}</div></div></div>`;
     }
 
     function renderOverviewPage(a, date, bookingRef, hasCoords, custLat, custLng, paymentHtml, activityHtml) {
@@ -7475,11 +7964,13 @@ ${isRepair ? `
       ${equipmentHtml}
       ${(a.resourcesReserved !== undefined || a.preparationStatus) ? `
       <div class="detail-section" style="border-color:#bbf7d0;background:linear-gradient(135deg,#f0fdf4,#f8fafc);">
-        <div class="detail-section-header"><i class="bi bi-box-seam" style="color:#16a34a;"></i><h6 style="color:#16a34a;">Resource Preparation</h6></div>
+        <div class="detail-section-header"><i class="bi bi-briefcase" style="color:#16a34a;"></i><h6 style="color:#16a34a;">Daily Preparation</h6></div>
         <div class="detail-section-body">
-          <div class="detail-row"><label>Status</label><span><span class="badge ${a.preparationStatus === 'reserved' ? 'bg-success' : a.preparationStatus === 'issue' ? 'bg-danger' : 'bg-secondary'}" style="font-size:0.68rem;padding:4px 8px;">${(a.preparationStatus || 'pending').replace(/_/g,' ').toUpperCase()}</span></span></div>
-          ${a.resourcesReservedAt ? `<div class="detail-row"><label>Reserved At</label><span style="font-size:0.78rem;">${new Date(a.resourcesReservedAt).toLocaleString('en-PH')}</span></div>` : ''}
-          ${a.preparationIssue ? `<div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:4px;"><label style="color:#dc2626;">Issue</label><span style="font-size:0.78rem;color:#dc2626;">${a.preparationIssue}</span></div>` : ''}
+          <div class="detail-row"><label>Status</label><span><span class="badge ${a.equipmentCheckedOut ? 'bg-success' : 'bg-secondary'}" style="font-size:0.68rem;padding:4px 8px;">${a.equipmentCheckedOut ? 'EQUIPMENT CHECKED OUT' : 'AWAITING DAILY PREP'}</span></span></div>
+          <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
+            <small style="font-size:0.75rem;color:#64748b;">Equipment and consumables are prepared once for all of today's jobs via the Daily Preparation Center.</small>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="openDailyKitModal()"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>
+          </div>
         </div>
       </div>` : ''}
       ${paymentHtml}
@@ -7497,7 +7988,11 @@ ${isRepair ? `
         const isRepair = isRepairAssignment(a);
         const bs = a.bookingId?.status || a.bookingStatus;
         if (isRepair && bId && !['cancelled', 'closed', 'repair_completed', 'repair_declined'].includes(bs)) {
-          return `<div><div class="wizard-empty-state" style="border:1px dashed #bae6fd;background:#f8fafc;border-radius:12px;margin:8px;"><i class="bi bi-robot"></i><div class="ws-title">AI Assistant</div><div class="ws-desc" style="margin-bottom:12px;">Generate AI-powered recommendations for this repair job.</div><button type="button" class="btn btn-sm btn-primary" onclick="window.generateAiDiagnosis('${bId}')"><i class="bi bi-robot me-1"></i>Generate AI Diagnosis</button></div></div>`;
+          const isGenerating = window._aiGenInProgress && window._aiGenInProgress.has(bId);
+          if (isGenerating) {
+            return `<div><div class="wizard-empty-state" style="border:1px dashed #bae6fd;background:#f8fafc;border-radius:12px;margin:8px;"><span class="spinner-border spinner-border-sm text-primary mb-2"></span><div class="ws-title">Generating AI Diagnosis...</div><div class="ws-desc">Analyzing unit information and preparing recommendations. This will be ready to review shortly.</div></div></div>`;
+          }
+          return `<div><div class="wizard-empty-state" style="border:1px dashed #bae6fd;background:#f8fafc;border-radius:12px;margin:8px;"><i class="bi bi-robot"></i><div class="ws-title">AI Assistant</div><div class="ws-desc" style="margin-bottom:12px;">AI diagnosis generation did not complete. Retry below.</div><button type="button" class="btn btn-sm btn-primary" onclick="window.generateAiDiagnosis('${bId}')"><i class="bi bi-robot me-1"></i>Retry Generate Diagnosis</button></div></div>`;
         }
         return `<div><div class="wizard-empty-state"><i class="bi bi-robot"></i><div class="ws-title">AI Assistant</div><div class="ws-desc">No AI data available for this assignment.</div></div></div>`;
       }
@@ -7507,7 +8002,7 @@ ${isRepair ? `
           <i class="bi bi-robot" style="font-size:0.95rem;color:#0284c7;"></i>
           <h6 style="margin:0;color:#0284c7;">AI Technician Assistant</h6>
           <span class="badge bg-info" style="font-size:0.6rem;">OPTIONAL REFERENCE</span>
-          ${ta.source === 'ai' ? '<span class="badge bg-primary" style="font-size:0.55rem;">GEMINI AI</span>' : ta.source === 'ai-groq' ? '<span class="badge bg-info" style="font-size:0.55rem;">GROQ AI</span>' : '<span class="badge bg-secondary" style="font-size:0.55rem;">LOCAL KB</span>'}
+          ${ta.provider === 'gemini' || ta.source === 'ai' ? '<span class="badge bg-primary" style="font-size:0.55rem;">GEMINI AI</span>' : ta.provider === 'groq' || ta.source === 'ai-groq' ? '<span class="badge bg-info" style="font-size:0.55rem;">GROQ AI</span>' : ta.provider === 'mixed' || ta.source === 'mixed' ? '<span class="badge bg-warning text-dark" style="font-size:0.55rem;">MIXED PROVIDERS</span>' : '<span class="badge bg-secondary" style="font-size:0.55rem;">LOCAL KB</span>'}
         </div>
         <div class="dminfo-section-body" style="padding:12px 14px;">
           <div style="font-size:0.82rem;line-height:1.6;margin-bottom:12px;padding:10px;background:#e0f2fe;border-radius:8px;border-left:3px solid #0284c7;">${ta.summary}</div>
@@ -7582,8 +8077,35 @@ ${isRepair ? `
 
     function renderRepairPage(a) {
       const bs = a.bookingId?.status || a.bookingStatus;
+      const escHtml = value => value == null ? '' : String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
       const repairStatusLabels = { ready_for_repair: 'Ready for Repair', scheduled: 'Scheduled', repair_scheduled: 'Repair Scheduled', repair_in_progress: 'Repair In Progress', repair_completed: 'Repair Completed', under_warranty: 'Under Warranty', repair_approved: 'Approved — Ready to Start' };
       const statusColor = bs === 'repair_in_progress' ? '#2563eb' : bs === 'repair_completed' || bs === 'under_warranty' ? '#16a34a' : '#d97706';
+
+      const qParts = a.bookingId?.quotation?.parts || [];
+      const partsHtml = qParts.length ? `<div class="detail-section" style="border-color:#e9d5ff;background:#faf5ff;">
+        <div class="detail-section-header"><i class="bi bi-box-seam" style="color:#7c3aed;"></i><h6 style="color:#7c3aed;">Needed Repair Parts</h6></div>
+        <div class="detail-section-body">
+          <div style="display:grid;gap:8px;font-size:0.78rem;">
+            ${qParts.map(p => {
+              const src = p.source || 'inventory';
+              const srcBadge = src === 'external_purchase'
+                ? '<span style="display:inline-block;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:0.6rem;font-weight:600;margin-left:6px;">EXTERNAL</span>'
+                : '<span style="display:inline-block;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:0.6rem;font-weight:600;margin-left:6px;">IN STOCK</span>';
+              const lineTotal = ((p.cost || p.unitPrice || p.price || 0) * (p.quantity || 1));
+              return `<div style="display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:600;">${escHtml(p.name || 'Part')} ×${p.quantity || 1}${srcBadge}</span>
+                  <span style="font-weight:600;color:#7c3aed;">₱${lineTotal.toLocaleString()}</span>
+                </div>
+                ${p.sellingPrice ? `<div style="font-size:0.7rem;color:#7c3aed;">Customer price: ₱${Number(p.sellingPrice).toLocaleString()}</div>` : ''}
+              </div>`;
+            }).join('')}
+            ${a.bookingId?.quotation?.laborCost ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;"><span style="font-weight:600;">Labor</span><span style="font-weight:600;">₱${Number(a.bookingId.quotation.laborCost).toLocaleString()}</span></div>` : ''}
+            <div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:0.85rem;color:#7c3aed;"><span>Total Estimate</span><span>₱${(a.bookingId?.quotation?.totalCost || 0).toLocaleString()}</span></div>
+          </div>
+        </div>
+      </div>` : '';
+
       return `<div>
       <div class="detail-section">
         <div class="detail-section-header"><i class="bi bi-tools" style="color:${statusColor};"></i><h6>Repair Status</h6></div>
@@ -7591,6 +8113,7 @@ ${isRepair ? `
           <div class="detail-row"><label>Status</label><span class="badge" style="background:${statusColor};color:#fff;font-size:0.7rem;">${repairStatusLabels[bs] || bs}</span></div>
         </div>
       </div>
+      ${partsHtml}
       ${a.bookingId?.repairNotes ? `<div class="detail-section"><div class="detail-section-header"><i class="bi bi-journal-text" style="color:#2563eb;"></i><h6>Notes</h6></div><div class="detail-section-body"><div style="font-size:0.78rem;color:#475569;line-height:1.5;">${a.bookingId.repairNotes}</div></div></div>` : ''}
       ${a.bookingId?.materialsUsed?.length ? `<div class="detail-section"><div class="detail-section-header"><i class="bi bi-box-seam" style="color:#7c3aed;"></i><h6>Materials</h6></div><div class="detail-section-body">${a.bookingId.materialsUsed.map(m => `<div class="detail-row"><label>${m.name || m}</label><span>${m.quantity ? `× ${m.quantity}` : ''}</span></div>`).join('')}</div></div>` : ''}
     </div>`;
@@ -7906,6 +8429,15 @@ ${isRepair ? `
       // Show "Repair Execution" chip for Phase 2 assignments (booking status starts with repair_ or is ready_for_repair)
       const isPhase2 = isRepair && (bs?.startsWith?.('repair_') || bs === 'ready_for_repair');
       if (isPhase2) labelChips += '<span style="font-size:0.58rem;font-weight:800;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;background:rgba(220,38,38,0.12);color:#991b1b;text-transform:uppercase;border:1px solid rgba(220,38,38,0.2);"><i class="bi bi-tools me-1"></i>Execution</span>';
+      // Past-date handling (mirrors admin overdue logic)
+      const _terminal = ['completed', 'cancelled', 'declined', 'no_show', 'no_show_reported'];
+      const _effStatus = a.isRepairBooking ? (a.bookingStatus || bs) : a.status;
+      let missedSchedule = false;
+      if (a.bookingDate && !_terminal.includes(_effStatus)) {
+        const _dayEnd = new Date(a.bookingDate); _dayEnd.setHours(23, 59, 59, 999);
+        if (_dayEnd.getTime() < Date.now()) missedSchedule = true;
+      }
+      if (missedSchedule) labelChips += '<span style="font-size:0.58rem;font-weight:800;letter-spacing:0.08em;padding:3px 8px;border-radius:6px;background:#fef3c7;color:#92400e;text-transform:uppercase;"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule</span>';
 
       return `
       <div class="assign-card ${isCurrentJob ? 'active-assignment' : ''} ${isToday ? 'today-booking' : ''}" 
@@ -8016,13 +8548,23 @@ ${isRepair ? `
             btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();acceptAssign('${a._id}',this);"><i class="bi bi-check-lg me-1"></i>Accept</button>`;
             btns += `<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();declineAssign('${a._id}',this);"><i class="bi bi-x-lg me-1"></i>Decline</button>`;
           } else if (a.status === 'accepted') {
-            if (a.resourcesReserved) {
-              btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();openPrepModal('${a._id}','${a.bookingId?._id || a.bookingId}','${esc(a.serviceName||'')}')" title="View reserved resources and checkout"><i class="bi bi-box-seam me-1"></i>Prepare</button>`;
+            if (missedSchedule) {
+              btns += `<span class="badge bg-warning text-dark" style="font-size:0.72rem;padding:5px 10px;"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — awaiting reschedule</span>`;
+            } else {
+              const kitReady = ['confirmed', 'in_progress'].includes(window._dailyKitStatus);
+              if (kitReady) {
+                btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();transitionStatus('${a._id}','en_route',this);"><i class="bi bi-sign-turn-right me-1"></i>En Route</button>`;
+              } else {
+                btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDailyKitModal();" title="Complete Daily Preparation before going En Route"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
+              }
             }
-            btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();transitionStatus('${a._id}','en_route',this);"><i class="bi bi-sign-turn-right me-1"></i>En Route</button>`;
           } else if (a.status === 'on_site') {
             btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();transitionStatus('${a._id}','in_progress',this);"><i class="bi bi-play-fill me-1"></i>Start Work</button>`;
-            btns += `<button class="btn btn-sm btn-warning text-dark" onclick="event.stopPropagation();markNoShow('${a._id}',this);"><i class="bi bi-person-x me-1"></i>No Show</button>`;
+            btns += `<button class="btn btn-sm btn-warning text-dark" onclick="event.stopPropagation();openCustomerNotAvailable('${a._id}',this);"><i class="bi bi-person-x me-1"></i>Customer Not Available</button>`;
+          } else if (a.status === 'waiting_for_customer') {
+            btns += `<button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation();openCustomerNotAvailable('${a._id}',this,'resume');"><i class="bi bi-clock-history me-1"></i>Waiting Timer</button>`;
+          } else if (a.status === 'no_show_reported') {
+            btns += `<span class="badge bg-danger" style="font-size:0.72rem;padding:5px 10px;"><i class="bi bi-person-exclamation me-1"></i>No-Show Reported</span>`;
           } else if (a.status === 'in_progress' && needsPayment2) {
             btns += `<button class="btn btn-sm btn-warning" onclick="event.stopPropagation();showDetail('${a._id}');"><i class="bi bi-cash-stack me-1"></i>Collect & Complete</button>`;
           } else if (a.status === 'in_progress') {
@@ -8041,9 +8583,34 @@ ${isRepair ? `
       const isToday = a.bookingDate && new Date(a.bookingDate).toDateString() === today.toDateString();
       const dm = getDayMonth(a.bookingDate);
       const title = a.serviceName || 'Service';
-      const s = a.isRepairBooking ? (a.bookingStatus || a.status) : (a.status || 'available');
+      // Mixed/repair bookings can span multiple visits (Phase 1 install +
+      // inspection, Phase 2 scheduled repair), each with its own Assignment.
+      // A finished Phase 1 visit's Assignment is "completed", but the booking
+      // itself is still in progress — fall back to the booking-level status
+      // so the card doesn't falsely read "Completed". However, once a newer
+      // sibling Assignment exists for the same booking (e.g. the Phase 2
+      // repair visit) and is still active, that sibling already carries the
+      // current status — so this completed visit should keep showing
+      // "Completed" instead of duplicating the sibling's status text.
+      const hasActiveSiblingAssignment = Array.isArray(window.allItems) && window.allItems.some(other =>
+        String(other._id) !== String(a._id) &&
+        String(other.bookingId?._id || other.bookingId || '') === String(a.bookingId?._id || a.bookingId || '') &&
+        other.status !== 'completed'
+      );
+      const usesBookingStatus = (a.status !== 'completed' || !hasActiveSiblingAssignment) &&
+        (a.isRepairBooking || isRepairAssignment(a) || isMixedAssignment(a));
+      const s = usesBookingStatus ? (a.bookingStatus || a.bookingId?.status || a.status) : (a.status || 'available');
       const statusText = statusLabels[s] || s;
       const p = PILL[s] || { bg: '#f1f5f9', text: '#334155' };
+      // Past-date handling (mirrors admin AppointmentsUnified overdue logic):
+      // if the scheduled day has fully passed and the job isn't finished
+      // (completed/cancelled/declined/no-show), surface it as missed.
+      const TERMINAL_STATUSES = ['completed', 'cancelled', 'declined', 'no_show', 'no_show_reported'];
+      let missedSchedule = false;
+      if (a.bookingDate && !TERMINAL_STATUSES.includes(s)) {
+        const dayEnd = new Date(a.bookingDate); dayEnd.setHours(23, 59, 59, 999);
+        if (dayEnd.getTime() < Date.now()) missedSchedule = true;
+      }
       const time = a.startTime || 'N/A';
       const address = a.address ? (a.address.length > 26 ? a.address.slice(0, 26) + '…' : a.address) : 'No address';
       const cust = a.customerName || 'Customer';
@@ -8051,9 +8618,9 @@ ${isRepair ? `
       <div class="assign-card tjc ${isCurrentJob ? 'tjc-live' : ''} ${isToday ? 'today' : ''}" data-id="${a._id}" onclick="showDetail('${a._id}')">
         <div class="tjc-date"><div class="tjc-date-day">${dm.day}</div><div class="tjc-date-month">${dm.month}</div></div>
         <div class="tjc-main">
-          <div class="tjc-top"><div class="tjc-title">${esc(title)}</div><span class="tjc-status" style="background:${p.bg};color:${p.text};">${esc(statusText)}</span></div>
+          <div class="tjc-top"><div class="tjc-title">${esc(title)}</div><span class="tjc-status" style="background:${p.bg};color:${p.text};">${esc(statusText)}</span>${missedSchedule ? '<span class="tjc-status" style="background:#fef3c7;color:#92400e;"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule</span>' : ''}</div>
           <div class="tjc-meta"><span><i class="bi bi-clock me-1"></i>${esc(time)}</span><span><i class="bi bi-geo-alt me-1"></i>${esc(address)}</span></div>
-          <div class="tjc-meta"><span><i class="bi bi-person me-1"></i>${esc(cust)}</span>${isCurrentJob ? '<span class="tjc-live-badge"><span class="tjc-pulse"></span>Live</span>' : ''}</div>
+          <div class="tjc-meta"><span><i class="bi bi-person me-1"></i>${esc(cust)}</span>${isCurrentJob ? '<span class="tjc-live-badge"><span class="tjc-pulse"></span>Live</span>' : ''}${missedSchedule ? '<span style="font-size:0.68rem;color:#92400e;"><i class="bi bi-info-circle me-1"></i>Scheduled time passed — awaiting reschedule</span>' : ''}</div>
         </div>
         <div class="tjc-action"><button class="tjc-view" onclick="event.stopPropagation();showDetail('${a._id}')">View <i class="bi bi-arrow-right"></i></button></div>
       </div>`;
@@ -8110,7 +8677,7 @@ ${isRepair ? `
         </div>
         <h6 style="font-weight:700;color:#334155;margin-bottom:6px;font-size:1rem;">No assignments found</h6>
         <p style="color:#94a3b8;font-size:0.85rem;margin:0 0 16px;max-width:320px;margin-left:auto;margin-right:auto;">Try adjusting your search or filter criteria to find what you're looking for.</p>
-        <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('searchInput').value='';document.getElementById('sortSelect').value='newest';loadAssignments('all',1);" style="border-radius:10px;font-weight:600;">
+        <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('searchInput').value='';document.getElementById('sortSelect').value='newest';document.getElementById('dateFilter').value='';document.getElementById('todayBtn')?.classList.remove('active');loadAssignments('all',1,'');" style="border-radius:10px;font-weight:600;">
           <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters
         </button>
       </div>`;
@@ -8163,7 +8730,8 @@ ${isRepair ? `
         document.getElementById('jobCardNav').style.display = 'none';
 
         const dateFilter = document.getElementById('dateFilter')?.value || '';
-        let url = `/api/technician/assignments?status=${status}&page=${page}&limit=20`;
+        const sortValue = document.getElementById('sortSelect')?.value || 'newest';
+        let url = `/api/technician/assignments?status=${status}&page=${page}&limit=20&sort=${encodeURIComponent(sortValue)}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (dateFilter) url += `&date=${encodeURIComponent(dateFilter)}`;
 
@@ -8190,6 +8758,26 @@ ${isRepair ? `
           filteredRepairs = [];
         }
 
+        // Apply date filter to supplemental repairs (same as API does for real assignments)
+        if (dateFilter && filteredRepairs.length) {
+          const dStart = new Date(dateFilter); dStart.setHours(0, 0, 0, 0);
+          const dEnd = new Date(dateFilter); dEnd.setHours(23, 59, 59, 999);
+          filteredRepairs = filteredRepairs.filter(r => {
+            const bd = r.bookingDate ? new Date(r.bookingDate) : null;
+            return bd && bd >= dStart && bd <= dEnd;
+          });
+        }
+
+        // Apply search filter to supplemental repairs
+        if (search && filteredRepairs.length) {
+          const q = search.toLowerCase();
+          filteredRepairs = filteredRepairs.filter(r =>
+            (r.customerName && r.customerName.toLowerCase().includes(q)) ||
+            (r.serviceName && r.serviceName.toLowerCase().includes(q)) ||
+            (r.address && r.address.toLowerCase().includes(q))
+          );
+        }
+
         // The dashboard repair queue is a supplemental feed for repair stages
         // that have no live Assignment. Never synthesize a second card for a
         // booking already returned by /assignments.
@@ -8198,6 +8786,25 @@ ${isRepair ? `
 
         // Merge: supplemental repairs first, then real assignments.
         allItems = [...filteredRepairs, ...allItems];
+
+        // Filter out completed assignments when there's an active sibling assignment
+        // for the same booking (e.g., Phase 1 completed, Phase 2 active)
+        const completedToHide = new Set();
+        for (const item of allItems) {
+          if (item.status === 'completed') {
+            const bookingId = String(item.bookingId?._id || item.bookingId || '');
+            const hasActiveSibling = allItems.some(other =>
+              String(other._id) !== String(item._id) &&
+              String(other.bookingId?._id || other.bookingId || '') === bookingId &&
+              other.status !== 'completed'
+            );
+            if (hasActiveSibling) {
+              completedToHide.add(String(item._id));
+            }
+          }
+        }
+        allItems = allItems.filter(item => !completedToHide.has(String(item._id)));
+
         window.allItems = allItems;
         window._allAssignments = allItems;
 
@@ -8210,7 +8817,7 @@ ${isRepair ? `
         }
 
         document.getElementById('countAll').textContent = (data.total || 0) + filteredRepairs.length;
-        fetchTabCounts();
+        fetchTabCounts(true);
         if (window._updateWorkKpis) window._updateWorkKpis();
       } catch (e) {
         if (loadSequence !== assignmentsLoadSequence) return;
@@ -8317,6 +8924,10 @@ ${isRepair ? `
       }
     }
 
+    // Daily Preparation loads independently from assignments. This hook lets
+    // its result refresh accepted cards without duplicating assignment logic.
+    window.refreshAssignmentCardsForPreparation = renderCardPage;
+
     window.jobCardPage = function (dir) {
       cardPage += dir;
       renderCardPage();
@@ -8354,6 +8965,12 @@ ${isRepair ? `
       if (todayBtn && todayBtn.classList.contains('active') && this.value !== todayISO()) {
         todayBtn.classList.remove('active');
       }
+      currentPage = 1;
+      loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
+    });
+
+    // Sort change
+    document.getElementById('sortSelect')?.addEventListener('change', function () {
       currentPage = 1;
       loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
     });
@@ -8716,7 +9333,11 @@ ${isRepair ? `
     window.repairTransition = async function (bookingId, status, btn) {
       const labels = { on_site: 'mark as Arrived', in_progress: 'start work', completed: 'mark as Completed' };
       let startProof = null;
-      if (status === 'in_progress') {
+      let arrivalProof = null;
+      if (status === 'on_site') {
+        arrivalProof = await captureArrivalProof(btn);
+        if (!arrivalProof) { if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; } return; }
+      } else if (status === 'in_progress') {
         startProof = await captureStartWorkProof(btn);
         if (!startProof) { if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; } return; }
       } else if (!confirm(`Are you sure you want to ${labels[status] || status}?`)) {
@@ -8729,7 +9350,7 @@ ${isRepair ? `
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ status, ...(startProof || {}) })
+          body: JSON.stringify({ status, ...(startProof || {}), ...(arrivalProof || {}) })
         });
         const data = await res.json();
         if (res.ok) {
@@ -8748,6 +9369,29 @@ ${isRepair ? `
       finally { if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; } }
     };
 
+    async function captureArrivalProof(triggerButton) {
+      const result = await Swal.fire({
+        title: 'Proof of Arrival',
+        html: '<div class="text-start"><p class="text-muted small">Take or upload a photo showing you have arrived at the customer\u2019s location.</p><label class="form-label fw-bold">Arrival Photo <span class="text-danger">*</span></label><input id="arrivalProofFile" type="file" accept="image/*" capture="environment" class="form-control mb-3"><label class="form-label">Notes (optional)</label><textarea id="arrivalProofNotes" class="form-control" rows="2" maxlength="500"></textarea></div>',
+        showCancelButton: true,
+        confirmButtonText: 'Submit Proof & Mark Arrived',
+        confirmButtonColor: '#2563eb',
+        preConfirm: async () => {
+          const file = document.getElementById('arrivalProofFile').files[0];
+          if (!file) return Swal.showValidationMessage('An arrival photo is required.');
+          if (!file.type.startsWith('image/')) return Swal.showValidationMessage('Please select an image file.');
+          const arrivalProofUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+          return { arrivalProofUrl };
+        }
+      });
+      if (!result.isConfirmed && triggerButton) {
+        triggerButton.classList.remove('btn-loading');
+        triggerButton.disabled = false;
+        triggerButton._btnLoadingActive = false;
+      }
+      return result.isConfirmed ? result.value : null;
+    }
+
     // Actions
     window.acceptAssign = async function (id, btn) {
       if (!confirm('Accept this assignment?')) return;
@@ -8755,11 +9399,15 @@ ${isRepair ? `
         const res = await fetch(`/api/technician/assignments/${id}/accept`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
         const data = await res.json();
         if (res.ok) {
-          showNotification({ type: 'success', title: 'Assignment Accepted', message: 'Preparation is now unlocked. Review and confirm what you will bring before leaving.', duration: 5000 });
+          showNotification({ type: 'success', title: 'Assignment Accepted', message: 'Use the Daily Preparation bar above to prepare equipment and consumables for all of today\'s jobs.', duration: 5000 });
           loadAssignments(currentFilter, currentPage);
           loadPreparation();
           if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
             showDetail(window._currentDetailId);
+          }
+          // Late-accepted booking: surface new Daily Kit requirements immediately
+          if (data.preparationReview && data.preparationReview.hasDelta) {
+            setTimeout(() => openDailyKitModal(), 600);
           }
         } else {
           showNotification({ type: 'error', title: 'Accept Failed', message: data.error || 'Failed to accept assignment', duration: 5000 });
@@ -9051,7 +9699,14 @@ function preparationEscapeHtml(value) {
 
       const labels = { en_route: 'mark as En Route', on_site: 'mark as Arrived', in_progress: 'start work', completed: 'mark as Completed' };
       let startProof = null;
-      if (status === 'in_progress') {
+      let arrivalProof = null;
+      if (status === 'on_site') {
+        arrivalProof = await captureArrivalProof(btn);
+        if (!arrivalProof) {
+          if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; }
+          return;
+        }
+      } else if (status === 'in_progress') {
         startProof = await captureStartWorkProof(btn);
         if (!startProof) {
           if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; }
@@ -9062,7 +9717,7 @@ function preparationEscapeHtml(value) {
       window._btnLoading(btn, async () => {
         const res = await fetch(`/api/technician/assignments/${id}/status`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-          body: JSON.stringify({ status, ...(startProof || {}) })
+          body: JSON.stringify({ status, ...(startProof || {}), ...(arrivalProof || {}) })
         });
         const data = await res.json();
         if (res.ok) {
@@ -9109,6 +9764,14 @@ function preparationEscapeHtml(value) {
               message: data.error || 'You cannot go en route yet.',
               duration: 7000
             });
+          } else if (data.code === 'DAILY_KIT_DELTA_REQUIRED' || data.code === 'DAILY_KIT_REQUIRED') {
+            showNotification({
+              type: 'warning',
+              title: 'Daily Preparation Needed',
+              message: data.error || 'Complete your Daily Preparation before going En Route.',
+              duration: 7000
+            });
+            openDailyKitModal();
           } else {
             showNotification({ type: 'error', title: 'Update Failed', message: data.error || 'Failed to update status', duration: 5000 });
           }
@@ -9117,88 +9780,202 @@ function preparationEscapeHtml(value) {
     };
 
     window.markNoShow = async function (id, btn) {
-      const confirmResult = await Swal.fire({
-        title: 'Mark as No Show?',
-        html: '<p style="color:#64748b;font-size:0.9rem;">The customer was not available. An email will be sent notifying them and providing reschedule options.</p>',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: '<i class="bi bi-person-x me-1"></i> Yes, Mark No Show',
-        cancelButtonText: 'Go Back',
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-      });
-      if (!confirmResult.isConfirmed) {
-        if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; }
+      return openCustomerNotAvailable(id, btn);
+    };
+
+    // ── Customer Not Available Flow (waiting window → report no-show) ─────────
+    // Opens the modal in "start" mode (collect contact attempts + arrival proof,
+    // begin the waiting window) or "resume" mode (show live countdown and the
+    // Report No-Show button once the wait has elapsed).
+    async function openCustomerNotAvailable(assignmentId, btn, mode) {
+      mode = mode || 'start';
+      let assignment = (window._allAssignments || []).find(a => String(a._id) === String(assignmentId));
+      if (!assignment && window._detailAssignment && String(window._detailAssignment._id) === String(assignmentId)) {
+        assignment = window._detailAssignment;
+      }
+
+      const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+      // Fetch the assignment (fresh, with noShowReport + wait config)
+      let fresh = null;
+      try {
+        const r = await fetch(`/api/technician/assignments/${assignmentId}`, { credentials: 'same-origin' });
+        if (r.ok) fresh = await r.json();
+      } catch (e) { /* ignore */ }
+      const a = fresh || assignment;
+      const report = a.noShowReport || a.bookingId?.noShowReport || {};
+      const waitMinutes = Number(a.noShowWaitMinutes || report.waitMinutes || 15);
+      const arrivedAt = new Date(report.arrivedAt || a.arrivedAt || Date.now());
+      const waitingUntil = report.waitingUntil ? new Date(report.waitingUntil) : new Date(arrivedAt.getTime() + waitMinutes * 60000);
+
+      const renderTimer = () => {
+        const now = new Date();
+        const diff = waitingUntil - now;
+        const remaining = Math.max(0, Math.ceil(diff / 1000));
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        const fmt = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit' }).format;
+        const arrivedLabel = fmt(arrivedAt);
+        const untilLabel = fmt(waitingUntil);
+        const nowLabel = fmt(now);
+        const done = diff <= 0;
+        return `
+          <div class="row g-2 text-start">
+            <div class="col-12">
+              <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:0.85rem;"><i class="bi bi-hourglass-split me-1"></i><strong>Waiting for Customer</strong></div>
+              <div class="d-flex justify-content-between text-muted small mb-1">
+                <span><i class="bi bi-geo-alt me-1"></i>Arrived: <strong>${arrivedLabel}</strong></span>
+                <span><i class="bi bi-clock me-1"></i>Now: <strong>${nowLabel}</strong></span>
+                <span><i class="bi bi-hourglass me-1"></i>Wait until: <strong>${untilLabel}</strong></span>
+              </div>
+              <div class="progress mb-2" style="height:10px;">
+                <div class="progress-bar progress-bar-striped ${done ? 'bg-success' : 'bg-warning'}" style="width:${done ? '100%' : '100%'}"></div>
+              </div>
+              <div class="text-center" style="font-size:1.6rem;font-weight:800;color:${done ? '#16a34a' : '#d97706'};font-variant-numeric:tabular-nums;">
+                ${done ? '<i class="bi bi-check-circle me-1"></i>Waiting period complete' : `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} remaining`}
+              </div>
+              <small class="text-muted d-block text-center mt-1">Attempted contact: ${(report.contactAttempts || a.contactAttempts || []).map(x => esc(x)).join(', ') || '—'}</small>
+            </div>
+          </div>`;
+      };
+
+      // ── START MODE: collect attempts + arrival proof, then begin waiting ──
+      if (mode === 'start') {
+        const startRes = await Swal.fire({
+          title: 'Customer Not Available',
+          html: `
+            <div class="text-start">
+              <p class="text-muted small mb-3">You are at the customer\u2019s location but they are not available. Confirm your contact attempts and upload your arrival proof.</p>
+              <label class="form-label fw-bold">Have you attempted to contact the customer?</label>
+              <div class="d-flex gap-2 flex-wrap mb-2">
+                <label class="form-check" style="flex:1;"><input class="form-check-input contact-attempt" type="checkbox" value="Call"> <span class="form-check-label"><i class="bi bi-telephone me-1"></i>Call</span></label>
+                <label class="form-check" style="flex:1;"><input class="form-check-input contact-attempt" type="checkbox" value="SMS"> <span class="form-check-label"><i class="bi bi-chat-dots me-1"></i>SMS</span></label>
+                <label class="form-check" style="flex:1;"><input class="form-check-input contact-attempt" type="checkbox" value="In-app notification"> <span class="form-check-label"><i class="bi bi-bell me-1"></i>In-app</span></label>
+              </div>
+              <label class="form-label fw-bold">Arrival proof <span class="text-danger">*</span></label>
+              <input type="file" id="cnaArrivalProof" accept="image/*" capture="environment" class="form-control mb-2">
+              <div class="alert alert-light border py-2 px-3" style="font-size:0.8rem;"><i class="bi bi-info-circle me-1"></i>Waiting period: <strong>${waitMinutes} minutes</strong> starting from your arrival (${fmt(arrivedAt)} → ${fmt(waitingUntil)}).</div>
+            </div>`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: '<i class="bi bi-hourglass-split me-1"></i> Start Waiting',
+          cancelButtonText: 'Go Back',
+          confirmButtonColor: '#d97706',
+          preConfirm: async () => {
+            const attempts = [...document.querySelectorAll('.contact-attempt:checked')].map(c => c.value);
+            if (!attempts.length) return Swal.showValidationMessage('Select at least one contact attempt.');
+            const file = document.getElementById('cnaArrivalProof')?.files?.[0];
+            if (!file) return Swal.showValidationMessage('Upload your arrival proof photo.');
+            if (!file.type.startsWith('image/')) return Swal.showValidationMessage('Please select an image file.');
+            const arrivalProofUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+            return { contactAttempts: attempts, arrivalProofUrl };
+          }
+        });
+
+        if (!startRes.isConfirmed) {
+          if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; }
+          return;
+        }
+
+        Swal.fire({ title: 'Starting Wait...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+          const res = await fetch(`/api/technician/assignments/${assignmentId}/customer-not-available`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(startRes.value)
+          });
+          const data = await res.json();
+          Swal.close();
+          if (!res.ok) {
+            Swal.fire('Action Failed', data.error || 'Failed to start waiting.', 'error');
+            return;
+          }
+          showNotification({ type: 'info', title: 'Waiting for Customer', message: `Waiting until ${new Date(data.waitingUntil).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}.`, duration: 5000 });
+          loadAssignments(currentFilter, currentPage);
+          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
+            showDetail(window._currentDetailId);
+          }
+        } catch (e) {
+          Swal.close();
+          Swal.fire('Error', 'Network error.', 'error');
+        }
         return;
       }
 
-      Swal.fire({ title: 'Processing...', html: 'Marking as No Show and notifying customer...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      // ── RESUME MODE: live countdown + Report No-Show once elapsed ──
+      const runCountdown = (timerEl, btnEl) => {
+        const tick = () => {
+          const now = new Date();
+          const diff = waitingUntil - now;
+          const remaining = Math.max(0, Math.ceil(diff / 1000));
+          const mins = Math.floor(remaining / 60);
+          const secs = remaining % 60;
+          const done = diff <= 0;
+          if (timerEl) {
+            timerEl.innerHTML = renderTimer();
+            const big = timerEl.querySelector('.text-center[style*="1.6rem"]');
+            if (big) big.textContent = done ? '<i class="bi bi-check-circle me-1"></i>Waiting period complete' : `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} remaining`;
+          }
+          if (btnEl) {
+            btnEl.disabled = !done;
+            btnEl.innerHTML = done
+              ? '<i class="bi bi-person-exclamation me-1"></i>Report Customer No-Show'
+              : `<i class="bi bi-hourglass-split me-1"></i>Wait ${mins}:${String(secs).padStart(2,'0')}`;
+          }
+          if (!done) { clearTimeout(window.__cnaTimer); window.__cnaTimer = setTimeout(tick, 1000); }
+        };
+        tick();
+      };
 
+      const resumeRes = await Swal.fire({
+        title: 'Customer Not Available',
+        html: `<div id="cnaTimerBody"></div>`,
+        icon: 'question',
+        showCancelButton: true,
+        showConfirmButton: true,
+        confirmButtonText: '<i class="bi bi-hourglass-split me-1"></i> Wait...',
+        cancelButtonText: 'Close',
+        confirmButtonColor: '#dc2626',
+        allowOutsideClick: false,
+        didOpen: () => {
+          const body = document.getElementById('cnaTimerBody');
+          if (body) {
+            body.innerHTML = renderTimer();
+            const btn = Swal.getConfirmButton();
+            runCountdown(body, btn);
+          }
+        }
+      });
+
+      clearTimeout(window.__cnaTimer);
+      if (!resumeRes.isConfirmed) return;
+
+      // Report no-show
+      Swal.fire({ title: 'Reporting No-Show...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
       try {
-        const res = await fetch(`/api/technician/assignments/${id}/no-show`, {
+        const res = await fetch(`/api/technician/assignments/${assignmentId}/report-no-show`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin'
         });
         const data = await res.json();
         Swal.close();
-
         if (!res.ok) {
-          Swal.fire('Action Failed', data.error || 'Failed to process', 'error');
+          if (data.code === 'WAITING_PERIOD_NOT_ELAPSED') {
+            Swal.fire('Too Early', data.error || 'The waiting period has not elapsed yet.', 'warning');
+            return;
+          }
+          Swal.fire('Action Failed', data.error || 'Failed to report no-show.', 'error');
           return;
         }
-
-        showNotification({ type: 'warning', title: 'No Show Reported', message: 'Customer notified via email.', duration: 4000 });
+        showNotification({ type: 'warning', title: 'No-Show Reported', message: 'Waiting for an admin decision in the Booking Resolution Center.', duration: 5000 });
         loadAssignments(currentFilter, currentPage);
         if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
           showDetail(window._currentDetailId);
-        }
-
-        // Offer reschedule or cancel
-        const followUp = await Swal.fire({
-          title: 'What\'s Next?',
-          html: '<p style="color:#64748b;font-size:0.9rem;margin-bottom:8px;">The customer has been notified. What would you like to do with this booking?</p>',
-          icon: 'info',
-          showDenyButton: true,
-          showCancelButton: true,
-          confirmButtonText: '<i class="bi bi-calendar3 me-1"></i> Reschedule Now',
-          denyButtonText: '<i class="bi bi-x-circle me-1"></i> Cancel Booking',
-          cancelButtonText: 'Close',
-          confirmButtonColor: '#2563eb',
-          denyButtonColor: '#dc2626',
-          cancelButtonColor: '#64748b',
-        });
-
-        if (followUp.isConfirmed) {
-          await openNoShowReschedule(id);
-        } else if (followUp.isDenied) {
-          const cancelConfirm = await Swal.fire({
-            title: 'Cancel Booking?',
-            html: '<p style="color:#64748b;font-size:0.9rem;">This will permanently cancel the booking and notify the customer.</p>',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, Cancel',
-            cancelButtonText: 'Go Back',
-            confirmButtonColor: '#dc2626',
-          });
-          if (cancelConfirm.isConfirmed) {
-            Swal.fire({ title: 'Cancelling...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const cancelRes = await fetch(`/api/technician/assignments/${id}/no-show-cancel`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin'
-            });
-            const cancelData = await cancelRes.json();
-            Swal.close();
-            if (cancelRes.ok) {
-              Swal.fire('Cancelled', 'Booking has been cancelled.', 'success');
-              loadAssignments(currentFilter, currentPage);
-            } else {
-              Swal.fire('Error', cancelData.error || 'Failed to cancel.', 'error');
-            }
-          }
         }
       } catch (e) {
         Swal.close();
         Swal.fire('Error', 'Network error.', 'error');
       }
-    };
+    }
+    window.openCustomerNotAvailable = openCustomerNotAvailable;
 
     // ── No-Show Reschedule Flow ────────────────────────────────────────────
     async function openNoShowReschedule(assignmentId) {
@@ -9492,9 +10269,8 @@ function preparationEscapeHtml(value) {
       // Remaining balance = stored balance, but fall back to (total - downpayment)
       // so the technician collects only what's actually left.
       const storedBalance = Number(assignment.balanceAmount ?? _b.balanceAmount);
-      let balance = Number.isFinite(storedBalance) && storedBalance > 0
-        ? storedBalance
-        : Math.max(0, total - Number(_b.amountPaid ?? assignment.amountPaid ?? downpayment));
+      const calculatedBalance = Math.max(0, total - Number(_b.amountPaid ?? assignment.amountPaid ?? downpayment));
+      let balance = Math.max(Number.isFinite(storedBalance) ? storedBalance : 0, calculatedBalance);
       document.getElementById('paymentTotalFee').textContent = '₱' + total.toLocaleString();
       document.getElementById('paymentBalanceDue').textContent = '₱' + balance.toLocaleString();
       document.getElementById('paymentPartsTotal').textContent = '₱0';
@@ -9607,7 +10383,8 @@ function preparationEscapeHtml(value) {
               }
               const _storedBal = Number(booking.balanceAmount);
               const _paid = _phase1Settled ? 0 : Number(booking.amountPaid ?? collectTargetAssignment?.amountPaid ?? _dp);
-              const _bal = _phase1Settled ? qTotal : (Number.isFinite(_storedBal) && _storedBal > 0 ? _storedBal : Math.max(0, _fullTotal - _paid));
+              const _calculatedBal = Math.max(0, _fullTotal - _paid);
+              const _bal = _phase1Settled ? qTotal : Math.max(Number.isFinite(_storedBal) ? _storedBal : 0, _calculatedBal);
               document.getElementById('paymentTotalFee').textContent = '₱' + _fullTotal.toLocaleString();
               document.getElementById('paymentBalanceDue').textContent = '₱' + _bal.toLocaleString();
               document.getElementById('paymentAmountInput').value = _bal;
@@ -9924,8 +10701,22 @@ function preparationEscapeHtml(value) {
     let proofFile = null;
     let proofSubmitting = false;
     let proofSubmissionCompleted = false;
+    let technicianAftercarePolicyPromise = null;
 
-    window.openProofModal = function (id, customerName, serviceName, fee, paymentJustCollected = false) {
+    async function loadTechnicianAftercarePolicy() {
+      if (!technicianAftercarePolicyPromise) {
+        technicianAftercarePolicyPromise = fetch('/api/technician/aftercare-policy', { credentials:'same-origin', cache:'no-store' })
+          .then(async function (response) {
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Unable to load aftercare policy.');
+            return data.maintenance || {};
+          })
+          .catch(function () { return { bookingsEnabled:true, bookingIntervalDays:90, allowTechnicianRecommendation:true }; });
+      }
+      return technicianAftercarePolicyPromise;
+    }
+
+    window.openProofModal = async function (id, customerName, serviceName, fee, paymentJustCollected = false) {
       // Block if balance not collected (unless payment was just collected in the flow)
       let a = allItems.find(item => String(item._id) === String(id));
       if (!a && window._detailAssignment && String(window._detailAssignment._id) === String(id)) {
@@ -9945,11 +10736,113 @@ function preparationEscapeHtml(value) {
       document.getElementById('proofUploadPlaceholder').classList.remove('d-none');
       document.getElementById('proofPreviewContainer').classList.add('d-none');
       document.getElementById('proofError').classList.add('d-none');
+      const maintenanceSelect = document.getElementById('nextMaintenanceDays');
+      const maintenanceHint = document.getElementById('nextMaintenancePolicyHint');
+      maintenanceSelect.value = '';
+      const aftercarePolicy = await loadTechnicianAftercarePolicy();
+      maintenanceSelect.options[0].textContent = `Use admin default (${Number(aftercarePolicy.bookingIntervalDays || 90)} days)`;
+      maintenanceSelect.disabled = !aftercarePolicy.bookingsEnabled || !aftercarePolicy.allowTechnicianRecommendation;
+      maintenanceHint.textContent = !aftercarePolicy.bookingsEnabled
+        ? 'Automatic maintenance cycles are disabled by the administrator.'
+        : aftercarePolicy.allowTechnicianRecommendation
+          ? 'The admin default is used unless you recommend another interval.'
+          : 'The administrator requires the configured default interval for this completion.';
+      document.getElementById('nextMaintenanceNotes').value = '';
       document.getElementById('submitProofBtn').disabled = true;
       const area = document.getElementById('proofUploadArea');
       area.style.padding = '40px 24px';
       const proofEl = document.getElementById('proofModal');
       bootstrap.Modal.getOrCreateInstance(proofEl).show();
+      // Load consumables for this booking
+      await loadProofConsumables(id);
+      updateProofSubmitState();
+    };
+
+    // Load consumables from daily kit that are tied to this assignment's booking
+    async function loadProofConsumables(assignmentId) {
+      const section = document.getElementById('proofConsumablesSection');
+      const listEl = document.getElementById('proofConsumablesList');
+      const emptyEl = document.getElementById('proofConsumablesEmpty');
+      const countEl = document.getElementById('proofConsumablesCount');
+      const hintEl = document.getElementById('proofConsumablesHint');
+      section.style.display = 'none';
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'none';
+      if (hintEl) hintEl.style.display = 'none';
+      const _esc = (s) => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&#039;') : '';
+      try {
+        const res = await fetch('/api/technician/daily-kit', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const kit = data.kit;
+        if (!kit || !kit.items) return;
+        // Find the assignment to get its bookingId
+        const assignment = allItems.find(i => String(i._id) === String(assignmentId))
+          || (window._detailAssignment && String(window._detailAssignment._id) === String(assignmentId) ? window._detailAssignment : null);
+        if (!assignment) return;
+        const bookingId = assignment.bookingId;
+        // Filter kit items: consumables that include this bookingId
+        const consumables = kit.items.filter(item =>
+          item.category === 'consumable'
+          && item.bookingIds
+          && item.bookingIds.some(bid => String(bid) === String(bookingId))
+        );
+        if (consumables.length === 0) {
+          section.style.display = '';
+          emptyEl.style.display = '';
+          listEl.style.display = 'none';
+          countEl.textContent = '0 items';
+          updateProofSubmitState();
+          return;
+        }
+        section.style.display = '';
+        listEl.style.display = '';
+        if (hintEl) hintEl.style.display = '';
+        countEl.textContent = consumables.length + ' item' + (consumables.length > 1 ? 's' : '');
+        listEl.innerHTML = consumables.map(item => {
+          const issued = item.quantityIssued || item.quantity || 0;
+          const alreadyUsed = item.quantityUsed || 0;
+          const maxAvail = Math.max(0, issued - alreadyUsed);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.8rem;font-weight:600;color:#1e293b;">${_esc(item.name)} <span style="color:#dc2626;">*</span></div>
+              <div style="font-size:0.68rem;color:#64748b;">Available: ${maxAvail} ${_esc(item.unit || 'pcs')}</div>
+            </div>
+            <input type="number" class="form-control form-control-sm proof-consumable-input"
+              data-name="${_esc(item.name)}" data-max="${maxAvail}" data-unit="${_esc(item.unit || 'pcs')}"
+              min="1" max="${maxAvail}" value=""
+              placeholder="0"
+              style="width:60px;text-align:center;border-radius:8px;font-size:0.8rem;" oninput="validateProofConsumable(this)">
+          </div>`;
+        }).join('');
+        updateProofSubmitState();
+      } catch (e) {
+        section.style.display = 'none';
+        updateProofSubmitState();
+      }
+    }
+    window.validateProofConsumable = function(el) {
+      const max = parseInt(el.dataset.max) || 0;
+      let val = parseInt(el.value) || 0;
+      if (val > max) { el.value = max; val = max; }
+      if (val < 0) { el.value = ''; val = 0; }
+      el.style.borderColor = val >= 1 ? '#059669' : '#fecaca';
+      updateProofSubmitState();
+    };
+
+    // Submit is only allowed when a photo is attached AND every required
+    // consumable row has a recorded quantity (>= 1).
+    window.updateProofSubmitState = function () {
+      const btn = document.getElementById('submitProofBtn');
+      if (!btn || proofSubmitting) return;
+      const inputs = document.querySelectorAll('.proof-consumable-input');
+      let missing = 0;
+      inputs.forEach(input => {
+        const v = parseInt(input.value) || 0;
+        input.style.borderColor = v >= 1 ? '#059669' : '#fecaca';
+        if (v < 1) missing++;
+      });
+      btn.disabled = !proofFile || missing > 0;
     };
 
     window.handleProofFile = function (e) {
@@ -9971,7 +10864,7 @@ function preparationEscapeHtml(value) {
         document.getElementById('proofUploadPlaceholder').classList.add('d-none');
         document.getElementById('proofPreviewContainer').classList.remove('d-none');
         document.getElementById('proofError').classList.add('d-none');
-        document.getElementById('submitProofBtn').disabled = false;
+        updateProofSubmitState();
       };
       reader.readAsDataURL(file);
     };
@@ -9981,7 +10874,7 @@ function preparationEscapeHtml(value) {
       document.getElementById('proofFileInput').value = '';
       document.getElementById('proofUploadPlaceholder').classList.remove('d-none');
       document.getElementById('proofPreviewContainer').classList.add('d-none');
-      document.getElementById('submitProofBtn').disabled = true;
+      updateProofSubmitState();
     };
 
     function showProofError(msg) {
@@ -10014,14 +10907,51 @@ function preparationEscapeHtml(value) {
 
     window.submitProofOfCompletion = async function () {
       if (!proofFile || !proofTargetId) return;
+      // Required-consumables guard: every listed kit consumable for this
+      // booking must have a recorded usage quantity before completing.
+      const missing = [];
+      document.querySelectorAll('.proof-consumable-input').forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        if (qty < 1) missing.push(input.dataset.name);
+      });
+      if (missing.length > 0) {
+        showProofError('Record consumables used: ' + missing.join(', '));
+        document.getElementById('submitProofBtn').disabled = true;
+        return;
+      }
       const btn = document.getElementById('submitProofBtn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
       proofSubmitting = true;
 
       try {
+        // Log consumables used (before uploading proof)
+        const consumableInputs = document.querySelectorAll('.proof-consumable-input');
+        const assignment = allItems.find(i => String(i._id) === String(proofTargetId))
+          || (window._detailAssignment && String(window._detailAssignment._id) === String(proofTargetId) ? window._detailAssignment : null);
+        const bookingId = assignment?.bookingId;
+        if (bookingId && consumableInputs.length > 0) {
+          for (const input of consumableInputs) {
+            const qty = parseInt(input.value) || 0;
+            if (qty <= 0) continue;
+            await fetch('/api/technician/daily-kit/consume', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({
+                itemName: input.dataset.name,
+                quantityUsed: qty,
+                bookingId: bookingId,
+              }),
+            }).catch(() => {});
+          }
+        }
+
+        // Upload proof photo
         const formData = new FormData();
         formData.append('proofPhoto', proofFile);
+        formData.append('nextMaintenanceDays', document.getElementById('nextMaintenanceDays')?.value || '');
+        formData.append('nextMaintenanceNotes', document.getElementById('nextMaintenanceNotes')?.value?.trim() || '');
 
         const uploadRes = await fetch(`/api/technician/assignments/${proofTargetId}/proof-of-completion`, {
           method: 'POST',
@@ -10220,6 +11150,17 @@ function preparationEscapeHtml(value) {
           }
           fetchTabCounts();
         });
+        window.socket.on('daily_kit:updated', (data) => {
+          showNotification({
+            type: 'success',
+            title: 'Daily Kit Updated',
+            message: data.message || `Your daily kit has been updated by admin. ${data.itemName ? '"' + data.itemName + '" — ' + data.resolution : ''}`,
+            duration: 8000
+          });
+          if (typeof loadDailyKit === 'function') {
+            loadDailyKit();
+          }
+        });
       } catch (e) { }
     })();
 
@@ -10231,6 +11172,8 @@ function preparationEscapeHtml(value) {
       contentEl.querySelectorAll('.mw-detail-tab').forEach(b => b.classList.remove('active'));
       contentEl.querySelectorAll('.mw-detail-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
+      // Ensure the active tab is horizontally visible in the sticky bar
+      tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       const panel = contentEl.querySelector(`.mw-detail-panel[data-tab="${tabName}"]`);
       if (panel) {
         panel.classList.add('active');
@@ -10292,6 +11235,17 @@ function preparationEscapeHtml(value) {
         window._detailAssignment = a;
         window._currentDetailId = id;
         window._detailTechLocation = techLocation;
+
+        // Auto-generate the AI diagnosis for accepted repair jobs — the
+        // technician only needs to review it, not manually trigger it.
+        const aiBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
+        if (isRepairAssignment(a) && a.status === 'accepted' && aiBookingId && !a.bookingId?.technicianAssistant?.summary) {
+          window._aiGenInProgress = window._aiGenInProgress || new Set();
+          if (!window._aiGenInProgress.has(aiBookingId)) {
+            window._aiGenInProgress.add(aiBookingId);
+            generateAiDiagnosis(aiBookingId, true).finally(() => window._aiGenInProgress.delete(aiBookingId));
+          }
+        }
 
         // Load assigned equipment for this booking
         a.equipmentItems = [];
@@ -10387,9 +11341,11 @@ function preparationEscapeHtml(value) {
 
         // ── Panel Header ──
         const headerEl = document.getElementById('detailPanelHeader');
+        headerEl.classList.add('booking-order-detail-header');
         headerEl.dataset.status = a.status;
+        const isMaintenanceJob = Boolean(a.bookingId?.maintenance?.isMaintenance);
         document.getElementById('detailPanelName').textContent = a.customerName || 'Customer';
-        document.getElementById('detailPanelRef').textContent = `Booking #${bookingRef}`;
+        document.getElementById('detailPanelRef').textContent = `Booking #${bookingRef}${isMaintenanceJob ? ' | Preventive Maintenance' : ''}`;
         const stBadge = document.getElementById('detailPanelStatusBadge');
         stBadge.textContent = statusLabels[a.status] || a.status;
         stBadge.className = 'trk-status-pill ' + statusBadgeClass(a.status);
@@ -10411,14 +11367,14 @@ function preparationEscapeHtml(value) {
         }
         const heroEl = document.getElementById('detailPanelWorkflowHero');
         const isRepairH = isRepairAssignment(a);
-        const heroBadge = `<span class="mw-sh-badge priority-${(a.priority || 'normal')}">${(a.priority || 'normal').toUpperCase()}</span>`;
+        const heroBadge = `${isMaintenanceJob ? '<span class="mw-sh-badge" style="background:#ccfbf1;color:#115e59;">MAINTENANCE</span>' : ''}<span class="mw-sh-badge priority-${(a.priority || 'normal')}">${(a.priority || 'normal').toUpperCase()}</span>`;
         const heroFee = Number(a.servicePrice || (a.serviceDetail && a.serviceDetail.basePrice) || 0).toLocaleString();
         heroEl.innerHTML = `
           <div class="mw-sh-left">
             <div class="mw-sh-icon"><i class="bi bi-${isRepairH ? 'wrench' : 'gear-wide-connected'}"></i></div>
             <div class="mw-sh-meta">
               <div class="mw-sh-name">${a.serviceName || 'Service'}</div>
-              <div class="mw-sh-sub">${a.serviceType ? a.serviceType.toUpperCase() + ' SERVICE' : 'SERVICE'}</div>
+              <div class="mw-sh-sub">${isMaintenanceJob ? 'PREVENTIVE MAINTENANCE' : (a.serviceType ? a.serviceType.toUpperCase() + ' SERVICE' : 'SERVICE')}</div>
             </div>
           </div>
           <div class="mw-sh-right">
@@ -10449,7 +11405,7 @@ function preparationEscapeHtml(value) {
               : a.status === 'on_site' ? 'on_site'
                 : a.status === 'en_route' ? 'en_route' : 'accepted';
           const mixedStepIndex = mixedSteps.findIndex(step => step.key === mixedCurrent);
-          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress';
+          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress compact-work-progress';
           document.getElementById('detailPanelWorkflow').innerHTML = renderWorkProgress(mixedSteps, mixedStepIndex, mixedCurrent);
         } else if (isRepair) {
           const hasQuotation = !!(a.quotation?.createdAt || a.bookingId?.quotation?.createdAt) ||
@@ -10472,36 +11428,32 @@ function preparationEscapeHtml(value) {
             repairSteps = [
               { key: 'accepted', label: 'Technician Accepts', icon: 'bi-check-lg' },
               { key: 'ai_review', label: 'Review AI Diagnosis', icon: 'bi-clipboard2-pulse' },
-              { key: 'checkout', label: 'Equipment & Consumables', icon: 'bi-clipboard2-check' },
-              { key: 'preparation', label: 'Confirm Ready', icon: 'bi-check2-square' },
+              { key: 'daily_prep', label: 'Daily Preparation', icon: 'bi-briefcase' },
               { key: 'en_route', label: 'En Route', icon: 'bi-sign-turn-right' }
             ];
             if (a.status === 'en_route' || a.status === 'on_site' || a.status === 'in_progress') currentStep = 'en_route';
-            else if (a.bookingId?.repairPreparation?.confirmed) currentStep = 'en_route';
-            else if (a.equipmentCheckedOut) currentStep = 'preparation';
-            else if (a.bookingId?.technicianAssistant?.verifiedByTechnician) currentStep = 'checkout';
+            else if (a.bookingId?.technicianAssistant?.verifiedByTechnician) currentStep = 'daily_prep';
             else if (a.status === 'accepted') currentStep = 'ai_review';
             else currentStep = 'accepted';
           }
 
           const stepIdx = repairSteps.findIndex(s => s.key === currentStep);
-          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress';
+          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress compact-work-progress';
           document.getElementById('detailPanelWorkflow').innerHTML = renderWorkProgress(repairSteps, stepIdx, currentStep);
         } else {
           const steps = [
             { key: 'accepted', label: 'Accept', icon: 'bi-check-lg' },
-            { key: 'checkout', label: 'Check Out', icon: 'bi-box-seam' },
+            { key: 'daily_prep', label: 'Daily Prep', icon: 'bi-briefcase' },
             { key: 'en_route', label: 'En Route', icon: 'bi-geo-alt' },
             { key: 'on_site', label: 'Arrived', icon: 'bi-pin-map' },
             { key: 'in_progress', label: 'Work', icon: 'bi-gear' },
             { key: 'completed', label: 'Done', icon: 'bi-check-circle' }
           ];
           let curIdx;
-          if (a.status === 'accepted' && a.equipmentCheckedOut) curIdx = steps.findIndex(s => s.key === 'en_route');
-          else if (a.status === 'accepted' && !a.equipmentCheckedOut) curIdx = steps.findIndex(s => s.key === 'checkout');
+          if (a.status === 'accepted') curIdx = steps.findIndex(s => s.key === 'daily_prep');
           else curIdx = steps.findIndex(s => s.key === a.status);
           const stepIdx2 = curIdx >= 0 ? curIdx : 0;
-          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress';
+          document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress compact-work-progress';
           document.getElementById('detailPanelWorkflow').innerHTML = renderWorkProgress(steps, stepIdx2, steps[stepIdx2]?.key || 'accepted');
         }
 
@@ -10580,13 +11532,59 @@ function preparationEscapeHtml(value) {
           'rating': { icon: 'bi-star', label: 'Rating' },
         };
 
+        // Compute per-tab status badge and attention class
+        function getTabStatus(pageId, assignment) {
+          const booking = assignment.bookingId || {};
+          const services = booking.services || [];
+          if (pageId === 'core-service') {
+            const coreItems = services.filter(s => s.type === 'core');
+            if (!coreItems.length) return null;
+            const allDone = coreItems.every(s => s.status === 'completed');
+            const anyActive = coreItems.some(s => s.status === 'in_progress');
+            if (allDone) return { badge: 'Done', cls: 'badge-done', attention: false };
+            if (anyActive) return { badge: 'Active', cls: 'badge-active', attention: false };
+            return { badge: 'To Do', cls: 'badge-pending', attention: true };
+          }
+          if (pageId === 'repair-service') {
+            const repairItems = services.filter(s => s.type === 'repair');
+            if (!repairItems.length) return null;
+            const allDone = repairItems.every(s => ['completed', 'repair_declined', 'cancelled'].includes(s.status));
+            const anyActive = repairItems.some(s => ['in_progress', 'repair_in_progress', 'inspection_in_progress'].includes(s.status));
+            if (allDone) return { badge: 'Done', cls: 'badge-done', attention: false };
+            if (anyActive) return { badge: 'Active', cls: 'badge-active', attention: false };
+            return { badge: 'To Do', cls: 'badge-pending', attention: true };
+          }
+          if (pageId === 'ai-assistant') {
+            const ta = booking.technicianAssistant;
+            if (!ta?.summary) return { badge: 'New', cls: 'badge-pending', attention: true };
+            if (!ta.verifiedByTechnician) return { badge: 'Review', cls: 'badge-pending', attention: true };
+            return { badge: 'Done', cls: 'badge-done', attention: false };
+          }
+          if (pageId === 'inspection') {
+            if (booking.inspection?.completedAt) return { badge: 'Done', cls: 'badge-done', attention: false };
+            return { badge: 'To Do', cls: 'badge-pending', attention: true };
+          }
+          if (pageId === 'quotation') {
+            if (booking.quotation?.totalCost > 0) return { badge: 'Done', cls: 'badge-done', attention: false };
+            return { badge: 'To Do', cls: 'badge-pending', attention: true };
+          }
+          if (pageId === 'completion') {
+            if (assignment.status === 'completed') return { badge: 'Done', cls: 'badge-done', attention: false };
+            return { badge: 'To Do', cls: 'badge-pending', attention: true };
+          }
+          return null;
+        }
+
         // Build tab bar + tab panels
         let tabsHtml = '';
         let panelsHtml = '';
         visiblePages.forEach((p, idx) => {
           const d = tabDefs[p] || { icon: 'bi-circle', label: p };
           const active = idx === 0 ? 'active' : '';
-          tabsHtml += `<button class="mw-detail-tab ${active}" data-tab="${p}"><i class="bi ${d.icon}"></i><span>${d.label}</span></button>`;
+          const ts = getTabStatus(p, a);
+          const attentionCls = ts?.attention ? 'needs-action' : '';
+          const badgeHtml = ts ? `<span class="mw-tab-badge ${ts.cls}">${ts.badge}</span>` : '';
+          tabsHtml += `<button class="mw-detail-tab ${active} ${attentionCls}" data-tab="${p}"><i class="bi ${d.icon}"></i><span>${d.label}</span>${badgeHtml}</button>`;
           let pageHtml = '';
           if (p === 'overview') pageHtml = renderCustomerDetails(a, date, bookingRef, hasCoords, custLat, custLng, activityHtml);
           else if (p === 'core-service') pageHtml = renderMixedCorePage(a);
@@ -10603,6 +11601,7 @@ function preparationEscapeHtml(value) {
         });
 
         const contentEl = document.getElementById('detailPanelContent');
+        contentEl.classList.add('booking-order-detail-content');
         // Remove previous tab listener to avoid stacking
         contentEl._tabListener && contentEl.removeEventListener('click', contentEl._tabListener);
         if (visiblePages.length > 1) {
@@ -11144,7 +12143,22 @@ function preparationEscapeHtml(value) {
       setTimeout(() => showDetail(idParam), 500);
     }
 
-    loadAssignments(currentFilter, 1);
+    const ACTIVE_STATUSES = ['en_route', 'in_progress', 'on_site'];
+    let _hasAutoOpenedActiveJob = false;
+
+    loadAssignments(currentFilter, 1).then(() => {
+      if (_hasAutoOpenedActiveJob || idParam) return;
+      const activeJob = (window.allItems || []).find(a => ACTIVE_STATUSES.includes(a.status));
+      if (activeJob) {
+        _hasAutoOpenedActiveJob = true;
+        const jobIndex = (window.allItems || []).indexOf(activeJob);
+        if (jobIndex >= 0 && typeof cardPage !== 'undefined') {
+          cardPage = Math.floor(jobIndex / CARDS_PER_PAGE);
+        }
+        if (typeof renderCardPage === 'function') renderCardPage();
+        showDetail(activeJob._id);
+      }
+    });
     const prepDP = document.getElementById('prepDatePicker');
     if (prepDP) { const d = new Date(); d.setDate(d.getDate()); prepDP.value = d.toISOString().slice(0,10); }
     loadPreparation();
@@ -11159,6 +12173,12 @@ function preparationEscapeHtml(value) {
       if (!resp.ok) return;
       const data = await resp.json();
       const kit = data.kit;
+
+      // Update global kit status for detail panel button logic
+      window._dailyKitStatus = kit ? kit.status : null;
+      if (typeof window.refreshAssignmentCardsForPreparation === 'function') {
+        window.refreshAssignmentCardsForPreparation();
+      }
 
       const summaryText = document.getElementById('preparationSummaryText');
       const statusBadge = document.getElementById('prepStatusBadge');
@@ -11300,6 +12320,43 @@ function preparationEscapeHtml(value) {
   };
 
   // ── Daily Dispatch Kit Modal ──────────────────────────────────────────
+
+  // Event delegation for daily kit issue action buttons
+  document.getElementById('dailyKitModal').addEventListener('click', function(e) {
+    const resolveBtn = e.target.closest('.kit-resolve-btn');
+    if (resolveBtn) {
+      const name = resolveBtn.dataset.name;
+      const action = resolveBtn.dataset.action;
+      if (name && action) window.dailyKitResolveItem(name, action);
+      return;
+    }
+    const notifyBtn = e.target.closest('.kit-notify-admin-btn');
+    if (notifyBtn) {
+      const name = notifyBtn.dataset.name;
+      if (name) window.dailyKitNotifyAdminItem(name);
+      return;
+    }
+    const deltaAddBtn = e.target.closest('.kit-delta-add');
+    if (deltaAddBtn) {
+      window.kitDeltaHighlightConfirm();
+      return;
+    }
+    const deltaResolveBtn = e.target.closest('.kit-delta-resolve');
+    if (deltaResolveBtn) {
+      const name = deltaResolveBtn.dataset.name;
+      const category = deltaResolveBtn.dataset.category || '';
+      const action = deltaResolveBtn.dataset.action;
+      if (name && action) window.kitDeltaDecision(name, category, action);
+      return;
+    }
+    const deltaReportBtn = e.target.closest('.kit-delta-report');
+    if (deltaReportBtn) {
+      const name = deltaReportBtn.dataset.name;
+      if (name && window.dailyKitNotifyAdminItem) window.dailyKitNotifyAdminItem(name);
+      return;
+    }
+  });
+
   window.openDailyKitModal = function() {
     loadDailyKit();
     new bootstrap.Modal(document.getElementById('dailyKitModal')).show();
@@ -11308,6 +12365,7 @@ function preparationEscapeHtml(value) {
   async function loadDailyKit() {
     const _esc = (s) => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') : '';
     const jobSummaryEl = document.getElementById('kitJobSummary');
+    const dateLabel = document.getElementById('kitDateLabel');
     const statusBadge = document.getElementById('kitStatusBadge');
     const jobsListEl = document.getElementById('kitJobsList');
     const jobsContentEl = document.getElementById('kitJobsContent');
@@ -11320,29 +12378,56 @@ function preparationEscapeHtml(value) {
     const repairSection = document.getElementById('kitRepairSection');
     const repairListEl = document.getElementById('kitRepairList');
     const partsCountEl = document.getElementById('kitPartsCount');
+    const aiSection = document.getElementById('kitAiContingencySection');
+    const aiListEl = document.getElementById('kitAiContingencyList');
+    const aiCountEl = document.getElementById('kitAiCount');
     const unavailableSection = document.getElementById('kitUnavailableSection');
     const unavailableListEl = document.getElementById('kitUnavailableList');
     const deltaSection = document.getElementById('kitDeltaSection');
+    const summarySection = document.getElementById('kitSummarySection');
+    const summaryContent = document.getElementById('kitSummaryContent');
     const confirmBtn = document.getElementById('kitConfirmBtn');
 
     jobSummaryEl.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Loading kit...';
     statusBadge.style.display = 'none';
 
     try {
-      const resp = await fetch('/api/technician/daily-kit', { credentials: 'same-origin' });
+      const kitDateQuery = window._dailyKitRequestedDate ? '?date=' + encodeURIComponent(window._dailyKitRequestedDate) : '';
+      const resp = await fetch('/api/technician/daily-kit' + kitDateQuery, { credentials: 'same-origin' });
       if (!resp.ok) throw new Error('Failed to load');
       const data = await resp.json();
       const kit = data.kit;
+      const jobDetails = data.jobDetails || [];
+      const aiSuggestions = data.aiContingencySuggestions || [];
+
+      // Track kit status globally for detail panel button logic
+      window._dailyKitStatus = kit ? kit.status : null;
 
       if (!kit || !kit.items || kit.items.length === 0) {
         jobSummaryEl.innerHTML = '<span style="color:#64748b;">No jobs assigned for today</span>';
+        if (dateLabel) dateLabel.textContent = '';
         equipSection.style.display = 'none';
         consSection.style.display = 'none';
         repairSection.style.display = 'none';
+        if (aiSection) aiSection.style.display = 'none';
         unavailableSection.style.display = 'none';
+        if (summarySection) summarySection.style.display = 'none';
         confirmBtn.style.display = 'none';
         return;
       }
+
+      // Build a lookup map: assignmentId -> job detail, bookingId -> job detail
+      const jobByAssignment = new Map();
+      const jobByBooking = new Map();
+      const jobByOrder = new Map();
+      (data.jobDetails || []).forEach(j => {
+        if (j.assignmentId) jobByAssignment.set(String(j.assignmentId), j);
+        if (j.bookingId) jobByBooking.set(String(j.bookingId), j);
+        if (j.orderId) jobByOrder.set(String(j.orderId), j);
+      });
+
+      // Date label
+      if (dateLabel) dateLabel.textContent = new Date(kit.workDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
       // Status badge
       const statusMap = {
@@ -11359,108 +12444,386 @@ function preparationEscapeHtml(value) {
       statusBadge.textContent = stInfo.label;
 
       // Job summary
-      const jobCount = (kit.assignmentIds || []).length;
+      const jobCount = jobDetails.length;
       jobSummaryEl.innerHTML = '<strong>' + jobCount + ' job' + (jobCount !== 1 ? 's' : '') + '</strong> for ' + new Date(kit.workDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' });
 
-      // Jobs list
-      if (jobCount > 0) {
+      // Jobs list with job names + expandable per-job item breakdown
+      const unavailable = kit.items.filter(i => i.checkoutStatus === 'unavailable');
+      // Group every kit item (incl. undecided deltas) under its job(s)
+      const itemsByAssignment = new Map();
+      [...kit.items, ...((kit.hasDelta && kit.deltaItems) || [])].forEach(item => {
+        (item.assignmentIds || []).forEach(aid => {
+          const k = String(aid);
+          if (!itemsByAssignment.has(k)) itemsByAssignment.set(k, []);
+          itemsByAssignment.get(k).push(item);
+        });
+        (item.orderIds || []).forEach(orderId => {
+          const k = String(orderId);
+          if (!itemsByAssignment.has(k)) itemsByAssignment.set(k, []);
+          itemsByAssignment.get(k).push(item);
+        });
+      });
+      const KIT_CAT_META = {
+        equipment: { icon: 'bi-tools', color: '#2563eb' },
+        consumable: { icon: 'bi-droplet', color: '#16a34a' },
+        repair_part: { icon: 'bi-gear-wide-connected', color: '#b45309' },
+      };
+      function kitItemStatusChip(item) {
+        const rs = item.resolution && item.resolution.status;
+        if (rs === 'not_required') return '<span style="font-size:0.6rem;color:#94a3b8;">Not Required</span>';
+        if (rs === 'confirmed_available') return '<span style="font-size:0.6rem;color:#94a3b8;">Alternative In Use</span>';
+        if (rs === 'admin_notified') return '<span style="font-size:0.6rem;color:#d97706;">Reported to Admin</span>';
+        if (item.checkoutStatus === 'unavailable') return '<span style="font-size:0.6rem;color:#dc2626;font-weight:600;">Unavailable</span>';
+        if (['checked_out', 'issued', 'reserved', 'standard_kit'].includes(item.checkoutStatus)) return '<span style="font-size:0.6rem;color:#059669;">✓ Ready</span>';
+        return '';
+      }
+      window.kitToggleJobItems = function (aid) {
+        const el = document.getElementById('kitJobItems_' + aid);
+        if (!el) return;
+        el.classList.toggle('d-none');
+        const chev = document.getElementById('kitJobChev_' + aid);
+        if (chev) chev.style.transform = el.classList.contains('d-none') ? '' : 'rotate(180deg)';
+      };
+      if (jobCount > 0 && data.jobDetails && data.jobDetails.length > 0) {
         jobsListEl.style.display = '';
-        jobsContentEl.innerHTML = '<div style="font-size:0.78rem;color:#64748b;">Assigned jobs for today</div>';
+
+        // Determine per-job readiness: a job needs attention if any of its required items are unresolved unavailable
+        const jobHasIssues = new Map();
+        data.jobDetails.forEach(j => jobHasIssues.set(String(j.assignmentId || j.orderId), false));
+        unavailable.forEach(item => {
+          if (item.resolution?.status) return; // resolved
+          (item.assignmentIds || []).forEach(aid => {
+            if (jobHasIssues.has(String(aid))) jobHasIssues.set(String(aid), true);
+          });
+          (item.orderIds || []).forEach(orderId => {
+            if (jobHasIssues.has(String(orderId))) jobHasIssues.set(String(orderId), true);
+          });
+        });
+
+        let jhtml = '';
+        let readyCount = 0;
+        data.jobDetails.forEach((j, i) => {
+          const timeLabel = j.startTime ? j.startTime + ' — ' : '';
+          const typeBadge = j.serviceType === 'repair' ? '<span class="badge bg-warning text-dark" style="font-size:0.6rem;padding:2px 5px;">REPAIR</span>' : j.serviceType === 'order_installation' ? '<span class="badge bg-info-subtle text-info-emphasis" style="font-size:0.6rem;padding:2px 5px;">ORDER INSTALL</span>' : '<span class="badge bg-primary-subtle text-primary" style="font-size:0.6rem;padding:2px 5px;">CORE</span>';
+          const hasIssue = jobHasIssues.get(String(j.assignmentId || j.orderId));
+          const statusIcon = hasIssue
+            ? '<i class="bi bi-exclamation-triangle" style="color:#d97706;font-size:0.72rem;"></i>'
+            : '<i class="bi bi-check-circle-fill" style="color:#059669;font-size:0.72rem;"></i>';
+          if (!hasIssue) readyCount++;
+          const aid = String(j.assignmentId || j.orderId);
+          const jItems = itemsByAssignment.get(aid) || [];
+          const eqN = jItems.filter(x => x.category === 'equipment').length;
+          const coN = jItems.filter(x => x.category === 'consumable').length;
+          let breakdown = '';
+          if (jItems.length > 0) {
+            const order = ['equipment', 'consumable', 'repair_part'];
+            breakdown = order.map(cat => {
+              const rows = jItems.filter(x => x.category === cat);
+              if (!rows.length) return '';
+              return '<div style="margin-bottom:5px;"><div style="font-size:0.62rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">' + cat.replace('_', ' ') + '</div>' +
+                rows.map(x => {
+                  const meta = KIT_CAT_META[cat];
+                  return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;">' +
+                    '<i class="bi ' + meta.icon + '" style="font-size:0.68rem;color:' + meta.color + ';"></i>' +
+                    '<span style="flex:1;font-size:0.72rem;color:#334155;">' + _esc(x.name) + (x.quantity > 1 ? ' <strong style="color:' + meta.color + ';">×' + x.quantity + '</strong>' : '') + '</span>' +
+                    kitItemStatusChip(x) +
+                    '</div>';
+                }).join('') + '</div>';
+            }).join('');
+          } else {
+            breakdown = '<div style="font-size:0.7rem;color:#94a3b8;">No specific kit requirements generated for this job</div>';
+          }
+          jhtml += '<div style="border-bottom:1px solid #f1f5f9;">' +
+            '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:0.78rem;cursor:pointer;" onclick="kitToggleJobItems(\'' + aid + '\')" title="Show required tools & consumables">' +
+            '<span style="color:#94a3b8;font-size:0.7rem;min-width:16px;">' + (i + 1) + '.</span>' +
+            '<span style="flex:1;color:#1e293b;font-weight:500;">' + _esc(j.serviceName) + '</span>' +
+            typeBadge +
+            (jItems.length > 0 ? '<span style="font-size:0.6rem;color:#2563eb;background:#eff6ff;border-radius:8px;padding:1px 6px;white-space:nowrap;">' + jItems.length + ' item' + (jItems.length > 1 ? 's' : '') + '</span>' : '') +
+            statusIcon +
+            (timeLabel ? '<span style="font-size:0.68rem;color:#64748b;">' + timeLabel + '</span>' : '') +
+            '<i class="bi bi-chevron-down" id="kitJobChev_' + aid + '" style="font-size:0.6rem;color:#94a3b8;transition:transform .15s;"></i>' +
+            '</div>' +
+            '<div id="kitJobItems_' + aid + '" class="d-none" style="padding:2px 0 8px 24px;background:#f8fafc;border-radius:8px;margin-bottom:4px;">' + breakdown + '</div>' +
+            '</div>';
+        });
+        jhtml += '<div style="font-size:0.68rem;color:#94a3b8;margin-top:6px;">' +
+          '<span style="color:#059669;">✓ ' + readyCount + ' Ready</span>' +
+          (readyCount < jobCount ? ' · <span style="color:#d97706;">⚠ ' + (jobCount - readyCount) + ' Needs Attention</span>' : '') +
+          ' · ' + jobCount + ' Total</div>';
+        jobsContentEl.innerHTML = jhtml;
+      } else if (jobCount > 0) {
+        jobsListEl.style.display = '';
+        jobsContentEl.innerHTML = '<div style="font-size:0.78rem;color:#64748b;">' + jobCount + ' assigned job' + (jobCount !== 1 ? 's' : '') + ' for today</div>';
       } else {
         jobsListEl.style.display = 'none';
       }
 
-      // Equipment
+      // Helper: resolve job names for an item's assignmentIds
+      function itemJobNames(item) {
+        const names = [];
+        (item.assignmentIds || []).forEach(aid => {
+          const j = jobByAssignment.get(String(aid));
+          if (j) names.push(j.serviceName);
+        });
+        (item.orderIds || []).forEach(orderId => {
+          const j = jobByOrder.get(String(orderId));
+          if (j) names.push(j.serviceName);
+        });
+        return names;
+      }
+
+      // Equipment — expandable items showing which jobs require each
       const equipment = kit.items.filter(i => i.category === 'equipment' && i.checkoutStatus !== 'unavailable');
       if (equipment.length > 0) {
         equipSection.style.display = '';
         equipCountEl.textContent = equipment.length + ' item' + (equipment.length !== 1 ? 's' : '');
-        let ehtml = '<div class="d-flex flex-wrap gap-1">';
-        equipment.forEach(item => {
-          let cls, icon;
+        let ehtml = '';
+        equipment.forEach((item, idx) => {
+          const jobNames = itemJobNames(item);
+          const jobCount2 = (item.bookingIds || []).length;
+          let statusCls, statusText, icon;
           if (item.checkoutStatus === 'checked_out') {
-            cls = 'bg-success-subtle text-success border-success';
-            icon = 'bi-check-circle';
+            statusCls = 'border-success'; statusText = 'Checked Out'; icon = 'bi-check-circle-fill';
           } else if (item.source === 'standard') {
-            cls = 'bg-info-subtle text-info border-info';
-            icon = 'bi-star';
+            statusCls = 'border-info'; statusText = 'Standard Kit'; icon = 'bi-star';
+          } else if (item.checkoutStatus === 'unavailable') {
+            statusCls = 'border-danger'; statusText = 'Unavailable'; icon = 'bi-exclamation-triangle';
           } else {
-            cls = 'bg-primary-subtle text-primary border-primary';
-            icon = 'bi-tools';
+            statusCls = 'border-primary'; statusText = 'Available'; icon = 'bi-tools';
           }
-          ehtml += '<span class="badge border ' + cls + '" style="font-size:0.73rem;padding:5px 10px;"><i class="bi ' + icon + ' me-1"></i>' + _esc(item.name) + (item.quantity > 1 ? ' x' + item.quantity : '') + (item.checkoutStatus === 'checked_out' ? ' ✓' : '') + '</span>';
+          ehtml += '<div class="kit-equip-item" style="border:1px solid ' + (item.checkoutStatus === 'checked_out' ? '#bbf7d0' : '#bfdbfe') + ';border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#fff;cursor:pointer;" onclick="this.querySelector(\'.kit-equip-detail\').classList.toggle(\'d-none\')">' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<i class="bi ' + icon + '" style="font-size:0.85rem;color:' + (item.checkoutStatus === 'checked_out' ? '#16a34a' : '#2563eb') + ';flex-shrink:0;"></i>' +
+            '<span style="flex:1;font-weight:600;font-size:0.8rem;">' + _esc(item.name) + (item.quantity > 1 ? ' x' + item.quantity : '') + '</span>' +
+            '<span style="font-size:0.65rem;color:' + (item.checkoutStatus === 'checked_out' ? '#16a34a' : '#64748b') + ';">' + statusText + '</span>' +
+            '<i class="bi bi-chevron-down kit-expand-icon" style="font-size:0.6rem;color:#94a3b8;"></i>' +
+            '</div>' +
+            '<div class="kit-equip-detail d-none" style="margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;font-size:0.72rem;color:#64748b;">' +
+            (jobNames.length ? '<div><strong>Required by:</strong> ' + jobNames.map(n => '<span class="badge bg-light text-dark border" style="font-size:0.65rem;padding:2px 6px;margin:1px;">' + _esc(n) + '</span>').join(' ') + '</div>' : '<div>No specific job requirement</div>') +
+            '</div></div>';
         });
-        ehtml += '</div>';
         equipListEl.innerHTML = ehtml;
       } else {
         equipSection.style.display = 'none';
       }
 
-      // Consumables
+      // Consumables — with estimated quantities
       const consumables = kit.items.filter(i => i.category === 'consumable');
       if (consumables.length > 0) {
         consSection.style.display = '';
         consCountEl.textContent = consumables.length + ' item' + (consumables.length !== 1 ? 's' : '');
-        let chtml = '<div class="d-flex flex-wrap gap-1">';
+        let chtml = '';
         consumables.forEach(item => {
+          const jobNames = itemJobNames(item);
           const issued = item.quantityIssued || 0;
           const used = item.quantityUsed || 0;
-          chtml += '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.73rem;padding:5px 10px;" title="Issued: ' + issued + ', Used: ' + used + '"><i class="bi bi-box me-1"></i>' + _esc(item.name) + ' x' + item.quantity + (used > 0 ? ' (' + used + ' used)' : '') + '</span>';
+          chtml += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;">' +
+            '<i class="bi bi-box" style="font-size:0.8rem;color:#16a34a;flex-shrink:0;"></i>' +
+            '<span style="flex:1;font-size:0.8rem;">' + _esc(item.name) + ' <strong style="color:#166534;">x' + item.quantity + '</strong></span>' +
+            (used > 0 ? '<span style="font-size:0.65rem;color:#64748b;">' + used + ' used</span>' : '') +
+            (jobNames.length ? '<span style="font-size:0.65rem;color:#94a3b8;" title="' + jobNames.join(', ') + '">' + jobNames.length + ' job' + (jobNames.length > 1 ? 's' : '') + '</span>' : '') +
+            '</div>';
         });
-        chtml += '</div>';
         consListEl.innerHTML = chtml;
       } else {
         consSection.style.display = 'none';
       }
 
-      // Repair parts (only after inspection)
-      // Repair parts are intentionally never part of daily preparation. They
-      // continue through inspection, quotation and customer decision.
-      repairSection.style.display = '';
-      partsCountEl.textContent = 'Not included';
-      repairListEl.innerHTML = '<div class="small text-muted"><i class="bi bi-shield-check me-1"></i>Added only after on-site inspection and an approved quotation.</div>';
+      // Repair parts (Phase 2 approved quotation)
+      const repairParts = kit.items.filter(i => i.category === 'repair_part');
+      if (repairParts.length > 0) {
+        repairSection.style.display = '';
+        partsCountEl.textContent = repairParts.length + ' item' + (repairParts.length !== 1 ? 's' : '');
+        let rhtml = '';
+        repairParts.forEach(item => {
+          let icon, statusLabel;
+          if (item.checkoutStatus === 'reserved' || item.checkoutStatus === 'issued') {
+            icon = 'bi-check-circle'; statusLabel = 'Ready';
+          } else if (item.checkoutStatus === 'unavailable') {
+            icon = 'bi-exclamation-triangle'; statusLabel = 'Unavailable';
+          } else {
+            icon = 'bi-box-seam'; statusLabel = 'Reserved';
+          }
+          rhtml += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #fef3c7;">' +
+            '<i class="bi ' + icon + '" style="font-size:0.8rem;color:#92400e;flex-shrink:0;"></i>' +
+            '<span style="flex:1;font-size:0.8rem;">' + _esc(item.name) + ' x' + item.quantity + '</span>' +
+            '<span style="font-size:0.65rem;color:#92400e;">' + statusLabel + '</span>' +
+            '</div>';
+        });
+        repairListEl.innerHTML = rhtml;
+      } else {
+        repairSection.style.display = '';
+        partsCountEl.textContent = 'Not included';
+        repairListEl.innerHTML = '<div class="small text-muted" style="padding:4px 0;"><i class="bi bi-shield-check me-1"></i>Added only after on-site inspection and an approved, scheduled quotation.</div>';
+      }
 
-      // Unavailable items
-      const unavailable = kit.items.filter(i => i.checkoutStatus === 'unavailable');
+      // AI Contingency Parts (Optional)
+      const unconfirmedAi = aiSuggestions.filter(s => !s.alreadyConfirmed);
+      if (aiSection && unconfirmedAi.length > 0) {
+        aiSection.style.display = '';
+        aiCountEl.textContent = unconfirmedAi.length + ' suggestion' + (unconfirmedAi.length !== 1 ? 's' : '');
+        // Group by service name
+        const grouped = {};
+        unconfirmedAi.forEach(s => {
+          if (!grouped[s.serviceName]) grouped[s.serviceName] = [];
+          grouped[s.serviceName].push(s);
+        });
+        let ahtml = '';
+        Object.entries(grouped).forEach(([svcName, parts]) => {
+          ahtml += '<div style="margin-bottom:8px;">' +
+            '<div style="font-size:0.72rem;font-weight:600;color:#4c1d95;margin-bottom:4px;">' + _esc(svcName) + '</div>';
+          parts.forEach(p => {
+            ahtml += '<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.78rem;cursor:pointer;">' +
+              '<input type="checkbox" class="form-check-input kit-ai-part" data-name="' + _esc(p.name) + '" data-booking="' + _esc(p.bookingId) + '" style="margin:0;">' +
+              '<span>' + _esc(p.name) + '</span>' +
+              '</label>';
+          });
+          ahtml += '</div>';
+        });
+        ahtml += '<div style="font-size:0.68rem;color:#7c3aed;font-style:italic;">Optional — bring only if already available and practical.</div>';
+        aiListEl.innerHTML = ahtml;
+      } else if (aiSection) {
+        aiSection.style.display = 'none';
+      }
+
+      // Unavailable items — with resolution actions
+      const unresolvedCount = unavailable.filter(i => !i.resolution?.status).length;
+      const issueCountEl = document.getElementById('kitIssueCount');
+      if (issueCountEl) issueCountEl.textContent = unavailable.length;
       if (unavailable.length > 0) {
         unavailableSection.style.display = '';
         let uhtml = '';
         unavailable.forEach(item => {
-          uhtml += '<div style="font-size:0.78rem;color:#991b1b;"><i class="bi bi-x-circle me-1"></i>' + _esc(item.name) + ' — ' + _esc(item.conflict?.message || 'Unavailable') + '</div>';
+          const jobNames = itemJobNames(item);
+          const isNotLinked = item.conflict?.message?.includes('not linked');
+          const status = item.resolution?.status;
+          const isResolved = status === 'confirmed_available' || status === 'not_required'
+                          || status === 'assigned_from_stock' || status === 'procured';
+          const isAwaitingAdmin = status === 'admin_notified';
+          const resolutionLabel = status === 'confirmed_available' ? '✓ Confirmed Available'
+            : status === 'not_required' ? '⊘ Not Required'
+            : status === 'admin_notified' ? '⏳ Awaiting Admin Action'
+            : status === 'assigned_from_stock' ? '✓ Assigned from Stock'
+            : status === 'procured' ? '✓ Procured'
+            : status === 'rescheduled' ? '📅 Job Rescheduled'
+            : null;
+          const cardBorder = isResolved ? '#d1fae5' : isAwaitingAdmin ? '#fef3c7' : '#fecaca';
+          const cardBg = isResolved ? '#f0fdf4' : isAwaitingAdmin ? '#fffbeb' : '#fff';
+          const iconClass = isResolved ? 'bi-check-circle-fill'
+                          : isAwaitingAdmin ? 'bi-hourglass-split'
+                          : 'bi-exclamation-triangle';
+          const iconColor = isResolved ? '#059669'
+                          : isAwaitingAdmin ? '#d97706'
+                          : '#dc2626';
+          const textColor = isResolved ? '#065f46'
+                          : isAwaitingAdmin ? '#92400e'
+                          : '#991b1b';
+          uhtml += '<div class="kit-issue-card" style="padding:10px;margin-bottom:8px;background:' + cardBg + ';border-radius:8px;border:1px solid ' + cardBorder + ';">' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<i class="bi ' + iconClass + '" style="color:' + iconColor + ';font-size:0.85rem;"></i>' +
+            '<strong style="font-size:0.8rem;color:' + textColor + ';">' + _esc(item.name) + '</strong>' +
+            '</div>' +
+            '<div style="font-size:0.72rem;color:' + textColor + ';margin-top:4px;">' +
+            (resolutionLabel || _esc(item.conflict?.message || 'Unavailable')) +
+            '</div>' +
+            (jobNames.length ? '<div style="font-size:0.68rem;color:#64748b;margin-top:4px;"><i class="bi bi-link-45deg me-1"></i>Required by: ' + jobNames.map(n => '<span class="badge bg-light text-dark border" style="font-size:0.62rem;padding:2px 5px;">' + _esc(n) + '</span>').join(' ') + '</div>' : '') +
+            (!isResolved && !isAwaitingAdmin ? '<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;">' +
+              '<button class="btn btn-sm btn-outline-success kit-resolve-btn" data-action="confirmed_available" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-check-lg me-1"></i>Confirm I Have This</button>' +
+              '<button class="btn btn-sm btn-outline-primary kit-notify-admin-btn" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-bell me-1"></i>Notify Admin</button>' +
+              '<button class="btn btn-sm btn-outline-secondary kit-resolve-btn" data-action="not_required" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-x-lg me-1"></i>Not Required</button>' +
+            '</div>' : '') +
+            (isAwaitingAdmin ? '<div style="margin-top:8px;"><span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.65rem;"><i class="bi bi-hourglass-split me-1"></i>Admin has been notified — waiting for resolution</span></div>' : '') +
+            '</div>';
         });
         unavailableListEl.innerHTML = uhtml;
       } else {
         unavailableSection.style.display = 'none';
       }
 
-      // Delta items (new jobs added after confirmation)
+      // Delta items — field-level decision cards for late-accepted bookings.
+      // Every undecided item blocks En Route until resolved or checked out
+      // via "Prepare Additional Items".
       if (kit.hasDelta && kit.deltaItems && kit.deltaItems.length > 0) {
         deltaSection.style.display = '';
-        let dhtml = '<div>New items needed:</div>';
+        const DECISION_LABELS = {
+          not_required: 'NOT REQUIRED — Technician Confirmed',
+          confirmed_available: 'ALTERNATIVE IN USE',
+          admin_notified: 'REPORTED — waiting for admin',
+        };
+        let dhtml = '<div style="font-weight:600;font-size:0.75rem;color:#92400e;margin-bottom:6px;">New requirements from newly accepted booking(s):</div>';
         kit.deltaItems.forEach(item => {
-          dhtml += '<div style="font-size:0.78rem;"><i class="bi bi-plus-circle me-1"></i>' + _esc(item.name) + '</div>';
+          const decided = item.resolution && item.resolution.status;
+          const catIcon = item.category === 'equipment' ? 'bi-tools' : item.category === 'repair_part' ? 'bi-gear' : 'bi-droplet';
+          dhtml += '<div class="kit-issue-card" style="padding:10px;margin-bottom:8px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;">';
+          if (!decided) {
+            dhtml += '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<i class="bi ' + catIcon + '" style="color:#b45309;font-size:0.85rem;"></i>' +
+              '<strong style="font-size:0.8rem;color:#92400e;">' + _esc(item.name) + ' ×' + _esc(item.quantity || 1) + '</strong>' +
+              '</div>';
+            if (item.conflict?.message) {
+              dhtml += '<div style="font-size:0.72rem;color:#b45309;margin-top:3px;"><i class="bi bi-exclamation-triangle me-1"></i>' + _esc(item.conflict.message) + '</div>';
+            }
+            dhtml += '<div style="font-size:0.68rem;color:#78716c;margin-top:4px;">Decide how to handle this before going En Route:</div>';
+            dhtml += '<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;">' +
+              '<button class="btn btn-sm btn-success kit-delta-add" data-name="' + _esc(item.name) + '" data-category="' + _esc(item.category || '') + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-plus-circle me-1"></i>Add to Kit</button>' +
+              '<button class="btn btn-sm btn-outline-secondary kit-delta-resolve" data-action="not_required" data-name="' + _esc(item.name) + '" data-category="' + _esc(item.category || '') + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-x-lg me-1"></i>Not Needed</button>' +
+              '<button class="btn btn-sm btn-outline-primary kit-delta-resolve" data-action="confirmed_available" data-name="' + _esc(item.name) + '" data-category="' + _esc(item.category || '') + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-arrow-repeat me-1"></i>Use Alternative</button>' +
+              '<button class="btn btn-sm btn-outline-warning kit-delta-report" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-bell me-1"></i>Report Issue</button>' +
+              '</div>';
+            dhtml += '<div style="font-size:0.65rem;color:#a8a29e;margin-top:6px;"><i class="bi bi-info-circle me-1"></i>"Add to Kit" items will be issued when you press Prepare Additional Items.</div>';
+          } else {
+            const lbl = DECISION_LABELS[item.resolution.status] || item.resolution.status;
+            const ok = item.resolution.status !== 'admin_notified';
+            dhtml += '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<i class="bi ' + (ok ? 'bi-check-circle-fill' : 'bi-hourglass-split') + '" style="color:' + (ok ? '#059669' : '#d97706') + ';font-size:0.85rem;"></i>' +
+              '<strong style="font-size:0.8rem;color:' + (ok ? '#166534' : '#92400e') + ';">' + _esc(item.name) + '</strong>' +
+              '</div>' +
+              '<div style="font-size:0.72rem;color:#64748b;margin-top:3px;">' + _esc(lbl) + (item.resolution.resolutionNote ? ' · ' + _esc(item.resolution.resolutionNote) : '') + '</div>';
+          }
+          dhtml += '</div>';
         });
         document.getElementById('kitDeltaList').innerHTML = dhtml;
       } else {
         deltaSection.style.display = 'none';
       }
 
-      // A late assignment creates a delta: confirm only those additional items.
+      // Preparation Summary
+      if (summarySection) {
+        const totalEquip = equipment.length;
+        const totalCons = consumables.length;
+        const totalRepair = repairParts.length;
+        const totalAi = unconfirmedAi.length;
+        const totalIssues = unavailable.length;
+        summarySection.style.display = '';
+        let shtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">';
+        shtml += '<div style="text-align:center;padding:8px;background:#eff6ff;border-radius:8px;"><div style="font-size:1.1rem;font-weight:700;color:#1e40af;">' + totalEquip + '</div><div style="font-size:0.68rem;color:#1e40af;">Equipment</div></div>';
+        shtml += '<div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px;"><div style="font-size:1.1rem;font-weight:700;color:#166534;">' + totalCons + '</div><div style="font-size:0.68rem;color:#166534;">Consumables</div></div>';
+        if (totalRepair > 0) shtml += '<div style="text-align:center;padding:8px;background:#fefce8;border-radius:8px;"><div style="font-size:1.1rem;font-weight:700;color:#92400e;">' + totalRepair + '</div><div style="font-size:0.68rem;color:#92400e;">Repair Parts</div></div>';
+        if (totalAi > 0) shtml += '<div style="text-align:center;padding:8px;background:#f5f3ff;border-radius:8px;"><div style="font-size:1.1rem;font-weight:700;color:#7c3aed;">' + totalAi + '</div><div style="font-size:0.68rem;color:#7c3aed;">AI Suggestions</div></div>';
+        if (totalIssues > 0) shtml += '<div style="text-align:center;padding:8px;background:#fef2f2;border-radius:8px;"><div style="font-size:1.1rem;font-weight:700;color:#dc2626;">' + totalIssues + '</div><div style="font-size:0.68rem;color:#dc2626;">Issues</div></div>';
+        shtml += '</div>';
+        summaryContent.innerHTML = shtml;
+      }
+
+      // Confirm button — only blocked by truly unresolved unavailable items
       if (kit.status === 'draft' || (kit.hasDelta && kit.deltaItems && kit.deltaItems.length)) {
         confirmBtn.style.display = '';
-        const deltaUnavailable = (kit.deltaItems || []).filter(i => i.checkoutStatus === 'unavailable');
-        const blocking = kit.status === 'draft' ? unavailable : deltaUnavailable;
-        confirmBtn.disabled = blocking.length > 0;
-        if (blocking.length > 0) {
-          confirmBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Unavailable Items';
+        const unavailableDeltas = ((kit.hasDelta && kit.deltaItems) || []).filter(i => i.checkoutStatus === 'unavailable' && !i.resolution?.status && !(i.exception && i.exception.approved));
+        const unresolvedItems = unavailable.filter(i => !i.resolution?.status).concat(unavailableDeltas);
+        confirmBtn.disabled = unresolvedItems.length > 0;
+        if (unresolvedItems.length > 0) {
+          confirmBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Resolve ' + unresolvedItems.length + ' Issue' + (unresolvedItems.length > 1 ? 's' : '');
         } else {
           confirmBtn.innerHTML = kit.hasDelta
             ? '<i class="bi bi-plus-circle me-1"></i>Prepare Additional Items'
-            : '<i class="bi bi-check2-circle me-1"></i>Confirm Daily Kit Ready';
+            : '<i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation';
         }
       } else {
         confirmBtn.style.display = 'none';
       }
+
+      // Store kit data for add-item
+      window._currentKit = kit;
 
     } catch (err) {
       console.error('Daily kit load error:', err);
@@ -11477,46 +12840,242 @@ function preparationEscapeHtml(value) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        body: JSON.stringify(window._dailyKitRequestedDate ? { date: window._dailyKitRequestedDate } : {}),
       });
       const data = await resp.json();
       if (resp.ok) {
-        (window._showNotification || showNotification)({ type: 'success', title: 'Kit Confirmed', message: 'Daily dispatch kit prepared. Equipment checked out.', duration: 4000 });
+        // Update global status immediately so detail panel shows En Route button
+        window._dailyKitStatus = 'confirmed';
+        (window._showNotification || showNotification)({ type: 'success', title: 'Daily Preparation Confirmed', message: 'Equipment checked out and consumables issued for all of today\'s jobs. You\'re ready to go En Route!', duration: 5000 });
         loadDailyKit();
         loadPreparation();
+        if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) showDetail(window._currentDetailId);
       } else {
-        (window._showNotification || showNotification)({ type: 'error', title: 'Kit Error', message: data.error || 'Failed to confirm', duration: 5000 });
+        (window._showNotification || showNotification)({ type: 'error', title: 'Confirmation Failed', message: data.error || 'Failed to confirm daily preparation', duration: 5000 });
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirm Kit Prepared';
+        btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation';
       }
     } catch (err) {
-      (window._showNotification || showNotification)({ type: 'error', title: 'Kit Error', message: 'Failed to confirm kit', duration: 5000 });
+      (window._showNotification || showNotification)({ type: 'error', title: 'Confirmation Failed', message: 'Failed to confirm daily preparation', duration: 5000 });
       btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirm Kit Prepared';
+      btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation';
     }
   };
 
-  window.dailyKitAddItem = async function() {
-    const nameInput = document.getElementById('kitNewItemName');
-    const categorySelect = document.getElementById('kitNewItemCategory');
+  // ── Daily Kit: Inventory Search Dropdown ────────────────────────────────
+  window._selectedKitItem = null;
+  let _kitSearchTimeout = null;
+
+  const kitSearchInput = document.getElementById('kitInventorySearch');
+  const kitSearchResults = document.getElementById('kitInventoryResults');
+  const kitAddBtn = document.getElementById('kitAddItemBtn');
+  const kitSelectedItemEl = document.getElementById('kitSelectedItem');
+
+  if (kitSearchInput) {
+    kitSearchInput.addEventListener('input', function() {
+      clearTimeout(_kitSearchTimeout);
+      const q = this.value.trim();
+      if (q.length < 2) { kitSearchResults.style.display = 'none'; kitSearchResults.innerHTML = ''; return; }
+      _kitSearchTimeout = setTimeout(async () => {
+        try {
+          const resp = await fetch('/api/technician/daily-kit/inventory-search?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const items = data.items || [];
+          if (items.length === 0) {
+            kitSearchResults.innerHTML = '<div style="padding:8px 12px;font-size:0.78rem;color:#64748b;">No results found</div>';
+            kitSearchResults.style.display = '';
+            return;
+          }
+          let html = '';
+          items.forEach(item => {
+            const typeIcon = item.type === 'equipment' ? 'bi-tools' : item.type === 'consumable' ? 'bi-box' : item.type === 'part' ? 'bi-box-seam' : 'bi-gear';
+            const typeCls = item.type === 'equipment' ? 'text-primary' : item.type === 'consumable' ? 'text-success' : item.type === 'part' ? 'text-warning' : 'text-secondary';
+            html += '<div class="kit-inv-result" data-id="' + item._id + '" data-name="' + (item.name || item.itemName) + '" data-type="' + item.type + '" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f5f9;font-size:0.78rem;">' +
+              '<i class="bi ' + typeIcon + ' ' + typeCls + '" style="font-size:0.8rem;"></i>' +
+              '<span style="flex:1;">' + (item.name || item.itemName) + '</span>' +
+              '<span style="font-size:0.65rem;color:#94a3b8;">' + item.type + '</span>' +
+              '</div>';
+          });
+          kitSearchResults.innerHTML = html;
+          kitSearchResults.style.display = '';
+          // Bind click handlers
+          kitSearchResults.querySelectorAll('.kit-inv-result').forEach(el => {
+            el.addEventListener('click', function() {
+              window._selectedKitItem = { _id: this.dataset.id, name: this.dataset.name, type: this.dataset.type };
+              kitSearchInput.value = this.dataset.name;
+              kitSearchResults.style.display = 'none';
+              kitAddBtn.disabled = false;
+              kitSelectedItemEl.classList.remove('d-none');
+              kitSelectedItemEl.innerHTML = '<span class="badge bg-primary-subtle text-primary border border-primary" style="font-size:0.73rem;padding:4px 8px;"><i class="bi bi-check2 me-1"></i>' + this.dataset.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+            });
+          });
+        } catch (err) {
+          console.error('Inventory search error:', err);
+        }
+      }, 300);
+    });
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#kitInventorySearch') && !e.target.closest('#kitInventoryResults')) {
+        kitSearchResults.style.display = 'none';
+      }
+    });
+  }
+
+  window.dailyKitAddSelected = async function() {
+    if (!window._selectedKitItem) return;
     const qtyInput = document.getElementById('kitNewItemQty');
-    const name = nameInput.value.trim();
-    if (!name) return;
+    const qty = Number(qtyInput.value) || 1;
+    const category = window._selectedKitItem.type === 'part' ? 'repair_part' : (window._selectedKitItem.type || 'consumable');
     try {
       const resp = await fetch('/api/technician/daily-kit/add-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ name, category: categorySelect.value, quantity: Number(qtyInput.value) || 1 }),
+        body: JSON.stringify({ name: window._selectedKitItem.name, inventoryItemId: window._selectedKitItem._id, category, quantity: qty }),
       });
       if (resp.ok) {
-        nameInput.value = '';
+        window._selectedKitItem = null;
+        kitSearchInput.value = '';
         qtyInput.value = '1';
+        kitAddBtn.disabled = true;
+        kitSelectedItemEl.classList.add('d-none');
         loadDailyKit();
       }
     } catch (err) {
       console.error('Add item error:', err);
     }
   };
+
+  window.dailyKitNotifyAdmin = async function() {
+    try {
+      const resp = await fetch('/api/technician/daily-kit/notify-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
+      if (resp.ok) {
+        (window._showNotification || showNotification)({ type: 'success', title: 'Notified', message: 'Admin has been notified about unavailable items.', duration: 3000 });
+      }
+    } catch (err) {
+      console.error('Notify admin error:', err);
+    }
+  };
+
+  window.dailyKitResolveItem = async function(itemName, resolution) {
+    try {
+      const resp = await fetch('/api/technician/daily-kit/resolve-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ itemName, resolution }),
+      });
+      if (resp.ok) {
+        const label = resolution === 'confirmed_available' ? 'Confirmed Available' : 'Marked Not Required';
+        if (window._showNotification) window._showNotification({ type: 'success', title: label, message: itemName + ' has been resolved.', duration: 3000 });
+        loadDailyKit();
+      } else {
+        const data = await resp.json();
+        if (window._showNotification) window._showNotification({ type: 'error', title: 'Failed', message: data.error || 'Could not resolve item', duration: 4000 });
+      }
+    } catch (err) {
+      console.error('Resolve item error:', err);
+    }
+  };
+
+  window.dailyKitNotifyAdminItem = async function(itemName) {
+    try {
+      const resp = await fetch('/api/technician/daily-kit/notify-admin-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ itemName }),
+      });
+      if (resp.ok) {
+        if (window._showNotification) window._showNotification({ type: 'success', title: 'Admin Notified', message: 'Admin has been notified about "' + itemName + '".', duration: 3000 });
+        loadDailyKit();
+      }
+    } catch (err) {
+      console.error('Notify admin item error:', err);
+    }
+  };
+
+  // ── Delta item field decisions (late-accepted bookings) ──────────────────
+  const KIT_NOT_NEEDED_REASONS = [
+    { code: 'existing_equipment_sufficient', label: 'Existing equipment can perform the task' },
+    { code: 'job_condition_not_required', label: 'Job condition does not require it' },
+    { code: 'alternative_approved_material', label: 'Alternative approved tool/material available' },
+    { code: 'recommendation_not_applicable', label: 'Recommendation is not applicable' },
+    { code: 'other', label: 'Other (explain below)' },
+  ];
+
+  window.kitDeltaHighlightConfirm = function() {
+    const btn = document.getElementById('kitConfirmBtn');
+    if (btn && btn.style.display !== 'none') {
+      btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      btn.style.transition = 'box-shadow 0.3s';
+      btn.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.5)';
+      setTimeout(() => { if (btn) btn.style.boxShadow = ''; }, 1600);
+    }
+    if (window._showNotification) window._showNotification({ type: 'info', title: 'Added to Kit List', message: 'Press "Prepare Additional Items" to check it out.', duration: 4000 });
+  };
+
+  window.kitDeltaDecision = async function(itemName, category, action) {
+    if (action === 'not_required') {
+      const result = await Swal.fire({
+        title: 'Not Needed for This Job',
+        html: '<div class="text-start"><p class="small text-muted mb-2">Why is <strong>' + String(itemName).replace(/</g,'&lt;') + '</strong> not needed?</p>' +
+          KIT_NOT_NEEDED_REASONS.map((r, idx) =>
+            '<div class="form-check mb-1"><input class="form-check-input" type="radio" name="kitNnReason" id="knnr_' + idx + '" value="' + r.code + '"' + (idx === 0 ? ' checked' : '') + '><label class="form-check-label small" for="knnr_' + idx + '">' + r.label + '</label></div>'
+          ).join('') +
+          '<textarea id="kitNnNote" class="form-control form-control-sm mt-2" rows="2" placeholder="Details (required for Other)"></textarea></div>',
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Decision',
+        confirmButtonColor: '#2563eb',
+        preConfirm: () => {
+          const reasonCode = (document.querySelector('input[name="kitNnReason"]:checked') || {}).value;
+          const note = (document.getElementById('kitNnNote').value || '').trim();
+          if (reasonCode === 'other' && !note) { Swal.showValidationMessage('Please explain why this item is not needed.'); return false; }
+          return { reasonCode, note };
+        },
+      });
+      if (!result.isConfirmed) return;
+      await kitDeltaPostResolve({ itemName, category, resolution: 'not_required', reasonCode: result.value.reasonCode, note: result.value.note });
+    } else if (action === 'confirmed_available') {
+      const result = await Swal.fire({
+        title: 'Use Available Alternative',
+        input: 'textarea',
+        inputPlaceholder: 'What will you use instead? (e.g., personal digital multimeter)',
+        showCancelButton: true,
+        confirmButtonText: 'Record Alternative',
+        confirmButtonColor: '#2563eb',
+        preConfirm: (value) => {
+          if (!value || !value.trim()) { Swal.showValidationMessage('Please describe the alternative you will use.'); return false; }
+          return value.trim();
+        },
+      });
+      if (!result.isConfirmed) return;
+      await kitDeltaPostResolve({ itemName, category, resolution: 'confirmed_available', source: 'alternative_available', note: result.value });
+    }
+  };
+
+  async function kitDeltaPostResolve(payload) {
+    try {
+      const resp = await fetch('/api/technician/daily-kit/resolve-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        const label = payload.resolution === 'not_required' ? 'Marked Not Required' : 'Alternative Recorded';
+        if (window._showNotification) window._showNotification({ type: 'success', title: label, message: data.item?.name || payload.itemName + ' — decision saved.', duration: 3000 });
+        loadDailyKit();
+      } else {
+        if (window._showNotification) window._showNotification({ type: 'error', title: 'Failed', message: data.error || 'Could not save your decision.', duration: 4000 });
+      }
+    } catch (err) {
+      console.error('Kit delta resolve error:', err);
+    }
+  }
 
   window.briefingBatchCheckout = async function() {
     const btn = document.getElementById('briefingBatchCheckout');
@@ -13517,13 +15076,15 @@ function preparationEscapeHtml(value) {
     const serviceAnalyses = Array.isArray(ta.serviceAnalyses) ? ta.serviceAnalyses : [];
     const serviceAnalysisHtml = serviceAnalyses.map((analysis, index) => {
       const sources = (analysis._webSources || []).filter(url => /^https?:\/\//i.test(String(url))).slice(0, 3);
+      const groundingClass = analysis._webResearchUsed ? 'bg-success' : analysis._webResearchFetched ? 'bg-warning text-dark' : 'bg-secondary';
+      const groundingLabel = analysis._webResearchUsed ? 'Tavily grounded' : analysis._webResearchFetched ? 'Tavily fetched - not used' : analysis._source === 'fallback' ? 'Local reference' : 'AI reference';
       return `<div style="border:1px solid #dbeafe;border-radius:10px;padding:12px;margin-bottom:9px;background:#f8fbff;">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
           <div><div style="font-size:.63rem;font-weight:800;color:#64748b;">REPAIR APPLIANCE ${index + 1} OF ${serviceAnalyses.length}</div><div style="font-size:.8rem;font-weight:750;color:#1e3a8a;">${safe(analysis.serviceName || analysis.unitType || 'Repair Service')}</div><div style="font-size:.68rem;color:#64748b;">${safe([analysis.brand, analysis.model, analysis.unitType].filter(Boolean).join(' · '))}</div></div>
-          <span class="badge ${analysis._webResearchUsed ? 'bg-success' : 'bg-secondary'}" style="font-size:.6rem;">${analysis._webResearchUsed ? 'Tavily grounded' : 'AI reference'}</span>
+          <span class="badge ${groundingClass}" style="font-size:.6rem;">${groundingLabel}</span>
         </div>
         <div style="font-size:.72rem;color:#334155;line-height:1.5;margin-top:8px;white-space:pre-line;">${safe(analysis.summary || 'On-site inspection is required to confirm the diagnosis.')}</div>
-        ${sources.length ? `<div style="font-size:.65rem;margin-top:7px;color:#64748b;">Sources: ${sources.map((url, sourceIndex) => `<a href="${safe(url)}" target="_blank" rel="noopener noreferrer">${sourceIndex + 1}</a>`).join(' · ')}</div>` : ''}
+        ${analysis._webResearchUsed && sources.length ? `<div style="font-size:.65rem;margin-top:7px;color:#64748b;">Sources: ${sources.map((url, sourceIndex) => `<a href="${safe(url)}" target="_blank" rel="noopener noreferrer">${sourceIndex + 1}</a>`).join(' · ')}</div>` : ''}
       </div>`;
     }).join('');
 
@@ -16607,6 +18168,14 @@ function preparationEscapeHtml(value) {
 <script>
 (function () {
   const params = new URLSearchParams(window.location.search);
+  window._dailyKitRequestedDate = params.get('date') || null;
+  if (params.get('openDailyKit') === '1') {
+    const openPreparation = function () {
+      if (typeof window.openDailyKitModal === 'function') window.openDailyKitModal();
+      else setTimeout(openPreparation, 250);
+    };
+    setTimeout(openPreparation, 300);
+  }
   const projectId = params.get('projectId');
   if (!projectId) return;
   function tryOpen() {

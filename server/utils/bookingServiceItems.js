@@ -54,11 +54,21 @@ function summarizeChanges(before, proposed) {
   const beforeMap = new Map(beforeRows.map((item, index) => [itemKey(item, index), item]));
   const proposedMap = new Map(proposedRows.map((item, index) => [itemKey(item, index), item]));
   let added = 0, edited = 0, removed = 0;
+  const comparable = item => ({
+    serviceId: String(item?.serviceId?._id || item?.serviceId || ""),
+    type: item?.type === "repair" ? "repair" : "core",
+    quantity: Math.max(1, Number(item?.quantity) || 1),
+    brand: String(item?.brand || "").trim(),
+    model: String(item?.model || "").trim(),
+    applianceType: String(item?.applianceType || item?.airconType || ""),
+    hp: Number(item?.hp) || null,
+    problemDescription: String(item?.problemDescription || item?.repairIssue || "").trim(),
+  });
   proposedMap.forEach((item, key) => {
     if (!beforeMap.has(key)) added++;
     else {
-      const a = { ...beforeMap.get(key), _id: undefined, statusHistory: undefined };
-      const b = { ...item, _id: undefined, statusHistory: undefined };
+      const a = comparable(beforeMap.get(key));
+      const b = comparable(item);
       if (JSON.stringify(a) !== JSON.stringify(b)) edited++;
     }
   });

@@ -97,6 +97,8 @@
     .audit-page .at-table tbody td { padding: 0.6rem 1rem; border-bottom: 1px solid #f8fafc; font-size: 0.8rem; color: var(--at-text); vertical-align: middle; }
     .audit-page .at-table tbody tr { cursor: pointer; transition: background 0.15s ease; }
     .audit-page .at-table tbody tr:hover { background: var(--at-pale); }
+    .audit-page .at-table tbody tr[data-risk="critical"] { box-shadow: inset 4px 0 #b91c1c; }
+    .audit-page .at-table tbody tr[data-risk="high"] { box-shadow: inset 4px 0 #ea580c; }
 
     .audit-page .cat-badge {
       display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem;
@@ -110,6 +112,15 @@
     .audit-page .ent-tag { font-size: 0.68rem; color: var(--at-muted); }
     .audit-page .actor-cell { font-weight: 600 !important; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .audit-page .role-tag { font-size: 0.62rem; color: var(--at-muted); display: block; }
+    .audit-page .risk-badge, .audit-page .outcome-badge {
+      display: inline-flex; align-items: center; gap: .3rem; border-radius: 999px;
+      padding: .22rem .55rem; font-size: .66rem; font-weight: 750; text-transform: capitalize;
+      white-space: nowrap;
+    }
+    .audit-page .event-name { font-weight: 700; color: #334155; font-size: .77rem; }
+    .audit-page .event-meta, .audit-page .request-meta { color: #94a3b8; font-size: .65rem; margin-top: .16rem; }
+    .audit-page .request-path { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .audit-page .target-cell { max-width: 190px; }
     .audit-page .detail-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74rem; color: var(--at-muted); }
     .audit-page .date-cell { white-space: nowrap; }
     .audit-page .date-cell .time-sub { font-size: 0.68rem; color: var(--at-muted); display: block; }
@@ -187,11 +198,11 @@
       <div class="dash-card h-100 d-flex flex-column">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Bookings</div>
-            <span class="inv-kpi-value mb-0" id="at-bookings">—</span>
-            <span class="inv-kpi-sub">Booking lifecycle events</span>
+            <div class="kpi-title">Security Events</div>
+            <span class="inv-kpi-value mb-0" id="at-security">—</span>
+            <span class="inv-kpi-sub">Authentication activity · 7 days</span>
           </div>
-          <div class="kpi-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);"><i class="bi bi-calendar-check"></i></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#2563eb,#6366f1);"><i class="bi bi-shield-lock-fill"></i></div>
         </div>
         <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkBooking"></canvas></div>
       </div>
@@ -200,11 +211,11 @@
       <div class="dash-card h-100 d-flex flex-column">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Orders</div>
-            <span class="inv-kpi-value mb-0" id="at-orders">—</span>
-            <span class="inv-kpi-sub">Orders, POS &amp; deliveries</span>
+            <div class="kpi-title">Needs Review</div>
+            <span class="inv-kpi-value mb-0" id="at-review">—</span>
+            <span class="inv-kpi-sub">High-risk or failed today</span>
           </div>
-          <div class="kpi-icon" style="background:linear-gradient(135deg,#06b6d4,#22d3ee);"><i class="bi bi-box-seam"></i></div>
+          <div class="kpi-icon" style="background:linear-gradient(135deg,#dc2626,#f97316);"><i class="bi bi-exclamation-triangle-fill"></i></div>
         </div>
         <div class="inv-kpi-spark-wrap mt-auto"><canvas class="inv-kpi-spark" id="sparkOrder"></canvas></div>
       </div>
@@ -245,7 +256,30 @@
         <option value="cancelled">Cancelled</option>
         <option value="deleted">Deleted / Void</option>
         <option value="auth">Auth</option>
+        <option value="security">Security</option>
         <option value="action">Other</option>
+      </select>
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-shield-exclamation"></i>
+      <select id="at-risk">
+        <option value="">All Risk Levels</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Informational</option>
+      </select>
+    </div>
+    <div class="fb-group">
+      <i class="bi bi-check2-circle"></i>
+      <select id="at-outcome">
+        <option value="">All Outcomes</option>
+        <option value="success">Success</option>
+        <option value="pending">Pending</option>
+        <option value="failure">Failed</option>
+        <option value="blocked">Blocked</option>
+        <option value="unknown">Unknown</option>
       </select>
     </div>
     <div class="fb-group">
@@ -283,12 +317,12 @@
           <tr>
             <th style="width:40px;">#</th>
             <th>Date / Time</th>
-            <th>Category</th>
-            <th>Action</th>
-            <th>Actor</th>
-            <th>Entity</th>
-            <th>Details</th>
-            <th>IP</th>
+            <th>Risk</th>
+            <th>Event</th>
+            <th>Actor / Source</th>
+            <th>Target / Entity</th>
+            <th>Outcome</th>
+            <th>Request Context</th>
           </tr>
         </thead>
         <tbody id="at-body">
@@ -347,7 +381,8 @@
     ];
     var PAGE_SIZE = 25;
     var currentPage = 1;
-    var state = { category: '', q: '', entityType: '', actionType: '', from: '', to: '' };
+    var currentItems = [];
+    var state = { category: '', q: '', entityType: '', actionType: '', riskLevel: '', outcome: '', from: '', to: '' };
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -389,6 +424,8 @@
       state.q = document.getElementById('at-q').value;
       state.entityType = document.getElementById('at-entity').value;
       state.actionType = document.getElementById('at-actiontype').value;
+      state.riskLevel = document.getElementById('at-risk').value;
+      state.outcome = document.getElementById('at-outcome').value;
       state.from = document.getElementById('at-from').value;
       state.to = document.getElementById('at-to').value;
       currentPage = 1;
@@ -396,10 +433,12 @@
     }
 
     function resetFilters() {
-      state = { category: '', q: '', entityType: '', actionType: '', from: '', to: '' };
+      state = { category: '', q: '', entityType: '', actionType: '', riskLevel: '', outcome: '', from: '', to: '' };
       document.getElementById('at-q').value = '';
       document.getElementById('at-entity').value = '';
       document.getElementById('at-actiontype').value = '';
+      document.getElementById('at-risk').value = '';
+      document.getElementById('at-outcome').value = '';
       document.getElementById('at-from').value = '';
       document.getElementById('at-to').value = '';
       currentPage = 1;
@@ -413,6 +452,8 @@
       if (state.q) p.push('q=' + encodeURIComponent(state.q));
       if (state.entityType) p.push('entityType=' + encodeURIComponent(state.entityType));
       if (state.actionType) p.push('actionType=' + encodeURIComponent(state.actionType));
+      if (state.riskLevel) p.push('riskLevel=' + encodeURIComponent(state.riskLevel));
+      if (state.outcome) p.push('outcome=' + encodeURIComponent(state.outcome));
       if (state.from) p.push('from=' + encodeURIComponent(state.from));
       if (state.to) p.push('to=' + encodeURIComponent(state.to));
       return p.join('&');
@@ -439,6 +480,43 @@
       return '<span class="cat-badge" style="background:' + c[3] + '22;color:' + c[3] + ';"><i class="bi ' + c[2] + '"></i>' + c[1] + '</span>';
     }
 
+    function riskBadge(level) {
+      var risk = level || 'info';
+      var styles = {
+        critical: ['#fee2e2', '#991b1b', 'bi-radioactive'],
+        high: ['#ffedd5', '#c2410c', 'bi-exclamation-triangle-fill'],
+        medium: ['#fef3c7', '#a16207', 'bi-exclamation-circle'],
+        low: ['#e0f2fe', '#0369a1', 'bi-info-circle'],
+        info: ['#f1f5f9', '#475569', 'bi-dot']
+      };
+      var style = styles[risk] || styles.info;
+      return '<span class="risk-badge" style="background:' + style[0] + ';color:' + style[1] + '"><i class="bi ' + style[2] + '"></i>' + esc(risk) + '</span>';
+    }
+
+    function outcomeBadge(outcome) {
+      var value = outcome || 'unknown';
+      var styles = {
+        success: ['#dcfce7', '#15803d', 'bi-check-circle-fill'],
+        pending: ['#e0f2fe', '#0369a1', 'bi-clock-fill'],
+        failure: ['#fee2e2', '#b91c1c', 'bi-x-circle-fill'],
+        blocked: ['#fce7f3', '#9d174d', 'bi-shield-fill-x'],
+        unknown: ['#f1f5f9', '#64748b', 'bi-question-circle']
+      };
+      var style = styles[value] || styles.unknown;
+      return '<span class="outcome-badge" style="background:' + style[0] + ';color:' + style[1] + '"><i class="bi ' + style[2] + '"></i>' + esc(value) + '</span>';
+    }
+
+    function eventLabel(action) {
+      return String(action || 'system.event')
+        .replace(/^[^.]+\./, '')
+        .replace(/[._-]+/g, ' ')
+        .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+    }
+
+    function sourceLabel(source) {
+      return String(source || 'system').replace(/_/g, ' ');
+    }
+
     function detailsText(d) {
       if (!d) return '';
       if (typeof d === 'string') return d;
@@ -459,6 +537,7 @@
     function renderTable(data) {
       var body = document.getElementById('at-body');
       var items = data.items || [];
+      currentItems = items;
       if (!items.length) {
         body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#94a3b8;"><i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>No audit events found for the current filters.</td></tr>';
       } else {
@@ -469,18 +548,34 @@
           var num = ((currentPage - 1) * PAGE_SIZE) + idx + 1;
           var actor = l.actorName || 'System';
           var role = l.actorRole || '';
-          var entityId = l.entityId ? '#' + String(l.entityId).slice(-8).toUpperCase() : '—';
-          return '<tr onclick="openDetail(' + JSON.stringify(JSON.stringify(l)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ')">' +
+          var entityId = l.entityId ? '#' + String(l.entityId).slice(-8).toUpperCase() : '';
+          var target = l.targetName || l.targetEmail || l.entityType || '—';
+          var targetMeta = l.targetName && l.targetEmail ? l.targetEmail : ((l.entityType || '') + (entityId ? ' ' + entityId : ''));
+          var requestPath = l.requestPath || '';
+          return '<tr tabindex="0" role="button" aria-label="View ' + esc(eventLabel(l.action)) + ' audit details" data-audit-index="' + idx + '" data-risk="' + esc(l.riskLevel || 'info') + '">' +
             '<td style="color:#94a3b8;font-size:0.72rem;">' + num + '</td>' +
             '<td class="date-cell">' + dateStr + '<span class="time-sub">' + timeStr + '</span></td>' +
-            '<td>' + catBadge(l.category) + '</td>' +
-            '<td><span class="act-badge" style="background:' + actClass(l.actionType) + ';">' + esc(l.action) + '</span></td>' +
-            '<td class="actor-cell" title="' + esc(actor) + '">' + esc(actor) + (role ? '<span class="role-tag">' + esc(role) + '</span>' : '') + '</td>' +
-            '<td>' + esc(l.entityType || '—') + ' <span class="ent-tag">' + entityId + '</span></td>' +
-            '<td class="detail-cell" title="' + esc(detailsText(l.details)) + '">' + esc(detailsText(l.details)) + '</td>' +
-            '<td style="color:#94a3b8;font-size:0.72rem;">' + esc(l.ip || '') + '</td>' +
+            '<td>' + riskBadge(l.riskLevel) + '</td>' +
+            '<td><div class="event-name">' + esc(eventLabel(l.action)) + '</div><div class="event-meta">' + catBadge(l.category) + ' <span class="ms-1">' + esc(l.action) + '</span></div></td>' +
+            '<td class="actor-cell" title="' + esc(actor) + '">' + esc(actor) + '<span class="role-tag">' + esc(role || sourceLabel(l.source)) + '</span></td>' +
+            '<td class="target-cell"><div class="actor-cell" title="' + esc(target) + '">' + esc(target) + '</div><span class="role-tag">' + esc(targetMeta || 'No linked record') + '</span></td>' +
+            '<td>' + outcomeBadge(l.outcome) + '</td>' +
+            '<td><div class="request-path" title="' + esc(requestPath) + '">' + esc((l.requestMethod ? l.requestMethod + ' ' : '') + (requestPath || 'Background process')) + '</div><div class="request-meta">' + esc(l.ip || 'No IP') + '</div></td>' +
             '</tr>';
         }).join('');
+        body.querySelectorAll('tr[data-audit-index]').forEach(function (row) {
+          function openRow() {
+            var item = currentItems[Number(row.getAttribute('data-audit-index'))];
+            if (item) openDetail(item);
+          }
+          row.addEventListener('click', openRow);
+          row.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              openRow();
+            }
+          });
+        });
       }
       document.getElementById('at-count').textContent = items.length;
       var pag = data.pagination || {};
@@ -494,24 +589,30 @@
       document.getElementById('at-next').classList.toggle('disabled', (pag.page || 1) >= pages);
     }
 
-    function openDetail(jsonStr) {
-      var l = JSON.parse(jsonStr);
+    function openDetail(l) {
       var d = new Date(l.createdAt);
       var body = document.getElementById('atDetailBody');
       var kv = function (k, v) {
         return '<div class="kv"><span>' + k + '</span><span>' + esc(v) + '</span></div>';
       };
       body.innerHTML =
+        kv('Risk Level', l.riskLevel || 'info') +
+        kv('Outcome', l.outcome || 'unknown') +
         kv('Category', l.category) +
         kv('Action', l.action) +
         kv('Action Type', l.actionType) +
         kv('Module', l.module) +
         kv('Actor', (l.actorName || 'System') + (l.actorRole ? ' (' + l.actorRole + ')' : '')) +
         (l.actorEmail && l.actorEmail !== l.actorName ? kv('Actor Email', l.actorEmail) : '') +
+        kv('Source', sourceLabel(l.source)) +
+        (l.targetName || l.targetEmail ? kv('Affected Account', (l.targetName || '') + (l.targetEmail ? ' · ' + l.targetEmail : '')) : '') +
         kv('Entity', l.entityType ? l.entityType + ' #' + (l.entityId || '') : '—') +
+        kv('Request', (l.requestMethod ? l.requestMethod + ' ' : '') + (l.requestPath || 'Background process')) +
         kv('IP Address', l.ip || '—') +
+        kv('Request ID', l.requestId || '—') +
+        kv('Device / Browser', l.userAgent || 'Not captured') +
         kv('Timestamp', d.toLocaleString('en-US')) +
-        '<div class="mt-3 mb-1" style="font-weight:700;font-size:0.82rem;color:#334155;">Raw Details</div>' +
+        '<div class="mt-3 mb-1" style="font-weight:700;font-size:0.82rem;color:#334155;">Redacted Event Details</div>' +
         '<pre>' + esc(JSON.stringify(l.details, null, 2)) + '</pre>';
       document.getElementById('atDetailTitle').textContent = l.action;
       document.getElementById('atDetailTime').textContent = l.category + ' · ' + d.toLocaleString('en-US');
@@ -524,13 +625,23 @@
       if (currentPage < pages) { currentPage++; loadTable(); }
     }
 
+    function fetchJson(url) {
+      return fetch(url, { headers: { Accept: 'application/json' } }).then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return {}; }).then(function (payload) {
+            throw new Error(payload.error || 'Request failed with status ' + response.status);
+          });
+        }
+        return response.json();
+      });
+    }
+
     function loadStats() {
-      fetch('/api/admin/audit/stats').then(function (r) { return r.json(); }).then(function (s) {
+      fetchJson('/api/admin/audit/stats').then(function (s) {
         document.getElementById('at-total').textContent = (s.total || 0).toLocaleString();
         document.getElementById('at-today').textContent = (s.today || 0).toLocaleString();
-        var bc = s.byCategory || {};
-        document.getElementById('at-bookings').textContent = (bc.booking || 0).toLocaleString();
-        document.getElementById('at-orders').textContent = (bc.order || 0).toLocaleString();
+        document.getElementById('at-security').textContent = (s.securityEvents || 0).toLocaleString();
+        document.getElementById('at-review').textContent = (s.reviewToday || 0).toLocaleString();
         renderCats(s);
         drawWeek(s.weekSeries || []);
       }).catch(function () {});
@@ -551,10 +662,14 @@
     function loadTable() {
       var url = '/api/admin/audit?page=' + currentPage + '&limit=' + PAGE_SIZE + '&' + queryString();
       var body = document.getElementById('at-body');
-      fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      body.setAttribute('aria-busy', 'true');
+      fetchJson(url).then(function (data) {
         renderTable(data);
-      }).catch(function () {
+      }).catch(function (error) {
         body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#e11d48;"><i class="bi bi-exclamation-triangle" style="font-size:1.2rem;display:block;margin-bottom:0.5rem;"></i>Failed to load audit trail.</td></tr>';
+        console.error('[audit-trail]', error);
+      }).finally(function () {
+        body.removeAttribute('aria-busy');
       });
     }
 

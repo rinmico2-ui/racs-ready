@@ -96,6 +96,52 @@
     /* Map */
     .walkin-page .map-wrap{border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;background:#fff}
     .walkin-page .technician-map{height:340px;width:100%;border-radius:14px}
+    .walkin-page .walkin-technician-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,420px);align-items:center;gap:1rem;padding:1rem 1.1rem;border:1px solid #dbe3ee;border-radius:14px;background:linear-gradient(135deg,#f8faff,#fff);box-shadow:0 3px 12px rgba(37,99,235,.05)}
+    .walkin-page .service-map-search .form-label{font-size:.82rem;color:#334155;margin-bottom:.45rem}
+    .walkin-page .service-map-input{overflow:hidden;border:1.5px solid #dbe3ee;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.05);transition:border-color .2s,box-shadow .2s}
+    .walkin-page .service-map-input:focus-within{border-color:#60a5fa;box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+    .walkin-page .service-map-input .form-control{background:#fbfdff;font-size:.88rem;box-shadow:none}
+    .walkin-page .service-map-suggestions{z-index:1080;border:1px solid #dbe3ee;border-radius:12px;overflow:auto;max-height:240px;box-shadow:0 12px 30px rgba(15,23,42,.14)}
+    .walkin-page .location-hint{color:#64748b;font-size:.7rem}
+    .walkin-page .service-checkout-map-card{overflow:hidden;border:1px solid #dbe3ee;border-radius:16px;background:#fff;box-shadow:0 8px 26px rgba(15,23,42,.07);transition:border-color .2s,box-shadow .2s}
+    .walkin-page .service-checkout-map-card:hover,.walkin-page .service-checkout-map-card:focus-within{border-color:#93c5fd;box-shadow:0 10px 30px rgba(37,99,235,.1)}
+    .walkin-page .service-map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid #e2e8f0;background:linear-gradient(180deg,#fff,#f8fafc)}
+    .walkin-page .service-map-toolbar h6{margin:0;color:#0f172a;font-size:.82rem;font-weight:800}
+    .walkin-page .service-map-toolbar p{margin:2px 0 0;color:#64748b;font-size:.67rem}
+    .walkin-page .service-map-actions{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;justify-content:flex-end}
+    .walkin-page .service-map-action{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:34px;padding:.35rem .6rem;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#334155;font-size:.67rem;font-weight:700;white-space:nowrap}
+    .walkin-page .service-map-action:hover:not(:disabled){border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
+    .walkin-page .service-map-action:disabled{cursor:not-allowed;opacity:.42}
+    .walkin-page .service-map-stage{position:relative;background:#e8eef7}
+    .walkin-page .service-checkout-map-card .technician-map{height:410px;width:100%;border-radius:0;background:#e8eef7;transition:height .25s ease}
+    .walkin-page .service-checkout-map-card.map-expanded .technician-map{height:560px}
+    .walkin-page .service-map-legend{position:absolute;left:10px;bottom:24px;z-index:800;display:flex;flex-direction:column;gap:5px;padding:8px 10px;border:1px solid rgba(203,213,225,.9);border-radius:9px;background:rgba(255,255,255,.94);color:#334155;font-size:.64rem;font-weight:700;box-shadow:0 4px 14px rgba(15,23,42,.12);backdrop-filter:blur(6px)}
+    .walkin-page .service-map-legend span{display:flex;align-items:center;gap:6px}
+    .walkin-page .service-map-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+    .walkin-page .service-map-dot.company{background:#2563eb;box-shadow:0 0 0 2px #dbeafe}
+    .walkin-page .service-map-dot.customer{background:#16a34a;box-shadow:0 0 0 2px #dcfce7}
+    .walkin-page .service-map-selection{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.9rem;padding:.85rem 1rem;border-top:1px solid #e2e8f0;background:#fff}
+    .walkin-page .service-map-selection-main{display:flex;align-items:flex-start;gap:.65rem;min-width:0}
+    .walkin-page .service-map-selection-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:9px;background:#f1f5f9;color:#64748b}
+    .walkin-page .service-map-selection.has-location .service-map-selection-icon{background:#dcfce7;color:#15803d}
+    .walkin-page .service-map-selection-status{color:#b45309;font-size:.66rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+    .walkin-page .service-map-selection.has-location .service-map-selection-status{color:#15803d}
+    .walkin-page .service-map-address{margin-top:2px;overflow:hidden;color:#334155;font-size:.72rem;font-weight:600;line-height:1.4;text-overflow:ellipsis}
+    .walkin-page .service-map-coordinate{min-width:168px;padding-left:.9rem;border-left:1px solid #e2e8f0;text-align:right}
+    .walkin-page .service-map-coordinate span{display:block;color:#94a3b8;font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .walkin-page .service-map-coordinate strong{display:block;margin-top:3px;color:#334155;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.68rem}
+    .walkin-page .service-map-coordinate small{display:block;margin-top:2px;color:#64748b;font-size:.62rem}
+    .walkin-page .service-route-panel{padding:.9rem 1rem;border:1px solid #c7d2fe;border-radius:14px;background:linear-gradient(135deg,#f8faff,#f0f4ff);box-shadow:0 3px 12px rgba(99,102,241,.06)}
+    .walkin-page .service-route-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.7rem;color:#1e293b;font-size:.78rem}
+    .walkin-page .service-route-head>span{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:#e0e7ff;color:#4f46e5;font-size:.65rem;font-weight:700}
+    .walkin-page .service-route-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem}
+    .walkin-page .service-route-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:.6rem .5rem;border:1px solid #e0e7ef;border-radius:10px;background:#fff;text-align:center;box-shadow:0 1px 4px rgba(99,102,241,.05)}
+    .walkin-page .service-route-stat>i{margin-bottom:2px;font-size:.9rem}
+    .walkin-page .service-route-stat>span{color:#6b7280;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+    .walkin-page .service-route-stat>strong{margin-top:2px;color:#1e293b;font-size:.95rem}
+    .walkin-page .service-route-stat.fare{border-color:#a5b4fc;background:linear-gradient(135deg,#eef2ff,#f0f4ff)}
+    .walkin-page .service-route-stat.fare i,.walkin-page .service-route-stat.fare strong{color:#4f46e5}
+    .walkin-page .service-route-formula{margin-top:.55rem;color:#64748b;font-size:.68rem;text-align:center}
 
     /* Enterprise Payment Tabs */
     .walkin-page .ent-payment-tabs{display:flex;gap:10px;max-width:600px;margin:0 auto 1.5rem}
@@ -177,39 +223,59 @@
     .walkin-page .cfg-btn-primary:disabled{opacity:0.55;cursor:not-allowed;transform:none;box-shadow:none}
 
     /* Aircon type & HP cards in modal */
-    .walkin-page #serviceConfigModal .cfg-step.is-done .cfg-dot{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-color:#059669}
-    .walkin-page #serviceConfigModal .cfg-step.is-done + .cfg-line{background:linear-gradient(90deg,#10b981,#059669)}
-    .walkin-page #serviceConfigModal .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
-    .walkin-page #serviceConfigModal .aircon-type-card:hover{border-color:#3b82f6!important;background:rgba(59,130,246,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
-    .walkin-page #serviceConfigModal .aircon-type-card.selected{border-color:#2563eb!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 8px 24px rgba(37,99,235,0.18)!important}
-    .walkin-page #serviceConfigModal .aircon-type-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
-    .walkin-page #serviceConfigModal .aircon-type-card .bi{color:#2563eb!important}
-    .walkin-page #serviceConfigModal .hp-option-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
-    .walkin-page #serviceConfigModal .hp-option-card:hover{transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
-    .walkin-page #serviceConfigModal .hp-option-card.selected{border-color:#3b82f6!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 4px 20px rgba(59,130,246,0.15)!important}
-    .walkin-page #serviceConfigModal .hp-option-card .hp-checkbox{width:1.25rem;height:1.25rem;margin-right:1rem;accent-color:#3b82f6;cursor:pointer;flex-shrink:0}
-    .walkin-page #serviceConfigModal .hp-option-card .hp-quantity-control{opacity:.5;pointer-events:none;transition:opacity .2s}
-    .walkin-page #serviceConfigModal .hp-option-card.selected .hp-quantity-control{opacity:1;pointer-events:auto}
-    .walkin-page #serviceConfigModal .hp-option-card .hp-qty-input{width:56px;height:40px;border:none;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a;background:#f8fafc;border-left:1px solid #eef2f7;border-right:1px solid #eef2f7}
-    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-primary{background:linear-gradient(135deg,#3b82f6,#2563eb)!important;color:#fff!important}
-    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-info.bg-opacity-10{background-color:#e0f2fe!important;color:#0369a1!important}
-    .walkin-page #serviceConfigModal .hp-option-card .badge.bg-success.bg-opacity-10{background-color:#dcfce7!important;color:#15803d!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .cfg-step.is-done .cfg-dot{background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-color:#059669}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .cfg-step.is-done + .cfg-line{background:linear-gradient(90deg,#10b981,#059669)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .aircon-type-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1.1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .aircon-type-card:hover{border-color:#3b82f6!important;background:rgba(59,130,246,0.03)!important;transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .aircon-type-card.selected{border-color:#2563eb!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 8px 24px rgba(37,99,235,0.18)!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .aircon-type-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .aircon-type-card .bi{color:#2563eb!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card{background:#fff!important;border:2px solid #e2e8f0!important;border-radius:16px!important;padding:1rem!important;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a!important;box-shadow:0 1px 3px rgba(15,23,42,0.05)!important;position:relative!important;overflow:hidden!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card:hover{transform:translateY(-3px)!important;box-shadow:0 10px 26px rgba(37,99,235,0.14)!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card.selected{border-color:#3b82f6!important;background:linear-gradient(135deg,#eff6ff,#dbeafe)!important;box-shadow:0 4px 20px rgba(59,130,246,0.15)!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .hp-checkbox{width:1.25rem;height:1.25rem;margin-right:1rem;accent-color:#3b82f6;cursor:pointer;flex-shrink:0}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .hp-quantity-control{opacity:.5;pointer-events:none;transition:opacity .2s}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card.selected .hp-quantity-control{opacity:1;pointer-events:auto}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .hp-qty-input{width:56px;height:40px;border:none;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a;background:#f8fafc;border-left:1px solid #eef2f7;border-right:1px solid #eef2f7}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .badge.bg-primary{background:linear-gradient(135deg,#3b82f6,#2563eb)!important;color:#fff!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .badge.bg-info.bg-opacity-10{background-color:#e0f2fe!important;color:#0369a1!important}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .hp-option-card .badge.bg-success.bg-opacity-10{background-color:#dcfce7!important;color:#15803d!important}
 
     /* Repair category cards */
-    .walkin-page #serviceConfigModal .repair-category-card{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:1.1rem;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a;text-align:center;box-shadow:0 1px 3px rgba(15,23,42,0.05);position:relative;overflow:hidden;width:100%}
-    .walkin-page #serviceConfigModal .repair-category-card:hover{border-color:#3b82f6;background:rgba(59,130,246,0.03);transform:translateY(-3px);box-shadow:0 10px 26px rgba(37,99,235,0.14)}
-    .walkin-page #serviceConfigModal .repair-category-card.selected{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);box-shadow:0 8px 24px rgba(37,99,235,0.18)}
-    .walkin-page #serviceConfigModal .repair-category-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .repair-category-card{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:1.1rem;cursor:pointer;transition:all .25s var(--sv-e);color:#0f172a;text-align:center;box-shadow:0 1px 3px rgba(15,23,42,0.05);position:relative;overflow:hidden;width:100%}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .repair-category-card:hover{border-color:#3b82f6;background:rgba(59,130,246,0.03);transform:translateY(-3px);box-shadow:0 10px 26px rgba(37,99,235,0.14)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .repair-category-card.selected{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);box-shadow:0 8px 24px rgba(37,99,235,0.18)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .repair-category-card.selected::after{content:'\2713';position:absolute;top:10px;right:12px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:0.8rem;font-weight:900;display:flex;align-items:center;justify-content:center}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-category-icon{width:48px;height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:.6rem}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-category-icon.blue{background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#2563eb}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-category-icon.amber{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-category-icon.violet{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed}
 
     /* Symptom chips */
-    .walkin-page #serviceConfigModal .symptom-chip{padding:0.45rem 0.9rem;border-radius:999px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
-    .walkin-page #serviceConfigModal .symptom-chip:hover{border-color:#93c5fd;background:#f0f7ff}
-    .walkin-page #serviceConfigModal .symptom-chip.active{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;box-shadow:0 4px 14px rgba(37,99,235,0.15)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .symptom-chip{padding:0.45rem 0.9rem;border-radius:999px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .symptom-chip:hover{border-color:#f59e0b;background:#fffbeb;color:#92400e}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .symptom-chip.active{border-color:#f59e0b;background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#92400e;box-shadow:0 4px 14px rgba(245,158,11,0.15)}
 
     /* Unit type chips */
-    .walkin-page #serviceConfigModal .unit-type-chip{padding:0.5rem 1rem;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
-    .walkin-page #serviceConfigModal .unit-type-chip:hover{border-color:#93c5fd;background:#f0f7ff}
-    .walkin-page #serviceConfigModal .unit-type-chip.active{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;box-shadow:0 4px 14px rgba(37,99,235,0.15)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-type-chip{padding:0.5rem 1rem;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all .2s var(--sv-e)}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-type-chip:hover{border-color:#93c5fd;background:#f0f7ff}
+    .walkin-page :is(#serviceConfigModal,#repairInlineConfigurator) .unit-type-chip.active{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;box-shadow:0 4px 14px rgba(37,99,235,0.15)}
+
+    /* Customer booking-style repair panel when the shared configurator is mounted inline. */
+    .walkin-page #repairInlineConfigurator #serviceConfigContent{box-shadow:none!important;border:0!important;border-radius:0!important;background:transparent!important;overflow:visible!important}
+    .walkin-page #repairInlineConfigurator .cfg-header{background:linear-gradient(135deg,#eff6ff,#f0f9ff);border:1px solid #bfdbfe;border-radius:16px;margin-bottom:1rem;color:#0f172a}
+    .walkin-page #repairInlineConfigurator .cfg-ico{background:linear-gradient(135deg,#3b82f6,#2563eb);border:0;color:#fff;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+    .walkin-page #repairInlineConfigurator .modal-body{padding:0!important;max-height:none!important;overflow:visible!important}
+    .walkin-page #repairInlineConfigurator .repair-config{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.25rem 1.5rem;margin-bottom:1rem!important}
+    .walkin-page #repairInlineConfigurator .repair-config > .cfg-fl:first-child{font-size:.88rem;color:#0f172a}
+    .walkin-page #repairInlineConfigurator .cfg-footer{border:1px solid #e2e8f0!important;border-radius:16px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);margin-top:.25rem;padding:1rem 1.25rem!important}
+    .walkin-page #repairInlineConfigurator .cfg-price{background:#fff}
+    .walkin-page #repairInlineConfigurator .photo-upload-zone{border:2px dashed rgba(59,130,246,.25);border-radius:14px;padding:2rem;text-align:center;background:rgba(59,130,246,.02);cursor:pointer;transition:all .25s}
+    .walkin-page #repairInlineConfigurator .photo-upload-zone:hover,.walkin-page #repairInlineConfigurator .photo-upload-zone.dragover{border-color:#3b82f6;background:rgba(59,130,246,.06)}
+    .walkin-page #repairInlineConfigurator .photo-upload-icon{font-size:2rem;color:#94a3b8;margin-bottom:.5rem}
+    .walkin-page #repairInlineConfigurator .photo-upload-text{font-weight:600;color:#475569;font-size:.9rem}
+    .walkin-page #repairInlineConfigurator .photo-upload-text span{color:#2563eb;text-decoration:underline}
+    .walkin-page #repairInlineConfigurator .photo-upload-hint{font-size:.78rem;color:#94a3b8;margin-top:4px}
 
     /* Responsive */
     @media(max-width:768px){
@@ -219,6 +285,16 @@
       .walkin-page .ent-n{padding:5px 8px;font-size:0.65rem;white-space:nowrap}
       .walkin-page #timeSlots .time-slot{flex:1 1 100%;max-width:100%}
       .walkin-page .ent-step-body{padding:1rem}
+      .walkin-page .walkin-technician-card{grid-template-columns:1fr}
+      .walkin-page .service-map-toolbar{align-items:flex-start;flex-direction:column}
+      .walkin-page .service-map-actions{display:grid;grid-template-columns:repeat(5,1fr);width:100%}
+      .walkin-page .service-map-action{padding:.4rem}
+      .walkin-page .service-map-action span{display:none}
+      .walkin-page .service-checkout-map-card .technician-map{height:320px}
+      .walkin-page .service-checkout-map-card.map-expanded .technician-map{height:440px}
+      .walkin-page .service-map-selection{grid-template-columns:1fr}
+      .walkin-page .service-map-coordinate{padding:.7rem 0 0 42px;border-top:1px solid #f1f5f9;border-left:0;text-align:left}
+      .walkin-page .service-route-stats{grid-template-columns:repeat(2,1fr)}
     }
   </style>
 
@@ -359,6 +435,15 @@
                 <label class="cfg-fl">Model Number <span class="text-muted fw-normal">(optional)</span></label>
                 <input id="configModel" maxlength="100" class="cfg-f" placeholder="e.g. 42KDPV48">
               </div>
+              <div class="col-md-6">
+                <label class="cfg-fl" for="repairConfigQuantity"><i class="bi bi-stack me-1 text-primary"></i>Number of Units</label>
+                <div class="cfg-stepper">
+                  <button type="button" id="repairConfigQtyMinus" aria-label="Decrease repair quantity"><i class="bi bi-dash"></i></button>
+                  <input type="number" id="repairConfigQuantity" min="1" max="40" value="1" readonly>
+                  <button type="button" id="repairConfigQtyPlus" aria-label="Increase repair quantity"><i class="bi bi-plus"></i></button>
+                </div>
+                <div class="cfg-fl-sub mt-1">Multiple units may be scheduled as a multi-day project.</div>
+              </div>
             </div>
           </div>
 
@@ -367,14 +452,14 @@
             <label class="cfg-fl">4 · Problem Description</label>
             <span class="cfg-fl-sub">Tap the symptoms, then add details.</span>
             <div id="walkinSymptomChips" class="d-flex flex-wrap gap-2 mt-2 mb-3">
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Cooling">Not Cooling</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Strange Noise">Strange Noise</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Leaking Water">Leaking Water</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Turning On">Not Turning On</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Bad Smell">Bad Smell</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Error Code">Error Code</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Overheating">Overheating</button>
-              <button type="button" class="symptom-chip repair-symptom" data-symptom="Electrical Issue">Electrical Issue</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Cooling"><i class="bi bi-thermometer-half me-1"></i>Not Cooling</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Strange Noise"><i class="bi bi-volume-up me-1"></i>Strange Noise</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Leaking Water"><i class="bi bi-droplet me-1"></i>Leaking Water</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Not Turning On"><i class="bi bi-power me-1"></i>Not Turning On</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Bad Smell"><i class="bi bi-cloud me-1"></i>Bad Smell</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Error Code"><i class="bi bi-bug me-1"></i>Error Code</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Overheating"><i class="bi bi-fire me-1"></i>Overheating</button>
+              <button type="button" class="symptom-chip repair-symptom" data-symptom="Electrical Issue"><i class="bi bi-lightning me-1"></i>Electrical Issue</button>
             </div>
             <label class="cfg-fl">Detailed Issue <span class="text-danger">*</span></label>
             <textarea id="configProblem" rows="4" maxlength="500" class="cfg-f" placeholder="Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water..."></textarea>
@@ -385,8 +470,12 @@
           <div class="repair-config d-none mb-3">
             <label class="cfg-fl">5 · Photo Evidence</label>
             <span class="cfg-fl-sub">Optional images help us assess the issue before arrival.</span>
-            <input id="configRepairPhotos" type="file" class="cfg-f mt-2" multiple accept="image/jpeg,image/png,image/webp">
-            <div class="form-text">Maximum 5 images, 5 MB each.</div>
+            <div class="photo-upload-zone mt-2" id="walkinRepairPhotoUploadZone" role="button" tabindex="0" aria-label="Upload repair photos">
+              <input id="configRepairPhotos" type="file" class="d-none" multiple accept="image/jpeg,image/png,image/webp">
+              <div class="photo-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+              <div class="photo-upload-text">Drag photos here or <span>browse</span></div>
+              <div class="photo-upload-hint">Maximum 5 images · JPG, PNG, or WebP · 5 MB each</div>
+            </div>
             <div id="configRepairPhotoPreview" class="d-flex flex-wrap gap-2 mt-2"></div>
           </div>
         </div>
@@ -619,63 +708,79 @@
             </div>
           </div>
           <div class="ent-step-body">
-          <div class="row g-3">
-            <div class="col-lg-5">
-              <label class="form-label" for="technicianId">Technician</label>
-              <select
-                id="technicianId"
-                name="technicianId"
-                class="form-select"
-              ></select>
+          <div class="walkin-technician-card mb-3" id="walkinTechnicianCard">
+            <div>
+              <label class="form-label mb-1" for="technicianId"><i class="bi bi-person-gear me-1 text-primary"></i>Technician</label>
+              <div class="small text-muted" id="technicianSelectionHint">Required for standard appointments.</div>
+            </div>
+            <select id="technicianId" name="technicianId" class="form-select"></select>
+          </div>
+          <div class="alert alert-primary d-none mb-3" id="walkinProjectLocationNotice">
+            <i class="bi bi-kanban me-2"></i><strong>Large-scale project:</strong> no individual technician is selected now. Operations will prepare the technician team after the preferred project window is submitted.
+          </div>
 
-              <label class="form-label mt-3" for="locationInput"
-                >Address or Coordinates</label
-              >
-              <input
-                id="locationInput"
-                class="form-control"
-                placeholder="e.g. 14.676049,121.043731 or address"
-              />
-              <div id="locationSuggest" class="list-group mt-1 d-none"></div>
-
-              <div class="d-flex gap-2 mt-2">
-                <button
-                  type="button"
-                  id="detectLocationBtn"
-                  class="btn btn-outline-primary btn-sm"
-                >
-                  <i class="bi bi-crosshair me-1"></i>Use Current Location
-                </button>
-                <button
-                  type="button"
-                  id="resolveAddressBtn"
-                  class="btn btn-outline-secondary btn-sm"
-                >
-                  Resolve Address
-                </button>
+          <div class="service-map-search mb-3">
+            <label class="form-label fw-semibold" for="locationInput">Service Address or Landmark</label>
+            <div class="position-relative">
+              <div class="input-group input-group-lg service-map-input">
+                <span class="input-group-text bg-white border-0"><i class="bi bi-geo-alt-fill text-primary"></i></span>
+                <input type="text" class="form-control border-0" placeholder="Search street, barangay, municipality, landmark, or coordinates" id="locationInput" autocomplete="off" />
+                <button type="button" class="btn btn-outline-primary border-0 px-3" id="resolveAddressBtn" aria-label="Search address"><i class="bi bi-search"></i></button>
               </div>
-              <p class="small mt-2 mb-0" id="locationStatus">
-                Set customer location to compute travel fare and available
-                slots.
-              </p>
+              <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions"></div>
+            </div>
+            <p class="location-hint mb-0 mt-2" id="locationStatus"><i class="bi bi-shield-lock me-1"></i>The precise service pin is used for routing, travel fare, and scheduling.</p>
+          </div>
 
-              <div
-                class="alert alert-light border mt-3 mb-0 small"
-                id="mapDistanceInfo"
-              >
-                Distance and ETA will appear here after setting location.
+          <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
+            <div class="service-map-toolbar">
+              <div>
+                <h6><i class="bi bi-map me-2 text-primary"></i>Service Route Map</h6>
+                <p>Choose the exact service point. The green pin can be dragged after selection.</p>
+              </div>
+              <div class="service-map-actions" aria-label="Map controls">
+                <button type="button" class="service-map-action" id="detectLocationBtn" title="Use current location"><i class="bi bi-crosshair"></i><span>My Location</span></button>
+                <button type="button" class="service-map-action" id="locateCompanyBtn" title="Show company location"><i class="bi bi-building"></i><span>Company</span></button>
+                <button type="button" class="service-map-action" id="focusCustomerBtn" title="Show service location"><i class="bi bi-geo-alt"></i><span>Service Pin</span></button>
+                <button type="button" class="service-map-action" id="fitServiceRouteBtn" title="Show full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Fit Route</span></button>
+                <button type="button" class="service-map-action" id="expandServiceMapBtn" title="Expand map"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
               </div>
             </div>
-            <div class="col-lg-7">
-              <div class="map-wrap">
-                <div
-                  id="technicianMap"
-                  class="technician-map"
-                  data-technician-lat="14.676049"
-                  data-technician-lng="121.043731"
-                ></div>
+            <div class="service-map-stage">
+              <div id="technicianMap" class="technician-map" role="application" aria-label="Interactive service route map" data-technician-lat="14.676049" data-technician-lng="121.043731"></div>
+              <div class="service-map-legend" aria-label="Map legend">
+                <span><i class="service-map-dot company"></i>CALIDRO RACS</span>
+                <span><i class="service-map-dot customer"></i>Service location</span>
               </div>
             </div>
+            <div class="service-map-selection" id="serviceMapSelection" aria-live="polite">
+              <div class="service-map-selection-main">
+                <span class="service-map-selection-icon"><i class="bi bi-geo-alt"></i></span>
+                <div class="min-w-0">
+                  <div class="service-map-selection-status" id="serviceMapSelectionStatus">Location not pinned</div>
+                  <div class="service-map-address" id="serviceMapAddress">Search for an address or select the exact point on the map.</div>
+                </div>
+              </div>
+              <div class="service-map-coordinate">
+                <span>Coordinates</span>
+                <strong id="serviceMapCoordinates">Not selected</strong>
+                <small id="serviceMapSource">Waiting for location</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="service-route-panel mt-3" id="mapInfoPanel">
+            <div class="service-route-head">
+              <strong><i class="bi bi-signpost-2 me-2"></i>Route &amp; Travel Fare</strong>
+              <span id="serviceRouteMethod"><i class="bi bi-hourglass-split me-1"></i>Waiting for service pin</span>
+            </div>
+            <div class="service-route-stats">
+              <div class="service-route-stat"><i class="bi bi-rulers text-primary"></i><span>Distance</span><strong id="mapInfoDistance">&mdash;</strong></div>
+              <div class="service-route-stat"><i class="bi bi-clock text-warning"></i><span>Est. Travel</span><strong id="mapInfoDuration">&mdash;</strong></div>
+              <div class="service-route-stat"><i class="bi bi-tag text-primary"></i><span>Rate</span><strong>&#8369;<span id="fareRateDisplay">40</span>/km</strong></div>
+              <div class="service-route-stat fare"><i class="bi bi-cash-coin"></i><span>Travel Fare</span><strong id="mapInfoFare">&mdash;</strong></div>
+            </div>
+            <div class="service-route-formula" id="mapDistanceInfo">Select a precise service location to calculate the road route.</div>
           </div>
           <div class="walkin-actions">
             <button type="button" class="ent-btn-outline" data-prev-step="1"><i class="bi bi-arrow-left"></i>Back</button>
@@ -689,25 +794,24 @@
             <div class="ent-step-icon step-calendar"><i class="bi bi-calendar-check"></i></div>
             <div class="ent-step-info">
               <h5>Step 4</h5>
-              <p>Calendar & Available Time</p>
+              <p>Pick a date and time</p>
             </div>
           </div>
           <div class="ent-step-body">
           <p class="small text-muted mb-2">
-            Only available times are listed. Double booking is blocked in UI and
-            re-checked in backend.
+            Choose an available date first, then select a preferred start time.
+            Availability is re-checked when the Walk-In booking is created.
           </p>
 
-          <div class="calendar-widget">
-            <div id="calendarGrid" role="grid" aria-live="polite"></div>
-          </div>
+          <div id="calendarGrid" role="grid" aria-live="polite"></div>
 
           <div id="timeSelection" class="mt-3 d-none">
-            <div class="small text-muted mb-1" id="timeRangeInfo"></div>
             <div id="timeSlots"></div>
+            <div id="timeSelectionDate" class="d-none"></div>
+            <div class="small text-muted mt-2" id="timeRangeInfo"></div>
+            <p class="small text-muted mt-2 mb-0" id="timeNotice"></p>
           </div>
           <div id="projectPrefs" class="mt-3 d-none"></div>
-          <p class="small text-muted mt-2 mb-0" id="timeNotice"></p>
 
           <div class="walkin-actions">
             <button type="button" class="ent-btn-outline" data-prev-step="2"><i class="bi bi-arrow-left"></i>Back</button>
@@ -858,12 +962,13 @@
 </div>
 
 <link rel="stylesheet" id="ent-calendar-styles" href="/css/enterprise-calendar.css?v=20260814-walkin">
-<script src="/js/enterprise-calendar.js?v=20260814-walkin"></script>
+<script src="/js/enterprise-calendar.js?v=20260826-shared-slot-logic"></script>
 <script>
   (function () {
     const state = {
       coreServices: [],
       repairServices: [],
+      serviceCategories: [],
       technicians: [],
       currentStep: 0, // start at customer type step
       maxReachedStep: 0,
@@ -881,8 +986,10 @@
       travelFare: 0,
       travelTime: 0,
       farePerKm: 40,
+      largeProjectThresholdHours: 8,
       customerCoords: null,
       techCoords: { lat: 14.676049, lng: 121.043731 },
+      companyAddress: "CALIDRO RACS company location",
       calendar: {
         activeMonth: new Date(
           new Date().getFullYear(),
@@ -913,6 +1020,11 @@
     const summaryEl = document.getElementById("walkinSummary");
     const saveBtn = document.getElementById("saveWalkinBtn");
     const mapDistanceInfoEl = document.getElementById("mapDistanceInfo");
+    const mapInfoDistanceEl = document.getElementById("mapInfoDistance");
+    const mapInfoDurationEl = document.getElementById("mapInfoDuration");
+    const mapInfoFareEl = document.getElementById("mapInfoFare");
+    const serviceRouteMethodEl = document.getElementById("serviceRouteMethod");
+    const serviceMapSelectionEl = document.getElementById("serviceMapSelection");
     const calendarGridEl = document.getElementById("calendarGrid");
     const calendarLabelEl = document.querySelector("[data-calendar-label]");
     const timeSelectionEl = document.getElementById("timeSelection");
@@ -981,6 +1093,20 @@
       return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
     }
 
+    function escapeMarkup(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function safeCssClasses(value, fallback = "") {
+      const classes = String(value || "").split(/\s+/).filter(part => /^[a-zA-Z0-9_-]+$/.test(part));
+      return classes.join(" ") || fallback;
+    }
+
     function setSelectByText(selectEl, text) {
       if (!selectEl || !text) return false;
       const opt = Array.from(selectEl.options).find(
@@ -1008,6 +1134,21 @@
     function totalBookedUnits() { return state.selectedServices.reduce((sum, item) => sum + Number(item.quantity || 1), 0); }
     function servicesSubtotal() { return state.selectedServices.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0); }
     function bookingDuration() { return Math.max(60, state.selectedServices.reduce((sum, item) => sum + Number(item.duration || 60), 0)); }
+    function isLargeScaleSelection() {
+      if (!state.selectedServices.length) return false;
+      return totalBookedUnits() >= 8 || bookingDuration() > state.largeProjectThresholdHours * 60;
+    }
+
+    function updateTechnicianSelectionMode() {
+      const isProject = isLargeScaleSelection();
+      const card = document.getElementById("walkinTechnicianCard");
+      const notice = document.getElementById("walkinProjectLocationNotice");
+      const hint = document.getElementById("technicianSelectionHint");
+      if (notice) notice.classList.toggle("d-none", !isProject);
+      if (card) card.classList.toggle("d-none", isProject);
+      if (hint) hint.textContent = isProject ? "A technician team will be assigned during project planning." : "Required for standard appointments.";
+      if (isProject && techEl) techEl.value = "";
+    }
 
     function renderSelectedServices() {
       const host = document.getElementById("selectedServicesList");
@@ -1019,6 +1160,7 @@
       if (!state.selectedServices.length) {
         host.innerHTML = '<p class="text-muted mb-0">No services selected yet</p>';
         if (pricing) pricing.classList.add("d-none");
+        updateTechnicianSelectionMode();
         return;
       }
       host.innerHTML = state.selectedServices.map((item, index) => `<div class="d-flex justify-content-between align-items-start gap-3 py-3 ${index ? 'border-top' : ''}"><div><div class="fw-semibold">${item.name}</div><div class="small text-muted">${item.type === 'repair' ? 'Repair inspection' : 'Core service'} · ${item.quantity} unit${item.quantity > 1 ? 's' : ''}${item.airconTypeName ? ' · ' + item.airconTypeName : ''}${item.hpDescription ? ' · ' + item.hpDescription : ''}${item.brand ? ' · ' + item.brand : ''}${item.model ? ' ' + item.model : ''}</div>${item.problemDescription ? `<div class="small mt-1">${String(item.problemDescription).replace(/</g,'&lt;')}</div>` : ''}</div><div class="text-end flex-shrink-0"><div class="fw-bold text-primary">₱${Number(item.totalPrice).toLocaleString()}</div><button type="button" class="btn btn-link btn-sm text-danger p-0 remove-service" data-index="${index}"><i class="bi bi-x-circle me-1"></i>Remove</button></div></div>`).join('');
@@ -1026,6 +1168,7 @@
       if (total) total.textContent = '₱' + servicesSubtotal().toLocaleString();
       state.selectedServiceId = state.selectedServices[0].serviceId;
       serviceIdEl.value = state.selectedServiceId;
+      updateTechnicianSelectionMode();
     }
 
     function goToStep(step) {
@@ -1229,7 +1372,7 @@
       if (step === 1 && !state.selectedServices.length)
         return showWarn("Please add at least one Core or Repair service.");
       if (step === 2) {
-        if (!techEl.value) return showWarn("Please select a technician.");
+        if (!isLargeScaleSelection() && !techEl.value) return showWarn("Please select a technician.");
         if (!state.customerCoords)
           return showWarn(
             "Please set customer location on map (address, coordinates, or current location).",
@@ -1277,7 +1420,7 @@
           .map((s) => {
             const selected = state.selectedServices.some(item => String(item.serviceId) === String(s._id));
             const duration = Number(s.durationMinutes || s.estimatedDurationMinutes || s.duration || 60);
-            const basePrice = Number(s.basePrice || s.price || 0);
+            const basePrice = Number(serviceType === "repair" ? (s.initialPrice ?? s.basePrice ?? s.price ?? 0) : (s.basePrice ?? s.price ?? 0));
             const priceRange = s.priceRange;
             const isAircon = s.isAirconService && s.hpPricing && s.hpPricing.length > 0;
 
@@ -1375,6 +1518,37 @@
         console.warn("loadFarePerKm failed", e && e.message);
         state.farePerKm = 40;
       }
+      const rate = document.getElementById("fareRateDisplay");
+      if (rate) rate.textContent = String(state.farePerKm);
+    }
+
+    async function loadBookingPolicy() {
+      try {
+        const response = await fetch("/api/schedule/booking-policy", { cache: "no-store", credentials: "same-origin" });
+        const policy = await response.json();
+        if (response.ok && Number(policy.largeProjectThresholdHours) > 0) {
+          state.largeProjectThresholdHours = Number(policy.largeProjectThresholdHours);
+        }
+      } catch (error) {
+        state.largeProjectThresholdHours = 8;
+      }
+    }
+
+    async function loadCompanyLocation() {
+      try {
+        const response = await fetch("/api/public/company/location", { cache: "no-store", credentials: "same-origin" });
+        const location = await response.json();
+        if (response.ok && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng))) {
+          state.techCoords = { lat: Number(location.lat), lng: Number(location.lng) };
+          state.companyAddress = String(location.address || state.companyAddress);
+          if (state.markers.tech) {
+            state.markers.tech.setLatLng([state.techCoords.lat, state.techCoords.lng]);
+            state.markers.tech.setPopupContent(`<strong>CALIDRO RACS</strong><br><small>${escapeMarkup(state.companyAddress)}</small>`);
+          }
+        }
+      } catch (error) {
+        console.warn("Company location load failed", error && error.message);
+      }
     }
 
     async function loadOptions() {
@@ -1386,6 +1560,7 @@
 
       state.coreServices = d.coreServices || [];
       state.repairServices = d.repairServices || [];
+      state.serviceCategories = d.serviceCategories || [];
       state.technicians = d.technicians || [];
 
       if (!state.coreServices.length && !state.repairServices.length)
@@ -1393,6 +1568,7 @@
       if (!state.technicians.length)
         throw new Error("No active technicians found.");
 
+      renderRepairCategories();
       renderServiceCards();
       mountInlineRepairConfigurator();
       renderTechnicians();
@@ -1428,9 +1604,12 @@
 
     function updateSummary() {
       const svc = currentService();
-      const techLabel = techEl.options[techEl.selectedIndex]
-        ? techEl.options[techEl.selectedIndex].text
-        : "—";
+      const isProject = isLargeScaleSelection();
+      const techLabel = isProject
+        ? "Operations team (assigned during project planning)"
+        : techEl.options[techEl.selectedIndex]
+          ? techEl.options[techEl.selectedIndex].text
+          : "—";
       const feeBase = servicesSubtotal();
       const total = feeBase + Number(state.travelFare || 0);
       const customerName = `${document.getElementById("firstName").value.trim()} ${document.getElementById("lastName").value.trim()}`.trim() || "—";
@@ -1442,7 +1621,7 @@
         const duration = bookingDuration();
         scheduleText = `${formatDateKey(state.selectedDate)} ${minutesToLabel(s)} – ${minutesToLabel(s + duration)}`;
       }
-      if (state.projectScheduling && state.selectedDate) {
+      if (isProject && state.projectScheduling && state.selectedDate) {
         const projectEnd = state.projectScheduling.endDate
           ? formatDateKey(new Date(state.projectScheduling.endDate))
           : "operations review";
@@ -1485,48 +1664,95 @@
         return;
       }
 
-      state.map = L.map(el).setView(
-        [state.techCoords.lat, state.techCoords.lng],
-        13,
-      );
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      state.map = L.map(el, { zoomControl: false, scrollWheelZoom: false, preferCanvas: true })
+        .setView([state.techCoords.lat, state.techCoords.lng], 13);
+      const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
       }).addTo(state.map);
+      const satelliteImagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 });
+      const satelliteLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { attribution: "Labels &copy; Esri", maxZoom: 19 });
+      L.control.zoom({ position: "bottomright" }).addTo(state.map);
+      L.control.scale({ position: "bottomleft", imperial: false, maxWidth: 120 }).addTo(state.map);
+      L.control.layers({ "Detailed streets": streets, "Satellite + labels": L.layerGroup([satelliteImagery, satelliteLabels]) }, null, { position: "topright", collapsed: true }).addTo(state.map);
 
-      state.markers.tech = L.marker([
-        state.techCoords.lat,
-        state.techCoords.lng,
-      ])
+      const companyIcon = L.divIcon({
+        html: '<div style="background:#2563eb;border:3px solid #fff;border-radius:50% 50% 50% 0;width:30px;height:30px;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.3)"><span style="display:block;background:#fff;border-radius:50%;width:10px;height:10px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></span></div>',
+        className: "walkin-company-marker", iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -38],
+      });
+      state.customerIcon = L.divIcon({
+        html: '<div style="background:#16a34a;border:3px solid #fff;border-radius:50% 50% 50% 0;width:38px;height:38px;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.3)"><span style="display:block;background:#fff;border-radius:50%;width:12px;height:12px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></span></div>',
+        className: "walkin-customer-marker", iconSize: [44, 44], iconAnchor: [22, 44], popupAnchor: [0, -42],
+      });
+
+      state.markers.tech = L.marker([state.techCoords.lat, state.techCoords.lng], { icon: companyIcon })
         .addTo(state.map)
-        .bindPopup("Technician");
+        .bindPopup(`<strong>CALIDRO RACS</strong><br><small>${escapeMarkup(state.companyAddress)}</small>`)
+        .bindTooltip("CALIDRO RACS", { direction: "top", offset: [0, -32] });
 
       state.map.on("click", (e) => {
-        setCustomerCoords(
-          { lat: e.latlng.lat, lng: e.latlng.lng },
-          "Pinned customer location from map click.",
-        );
-        locationInputEl.value = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+        const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
+        locationInputEl.value = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+        setCustomerCoords(coords, "Service pin selected on map.", "", "Map selection");
+        reverseGeocodeWalkin(coords, "Confirmed map location");
       });
 
       setTimeout(() => state.map && state.map.invalidateSize(), 180);
     }
 
     function setLocationStatus(text, type) {
-      locationStatusEl.className = `small mt-2 mb-0 text-${type || "muted"}`;
-      locationStatusEl.textContent = text;
+      const icon = type === "success" ? "check-circle-fill" : type === "danger" ? "exclamation-triangle-fill" : type === "info" ? "arrow-repeat" : "shield-lock";
+      locationStatusEl.className = `location-hint mb-0 mt-2 text-${type || "muted"}`;
+      locationStatusEl.innerHTML = `<i class="bi bi-${icon} me-1"></i>${escapeMarkup(text)}`;
     }
 
-    function setCustomerCoords(coords, message) {
+    function updateServiceMapSelection(coords, address, source) {
+      serviceMapSelectionEl?.classList.add("has-location");
+      const status = document.getElementById("serviceMapSelectionStatus");
+      const addressEl = document.getElementById("serviceMapAddress");
+      const coordinatesEl = document.getElementById("serviceMapCoordinates");
+      const sourceEl = document.getElementById("serviceMapSource");
+      const fitButton = document.getElementById("fitServiceRouteBtn");
+      if (status) status.textContent = "Service pin confirmed";
+      if (addressEl) addressEl.textContent = address || "Resolving the selected street address...";
+      if (coordinatesEl) coordinatesEl.textContent = `${Number(coords.lat).toFixed(6)}, ${Number(coords.lng).toFixed(6)}`;
+      if (sourceEl) sourceEl.textContent = source || "Map selection";
+      if (fitButton) fitButton.disabled = false;
+    }
+
+    async function reverseGeocodeWalkin(coords, source) {
+      try {
+        const response = await fetch(`/api/geocoding/reverse?lat=${encodeURIComponent(coords.lat)}&lon=${encodeURIComponent(coords.lng)}`);
+        const result = await response.json();
+        if (!response.ok || !result.display_name) return;
+        if (!state.customerCoords || state.customerCoords.lat !== coords.lat || state.customerCoords.lng !== coords.lng) return;
+        locationInputEl.value = result.display_name;
+        updateServiceMapSelection(coords, result.display_name, source || "Confirmed map location");
+        state.markers.customer?.setPopupContent(`<strong>Service Location</strong><br><small>${escapeMarkup(result.display_name)}</small>`);
+      } catch (error) {
+        console.warn("Walk-in reverse geocoding failed", error && error.message);
+      }
+    }
+
+    function setCustomerCoords(coords, message, address = "", source = "Map selection") {
       state.customerCoords = coords;
       if (state.map && window.L) {
         if (!state.markers.customer) {
-          state.markers.customer = L.marker([coords.lat, coords.lng])
+          state.markers.customer = L.marker([coords.lat, coords.lng], { icon: state.customerIcon, draggable: true, keyboard: true, title: "Service location" })
             .addTo(state.map)
-            .bindPopup("Customer");
+            .bindPopup("Service Location")
+            .bindTooltip("Service location", { direction: "top", offset: [0, -36] });
+          state.markers.customer.on("dragend", () => {
+            const point = state.markers.customer.getLatLng();
+            const dragged = { lat: point.lat, lng: point.lng };
+            locationInputEl.value = `${dragged.lat.toFixed(6)}, ${dragged.lng.toFixed(6)}`;
+            setCustomerCoords(dragged, "Dragged service pin confirmed.", "", "Dragged service pin");
+            reverseGeocodeWalkin(dragged, "Dragged service pin");
+          });
         } else {
           state.markers.customer.setLatLng([coords.lat, coords.lng]);
         }
+        state.markers.customer.setPopupContent(`<strong>Service Location</strong><br><small>${escapeMarkup(address || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`)}</small>`);
+        updateServiceMapSelection(coords, address, source);
         updateRouteAndFare();
         const bounds = L.latLngBounds([
           state.markers.tech.getLatLng(),
@@ -1543,6 +1769,7 @@
       const t = state.markers.tech.getLatLng();
       const c = state.markers.customer.getLatLng();
       const coords = `${t.lng},${t.lat};${c.lng},${c.lat}`;
+      if (serviceRouteMethodEl) serviceRouteMethodEl.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Calculating road route';
 
       try {
         const r = await fetch(
@@ -1563,14 +1790,19 @@
         if (state.route) state.route.setLatLngs(points);
         else
           state.route = L.polyline(points, {
-            color: "purple",
-            weight: 4,
+            color: "#2563eb",
+            weight: 5,
+            opacity: .9,
           }).addTo(state.map);
 
         const km = Number(route.distance || 0) / 1000;
         const etaMins = Math.round(Number(route.duration || 0) / 60);
         state.travelFare = Number((km * state.farePerKm).toFixed(2));
         state.travelTime = etaMins > 0 ? etaMins : 0;
+        if (mapInfoDistanceEl) mapInfoDistanceEl.textContent = `${km.toFixed(1)} km`;
+        if (mapInfoDurationEl) mapInfoDurationEl.textContent = `~${etaMins} min`;
+        if (mapInfoFareEl) mapInfoFareEl.textContent = `₱${state.travelFare.toFixed(2)}`;
+        if (serviceRouteMethodEl) serviceRouteMethodEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Road route calculated';
         mapDistanceInfoEl.textContent = `Road distance: ${km.toFixed(1)} km • ETA: ~${etaMins} min • Fare: ₱${state.travelFare.toFixed(2)}`;
         updateSummary();
         if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
@@ -1598,38 +1830,24 @@
             [t.lat, t.lng],
             [c.lat, c.lng],
           ],
-          { color: "purple", weight: 4 },
+          { color: "#2563eb", weight: 4, dashArray: "10, 10" },
         ).addTo(state.map);
 
       state.travelFare = Number((km * state.farePerKm).toFixed(2));
       state.travelTime = 0;
+      if (mapInfoDistanceEl) mapInfoDistanceEl.textContent = `${km.toFixed(1)} km`;
+      if (mapInfoDurationEl) mapInfoDurationEl.textContent = "Estimate unavailable";
+      if (mapInfoFareEl) mapInfoFareEl.textContent = `₱${state.travelFare.toFixed(2)}`;
+      if (serviceRouteMethodEl) serviceRouteMethodEl.innerHTML = '<i class="bi bi-info-circle me-1"></i>Straight-line fallback';
       mapDistanceInfoEl.textContent = `Distance (approx): ${km.toFixed(1)} km • Fare: ₱${state.travelFare.toFixed(2)}`;
       updateSummary();
       if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
     }
 
     async function fetchTechLocation() {
-      if (!techEl.value) return;
-      try {
-        const r = await fetch(
-          `/api/services/technician-location?id=${encodeURIComponent(techEl.value)}`,
-          { cache: "no-store" },
-        );
-        const j = await r.json();
-        if (
-          r.ok &&
-          Number.isFinite(Number(j.lat)) &&
-          Number.isFinite(Number(j.lng))
-        ) {
-          state.techCoords = { lat: Number(j.lat), lng: Number(j.lng) };
-          if (state.markers.tech)
-            state.markers.tech.setLatLng([
-              state.techCoords.lat,
-              state.techCoords.lng,
-            ]);
-          if (state.customerCoords) updateRouteAndFare();
-        }
-      } catch (e) {}
+      // Travel fare follows the customer booking page and always starts from
+      // the configured company base. Technician selection only affects slots.
+      return Promise.resolve();
     }
 
     async function loadTechnicianSchedule() {
@@ -1714,7 +1932,7 @@
       return "available";
     }
 
-    async function renderCalendar() {
+    async function renderLegacyCalendar() {
       if (!calendarGridEl) return;
       await loadServiceCalendarMonth();
 
@@ -1750,8 +1968,8 @@
           cell.addEventListener("click", async () => {
             state.selectedDate = startOfDay(date);
             state.selectedStartMinutes = null;
-            await renderCalendar();
-            await renderTimeSlotsForDate(state.selectedDate);
+            await renderLegacyCalendar();
+            await renderLegacyTimeSlotsForDate(state.selectedDate);
             updateSummary();
           });
         }
@@ -1761,7 +1979,7 @@
       }
     }
 
-    async function renderTimeSlotsForDate(date) {
+    async function renderLegacyTimeSlotsForDate(date) {
       if (!date) return;
       const dateKey = formatDateKey(date);
 
@@ -1890,7 +2108,8 @@
         timeSelectionEl.classList.add("d-none");
         return;
       }
-      if (!techEl.value) {
+      const isProject = isLargeScaleSelection();
+      if (!isProject && !techEl.value) {
         calendarGridEl.innerHTML = '<div class="alert alert-info mb-0">Select a technician before choosing a schedule.</div>';
         timeSelectionEl.classList.add("d-none");
         return;
@@ -1903,7 +2122,8 @@
       const totalUnits = Math.max(1, totalBookedUnits());
       const totalDuration = bookingDuration();
       const perUnitDuration = Math.max(1, totalDuration / totalUnits);
-      const signature = [state.selectedServiceId, totalUnits, totalDuration, techEl.value].join(":");
+      const travelMinutes = Math.max(0, Number(state.travelTime) || 30);
+      const signature = [state.selectedServiceId, totalUnits, totalDuration, travelMinutes, isProject ? "project" : techEl.value].join(":");
 
       if (state.enterpriseCalendarSignature === signature) {
         window.EnterpriseCalendar.render();
@@ -1921,11 +2141,13 @@
 
       await window.EnterpriseCalendar.init({
         serviceId: state.selectedServiceId,
-        technicianId: techEl.value,
+        technicianId: isProject ? null : techEl.value,
         duration: perUnitDuration,
         quantity: totalUnits,
         totalEstimatedMinutes: totalDuration,
-        mode: totalUnits >= 8 ? "project" : "appointment",
+        travelTime: travelMinutes,
+        mode: isProject ? "project" : "appointment",
+        showCommercialProjects: false,
         resetSelection: true,
         onSelect(selection) {
           if (!selection || !selection.date) return;
@@ -2241,7 +2463,8 @@
           Math.abs(lat) <= 90 &&
           Math.abs(lng) <= 180
         ) {
-          setCustomerCoords({ lat, lng }, "Coordinates pinned on map.");
+          setCustomerCoords({ lat, lng }, "Coordinates pinned on map.", raw, "Entered coordinates");
+          reverseGeocodeWalkin({ lat, lng }, "Entered coordinates");
           return;
         }
       }
@@ -2258,6 +2481,8 @@
           setCustomerCoords(
             { lat, lng },
             "Address resolved and pinned on map.",
+            raw,
+            "Address search",
           );
         } else {
           setLocationStatus(
@@ -2301,7 +2526,8 @@
               lng: pos.coords.longitude,
             };
             locationInputEl.value = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
-            setCustomerCoords(coords, "Current location pinned on map.");
+            setCustomerCoords(coords, "Current location pinned on map.", "", "Device location");
+            reverseGeocodeWalkin(coords, "Device location");
           },
           () => setLocationStatus("Unable to detect location.", "danger"),
           { enableHighAccuracy: true, timeout: 12000 },
@@ -2335,6 +2561,8 @@
               setCustomerCoords(
                 { lat, lng },
                 "Address suggestion pinned on map.",
+                it.display_name,
+                "Address suggestion",
               );
           });
           locationSuggestEl.appendChild(btn);
@@ -2406,9 +2634,25 @@
     const coreCardsEl = document.getElementById("coreServiceCards");
     const repairCardsEl = document.getElementById("repairServiceCards");
     const repairUnitTypes = {
-      aircon: ["Split Type", "Window Type", "Cassette Type", "Floor Standing", "Portable Aircon"],
-      appliance: ["Refrigerator", "Washing Machine", "Television", "Microwave Oven", "Electric Fan", "Water Dispenser", "Rice Cooker", "Vacuum Cleaner", "Small Appliance"],
-      other: ["Other / Custom Equipment"]
+      aircon: [
+        { value: "Split Type Aircon", icon: "bi-window", label: "Split Type" },
+        { value: "Window Type Aircon", icon: "bi-window", label: "Window Type" },
+        { value: "Floor Mounted Aircon", icon: "bi-arrows-expand", label: "Floor Mounted" },
+        { value: "Cassette Type Aircon", icon: "bi-grid-3x3", label: "Cassette Type" },
+        { value: "Central Aircon", icon: "bi-buildings", label: "Central" },
+      ],
+      appliance: [
+        { value: "Refrigerator", icon: "bi-reception-4", label: "Refrigerator" },
+        { value: "Freezer", icon: "bi-snow", label: "Freezer" },
+        { value: "Washing Machine", icon: "bi-droplet-half", label: "Washing Machine" },
+        { value: "Dryer", icon: "bi-wind", label: "Dryer" },
+        { value: "Microwave Oven", icon: "bi-circle", label: "Microwave" },
+        { value: "Electric Fan", icon: "bi-fan", label: "Electric Fan" },
+        { value: "Rice Cooker", icon: "bi-fire", label: "Rice Cooker" },
+        { value: "Water Dispenser", icon: "bi-cup-straw", label: "Water Dispenser" },
+        { value: "Electric Kettle", icon: "bi-cup-hot", label: "Electric Kettle" },
+      ],
+      other: [{ value: "Other", icon: "bi-plus-circle", label: "Other (specify in problem)" }],
     };
     let configuredRepairCategory = "";
     let configuredRepairUnitType = "";
@@ -2422,6 +2666,35 @@
       const quantity = Math.max(1, Number(document.getElementById("configQuantity").value) || 1);
       const unitPrice = Number(isAircon ? configuredCoreHp?.price : service?.basePrice || 0);
       document.getElementById("coreEstimatedPrice").textContent = `₱${(unitPrice * quantity).toLocaleString()}`;
+    }
+
+    function updateRepairConfigurationPrice() {
+      const service = state.repairServices.find(item => String(item._id) === document.getElementById("configServiceId").value) || state.repairServices[0];
+      const quantity = Math.max(1, Number(document.getElementById("repairConfigQuantity").value) || 1);
+      const inspectionFee = Math.max(0, Number(service?.initialPrice ?? service?.basePrice ?? service?.price ?? 0));
+      document.getElementById("coreEstimatedPrice").textContent = `₱${(inspectionFee * quantity).toLocaleString()}`;
+    }
+
+    function repairCategoryRecords() {
+      if (state.serviceCategories.length) return state.serviceCategories;
+      return [
+        { slug: "aircon", name: "Air Conditioning", icon: "bi-snow", iconColor: "blue", unitTypes: repairUnitTypes.aircon },
+        { slug: "appliance", name: "Home Appliances", icon: "bi-house-gear", iconColor: "amber", unitTypes: repairUnitTypes.appliance },
+        { slug: "other", name: "Other", icon: "bi-plus-circle", iconColor: "violet", unitTypes: repairUnitTypes.other },
+      ];
+    }
+
+    function renderRepairCategories() {
+      const host = document.getElementById("walkinRepairCategories");
+      if (!host) return;
+      host.innerHTML = repairCategoryRecords().map(category => {
+        const slug = escapeMarkup(category.slug);
+        const name = escapeMarkup(category.name || category.slug);
+        const icon = safeCssClasses(category.icon, "bi-grid");
+        const color = safeCssClasses(category.iconColor, "blue");
+        const count = category.isCustom ? "Custom description" : `${(category.unitTypes || []).length} unit types`;
+        return `<div class="col-md-4"><button type="button" class="repair-category-card repair-category h-100" data-category="${slug}"><span class="unit-category-icon ${color}"><i class="bi ${icon}"></i></span><strong class="d-block">${name}</strong><small class="d-block mt-1">${escapeMarkup(count)}</small></button></div>`;
+      }).join("");
     }
 
     function setupHpCard(card, hpOption, airconType) {
@@ -2630,6 +2903,7 @@
       document.getElementById("configServiceType").value = type;
       document.getElementById("serviceConfigTitle").textContent = type === "repair" ? "Repair Service Configuration" : "Configure Service";
       document.getElementById("configQuantity").value = 1;
+      document.getElementById("repairConfigQuantity").value = 1;
       document.getElementById("configBrand").value = "";
       document.getElementById("configModel").value = "";
       document.getElementById("configProblem").value = "";
@@ -2637,12 +2911,18 @@
       document.getElementById("configRepairPhotos").value = "";
       document.getElementById("configRepairPhotoPreview").innerHTML = "";
       document.getElementById("serviceConfigSubtitle").textContent = type === "repair" ? "Configure your repair request step by step. Our technician will be prepared with the right tools and parts." : "Select aircon type & HP rating";
+      document.getElementById("priceLabel").textContent = type === "repair" ? "Inspection Fee" : "Estimated Price";
+      document.getElementById("priceSub").textContent = type === "repair" ? "Diagnosis only; final repair is quoted after inspection" : "Configured service total";
       configuredRepairCategory = ""; configuredRepairUnitType = ""; configuredRepairPhotos = [];
       document.querySelectorAll(".repair-category,.repair-symptom,.repair-unit-type").forEach(el => el.classList.remove("selected", "active"));
       document.getElementById("walkinUnitTypes").innerHTML = '<span class="small text-muted">Select a category first.</span>';
       document.querySelectorAll(".repair-config").forEach(el => el.classList.toggle("d-none", type !== "repair"));
       document.querySelectorAll(".core-config").forEach(el => el.classList.toggle("d-none", type !== "core"));
       if (type === "core") renderCoreConfigurator(service);
+      else {
+        document.getElementById("coreAirconWizard").classList.add("d-none");
+        updateRepairConfigurationPrice();
+      }
 
       const modal = document.getElementById("serviceConfigModal");
       const content = document.getElementById("serviceConfigContent");
@@ -2665,8 +2945,11 @@
       }
     }
 
-    function mountInlineRepairConfigurator() {
+    function mountInlineRepairConfigurator(forceReset = false) {
       const service = state.repairServices[0];
+      const host = document.getElementById("repairInlineConfigurator");
+      const content = document.getElementById("serviceConfigContent");
+      if (!forceReset && host.contains(content) && document.getElementById("configServiceType").value === "repair") return;
       if (service) configureService(service, "repair", true);
       else document.getElementById("repairInlineConfigurator").innerHTML = '<div class="alert alert-info">No active repair service configuration is available.</div>';
     }
@@ -2676,9 +2959,11 @@
       configuredRepairUnitType = "";
       document.querySelectorAll(".repair-category").forEach(button => button.classList.toggle("selected", button.dataset.category === category));
       const host = document.getElementById("walkinUnitTypes");
-      host.innerHTML = category === "other"
+      const record = repairCategoryRecords().find(item => String(item.slug) === String(category));
+      const unitTypes = (record?.unitTypes || []).map(item => typeof item === "string" ? { value: item, label: item } : item);
+      host.innerHTML = record?.isCustom || category === "other"
         ? '<input type="text" id="customRepairUnitType" maxlength="100" class="cfg-f" placeholder="Describe the equipment type">'
-        : (repairUnitTypes[category] || []).map(type => `<button type="button" class="unit-type-chip repair-unit-type" data-unit-type="${type}">${type}</button>`).join("");
+        : unitTypes.map(type => `<button type="button" class="unit-type-chip repair-unit-type" data-unit-type="${escapeMarkup(type.value || type.label)}"><i class="bi ${safeCssClasses(type.icon, "bi-circle")} me-1"></i>${escapeMarkup(type.label || type.value)}</button>`).join("");
     }
     function handleServiceCardClick(e) {
       const btn = e.target.closest(".add-service-btn[data-service-id]");
@@ -2694,7 +2979,7 @@
     }
     if (coreCardsEl) coreCardsEl.addEventListener("click", handleServiceCardClick);
     if (repairCardsEl) repairCardsEl.addEventListener("click", handleServiceCardClick);
-    document.getElementById("repair-tab").addEventListener("shown.bs.tab", mountInlineRepairConfigurator);
+    document.getElementById("repair-tab").addEventListener("shown.bs.tab", () => mountInlineRepairConfigurator(false));
 
     document.getElementById("walkinRepairCategories").addEventListener("click", e => { const button = e.target.closest(".repair-category"); if (button) selectRepairCategory(button.dataset.category); });
     document.getElementById("coreAirconTypes").addEventListener("click", e => {
@@ -2717,22 +3002,87 @@
     document.getElementById("configQuantity").addEventListener("input", updateCoreConfigurationPrice);
     document.getElementById("configQtyMinus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.max(1, Number(input.value) - 1); updateCoreConfigurationPrice(); });
     document.getElementById("configQtyPlus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.min(40, Number(input.value) + 1); updateCoreConfigurationPrice(); });
+    document.getElementById("repairConfigQtyMinus").addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); input.value = Math.max(1, Number(input.value) - 1); updateRepairConfigurationPrice(); });
+    document.getElementById("repairConfigQtyPlus").addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); input.value = Math.min(40, Number(input.value) + 1); updateRepairConfigurationPrice(); });
     document.getElementById("walkinUnitTypes").addEventListener("click", e => { const button = e.target.closest(".repair-unit-type"); if (!button) return;      configuredRepairUnitType = button.dataset.unitType; document.querySelectorAll(".repair-unit-type").forEach(el => el.classList.toggle("active", el === button)); });
     document.getElementById("walkinUnitTypes").addEventListener("input", e => { if (e.target.id === "customRepairUnitType") configuredRepairUnitType = e.target.value.trim(); });
-    document.getElementById("walkinSymptomChips").addEventListener("click", e => { const button = e.target.closest(".repair-symptom"); if (button) button.classList.toggle("active"); });
+    document.getElementById("walkinSymptomChips").addEventListener("click", event => {
+      const button = event.target.closest(".repair-symptom");
+      if (!button) return;
+      button.classList.toggle("active");
+      const textarea = document.getElementById("configProblem");
+      const symptom = button.dataset.symptom || "";
+      const current = textarea.value.trim();
+      if (button.classList.contains("active")) {
+        if (!current.includes(symptom)) textarea.value = current ? `${current}, ${symptom}` : symptom;
+      } else {
+        const escaped = symptom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        textarea.value = current
+          .replace(new RegExp(`,?\\s*${escaped}`), "")
+          .replace(/^,\s*/, "")
+          .trim();
+      }
+      document.getElementById("walkinRepairCharCount").textContent = `${textarea.value.length} / 500`;
+    });
+
+    document.getElementById("locateCompanyBtn").addEventListener("click", () => {
+      if (!state.map || !state.markers.tech) return;
+      state.map.setView(state.markers.tech.getLatLng(), 16);
+      state.markers.tech.openPopup();
+    });
+    document.getElementById("focusCustomerBtn").addEventListener("click", () => {
+      if (!state.map || !state.markers.customer) return showWarn("Select the service location first.");
+      state.map.setView(state.markers.customer.getLatLng(), 16);
+      state.markers.customer.openPopup();
+    });
+    document.getElementById("fitServiceRouteBtn").addEventListener("click", () => {
+      if (!state.map) return;
+      if (state.route?.getBounds && state.route.getBounds().isValid()) {
+        state.map.fitBounds(state.route.getBounds(), { padding: [50, 50], maxZoom: 16 });
+      } else if (state.markers.tech && state.markers.customer) {
+        state.map.fitBounds(L.featureGroup([state.markers.tech, state.markers.customer]).getBounds(), { padding: [50, 50], maxZoom: 16 });
+      }
+    });
+    document.getElementById("expandServiceMapBtn").addEventListener("click", event => {
+      const card = document.getElementById("serviceCheckoutMapCard");
+      const expanded = card.classList.toggle("map-expanded");
+      event.currentTarget.innerHTML = expanded
+        ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>'
+        : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
+      setTimeout(() => state.map?.invalidateSize(), 280);
+    });
     document.getElementById("configProblem").addEventListener("input", e => { document.getElementById("walkinRepairCharCount").textContent = `${e.target.value.length} / 500`; });
-    document.getElementById("configRepairPhotos").addEventListener("change", e => {
-      const files = Array.from(e.target.files || []).slice(0, 5);
+    function previewRepairPhotos(fileList) {
+      const input = document.getElementById("configRepairPhotos");
+      const files = Array.from(fileList || []).slice(0, 5);
       const invalid = files.find(file => file.size > 5 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type));
-      if (invalid) { e.target.value = ""; return showWarn("Photos must be JPG, PNG, or WebP and no larger than 5 MB each."); }
+      if (invalid) { input.value = ""; return showWarn("Photos must be JPG, PNG, or WebP and no larger than 5 MB each."); }
       const preview = document.getElementById("configRepairPhotoPreview"); preview.innerHTML = "";
       files.forEach(file => { const img = document.createElement("img"); img.src = URL.createObjectURL(file); img.style.cssText = "width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0"; preview.appendChild(img); });
+      return true;
+    }
+    const repairPhotoInput = document.getElementById("configRepairPhotos");
+    const repairPhotoZone = document.getElementById("walkinRepairPhotoUploadZone");
+    repairPhotoInput.addEventListener("change", event => previewRepairPhotos(event.target.files));
+    repairPhotoZone.addEventListener("click", event => { if (event.target !== repairPhotoInput) repairPhotoInput.click(); });
+    repairPhotoZone.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); repairPhotoInput.click(); } });
+    repairPhotoZone.addEventListener("dragover", event => { event.preventDefault(); repairPhotoZone.classList.add("dragover"); });
+    repairPhotoZone.addEventListener("dragleave", () => repairPhotoZone.classList.remove("dragover"));
+    repairPhotoZone.addEventListener("drop", event => {
+      event.preventDefault();
+      repairPhotoZone.classList.remove("dragover");
+      const files = Array.from(event.dataTransfer?.files || []).slice(0, 5);
+      if (!files.length || !previewRepairPhotos(files)) return;
+      const transfer = new DataTransfer();
+      files.forEach(file => transfer.items.add(file));
+      repairPhotoInput.files = transfer.files;
     });
 
     document.getElementById("saveConfiguredService").addEventListener("click", async () => {
       const id = document.getElementById("configServiceId").value;
       const type = document.getElementById("configServiceType").value;
-      const quantity = Math.max(1, Number(document.getElementById("configQuantity").value) || 1);
+      const quantityInput = type === "repair" ? document.getElementById("repairConfigQuantity") : document.getElementById("configQuantity");
+      const quantity = Math.max(1, Number(quantityInput.value) || 1);
       if (totalBookedUnits() + quantity > 40) return showWarn("The maximum is 40 units per booking.");
       const catalog = type === "repair" ? state.repairServices : state.coreServices;
       const service = catalog.find(item => String(item._id) === String(id));
@@ -2752,7 +3102,11 @@
         const uploadResponse = await fetch("/api/appointments/walk-in/upload-repair-photos", { method: "POST", credentials: "same-origin", body: uploadData });
         const uploaded = await uploadResponse.json(); if (!uploadResponse.ok) return showWarn(uploaded.error || "Repair photos could not be uploaded."); configuredRepairPhotos = uploaded.urls || [];
       }
-      const unitPrice = Number(type === "core" && configuredCoreHp ? configuredCoreHp.price : service?.basePrice || 0);
+      const unitPrice = Number(type === "core" && configuredCoreHp
+        ? configuredCoreHp.price
+        : type === "repair"
+          ? (service?.initialPrice ?? service?.basePrice ?? 0)
+          : (service?.basePrice ?? 0));
       state.selectedServices.push({ serviceId: id, name: type === "repair" ? `${configuredRepairUnitType} Repair` : (service?.name || "Service"), type, quantity, unitPrice, totalPrice: unitPrice * quantity,
         duration: Number(configuredCoreHp?.durationMinutes || service?.durationMinutes || service?.estimatedDurationMinutes || 60) * quantity,
         model: document.getElementById("configModel").value.trim(),
@@ -2764,7 +3118,7 @@
       state.selectedDate = null; state.selectedStartMinutes = null;
       bootstrap.Modal.getInstance(document.getElementById("serviceConfigModal"))?.hide();
       renderServiceCards();
-      if (type === "repair") mountInlineRepairConfigurator();
+      if (type === "repair") mountInlineRepairConfigurator(true);
     });
 
     document.getElementById("selectedServicesList").addEventListener("click", e => {
@@ -2917,7 +3271,7 @@
           : undefined,
         serviceId: state.selectedServiceId,
         services: state.selectedServices,
-        technicianId: techEl.value,
+        technicianId: isLargeScaleSelection() ? undefined : techEl.value,
         date: formatDateKey(state.selectedDate),
         startTime: state.projectScheduling ? "08:00" : minutesToHHMM(state.selectedStartMinutes),
         projectScheduling: state.projectScheduling,
@@ -3016,6 +3370,21 @@
         state.selectedServiceId = "";
         setCustomerLookupStatus("Enter the customer's email to check for an existing account.", "info");
         locationInputEl.value = "";
+        serviceMapSelectionEl?.classList.remove("has-location");
+        const selectionStatus = document.getElementById("serviceMapSelectionStatus");
+        const selectionAddress = document.getElementById("serviceMapAddress");
+        const selectionCoordinates = document.getElementById("serviceMapCoordinates");
+        const selectionSource = document.getElementById("serviceMapSource");
+        const fitRouteButton = document.getElementById("fitServiceRouteBtn");
+        if (selectionStatus) selectionStatus.textContent = "Location not pinned";
+        if (selectionAddress) selectionAddress.textContent = "Search, use GPS, or click the map to set the service address.";
+        if (selectionCoordinates) selectionCoordinates.textContent = "—";
+        if (selectionSource) selectionSource.textContent = "Waiting for selection";
+        if (fitRouteButton) fitRouteButton.disabled = true;
+        if (mapInfoDistanceEl) mapInfoDistanceEl.textContent = "—";
+        if (mapInfoDurationEl) mapInfoDurationEl.textContent = "—";
+        if (mapInfoFareEl) mapInfoFareEl.textContent = "—";
+        if (serviceRouteMethodEl) serviceRouteMethodEl.textContent = "Waiting for a confirmed service location";
         mapDistanceInfoEl.textContent =
           "Distance and ETA will appear here after setting location.";
         setLocationStatus(
@@ -3024,6 +3393,8 @@
         );
         await renderCalendar();
         renderServiceCards();
+        renderRepairCategories();
+        mountInlineRepairConfigurator(true);
         renderTechnicians();
         syncCashAmountInput();
         goToStep(0);
@@ -3039,8 +3410,8 @@
 
     (async function init() {
       try {
-        await loadFarePerKm();
-        await loadOptions();
+        await Promise.all([loadFarePerKm(), loadBookingPolicy(), loadCompanyLocation(), loadOptions()]);
+        updateTechnicianSelectionMode();
         await renderCalendar();
         syncCashAmountInput();
         goToStep(0);

@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const { isAccountEnabled } = require("../middleware/accountState");
 const rateLimiter = require("../middleware/loginRateLimiter");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
@@ -52,6 +53,24 @@ function isForgotBlocked(email) {
       retryAfter: Math.ceil((rec.lockedUntil - Date.now()) / 1000),
     };
   return { blocked: false };
+}
+
+function logPasswordResetEvent(req, { user, action, outcome, riskLevel, details = {} }) {
+  return audit.logEvent({
+    actor: null,
+    target: user ? user._id : null,
+    action,
+    module: "auth",
+    req,
+    entityType: "User",
+    entityId: user ? user._id : null,
+    actorName: "Unauthenticated requester",
+    actorRole: "guest",
+    source: "unauthenticated_request",
+    outcome,
+    riskLevel,
+    details,
+  });
 }
 
 function parseCookies(req) {
@@ -653,7 +672,8 @@ exports.verifyLoginOTP = async (req, res, next) => {
 
     // Get user
     const user = await User.findById(stored.userId);
-    if (!user) {
+    if (!isAccountEnabled(user)) {
+      otpStore.delete(emailKey);
       return res.status(400).json({ error: "User not found." });
     }
 
@@ -751,6 +771,12 @@ exports.forgotPassword = async (req, res, next) => {
     // Rate limit per-email: block after FORGOT_MAX attempts for FORGOT_LOCK_MS
     const blocked = isForgotBlocked(email);
     if (blocked.blocked) {
+      void logPasswordResetEvent(req, {
+        action: "auth.password_reset_request_blocked",
+        outcome: "blocked",
+        riskLevel: "critical",
+        details: { reason: "per_account_rate_limit", retryAfterSeconds: blocked.retryAfter },
+      });
       return res.status(429).json({
         error:
           "Too many requests. Please wait before retrying. Additional failures will extend the lock.",
@@ -764,6 +790,12 @@ exports.forgotPassword = async (req, res, next) => {
     if (!mathCaptcha || mathCaptcha !== mathAnswer) {
       // record attempt to deter brute-force/enumeration
       recordForgotAttempt(email);
+      void logPasswordResetEvent(req, {
+        action: "auth.password_reset_request_failed",
+        outcome: "failure",
+        riskLevel: "medium",
+        details: { reason: "captcha_failed" },
+      });
       return res.status(400).json({ error: "Invalid captcha. Please try again." });
     }
 
@@ -772,6 +804,12 @@ exports.forgotPassword = async (req, res, next) => {
     if (!user) {
       // record attempt for unknown email as well (prevent enumeration)
       recordForgotAttempt(email);
+      void logPasswordResetEvent(req, {
+        action: "auth.password_reset_requested",
+        outcome: "pending",
+        riskLevel: "medium",
+        details: { accountMatched: false },
+      });
       // generic response
       return res.status(200).json({
         message:
@@ -782,6 +820,14 @@ exports.forgotPassword = async (req, res, next) => {
     const token = user.createPasswordResetToken();
     await user.save();
 
+    void logPasswordResetEvent(req, {
+      user,
+      action: "auth.password_reset_requested",
+      outcome: "pending",
+      riskLevel: "medium",
+      details: { accountMatched: true },
+    });
+
     // Build reset link
     const resetLink = `${req.protocol}://${req.get("host")}/reset-password?token=${token}`;
 
@@ -791,19 +837,25 @@ exports.forgotPassword = async (req, res, next) => {
       console.log("[AUTH] sendResetEmail result for", email, mailResult && mailResult.messageId ? "OK" : mailResult);
       if (mailResult && mailResult.messageId) {
         console.log("[AUTH] Reset password email sent successfully to:", email, "MessageID:", mailResult.messageId);
-        audit.logEvent({
-          actor: user._id,
-          target: user._id,
-          action: 'password_reset_email_sent',
-          module: 'auth',
-          req,
-          details: { messageId: mailResult.messageId }
-        }).catch(() => {});
+        void logPasswordResetEvent(req, {
+          user,
+          action: "auth.password_reset_email_sent",
+          outcome: "pending",
+          riskLevel: "medium",
+          details: { deliveryAccepted: true },
+        });
       } else if (mailResult === false) {
         console.warn(
           "[AUTH] Reset password email not sent - SMTP not configured for:",
           email,
         );
+        void logPasswordResetEvent(req, {
+          user,
+          action: "auth.password_reset_email_failed",
+          outcome: "failure",
+          riskLevel: "medium",
+          details: { reason: "mail_transport_unavailable" },
+        });
       } else {
         console.warn(
           "[AUTH] Reset password email send returned unexpected result for:",
@@ -814,6 +866,13 @@ exports.forgotPassword = async (req, res, next) => {
       }
     } catch (e) {
       console.error("[AUTH] Error sending reset password email to", email, ":", e && e.message, e && e.response);
+      void logPasswordResetEvent(req, {
+        user,
+        action: "auth.password_reset_email_failed",
+        outcome: "failure",
+        riskLevel: "medium",
+        details: { reason: "mail_delivery_error" },
+      });
       // do not expose failure to the client
     }
 
@@ -837,6 +896,8 @@ exports.resetPassword = async (req, res, next) => {
   try {
     const { token, password, csrfToken, email, mathCaptcha, mathAnswer } = req.body;
 
+    console.log("[AUTH] resetPassword request - email:", email, "token length:", token ? token.length : 0);
+
     // Validate types and sizes early
     if (
       !token ||
@@ -848,13 +909,28 @@ exports.resetPassword = async (req, res, next) => {
       token.length > 256 ||
       password.length > 20 ||
       email.length > 50
-    )
+    ) {
+      console.log("[AUTH] resetPassword validation failed - missing or invalid fields");
+      await logPasswordResetEvent(req, {
+        action: "auth.password_reset_failed",
+        outcome: "failure",
+        riskLevel: "medium",
+        details: { reason: "invalid_request" },
+      });
       return res
         .status(400)
-        .json({ error: "Reset failed. Please check your input." });
+        .json({ error: "Please fill in all required fields correctly." });
+    }
 
     // Validate math captcha
     if (!mathCaptcha || mathCaptcha !== mathAnswer) {
+      console.log("[AUTH] resetPassword captcha failed");
+      await logPasswordResetEvent(req, {
+        action: "auth.password_reset_failed",
+        outcome: "failure",
+        riskLevel: "medium",
+        details: { reason: "captcha_failed" },
+      });
       return res
         .status(400)
         .json({ error: "Incorrect captcha. Please try again." });
@@ -866,9 +942,16 @@ exports.resetPassword = async (req, res, next) => {
         password,
       )
     ) {
+      console.log("[AUTH] resetPassword password complexity failed");
+      await logPasswordResetEvent(req, {
+        action: "auth.password_reset_failed",
+        outcome: "failure",
+        riskLevel: "low",
+        details: { reason: "password_policy_failed" },
+      });
       return res.status(400).json({
         error:
-          "Password must be 8-20 characters long, letters/numbers and may include !,#,$; each may appear at most once (at least one uppercase).",
+          "Password must be 8-20 characters with 1 uppercase letter and 1 number or symbol.",
       });
     }
 
@@ -876,30 +959,86 @@ exports.resetPassword = async (req, res, next) => {
     const cookies = parseCookies(req);
     const cookieToken = cookies["XSRF-TOKEN"] || "";
     if (!csrfToken || !cookieToken || csrfToken !== cookieToken) {
+      console.log("[AUTH] resetPassword CSRF mismatch - cookie:", !!cookieToken, "body:", !!csrfToken);
+      await logPasswordResetEvent(req, {
+        action: "auth.password_reset_failed",
+        outcome: "blocked",
+        riskLevel: "high",
+        details: { reason: "csrf_validation_failed" },
+      });
       return res
         .status(400)
-        .json({ error: "Reset failed. Please check your input." });
+        .json({ error: "Session expired. Please refresh the page and try again." });
     }
 
     // Normalize and validate email
     const normalizedEmail = email.replace(/[\$\{\}]/g, "").toLowerCase();
-    
+
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const user = await User.findOne({
+
+    // First check if token exists (without email constraint)
+    const tokenUser = await User.findOne({
       resetPasswordTokenHash: tokenHash,
-      resetPasswordExpires: { $gt: Date.now() },
-      email: normalizedEmail, // Ensure email matches the token owner
     });
-    if (!user)
+
+    if (!tokenUser) {
+      console.log("[AUTH] resetPassword - token not found in database");
+      await logPasswordResetEvent(req, {
+        action: "auth.password_reset_failed",
+        outcome: "blocked",
+        riskLevel: "high",
+        details: { reason: "invalid_token" },
+      });
       return res
         .status(400)
-        .json({ error: "Reset failed. Please check your input." });
+        .json({ error: "Invalid or expired reset link. Please request a new one." });
+    }
+
+    // Check if token is expired
+    if (!tokenUser.resetPasswordExpires || tokenUser.resetPasswordExpires < Date.now()) {
+      console.log("[AUTH] resetPassword - token expired at:", tokenUser.resetPasswordExpires);
+      await logPasswordResetEvent(req, {
+        user: tokenUser,
+        action: "auth.password_reset_failed",
+        outcome: "failure",
+        riskLevel: "medium",
+        details: { reason: "expired_token" },
+      });
+      return res
+        .status(400)
+        .json({ error: "Reset link has expired. Please request a new one." });
+    }
+
+    // Check if email matches
+    if (tokenUser.email !== normalizedEmail) {
+      console.log("[AUTH] resetPassword - email mismatch. Expected:", tokenUser.email, "Got:", normalizedEmail);
+      await logPasswordResetEvent(req, {
+        user: tokenUser,
+        action: "auth.password_reset_failed",
+        outcome: "blocked",
+        riskLevel: "critical",
+        details: { reason: "email_token_mismatch" },
+      });
+      return res
+        .status(400)
+        .json({ error: "Email does not match the reset request. Please use the email you registered with." });
+    }
+
+    const user = tokenUser;
 
     await user.setPassword(password);
     user.clearPasswordReset();
     // Clear any existing sessions on password reset
     user.currentSessionId = undefined;
     await user.save();
+
+    await logPasswordResetEvent(req, {
+      user,
+      action: "auth.password_reset_completed",
+      outcome: "success",
+      riskLevel: "high",
+      details: { sessionsRevoked: true },
+    });
 
     // Clear any active auth cookies for safety
     res.clearCookie("auth_token", { path: "/" });
@@ -1059,6 +1198,10 @@ exports.login = async (req, res, next) => {
       return sendGenericError(res);
     }
 
+    if (!isAccountEnabled(user)) {
+      return sendGenericError(res);
+    }
+
     // Success: reset counters
     rateLimiter.reset("ip", ip);
     rateLimiter.reset("email", email);
@@ -1125,7 +1268,7 @@ exports.verify = async (req, res) => {
     if (!token) return res.json({ user: null });
     let payload;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET);
+      payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     } catch (e) {
       return res.json({ user: null });
     }

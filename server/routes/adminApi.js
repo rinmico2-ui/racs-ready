@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const QRCode = require("qrcode");
@@ -16,6 +16,29 @@ const {
 // Protect all admin API routes
 router.use(auth.authenticate);
 router.use(auth.requireRole("admin"));
+
+async function reconcileOrderRefundState(orderId) {
+  const Payment = require("../models/Payment");
+  const Order = require("../models/Order");
+  const relatedPayments = await Payment.find({ orderId }).select("refundStatus refundAmount refundReason").lean();
+  const refundable = relatedPayments.filter(payment => Number(payment.refundAmount) > 0 || payment.refundStatus !== "none");
+  const requestedAmount = refundable.reduce((sum, payment) => sum + Math.max(0, Number(payment.refundAmount) || 0), 0);
+  const completedAmount = refundable
+    .filter(payment => payment.refundStatus === "completed")
+    .reduce((sum, payment) => sum + Math.max(0, Number(payment.refundAmount) || 0), 0);
+  const hasOutstanding = refundable.some(payment => ["pending", "processing"].includes(payment.refundStatus));
+  const refundStatus = hasOutstanding
+    ? (completedAmount > 0 ? "partial" : "pending")
+    : (requestedAmount > 0 ? "completed" : "none");
+  const latestReason = [...refundable].reverse().find(payment => payment.refundReason)?.refundReason || "";
+
+  await Order.findByIdAndUpdate(orderId, {
+    ...(refundStatus === "completed" ? { paymentStatus: "refunded" } : {}),
+    refundStatus,
+    refundAmount: requestedAmount,
+    ...(latestReason ? { refundReason: latestReason } : {}),
+  });
+}
 
 // Customers
 router.get("/customers", admin.listCustomers);
@@ -39,6 +62,297 @@ router.get("/audit", admin.listAuditTrail);
 
 // Dashboard KPI summary (counts used by admin dashboard)
 router.get("/analytics/summary", admin.analyticsSummary);
+
+// Authoritative operational control-center snapshot. This intentionally stays
+// separate from long-range analytics: every number represents current work,
+// a review queue, custody exposure, or cash-control responsibility.
+router.get("/dashboard/operations", async (req, res, next) => {
+  try {
+    const { buildAdminOperationsDashboard } = require("../utils/adminOperationsDashboard");
+    res.set("Cache-Control", "no-store");
+    return res.json(await buildAdminOperationsDashboard(new Date()));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Live records behind a selected Service Analytics chart element. The route
+// inherits the admin authentication middleware above and accepts only bounded,
+// valid database identifiers supplied by the rendered report.
+router.post("/reports/service/drilldown", async (req, res, next) => {
+  try {
+    const mongoose = require("mongoose");
+    const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const Assignment = require("../models/Assignment");
+    const Rating = require("../models/Rating");
+    const Technician = require("../models/Technician");
+    const { isRepairBooking, ratingForBooking, resolveBookedValue, statusGroup } = require("../utils/serviceAnalytics");
+
+    const supplied = Array.isArray(req.body?.records) ? req.body.records : [];
+    if (supplied.length > 500) return res.status(400).json({ error: "A maximum of 500 records can be requested." });
+
+    const unique = new Map();
+    supplied.forEach((record) => {
+      const type = record?.type === "order" ? "order" : "booking";
+      const id = String(record?.id || "");
+      if (mongoose.isValidObjectId(id)) unique.set(`${type}:${id}`, { type, id });
+    });
+    const selections = [...unique.values()];
+    const bookingIds = selections.filter(record => record.type === "booking").map(record => record.id);
+    const orderIds = selections.filter(record => record.type === "order").map(record => record.id);
+
+    const [bookings, orders, ratings] = await Promise.all([
+      bookingIds.length ? BookingService.find({ _id: { $in: bookingIds } }).lean() : [],
+      orderIds.length ? Order.find({ _id: { $in: orderIds } }).lean() : [],
+      bookingIds.length ? Rating.find({ targetType: "booking", targetId: { $in: bookingIds } }).select("targetId score").lean() : [],
+    ]);
+    const technicianIds = [...new Set(bookings.map(booking => String(booking.technicianId || "")).filter(mongoose.isValidObjectId))];
+    const technicians = technicianIds.length
+      ? await Technician.find({ _id: { $in: technicianIds } }).select("name").lean()
+      : [];
+    const technicianNames = new Map(technicians.map(technician => [String(technician._id), technician.name]));
+    const ratingTotals = new Map();
+    ratings.forEach((rating) => {
+      const id = String(rating.targetId);
+      const current = ratingTotals.get(id) || { total: 0, count: 0 };
+      current.total += Number(rating.score) || 0;
+      current.count += 1;
+      ratingTotals.set(id, current);
+    });
+    const ratingByBooking = new Map([...ratingTotals].map(([id, value]) => [id, value.count ? value.total / value.count : 0]));
+
+    const bookingRows = bookings.map(booking => ({
+      id: String(booking._id),
+      recordType: "booking",
+      reference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
+      date: booking.createdAt,
+      customer: booking.customer?.name || "Unknown Customer",
+      contact: booking.customer?.phone || booking.customer?.email || "-",
+      service: booking.service?.name || booking.services?.map(service => service.name).filter(Boolean).join(", ") || booking.serviceType || "Service",
+      segment: isRepairBooking(booking) ? "Repair" : "Core Service",
+      status: booking.status || "pending",
+      statusGroup: statusGroup(booking.status),
+      technician: booking.technician?.name || technicianNames.get(String(booking.technicianId || "")) || "Unassigned",
+      payment: String(booking.paymentMethod || "other").toUpperCase(),
+      scale: booking.isProject ? "Large-scale" : "Standard",
+      rating: ratingForBooking(booking, ratingByBooking),
+      amount: resolveBookedValue(booking),
+    }));
+    const orderRows = orders.map(order => ({
+      id: String(order._id),
+      recordType: "order",
+      reference: order.orderReference || `#${String(order._id).slice(-6).toUpperCase()}`,
+      date: order.createdAt,
+      customer: order.customer?.name || "Unknown Customer",
+      contact: order.customer?.phone || order.customer?.email || "-",
+      service: (order.items || []).map(item => [item.brand, item.modelLine].filter(Boolean).join(" ")).filter(Boolean).join(", ") || "Product Order",
+      segment: "Orders",
+      status: order.status || "pending",
+      statusGroup: statusGroup(order.status),
+      technician: order.technician?.name || "Unassigned",
+      payment: String(order.paymentMethod || "other").toUpperCase(),
+      scale: "Order",
+      rating: 0,
+      amount: Number(order.total || order.totalAmount) || 0,
+    }));
+    const rowByKey = new Map([...bookingRows, ...orderRows].map(row => [`${row.recordType}:${row.id}`, row]));
+    const rows = selections.map(record => rowByKey.get(`${record.type}:${record.id}`)).filter(Boolean);
+    const ratedRows = rows.filter(row => Number(row.rating) > 0);
+
+    res.json({
+      rows,
+      summary: {
+        records: rows.length,
+        bookedValue: rows.reduce((total, row) => total + Number(row.amount || 0), 0),
+        completed: rows.filter(row => row.statusGroup === "completed").length,
+        averageRating: ratedRows.length ? ratedRows.reduce((total, row) => total + Number(row.rating), 0) / ratedRows.length : 0,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/reports/orders/drilldown", async (req, res, next) => {
+  try {
+    const Order = require("../models/Order");
+    const Payment = require("../models/Payment");
+    const { inRange, netPaymentsThrough, orderCompletionDate, parseReportDate } = require("../utils/enterpriseRevenue");
+    const { buildOrderFilter, combineOrderFilters, parseOrderReportFilters } = require("../utils/orderReportFilters");
+
+    const from = parseReportDate(req.body?.from);
+    const to = parseReportDate(req.body?.to, true);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      return res.status(400).json({ error: "A valid reporting date range is required." });
+    }
+    if (to - from > 365 * 86400000) return res.status(400).json({ error: "Order drilldowns are limited to 366 days." });
+
+    const dimension = String(req.body?.dimension || "all");
+    const allowedDimensions = new Set(["all", "status", "fulfillment", "payment", "brand", "trend"]);
+    if (!allowedDimensions.has(dimension)) return res.status(400).json({ error: "Invalid order drilldown dimension." });
+    const value = String(req.body?.value || "").trim().slice(0, 100);
+    const dimensionValues = {
+      status: new Set(["pending_payment", "preparing_unit", "ready_for_pickup", "technician_assigned", "technician_accepted", "technician_declined", "out_for_delivery", "arrived", "installing", "completed", "cancelled", "unknown"]),
+      fulfillment: new Set(["delivery_only", "delivery_installation", "customer_pickup", "unknown"]),
+      payment: new Set(["pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "refunded", "paid", "failed", "partial"]),
+    };
+    if (dimensionValues[dimension] && !dimensionValues[dimension].has(value)) {
+      return res.status(400).json({ error: "Invalid order chart selection." });
+    }
+    if (dimension === "brand" && !value) return res.status(400).json({ error: "A brand selection is required." });
+    const dataset = String(req.body?.dataset || "orders").trim().slice(0, 100).toLowerCase();
+    const allowedTrendDatasets = new Set(["orders placed", "booked order value", "recognized sales"]);
+    if (dimension === "trend" && !allowedTrendDatasets.has(dataset)) {
+      return res.status(400).json({ error: "Invalid order trend dataset." });
+    }
+    const completionBased = dimension === "brand" || (dimension === "trend" && dataset === "recognized sales");
+    const reportFilters = parseOrderReportFilters(req.body);
+    const baseOrderFilter = buildOrderFilter(reportFilters);
+    let bucketStart = null;
+    let bucketEnd = null;
+    if (dimension === "trend") {
+      bucketStart = new Date(req.body?.bucketStart);
+      bucketEnd = new Date(req.body?.bucketEnd);
+      const invalidBucket = Number.isNaN(bucketStart.getTime())
+        || Number.isNaN(bucketEnd.getTime())
+        || bucketStart > bucketEnd
+        || bucketStart < from
+        || bucketEnd > to;
+      if (invalidBucket) return res.status(400).json({ error: "Invalid chart bucket." });
+    }
+
+    let query;
+    if (completionBased) {
+      const completionWindow = dimension === "trend"
+        ? { $gte: bucketStart, $lte: bucketEnd }
+        : { $gte: from, $lte: to };
+      const completionFilter = {
+        status: "completed",
+        $or: [
+          { completedAt: completionWindow },
+          { statusHistory: { $elemMatch: { status: "completed", timestamp: completionWindow } } },
+          { completedAt: null, "statusHistory.status": { $ne: "completed" }, updatedAt: completionWindow },
+        ],
+      };
+      let dimensionFilter = {};
+      if (dimension === "brand" && value === "Unspecified") {
+        dimensionFilter = { $or: [{ "items.brand": { $exists: false } }, { "items.brand": null }, { "items.brand": "" }] };
+      } else if (dimension === "brand") dimensionFilter = { "items.brand": value };
+      query = combineOrderFilters(baseOrderFilter, completionFilter, dimensionFilter);
+    } else {
+      const createdAt = dimension === "trend"
+        ? { $gte: bucketStart, $lte: bucketEnd }
+        : { $gte: from, $lte: to };
+      let dimensionFilter = {};
+      if (dimension === "status") dimensionFilter = { status: value === "unknown" ? null : value };
+      if (dimension === "fulfillment") dimensionFilter = { fulfillmentType: value === "unknown" ? null : value };
+      if (dimension === "payment") dimensionFilter = { paymentStatus: value };
+      if (dimension === "trend" && dataset === "booked order value") dimensionFilter = { status: { $ne: "cancelled" } };
+      query = combineOrderFilters(baseOrderFilter, { createdAt }, dimensionFilter);
+    }
+
+    let orders = await Order.find(query).sort({ createdAt: -1 }).limit(501).lean();
+    if (completionBased) orders = orders.filter(order => inRange(orderCompletionDate(order),
+      dimension === "trend" ? bucketStart : from,
+      dimension === "trend" ? bucketEnd : to));
+    const truncated = orders.length > 500;
+    orders = orders.slice(0, 500);
+    const orderIds = orders.map(order => order._id);
+    const payments = orderIds.length ? await Payment.find({ orderId: { $in: orderIds } }).lean() : [];
+    const paymentsByOrder = new Map();
+    payments.forEach(payment => {
+      const key = String(payment.orderId);
+      if (!paymentsByOrder.has(key)) paymentsByOrder.set(key, []);
+      paymentsByOrder.get(key).push(payment);
+    });
+
+    const rows = orders.map(order => {
+      const collected = netPaymentsThrough(paymentsByOrder.get(String(order._id)) || [], to);
+      const amount = Number(order.total || 0);
+      const selectedItems = dimension === "brand"
+        ? (order.items || []).filter(item => value === "Unspecified" ? !item.brand : item.brand === value)
+        : [];
+      const selectedUnits = selectedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+      const selectedRevenue = selectedItems.reduce((sum, item) => {
+        const quantity = Math.max(0, Number(item.quantity) || 0);
+        const lineTotal = Number(item.totalPrice) || (Number(item.unitPrice) || 0) * quantity;
+        return sum + Math.max(0, lineTotal);
+      }, 0);
+      return {
+        id: String(order._id),
+        reference: order.orderReference || `#${String(order._id).slice(-6).toUpperCase()}`,
+        customer: order.customer?.name || "Unknown Customer",
+        products: (order.items || []).map(item => [item.brand, item.modelLine].filter(Boolean).join(" ")).filter(Boolean).join(", ") || "Product order",
+        status: order.status || "unknown",
+        fulfillment: order.fulfillmentType || "unknown",
+        payment: order.paymentStatus || "pending",
+        date: order.createdAt,
+        completionDate: orderCompletionDate(order),
+        units: (order.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+        selectedUnits,
+        selectedRevenue,
+        amount,
+        collected,
+        balance: Math.max(0, amount - collected),
+      };
+    });
+    res.json({
+      rows,
+      truncated,
+      summary: {
+        records: rows.length,
+        orderValue: rows.reduce((sum, row) => sum + row.amount, 0),
+        selectedRevenue: rows.reduce((sum, row) => sum + row.selectedRevenue, 0),
+        selectedUnits: rows.reduce((sum, row) => sum + row.selectedUnits, 0),
+        collected: rows.reduce((sum, row) => sum + row.collected, 0),
+        outstanding: rows.reduce((sum, row) => sum + row.balance, 0),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/reports/orders/export", async (req, res, next) => {
+  try {
+    const Order = require("../models/Order");
+    const { parseReportDate } = require("../utils/enterpriseRevenue");
+    const { buildOrderFilter, combineOrderFilters, parseOrderReportFilters } = require("../utils/orderReportFilters");
+    const from = parseReportDate(req.query.from);
+    const to = parseReportDate(req.query.to, true);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to || to - from > 365 * 86400000) {
+      return res.status(400).json({ error: "Export requires a valid reporting range of no more than 366 days." });
+    }
+    const reportFilters = parseOrderReportFilters(req.query);
+    const filter = combineOrderFilters(
+      buildOrderFilter(reportFilters),
+      { createdAt: { $gte: from, $lte: to } },
+    );
+    const count = await Order.countDocuments(filter);
+    if (count > 50000) return res.status(413).json({ error: "This export exceeds 50,000 orders. Select a smaller date range." });
+    const orders = await Order.find(filter).sort({ createdAt: -1 }).lean();
+    const safeCell = value => {
+      let text = String(value ?? "").replace(/\r?\n/g, " ");
+      if (/^[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const header = ["Date", "Reference", "Customer", "Email", "Units", "Fulfillment", "Payment Method", "Payment Status", "Order Status", "Subtotal", "Fees", "Total"];
+    const rows = orders.map(order => [
+      new Date(order.createdAt).toISOString(), order.orderReference || order._id, order.customer?.name,
+      order.customer?.email, (order.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+      order.fulfillmentType, order.paymentMethod, order.paymentStatus, order.status, Number(order.subtotal || 0),
+      Number(order.deliveryFee || 0) + Number(order.installationFee || 0) + Number(order.transportationFee || 0), Number(order.total || 0),
+    ]);
+    const csv = [header, ...rows].map(row => row.map(safeCell).join(",")).join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="order-analytics-${req.query.from}-${req.query.to}.csv"`);
+    res.send(`\uFEFF${csv}`);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Debug — remove after verifying
 router.get("/debug/counts", admin.debugCounts);
@@ -110,7 +424,7 @@ router.patch("/service-categories/:id", async (req, res) => {
     if (active !== undefined) update.active = active;
     if (order !== undefined) update.order = order;
     if (isCustom !== undefined) update.isCustom = isCustom;
-    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, update, { returnDocument: "after", runValidators: true });
     if (!category) return res.status(404).json({ success: false, error: "Category not found." });
     res.json({ success: true, category });
   } catch (err) {
@@ -134,7 +448,7 @@ router.delete("/service-categories/:id", async (req, res) => {
 router.patch("/service-categories/:id/reorder", async (req, res) => {
   try {
     const { order } = req.body;
-    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, { order }, { new: true });
+    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, { order }, { returnDocument: "after" });
     if (!category) return res.status(404).json({ success: false, error: "Category not found." });
     res.json({ success: true, category });
   } catch (err) {
@@ -196,18 +510,25 @@ router.post("/tools/:id/adjust-stock", async (req, res, next) => {
     if (!validTypes.includes(type)) return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
     if (!Number.isFinite(delta) || delta === 0) return res.status(400).json({ error: "Delta must be a non-zero number" });
 
+    // Normalize reason: convert empty string to null, and ensure it's a valid enum value or null
+    let normalizedReason = reason || null;
+    if (typeof normalizedReason === 'string' && normalizedReason.trim() === '') {
+      normalizedReason = null;
+    }
+
     const result = await StockAdjustment.record({
       toolId: id,
       type,
       delta,
       adjustedBy: req.user._id,
-      reason: reason || null,
+      reason: normalizedReason,
       notes: notes || null,
     });
 
     return res.json({ message: "Stock adjusted", adjustment: result.adjustment, tool: result.tool });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('[STOCK] Adjustment error:', err.message, err);
     next(err);
   }
 });
@@ -405,16 +726,113 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     payment.status = nextStatus;
     if (action === "verify") { payment.verifiedBy = req.user._id; payment.verifiedAt = now; payment.completedAt = now; }
     if (action === "reject") { payment.rejectedBy = req.user._id; payment.rejectedAt = now; payment.rejectionReason = String(req.body.reason).trim(); }
-    if (action === "refund") { payment.refundedBy = req.user._id; payment.refundedAt = now; payment.refundReason = String(req.body.reason).trim(); }
+    if (action === "refund") {
+      payment.refundedBy = req.user._id;
+      payment.refundedAt = now;
+      payment.refundReason = String(req.body.reason).trim();
+      payment.refundStatus = "completed";
+      payment.refundAmount = Math.min(
+        Number(payment.amount) || 0,
+        Number(payment.refundAmount) > 0 ? Number(payment.refundAmount) : Number(payment.amount) || 0,
+      );
+      payment.refundMethod = payment.refundMethod || "original";
+    }
     payment.events.push({ status: nextStatus, actor: req.user._id, actorName: req.user.name || req.user.email, actorRole: req.user.role, note: req.body.reason || req.body.notes, at: now });
     await payment.save();
     const update = { paymentStatus: nextStatus };
-    if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, update);
-    if (payment.orderId) await Order.findByIdAndUpdate(payment.orderId, update);
+    if (payment.bookingId) {
+      const booking = await BookingService.findById(payment.bookingId);
+      if (booking) {
+        const relatedPayments = await Payment.find({ bookingId: booking._id }).lean();
+        const { reconcileBookingPayments } = require("../utils/paymentSummary");
+        const reconciliation = reconcileBookingPayments(booking, relatedPayments);
+        booking.amountPaid = reconciliation.ledgerCollected;
+        booking.balanceAmount = reconciliation.outstandingFromLedger;
+        booking.balanceCollected = reconciliation.outstandingFromLedger <= 0.01;
+        if (!booking.balanceCollected) {
+          booking.balanceCollectedAt = null;
+          booking.balanceCollectedBy = null;
+        }
+        if (action === "verify") booking.paymentStatus = booking.balanceCollected ? "verified" : "partial";
+        else if (action === "reject") booking.paymentStatus = booking.amountPaid > 0 ? "partial" : "rejected";
+        else booking.paymentStatus = nextStatus;
+        await booking.save();
+      }
+    }
+    if (payment.orderId) {
+      if (action === "refund") await reconcileOrderRefundState(payment.orderId);
+      else await Order.findByIdAndUpdate(payment.orderId, update);
+    }
     if (payment.projectId) await Project.findByIdAndUpdate(payment.projectId, { "payment.paymentStatus": nextStatus });
     await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.${nextStatus}`, module: "payment", req, details: { reason: req.body.reason } }).catch(() => {});
     res.json({ message: `Payment marked ${nextStatus.replace(/_/g, " ")}.`, payment });
   } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/admin/payments/:id/complete-refund
+ * Admin marks a pending refund as completed after processing it externally.
+ * Uploads proof and finalizes the refund status.
+ *
+ * Body: { proofUrl: string }
+ */
+router.post("/payments/:id/complete-refund", async (req, res, next) => {
+  try {
+    const Payment = require("../models/Payment");
+    const BookingService = require("../models/BookingService");
+    const { id } = req.params;
+    const { proofUrl } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid payment ID" });
+
+    const payment = await Payment.findById(id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    if (!["pending", "processing"].includes(payment.refundStatus)) {
+      return res.status(409).json({ error: `Refund is not pending (current: ${payment.refundStatus}).` });
+    }
+
+    const now = new Date();
+    payment.refundStatus = "completed";
+    payment.status = "refunded";
+    payment.refundedAt = now;
+    payment.refundedBy = req.user?._id;
+    if (proofUrl) payment.refundProofUrl = proofUrl;
+    payment.events.push({
+      status: "refunded",
+      actor: req.user?._id,
+      actorName: req.user?.name || req.user?.email || "Admin",
+      actorRole: "admin",
+      note: `Refund completed. Amount: ₱${payment.refundAmount || 0}${proofUrl ? " (proof uploaded)" : ""}`,
+      at: now,
+    });
+    await payment.save();
+
+    // Update booking refund status
+    if (payment.bookingId) {
+      await BookingService.findByIdAndUpdate(payment.bookingId, {
+        paymentStatus: "refunded",
+        refundStatus: "completed",
+        refundProofUrl: proofUrl || undefined,
+      }).catch(() => {});
+    }
+    if (payment.orderId) {
+      await reconcileOrderRefundState(payment.orderId).catch(() => {});
+    }
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: payment._id,
+      action: "payment.refund_completed",
+      module: "payment",
+      req,
+      details: { refundAmount: payment.refundAmount, proofUrl: !!proofUrl },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Refund marked as completed.", payment });
+  } catch (err) {
+    console.error("Complete refund error:", err);
+    next(err);
+  }
 });
 
 // Ordered products / purchases administration
@@ -532,9 +950,361 @@ router.delete("/tool-usage/:usageId", async (req, res, next) => {
 // â”€â”€â”€ Fare / Pricing Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SiteSetting = require("../models/SiteSetting");
 const {
+  SETTING_KEY: AFTERCARE_SETTING_KEY,
+  getAftercarePolicy,
+  normalizeAftercarePolicy,
+  warrantyRuleForBooking,
+} = require("../utils/aftercarePolicy");
+const {
   getDownpaymentPercentage,
   normalizeDownpaymentPercentage,
 } = require("../utils/paymentPolicy");
+
+/** GET /api/admin/settings/aftercare */
+router.get("/settings/aftercare", async (_req, res, next) => {
+  try {
+    return res.json({ policy: await getAftercarePolicy() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/settings/aftercare/governance
+ *
+ * One read model for the Aftercare governance screen. Catalog policies remain
+ * stored on their owning service/product documents; this endpoint deliberately
+ * does not create a second warranty configuration store.
+ */
+router.get("/settings/aftercare/governance", async (_req, res, next) => {
+  try {
+    const CoreService = require("../models/CoreService");
+    const RepairService = require("../models/RepairService");
+    const ServiceCategory = require("../models/ServiceCategory");
+    const Inventory = require("../models/Inventory");
+    const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { normalizeServiceWarrantyPolicy, SERVICE_WARRANTY_DEFAULTS } = require("../utils/serviceWarrantyPolicy");
+
+    const policy = await getAftercarePolicy();
+    const now = new Date();
+    const [coreDocs, repairDocs, repairCategoryDocs, productDocs, activeBookingWarranties, activeOrderWarranties, openClaims] = await Promise.all([
+      CoreService.find({}).select("name slug category active warrantyPolicy updatedAt").sort({ active: -1, name: 1 }).lean(),
+      RepairService.find({}).select("name slug applianceType active warrantyDays warrantyPolicy updatedAt").sort({ active: -1, name: 1 }).lean(),
+      ServiceCategory.find({}).select("name slug unitTypes active warrantyPolicy updatedAt").sort({ active: -1, order: 1, name: 1 }).lean(),
+      Inventory.find({}).select("modelLine capacity capacityUnit brand active warranty updatedAt").populate("brand", "name").sort({ active: -1, modelLine: 1 }).lean(),
+      BookingService.countDocuments({ "warranty.endDate": { $gte: now }, "warranty.status": { $in: ["active", "claimed"] } }),
+      Order.countDocuments({ "warranty.endDate": { $gte: now }, "warranty.status": { $in: ["active", "claimed"] } }),
+      WarrantyClaim.countDocuments({ active: true, status: { $nin: ["resolved", "closed", "withdrawn"] } }),
+    ]);
+
+    function serviceRow(service, kind) {
+      const policyKind = kind === "core" ? "core" : "repair";
+      const configured = Boolean(service.warrantyPolicy && Number.isFinite(Number(service.warrantyPolicy.workmanshipDays)));
+      const hasRecommendedDefault = Boolean(SERVICE_WARRANTY_DEFAULTS[String(service.slug || "").toLowerCase()]);
+      const fallbackDays = policyKind === "repair" ? policy.warranty.repairBookingDays : policy.warranty.serviceBookingDays;
+      const fallbackEnabled = policyKind === "repair" ? policy.warranty.repairBookingsEnabled : policy.warranty.serviceBookingsEnabled;
+      const effectivePolicy = configured
+        ? normalizeServiceWarrantyPolicy(service.warrantyPolicy, service, policyKind)
+        : normalizeServiceWarrantyPolicy({ enabled: fallbackEnabled, ...(hasRecommendedDefault ? {} : { workmanshipDays: fallbackDays }) }, service, policyKind);
+      return {
+        id: String(service._id),
+        kind,
+        name: service.name,
+        slug: service.slug,
+        category: kind === "core"
+          ? (service.category || "Core service")
+          : kind === "repair_category"
+            ? `${Array.isArray(service.unitTypes) ? service.unitTypes.length : 0} unit types`
+            : (service.applianceType || "Repair catalog"),
+        active: service.active !== false,
+        policySource: configured ? "configured" : "fallback",
+        fallbackKind: configured ? null : (hasRecommendedDefault ? "recommended_service_default" : "global_legacy_fallback"),
+        policy: effectivePolicy,
+        updatedAt: service.updatedAt || null,
+      };
+    }
+
+    const services = [
+      ...coreDocs.map(service => serviceRow(service, "core")),
+      ...repairDocs.map(service => serviceRow(service, "repair")),
+      ...repairCategoryDocs.map(service => serviceRow(service, "repair_category")),
+    ];
+    const products = productDocs.map(product => ({
+      id: String(product._id),
+      name: [product.brand?.name, product.modelLine].filter(Boolean).join(" ") || product.modelLine || "Product",
+      capacity: [product.capacity, product.capacityUnit].filter(Boolean).join(" "),
+      active: product.active !== false,
+      manufacturerWarranty: String(product.warranty || "").trim(),
+      configured: Boolean(String(product.warranty || "").trim()),
+      updatedAt: product.updatedAt || null,
+    }));
+    const configuredServices = services.filter(service => service.policySource === "configured").length;
+    const fallbackServices = services.length - configuredServices;
+    const configuredProducts = products.filter(product => product.configured).length;
+
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      policy,
+      summary: {
+        totalServices: services.length,
+        configuredServices,
+        fallbackServices,
+        totalProducts: products.length,
+        configuredProducts,
+        activeBookingWarranties,
+        activeOrderWarranties,
+        openClaims,
+      },
+      services,
+      products,
+      precedence: [
+        "Issued warranty snapshot (immutable)",
+        "Configured service, repair category, or product policy",
+        "Legacy fallback policy",
+      ],
+      orderCoverage: {
+        sellerEnabled: policy.warranty.productOrdersEnabled,
+        sellerDays: policy.warranty.productOrderDays,
+        installationWorkmanshipDays: 180,
+        manufacturerTermsSource: "Product inventory",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Strict, warranty-only update used by the governance hub. */
+router.patch("/settings/aftercare/services/:kind/:id/warranty", async (req, res, next) => {
+  try {
+    const kind = String(req.params.kind || "").toLowerCase();
+    if (!mongoose.Types.ObjectId.isValid(req.params.id) || !["core", "repair", "repair_category"].includes(kind)) {
+      return res.status(400).json({ error: "A valid service type and service id are required." });
+    }
+    const Model = kind === "repair_category"
+      ? require("../models/ServiceCategory")
+      : kind === "repair"
+        ? require("../models/RepairService")
+        : require("../models/CoreService");
+    const policyKind = kind === "core" ? "core" : "repair";
+    const { normalizeServiceWarrantyPolicy } = require("../utils/serviceWarrantyPolicy");
+    const service = await Model.findById(req.params.id);
+    if (!service) return res.status(404).json({ error: "Service not found." });
+
+    const previous = normalizeServiceWarrantyPolicy(service.warrantyPolicy, service, policyKind);
+    const incoming = req.body?.warrantyPolicy || req.body || {};
+    const nextPolicy = normalizeServiceWarrantyPolicy(incoming, service, policyKind);
+    const comparablePrevious = { ...previous, termsVersion: undefined };
+    const comparableNext = { ...nextPolicy, termsVersion: undefined };
+    nextPolicy.termsVersion = JSON.stringify(comparablePrevious) === JSON.stringify(comparableNext)
+      ? previous.termsVersion
+      : Math.min(1000000, Math.max(1, Number(previous.termsVersion) || 1) + 1);
+
+    service.warrantyPolicy = nextPolicy;
+    if (kind === "repair") service.warrantyDays = nextPolicy.workmanshipDays;
+    await service.save();
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: service._id,
+      action: kind === "repair_category"
+        ? "settings.aftercare.repairCategoryWarranty.update"
+        : `settings.aftercare.${kind}ServiceWarranty.update`,
+      module: "admin",
+      req,
+      details: { serviceName: service.name, previous, warrantyPolicy: nextPolicy },
+    }).catch(() => {});
+    return res.json({
+      message: `${service.name} warranty policy updated. Future completions will use version ${nextPolicy.termsVersion}.`,
+      service: {
+        id: String(service._id),
+        kind,
+        name: service.name,
+        policySource: "configured",
+        policy: nextPolicy,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Strict manufacturer-terms update. Existing order snapshots are untouched. */
+router.patch("/settings/aftercare/products/:id/warranty", async (req, res, next) => {
+  try {
+    const Inventory = require("../models/Inventory");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid product id." });
+    if (typeof req.body?.manufacturerWarranty !== "string") return res.status(400).json({ error: "Manufacturer warranty terms are required." });
+    const manufacturerWarranty = req.body.manufacturerWarranty.trim();
+    if (manufacturerWarranty.length > 500) return res.status(400).json({ error: "Manufacturer warranty terms cannot exceed 500 characters." });
+    const product = await Inventory.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found." });
+    const previous = String(product.warranty || "");
+    product.warranty = manufacturerWarranty;
+    await product.save();
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: product._id,
+      action: "settings.aftercare.productManufacturerWarranty.update",
+      module: "admin",
+      req,
+      details: { productName: product.modelLine, previous, manufacturerWarranty },
+    }).catch(() => {});
+    return res.json({ message: "Manufacturer warranty terms updated for future orders.", product: { id: String(product._id), manufacturerWarranty } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Update only future order seller coverage without overwriting other tabs. */
+router.patch("/settings/aftercare/order-policy", async (req, res, next) => {
+  try {
+    const enabled = req.body?.enabled;
+    const days = Number(req.body?.days);
+    if (typeof enabled !== "boolean") return res.status(400).json({ error: "Order seller coverage must be enabled or disabled explicitly." });
+    if (!Number.isInteger(days) || days < 1 || days > 3650) return res.status(400).json({ error: "Order seller coverage must be between 1 and 3650 days." });
+    await SiteSetting.findOneAndUpdate(
+      { key: AFTERCARE_SETTING_KEY },
+      { $set: { "value.warranty.productOrdersEnabled": enabled, "value.warranty.productOrderDays": days } },
+      { upsert: true, setDefaultsOnInsert: true, runValidators: true },
+    );
+    const policy = await getAftercarePolicy();
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: req.user && req.user._id,
+      action: "settings.aftercare.orderWarranty.update",
+      module: "admin",
+      req,
+      details: { enabled, days },
+    }).catch(() => {});
+    return res.json({ message: "Order warranty policy saved for future completions.", policy });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Update automation, reminders, and legacy fallback fields as one scoped form. */
+router.patch("/settings/aftercare/automation", async (req, res, next) => {
+  try {
+    const supplied = req.body || {};
+    const maintenance = supplied.maintenance || {};
+    const reminders = supplied.reminders || {};
+    const fallback = supplied.fallback || {};
+    const numericRules = [
+      ["Booking maintenance interval", maintenance.bookingIntervalDays, 30, 730],
+      ["Order maintenance interval", maintenance.orderIntervalDays, 30, 730],
+      ["First reminder", reminders.firstReminderDays, 2, 90],
+      ["Final reminder", reminders.finalReminderDays, 1, 30],
+      ["Core-service fallback", fallback.serviceBookingDays, 90, 3650],
+      ["Repair fallback", fallback.repairBookingDays, 90, 3650],
+    ];
+    for (const [label, value, min, max] of numericRules) {
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < min || parsed > max) return res.status(400).json({ error: `${label} must be between ${min} and ${max} days.` });
+    }
+    const booleanRules = [
+      maintenance.bookingsEnabled, maintenance.allowTechnicianRecommendation, maintenance.ordersEnabled,
+      reminders.enabled, reminders.dueDateEnabled, reminders.overdueEnabled, reminders.notifyAdminWhenOverdue,
+      fallback.serviceBookingsEnabled, fallback.repairBookingsEnabled,
+    ];
+    if (booleanRules.some(value => typeof value !== "boolean")) return res.status(400).json({ error: "Every automation and fallback switch must be enabled or disabled explicitly." });
+    if (Number(reminders.firstReminderDays) <= Number(reminders.finalReminderDays)) return res.status(400).json({ error: "The first reminder must occur earlier than the final reminder." });
+
+    const set = {
+      "value.maintenance.bookingsEnabled": maintenance.bookingsEnabled,
+      "value.maintenance.bookingIntervalDays": Number(maintenance.bookingIntervalDays),
+      "value.maintenance.allowTechnicianRecommendation": maintenance.allowTechnicianRecommendation,
+      "value.maintenance.ordersEnabled": maintenance.ordersEnabled,
+      "value.maintenance.orderIntervalDays": Number(maintenance.orderIntervalDays),
+      "value.reminders.enabled": reminders.enabled,
+      "value.reminders.firstReminderDays": Number(reminders.firstReminderDays),
+      "value.reminders.finalReminderDays": Number(reminders.finalReminderDays),
+      "value.reminders.dueDateEnabled": reminders.dueDateEnabled,
+      "value.reminders.overdueEnabled": reminders.overdueEnabled,
+      "value.reminders.notifyAdminWhenOverdue": reminders.notifyAdminWhenOverdue,
+      "value.warranty.serviceBookingsEnabled": fallback.serviceBookingsEnabled,
+      "value.warranty.serviceBookingDays": Number(fallback.serviceBookingDays),
+      "value.warranty.repairBookingsEnabled": fallback.repairBookingsEnabled,
+      "value.warranty.repairBookingDays": Number(fallback.repairBookingDays),
+    };
+    await SiteSetting.findOneAndUpdate(
+      { key: AFTERCARE_SETTING_KEY },
+      { $set: set },
+      { upsert: true, setDefaultsOnInsert: true, runValidators: true },
+    );
+    const policy = await getAftercarePolicy();
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: req.user && req.user._id,
+      action: "settings.aftercare.automationAndFallback.update",
+      module: "admin",
+      req,
+      details: { maintenance: policy.maintenance, reminders: policy.reminders, fallback: { serviceBookingsEnabled: policy.warranty.serviceBookingsEnabled, serviceBookingDays: policy.warranty.serviceBookingDays, repairBookingsEnabled: policy.warranty.repairBookingsEnabled, repairBookingDays: policy.warranty.repairBookingDays } },
+    }).catch(() => {});
+    return res.json({ message: "Automation, reminders, and fallback policies saved.", policy });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** PUT /api/admin/settings/aftercare */
+router.put("/settings/aftercare", async (req, res, next) => {
+  try {
+    const supplied = req.body?.policy || req.body || {};
+    const numericRules = [
+      ["Booking maintenance interval", supplied.maintenance?.bookingIntervalDays, 30, 730],
+      ["Order maintenance interval", supplied.maintenance?.orderIntervalDays, 30, 730],
+      ["First reminder", supplied.reminders?.firstReminderDays, 2, 90],
+      ["Final reminder", supplied.reminders?.finalReminderDays, 1, 30],
+      ["Service booking warranty", supplied.warranty?.serviceBookingDays, 90, 3650],
+      ["Repair booking warranty", supplied.warranty?.repairBookingDays, 90, 3650],
+      ["Product order warranty", supplied.warranty?.productOrderDays, 1, 3650],
+    ];
+    for (const [label, value, minimum, maximum] of numericRules) {
+      const number = Number(value);
+      if (!Number.isInteger(number) || number < minimum || number > maximum) {
+        return res.status(400).json({ error: `${label} must be a whole number between ${minimum} and ${maximum} days.` });
+      }
+    }
+    const booleanRules = [
+      ["Booking maintenance automation", supplied.maintenance?.bookingsEnabled],
+      ["Technician maintenance recommendations", supplied.maintenance?.allowTechnicianRecommendation],
+      ["Order maintenance automation", supplied.maintenance?.ordersEnabled],
+      ["Maintenance reminders", supplied.reminders?.enabled],
+      ["Due-date reminders", supplied.reminders?.dueDateEnabled],
+      ["Overdue reminders", supplied.reminders?.overdueEnabled],
+      ["Administrator overdue alerts", supplied.reminders?.notifyAdminWhenOverdue],
+      ["Service booking warranty", supplied.warranty?.serviceBookingsEnabled],
+      ["Repair booking warranty", supplied.warranty?.repairBookingsEnabled],
+      ["Product order warranty", supplied.warranty?.productOrdersEnabled],
+    ];
+    for (const [label, value] of booleanRules) {
+      if (typeof value !== "boolean") return res.status(400).json({ error: `${label} must be enabled or disabled explicitly.` });
+    }
+    if (Number(supplied.reminders.firstReminderDays) <= Number(supplied.reminders.finalReminderDays)) {
+      return res.status(400).json({ error: "The first reminder must occur earlier than the final reminder." });
+    }
+
+    const policy = normalizeAftercarePolicy(supplied);
+    await SiteSetting.findOneAndUpdate(
+      { key: AFTERCARE_SETTING_KEY },
+      { value: policy },
+      { upsert: true, setDefaultsOnInsert: true, runValidators: true },
+    );
+    await audit.logEvent({
+      actor: req.user && req.user._id,
+      target: req.user && req.user._id,
+      action: "settings.aftercare.update",
+      module: "admin",
+      req,
+      details: policy,
+    }).catch(() => {});
+    return res.json({ message: "Aftercare configuration saved successfully.", policy });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** GET /api/admin/settings/payment-policy */
 router.get("/settings/payment-policy", async (_req, res, next) => {
@@ -1458,94 +2228,48 @@ router.get("/ratings/dashboard", async (req, res, next) => {
 
 router.get("/ratings/service", async (req, res, next) => {
   try {
-    const Rating = require("../models/Rating");
-    const BookingService = require("../models/BookingService");
-
-    const [bookingDocs, ratingDocs] = await Promise.all([
-      BookingService.find({ customerRating: { $ne: null } })
-        .populate("customerId", "firstName lastName email")
-        .populate("technicianId", "name userEmail")
-        .sort({ createdAt: -1 })
-        .lean(),
-      Rating.find({ targetType: "booking" })
-        .populate("customerId", "firstName lastName email")
-        .sort({ createdAt: -1 })
-        .lean(),
-    ]);
-
-    const bookingRatings = bookingDocs.map(b => ({
-      id: String(b._id),
-      date: b.createdAt,
-      customer: b.customerId ? `${b.customerId.firstName || ""} ${b.customerId.lastName || ""}`.trim() || "Customer" : (b.customer?.name || "Customer"),
-      email: b.customerId?.email || b.customer?.email || "",
-      serviceType: b.service?.name || b.serviceModel || "Service",
-      technician: b.technicianId?.name || b.technician?.name || "Unassigned",
-      rating: b.customerRating,
-      comment: b.customerRatingComment || "",
-      responded: false,
-      createdAt: b.createdAt,
-    }));
-
-    const standaloneRatings = ratingDocs.map(r => ({
-      id: String(r._id),
-      date: r.createdAt,
-      customer: r.customerId ? `${r.customerId.firstName || ""} ${r.customerId.lastName || ""}`.trim() || "Customer" : "Customer",
-      email: r.customerId?.email || "",
-      serviceType: "booking",
-      technician: "",
-      rating: r.score,
-      comment: r.comment || "",
-      responded: false,
-      createdAt: r.createdAt,
-    }));
-
-    const allRatings = [...bookingRatings, ...standaloneRatings]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const perPage = 10;
-    const totalPages = Math.max(1, Math.ceil(allRatings.length / perPage));
-    const paginatedRatings = allRatings.slice((page - 1) * perPage, page * perPage);
-    const ratings = paginatedRatings.map(({ createdAt, ...rest }) => rest);
-
-    const totalRatings = allRatings.length;
-    const overallRating = totalRatings > 0
-      ? +(allRatings.reduce((s, r) => s + r.rating, 0) / totalRatings).toFixed(1)
-      : 0;
-    const satisfiedCount = allRatings.filter(r => r.rating >= 4).length;
-    const satisfactionRate = totalRatings > 0 ? Math.round((satisfiedCount / totalRatings) * 100) : 0;
-
-    const starBreakdown = { "5": 0, "4": 0, "3": 0, "2": 0, "1": 0 };
-    for (const r of allRatings) {
-      const key = String(Math.round(r.rating));
-      if (starBreakdown[key] !== undefined) starBreakdown[key]++;
-    }
-
-    const catGroups = {};
-    for (const r of allRatings) {
-      const cat = r.serviceType || "Unknown";
-      if (!catGroups[cat]) catGroups[cat] = { total: 0, count: 0 };
-      catGroups[cat].total += r.rating;
-      catGroups[cat].count++;
-    }
-    const categories = Object.entries(catGroups).map(([name, v]) => ({
-      name,
-      rating: +(v.total / v.count).toFixed(1),
-      count: v.count,
-    })).sort((a, b) => b.rating - a.rating);
-
+    const { loadServiceRatingReport } = require("../utils/serviceRatingReport");
+    const report = await loadServiceRatingReport(req.query);
+    res.set("Cache-Control", "no-store, private");
     res.json({
-      ratings,
-      totalPages,
-      stats: {
-        overallRating,
-        satisfactionRate,
-        responseTime: "N/A",
-        avgCompletion: "N/A",
-      },
-      starBreakdown,
-      categories,
+      ratings: report.rows,
+      analytics: report.analytics,
+      stats: report.analytics.stats,
+      starBreakdown: report.analytics.starBreakdown,
+      categories: report.analytics.services,
+      trend: report.analytics.trend,
+      filters: report.filters,
+      filterOptions: report.filterOptions,
+      pagination: report.pagination,
+      reportStart: report.reportStart,
+      reportEnd: report.reportEnd,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/ratings/service/export", async (req, res, next) => {
+  try {
+    const { loadServiceRatingReport } = require("../utils/serviceRatingReport");
+    const report = await loadServiceRatingReport(req.query, { paginate: false });
+    if (report.allRows.length > 50000) {
+      return res.status(413).json({ error: "This export exceeds 50,000 reviews. Select a smaller reporting window." });
+    }
+    const safeCell = value => {
+      let output = String(value ?? "").replace(/\r?\n/g, " ");
+      if (/^[=+\-@]/.test(output)) output = `'${output}`;
+      return `"${output.replace(/"/g, '""')}"`;
+    };
+    const header = ["Review Date", "Booking Reference", "Customer", "Email", "Service Class", "Service", "Technician", "Rating", "Attention", "Comment", "Record Source"];
+    const rows = report.allRows.map(row => [
+      new Date(row.date).toISOString(), row.reference, row.customer, row.email, row.serviceType, row.serviceName,
+      row.technician, row.rating, row.attention.replaceAll("_", " "), row.comment, row.source,
+    ]);
+    const csv = [header, ...rows].map(row => row.map(safeCell).join(",")).join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="service-ratings-${report.reportStart}-${report.reportEnd}.csv"`);
+    res.send(`\uFEFF${csv}`);
   } catch (err) {
     next(err);
   }
@@ -1564,8 +2288,9 @@ router.get("/ratings/aircons", async (req, res, next) => {
 
     const inventoryIds = [...new Set(ratingDocs.map(r => String(r.targetId)))];
     let inventoryMap = {};
+    let inventoryDocs = [];
     if (inventoryIds.length > 0) {
-      const inventoryDocs = await Inventory.find({ _id: { $in: inventoryIds } })
+      inventoryDocs = await Inventory.find({ _id: { $in: inventoryIds } })
         .populate("brand", "name")
         .lean();
       for (const inv of inventoryDocs) {
@@ -1586,7 +2311,7 @@ router.get("/ratings/aircons", async (req, res, next) => {
         comment: r.comment || "",
         date: r.createdAt,
         verified: true,
-        productImageUrl: "/images/products/default.png",
+        productImageUrl: inv?.imageUrl || "/images/products/default.png",
       };
     });
 
@@ -1603,11 +2328,19 @@ router.get("/ratings/aircons", async (req, res, next) => {
       brandGroups[b].total += r.rating;
       brandGroups[b].count++;
     }
-    const brandPerformance = Object.entries(brandGroups).map(([brand, v]) => ({
-      brand,
-      avgRating: +(v.total / v.count).toFixed(1),
-      reviewCount: v.count,
-    })).sort((a, b) => b.avgRating - a.avgRating);
+    const brandEntries = Object.entries(brandGroups)
+      .sort((a, b) => (b[1].total / b[1].count) - (a[1].total / a[1].count));
+    const brandPerformance = {
+      labels: brandEntries.map(([b]) => b),
+      data: brandEntries.map(([, v]) => +(v.total / v.count).toFixed(1)),
+      colors: brandEntries.map((_, i) => [
+        'rgba(13, 110, 253, 0.8)',
+        'rgba(25, 135, 84, 0.8)',
+        'rgba(255, 193, 7, 0.8)',
+        'rgba(220, 53, 69, 0.8)',
+        'rgba(108, 117, 125, 0.8)',
+      ][i % 5]),
+    };
 
     const prodGroups = {};
     for (const r of reviews) {
@@ -1616,23 +2349,100 @@ router.get("/ratings/aircons", async (req, res, next) => {
       prodGroups[key].total += r.rating;
       prodGroups[key].count++;
     }
-    const topProducts = Object.entries(prodGroups)
-      .map(([name, v]) => ({
+
+    // Star breakdown for aircon ratings
+    const starBreakdown = [0, 0, 0, 0, 0]; // [5star, 4star, 3star, 2star, 1star]
+    for (const r of reviews) {
+      const idx = 5 - Math.round(r.rating);
+      if (idx >= 0 && idx < 5) starBreakdown[idx]++;
+    }
+
+    // Enrich top products with price range and inventory details
+    const enrichedTopProducts = [];
+    for (const [name, v] of Object.entries(prodGroups)) {
+      const matchingInventory = inventoryDocs.filter(inv => inv.modelLine === name);
+      const prices = matchingInventory.map(inv => inv.sellingPrice).filter(p => p > 0);
+      const images = matchingInventory.map(inv => inv.imageUrl).filter(Boolean);
+      const ids = matchingInventory.map(inv => String(inv._id));
+      enrichedTopProducts.push({
         name,
         model: name,
         brand: v.brand,
         avgRating: +(v.total / v.count).toFixed(1),
         reviewCount: v.count,
-      }))
-      .sort((a, b) => b.reviewCount - a.reviewCount)
-      .slice(0, 5);
+        id: ids[0] || '',
+        imageUrl: images[0] || '/images/products/default.png',
+        minPrice: prices.length > 0 ? Math.min(...prices) : 0,
+        maxPrice: prices.length > 0 ? Math.max(...prices) : 0,
+      });
+    }
+    enrichedTopProducts.sort((a, b) => b.reviewCount - a.reviewCount);
+    const topProductsLimited = enrichedTopProducts.slice(0, 5);
 
     res.json({
       stats: { totalProducts, avgRating, totalReviews, verifiedReviews: totalReviews },
       reviews: reviews.slice(0, 50),
       brandPerformance,
-      topProducts,
+      topProducts: topProductsLimited,
+      starBreakdown,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Aircon Top Products (standalone endpoint for aircons tab) ─────────────
+router.get("/ratings/top-products", async (req, res, next) => {
+  try {
+    const Rating = require("../models/Rating");
+    const Inventory = require("../models/Inventory");
+
+    const ratingDocs = await Rating.find({ targetType: "inventory" })
+      .populate("customerId", "firstName lastName email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const inventoryIds = [...new Set(ratingDocs.map(r => String(r.targetId)))];
+    let inventoryMap = {};
+    let inventoryDocs = [];
+    if (inventoryIds.length > 0) {
+      inventoryDocs = await Inventory.find({ _id: { $in: inventoryIds } })
+        .populate("brand", "name")
+        .lean();
+      for (const inv of inventoryDocs) {
+        inventoryMap[String(inv._id)] = inv;
+      }
+    }
+
+    const prodGroups = {};
+    for (const r of ratingDocs) {
+      const inv = inventoryMap[String(r.targetId)];
+      const name = inv?.modelLine || "Unknown";
+      const brandName = inv?.brand?.name || "Unknown";
+      if (!prodGroups[name]) prodGroups[name] = { total: 0, count: 0, brand: brandName };
+      prodGroups[name].total += r.score;
+      prodGroups[name].count++;
+    }
+
+    const products = Object.entries(prodGroups).map(([name, v]) => {
+      const matchingInventory = inventoryDocs.filter(inv => inv.modelLine === name);
+      const prices = matchingInventory.map(inv => inv.sellingPrice).filter(p => p > 0);
+      const images = matchingInventory.map(inv => inv.imageUrl).filter(Boolean);
+      const ids = matchingInventory.map(inv => String(inv._id));
+      return {
+        name,
+        model: name,
+        brand: v.brand,
+        avgRating: +(v.total / v.count).toFixed(1),
+        reviewCount: v.count,
+        id: ids[0] || '',
+        imageUrl: images[0] || '/images/products/default.png',
+        minPrice: prices.length > 0 ? Math.min(...prices) : 0,
+        maxPrice: prices.length > 0 ? Math.max(...prices) : 0,
+      };
+    }).sort((a, b) => b.reviewCount - a.reviewCount);
+
+    res.json({ products });
   } catch (err) {
     next(err);
   }
@@ -1934,6 +2744,7 @@ router.get("/settings/business-profile", async (req, res, next) => {
       "companyPhone",
       "companyEmail",
       "companyLocationAddress",
+      "companyFoundedYear",
     ];
     const docs = await SiteSetting.find({ key: { $in: keys } }).lean();
     const map = {};
@@ -1944,6 +2755,7 @@ router.get("/settings/business-profile", async (req, res, next) => {
       phone: map.companyPhone || "0965 605 6495",
       email: map.companyEmail || "calidroracs@gmail.com",
       address: map.companyLocationAddress || "San Leonardo, Nueva Ecija",
+      foundedYear: Number(map.companyFoundedYear) || null,
     });
   } catch (err) {
     next(err);
@@ -1974,6 +2786,19 @@ router.put("/settings/business-profile", async (req, res, next) => {
         }
       }
     }
+    if (req.body.foundedYear !== undefined) {
+      const foundedYear = Number(req.body.foundedYear);
+      const currentYear = new Date().getFullYear();
+      if (!Number.isInteger(foundedYear) || foundedYear < 1900 || foundedYear > currentYear) {
+        return res.status(400).json({ error: `Founded year must be between 1900 and ${currentYear}.` });
+      }
+      await SiteSetting.findOneAndUpdate(
+        { key: "companyFoundedYear" },
+        { value: foundedYear },
+        { upsert: true, setDefaultsOnInsert: true },
+      );
+      updates.companyFoundedYear = foundedYear;
+    }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -1985,6 +2810,7 @@ router.put("/settings/business-profile", async (req, res, next) => {
       req,
       details: updates,
     }).catch(() => { });
+    require("../utils/publicBusinessStats").invalidatePublicBusinessStats();
     return res.json({ message: "Business profile saved successfully", updates });
   } catch (err) {
     next(err);
@@ -2069,7 +2895,7 @@ async function getOrCreateDailyToken() {
   await SiteSetting.findOneAndUpdate(
     { key: "attendance_qr_token" },
     { value: { date: todayStr, token: newToken } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   return newToken;
 }
@@ -2499,43 +3325,338 @@ router.patch("/repair-queue/:id/status", async (req, res, next) => {
 
 // â”€â”€â”€ Warranty Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+const WARRANTY_BOOKING_STATUSES = [
+  "completed",
+  "repair_completed",
+  "under_warranty",
+  "warranty_claim",
+  "closed",
+];
+const {
+  resolveWarrantyCoverage,
+  bookingCompletionDate,
+} = require("../utils/warrantyLifecycle");
+
+function effectiveWarrantySnapshot(warranty, now = new Date(), fallbackStart = null) {
+  return resolveWarrantyCoverage(warranty, fallbackStart, now);
+}
+
+function warrantyClaimHistory(claim, req, status, note) {
+  claim.history.push({
+    status,
+    actorId: req.user._id,
+    actorRole: "admin",
+    actorName: req.user.name || req.user.email || "Administrator",
+    note: String(note || "").trim().slice(0, 2000),
+  });
+}
+
+function publicWarrantyClaim(claim) {
+  const value = claim?.toObject ? claim.toObject() : claim;
+  return { ...value, coverageSnapshot: value?.coverageSnapshot || {} };
+}
+
+router.get("/warranty-claims", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { escapeRegex } = require("../utils/stringSecurity");
+    const filter = {};
+    const allowedStatuses = new Set(require("../models/WarrantyClaim").CLAIM_STATUSES);
+    if (req.query.status && req.query.status !== "all" && allowedStatuses.has(req.query.status)) filter.status = req.query.status;
+    if (["booking", "order"].includes(req.query.sourceType)) filter.sourceType = req.query.sourceType;
+    if (["normal", "high", "critical"].includes(req.query.priority)) filter.priority = req.query.priority;
+    if (String(req.query.active || "") === "true") filter.active = true;
+    const search = String(req.query.search || "").trim().slice(0, 100);
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), "i");
+      filter.$or = [
+        { claimReference: regex }, { sourceReference: regex }, { "affectedItem.name": regex }, { description: regex },
+      ];
+    }
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+    const [claims, total] = await Promise.all([
+      WarrantyClaim.find(filter)
+        .populate("customerId", "name email phone")
+        .populate("assignedTechnicianId", "name userEmail phone")
+        .sort({ active: -1, priority: 1, submittedAt: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      WarrantyClaim.countDocuments(filter),
+    ]);
+    return res.json({ claims, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/warranty-claims/:id", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid warranty claim id." });
+    const claim = await WarrantyClaim.findById(req.params.id)
+      .populate("customerId", "name email phone address")
+      .populate("assignedTechnicianId", "name userEmail phone")
+      .lean();
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    return res.json({ claim });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/warranty-claims/:id/triage", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { cleanText } = require("../utils/warrantyClaimPolicy");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid warranty claim id." });
+    const claim = await WarrantyClaim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    if (!["submitted", "triage"].includes(claim.status)) return res.status(409).json({ error: "This claim is no longer awaiting triage." });
+    if (["normal", "high", "critical"].includes(req.body.priority)) claim.priority = req.body.priority;
+    claim.status = "triage";
+    claim.acknowledgedAt ||= new Date();
+    warrantyClaimHistory(claim, req, "triage", cleanText(req.body.note, 2000) || "Claim acknowledged and under review");
+    await claim.save();
+    return res.json({ success: true, claim: publicWarrantyClaim(claim) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/warranty-claims/:id/schedule-inspection", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const Technician = require("../models/Technician");
+    const { cleanText } = require("../utils/warrantyClaimPolicy");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id) || !mongoose.Types.ObjectId.isValid(req.body.technicianId)) {
+      return res.status(400).json({ error: "Select a valid technician." });
+    }
+    const [claim, technician] = await Promise.all([
+      WarrantyClaim.findById(req.params.id),
+      Technician.findOne({ _id: req.body.technicianId, active: true }),
+    ]);
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    if (!technician) return res.status(400).json({ error: "The selected technician is unavailable." });
+    if (!["submitted", "triage", "inspection_scheduled"].includes(claim.status)) {
+      return res.status(409).json({ error: "This claim cannot be scheduled from its current status." });
+    }
+    const scheduledDate = new Date(req.body.scheduledDate);
+    if (Number.isNaN(scheduledDate.getTime())) return res.status(400).json({ error: "Enter a valid inspection date." });
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
+    if (scheduledDate < startToday) return res.status(400).json({ error: "Inspection date cannot be in the past." });
+    claim.assignedTechnicianId = technician._id;
+    claim.inspection.scheduledDate = scheduledDate;
+    claim.inspection.timeSlot = cleanText(req.body.timeSlot, 100);
+    claim.status = "inspection_scheduled";
+    claim.acknowledgedAt ||= new Date();
+    warrantyClaimHistory(claim, req, "inspection_scheduled", cleanText(req.body.note, 2000) || `Inspection assigned to ${technician.name}`);
+    await claim.save();
+    const { createNotification } = require("../utils/notify");
+    await Promise.all([
+      createNotification({ type: "warranty_inspection_scheduled", title: "Warranty inspection scheduled", message: `${claim.claimReference} is scheduled for inspection.`, userId: claim.customerId, referenceId: claim._id, referenceModel: "WarrantyClaim", link: "/book-history", priority: "high", io: req.app.get("io") }),
+      createNotification({ type: "warranty_inspection_assigned", title: "New warranty inspection", message: `${claim.claimReference} requires your inspection.`, userId: technician._id, role: "technician", referenceId: claim._id, referenceModel: "WarrantyClaim", link: "/technician/warranty-claims", priority: claim.priority === "critical" ? "urgent" : "high", io: req.app.get("io") }),
+    ]);
+    return res.json({ success: true, claim: publicWarrantyClaim(claim) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/warranty-claims/:id/decision", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { canTransitionClaim, cleanText } = require("../utils/warrantyClaimPolicy");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid warranty claim id." });
+    const claim = await WarrantyClaim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    const outcome = cleanText(req.body.outcome, 30);
+    if (!["approved", "partially_approved", "denied"].includes(outcome) || !canTransitionClaim(claim.status, outcome, "admin")) {
+      return res.status(409).json({ error: "That decision is not allowed from the claim's current status." });
+    }
+    const reason = cleanText(req.body.reason, 3000);
+    if (reason.length < 10) return res.status(400).json({ error: "Record a clear decision reason of at least 10 characters." });
+    const remedyType = ["repair", "replacement", "refund", "manufacturer_referral", "reinspection", "none"].includes(req.body.remedyType)
+      ? req.body.remedyType : (outcome === "denied" ? "none" : "repair");
+    claim.status = outcome;
+    claim.decision = { outcome, reason, decidedAt: new Date(), decidedBy: req.user._id };
+    claim.remedy.type = remedyType;
+    claim.remedy.amount = Math.max(0, Number(req.body.amount) || 0);
+    if (outcome === "denied") claim.remedy.status = "cancelled";
+    warrantyClaimHistory(claim, req, outcome, reason);
+    await claim.save();
+    const { createNotification } = require("../utils/notify");
+    await createNotification({ type: "warranty_claim_decided", title: `Warranty claim ${outcome.replace(/_/g, " ")}`, message: `${claim.claimReference}: ${reason}`, userId: claim.customerId, referenceId: claim._id, referenceModel: "WarrantyClaim", link: claim.sourceType === "order" ? `/my-orders/${claim.sourceId}` : "/book-history", priority: "high", io: req.app.get("io") });
+    const customer = await require("../models/User").findById(claim.customerId).select("email name").lean();
+    if (customer?.email) {
+      require("../utils/mailer").sendEmail(
+        customer.email,
+        `Warranty claim decision - ${claim.claimReference}`,
+        `Your warranty claim was ${outcome.replace(/_/g, " ")}\n\nDecision reason: ${reason}\n\nApproved remedy: ${remedyType.replace(/_/g, " ")}`,
+      ).catch(() => {});
+    }
+    return res.json({ success: true, claim: publicWarrantyClaim(claim) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/warranty-claims/:id/remedy", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { cleanText } = require("../utils/warrantyClaimPolicy");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid warranty claim id." });
+    const claim = await WarrantyClaim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    if (!["approved", "partially_approved", "remedy_in_progress"].includes(claim.status)) return res.status(409).json({ error: "No approved remedy is available for this claim." });
+    const complete = String(req.body.complete) === "true" || req.body.complete === true;
+    claim.status = complete ? "resolved" : "remedy_in_progress";
+    claim.remedy.status = complete ? "completed" : "in_progress";
+    claim.remedy.notes = cleanText(req.body.notes, 3000);
+    claim.remedy.oldSerialNumber = cleanText(req.body.oldSerialNumber, 120);
+    claim.remedy.newSerialNumber = cleanText(req.body.newSerialNumber, 120);
+    if (complete) claim.remedy.completedAt = new Date();
+    warrantyClaimHistory(claim, req, claim.status, claim.remedy.notes || (complete ? "Remedy completed" : "Remedy started"));
+    await claim.save();
+    return res.json({ success: true, claim: publicWarrantyClaim(claim) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/warranty-claims/:id/close", async (req, res, next) => {
+  try {
+    const WarrantyClaim = require("../models/WarrantyClaim");
+    const { cleanText } = require("../utils/warrantyClaimPolicy");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid warranty claim id." });
+    const claim = await WarrantyClaim.findById(req.params.id);
+    if (!claim) return res.status(404).json({ error: "Warranty claim not found." });
+    if (!["resolved", "denied"].includes(claim.status)) return res.status(409).json({ error: "Only resolved or denied claims can be closed." });
+    const overrideReason = cleanText(req.body.overrideReason, 1000);
+    if (claim.status === "resolved" && !claim.customerConfirmedAt && overrideReason.length < 20) {
+      return res.status(409).json({ error: "Customer confirmation is required, or record an override reason of at least 20 characters." });
+    }
+    claim.status = "closed";
+    claim.active = false;
+    claim.closedAt = new Date();
+    warrantyClaimHistory(claim, req, "closed", overrideReason || "Administrative closure after decision");
+    await claim.save();
+    await require("../utils/warrantyClaimService").reconcileWarrantySource(claim);
+    return res.json({ success: true, claim: publicWarrantyClaim(claim) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+function technicianSnapshot(record) {
+  const populated = record.technicianId && typeof record.technicianId === "object"
+    ? record.technicianId
+    : null;
+  const snapshot = record.technician || {};
+  return {
+    name: snapshot.name || populated?.name || [populated?.firstName, populated?.lastName].filter(Boolean).join(" ") || null,
+    email: snapshot.email || populated?.email || null,
+    phone: snapshot.phone || populated?.phone || null,
+  };
+}
+
 /**
  * GET /api/admin/warranties
- * Returns bookings with active warranty or warranty claims.
+ * Returns bookings and orders with warranty data.
  */
 router.get("/warranties", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
-    const { status, search, page = 1, limit = 20 } = req.query;
-    const filter = {};
+    const Order = require("../models/Order");
+    const { escapeRegex } = require("../utils/stringSecurity");
+    const { status, search, page = 1, limit = 20, type } = req.query;
 
-    if (status && status !== "all") {
-      filter.status = status;
-    } else {
-      filter.status = { $in: ["under_warranty", "warranty_claim"] };
-    }
+    const bookingFilter = {
+      "warranty.status": { $exists: true, $ne: null },
+      status: { $in: WARRANTY_BOOKING_STATUSES },
+    };
+    const orderFilter = {
+      "warranty.status": { $exists: true, $ne: null },
+      status: "completed",
+    };
 
     if (search) {
-      const re = new RegExp(search.replace(/[.*+?^${}()|\\[\\]\\\\]/g, ""), "i");
-      filter.$or = [
+      const re = new RegExp(escapeRegex(search, 80), "i");
+      bookingFilter.$or = [
         { bookingReference: re },
+        { workOrderNumber: re },
+        { "customer.name": re },
+      ];
+      orderFilter.$or = [
+        { orderReference: re },
         { "customer.name": re },
       ];
     }
 
-    const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
-    const lim = Math.min(100, Math.max(1, parseInt(limit)));
+    let bookingItems = [];
+    let orderItems = [];
 
-    const [items, total] = await Promise.all([
-      BookingService.find(filter)
-        .sort({ "warranty.endDate": 1 })
-        .skip(skip)
-        .limit(lim)
-        .lean(),
-      BookingService.countDocuments(filter),
-    ]);
+    if (!type || type === "all" || type === "booking") {
+      bookingItems = await BookingService.find(bookingFilter).sort({ "warranty.endDate": 1 }).lean();
+    }
+    if (!type || type === "all" || type === "order") {
+      orderItems = await Order.find(orderFilter).sort({ "warranty.endDate": 1 }).lean();
+    }
 
-    return res.json({ items, total, page: parseInt(page), pages: Math.ceil(total / lim) });
+    const now = new Date();
+    const completedAssignments = bookingItems.length
+      ? await Assignment.find({ bookingId: { $in: bookingItems.map(booking => booking._id) }, completedAt: { $ne: null } })
+        .select("bookingId completedAt")
+        .sort({ completedAt: -1 })
+        .lean()
+      : [];
+    const assignmentByBooking = new Map();
+    completedAssignments.forEach(assignment => {
+      const bookingId = String(assignment.bookingId);
+      if (!assignmentByBooking.has(bookingId)) assignmentByBooking.set(bookingId, assignment);
+    });
+    const normalizedBookings = bookingItems.map(b => ({
+      _id: b._id,
+      reference: b.bookingReference || b.workOrderNumber,
+      customer: b.customer,
+      service: b.service?.name || b.services?.map(service => service.name).filter(Boolean).join(", ") || b.serviceType,
+      type: "booking",
+      warranty: effectiveWarrantySnapshot(
+        b.warranty,
+        now,
+        bookingCompletionDate(b, assignmentByBooking.get(String(b._id))),
+      ),
+    }));
+    const normalizedOrders = orderItems.map(o => ({
+      _id: o._id,
+      reference: o.orderReference,
+      customer: o.customer,
+      service: (o.items || []).map(i => `${i.brand || ''} ${i.modelLine || ''}`).join(', ') || 'Product Order',
+      type: "order",
+      warranty: effectiveWarrantySnapshot(
+        o.warranty,
+        now,
+        o.completedAt || [...(o.statusHistory || [])].reverse().find(entry => entry.status === "completed")?.timestamp,
+      ),
+    }));
+
+    const allItems = [...normalizedBookings, ...normalizedOrders]
+      .filter(item => !status || status === "all" || item.warranty?.status === status)
+      .sort((a, b) => {
+        const dateA = a.warranty?.endDate ? new Date(a.warranty.endDate) : 0;
+        const dateB = b.warranty?.endDate ? new Date(b.warranty.endDate) : 0;
+        return dateA - dateB;
+      });
+
+    const total = allItems.length;
+    const requestedPage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const lim = Math.min(500, Math.max(1, Number.parseInt(limit, 10) || 20));
+    const skip = (requestedPage - 1) * lim;
+    const paginatedItems = allItems.slice(skip, skip + lim);
+
+    return res.json({ items: paginatedItems, total, page: requestedPage, pages: Math.ceil(total / lim) || 1 });
   } catch (err) {
     next(err);
   }
@@ -2543,25 +3664,277 @@ router.get("/warranties", async (req, res, next) => {
 
 /**
  * GET /api/admin/warranties/stats
- * Returns warranty statistics.
+ * Returns warranty statistics from both bookings and orders.
  */
 router.get("/warranties/stats", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const WarrantyClaim = require("../models/WarrantyClaim");
 
-    const [activeWarranty, warrantyClaims, expiringSoon] = await Promise.all([
-      BookingService.countDocuments({ status: "under_warranty" }),
-      BookingService.countDocuments({ status: "warranty_claim" }),
-      BookingService.countDocuments({
-        status: "under_warranty",
-        "warranty.endDate": {
-          $gte: new Date(),
-          $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      }),
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const bsQuery = { "warranty.status": { $exists: true, $ne: null }, status: { $in: WARRANTY_BOOKING_STATUSES } };
+    const orderQuery = { "warranty.status": { $exists: true, $ne: null }, status: "completed" };
+
+    const [bookings, orders, warrantyClaimCount] = await Promise.all([
+      BookingService.find(bsQuery)
+        .select("warranty completedAt repairCompletion.completedAt statusHistory services.statusHistory")
+        .lean(),
+      Order.find(orderQuery).select("warranty completedAt statusHistory").lean(),
+      WarrantyClaim.countDocuments({ status: { $ne: "withdrawn" } }),
     ]);
+    const Assignment = require("../models/Assignment");
+    const assignments = bookings.length
+      ? await Assignment.find({ bookingId: { $in: bookings.map(booking => booking._id) }, completedAt: { $ne: null } })
+        .select("bookingId completedAt")
+        .sort({ completedAt: -1 })
+        .lean()
+      : [];
+    const assignmentByBooking = new Map();
+    assignments.forEach(assignment => {
+      const bookingId = String(assignment.bookingId);
+      if (!assignmentByBooking.has(bookingId)) assignmentByBooking.set(bookingId, assignment);
+    });
 
-    return res.json({ activeWarranty, warrantyClaims, expiringSoon });
+    const coverages = [
+      ...bookings.map(booking => effectiveWarrantySnapshot(
+        booking.warranty,
+        now,
+        bookingCompletionDate(booking, assignmentByBooking.get(String(booking._id))),
+      )),
+      ...orders.map(order => effectiveWarrantySnapshot(
+        order.warranty,
+        now,
+        order.completedAt || [...(order.statusHistory || [])].reverse().find(entry => entry.status === "completed")?.timestamp,
+      )),
+    ].filter(Boolean);
+
+    const countStatus = status => coverages.filter(coverage => coverage.status === status).length;
+    const expiringSoon = coverages.filter(coverage => (
+      coverage.status === "active"
+      && coverage.endDate
+      && new Date(coverage.endDate) >= now
+      && new Date(coverage.endDate) <= thirtyDaysFromNow
+    )).length;
+
+    return res.json({
+      activeWarranty: countStatus("active"),
+      warrantyClaims: warrantyClaimCount,
+      expiredWarranties: countStatus("expired"),
+      incompleteWarranties: countStatus("incomplete"),
+      expiringSoon,
+      totalWarranties: coverages.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/warranties/:type/:id
+ * Returns a curated, current warranty record for the in-page detail modal.
+ */
+router.get("/warranties/:type/:id", async (req, res, next) => {
+  try {
+    const { type, id } = req.params;
+    if (!["booking", "order"].includes(type)) return res.status(400).json({ error: "Invalid warranty record type" });
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid warranty record id" });
+
+    const Model = type === "booking"
+      ? require("../models/BookingService")
+      : require("../models/Order");
+    const record = await Model.findById(id)
+      .populate({ path: "technicianId", select: "name firstName lastName email phone" })
+      .lean();
+
+    if (!record || !record.warranty?.status) return res.status(404).json({ error: "Warranty record not found" });
+
+    const Assignment = require("../models/Assignment");
+    const Payment = require("../models/Payment");
+    const [assignment, payments] = await Promise.all([
+      type === "booking"
+        ? Assignment.findOne({ bookingId: record._id, completedAt: { $ne: null } }).sort({ completedAt: -1 }).lean()
+        : null,
+      Payment.find(type === "booking" ? { bookingId: record._id } : { orderId: record._id })
+        .select("amount method type status reference notes submittedAt collectedAt collectedByName remittedAt remittanceNotes remittanceProofUrl verifiedAt completedAt rejectedAt rejectionReason refundedAt refundAmount events")
+        .sort({ submittedAt: 1 })
+        .lean(),
+    ]);
+    const fallbackCompletion = type === "booking"
+      ? bookingCompletionDate(record, assignment)
+      : record.completedAt || [...(record.statusHistory || [])].reverse().find(entry => entry.status === "completed")?.timestamp;
+    const warranty = effectiveWarrantySnapshot(record.warranty, new Date(), fallbackCompletion);
+    const collectedStatuses = new Set(["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid", "partial"]);
+    const paymentLedger = payments.map(payment => ({
+      id: String(payment._id),
+      amount: payment.amount,
+      method: payment.method,
+      type: payment.type,
+      status: payment.status,
+      reference: payment.reference,
+      submittedAt: payment.submittedAt,
+      collectedAt: payment.collectedAt,
+      collectedByName: payment.collectedByName,
+      remittedAt: payment.remittedAt,
+      remittanceNotes: payment.remittanceNotes,
+      remittanceProofSubmitted: Boolean(payment.remittanceProofUrl),
+      verifiedAt: payment.verifiedAt,
+      completedAt: payment.completedAt,
+      rejectedAt: payment.rejectedAt,
+      rejectionReason: payment.rejectionReason,
+      refundedAt: payment.refundedAt,
+      refundAmount: payment.refundAmount,
+      notes: payment.notes,
+      events: payment.events,
+    }));
+    const totalCollected = paymentLedger.reduce((sum, payment) => (
+      collectedStatuses.has(payment.status) ? sum + Math.max(0, Number(payment.amount) || 0) : sum
+    ), 0);
+    const common = {
+      id: String(record._id),
+      type,
+      reference: type === "booking"
+        ? (record.bookingReference || record.workOrderNumber || String(record._id))
+        : (record.orderReference || String(record._id)),
+      workflowStatus: record.status,
+      warranty,
+      customer: {
+        name: record.customer?.name || null,
+        email: record.customer?.email || null,
+        phone: record.customer?.phone || record.delivery?.contactNumber || null,
+        address: record.customer?.address || record.location?.address || record.delivery?.address || null,
+      },
+      technician: technicianSnapshot(record),
+      payments: paymentLedger,
+      totalCollected,
+      statusHistory: (record.statusHistory || []).map(entry => ({
+        status: entry.status || entry.toStatus || entry.fromStatus,
+        at: entry.changedAt || entry.timestamp,
+        by: entry.changedByName || null,
+        note: entry.reason || entry.note || entry.notes || null,
+      })),
+    };
+
+    if (type === "booking") {
+      const equipmentService = (record.services || []).find(service => (
+        service.brand || service.model || service.applianceTypeName || service.airconTypeName || service.hpDescription || service.hp
+      ));
+      const equipment = {
+        unitType: record.unitInfo?.unitType || equipmentService?.applianceTypeName || equipmentService?.airconTypeName || equipmentService?.unitCategory,
+        brand: record.unitInfo?.brand || equipmentService?.brand || record.brand,
+        model: record.unitInfo?.model || equipmentService?.model,
+        hpDescription: record.unitInfo?.hpDescription || equipmentService?.hpDescription || (equipmentService?.hp ? `${equipmentService.hp} HP` : record.hpDescription),
+        problemDescription: record.unitInfo?.problemDescription,
+      };
+      const bookingTotal = Number(record.totalPrice ?? record.estimatedFee ?? record.servicePrice) || 0;
+      const { reconcileBookingPayments } = require("../utils/paymentSummary");
+      const reconciliation = reconcileBookingPayments(record, payments);
+      return res.json({
+        ...common,
+        serviceType: record.serviceType,
+        services: (record.services?.length ? record.services : [{
+          name: record.service?.name || record.serviceType || "Service",
+          quantity: record.quantity || 1,
+          unitPrice: record.servicePrice,
+          totalPrice: record.totalPrice,
+          brand: record.brand || record.unitInfo?.brand,
+          model: record.unitInfo?.model,
+          applianceTypeName: record.applianceTypeName || record.unitInfo?.unitType,
+          hpDescription: record.hpDescription || record.unitInfo?.hpDescription,
+        }]).map(service => ({
+          name: service.name,
+          quantity: service.quantity || 1,
+          unitPrice: service.unitPrice,
+          totalPrice: service.totalPrice,
+          brand: service.brand,
+          model: service.model,
+          unitType: service.applianceTypeName || service.airconTypeName || service.unitCategory,
+          capacity: service.hpDescription || (service.hp ? `${service.hp} HP` : null),
+          status: ["completed", "repair_completed", "under_warranty", "warranty_claim", "closed"].includes(record.status)
+            ? "completed"
+            : service.status,
+        })),
+        equipment,
+        issueDescription: record.issueDescription || record.repairIssues || record.unitInfo?.problemDescription || null,
+        completion: {
+          ...(record.repairCompletion || {}),
+          proofSubmitted: Boolean(record.proofPhoto),
+          nextMaintenanceDays: record.maintenance?.nextRecommendedDays,
+          nextMaintenanceNotes: record.maintenance?.nextRecommendationNotes,
+        },
+        payment: {
+          method: record.paymentMethod,
+          status: record.paymentStatus,
+          total: bookingTotal,
+          amountPaid: reconciliation.ledgerCollected,
+          snapshotAmountPaid: Number(record.amountPaid) || 0,
+          balance: reconciliation.hasLedgerMismatch
+            ? reconciliation.outstandingFromLedger
+            : record.balanceAmount,
+          reconciliation,
+        },
+        dates: {
+          created: record.createdAt,
+          updated: record.updatedAt,
+          requestedService: record.preferredDate,
+          scheduledService: record.bookingDate,
+          inspectionScheduled: record.inspection?.scheduledDate,
+          inspectionCompleted: record.inspection?.completedAt,
+          diagnosisCompleted: record.diagnosis?.completedAt,
+          quotationCreated: record.quotation?.createdAt,
+          quotationExpires: record.quotation?.expiresAt,
+          customerDecision: record.approval?.decidedAt,
+          assigned: record.assignedAt,
+          paymentVerified: record.paymentVerifiedAt,
+          paymentCollected: record.balanceCollectedAt,
+          serviceCompleted: fallbackCompletion,
+          warrantyStarted: warranty.startDate,
+          warrantyEnds: warranty.endDate,
+          warrantyClaimed: warranty.claimedAt,
+          followUpScheduled: record.followUp?.scheduledDate,
+          followUpCompleted: record.followUp?.completedAt,
+        },
+      });
+    }
+
+    return res.json({
+      ...common,
+      fulfillmentType: record.fulfillmentType,
+      items: (record.items || []).map(item => ({
+        brand: item.brand,
+        model: item.modelLine,
+        capacity: item.capacity ? `${item.capacity} ${item.capacityUnit || "HP"}` : null,
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      })),
+      delivery: record.delivery || null,
+      pickupLocation: record.pickupLocation,
+      payment: {
+        method: record.paymentMethod,
+        status: record.paymentStatus,
+        subtotal: record.subtotal,
+        deliveryFee: record.deliveryFee,
+        installationFee: record.installationFee,
+        transportationFee: record.transportationFee,
+        total: record.total,
+        amountPaid: totalCollected,
+        downpayment: record.downpaymentAmount,
+        balance: record.balanceAmount,
+      },
+      dates: {
+        created: record.createdAt,
+        updated: record.updatedAt,
+        requestedDelivery: record.delivery?.preferredDate,
+        requestedPickup: record.pickupDate,
+        technicianResponded: record.technicianAcceptance?.respondedAt,
+        orderCompleted: record.completedAt,
+        warrantyStarted: warranty.startDate,
+        warrantyEnds: warranty.endDate,
+        warrantyClaimed: warranty.claimedAt,
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -2602,6 +3975,13 @@ router.post("/repair-queue/:id/confirm", async (req, res, next) => {
 
     if (booking.status !== "repair_requested") {
       return res.status(400).json({ error: `Cannot confirm repair from status "${booking.status}". Expected "repair_requested".` });
+    }
+
+    // Reject confirmation of past repair bookings — require reschedule
+    if (require("../utils/bookingPolicy").isBookingPast(booking)) {
+      return res.status(400).json({
+        error: "Cannot confirm a repair request whose scheduled time has passed. Please reschedule to a future date/time first.",
+      });
     }
 
     booking.status = "awaiting_assignment";
@@ -2652,6 +4032,13 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     const inspectionDate = new Date(scheduledDate);
     if (Number.isNaN(inspectionDate.getTime())) {
       return res.status(400).json({ error: "Inspection date is invalid" });
+    }
+
+    // Reject assignment to a past inspection date
+    if (require("../utils/bookingPolicy").isBookingPast({ bookingDate: inspectionDate, startTime: scheduledTime })) {
+      return res.status(400).json({
+        error: "Cannot schedule an inspection in the past. Please select a future date/time.",
+      });
     }
 
     const tech = await Technician.findById(technicianId).lean();
@@ -3340,6 +4727,22 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
       const baseParts = requestPhase === 'phase_1_ai_preparation' && requestedParts.length
         ? requestedParts
         : (quotationParts.length ? quotationParts : requestedParts);
+      // Quotation parts never get their toolId written back once procurement
+      // resolves the match — only the parts request items do. Merge that
+      // resolution in so already-received parts don't look unmatched here.
+      if (baseParts === quotationParts && requestedParts.length) {
+        const resolvedToolIdByName = new Map(
+          requestedParts
+            .filter(item => item.toolId && item.name)
+            .map(item => [String(item.name).trim().toLowerCase(), item.toolId])
+        );
+        for (const p of baseParts) {
+          if (!p.toolId && p.name) {
+            const resolved = resolvedToolIdByName.get(String(p.name).trim().toLowerCase());
+            if (resolved) p.toolId = resolved;
+          }
+        }
+      }
       const hasParts = baseParts.length > 0;
       let bookingReservations = [];
       if (hasParts) {
@@ -3380,12 +4783,27 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
 
         // Otherwise find the active tool with the most matching name that can fulfill
         if (!toolFound) {
-          const escaped = (p.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          if (escaped) {
+          const partName = String(p.name || '').trim().toLowerCase();
+          if (partName) {
+            const escaped = partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escaped.replace(/\\s+/g, '.*'), 'i');
             const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] })
-              .select("quantity").sort({ quantity: -1 }).lean();
-            const best = candidates.find(t => (t.quantity || 0) >= qty) || candidates[0];
+              .select("quantity itemName").lean();
+            
+            // Score candidates: prefer exact match, then shorter names (more specific)
+            const scored = candidates.map(t => {
+              const toolName = String(t.itemName || '').trim().toLowerCase();
+              let score = 0;
+              if (toolName === partName) score = 1000; // Exact match
+              else if (toolName.startsWith(partName)) score = 500; // Starts with
+              else if (partName.startsWith(toolName)) score = 400; // Part name starts with tool name
+              else score = 100 - toolName.length; // Fuzzy match, prefer shorter names
+              return { ...t, score };
+            });
+            
+            // Sort by: score (desc), then quantity (desc)
+            scored.sort((a, b) => b.score - a.score || (b.quantity || 0) - (a.quantity || 0));
+            const best = scored[0];
             if (best) {
               currentStock = best.quantity || 0;
             }
@@ -3399,6 +4817,34 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         };
       }));
 
+      // Auto-correct stale waiting_parts status: if all parts are in stock,
+      // transition to repair_approved so the booking can be scheduled
+      let effectiveStatus = b.status;
+      if (b.status === 'waiting_parts' && hasParts) {
+        const allPartsInStock = enrichedParts.every(p => (p.currentStock || 0) >= (p.quantity || 1));
+        const noActiveProcurement = !partsReq || partsReq.items.every(i => i.status === 'received');
+        if (allPartsInStock && noActiveProcurement) {
+          effectiveStatus = 'repair_approved';
+          partsStatus = 'reserved';
+          partsRequestStatus = null;
+          // Update the booking in the database
+          await BookingService.updateOne(
+            { _id: b._id },
+            {
+              $set: { status: 'repair_approved' },
+              $push: {
+                statusHistory: {
+                  fromStatus: 'waiting_parts',
+                  toStatus: 'repair_approved',
+                  reason: 'Auto-corrected: all parts confirmed in stock',
+                  changedAt: new Date(),
+                },
+              },
+            }
+          );
+        }
+      }
+
       enriched.push({
         _id: b._id,
         workOrderNumber: b.workOrderNumber || `WO-${String(b._id).slice(-6).toUpperCase()}`,
@@ -3411,7 +4857,7 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         preferredDates: b.preferredSchedule?.dates || [],
         preferredTimeWindow: b.preferredSchedule?.timeWindow || 'any',
         submittedAt: partsReq?.requestedAt || b.partsRequest?.requestedAt || b.preferredSchedule?.submittedAt,
-        status: b.status,
+        status: effectiveStatus,
         scheduledDate: b.schedulingRequest?.scheduledDate || null,
         unitInfo: b.unitInfo,
         quotation: { ...b.quotation, parts: enrichedParts },
@@ -3430,7 +4876,7 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         partsRequestStatus,
         requestPhase,
         requestResumeStatus: requestResumeStatus || null,
-        stockAvailable: partsStatus === 'reserved' || partsStatus === 'none',
+        stockAvailable: partsStatus === 'reserved' || partsStatus === 'none' || effectiveStatus === 'repair_approved',
       });
     }
 
@@ -3465,6 +4911,9 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
       status: { $in: ["pending", "procuring"] },
     });
     const quotationParts = (booking.quotation?.parts || []).filter(p => p.name);
+    // Prefer whichever parts request (still active, or already received) has
+    // items — either one already carries the toolId resolved during
+    // procurement/receiving.
     const requestItems = activePartsRequest?.items?.length
       ? activePartsRequest.items
       : (booking.partsRequest?.items || []);
@@ -3480,6 +4929,22 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
     if (parts.length === 0) {
       return res.status(400).json({ error: "No quotation parts or active technician parts request found." });
     }
+    // Quotation parts never get their toolId written back to
+    // booking.quotation.parts once procurement resolves the match — only the
+    // parts request items do. Without this, already-received parts get
+    // re-matched from scratch by name and can fail or resolve to the wrong
+    // Tool document, wrongly reporting "insufficient stock".
+    const resolvedToolIdByName = new Map(
+      requestItems
+        .filter(item => item.toolId && item.itemName)
+        .map(item => [String(item.itemName).trim().toLowerCase(), item.toolId])
+    );
+    for (const p of parts) {
+      if (!p.toolId && p.name) {
+        const resolved = resolvedToolIdByName.get(String(p.name).trim().toLowerCase());
+        if (resolved) p.toolId = resolved;
+      }
+    }
 
     const existingReservations = await StockReservation.find({
       bookingId: booking._id,
@@ -3493,7 +4958,7 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
 
     // Step 1 & 2: Match each quotation part to an inventory Tool and persist the link
     const matchedParts = [];
-    const insufficientStock = [];
+    let insufficientStock = [];
     let bookingModified = false;
 
     for (const p of parts) {
@@ -3511,10 +4976,27 @@ router.post("/repair-scheduling-queue/:id/check-and-procure-parts", async (req, 
 
       // Otherwise fuzzy-match by name, preferring a tool that can fulfill the quantity
       if (!tool && p.name) {
-        const escaped = String(p.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escaped.replace(/\s+/g, '.*'), 'i');
-        const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] }).sort({ quantity: -1 }).lean();
-        tool = candidates.find(t => (t.quantity || 0) + (existingByTool.get(String(t._id)) || 0) >= qty) || candidates[0] || null;
+        const partName = String(p.name || '').trim().toLowerCase();
+        if (partName) {
+          const escaped = partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(escaped.replace(/\s+/g, '.*'), 'i');
+          const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] }).select("quantity itemName").lean();
+          
+          // Score candidates: prefer exact match, then shorter names (more specific)
+          const scored = candidates.map(t => {
+            const toolName = String(t.itemName || '').trim().toLowerCase();
+            let score = 0;
+            if (toolName === partName) score = 1000; // Exact match
+            else if (toolName.startsWith(partName)) score = 500; // Starts with
+            else if (partName.startsWith(toolName)) score = 400; // Part name starts with tool name
+            else score = 100 - toolName.length; // Fuzzy match, prefer shorter names
+            return { ...t, score };
+          });
+          
+          // Sort by: score (desc), then quantity (desc)
+          scored.sort((a, b) => b.score - a.score || (b.quantity || 0) - (a.quantity || 0));
+          tool = scored.find(t => (t.quantity || 0) + (existingByTool.get(String(t._id)) || 0) >= qty) || scored[0] || null;
+        }
       }
 
       if (tool) {
@@ -3842,10 +5324,29 @@ router.get("/repair-scheduling-queue/:id/quotation-parts", async (req, res, next
       }
       if (!tool || (tool.quantity || 0) < quantity) {
         const linkedTool = tool;
-        const escaped = String(part.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const regex = new RegExp(escaped.replace(/\s+/g, ".*"), "i");
-        const candidates = await Tool.find({ itemName: regex, active: true, type: { $in: ['part', 'consumable'] }, $and: [Tool.merchandiseFilter()] }).sort({ quantity: -1 }).lean();
-        tool = candidates.find(candidate => (candidate.quantity || 0) >= quantity) || candidates[0] || linkedTool || null;
+        const partName = String(part.name || '').trim().toLowerCase();
+        if (partName) {
+          const escaped = partName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const regex = new RegExp(escaped.replace(/\s+/g, ".*"), "i");
+          const candidates = await Tool.find({ itemName: regex, active: true, type: { $in: ['part', 'consumable'] }, $and: [Tool.merchandiseFilter()] }).select("quantity itemName").lean();
+          
+          // Score candidates: prefer exact match, then shorter names (more specific)
+          const scored = candidates.map(t => {
+            const toolName = String(t.itemName || '').trim().toLowerCase();
+            let score = 0;
+            if (toolName === partName) score = 1000; // Exact match
+            else if (toolName.startsWith(partName)) score = 500; // Starts with
+            else if (partName.startsWith(toolName)) score = 400; // Part name starts with tool name
+            else score = 100 - toolName.length; // Fuzzy match, prefer shorter names
+            return { ...t, score };
+          });
+          
+          // Sort by: score (desc), then quantity (desc)
+          scored.sort((a, b) => b.score - a.score || (b.quantity || 0) - (a.quantity || 0));
+          tool = scored[0] || linkedTool || null;
+        } else {
+          tool = linkedTool || null;
+        }
       }
 
       const currentStock = Number(tool?.quantity) || 0;
@@ -4105,6 +5606,7 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
     const Assignment = require("../models/Assignment");
     const BookingService = require("../models/BookingService");
     const LeaveRequest = require("../models/LeaveRequest");
+    const NonWorkingDay = require("../models/NonWorkingDay");
     const { getBufferMinutesSync } = require("../utils/bookingPolicy");
 
     const tech = await Technician.findById(techId);
@@ -4135,6 +5637,9 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
       startDate: { $lte: dates[dates.length - 1] },
       endDate: { $gte: dates[0] },
     }).lean();
+
+    // Get company non-working days (holidays)
+    const nonWorkingDays = await NonWorkingDay.find({ service: null }).lean();
 
     // Get existing assignments
     const dayStart = new Date(dates[0]);
@@ -4243,6 +5748,17 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
         continue;
       }
 
+      // Check company non-working days (holidays)
+      const isNonWorkingDay = nonWorkingDays.some(nwd => {
+        const nwdDate = new Date(nwd.date);
+        nwdDate.setHours(0, 0, 0, 0);
+        return nwdDate.getTime() === d.getTime();
+      });
+      if (isNonWorkingDay) {
+        results.push({ date: dayStr, available: false, reason: "Holiday" });
+        continue;
+      }
+
       if (schedule) {
         // Check rest dates
         if (schedule.restDates && schedule.restDates.some(rd => {
@@ -4269,12 +5785,12 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
         const workStartMin = workingDay.startMinutes || 480;
         const workEndMin = workingDay.endMinutes || 1020;
 
-        // Count available slots using capacityPerSlot (matching core service logic)
+        // Count available slots using 30-minute intervals (matching service page)
         const bookedRanges = getBookedRangesForDate(d);
+        const SLOT_INTERVAL = 30;
         let totalSlots = 0;
         let bookedSlots = 0;
-        const DAY_SLOT_INTERVAL = 30;
-        for (let s = workStartMin; s + capacityPerSlot <= workEndMin; s += DAY_SLOT_INTERVAL) {
+        for (let s = workStartMin; s + capacityPerSlot <= workEndMin; s += SLOT_INTERVAL) {
           totalSlots++;
           const slotEnd = s + capacityPerSlot;
           const hasConflict = bookedRanges.some(b => s < b.end && slotEnd > b.start);
@@ -4297,10 +5813,10 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
       } else {
         // No schedule configured — use default 8AM-5PM
         const bookedRanges = getBookedRangesForDate(d);
+        const SLOT_INTERVAL = 30;
         let totalSlots = 0;
         let bookedSlots = 0;
-        const DAY_SLOT_INTERVAL = 30;
-        for (let s = 480; s + capacityPerSlot <= 1020; s += DAY_SLOT_INTERVAL) {
+        for (let s = 480; s + capacityPerSlot <= 1020; s += SLOT_INTERVAL) {
           totalSlots++;
           const slotEnd = s + capacityPerSlot;
           const hasConflict = bookedRanges.some(b => s < b.end && slotEnd > b.start);
@@ -4347,6 +5863,7 @@ router.get("/technicians/:techId/available-slots", async (req, res, next) => {
     const Assignment = require("../models/Assignment");
     const BookingService = require("../models/BookingService");
     const LeaveRequest = require("../models/LeaveRequest");
+    const NonWorkingDay = require("../models/NonWorkingDay");
     const { getBufferMinutesSync } = require("../utils/bookingPolicy");
 
     const duration = Math.min(480, Math.max(30, parseInt(durParam) || 90));
@@ -4369,6 +5886,13 @@ router.get("/technicians/:techId/available-slots", async (req, res, next) => {
       startDate: { $lte: dayEnd }, endDate: { $gte: dayStart },
     }).lean();
     if (onLeave) return res.json({ slots: [], reason: "On leave", duration, capacityPerSlot });
+
+    // Check company non-working days (holidays)
+    const nonWorkingDay = await NonWorkingDay.findOne({
+      service: null,
+      date: { $gte: dayStart, $lte: dayEnd },
+    }).lean();
+    if (nonWorkingDay) return res.json({ slots: [], reason: "Holiday", duration, capacityPerSlot });
 
     // Get schedule
     const schedule = await TechnicianSchedule.findOne({ technicianId: techId }).lean();
@@ -4469,10 +5993,24 @@ router.get("/technicians/:techId/available-slots", async (req, res, next) => {
     }
 
     // Generate slots using capacityPerSlot as interval (matching core service logic)
+    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isToday = target.getTime() === today.getTime();
+
     const slots = [];
     for (let min = workStartMin; min + capacityPerSlot <= workEndMin; min += slotInterval) {
       const slotEnd = min + capacityPerSlot;
       const isBooked = bookedRanges.some(b => min < b.end && slotEnd > b.start);
+
+      // For today: skip past time slots (matching service page logic)
+      if (isToday) {
+        const slotStartTime = new Date(target);
+        slotStartTime.setHours(Math.floor(min / 60), min % 60, 0, 0);
+        const cutoffTime = new Date(now.getTime() + 30 * 60000);
+        if (slotStartTime <= cutoffTime) continue;
+      }
+
       const startH = Math.floor(min / 60);
       const startM = min % 60;
       const endH = Math.floor(slotEnd / 60);
@@ -4516,58 +6054,85 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
-    if (!["repair_approved", "ready_for_repair", "repair_scheduled"].includes(booking.status)) {
+    const allowedStatuses = ["repair_approved", "ready_for_repair", "repair_scheduled", "waiting_parts"];
+    if (!allowedStatuses.includes(booking.status)) {
       return res.status(400).json({ error: `Cannot assign from status "${booking.status}"` });
     }
 
-    // Scheduling is the final gate: quotation parts must be procured and held
-    // for this booking. Never trust the modal state alone.
+    // Scheduling is the final gate: quotation parts must be available in stock
+    // (either reserved for this booking, or currently in inventory). Check
+    // actual current stock as the source of truth — do not rely solely on
+    // possibly-stale PartsRequest item statuses.
     const quotationParts = (booking.quotation?.parts || []).filter(part => part?.name);
     if (quotationParts.length > 0) {
-      const [activePartsRequest, reservations] = await Promise.all([
-        PartsRequest.findOne({
-          bookingId: booking._id,
-          status: { $in: ["pending", "procuring"] },
-        }).select("items status").lean(),
-        StockReservation.find({
-          bookingId: booking._id,
-          status: { $in: ["reserved", "checked_out"] },
-        }).select("toolId quantity").lean(),
-      ]);
-
-      const requestItems = activePartsRequest?.items?.length
-        ? activePartsRequest.items
-        : (booking.partsRequest?.items || []);
-      const unresolvedRequestItems = requestItems.filter(item => item.status !== "received");
-      if (unresolvedRequestItems.length > 0) {
-        return res.status(409).json({
-          error: `Cannot schedule yet. Procure the missing part(s): ${unresolvedRequestItems.map(item => item.itemName).filter(Boolean).join(", ")}.`,
-          code: "PARTS_NOT_PROCURED",
-        });
-      }
+      const Tool = require("../models/Tool");
+      const reservations = await StockReservation.find({
+        bookingId: booking._id,
+        status: { $in: ["reserved", "checked_out"] },
+      }).select("toolId quantity").lean();
 
       const reservedByTool = reservations.reduce((totals, reservation) => {
         const key = String(reservation.toolId || "");
         if (key) totals.set(key, (totals.get(key) || 0) + (Number(reservation.quantity) || 0));
         return totals;
       }, new Map());
-      const requiredByTool = new Map();
-      const unlinkedParts = [];
-      quotationParts.forEach(part => {
-        const key = String(part.toolId || "");
-        if (!key) {
-          unlinkedParts.push(part.name);
-          return;
+
+      const unavailableParts = [];
+      for (const part of quotationParts) {
+        const qty = Number(part.quantity) || 1;
+
+        // 1. Check reservation for this specific booking+tool
+        if (part.toolId && (reservedByTool.get(String(part.toolId)) || 0) >= qty) {
+          continue;
         }
-        requiredByTool.set(key, (requiredByTool.get(key) || 0) + (Number(part.quantity) || 1));
-      });
-      const unreservedParts = quotationParts
-        .filter(part => part.toolId && (reservedByTool.get(String(part.toolId)) || 0) < (requiredByTool.get(String(part.toolId)) || 0))
-        .map(part => part.name);
-      const unavailableParts = [...new Set([...unlinkedParts, ...unreservedParts])];
+
+        // 2. Check the linked tool's current stock directly
+        let inStock = false;
+        if (part.toolId) {
+          const tool = await Tool.findOne({ _id: part.toolId, $and: [Tool.merchandiseFilter()] }).select("quantity active").lean();
+          const bookingReserved = reservedByTool.get(String(part.toolId)) || 0;
+          if (tool && tool.active !== false && (tool.quantity || 0) + bookingReserved >= qty) {
+            inStock = true;
+          }
+        }
+
+        // 3. Fall back to name-matching against active inventory
+        if (!inStock) {
+          const partName = String(part.name || '').trim().toLowerCase();
+          if (partName) {
+            const escaped = partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped.replace(/\\s+/g, '.*'), 'i');
+            const candidates = await Tool.find({ itemName: regex, active: true, $and: [Tool.merchandiseFilter()] })
+              .select("quantity itemName").lean();
+            
+            // Score candidates: prefer exact match, then shorter names (more specific)
+            const scored = candidates.map(t => {
+              const toolName = String(t.itemName || '').trim().toLowerCase();
+              let score = 0;
+              if (toolName === partName) score = 1000; // Exact match
+              else if (toolName.startsWith(partName)) score = 500; // Starts with
+              else if (partName.startsWith(toolName)) score = 400; // Part name starts with tool name
+              else score = 100 - toolName.length; // Fuzzy match, prefer shorter names
+              return { ...t, score };
+            });
+            
+            // Sort by: score (desc), then quantity (desc)
+            scored.sort((a, b) => b.score - a.score || (b.quantity || 0) - (a.quantity || 0));
+            const best = scored[0];
+            if (best && (best.quantity || 0) >= qty) {
+              inStock = true;
+            }
+          }
+        }
+
+        if (!inStock) {
+          unavailableParts.push(part.name);
+        }
+      }
+
       if (unavailableParts.length > 0) {
         return res.status(409).json({
-          error: `Cannot schedule yet. Procure and reserve the required part(s): ${unavailableParts.join(", ")}.`,
+          error: `Cannot schedule yet. Procure and reserve the required part(s): ${[...new Set(unavailableParts)].join(", ")}.`,
           code: "PARTS_NOT_READY",
         });
       }
@@ -4707,33 +6272,30 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       }
     }
 
-    // Check if there's already an active assignment for this booking (from inspection phase)
-    let assignment = await Assignment.findOne({
-      bookingId: booking._id,
-      technicianId: tech._id,
-      status: { $in: ["accepted", "en_route", "on_site", "in_progress"] },
-    });
-
-    if (assignment) {
-      // Update existing assignment with new schedule — no re-acceptance needed
-      assignment.bookingDate = new Date(scheduledDate);
-      assignment.startTime = scheduledTime || "09:00";
-      assignment.endTime = booking.endTime;
-      assignment.serviceDurationMinutes = repairDurationMinutes;
-      assignment.travelTime = repairTravelTime;
-      assignment.status = "accepted";
-      assignment.notes.push({
-        text: `Repair rescheduled for ${new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} at ${scheduledTime || "09:00"}. Inspection already completed.${notes ? " Notes: " + notes.trim() : ""}`,
-        by: req.user._id,
-        byName: req.user.firstName || req.user.name || "Admin",
-        createdAt: new Date(),
-      });
-      await assignment.save();
-    } else {
-      // No existing assignment — create new one in pending_acceptance
+    // Check if reassigning to a different technician.
+    // If yes: create fresh pending_acceptance assignment (requires acceptance).
+    // If no: reuse/update existing assignment (no re-acceptance if already accepted).
+    const previousTechnicianId = booking.technicianId ? String(booking.technicianId) : null;
+    const currentTechnicianId = String(tech._id);
+    const isReassignment = previousTechnicianId && previousTechnicianId !== currentTechnicianId;
+    
+    let assignment;
+    if (isReassignment) {
+      // Reassigning to a DIFFERENT technician — require fresh acceptance
+      // Mark any old pending assignments for this technician as expired
+      await Assignment.updateMany(
+        {
+          bookingId: booking._id,
+          technicianId: currentTechnicianId,
+          status: "pending_acceptance",
+        },
+        { status: "expired" }
+      );
+      
+      // Create new pending_acceptance assignment for the new technician
       const assignmentData = {
         bookingId: booking._id,
-        technicianId: tech._id,
+        technicianId: currentTechnicianId,
         status: "pending_acceptance",
         bookingDate: new Date(scheduledDate),
         startTime: scheduledTime || "09:00",
@@ -4746,13 +6308,92 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       };
       if (notes && typeof notes === "string" && notes.trim()) {
         assignmentData.notes = [{
-          text: notes.trim(),
+          text: `Assigned to new technician. ${notes.trim()}`,
+          by: req.user._id,
+          byName: req.user.firstName || req.user.name || "Admin",
+          createdAt: new Date(),
+        }];
+      } else {
+        assignmentData.notes = [{
+          text: `Assigned to new technician for repair visit.`,
           by: req.user._id,
           byName: req.user.firstName || req.user.name || "Admin",
           createdAt: new Date(),
         }];
       }
       assignment = await Assignment.create(assignmentData);
+    } else {
+      // SAME technician or first assignment — check for existing assignment
+      // Look for active assignments first
+      assignment = await Assignment.findOne({
+        bookingId: booking._id,
+        technicianId: currentTechnicianId,
+        status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] },
+      });
+
+      // If no active assignment found but same technician, check if there's a completed one
+      // (from a previous phase) that we can reactivate instead of creating a new pending one
+      if (!assignment && previousTechnicianId === currentTechnicianId) {
+        const completedAssignment = await Assignment.findOne({
+          bookingId: booking._id,
+          technicianId: currentTechnicianId,
+          status: "completed",
+        });
+        if (completedAssignment) {
+          // Reactivate the completed assignment instead of creating a new one
+          assignment = completedAssignment;
+        }
+      }
+
+      if (assignment) {
+        // Reuse existing assignment — update schedule only
+        const wasPendingAcceptance = assignment.status === "pending_acceptance";
+        const wasCompleted = assignment.status === "completed";
+        assignment.bookingDate = new Date(scheduledDate);
+        assignment.startTime = scheduledTime || "09:00";
+        assignment.endTime = booking.endTime;
+        assignment.serviceDurationMinutes = repairDurationMinutes;
+        assignment.travelTime = repairTravelTime;
+        // If it was completed, reactivate as accepted (no re-acceptance needed)
+        // If it was pending, keep pending. Otherwise keep accepted (no re-acceptance)
+        assignment.status = wasPendingAcceptance ? "pending_acceptance" : "accepted";
+        assignment.completedAt = null; // Clear completed timestamp if reactivating
+        assignment.notes.push({
+          text: wasCompleted
+            ? `Repair rescheduled for ${new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} at ${scheduledTime || "09:00"}. Reactivated.${notes ? " Notes: " + notes.trim() : ""}`
+            : wasPendingAcceptance
+            ? `Repair schedule updated to ${new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} at ${scheduledTime || "09:00"}.${notes ? " Notes: " + notes.trim() : ""}`
+            : `Repair rescheduled for ${new Date(scheduledDate).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} at ${scheduledTime || "09:00"}.${notes ? " Notes: " + notes.trim() : ""}`,
+          by: req.user._id,
+          byName: req.user.firstName || req.user.name || "Admin",
+          createdAt: new Date(),
+        });
+        await assignment.save();
+      } else {
+        // No existing assignment — create new one in pending_acceptance
+        const assignmentData = {
+          bookingId: booking._id,
+          technicianId: currentTechnicianId,
+          status: "pending_acceptance",
+          bookingDate: new Date(scheduledDate),
+          startTime: scheduledTime || "09:00",
+          serviceDurationMinutes: repairDurationMinutes,
+          travelTime: repairTravelTime,
+          endTime: booking.endTime,
+          customerName: booking.customer?.name,
+          customerPhone: booking.customer?.phone,
+          serviceType: "repair",
+        };
+        if (notes && typeof notes === "string" && notes.trim()) {
+          assignmentData.notes = [{
+            text: notes.trim(),
+            by: req.user._id,
+            byName: req.user.firstName || req.user.name || "Admin",
+            createdAt: new Date(),
+          }];
+        }
+        assignment = await Assignment.create(assignmentData);
+      }
     }
 
     if (isMixedBooking) {
@@ -4763,6 +6404,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     }
 
     const isReschedule = assignment.status === "accepted";
+    const repairWarrantyRule = warrantyRuleForBooking(await getAftercarePolicy(), booking);
 
     // â”€â”€ Sync technician into Project.assignedTechnicians (large-scale repairs)
     try {
@@ -4799,7 +6441,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
               totalCost: booking.quotation.totalCost || 0,
               notes: booking.quotation.notes || '',
             } : undefined,
-            warranty: { days: 30 },
+            warranty: { days: repairWarrantyRule.enabled ? repairWarrantyRule.days : 0 },
           };
         }
         const alreadyAssigned = (project.assignedTechnicians || []).some(
@@ -4865,6 +6507,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
           },
           status: "pending_project_scheduling",
           isLargeScale: isLarge,
+          projectPhase: booking.serviceType === 'repair' ? 'assessment' : 'execution',
           estimatedTotalHours: estimatedMinutes / 60,
           totalUnits: booking.quantity || 1,
           location: booking.location ? {
@@ -4917,7 +6560,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
                 totalCost: booking.quotation.totalCost || 0,
                 notes: booking.quotation.notes || '',
               } : undefined,
-              warranty: { days: 30 },
+              warranty: { days: repairWarrantyRule.enabled ? repairWarrantyRule.days : 0 },
             }
           } : {}),
         });
@@ -4940,16 +6583,28 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
 
     // Socket: technician
     if (global.io) {
-      const eventName = isReschedule ? "booking:updated" : "assignment:new";
+      let eventName, message;
+      if (isReassignment) {
+        // Reassigned to a different technician
+        eventName = "assignment:new";
+        message = `You have been assigned to a repair job — ${workOrderNum} on ${scheduledDateLabel}. Please accept or decline within the deadline.`;
+      } else if (isReschedule) {
+        // Same technician, rescheduled
+        eventName = "booking:updated";
+        message = `Repair rescheduled — ${workOrderNum} on ${scheduledDateLabel}. Inspection already done, proceed to En Route.`;
+      } else {
+        // New assignment
+        eventName = "assignment:new";
+        message = `New repair job assigned — ${workOrderNum} on ${scheduledDateLabel}`;
+      }
+      
       global.io.to(`tech:${tech._id}`).emit(eventName, {
         bookingId: booking._id,
         workOrderNumber: workOrderNum,
         customerName: booking.customer?.name,
         scheduledDate,
         scheduledTime,
-        message: isReschedule
-          ? `Repair rescheduled — ${workOrderNum} on ${scheduledDateLabel}. Inspection already done, proceed to En Route.`
-          : `New repair job assigned — ${workOrderNum} on ${scheduledDateLabel}`,
+        message,
       });
     }
 
@@ -4976,19 +6631,29 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     // Email: technician
     try {
       const { sendTechnicianNotificationEmail } = require("../utils/mailer");
+      let serviceName, issueDescription;
+      if (isReassignment) {
+        serviceName = "Repair Assignment (Requires Acceptance)";
+        issueDescription = "You have been assigned to this repair job. Please accept or decline the assignment within the deadline.";
+      } else if (isReschedule) {
+        serviceName = "Repair Reschedule (Inspection Done)";
+        issueDescription = "This is a repair reschedule — the inspection is already complete. Proceed directly to repair execution.";
+      } else {
+        serviceName = "Repair Service";
+        issueDescription = booking.issueDescription || booking.unitInfo?.problemDescription || "";
+      }
+      
       sendTechnicianNotificationEmail({
         to: tech.user?.email,
         technicianName: techFullName,
         customerName: booking.customer?.name || "Customer",
         bookingReference: workOrderNum,
-        serviceName: isReschedule ? "Repair Reschedule (Inspection Done)" : "Repair Service",
+        serviceName,
         dateLabel: scheduledDateLabel,
         timeLabel: scheduledTime || "09:00",
         totalLabel: `${booking.serviceDurationMinutes || 90} min`,
         locationAddress: booking.location?.address || "",
-        issueDescription: isReschedule
-          ? "This is a repair reschedule — the inspection is already complete. Proceed directly to repair execution."
-          : (booking.issueDescription || booking.unitInfo?.problemDescription || ""),
+        issueDescription,
       }).catch(err => console.error("[MAILER] Failed to send technician notification:", err.message));
     } catch (mailErr) {
       console.error("[MAILER] Technician notification email error:", mailErr.message);
@@ -5036,10 +6701,742 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
 // ═══ ATTENTION REQUIRED QUEUE ═════════════════════════════════════════════
 
 /**
- * GET /api/admin/attention-queue
- * Returns bookings that need admin action: declined assignments, expired
- * assignments that need reassignment, customer reschedule requests, etc.
+ * GET /api/admin/resolution-center
+ * Unified operational exceptions for service bookings and aircon orders.
+ * Linked delivery-installation bookings are suppressed when their order is
+ * already the authoritative exception, preventing duplicate admin work.
  */
+router.get("/resolution-center", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Order = require("../models/Order");
+    const ServiceReport = require("../models/ServiceReport");
+    const { bookingReviewState } = require("../utils/bookingReview");
+    const { REVIEWABLE_ORDER_STATUSES } = require("../utils/orderAttention");
+    const {
+      filterResolutionCases,
+      orderResolutionCase,
+      paginateResolutionCases,
+      sortResolutionCases,
+      summarizeResolutionCases,
+    } = require("../utils/resolutionCenter");
+    const now = new Date();
+    const recentCancellationCutoff = new Date(now.getTime() - 90 * 86400000);
+    const candidateStatuses = [
+      "pending", "no-show-reported", "no-show", "reschedule-required", "awaiting_assignment", "pending_reassignment", "re-scheduled",
+      "confirmed", "scheduled", "on-the-way", "arrived", "in-progress",
+      "inspection_scheduled", "inspection_in_progress", "repair_scheduled", "repair_in_progress",
+    ];
+
+    const [followUpReports, attentionOrders, linkedActiveOrderBookingIds] = await Promise.all([
+      ServiceReport.find({ followUpRequired: true })
+        .sort({ updatedAt: -1 })
+        .select("bookingId followUpNotes followUpDate updatedAt")
+        .lean(),
+      Order.find({ status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .populate("technicianId", "name phone")
+        .lean(),
+      Order.distinct("bookingId", { bookingId: { $ne: null }, status: { $nin: ["completed", "cancelled"] } }),
+    ]);
+    const followUpByBooking = new Map();
+    for (const report of followUpReports) {
+      const key = String(report.bookingId);
+      if (!followUpByBooking.has(key)) followUpByBooking.set(key, report);
+    }
+    const followUpBookingIds = [...followUpByBooking.keys()].filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const orderCases = attentionOrders.map((order) => orderResolutionCase(order, now)).filter(Boolean);
+    const linkedOrderBookingIds = linkedActiveOrderBookingIds
+      .map((id) => String(id || ""))
+      .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const bookings = await BookingService.find({
+      isProject: { $ne: true },
+      ...(linkedOrderBookingIds.length ? { _id: { $nin: linkedOrderBookingIds } } : {}),
+      $or: [
+        { status: { $in: candidateStatuses } },
+        { status: "cancelled", updatedAt: { $gte: recentCancellationCutoff } },
+        { _id: { $in: followUpBookingIds } },
+      ],
+    })
+      .sort({ bookingDate: 1, updatedAt: -1 })
+      .limit(500)
+      .populate("customerId", "firstName lastName name email phone")
+      .populate("technicianId", "name")
+      .populate("assignmentId", "technicianId customerName serviceName arrivalProofUrl")
+      .lean();
+
+    const parseMinutes = (value) => {
+      const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return null;
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      if (match[3]) {
+        const ap = match[3].toUpperCase();
+        if (ap === "PM" && hour < 12) hour += 12;
+        if (ap === "AM" && hour === 12) hour = 0;
+      }
+      return hour * 60 + minute;
+    };
+    const visitDateTime = (booking) => {
+      if (!booking.bookingDate) return null;
+      const visit = new Date(booking.bookingDate);
+      const minutes = parseMinutes(booking.startTime);
+      if (minutes === null) visit.setHours(23, 59, 59, 999);
+      else visit.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      return visit;
+    };
+
+    // Detect overlapping service visits for each technician/day.
+    const conflictBookingIds = new Set();
+    const byTechnicianDay = new Map();
+    for (const booking of bookings) {
+      if (!booking.technicianId || !booking.bookingDate || booking.status === "cancelled") continue;
+      const start = parseMinutes(booking.startTime);
+      if (start === null) continue;
+      const day = new Date(booking.bookingDate).toISOString().slice(0, 10);
+      const technicianId = String(booking.technicianId._id || booking.technicianId);
+      const key = `${technicianId}:${day}`;
+      const rows = byTechnicianDay.get(key) || [];
+      rows.push({ id: String(booking._id), start, end: start + Math.max(30, Number(booking.serviceDurationMinutes) || 60) });
+      byTechnicianDay.set(key, rows);
+    }
+    for (const rows of byTechnicianDay.values()) {
+      rows.sort((a, b) => a.start - b.start);
+      for (let i = 0; i < rows.length; i += 1) {
+        for (let j = i + 1; j < rows.length && rows[j].start < rows[i].end; j += 1) {
+          conflictBookingIds.add(rows[i].id);
+          conflictBookingIds.add(rows[j].id);
+        }
+      }
+    }
+
+    const cases = [];
+    const caseKeys = new Set();
+    const activeExecutionStatuses = new Set([
+      "on-the-way", "arrived", "in-progress", "inspection_scheduled",
+      "inspection_in_progress", "repair_scheduled", "repair_in_progress",
+    ]);
+    const noTechnicianStatuses = new Set(["awaiting_assignment", "confirmed", "scheduled"]);
+
+    const addCase = (booking, issueType, details = {}) => {
+      const caseKey = `${booking._id}:${issueType}`;
+      if (caseKeys.has(caseKey)) return;
+      const alreadyResolved = (booking.resolutionCases || []).some((decision) =>
+        decision.issueType === issueType && decision.sourceStatus === booking.status &&
+        ["closed", "rescheduled", "reassigned"].includes(decision.state),
+      );
+      if (alreadyResolved) return;
+      caseKeys.add(caseKey);
+
+      const customerDoc = booking.customerId || {};
+      const embeddedCustomer = booking.customer || {};
+      const customerName = customerDoc.name || `${customerDoc.firstName || ""} ${customerDoc.lastName || ""}`.trim() || embeddedCustomer.name || "Customer";
+      const report = booking.noShowReport || {};
+      const bookingDate = visitDateTime(booking);
+      const isPastDate = Boolean(bookingDate && bookingDate < now);
+      const daysPast = isPastDate ? Math.max(0, Math.floor((now - bookingDate) / 86400000)) : 0;
+      const lastAction = booking.cancellationHistory?.length ? booking.cancellationHistory[booking.cancellationHistory.length - 1] : null;
+
+      cases.push({
+        caseId: `booking:${caseKey}`,
+        id: String(booking._id),
+        bookingId: String(booking._id),
+        sourceType: "booking",
+        sourceLabel: "Booking",
+        reference: booking.bookingReference || booking.workOrderNumber || `#${String(booking._id).slice(-6).toUpperCase()}`,
+        customer: customerName,
+        email: customerDoc.email || embeddedCustomer.email || "",
+        phone: customerDoc.phone || embeddedCustomer.phone || embeddedCustomer.mobile || "",
+        serviceName: booking.service?.name || booking.serviceName || (booking.serviceModel === "RepairService" ? "Repair Service" : "Service"),
+        serviceModel: booking.serviceModel || "CoreService",
+        serviceDurationMinutes: Math.max(30, Number(booking.serviceDurationMinutes) || 60),
+        quantity: Math.max(1, Number(booking.quantity) || 1),
+        capacityQuantity: Number(booking.serviceDurationMinutes) > 0 ? 1 : Math.max(1, Number(booking.quantity) || 1),
+        status: booking.status,
+        issueType,
+        severity: details.severity || (isPastDate ? (daysPast >= 2 ? "critical" : "high") : "medium"),
+        reason: details.reason || "Admin decision required",
+        bookingDate: booking.bookingDate,
+        scheduledAt: bookingDate ? bookingDate.toISOString() : null,
+        startTime: booking.startTime || "",
+        technicianName: booking.technicianId?.name || booking.technician?.name || booking.technicianName || report.reportedByName || "Unassigned",
+        isPastDate,
+        daysPast,
+        requiresReschedule: details.requiresReschedule ?? isPastDate,
+        canReassign: details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show"),
+        proposedReschedule: booking.proposedReschedule || null,
+        cancellationReason: booking.cancellationReason || lastAction?.reason || "",
+        noShowReport: issueType === "no_show" ? {
+          arrivedAt: report.arrivedAt || null,
+          contactAttempts: report.contactAttempts || [],
+          waitedMinutes: Number(report.waitedMinutes) || 0,
+          arrivalProofUrl: report.arrivalProofUrl || booking.assignmentId?.arrivalProofUrl || "",
+          reportedAt: report.reportedAt || null,
+          reportedByName: report.reportedByName || "",
+        } : null,
+        awaitingCustomerSchedule: booking.status === "reschedule-required",
+        rescheduleAccessExpiry: booking.rescheduleAccessExpiry || booking.noShowRescheduleExpiry || null,
+        servicePrice: Number(booking.service?.price || booking.quotation?.totalAmount || booking.estimatedTotal || 0),
+        amountPaid: Number(booking.payment?.downpaymentAmount || booking.downpaymentAmount || 0),
+        allowedActions: [
+          "view", "close", "reschedule",
+          ...((details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show")) ? ["reassign"] : []),
+          ...(customerDoc.phone || embeddedCustomer.phone || embeddedCustomer.mobile ? ["call"] : []),
+        ],
+      });
+    };
+
+    for (const booking of bookings) {
+      const bookingDate = visitDateTime(booking);
+      const isPastDate = Boolean(bookingDate && bookingDate < now);
+      const daysPast = isPastDate ? Math.max(0, Math.floor((now - bookingDate) / 86400000)) : 0;
+
+      if (bookingReviewState(booking, now).isReviewOverdue) {
+        addCase(booking, "past_date", {
+          severity: "high",
+          reason: "Requested schedule passed before admin review. Contact the customer to reschedule or cancel and review any refund.",
+          requiresReschedule: true,
+          canReassign: false,
+        });
+      }
+
+      const noShowReviewStatus = booking.noShowReport?.reviewStatus;
+      const isPendingNoShow = booking.status === "no-show-reported"
+        || (booking.status === "no-show" && !["confirmed", "rescheduled", "cancelled"].includes(noShowReviewStatus));
+      if (isPendingNoShow) {
+        addCase(booking, "no_show", { severity: "critical", reason: "Technician reported the customer unavailable; confirm or reschedule the visit", requiresReschedule: false, canReassign: false });
+      }
+      if (booking.status === "reschedule-required") {
+        // Past-date bookings that need a new date vs. no-show bookings
+        if (isPastDate) {
+          addCase(booking, "past_date", {
+            severity: daysPast >= 2 ? "critical" : "high",
+            reason: `Scheduled ${daysPast} day${daysPast === 1 ? "" : "s"} ago with no service activity. Needs a new date/time.`,
+            requiresReschedule: true,
+            canReassign: false,
+          });
+        } else {
+          addCase(booking, "no_show", {
+            severity: "high",
+            reason: "No-show confirmed; waiting for the customer to select a new available schedule",
+            requiresReschedule: true,
+            canReassign: false,
+          });
+        }
+      }
+      if (booking.status === "cancelled") {
+        addCase(booking, "cancelled", { severity: "high", reason: booking.cancellationReason || "Cancelled booking requires an admin decision", requiresReschedule: true, canReassign: false });
+      }
+      if (noTechnicianStatuses.has(booking.status) && !booking.technicianId && booking.proposedReschedule?.status !== "pending") {
+        addCase(booking, "no_technician", {
+          reason: isPastDate ? `Past schedule (${daysPast} day${daysPast === 1 ? "" : "s"} ago) has no technician; reschedule before assigning` : "No technician is assigned to this visit",
+          requiresReschedule: isPastDate,
+          canReassign: !isPastDate,
+        });
+      }
+      if (booking.status === "pending_reassignment") {
+        const lastAction = booking.cancellationHistory?.length ? booking.cancellationHistory[booking.cancellationHistory.length - 1] : null;
+        addCase(booking, "technician_issue", {
+          severity: "high",
+          reason: lastAction ? `${lastAction.technicianName || "Technician"} ${lastAction.action}: ${lastAction.reason || "No reason provided"}` : "Technician declined or cancelled; a new technician is required",
+          requiresReschedule: isPastDate,
+          canReassign: !isPastDate,
+        });
+      }
+      if (activeExecutionStatuses.has(booking.status) && isPastDate && !followUpByBooking.has(String(booking._id))) {
+        addCase(booking, "incomplete", { reason: `Visit is incomplete and ${daysPast} day${daysPast === 1 ? "" : "s"} past its scheduled date`, requiresReschedule: true, canReassign: false });
+      }
+      const followUpReport = followUpByBooking.get(String(booking._id));
+      if (followUpReport) {
+        const followUpDate = followUpReport.followUpDate ? new Date(followUpReport.followUpDate).toLocaleDateString("en-PH") : "not specified";
+        addCase(booking, "incomplete", {
+          severity: "high",
+          reason: followUpReport.followUpNotes || `Technician marked follow-up work required (target: ${followUpDate})`,
+          requiresReschedule: true,
+          canReassign: false,
+        });
+      }
+      if (conflictBookingIds.has(String(booking._id))) {
+        addCase(booking, "schedule_conflict", { severity: "critical", reason: "This technician has another service booking that overlaps this time slot", requiresReschedule: true, canReassign: !isPastDate });
+      }
+      if ((booking.status === "re-scheduled" || booking.proposedReschedule?.status === "pending" || booking.rescheduleRequest?.status === "pending") && booking.status !== "reschedule-required") {
+        addCase(booking, "customer_reschedule", { reason: booking.rescheduleReason || "Customer/admin reschedule requires review and confirmation", requiresReschedule: true, canReassign: false });
+      }
+    }
+
+    cases.push(...orderCases);
+    sortResolutionCases(cases);
+    const summary = summarizeResolutionCases(cases);
+    const filtered = filterResolutionCases(cases, {
+      source: req.query.source,
+      issue: req.query.issue,
+      severity: req.query.severity,
+      q: req.query.q,
+    });
+    const paginated = paginateResolutionCases(filtered, req.query.page, req.query.perPage);
+
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      cases: paginated.cases,
+      summary,
+      filteredTotal: filtered.length,
+      pagination: paginated.pagination,
+      filters: {
+        source: String(req.query.source || ""),
+        issue: String(req.query.issue || ""),
+        severity: String(req.query.severity || ""),
+        q: String(req.query.q || ""),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/resolution-center/:id/close", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const audit = require("../utils/audit");
+    const { id } = req.params;
+    const issueType = String(req.body?.issueType || "").trim();
+    const note = String(req.body?.note || "").trim().slice(0, 1000);
+    const validIssueTypes = ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+    if (!validIssueTypes.includes(issueType)) return res.status(400).json({ error: "A valid issue type is required" });
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    booking.resolutionCases.push({
+      issueType,
+      sourceStatus: booking.status,
+      state: "closed",
+      action: "close",
+      note: note || "Case closed by admin",
+      decidedAt: new Date(),
+      decidedBy: req.user?._id,
+      decidedByName: req.user?.name || "Admin",
+    });
+    await booking.save();
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.resolution.closed",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, issueType, note },
+    }).catch(() => {});
+    return res.json({ success: true, message: "Resolution case closed." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/resolution-center/:id/reassign", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Assignment = require("../models/Assignment");
+    const audit = require("../utils/audit");
+    const { id } = req.params;
+    const issueType = String(req.body?.issueType || "technician_issue").trim();
+    const note = String(req.body?.note || "").trim().slice(0, 1000);
+    const validIssueTypes = ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+    if (!validIssueTypes.includes(issueType)) return res.status(400).json({ error: "A valid issue type is required" });
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    const scheduledAt = booking.bookingDate ? new Date(booking.bookingDate) : null;
+    if (scheduledAt) {
+      const match = String(booking.startTime || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (match) {
+        let hour = Number(match[1]);
+        const minute = Number(match[2]);
+        if (match[3]) {
+          const ap = match[3].toUpperCase();
+          if (ap === "PM" && hour < 12) hour += 12;
+          if (ap === "AM" && hour === 12) hour = 0;
+        }
+        scheduledAt.setHours(hour, minute, 0, 0);
+      } else {
+        scheduledAt.setHours(23, 59, 59, 999);
+      }
+    }
+    if (scheduledAt && scheduledAt < new Date()) {
+      return res.status(409).json({ error: "This booking date has passed. Reschedule the visit before assigning a technician.", code: "RESCHEDULE_REQUIRED" });
+    }
+    if (["cancelled", "no-show", "no-show-reported"].includes(booking.status)) {
+      return res.status(409).json({ error: "Reschedule this case before assigning a technician.", code: "RESCHEDULE_REQUIRED" });
+    }
+
+    const previousStatus = booking.status;
+    const previousTechnicianId = booking.technicianId;
+    await Assignment.updateMany(
+      { bookingId: booking._id, status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] } },
+      { $set: { status: "expired", expiredAt: new Date(), expiredReason: "Reassigned from Booking Resolution Center" } },
+    );
+
+    booking.status = "pending_reassignment";
+    booking.assignmentId = null;
+    booking.technicianId = null;
+    booking.technician = null;
+    booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
+    booking.statusHistory.push({
+      fromStatus: previousStatus,
+      toStatus: "pending_reassignment",
+      changedBy: req.user?._id,
+      changedByModel: "User",
+      changedByName: req.user?.name || "Admin",
+      reason: note || "Admin requested reassignment from Booking Resolution Center",
+      timestamp: new Date(),
+    });
+    booking.resolutionCases.push({
+      issueType,
+      sourceStatus: previousStatus,
+      state: "reassigned",
+      action: "reassign",
+      note: note || "Sent to assignment queue",
+      decidedAt: new Date(),
+      decidedBy: req.user?._id,
+      decidedByName: req.user?.name || "Admin",
+    });
+    await booking.save();
+
+    if (previousTechnicianId) {
+      const Technician = require("../models/Technician");
+      const previousTechnician = await Technician.findById(previousTechnicianId).catch(() => null);
+      if (previousTechnician) {
+        const { resolveAvailabilityStatus } = require("../utils/availability");
+        await resolveAvailabilityStatus(previousTechnician, null, null, { syncDb: true }).catch(() => {});
+      }
+    }
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.resolution.reassigned",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, issueType, previousStatus },
+    }).catch(() => {});
+    return res.json({ success: true, message: "Booking sent to the assignment queue." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/resolution-center/:id/payment-summary
+ * Actual amount the customer has paid, computed from Payment records
+ * (sum of received payments minus any refunds already issued).
+ */
+router.get("/resolution-center/:id/payment-summary", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Payment = require("../models/Payment");
+    const { summarizeBookingPayments } = require("../utils/paymentSummary");
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+
+    const booking = await BookingService.findById(id).select("paymentStatus paymentMethod downpaymentAmount totalPrice").lean();
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Pending rows are returned separately so the UI can show submitted money
+    // without treating it as refundable before an admin verifies it.
+    const payments = await Payment.find({ bookingId: id }).sort({ submittedAt: -1 }).lean();
+    const summary = summarizeBookingPayments(booking, payments);
+
+    return res.json({
+      success: true,
+      ...summary,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/resolution-center/:id/verify-pending-payment
+ * Verifies a submitted payment without advancing an overdue booking to the
+ * assignment queue. The booking remains actionable in the Resolution Center.
+ */
+router.post("/resolution-center/:id/verify-pending-payment", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Payment = require("../models/Payment");
+    const { summarizeBookingPayments } = require("../utils/paymentSummary");
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (["cancelled", "completed", "closed"].includes(booking.status)) {
+      return res.status(400).json({ error: `Cannot verify payment for a booking with status "${booking.status}".` });
+    }
+
+    const payment = await Payment.findOne({ bookingId: booking._id, status: "pending" }).sort({ submittedAt: -1 });
+    if (!payment) return res.status(404).json({ error: "No pending payment submission was found for this booking." });
+    if (!(Number(payment.amount) > 0)) return res.status(400).json({ error: "The pending payment has no valid amount." });
+    if (!payment.proofUrl && !booking.paymentProof && !payment.reference) {
+      return res.status(400).json({ error: "Payment proof or a transaction reference is required before verification." });
+    }
+
+    const now = new Date();
+    // COD describes how the remaining balance is collected. Its initial
+    // downpayment is commonly submitted through GCash, so use booking terms.
+    const isCOD = String(booking.paymentMethod || "").toLowerCase() === "cod";
+    payment.status = isCOD ? "partial" : "paid";
+    payment.verifiedAt = now;
+    payment.verifiedBy = req.user?._id;
+    payment.events.push({
+      status: payment.status,
+      actor: req.user?._id,
+      actorName: req.user?.name || req.user?.email || "Admin",
+      actorRole: "admin",
+      note: "Payment verified from the Booking Resolution Center",
+      at: now,
+    });
+    await payment.save();
+
+    const payments = await Payment.find({ bookingId: booking._id }).sort({ submittedAt: -1 }).lean();
+    const summary = summarizeBookingPayments(booking, payments);
+    booking.paymentStatus = isCOD ? "partial" : "paid";
+    booking.amountPaid = summary.amountPaid;
+    booking.balanceAmount = Math.max(0, Number(booking.totalPrice || booking.estimatedFee || 0) - summary.amountPaid);
+    booking.paymentVerifiedAt = now;
+    booking.paymentVerifiedBy = req.user?._id;
+    await booking.save();
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.payment_verify_resolution",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, paymentId: payment._id, amount: payment.amount, method: payment.method },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Payment verified. The submitted amount is now refundable.", ...summary });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/resolution-center/:id/cancel-with-refund
+ * Admin cancels a booking with full control over refund amount and method.
+ *
+ * Body: {
+ *   reason: string,
+ *   reasonType: "customer_request" | "no_longer_needs_service" | "scheduling_issue" | "other",
+ *   refundDecision: "full" | "partial" | "none",
+ *   refundAmount?: number,   // required if refundDecision === "partial"
+ *   refundMethod?: string,   // "original" | "gcash" | "bank" | "cash"
+ *   refundNotes?: string
+ * }
+ */
+router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Payment = require("../models/Payment");
+    const audit = require("../utils/audit");
+    const { id } = req.params;
+    const { reason, reasonType, refundDecision, refundAmount, refundMethod, refundNotes } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (["cancelled", "completed", "closed"].includes(booking.status)) {
+      return res.status(400).json({ error: `Cannot cancel a booking with status "${booking.status}".` });
+    }
+
+    const previousStatus = booking.status;
+
+    // Cancel existing assignment if any
+    if (booking.assignmentId) {
+      try {
+        await Assignment.findByIdAndUpdate(booking.assignmentId, {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          notes: "Auto-cancelled: booking cancelled by admin",
+        });
+      } catch (_) {}
+    }
+
+    // Set booking to cancelled
+    booking.status = "cancelled";
+    booking.cancellationReason = reason || "Cancelled by admin";
+    booking.technicianId = null;
+    booking.assignmentId = null;
+
+    // Handle refund
+    let payment = null;
+    if (refundDecision && refundDecision !== "none") {
+      // Money actually received from the customer (any payment type —
+      // downpayment for COD, full amount for GCash, etc.)
+      const PAID_STATUSES = ["verified", "paid", "remitted", "payment_collected", "partial", "waiting_for_remittance"];
+      payment = await Payment.findOne({
+        bookingId: booking._id,
+        status: { $in: PAID_STATUSES },
+      }).sort({ submittedAt: -1 });
+
+      if (payment) {
+        // Full refund returns exactly what the customer actually paid on this record;
+        // partial refunds are capped at the paid amount.
+        const maxRefundable = Math.max(0, (Number(payment.amount) || 0) - (Number(payment.refundAmount) || 0));
+        let refundAmt = refundDecision === "full"
+          ? maxRefundable
+          : Math.min(maxRefundable, Math.max(0, Number(refundAmount) || 0));
+        if (!(refundAmt > 0)) {
+          return res.status(400).json({ error: "No refundable amount found on this payment. The customer may not have a verified payment, or it was already refunded." });
+        }
+
+        payment.refundStatus = refundDecision === "full" ? "pending" : (refundAmt > 0 ? "pending" : "none");
+        payment.refundAmount = refundAmt;
+        payment.refundMethod = refundMethod || "original";
+        payment.refundNotes = refundNotes || "";
+        payment.refundReason = reason || "Admin-initiated cancellation";
+
+        if (refundDecision === "full" && refundAmt === (payment.amount || 0)) {
+          payment.status = "refunded";
+          payment.refundedAt = new Date();
+          payment.refundedBy = req.user?._id;
+        }
+
+        payment.events.push({
+          status: payment.status === "refunded" ? "refunded" : "refund_pending",
+          actor: req.user?._id,
+          actorName: req.user?.name || req.user?.email || "Admin",
+          actorRole: "admin",
+          note: refundDecision === "full"
+            ? `Full refund of ₱${refundAmt} approved`
+            : refundDecision === "partial"
+              ? `Partial refund of ₱${refundAmt} approved`
+              : "No refund",
+          at: new Date(),
+          metadata: { refundDecision, refundMethod, refundNotes },
+        });
+        await payment.save();
+
+        booking.paymentStatus = payment.status === "refunded" ? "refunded" : booking.paymentStatus;
+        booking.refundStatus = payment.refundStatus;
+        booking.refundAmount = payment.refundAmount;
+        booking.refundMethod = payment.refundMethod;
+        booking.refundNotes = payment.refundNotes;
+      }
+    }
+
+    // Record status history
+    booking.recordStatusHistory({
+      fromStatus: previousStatus,
+      toStatus: "cancelled",
+      changedBy: req.user?._id,
+      changedByModel: "User",
+      changedByName: req.user?.name || "Admin",
+      reason: reason || "Cancelled by admin",
+    });
+
+    // Record in cancellation history so the Cancellation Log page picks it up
+    if (!Array.isArray(booking.cancellationHistory)) booking.cancellationHistory = [];
+    booking.cancellationHistory.push({
+      technicianId: undefined,
+      technicianName: req.user?.name || "Admin",
+      action: "cancelled",
+      reason: `${reasonType ? reasonType.replace(/_/g, " ") : "admin cancellation"}${reason ? `: ${reason}` : ""}${refundDecision !== "none" ? ` (refund ${refundDecision}${refundAmount ? ` ₱${refundAmount}` : ""})` : ""}`,
+      timestamp: new Date(),
+    });
+
+    // Record resolution case
+    const validIssueTypes = ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
+    const issueType = req.body.issueType || "past_date";
+    if (validIssueTypes.includes(issueType)) {
+      booking.resolutionCases.push({
+        issueType,
+        sourceStatus: previousStatus,
+        state: "closed",
+        action: "close",
+        note: reason || "Cancelled by admin from resolution center",
+        decidedAt: new Date(),
+        decidedBy: req.user?._id,
+        decidedByName: req.user?.name || "Admin",
+      });
+    }
+
+    // Close any open past_date resolution cases — the scheduling issue is resolved
+    if (booking.resolutionCases && Array.isArray(booking.resolutionCases)) {
+      for (const rc of booking.resolutionCases) {
+        if (rc.issueType === "past_date" && !["closed", "rescheduled", "reassigned"].includes(rc.state)) {
+          rc.state = "rescheduled";
+          rc.action = "reschedule";
+          rc.note = reason || "New visit scheduled by admin";
+          rc.decidedAt = new Date();
+          rc.decidedBy = req.user?._id;
+          rc.decidedByName = req.user?.name || "Admin";
+        }
+      }
+    }
+
+    await booking.save();
+
+    // Notify customer
+    try {
+      const { createNotification } = require("./notify");
+      const customerName = booking.customer?.name || "Customer";
+      const refundSummary = refundDecision === "full"
+        ? "A full refund will be processed."
+        : refundDecision === "partial"
+          ? `A partial refund of ₱${refundAmount || 0} will be processed.`
+          : "No refund will be issued.";
+
+      await createNotification({
+        type: "booking_cancelled",
+        title: "Booking Cancelled",
+        message: `Your booking ${booking.bookingReference || ""} has been cancelled. ${refundSummary}`,
+        userId: booking.customerId,
+        role: "customer",
+        referenceId: booking._id,
+        referenceModel: "BookingService",
+        link: "/tracking",
+      }).catch(() => {});
+    } catch (_) {}
+
+    // Audit
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.admin_cancel",
+      module: "bookings",
+      req,
+      details: {
+        bookingId: booking._id,
+        previousStatus,
+        reason,
+        reasonType,
+        refundDecision,
+        refundAmount: refundAmount || 0,
+        refundMethod,
+        paymentRefunded: payment?.status === "refunded",
+      },
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: "Booking cancelled.",
+      refund: refundDecision !== "none" ? {
+        status: payment?.refundStatus || "none",
+        amount: payment?.refundAmount || 0,
+        method: payment?.refundMethod || "",
+      } : null,
+    });
+  } catch (err) {
+    console.error("Cancel with refund error:", err);
+    next(err);
+  }
+});
+
 router.get("/attention-queue", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
@@ -5055,6 +7452,8 @@ router.get("/attention-queue", async (req, res, next) => {
       "repair_requested",
       "pending_inspection",
       "awaiting_assignment",
+      "no-show-reported",
+      "reschedule-required",
     ];
 
     const query = status && attentionStatuses.includes(status)
@@ -5069,6 +7468,7 @@ router.get("/attention-queue", async (req, res, next) => {
         .limit(limit)
         .populate("customerId", "firstName lastName email phone")
         .populate("technicianId", "name")
+        .populate("assignmentId", "technicianId customerName serviceName arrivalProofUrl")
         .lean(),
     ]);
 
@@ -5090,6 +7490,10 @@ router.get("/attention-queue", async (req, res, next) => {
         reason = "Inspection needs to be scheduled";
       } else if (b.status === "awaiting_assignment") {
         reason = "Waiting for technician assignment";
+      } else if (b.status === "no-show-reported") {
+        reason = "Technician reported the customer unavailable; admin decision required";
+      } else if (b.status === "reschedule-required") {
+        reason = "This booking has passed its scheduled date. A future visit must be set before assignment.";
       }
 
       const customer = b.customerId
@@ -5110,9 +7514,18 @@ router.get("/attention-queue", async (req, res, next) => {
         reason,
         bookingDate: b.bookingDate,
         startTime: b.startTime || "",
-        technicianName: b.technicianId?.name || b.technician?.name || "Unassigned",
+        technicianName: b.technicianId?.name || b.technician?.name || b.technicianName || b.noShowReport?.reportedByName || "Unassigned",
+        serviceDurationMinutes: Number(b.serviceDurationMinutes) || 60,
         updatedAt: b.updatedAt,
         requiresReschedule: ["re-scheduled", "pending_reassignment"].includes(b.status),
+        noShowReport: b.status === "no-show-reported" ? {
+          arrivedAt: b.noShowReport?.arrivedAt || null,
+          contactAttempts: b.noShowReport?.contactAttempts || [],
+          waitedMinutes: Number(b.noShowReport?.waitedMinutes) || 0,
+          arrivalProofUrl: b.noShowReport?.arrivalProofUrl || b.assignmentId?.arrivalProofUrl || "",
+          reportedAt: b.noShowReport?.reportedAt || null,
+          reportedByName: b.noShowReport?.reportedByName || "",
+        } : null,
         proposedReschedule: b.proposedReschedule || null,
         isProposedPassed: (() => {
           const now = new Date();
@@ -5137,6 +7550,8 @@ router.get("/attention-queue", async (req, res, next) => {
           }
           return effDate < now;
         })(),
+        servicePrice: Number(b.service?.price || b.quotation?.totalAmount || b.estimatedTotal || 0),
+        amountPaid: Number(b.payment?.downpaymentAmount || b.downpaymentAmount || 0),
       };
     });
 
@@ -5520,6 +7935,1117 @@ router.get("/reports/revenue", async (req, res, next) => {
   }
 });
 
+// ─── Review & Reschedule Scanner ──────────────────────────────────────────────
+
+/**
+ * GET /api/admin/review-reschedule
+ * Scans all active bookings and identifies problems that need admin action
+ * before the next dispatch cycle.
+ *
+ * Problem categories:
+ *  1. past_date_no_tech   – bookingDate passed, no technician assigned
+ *  2. stalled_in_queue    – stuck in awaiting_assignment / pending_reassignment 24h+
+ *  3. expiring_proposal   – proposedReschedule about to expire, no customer response
+ *  4. overdue_job         – bookingDate passed, still in on-the-way / arrived / in-progress
+ */
+router.get("/review-reschedule", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const now = new Date();
+
+    // Status groups
+    const needsTechStatuses = ["scheduled", "confirmed", "awaiting_assignment", "pending_reassignment"];
+    const activeJobStatuses = ["on-the-way", "arrived", "in-progress"];
+    const queueStatuses = ["awaiting_assignment", "pending_reassignment"];
+
+    // Fetch all relevant bookings in one query
+    const allBookings = await BookingService.find({
+      status: { $in: [...needsTechStatuses, ...activeJobStatuses] },
+    })
+      .populate("customerId", "name email phone")
+      .populate("technicianId", "name")
+      .lean();
+
+    const problems = [];
+
+    for (const b of allBookings) {
+      const bookingDate = b.bookingDate ? new Date(b.bookingDate) : null;
+      const msPassed = bookingDate ? now - bookingDate : 0;
+      const hoursPassed = msPassed / (1000 * 60 * 60);
+      const daysPassed = hoursPassed / 24;
+
+      // ── Category 1: Past date, no technician ──
+      if (bookingDate && msPassed > 0 && needsTechStatuses.includes(b.status) && !b.technicianId) {
+        problems.push({
+          bookingId: b._id,
+          reference: b.bookingReference,
+          customer: b.customer?.name || "—",
+          customerEmail: b.customer?.email || "",
+          customerPhone: b.customer?.phone || "",
+          serviceName: b.service || b.serviceType || "—",
+          status: b.status,
+          bookingDate: b.bookingDate,
+          startTime: b.startTime || "—",
+          technician: null,
+          category: "past_date_no_tech",
+          severity: daysPassed > 2 ? "critical" : daysPassed > 1 ? "high" : "medium",
+          elapsed: `${Math.floor(daysPassed)}d ${Math.floor(hoursPassed % 24)}h`,
+          elapsedHours: Math.floor(hoursPassed),
+          reason: `Scheduled ${Math.floor(daysPassed)} day(s) ago with no technician assigned`,
+          proposedReschedule: b.proposedReschedule || null,
+        });
+      }
+
+      // ── Category 2: Stalled in queue 24h+ ──
+      if (queueStatuses.includes(b.status) && hoursPassed > 24 && b.technicianId) {
+        problems.push({
+          bookingId: b._id,
+          reference: b.bookingReference,
+          customer: b.customer?.name || "—",
+          customerEmail: b.customer?.email || "",
+          customerPhone: b.customer?.phone || "",
+          serviceName: b.service || b.serviceType || "—",
+          status: b.status,
+          bookingDate: b.bookingDate,
+          startTime: b.startTime || "—",
+          technician: b.technicianId?.name || "—",
+          category: "stalled_in_queue",
+          severity: daysPassed > 3 ? "critical" : "high",
+          elapsed: `${Math.floor(daysPassed)}d ${Math.floor(hoursPassed % 24)}h`,
+          elapsedHours: Math.floor(hoursPassed),
+          reason: `Assigned but stuck for ${Math.floor(hoursPassed)}h without progress`,
+          proposedReschedule: b.proposedReschedule || null,
+        });
+      }
+
+      // ── Category 3: Expiring proposals ──
+      if (b.proposedReschedule && b.proposedReschedule.status === "pending" && b.proposedReschedule.expiresAt) {
+        const expiresAt = new Date(b.proposedReschedule.expiresAt);
+        const hoursUntilExpiry = (expiresAt - now) / (1000 * 60 * 60);
+        if (hoursUntilExpiry < 24 && hoursUntilExpiry > 0) {
+          problems.push({
+            bookingId: b._id,
+            reference: b.bookingReference,
+            customer: b.customer?.name || "—",
+            customerEmail: b.customer?.email || "",
+            customerPhone: b.customer?.phone || "",
+            serviceName: b.service || b.serviceType || "—",
+            status: b.status,
+            bookingDate: b.bookingDate,
+            startTime: b.startTime || "—",
+            technician: b.technicianId?.name || "—",
+            category: "expiring_proposal",
+            severity: hoursUntilExpiry < 6 ? "critical" : "high",
+            elapsed: `${Math.floor(hoursUntilExpiry)}h`,
+            elapsedHours: Math.floor(hoursUntilExpiry),
+            reason: `Reschedule proposal expires in ${Math.floor(hoursUntilExpiry)}h — customer hasn't responded`,
+            proposedReschedule: b.proposedReschedule,
+          });
+        }
+      }
+
+      // ── Category 4: Overdue jobs ──
+      if (activeJobStatuses.includes(b.status) && bookingDate && msPassed > 0) {
+        const overdueDays = daysPassed;
+        problems.push({
+          bookingId: b._id,
+          reference: b.bookingReference,
+          customer: b.customer?.name || "—",
+          customerEmail: b.customer?.email || "",
+          customerPhone: b.customer?.phone || "",
+          serviceName: b.service || b.serviceType || "—",
+          status: b.status,
+          bookingDate: b.bookingDate,
+          startTime: b.startTime || "—",
+          technician: b.technicianId?.name || "Unassigned",
+          category: "overdue_job",
+          severity: overdueDays > 3 ? "critical" : overdueDays > 1 ? "high" : "medium",
+          elapsed: `${Math.floor(overdueDays)}d ${Math.floor(hoursPassed % 24)}h`,
+          elapsedHours: Math.floor(hoursPassed),
+          reason: `Job should be completed — ${Math.floor(overdueDays)} day(s) overdue`,
+          proposedReschedule: null,
+        });
+      }
+    }
+
+    // Sort by severity then by most overdue
+    const severityOrder = { critical: 0, high: 1, medium: 2 };
+    problems.sort((a, b) => {
+      const sv = (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
+      if (sv !== 0) return sv;
+      return b.elapsedHours - a.elapsedHours;
+    });
+
+    // Summary counts
+    const summary = {
+      total: problems.length,
+      critical: problems.filter(p => p.severity === "critical").length,
+      high: problems.filter(p => p.severity === "high").length,
+      medium: problems.filter(p => p.severity === "medium").length,
+      byCategory: {
+        past_date_no_tech: problems.filter(p => p.category === "past_date_no_tech").length,
+        stalled_in_queue: problems.filter(p => p.category === "stalled_in_queue").length,
+        expiring_proposal: problems.filter(p => p.category === "expiring_proposal").length,
+        overdue_job: problems.filter(p => p.category === "overdue_job").length,
+      },
+    };
+
+    return res.json({ problems, summary });
+  } catch (err) {
+    console.error("Review & Reschedule scan error:", err);
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/review-reschedule/:id/reschedule
+ * Reschedule a problematic booking to a new date/time.
+ * Notifies customer via email + socket + in-app notification.
+ */
+router.post("/review-reschedule/:id/reschedule", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Assignment = require("../models/Assignment");
+    const audit = require("../utils/audit");
+    const { sendRescheduleNotificationEmail } = require("../utils/mailer");
+    const { io } = require("../index");
+    const { id } = req.params;
+    const { date, time, technicianId, technicianName, reason, issueType } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    if (!date || !time) return res.status(400).json({ error: "A new date and time are required." });
+    const dateObj = new Date(date);
+    if (Number.isNaN(dateObj.getTime())) return res.status(400).json({ error: "Invalid reschedule date." });
+    const timeMatch = String(time).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!timeMatch) return res.status(400).json({ error: "Invalid reschedule time." });
+    let scheduledHour = Number(timeMatch[1]);
+    const scheduledMinute = Number(timeMatch[2]);
+    if (timeMatch[3]) {
+      const ap = timeMatch[3].toUpperCase();
+      if (ap === "PM" && scheduledHour < 12) scheduledHour += 12;
+      if (ap === "AM" && scheduledHour === 12) scheduledHour = 0;
+    }
+    const scheduledAt = new Date(dateObj);
+    scheduledAt.setHours(scheduledHour, scheduledMinute, 0, 0);
+    if (scheduledAt <= new Date()) {
+      return res.status(400).json({ error: "The new visit must be scheduled in the future." });
+    }
+
+    // Store original date/time for reference
+    const originalDate = booking.bookingDate;
+    const originalTime = booking.startTime;
+
+    // Cancel existing assignment if any
+    if (booking.assignmentId) {
+      await Assignment.findByIdAndUpdate(booking.assignmentId, { status: "cancelled" }).catch(() => {});
+    }
+
+    // Invalidate any outstanding customer reschedule request
+    if (booking.rescheduleRequest && booking.rescheduleRequest.requested && booking.rescheduleRequest.status === "pending") {
+      booking.rescheduleRequest.status = "superseded";
+      booking.rescheduleRequest.processedBy = req.user?._id;
+      booking.rescheduleRequest.processedAt = new Date();
+    }
+
+    // Set proposed reschedule
+    booking.proposedReschedule = {
+      proposedAt: new Date(),
+      proposedBy: req.user?._id,
+      proposedByName: req.user?.name || "Admin",
+      date: dateObj,
+      time: time || "",
+      dateLabel: dateObj.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+      timeLabel: time || "",
+      originalDate: originalDate,
+      originalTime: originalTime,
+      technicianId: technicianId || undefined,
+      technicianName: technicianName || "",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "pending",
+    };
+
+    // Update the actual booking date/time immediately
+    booking.bookingDate = dateObj;
+    if (booking.preferredDate) booking.preferredDate = dateObj;
+    if (time) booking.startTime = time;
+    // New future schedule set — clear the past-date/overdue flag
+    booking.autoReschedulePending = false;
+
+    // If no technician assigned, go to awaiting_assignment so admin can assign one
+    // If technician exists, go to re-scheduled for customer confirmation
+    const previousStatus = booking.status;
+    const retainedTechnicianId = issueType === "customer_reschedule" ? booking.technicianId : null;
+    const targetTechnicianId = technicianId || retainedTechnicianId || null;
+    const isPendingReviewReschedule = previousStatus === "pending";
+    booking.status = isPendingReviewReschedule
+      ? "pending"
+      : (targetTechnicianId ? "re-scheduled" : "awaiting_assignment");
+    // When no technician is included, the schedule is committed by admin and
+    // needs no customer confirmation. Auto-apply the proposal so booking
+    // history does not show "Needs Confirmation / Accept / Pick New Date".
+    if (!targetTechnicianId) {
+      booking.proposedReschedule.status = "accepted";
+    }
+    booking.rescheduleReason = reason || "Admin rescheduled (Review & Reschedule)";
+    booking.assignmentId = null;
+    booking.technicianId = targetTechnicianId;
+    booking.technician = technicianId
+      ? { _id: technicianId, name: technicianName || "" }
+      : (retainedTechnicianId ? booking.technician : null);
+
+    // Record status history
+    if (!booking.statusHistory) booking.statusHistory = [];
+    booking.statusHistory.push({
+      fromStatus: previousStatus,
+      toStatus: booking.status,
+      changedBy: req.user?._id,
+      changedByName: req.user?.name || "Admin",
+      changedByModel: "User",
+      reason: reason || "Admin rescheduled (Review & Reschedule)",
+      notes: `Rescheduled from ${originalDate ? new Date(originalDate).toLocaleDateString("en-PH") : "N/A"} to ${dateObj.toLocaleDateString("en-PH")} ${time || ""}`,
+      timestamp: new Date(),
+    });
+    const validIssueTypes = ["cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
+    if (validIssueTypes.includes(issueType)) {
+      booking.resolutionCases.push({
+        issueType,
+        sourceStatus: previousStatus,
+        state: "rescheduled",
+        action: "reschedule",
+        note: reason || "New visit scheduled by admin",
+        decidedAt: new Date(),
+        decidedBy: req.user?._id,
+        decidedByName: req.user?.name || "Admin",
+      });
+    }
+
+    await booking.save();
+
+    // ── Notify customer ──
+    const customerEmail = booking.customer?.email || booking.customerId?.email;
+    const customerName = booking.customer?.name || "Customer";
+    const bookingRef = booking.bookingReference || String(booking._id).slice(-8);
+
+    // 1. Send email notification
+    if (customerEmail) {
+      try {
+        await sendRescheduleNotificationEmail({
+          to: customerEmail,
+          customerName,
+          bookingReference: bookingRef,
+          newDate: dateObj.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+          newTime: time || "To be assigned",
+          currentDate: originalDate ? new Date(originalDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "N/A",
+          currentTime: originalTime || "N/A",
+          reason: reason || "Schedule adjustment",
+          serviceName: booking.service || booking.serviceType || "Service",
+        });
+        console.log("[MAILER] Reschedule notification sent to:", customerEmail);
+      } catch (emailErr) {
+        console.error("[MAILER] Failed to send reschedule email:", emailErr.message);
+      }
+    }
+
+    const needsCustomerConfirmation = Boolean(targetTechnicianId) && !isPendingReviewReschedule;
+    const customerScheduleMessage = isPendingReviewReschedule
+      ? `Your requested schedule was updated to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. Your booking remains pending admin review.`
+      : (needsCustomerConfirmation
+          ? `Your booking has been rescheduled to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. Please confirm or request a new schedule.`
+          : `Your booking has been rescheduled to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. A technician will be assigned shortly.`);
+
+    // 2. Send socket notification to customer
+    if (io && booking.customerId) {
+      try {
+        io.to("customer-" + booking.customerId).emit("booking:rescheduled", {
+          bookingId: booking._id,
+          bookingReference: bookingRef,
+          message: customerScheduleMessage,
+          proposedReschedule: booking.proposedReschedule,
+        });
+      } catch (socketErr) {
+        console.error("[SOCKET] Failed to notify customer:", socketErr.message);
+      }
+    }
+
+    // 3. Create in-app notification for customer
+    if (booking.customerId) {
+      try {
+        const Notification = require("../models/Notification");
+        await Notification.create({
+          userId: booking.customerId,
+          type: "booking_rescheduled",
+          title: "Booking Rescheduled",
+          message: isPendingReviewReschedule
+            ? `Your requested schedule for booking ${bookingRef} was updated to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. It remains pending admin review.`
+            : (needsCustomerConfirmation
+                ? `Your booking ${bookingRef} has been rescheduled to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. Please review and confirm.`
+                : `Your booking ${bookingRef} has been rescheduled to ${dateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} ${time || ""}. A technician will be assigned shortly.`),
+          bookingId: booking._id,
+          read: false,
+        });
+      } catch (notifErr) {
+        console.error("[NOTIF] Failed to create notification:", notifErr.message);
+      }
+    }
+
+    // 4. Notify admin room via socket
+    if (io) {
+      try {
+        io.to("admin-room").emit("booking:rescheduled", {
+          bookingId: booking._id,
+          bookingReference: bookingRef,
+          message: `Booking ${bookingRef} rescheduled by admin`,
+        });
+      } catch (e) { /* optional */ }
+    }
+
+    // Audit log
+    try {
+      await audit.logEvent({
+        actor: req.user?._id,
+        target: booking._id,
+        action: "booking.review_reschedule",
+        module: "bookings",
+        req,
+        details: { bookingId: booking._id, newDate: date, newTime: time, reason, previousStatus },
+      });
+    } catch (e) { /* audit optional */ }
+
+    return res.json({ success: true, booking: booking.toObject() });
+  } catch (err) {
+    console.error("Review reschedule error:", err);
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/review-reschedule/:id/cancel
+ * Cancel a problematic booking.
+ */
+router.post("/review-reschedule/:id/cancel", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const audit = require("../utils/audit");
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    booking.status = "cancelled";
+    booking.cancellationReason = reason || "Cancelled via Review & Reschedule";
+    await booking.save();
+
+    try {
+      await audit.logEvent({
+        actor: req.user?._id,
+        target: booking._id,
+        action: "booking.review_cancel",
+        module: "bookings",
+        req,
+        details: { bookingId: booking._id, reason },
+      });
+    } catch (e) { /* audit optional */ }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Review cancel error:", err);
+    next(err);
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// NO-SHOW REVIEW — admin reviews technician-reported no-shows
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/no-show-review
+ * Returns all bookings currently in "no-show-reported" (pending review) with
+ * the technician evidence: contact attempts, arrival proof, waited minutes.
+ */
+router.get("/no-show-review", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const pendingNoShowQuery = {
+      $or: [
+        { status: "no-show-reported" },
+        { status: "no-show", "noShowReport.reviewStatus": { $nin: ["confirmed", "rescheduled", "cancelled"] } },
+      ],
+    };
+
+    const [bookings, stats] = await Promise.all([
+      BookingService.find(pendingNoShowQuery)
+        .populate("assignmentId", "technicianId customerName serviceName arrivalProofUrl")
+        .lean(),
+      Promise.all([
+        BookingService.countDocuments(pendingNoShowQuery),
+        BookingService.countDocuments({ "noShowReport.reviewStatus": "confirmed" }),
+        BookingService.countDocuments({ "noShowReport.reviewStatus": "rescheduled" }),
+      ]),
+    ]);
+
+    const items = bookings.map((b) => {
+      const report = b.noShowReport || {};
+      const assignment = b.assignmentId || null;
+      const cust = b.customer || {};
+      const serv = b.service || {};
+      const techName = b.technicianName || (assignment && assignment.technicianId ? (assignment.technicianId.name || "") : "") || "";
+      return {
+        bookingId: b._id,
+        reference: b.bookingReference || `#${String(b._id).slice(-6).toUpperCase()}`,
+        customer: cust.name || (assignment ? assignment.customerName : "—"),
+        customerEmail: cust.email || "",
+        customerPhone: cust.phone || "",
+        serviceName: serv.name || b.serviceName || (assignment ? assignment.serviceName : "—") || "Service",
+        technicianId: assignment && assignment.technicianId ? assignment.technicianId._id : (b.technicianId || null),
+        technicianName: techName,
+        arrivalTime: report.arrivedAt || null,
+        contactAttempts: report.contactAttempts || [],
+        waitedMinutes: report.waitedMinutes || 0,
+        arrivalProofUrl: report.arrivalProofUrl || assignment?.arrivalProofUrl || "",
+        reportedAt: report.reportedAt || null,
+        reportedByName: report.reportedByName || "",
+        waitingUntil: report.waitingUntil || null,
+        noShowRescheduleStatus: b.noShowRescheduleStatus || "pending",
+        noShowAt: b.noShowAt || null,
+      };
+    });
+
+res.json({
+      items,
+      stats: { pending: stats[0], confirmed: stats[1], rescheduled: stats[2] },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/no-show-review/:id/confirm
+ * Admin confirms the no-show and either closes it or explicitly grants the
+ * customer a 72-hour window to select a new available schedule.
+ */
+router.post("/no-show-review/:id/confirm", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Assignment = require("../models/Assignment");
+    const SiteSetting = require("../models/SiteSetting");
+    const audit = require("../utils/audit");
+    const { createNotification } = require("../utils/notify");
+    const { sendNoShowRescheduleEmail } = require("../utils/mailer");
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    const isLegacyPendingNoShow = booking.status === "no-show"
+      && !["confirmed", "rescheduled", "cancelled"].includes(booking.noShowReport?.reviewStatus);
+    if (booking.status !== "no-show-reported" && !isLegacyPendingNoShow) {
+      return res.status(409).json({ error: "This booking is not pending no-show review." });
+    }
+
+    // Load configured fee policy
+    const policyDoc = await SiteSetting.findOne({ key: "noShowPolicy" }).lean();
+    const policy = policyDoc?.value || { mode: "none", fixedFeeAmount: 0 };
+    const mode = policy.mode === "travel_fee" ? "travel_fee" : policy.mode === "fixed_fee" ? "fixed_fee" : "none";
+    const feeAmount = mode === "fixed_fee"
+      ? Math.max(0, Number(policy.fixedFeeAmount) || 0)
+      : mode === "travel_fee"
+        ? Math.max(0, Number(booking.travelFare) || 0)
+        : 0;
+
+    const now = new Date();
+    const prevStatus = booking.status;
+    const allowCustomerReschedule = req.body?.allowCustomerReschedule === true;
+    const token = allowCustomerReschedule
+      ? (booking.rescheduleAccessToken || booking.noShowRescheduleToken || require("crypto").randomBytes(32).toString("hex"))
+      : null;
+    const expiry = allowCustomerReschedule ? new Date(Date.now() + 72 * 60 * 60 * 1000) : null;
+    const nextStatus = allowCustomerReschedule ? "reschedule-required" : "no-show";
+    const statusEntries = [{
+          fromStatus: prevStatus,
+          toStatus: "no-show",
+          reason: `No-show confirmed by admin${mode !== "none" ? `. ${mode === "travel_fee" ? "Travel" : "No-show"} fee applied: ₱${feeAmount}.` : ""}`,
+          timestamp: now,
+          changedByName: req.user.name || "Admin",
+          changedByModel: "User",
+    }];
+    if (allowCustomerReschedule) {
+      statusEntries.push({
+        fromStatus: "no-show",
+        toStatus: "reschedule-required",
+        reason: "Admin allowed the customer to select a new available schedule.",
+        timestamp: now,
+        changedBy: req.user._id,
+        changedByName: req.user.name || "Admin",
+        changedByModel: "User",
+      });
+    }
+
+    const bookingUpdate = {
+      $set: {
+        status: nextStatus,
+        noShowAt: now,
+        noShowFeeType: mode,
+        noShowFeeAmount: feeAmount,
+        noShowRescheduleStatus: allowCustomerReschedule ? "pending" : "cancelled",
+        "noShowReport.reviewStatus": "confirmed",
+        "noShowReport.decisionAt": now,
+        "noShowReport.decisionBy": req.user._id,
+        "noShowReport.decisionByName": req.user.name || "Admin",
+      },
+      $push: { statusHistory: { $each: statusEntries } },
+    };
+    if (allowCustomerReschedule) {
+      Object.assign(bookingUpdate.$set, {
+        noShowRescheduleToken: token,
+        noShowRescheduleExpiry: expiry,
+        rescheduleAccessToken: token,
+        rescheduleAccessExpiry: expiry,
+        rescheduleAccessStatus: "allowed",
+        rescheduleSource: "customer",
+        rescheduleReasonType: "no_show",
+      });
+      bookingUpdate.$push.rescheduleHistory = {
+        previousDate: booking.bookingDate,
+        previousTime: booking.startTime,
+        reasonType: "no_show",
+        source: "customer",
+        authorizedAt: now,
+        authorizedBy: req.user._id,
+      };
+    } else {
+      bookingUpdate.$unset = {
+        noShowRescheduleToken: 1,
+        noShowRescheduleExpiry: 1,
+        rescheduleAccessToken: 1,
+        rescheduleAccessExpiry: 1,
+        rescheduleAccessStatus: 1,
+      };
+    }
+    await BookingService.findByIdAndUpdate(booking._id, bookingUpdate);
+
+    await Assignment.updateMany(
+      { bookingId: booking._id, status: { $in: ["on_site", "waiting_for_customer", "no_show_reported"] } },
+      { $set: { status: "no_show" } },
+    );
+
+    // Send the customer-selection link only when admin explicitly allows it.
+    const bookingRef = booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`;
+    if (allowCustomerReschedule && booking.customer && booking.customer.email) {
+      const rescheduleUrl = `${req.protocol}://${req.get("host")}/reschedule/no-show/${token}`;
+      await sendNoShowRescheduleEmail({
+        to: booking.customer.email,
+        customerName: booking.customer.name,
+        bookingReference: bookingRef,
+        serviceName: booking.service?.name || "Service",
+        technicianName: "",
+        dateLabel: booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString() : "TBD",
+        timeLabel: booking.startTime || "TBD",
+        rescheduleUrl,
+      }).catch((e) => console.error("[MAILER] No-show confirm email error:", e.message));
+    }
+
+    await createNotification({
+      role: "admin",
+      type: "booking_no_show",
+      title: allowCustomerReschedule ? "Customer Reschedule Required" : "No-Show Confirmed",
+      message: allowCustomerReschedule
+        ? `${bookingRef} was confirmed as no-show. The customer may now select a new available schedule.`
+        : `${bookingRef} confirmed as no-show${feeAmount > 0 ? ` — ${mode === "travel_fee" ? "travel" : "no-show"} fee of ₱${feeAmount} applied.` : " — no fee applied."}`,
+      referenceId: booking._id,
+      referenceModel: "BookingService",
+      link: "/admin/appointments/attention?issue=no_show",
+      priority: "high",
+      io: req.app.get("io"),
+    }).catch(() => {});
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.no_show.confirmed",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, feeType: mode, feeAmount, allowCustomerReschedule },
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      status: nextStatus,
+      feeType: mode,
+      feeAmount,
+      message: allowCustomerReschedule
+        ? "No-show confirmed. The customer has been invited to select a new available schedule."
+        : (feeAmount > 0 ? `No-show confirmed. ${mode === "travel_fee" ? "Travel" : "No-show"} fee of ₱${feeAmount} applied.` : "No-show confirmed. No fee applied."),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/no-show-review/:id/reschedule
+ * Admin reschedules the no-show booking to a future visit, expires the old
+ * assignment, and sends the booking to technician assignment.
+ */
+router.post("/no-show-review/:id/reschedule", async (req, res, next) => {
+  try {
+    const BookingService = require("../models/BookingService");
+    const Assignment = require("../models/Assignment");
+    const audit = require("../utils/audit");
+    const { createNotification } = require("../utils/notify");
+    const { sendRescheduleApprovedEmail } = require("../utils/mailer");
+    const scheduleRoutes = require("./scheduleRoutes");
+
+    const { id } = req.params;
+    const { newDate, newTime } = req.body || {};
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid booking ID" });
+    }
+    if (!newDate || !newTime) {
+      return res.status(400).json({ error: "newDate and newTime are required." });
+    }
+
+    const noShowDate = new Date(newDate);
+    const noShowTimeMatch = String(newTime).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (Number.isNaN(noShowDate.getTime()) || !noShowTimeMatch) {
+      return res.status(400).json({ error: "A valid new date and time are required." });
+    }
+    let noShowHour = Number(noShowTimeMatch[1]);
+    const noShowMinute = Number(noShowTimeMatch[2]);
+    if (noShowTimeMatch[3]) {
+      const ap = noShowTimeMatch[3].toUpperCase();
+      if (ap === "PM" && noShowHour < 12) noShowHour += 12;
+      if (ap === "AM" && noShowHour === 12) noShowHour = 0;
+    }
+    const noShowScheduledAt = new Date(noShowDate);
+    noShowScheduledAt.setHours(noShowHour, noShowMinute, 0, 0);
+    if (noShowScheduledAt <= new Date()) {
+      return res.status(400).json({ error: "The new visit must be scheduled in the future." });
+    }
+
+    const booking = await BookingService.findById(id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    const isLegacyPendingNoShow = booking.status === "no-show"
+      && !["confirmed", "rescheduled", "cancelled"].includes(booking.noShowReport?.reviewStatus);
+    const isAwaitingCustomerSchedule = booking.status === "reschedule-required"
+      && (booking.rescheduleAccessStatus === "allowed" || booking.noShowRescheduleStatus === "pending");
+    if (booking.status !== "no-show-reported" && !isLegacyPendingNoShow && !isAwaitingCustomerSchedule) {
+      return res.status(409).json({ error: "This booking is not available for no-show rescheduling." });
+    }
+
+    const toMinutes = (value) => {
+      const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return null;
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      if (minute > 59 || hour > (match[3] ? 12 : 23)) return null;
+      if (match[3]) {
+        const period = match[3].toUpperCase();
+        if (period === "PM" && hour < 12) hour += 12;
+        if (period === "AM" && hour === 12) hour = 0;
+      }
+      return hour * 60 + minute;
+    };
+    const serviceId = booking.serviceId || booking.service?._id;
+    const slotResult = await scheduleRoutes.getTimeSlotsForQuery({
+      date: String(newDate),
+      serviceId: serviceId ? String(serviceId) : undefined,
+      duration: String(Math.max(1, Number(booking.serviceDurationMinutes) || 60)),
+      quantity: String(Number(booking.serviceDurationMinutes) > 0 ? 1 : Math.max(1, Number(booking.quantity) || 1)),
+    });
+    if (slotResult.statusCode >= 500) {
+      return res.status(503).json({ error: "Availability could not be checked. Please try again." });
+    }
+    const selectedMinutes = toMinutes(newTime);
+    const availableSlot = Array.isArray(slotResult.payload?.timeSlots)
+      ? slotResult.payload.timeSlots.find((slot) => slot.available !== false && toMinutes(slot.startTime) === selectedMinutes)
+      : null;
+    if (selectedMinutes === null || !availableSlot) {
+      return res.status(409).json({
+        error: "That time slot is no longer available. Please choose another available time.",
+        code: "SLOT_UNAVAILABLE",
+        refreshSlots: true,
+      });
+    }
+
+    const now = new Date();
+    const prevStatus = booking.status;
+    const previousDate = booking.bookingDate;
+    const previousTime = booking.startTime;
+    const canonicalTime = availableSlot.startTime;
+    const capacityEndMinutes = selectedMinutes + Math.max(
+      Number(booking.serviceDurationMinutes) || 60,
+      Number(slotResult.payload?.capacityPerSlot) || Number(booking.serviceDurationMinutes) || 60,
+    );
+    const previousTechnicianId = booking.technicianId;
+    await Assignment.updateMany(
+      { bookingId: booking._id, status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "waiting_for_customer", "no_show_reported", "no_show", "in_progress"] } },
+      { $set: { status: "expired", expiredAt: now, expiredReason: "New visit scheduled after no-show review" } },
+    );
+    await BookingService.findByIdAndUpdate(booking._id, {
+      $set: {
+        status: "awaiting_assignment",
+        bookingDate: new Date(newDate),
+        startTime: canonicalTime,
+        selectedTimeLabel: canonicalTime,
+        endTime: String(capacityEndMinutes),
+        assignmentId: null,
+        technicianId: null,
+        technician: null,
+        rescheduleReason: "Rescheduled by admin after no-show report.",
+        noShowRescheduleStatus: "rescheduled",
+        rescheduleAccessStatus: "submitted",
+        rescheduleSource: "admin_on_behalf_of_customer",
+        rescheduleReasonType: "no_show",
+        "noShowReport.reviewStatus": "rescheduled",
+        "noShowReport.decisionAt": now,
+        "noShowReport.decisionBy": req.user._id,
+        "noShowReport.decisionByName": req.user.name || "Admin",
+      },
+      $unset: {
+        noShowRescheduleToken: 1,
+        noShowRescheduleExpiry: 1,
+        rescheduleAccessToken: 1,
+        rescheduleAccessExpiry: 1,
+      },
+      $push: {
+        statusHistory: {
+          fromStatus: prevStatus,
+          toStatus: "awaiting_assignment",
+          reason: `Admin selected a new visit on the customer's behalf: ${new Date(newDate).toLocaleDateString()} ${canonicalTime}.`,
+          timestamp: now,
+          changedByName: req.user.name || "Admin",
+          changedByModel: "User",
+        },
+        rescheduleHistory: {
+          previousDate,
+          previousTime,
+          newDate: new Date(newDate),
+          newTime: canonicalTime,
+          reasonType: "no_show",
+          source: "admin_on_behalf_of_customer",
+          authorizedAt: now,
+          authorizedBy: req.user._id,
+          selectedAt: now,
+        },
+      },
+    });
+    if (previousTechnicianId) {
+      const Technician = require("../models/Technician");
+      const previousTechnician = await Technician.findById(previousTechnicianId).catch(() => null);
+      if (previousTechnician) {
+        await Technician.findByIdAndUpdate(previousTechnician._id, { $set: { availabilityStatus: "Available" } }).catch(() => {});
+        previousTechnician.availabilityStatus = "Available";
+        const { resolveAvailabilityStatus } = require("../utils/availability");
+        await resolveAvailabilityStatus(previousTechnician, null, null, { syncDb: true }).catch(() => {});
+      }
+    }
+
+    if (booking.customer && booking.customer.email) {
+      await sendRescheduleApprovedEmail({
+        to: booking.customer.email,
+        customerName: booking.customer.name,
+        bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
+        serviceName: booking.service?.name || "Service",
+        newDateLabel: new Date(newDate).toLocaleDateString(),
+        newTimeLabel: canonicalTime,
+      }).catch((e) => console.error("[MAILER] No-show reschedule email error:", e.message));
+    }
+
+    await createNotification({
+      role: "admin",
+      type: "booking_schedule_proposed",
+      title: "No-Show New Visit Scheduled",
+      message: `${booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`} has a new visit on ${new Date(newDate).toLocaleDateString()} ${canonicalTime} and is awaiting technician assignment.`,
+      referenceId: booking._id,
+      referenceModel: "BookingService",
+      link: "/admin/appointments/attention?issue=no_show",
+      priority: "normal",
+      io: req.app.get("io"),
+    }).catch(() => {});
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: booking._id,
+      action: "booking.no_show.rescheduled",
+      module: "bookings",
+      req,
+      details: { bookingId: booking._id, newDate, newTime: canonicalTime, source: "admin_on_behalf_of_customer" },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "New visit scheduled. Assign a technician to continue." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// NO-SHOW POLICY SETTINGS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/settings/no-show-policy
+ * Returns the configured no-show waiting window and fee policy.
+ */
+router.get("/settings/no-show-policy", async (_req, res, next) => {
+  try {
+    const SiteSetting = require("../models/SiteSetting");
+    const [waitDoc, policyDoc] = await Promise.all([
+      SiteSetting.findOne({ key: "noShowWaitMinutes" }).lean(),
+      SiteSetting.findOne({ key: "noShowPolicy" }).lean(),
+    ]);
+    const waitMinutes = Number(waitDoc?.value ?? 15);
+    const policy = policyDoc?.value || { mode: "none", fixedFeeAmount: 0 };
+    res.json({
+      waitMinutes: Number.isFinite(waitMinutes) && waitMinutes > 0 ? waitMinutes : 15,
+      mode: policy.mode === "travel_fee" || policy.mode === "fixed_fee" ? policy.mode : "none",
+      fixedFeeAmount: Number(policy.fixedFeeAmount) || 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/admin/settings/no-show-policy
+ * Body: { waitMinutes: number, mode: 'none'|'travel_fee'|'fixed_fee', fixedFeeAmount: number }
+ */
+router.put("/settings/no-show-policy", async (req, res, next) => {
+  try {
+    const SiteSetting = require("../models/SiteSetting");
+    const audit = require("../utils/audit");
+    const { waitMinutes, mode, fixedFeeAmount } = req.body || {};
+
+    const mins = Number(waitMinutes);
+    if (!Number.isFinite(mins) || mins < 1) {
+      return res.status(400).json({ error: "waitMinutes must be a positive number." });
+    }
+    const validModes = ["none", "travel_fee", "fixed_fee"];
+    const finalMode = validModes.includes(mode) ? mode : "none";
+
+    await SiteSetting.findOneAndUpdate(
+      { key: "noShowWaitMinutes" },
+      { value: Math.round(mins) },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+    await SiteSetting.findOneAndUpdate(
+      { key: "noShowPolicy" },
+      { value: { mode: finalMode, fixedFeeAmount: Math.max(0, Number(fixedFeeAmount) || 0) } },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.no_show_policy.update",
+      module: "settings",
+      req,
+      details: { waitMinutes: Math.round(mins), mode: finalMode, fixedFeeAmount: Math.max(0, Number(fixedFeeAmount) || 0) },
+    }).catch(() => {});
+
+    res.json({ message: "No-show policy updated." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DAILY KIT — Admin Preparation Issue Resolution
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/daily-kit/pending-issues
+ * Returns all unresolved preparation issues across all technicians for today.
+ */
+router.get("/daily-kit/pending-issues", async (req, res, next) => {
+  try {
+    const DailyKit = require("../models/DailyKit");
+    const Technician = require("../models/Technician");
+    const BookingService = require("../models/BookingService");
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextDay = new Date(today);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const kits = await DailyKit.find({
+      workDate: { $gte: today, $lt: nextDay },
+      "items.checkoutStatus": "unavailable",
+      "items.resolution.status": "admin_notified",
+    }).populate("technicianId", "name");
+
+    const issues = [];
+    for (const kit of kits) {
+      const tech = kit.technicianId;
+      for (const item of kit.items) {
+        if (item.checkoutStatus === "unavailable" && item.resolution?.status === "admin_notified") {
+          // Find which bookings need this item
+          const bookings = await BookingService.find({ _id: { $in: item.bookingIds } })
+            .select("bookingReference serviceName serviceType startTime address")
+            .lean();
+          issues.push({
+            kitId: kit._id,
+            technicianId: tech?._id,
+            technicianName: tech?.name || "Unknown",
+            itemName: item.name,
+            category: item.category,
+            quantity: item.quantity,
+            bookings: bookings.map(b => ({
+              id: b._id,
+              reference: b.bookingReference,
+              service: b.serviceName,
+              type: b.serviceType,
+              time: b.startTime,
+              address: b.address,
+            })),
+            reportedAt: item.resolution.resolvedAt,
+          });
+        }
+      }
+    }
+
+    return res.json({ issues });
+  } catch (err) {
+    console.error("Get pending prep issues error:", err);
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/daily-kit/available-equipment
+ * Search for available equipment that could substitute a missing item.
+ * Query: ?q=<search term>
+ */
+router.get("/daily-kit/available-equipment", async (req, res, next) => {
+  try {
+    const Tool = require("../models/Tool");
+    const q = req.query.q || "";
+    if (!q.trim()) return res.json({ items: [] });
+
+    const items = await Tool.find({
+      type: "equipment",
+      quantity: { $gt: 0 },
+      $or: [
+        { itemName: { $regex: q, $options: "i" } },
+        { category: { $regex: q, $options: "i" } },
+      ],
+    })
+      .select("itemName category quantity assetStatus toolCode")
+      .limit(20)
+      .lean();
+
+    return res.json({ items });
+  } catch (err) {
+    console.error("Search available equipment error:", err);
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/admin/daily-kit/resolve-item
+ * Admin resolves a preparation issue.
+ * Body: { kitId, itemName, resolution, note, toolId? }
+ * resolution: "assigned_from_stock" | "procured" | "not_required" | "rescheduled"
+ */
+router.patch("/daily-kit/resolve-item", async (req, res, next) => {
+  try {
+    const DailyKit = require("../models/DailyKit");
+    const Technician = require("../models/Technician");
+
+    const { kitId, itemName, resolution, note, toolId } = req.body;
+    if (!kitId || !itemName || !resolution) {
+      return res.status(400).json({ error: "kitId, itemName, and resolution required" });
+    }
+
+    const validResolutions = ["assigned_from_stock", "procured", "not_required", "rescheduled"];
+    if (!validResolutions.includes(resolution)) {
+      return res.status(400).json({ error: "Invalid resolution. Must be: " + validResolutions.join(", ") });
+    }
+
+    const kit = await DailyKit.findById(kitId);
+    if (!kit) return res.status(404).json({ error: "Daily kit not found" });
+
+    const item = kit.items.find(i => i.name === itemName && i.checkoutStatus === "unavailable");
+    if (!item) return res.status(404).json({ error: "Unavailable item not found in kit" });
+
+    // Update resolution
+    item.resolution = {
+      status: resolution,
+      resolvedBy: req.user._id,
+      resolvedAt: new Date(),
+      resolutionNote: note || `Resolved by admin: ${resolution}`,
+    };
+
+    // If assigning from stock, link the tool and update checkout status
+    if (resolution === "assigned_from_stock" && toolId) {
+      item.toolId = toolId;
+      item.checkoutStatus = "reserved";
+      item.conflict = { isUnavailable: false, checkedOutTo: null, message: null };
+    } else if (resolution === "procured" && toolId) {
+      item.toolId = toolId;
+      item.checkoutStatus = "reserved";
+      item.conflict = { isUnavailable: false, checkedOutTo: null, message: null };
+    } else if (resolution === "not_required") {
+      item.checkoutStatus = "exception";
+      item.exception = { approved: true, reason: note || "Admin marked as not required", approvedBy: req.user._id };
+    }
+
+    await kit.save();
+
+    // Notify technician
+    const tech = await Technician.findById(kit.technicianId);
+    if (tech) {
+      const { createNotification } = require("../utils/notify");
+      const messageMap = {
+        assigned_from_stock: `"${itemName}" has been assigned from stock for your kit.`,
+        procured: `"${itemName}" has been added to inventory and assigned to your kit.`,
+        not_required: `"${itemName}" has been marked as not required.`,
+        rescheduled: `The job requiring "${itemName}" has been rescheduled.`,
+      };
+      await createNotification({
+        userId: tech.user,
+        role: "technician",
+        type: "system",
+        title: "Daily Kit Updated",
+        message: messageMap[resolution],
+        referenceId: kit._id,
+        referenceModel: "BookingService",
+        link: "/technician/assignments",
+        priority: "normal",
+        io: req.app.get("io"),
+      }).catch(() => {});
+
+      // Emit real-time kit update to technician
+      const io = req.app.get("io");
+      if (io) {
+        io.to("tech:" + tech.user.toString()).emit("daily_kit:updated", {
+          kitId: kit._id,
+          itemName,
+          resolution,
+        });
+      }
+    }
+
+    return res.json({ success: true, message: `Item "${itemName}" resolved as ${resolution}` });
+  } catch (err) {
+    console.error("Resolve prep issue error:", err);
+    next(err);
+  }
+});
 
 module.exports = router;
 

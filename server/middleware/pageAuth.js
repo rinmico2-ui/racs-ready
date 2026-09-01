@@ -1,5 +1,10 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { isAccountEnabled } = require("./accountState");
+
+const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
+const ROTATE_THRESHOLD_MS =
+  Number(process.env.SESSION_ROTATE_THRESHOLD_MS) || 10 * 60 * 1000;
 
 function parseCookies(header) {
   const h = header || "";
@@ -16,15 +21,14 @@ function parseCookies(header) {
 
 async function getUserFromToken(token) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     if (!payload || !payload.id) return null;
     const user = await User.findById(payload.id).select("-passwordHash");
-    if (!user) return null;
+    if (!isAccountEnabled(user)) return null;
     // verify server-side session binding
     if (
       payload.sessionId &&
-      user.currentSessionId &&
-      payload.sessionId !== user.currentSessionId
+      payload.sessionId !== String(user.currentSessionId || "")
     )
       return null;
     if (
@@ -33,7 +37,7 @@ async function getUserFromToken(token) {
       payload.iat * 1000 < user.lastPasswordChange.getTime()
     )
       return null;
-    return user;
+    return { user, payload };
   } catch (e) {
     return null;
   }
@@ -45,8 +49,8 @@ async function getUserFromSession(req) {
     const user = await User.findById(req.session.userId).select(
       "-passwordHash",
     );
-    if (!user) return null;
-    return user;
+    if (!isAccountEnabled(user)) return null;
+    return { user, payload: null };
   } catch (e) {
     return null;
   }
@@ -59,17 +63,44 @@ async function getUserFromRequest(req) {
   const token = cookies["auth_token"];
 
   // Prefer JWT token when present
-  const jwtUser = await getUserFromToken(token);
-  if (jwtUser) return jwtUser;
+  const jwtAuth = await getUserFromToken(token);
+  if (jwtAuth) return jwtAuth;
 
   // Fallback to server-side session login flow
   return getUserFromSession(req);
 }
 
+function refreshTokenIfNeeded(authResult, res) {
+  const { user, payload } = authResult || {};
+  if (!user || !payload || !payload.exp) return;
+  if (payload.exp * 1000 - Date.now() >= ROTATE_THRESHOLD_MS) return;
+
+  const rememberMe = Boolean(payload.rememberMe);
+  const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : MAX_AGE_MS;
+  const renewedToken = jwt.sign(
+    {
+      id: user._id,
+      role: user.role,
+      sessionId: payload.sessionId,
+      rememberMe,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: Math.floor(maxAge / 1000) + "s" },
+  );
+
+  res.cookie("auth_token", renewedToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+    maxAge,
+    path: "/",
+  });
+}
+
 module.exports = {
   requireLogin: async function (req, res, next) {
-    const user = await getUserFromRequest(req);
-    if (!user) {
+    const authResult = await getUserFromRequest(req);
+    if (!authResult) {
       const returnTo = encodeURIComponent(req.originalUrl);
       return res.redirect("/login?returnTo=" + returnTo);
     }
@@ -79,15 +110,16 @@ module.exports = {
     res.set("Pragma", "no-cache");
     res.set("Expires", "0");
 
-    req.user = user;
-    res.locals.user = user;
+    refreshTokenIfNeeded(authResult, res);
+    req.user = authResult.user;
+    res.locals.user = authResult.user;
     next();
   },
 
   requireRole: function (roleOrRoles) {
     return async function (req, res, next) {
-      const user = await getUserFromRequest(req);
-      if (!user) {
+      const authResult = await getUserFromRequest(req);
+      if (!authResult) {
         const returnTo = encodeURIComponent(req.originalUrl);
         return res.redirect("/login?returnTo=" + returnTo);
       }
@@ -97,6 +129,7 @@ module.exports = {
       res.set("Pragma", "no-cache");
       res.set("Expires", "0");
 
+      const user = authResult.user;
       const allowed = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
       if (!allowed.includes(user.role)) {
         if (user.role === "admin") return res.redirect("/profile-admin");
@@ -105,6 +138,7 @@ module.exports = {
         if (user.role === "customer") return res.redirect("/");
         return res.redirect("/access-denied");
       }
+      refreshTokenIfNeeded(authResult, res);
       req.user = user;
       res.locals.user = user;
       next();
@@ -112,10 +146,12 @@ module.exports = {
   },
 
   requireCustomerOrGuest: async function (req, res, next) {
-    const user = await getUserFromRequest(req);
-    if (!user) {
+    const authResult = await getUserFromRequest(req);
+    if (!authResult) {
       return next(); // Guest users are allowed
     }
+
+    const user = authResult.user;
 
     if (user.role !== "customer") {
       // Prevent browser back-cache
@@ -129,6 +165,7 @@ module.exports = {
       return res.redirect("/access-denied");
     }
 
+    refreshTokenIfNeeded(authResult, res);
     req.user = user;
     res.locals.user = user;
     next();

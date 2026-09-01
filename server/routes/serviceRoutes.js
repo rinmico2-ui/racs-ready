@@ -6,6 +6,8 @@ const Service = require("../models/Service");
 const CoreService = require("../models/CoreService");
 const RepairService = require("../models/RepairService");
 const BookingService = require("../models/BookingService");
+const Order = require("../models/Order");
+const auth = require("../middleware/authenticate");
 const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/bookingPolicy");
 const { getDownpaymentPercentage } = require("../utils/paymentPolicy");
 
@@ -169,35 +171,54 @@ router.get("/technician-schedule/:id", async (req, res) => {
 
 // public endpoint returning current technician GPS coordinates.  This will
 // be updated by the technician tracker page and polled by the customer UI.
-router.get("/technician-location", async (req, res) => {
+router.get("/technician-location", auth.authenticate, async (req, res) => {
   try {
     const Technician = require("../models/Technician");
     const { id } = req.query;
-    let tech;
-    if (id) {
-      tech = await Technician.findOne({ _id: id, active: true })
-        .select("location user")
-        .lean();
-      if (!tech) {
-        // maybe the caller passed a user id instead
-        tech = await Technician.findOne({ user: id, active: true })
-          .select("location user")
-          .lean();
-      }
-    } else {
-      tech = await Technician.findOne({ active: true })
-        .select("location user")
-        .lean();
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "A valid technician id is required" });
     }
+
+    const tech = await Technician.findOne({
+      active: true,
+      $or: [{ _id: id }, { user: id }],
+    }).select("location user").lean();
+    if (!tech) return res.status(404).json({ error: "Technician not found" });
+
+    const role = req.user.role;
+    let mayTrack = ["admin", "secretary"].includes(role);
+    if (role === "technician") {
+      mayTrack = String(tech.user || "") === String(req.user._id);
+    } else if (role === "customer") {
+      const activeBookingStatuses = [
+        "assigned", "confirmed", "scheduled", "on-the-way", "arrived",
+        "in-progress", "ongoing", "repair_scheduled", "repair_in_progress",
+      ];
+      const activeOrderStatuses = [
+        "technician_assigned", "technician_accepted", "out_for_delivery",
+        "arrived", "installing",
+      ];
+      const [booking, order] = await Promise.all([
+        BookingService.exists({
+          customerId: req.user._id,
+          technicianId: tech._id,
+          status: { $in: activeBookingStatuses },
+        }),
+        Order.exists({
+          userId: req.user._id,
+          technicianId: tech._id,
+          status: { $in: activeOrderStatuses },
+        }),
+      ]);
+      mayTrack = Boolean(booking || order);
+    }
+    if (!mayTrack) return res.status(403).json({ error: "Live location is not available" });
+
     if (tech && tech.location && tech.location.coordinates) {
       const [lng, lat] = tech.location.coordinates;
       return res.json({ lat, lng });
     }
-    // fallback to static default
-    return res.json({
-      lat: (module.exports.defaultTechnicianLocation || {}).lat || 14.676049,
-      lng: (module.exports.defaultTechnicianLocation || {}).lng || 121.043731,
-    });
+    return res.status(404).json({ error: "Live location is not available" });
   } catch (err) {
     console.error(
       "GET /api/services/technician-location failed",
@@ -212,11 +233,11 @@ router.get("/technician-location", async (req, res) => {
 router.get("/technicians", async (req, res) => {
   try {
     const Technician = require("../models/Technician");
-    const User = require("../models/User");
-    
-    // Get active technicians with location data
+    // Public booking selection exposes identity and rating only, never private
+    // contact details or live location.
     const technicians = await Technician.find({ active: true })
-      .populate('user', 'firstName lastName name email')
+      .select("_id name user rating ratingCount")
+      .populate('user', 'firstName lastName name')
       .lean();
     
     const techs = technicians.map((tech) => {
@@ -229,26 +250,11 @@ router.get("/technicians", async (req, res) => {
                tech.name;
       }
       
-      // Extract coordinates from location object
-      let lat = null;
-      let lng = null;
-      let locationText = tech.locationText || null;
-      
-      if (tech.location && tech.location.coordinates) {
-        // GeoJSON format is [lng, lat]
-        lng = tech.location.coordinates[0];
-        lat = tech.location.coordinates[1];
-      }
-      
       return {
         _id: tech._id,
         name: name,
-        location: locationText,
-        lat: lat,
-        lng: lng,
         rating: tech.rating,
         ratingCount: tech.ratingCount,
-        userEmail: tech.userEmail
       };
     });
     
@@ -509,7 +515,7 @@ router.get("/directions", async (req, res) => {
     });
   } catch (err) {
     console.error("/api/services/directions error", err && err.message);
-    return res.status(502).json({ error: err.message || "directions failed" });
+    return res.status(502).json({ error: "Directions service unavailable" });
   }
 });
 

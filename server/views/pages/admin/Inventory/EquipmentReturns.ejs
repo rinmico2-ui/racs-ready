@@ -1,0 +1,109 @@
+<link rel="stylesheet" href="/css/equipment-returns.css">
+
+<div class="equipment-returns-page">
+  <section class="er-hero">
+    <div>
+      <span class="er-eyebrow"><i class="bi bi-shield-check"></i> Inventory accountability</span>
+      <h1>Equipment Returns Queue</h1>
+      <p>See who is holding reusable equipment, follow up on overdue returns, and reconcile inventory with a controlled audit trail.</p>
+    </div>
+    <button class="btn btn-light er-refresh" id="erRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </section>
+
+  <section class="er-metrics" aria-label="Equipment return summary">
+    <button class="er-metric er-danger" data-state="overdue" type="button">
+      <span class="er-metric-icon"><i class="bi bi-exclamation-octagon"></i></span>
+      <span><strong id="erOverdue">—</strong><small>Overdue returns</small></span>
+    </button>
+    <button class="er-metric er-warning" data-state="due_today" type="button">
+      <span class="er-metric-icon"><i class="bi bi-clock-history"></i></span>
+      <span><strong id="erDueToday">—</strong><small>Due today</small></span>
+    </button>
+    <button class="er-metric er-primary" data-state="open" type="button">
+      <span class="er-metric-icon"><i class="bi bi-tools"></i></span>
+      <span><strong id="erCheckedOut">—</strong><small>Currently checked out</small></span>
+    </button>
+    <div class="er-metric er-neutral">
+      <span class="er-metric-icon"><i class="bi bi-bell"></i></span>
+      <span><strong id="erReminders">—</strong><small>Assignments reminded</small></span>
+    </div>
+  </section>
+
+  <section class="er-panel">
+    <div class="er-toolbar">
+      <div class="er-search">
+        <i class="bi bi-search"></i>
+        <input id="erSearch" class="form-control" type="search" placeholder="Search equipment, code, job, or technician" autocomplete="off">
+      </div>
+      <select id="erState" class="form-select" aria-label="Return status">
+        <option value="open">All outstanding</option>
+        <option value="overdue">Overdue only</option>
+        <option value="due_today">Due today</option>
+      </select>
+      <select id="erLimit" class="form-select er-limit" aria-label="Rows per page">
+        <option value="25">25 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
+      </select>
+    </div>
+
+    <div id="erAlert" class="er-alert" role="status" aria-live="polite"></div>
+    <div class="er-bulkbar" aria-label="Bulk return actions">
+      <div>
+        <strong id="erSelectionCount">0 selected</strong>
+        <span id="erSelectionHint">Select returned equipment to reconcile it together.</span>
+      </div>
+      <div class="er-bulk-actions">
+        <button class="btn btn-outline-primary btn-sm" id="erSelectAllMatching" type="button" disabled><i class="bi bi-list-check"></i> Select all matching</button>
+        <button class="btn btn-outline-secondary btn-sm" id="erClearSelection" type="button" disabled><i class="bi bi-x-lg"></i> Clear</button>
+        <button class="btn btn-success btn-sm" id="erBulkResolve" type="button" disabled><i class="bi bi-check2-all"></i> Resolve selected</button>
+      </div>
+    </div>
+    <div class="er-table-wrap">
+      <table class="er-table">
+        <thead><tr><th class="er-select-cell"><input class="form-check-input" id="erSelectPage" type="checkbox" aria-label="Select all equipment on this page"></th><th>Equipment</th><th>Technician</th><th>Job</th><th>Return deadline</th><th>Follow-up</th><th>Actions</th></tr></thead>
+        <tbody id="erRows"><tr><td colspan="7" class="er-empty"><span class="spinner-border spinner-border-sm"></span> Loading returns…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="er-footer">
+      <span id="erRange">Loading…</span>
+      <div class="btn-group" role="group" aria-label="Pagination">
+        <button id="erPrev" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-chevron-left"></i> Previous</button>
+        <button id="erNext" class="btn btn-outline-secondary btn-sm" type="button">Next <i class="bi bi-chevron-right"></i></button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal fade" id="erDeadlineModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="erDeadlineForm">
+    <div class="modal-header"><h5 class="modal-title"><i class="bi bi-calendar2-check me-2"></i>Update return deadline</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="text-secondary small mb-3" id="erDeadlineItem"></p>
+      <label class="form-label fw-semibold" for="erDeadlineAt">Expected return</label>
+      <input class="form-control" id="erDeadlineAt" type="datetime-local" required>
+      <label class="form-label fw-semibold mt-3" for="erDeadlineNotes">Reason for extension</label>
+      <textarea class="form-control" id="erDeadlineNotes" rows="3" maxlength="500" required placeholder="Example: Approved for a two-day project deployment"></textarea>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="erDeadlineSave" type="submit">Save deadline</button></div>
+  </form></div>
+</div>
+
+<div class="modal fade" id="erResolveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="erResolveForm">
+    <div class="modal-header"><h5 class="modal-title" id="erResolveTitle"><i class="bi bi-clipboard-check me-2"></i>Reconcile equipment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="er-resolution-item" id="erResolveItem"></div>
+      <label class="form-label fw-semibold mt-3" for="erCondition">Condition / outcome</label>
+      <select class="form-select" id="erCondition" required>
+        <option value="good">Returned — good</option><option value="fair">Returned — fair</option><option value="damaged">Returned — damaged</option><option value="lost">Not returned — lost</option>
+      </select>
+      <label class="form-label fw-semibold mt-3" for="erResolutionNotes">Resolution notes <span id="erNotesRequired" class="text-danger d-none">(required)</span></label>
+      <textarea class="form-control" id="erResolutionNotes" rows="4" maxlength="500" placeholder="Record handover details, damage, or investigation reference"></textarea>
+      <div class="alert alert-warning small mt-3 mb-0" id="erResolveWarning"><i class="bi bi-info-circle me-1"></i> This action updates available inventory and is recorded in the audit log.</div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" id="erResolveSave" type="submit">Confirm reconciliation</button></div>
+  </form></div>
+</div>
+
+<script src="/js/equipment-returns.js" defer></script>

@@ -1,6 +1,7 @@
 const ServiceToolUsage = require("../models/ServiceToolUsage");
 const ServiceReport = require("../models/ServiceReport");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
+const { bookingCompletionDate, RECOGNIZED_BOOKING_STATUSES } = require("./enterpriseRevenue");
 
 function bookingRevenue(booking) {
   const items = booking.services || [];
@@ -36,7 +37,7 @@ function directLaborCost(report) {
 }
 
 async function buildServiceCostAnalytics(bookings, options = {}) {
-  const completed = (bookings || []).filter(booking => booking.status === "completed");
+  const completed = (bookings || []).filter(booking => RECOGNIZED_BOOKING_STATUSES.has(booking.status));
   const ids = completed.map(booking => booking._id);
   if (!ids.length) return { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, grossProfit: 0, grossProfitMargin: 0 } };
 
@@ -97,7 +98,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     // revenue. Deduct only a separately recorded internal labor expense.
     const laborCost = bookingReports.reduce((sum, row) => sum + directLaborCost(row), 0);
     const grossProfit = revenue - partsCost - consumablesCost - laborCost - localPurchaseCost;
-    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: booking.updatedAt, revenue, partsCost, consumablesCost, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment };
+    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: bookingCompletionDate(booking), revenue, partsCost, consumablesCost, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment };
   });
   const totals = services.reduce((sum, row) => ({ revenue: sum.revenue + row.revenue, partsCost: sum.partsCost + row.partsCost, consumablesCost: sum.consumablesCost + row.consumablesCost, laborCost: sum.laborCost + row.laborCost, localPurchaseCost: sum.localPurchaseCost + row.localPurchaseCost, grossProfit: sum.grossProfit + row.grossProfit }), { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, localPurchaseCost: 0, grossProfit: 0 });
   totals.grossProfitMargin = totals.revenue ? (totals.grossProfit / totals.revenue) * 100 : 0;

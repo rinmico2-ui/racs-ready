@@ -214,7 +214,7 @@
       );
       html += renderSection('Payment & Expense Flow', 'amber',
         renderStat('Pending Payments', fmtM(_dashData.pendingPayments || 0), 'bi-credit-card') +
-        renderStat('Monthly Revenue', fmtM(_dashData.monthlyRevenue || 0), 'bi-cash-stack') +
+        renderStat('Recognized Revenue', fmtM(_dashData.monthlyRevenue || 0), 'bi-cash-stack') +
         renderStat('Last Month Revenue', fmtM(_dashData.lastMonthRevenue || 0), 'bi-graph-up-arrow') +
         renderStat('Monthly Expenses', fmtM(_dashData.monthlyExpenses || 0), 'bi-receipt') +
         renderStat('Pending Expenses', _dashData.pendingExpenses || 0, 'bi-clock-history') +
@@ -282,16 +282,16 @@
       );
     }
     if (type === 'revenue') {
-      var profit = Math.max(0, (_dashData.monthlyRevenue || 0) - (_dashData.monthlyExpenses || 0));
+      var profit = Number(_dashData.operatingProfit || 0);
       html += renderSection('Revenue Breakdown', 'red',
         renderMini(fmtM(_dashData.monthlyRevenue || 0), 'Monthly') +
         renderMini(fmtM(_dashData.lastMonthRevenue || 0), 'Last Month') +
         renderMini(fmtM(_dashData.revenueToday || 0), 'Today')
       );
       html += renderSection('Profitability', 'red',
-        renderStat('Monthly Revenue', fmtM(_dashData.monthlyRevenue || 0), 'bi-cash') +
+        renderStat('Recognized Revenue', fmtM(_dashData.monthlyRevenue || 0), 'bi-cash') +
         renderStat('Monthly Expenses', fmtM(_dashData.monthlyExpenses || 0), 'bi-receipt') +
-        renderStat('Net Profit', fmtM(profit), 'bi-currency-dollar') +
+        renderStat('Operating Profit', fmtM(profit), 'bi-currency-dollar') +
         renderStat('Profit Margin', (_dashData.profitMargin || 0) + '%', 'bi-percent') +
         renderStat('Pending Payments', fmtM(_dashData.pendingPayments || 0), 'bi-credit-card') +
         renderStat('Pending Expenses', fmtM(_dashData.pendingExpensesTotal || 0), 'bi-clock')
@@ -316,7 +316,7 @@
     openKpiModal(type, cfg.title, cfg.subtitle, cfg.iconClass, cfg.color, cfg.getData());
   }
 
-  var DASHBOARD_CARD_TYPES = ['bookingsTrend','serviceDistribution','technicianStatus','todaySchedule','healthBanner','bookingPipeline','financialOverview','customerSatisfaction','notifications','customerInsights','largeScaleProjects','teamPerformance','expenseSummary','airconInventory','topAirconProducts'];
+  var DASHBOARD_CARD_TYPES = ['bookingsTrend','serviceDistribution','technicianStatus','todaySchedule','bookingPipeline','financialOverview','customerSatisfaction','notifications','customerInsights','largeScaleProjects','teamPerformance','expenseSummary','airconInventory','topAirconProducts'];
 
   dashboardCardConfig.bookingsTrend = {
     title: 'Bookings Trend',
@@ -521,7 +521,7 @@
     },
     getContent: function() {
       var alerts = [
-        { key: 'pendingReview', label: 'Pending Review', icon: 'bi-clock-history', color: '#f59e0b', count: _dashData.pendingReview || 0 },
+        { key: 'pendingReview', label: 'Pending Payments', icon: 'bi-clock-history', color: '#f59e0b', count: _dashData.pendingReview || 0 },
         { key: 'awaitingAssignment', label: 'Awaiting Assignment', icon: 'bi-person-plus', color: '#8b5cf6', count: _dashData.awaitingAssignment || 0 },
         { key: 'pendingExpenses', label: 'Expense Approval', icon: 'bi-receipt', color: '#3b82f6', count: _dashData.pendingExpenses || 0 },
         { key: 'lowStockCount', label: 'Low / Out of Stock', icon: 'bi-exclamation-triangle', color: '#ef4444', count: _dashData.lowStockCount || 0 }
@@ -627,7 +627,7 @@
     },
     getContent: function() {
       var cur = _dashData.revenueCurrency || 'PHP';
-      var profit = Math.max(0, (_dashData.monthlyRevenue || 0) - (_dashData.monthlyExpenses || 0));
+      var profit = Number(_dashData.operatingProfit || 0);
       var marginColor = (_dashData.profitMargin || 0) >= 20 ? '#059669' : '#d97706';
       return renderSection('Revenue', 'green',
         renderStat('Today', fmtM(_dashData.revenueToday || 0, cur), 'bi-calendar-day') +
@@ -637,7 +637,7 @@
       ) +
       renderSection('Profitability', 'green',
         renderStat('Monthly Expenses', fmtM(_dashData.monthlyExpenses || 0, cur), 'bi-receipt') +
-        renderStat('Net Profit', fmtM(profit, cur), 'bi-currency-dollar') +
+        renderStat('Operating Profit', fmtM(profit, cur), 'bi-currency-dollar') +
         renderStat('Profit Margin', (_dashData.profitMargin || 0) + '%', 'bi-pie-chart')
       );
     }
@@ -1137,13 +1137,6 @@
 
   // Initialize KPI card clicks
   setTimeout(function() {
-    setupKpiCardClick('.stat-card[data-accent="blue"]', 'bookings', 'Total Bookings Today', 'Daily booking activity and pipeline', 'bi-calendar-check', '#2563eb');
-    setupKpiCardClick('.stat-card[data-accent="amber"]', 'pending', 'Pending Review', 'Payments and expenses awaiting approval', 'bi-clock-history', '#f59e0b');
-    setupKpiCardClick('.stat-card[data-accent="purple"]', 'awaiting', 'Awaiting Assignment', 'Unassigned jobs and technician capacity', 'bi-person-plus', '#8b5cf6');
-    setupKpiCardClick('.stat-card[data-accent="green"]', 'active', 'Active Services', 'Live field and on-site operations', 'bi-tools', '#10b981');
-    setupKpiCardClick('.stat-card[data-accent="cyan"]', 'techs', 'Available Technicians', 'Workforce status and customer metrics', 'bi-people', '#06b6d4');
-    setupKpiCardClick('.stat-card[data-accent="red"]', 'revenue', 'Today\'s Revenue', 'Daily and monthly financial performance', 'bi-currency-dollar', '#ef4444');
-
     // Bind dashboard card modals
     document.querySelectorAll('[data-card-type]').forEach(function(card) {
       card.addEventListener('click', function(e) {
@@ -1242,10 +1235,10 @@
 
     // Secondary labels
     setText('kpi-total-bookings-sub', (d.totalBookingsAllTime || 0) + ' all bookings');
-    setText('kpi-pending-review-sub', (d.pendingReview || 0) + ' need review');
+    setText('kpi-pending-review-sub', (d.pendingReview || 0) + ' booking balances');
     setText('kpi-awaiting-assignment-sub', (d.awaitingAssignment || 0) + ' unassigned');
     setText('kpi-active-services-sub', (d.activeServices || 0) + ' on-site');
-    setText('kpi-revenue-today-sub', fmtMoney(d.revenueToday, d.revenueCurrency) + ' gross');
+    setText('kpi-revenue-today-sub', fmtMoney(d.revenueToday, d.revenueCurrency) + ' recognized net');
 
     // Percentage badges — compare today vs 7-day average (meaningful trend)
     var trend7 = d.trend7 || [];
@@ -1579,7 +1572,7 @@
         momChange = '<span class="finance-change ' + (diff >= 0 ? 'up' : 'down') + '">' + (diff >= 0 ? '+' : '') + pct + '% vs last month</span>';
       }
 
-      var profit = Math.max(0, (d.monthlyRevenue || 0) - (d.monthlyExpenses || 0));
+      var profit = Number(d.operatingProfit || 0);
       var marginColor = (d.profitMargin || 0) >= 20 ? '#059669' : (d.profitMargin || 0) >= 0 ? '#d97706' : '#dc2626';
       var totalRev = (d.monthlyRevenue || 0) + (d.lastMonthRevenue || 0);
       var shareThis = totalRev > 0 ? Math.round(((d.monthlyRevenue || 0) / totalRev) * 100) : 0;
@@ -1592,13 +1585,13 @@
         '</div>' +
         '<div class="finance-grid">' +
         '<div>' +
-        '<div class="dash-list-row"><span class="dash-list-label">Monthly Revenue</span><span class="dash-list-value">' + fmtMoney(d.monthlyRevenue, cur) + '</span></div>' +
+        '<div class="dash-list-row"><span class="dash-list-label">Recognized Revenue</span><span class="dash-list-value">' + fmtMoney(d.monthlyRevenue, cur) + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Last Month Revenue</span><span class="dash-list-value">' + fmtMoney(d.lastMonthRevenue, cur) + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Pending Payments</span><span class="dash-list-value" style="color:#f59e0b;">' + fmtMoney(d.pendingPayments, cur) + '</span></div>' +
         '</div>' +
         '<div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Monthly Expenses</span><span class="dash-list-value" style="color:#ef4444;">' + fmtMoney(d.monthlyExpenses, cur) + '</span></div>' +
-        '<div class="dash-list-row"><span class="dash-list-label">Net Profit</span><span class="dash-list-value" style="color:#10b981;">' + fmtMoney(profit, cur) + '</span></div>' +
+        '<div class="dash-list-row"><span class="dash-list-label">Operating Profit</span><span class="dash-list-value" style="color:' + (profit >= 0 ? '#10b981' : '#dc2626') + ';">' + fmtMoney(profit, cur) + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Profit Margin</span><span class="dash-list-value" style="color:' + marginColor + ';">' + (d.profitMargin != null ? d.profitMargin + '%' : '--') + '</span></div>' +
         '</div>' +
         '</div>';

@@ -2,8 +2,10 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
 
+router.use(auth.authenticate);
+
 // Get users - supports optional email query for existence check
-router.get("/", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res) => {
+router.get("/", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const User = require("../models/User");
     if (req.query.email) {
@@ -31,7 +33,10 @@ router.get("/", auth.authenticate, auth.requireRole(["admin", "secretary"]), asy
       return res.json({ user: null, emailAvailable: true, isCustomer: false });
     }
     // otherwise return limited list or placeholder
-    const users = await User.find({}).limit(200).lean();
+    const users = await User.find({})
+      .select("_id email firstName lastName name phone address role active blocked vip createdAt lastLogin")
+      .limit(200)
+      .lean();
     res.json({ users });
   } catch (err) {
     console.error("user list error", err);
@@ -40,10 +45,16 @@ router.get("/", auth.authenticate, auth.requireRole(["admin", "secretary"]), asy
 });
 
 // Get single user (requires authentication)
-router.get("/:id", auth.authenticate, async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const User = require("../models/User");
-    const u = await User.findById(req.params.id).lean();
+    const isSelf = String(req.user._id) === String(req.params.id);
+    const isStaff = ["admin", "secretary"].includes(req.user.role);
+    if (!isSelf && !isStaff) return res.status(403).json({ error: "Forbidden" });
+
+    const u = await User.findById(req.params.id)
+      .select("_id email firstName lastName name phone address role active blocked vip createdAt lastLogin")
+      .lean();
     if (!u) return res.status(404).json({ error: "User not found" });
     // sanitize via model toJSON helper
     const obj = new User(u);
@@ -55,18 +66,18 @@ router.get("/:id", auth.authenticate, async (req, res) => {
 });
 
 // Create user
-router.post("/", (req, res) => {
-  res.json({ message: "Create user" });
+router.post("/", auth.requireRole("admin"), (req, res) => {
+  res.status(501).json({ error: "User creation is not implemented on this endpoint" });
 });
 
 // Update user
-router.put("/:id", (req, res) => {
-  res.json({ message: "Update user", id: req.params.id });
+router.put("/:id", auth.requireRole("admin"), (req, res) => {
+  res.status(501).json({ error: "User updates are not implemented on this endpoint" });
 });
 
 // Delete user
-router.delete("/:id", (req, res) => {
-  res.json({ message: "Delete user", id: req.params.id });
+router.delete("/:id", auth.requireRole("admin"), (req, res) => {
+  res.status(501).json({ error: "User deletion is not implemented on this endpoint" });
 });
 
 module.exports = router;

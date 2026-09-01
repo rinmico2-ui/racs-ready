@@ -1,0 +1,114 @@
+/* ============================================================
+   Technician Analytics Page — Dashboard-aligned responsive layout
+   ============================================================ */
+
+.admin-content main:has(.analytics-page) {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+}
+
+.admin-dashboard.analytics-page {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  padding: 2rem 1.5rem 1.5rem;
+  overflow-x: hidden;
+}
+
+.analytics-page > .container-fluid,
+.analytics-page .analytics-page-inner {
+  display: block !important;
+  width: 100% !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Ensure the hero and filter bar span full width */
+.analytics-page .dashboard-hero,
+.analytics-page .admin-filter-bar,
+.analytics-page .schedule-premium-card,
+.analytics-page .analytics-chart-card {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.analytics-page .dashboard-hero {
+  margin-bottom: 1.5rem !important;
+}
+
+.analytics-page .admin-filter-bar {
+  margin-bottom: 1.5rem !important;
+}
+
+/* KPI cards should fill their columns */
+.analytics-page .schedule-kpi-row > [class*="col-"] {
+  display: flex !important;
+}
+
+.analytics-page .kpi-enterprise {
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+}
+
+/* Chart cards — prevent h-100 stretch and lock body height */
+.analytics-page .analytics-chart-card {
+  height: auto !important;
+  min-height: auto !important;
+}
+
+.analytics-page .analytics-chart-body {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 280px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Chart canvas should be responsive */
+.analytics-page .analytics-chart-card canvas {
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+/* ============================================================
+   Responsive breakpoints
+   ============================================================ */
+
+@media (max-width: 991px) {
+  .admin-dashboard.analytics-page { padding: 1.5rem 1.25rem 1.25rem; }
+  .analytics-page .dashboard-hero { padding: 1.5rem; }
+  .analytics-page .page-title { font-size: 1.3rem; }
+  .analytics-page .admin-filter-bar { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .analytics-page .admin-filter-bar .filter-group { flex-wrap: wrap; width: 100%; }
+  .analytics-page .admin-filter-bar .filter-actions { margin-left: 0; }
+  .analytics-page .analytics-chart-body { height: 300px !important; }
+}
+
+@media (max-width: 767px) {
+  .admin-dashboard.analytics-page { padding: 1.25rem 1rem 1rem; }
+  .analytics-page .dashboard-hero .row { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .analytics-page .dashboard-hero { padding: 1.25rem; }
+  .analytics-page .page-title { font-size: 1.2rem; }
+  .analytics-page .admin-filter-bar .filter-item { width: 100%; }
+  .analytics-page .admin-filter-bar .form-select { width: 100%; }
+  .analytics-page .analytics-chart-body { height: 280px !important; }
+}
+
+@media (max-width: 480px) {
+  .admin-dashboard.analytics-page { padding: 1rem 0.75rem 1rem; }
+  .analytics-page .dashboard-hero { padding: 1rem; border-radius: 12px; }
+  .analytics-page .page-title { font-size: 1.1rem; }
+  .analytics-page .hero-sub { font-size: 0.8rem; }
+  .analytics-page .admin-filter-bar { padding: 1rem; }
+  .analytics-page .admin-filter-bar .filter-item { padding: 2px 6px; }
+  .analytics-page .kpi-enterprise { padding: 1rem; }
+  .analytics-page .kpi-enterprise-value { font-size: 1.3rem; }
+  .analytics-page .analytics-chart-body { height: 260px !important; }
+}

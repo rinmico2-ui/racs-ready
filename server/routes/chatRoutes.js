@@ -897,6 +897,16 @@ function getSession(id) {
   return s;
 }
 
+function chatSessionKey(req, suppliedId) {
+  if (req.user && req.user._id) return `user:${req.user._id}`;
+  const candidate = String(suppliedId || "");
+  const safeId = /^[A-Za-z0-9_-]{8,64}$/.test(candidate) ? candidate : "default";
+  return `guest:${req.ip}:${safeId}`;
+}
+
+const EXTERNAL_CHAT_CONTEXT =
+  "Do not claim access to private booking, payment, project, or account data. Account status is handled locally by the application.";
+
 // Cleanup old sessions every 10 min
 setInterval(() => {
   const cutoff = Date.now() - SESSION_TTL;
@@ -1608,19 +1618,19 @@ router.post("/", async (req, res) => {
   try {
     const { message, history = [], sessionId } = req.body;
 
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
-      return res.status(400).json({ error: "Message is required" });
+    if (!message || typeof message !== "string" || message.trim().length === 0 || message.length > 2000) {
+      return res.status(400).json({ error: "Message must be between 1 and 2000 characters" });
     }
 
     const knowledge = await loadKnowledge();
-    const session = getSession(sessionId || req.ip);
+    const session = getSession(chatSessionKey(req, sessionId));
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
 
     const result = isCustomerAccountQuestion(message)
       ? { text: buildCustomerStatusResponse(customerData), suggests: ["Track full details", "Book a Service", "Contact"], intent: "account_status" }
-      : await generateResponse(message, session, knowledge, customerData.context);
+      : await generateResponse(message, session, knowledge, EXTERNAL_CHAT_CONTEXT);
 
     // Save to session history
     session.history.push({ role: "user", content: message, ts: Date.now() });
@@ -1651,12 +1661,12 @@ router.post("/stream", async (req, res) => {
   try {
     const { message, history = [], sessionId } = req.body;
 
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
-      return res.status(400).json({ error: "Message is required" });
+    if (!message || typeof message !== "string" || message.trim().length === 0 || message.length > 2000) {
+      return res.status(400).json({ error: "Message must be between 1 and 2000 characters" });
     }
 
     const knowledge = await loadKnowledge();
-    const session = getSession(sessionId || req.ip);
+    const session = getSession(chatSessionKey(req, sessionId));
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
@@ -1701,7 +1711,7 @@ router.post("/stream", async (req, res) => {
     // Try OpenRouter streaming first (free, intelligent)
     if (OPENROUTER_API_KEY) {
       const knowledgeContext = knowledgeToContext(knowledge);
-      const systemPrompt = buildSystemPrompt(knowledgeContext, session, customerData.context);
+      const systemPrompt = buildSystemPrompt(knowledgeContext, session, EXTERNAL_CHAT_CONTEXT);
 
       let orFull = "";
       const orSent = await callOpenRouterStream(systemPrompt, session.history, message, (chunk) => {
@@ -1726,7 +1736,7 @@ router.post("/stream", async (req, res) => {
     // Try Gemini streaming
     if (canUseGemini()) {
       const knowledgeContext = knowledgeToContext(knowledge);
-      const systemPrompt = buildSystemPrompt(knowledgeContext, session, customerData.context);
+      const systemPrompt = buildSystemPrompt(knowledgeContext, session, EXTERNAL_CHAT_CONTEXT);
 
       let fullText = "";
       const streamUrl = `${GEMINI_BASE_URL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;

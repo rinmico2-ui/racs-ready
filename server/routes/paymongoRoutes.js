@@ -62,7 +62,7 @@ router.post(
               status: payment.status === "paid" ? "paid" : "pending",
               completedAt: payment.status === "paid" ? new Date() : undefined,
             },
-            { new: true, sort: { submittedAt: -1 } },
+            { returnDocument: "after", sort: { submittedAt: -1 } },
           ).catch(() => {});
 
           // 2. Update booking or order status
@@ -116,7 +116,7 @@ router.post(
             status: "paid",
             completedAt: new Date(),
           },
-          { new: true, sort: { submittedAt: -1 } },
+          { returnDocument: "after", sort: { submittedAt: -1 } },
         ).catch(() => {});
 
         if (bookingId) {
@@ -165,7 +165,7 @@ router.post(
             gatewayStatus: attrs.status || "failed",
             status: "failed",
           },
-          { new: true, sort: { submittedAt: -1 } },
+          { returnDocument: "after", sort: { submittedAt: -1 } },
         ).catch(() => {});
 
         if (bookingId) {

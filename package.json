@@ -17,7 +17,15 @@
     "import-holidays": "node server/scripts/importNagerHolidays.js",
     "migrate:inventory-classes": "node server/scripts/migrateInventoryClasses.js",
     "migrate:booking-service-items": "node server/scripts/migrateBookingServiceItems.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "migrate:payroll-indexes": "node server/scripts/migratePayrollIndexes.js",
+    "migrate:order-preparation": "node server/scripts/backfill-order-preparation.js",
+    "migrate:service-warranties": "node server/scripts/backfill-service-warranties.js",
+    "migrate:warranty-coverages": "node server/scripts/backfill-warranty-coverages.js",
+    "migrate:customer-maintenance": "node server/scripts/backfill-customer-maintenance.js --apply",
+    "test:security": "node --test server/tests/apiSecurity.test.js",
+    "test:maintenance": "node --test server/tests/maintenance.test.js",
+    "test:ai-technician": "node --test server/tests/ai-technician-assistant.test.js",
+    "test": "node server/tests/run-all.js"
   },
   "keywords": [],
   "author": "",

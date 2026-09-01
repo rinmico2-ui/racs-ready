@@ -8,6 +8,8 @@ const auth = require("../middleware/authenticate");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+const { escapeRegex } = require("../utils/stringSecurity");
 
 // Ensure upload directory exists
 const uploadDir = path.join(__dirname, "../public/uploads/hvac");
@@ -22,7 +24,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    cb(null, uniqueSuffix + imageExtensionFor(file));
   },
 });
 
@@ -30,7 +32,7 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
+    if (isAllowedImage(file)) {
       cb(null, true);
     } else {
       cb(new Error("Only images are allowed"));
@@ -112,7 +114,7 @@ router.get("/hvac", async (req, res, next) => {
     const filter = { active: true };
     
     if (search) {
-      filter.modelLine = new RegExp(search, 'i');
+      filter.modelLine = new RegExp(escapeRegex(search), 'i');
     }
     
     if (brand) {

@@ -358,6 +358,59 @@ function deriveCapacityEnd(booking, defaultServiceDuration) {
   return bStart + svcDuration + travel + buffer;
 }
 
+/**
+ * Compute the full end DateTime for a booking by combining bookingDate with
+ * the explicit endTime, or falling back to startTime + serviceDurationMinutes.
+ *
+ * @param {object} booking — must have bookingDate, and optionally startTime,
+ *   endTime, serviceDurationMinutes
+ * @returns {Date|null} the computed end DateTime, or null if inputs are invalid
+ */
+function computeBookingEndDateTime(booking) {
+  if (!booking || !booking.bookingDate) return null;
+  const base = new Date(booking.bookingDate);
+  if (isNaN(base.getTime())) return null;
+
+  // Normalise to midnight of the booking day
+  const y = base.getFullYear();
+  const mo = base.getMonth();
+  const d = base.getDate();
+  const localBase = new Date(y, mo, d, 0, 0, 0, 0);
+
+  const endMin = parseTimeValue(booking.endTime);
+  if (Number.isFinite(endMin)) {
+    localBase.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
+    return localBase;
+  }
+
+  // Fallback: start + duration
+  const startMin = parseTimeValue(booking.startTime);
+  const duration = Number(booking.serviceDurationMinutes) || 60;
+  if (!Number.isFinite(startMin)) return null;
+
+  const totalMin = startMin + duration;
+  localBase.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
+  return localBase;
+}
+
+/**
+ * Determine whether a booking's scheduled time has fully elapsed.
+ *
+ * A booking is considered "past" when its computed end DateTime is strictly
+ * before `now`.  This allows same-day bookings that haven't ended yet to
+ * still be acted on.
+ *
+ * @param {object} booking — booking document (bookingDate, startTime, endTime, serviceDurationMinutes)
+ * @param {Date}   [now]  — optional override for the current time (useful in tests)
+ * @returns {boolean}
+ */
+function isBookingPast(booking, now) {
+  const endDt = computeBookingEndDateTime(booking);
+  if (!endDt) return false; // if we can't determine the time, don't block
+  const ref = now || new Date();
+  return endDt.getTime() < ref.getTime();
+}
+
 async function getLargeProjectThresholdHours() {
   try {
     const setting = await SiteSetting.findOne({ key: "largeProjectThresholdHours" }).lean();
@@ -388,6 +441,8 @@ module.exports = {
   invalidateCache,
   assertCompanyCapacity,
   parseTimeValue,
+  computeBookingEndDateTime,
+  isBookingPast,
   getLargeProjectThresholdHours,
   getLargeProjectThresholdHoursSync,
 };

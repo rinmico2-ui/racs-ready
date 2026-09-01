@@ -1,0 +1,827 @@
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
+  <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .inventory-premium .dash-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #f1f5f9;
+    }
+    .inventory-premium .dash-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .inventory-premium .kpi-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12); flex-shrink: 0;
+    }
+    .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
+    .inventory-premium .inv-kpi-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 8px; }
+    .inventory-premium .inv-kpi-sub { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    .inventory-premium .inv-kpi-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+    .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
+    .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
+    .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
+    .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
+    .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
+    .inventory-premium .fs-7 { font-size: 0.75rem; }
+    .inventory-premium .table-dense > :not(caption) > * > * { padding: 0.65rem 0.85rem; }
+    .inventory-premium .table-dense th { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+    .inventory-premium .table-dense td { font-size: 0.82rem; color: #334155; }
+    .inventory-premium .table-dense .badge { font-size: 0.7rem; padding: 0.35em 0.65em; }
+    .inventory-premium .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+    .inventory-premium .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
+    .inventory-premium .rp-filter-group.search { flex: 1.8; }
+    .inventory-premium .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .inventory-premium .rp-filter-group .input-group-text { background: #fff; border-color: #e2e8f0; color: #64748b; border-radius: 10px 0 0 10px; height: 42px; }
+    .inventory-premium .rp-filter-group .form-control { border-color: #e2e8f0; border-radius: 0 10px 10px 0; height: 42px; }
+    .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .inventory-premium .rp-filter-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; }
+    .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
+    .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+    .warranty-progress { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+    .warranty-progress-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .warranty-detail-modal .modal-dialog { max-width: 1040px; }
+    .warranty-detail-modal .modal-content { border: 0; border-radius: 8px; overflow: hidden; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22); }
+    .warranty-detail-modal .modal-header { background: #0f172a; color: #fff; border: 0; padding: 18px 22px; }
+    .warranty-detail-modal .modal-header .btn-close { filter: invert(1); opacity: 0.8; }
+    .warranty-detail-modal .modal-body { padding: 0; background: #f8fafc; max-height: min(76vh, 820px); overflow-y: auto; }
+    .wd-summary { display: grid; grid-template-columns: 1.2fr repeat(3, minmax(130px, 0.7fr)); gap: 1px; background: #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .wd-summary-item { background: #fff; padding: 18px 20px; min-width: 0; }
+    .wd-label { color: #64748b; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+    .wd-value { color: #0f172a; font-size: 0.9rem; font-weight: 700; overflow-wrap: anywhere; }
+    .wd-content { padding: 20px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr); gap: 16px; align-items: start; }
+    .wd-column { display: grid; gap: 16px; min-width: 0; }
+    .wd-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    .wd-section-title { display: flex; align-items: center; gap: 8px; margin: 0; padding: 13px 16px; color: #334155; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .wd-section-body { padding: 14px 16px; }
+    .wd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+    .wd-field { min-width: 0; }
+    .wd-field.full { grid-column: 1 / -1; }
+    .wd-field-value { color: #1e293b; font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
+    .wd-record { display: flex; justify-content: space-between; gap: 14px; padding: 11px 0; border-bottom: 1px solid #f1f5f9; }
+    .wd-record:first-child { padding-top: 0; }
+    .wd-record:last-child { padding-bottom: 0; border-bottom: 0; }
+    .wd-record-main { min-width: 0; }
+    .wd-record-title { color: #1e293b; font-size: 0.83rem; font-weight: 700; }
+    .wd-record-meta { color: #64748b; font-size: 0.73rem; margin-top: 3px; overflow-wrap: anywhere; }
+    .wd-record-amount { color: #0f172a; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+    .wd-timeline { position: relative; display: grid; gap: 0; }
+    .wd-event { position: relative; padding: 0 0 15px 22px; }
+    .wd-event:last-child { padding-bottom: 0; }
+    .wd-event::before { content: ''; position: absolute; left: 5px; top: 7px; bottom: -7px; width: 1px; background: #cbd5e1; }
+    .wd-event:last-child::before { display: none; }
+    .wd-event::after { content: ''; position: absolute; left: 1px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+    .wd-event-title { color: #334155; font-size: 0.76rem; font-weight: 700; }
+    .wd-event-date { color: #64748b; font-size: 0.72rem; margin-top: 2px; }
+    .wd-alert { border: 1px solid #fbbf24; background: #fffbeb; color: #78350f; border-radius: 8px; padding: 13px 15px; font-size: 0.8rem; }
+    .wd-payment-entry { border: 1px solid #e2e8f0; border-radius: 8px; padding: 13px; margin-top: 10px; }
+    .wd-remit-steps { display: grid; grid-template-columns: 1fr 18px 1fr 18px 1fr; align-items: start; margin-top: 12px; }
+    .wd-remit-step { min-width: 0; text-align: center; color: #94a3b8; }
+    .wd-remit-step i { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; color: #64748b; }
+    .wd-remit-step.done { color: #166534; }
+    .wd-remit-step.done i { background: #dcfce7; color: #16a34a; }
+    .wd-remit-step.pending { color: #92400e; }
+    .wd-remit-step.pending i { background: #fef3c7; color: #d97706; }
+    .wd-remit-name { font-size: 0.68rem; font-weight: 700; margin-top: 5px; }
+    .wd-remit-date { font-size: 0.62rem; margin-top: 2px; overflow-wrap: anywhere; }
+    .wd-remit-line { height: 2px; background: #e2e8f0; margin-top: 12px; }
+    .wd-remit-line.done { background: #86efac; }
+    .wd-empty { color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 12px; }
+    .wc-priority { width: 8px; height: 42px; border-radius: 999px; flex: 0 0 8px; }
+    .wc-priority.critical { background:#dc2626; } .wc-priority.high { background:#f59e0b; } .wc-priority.normal { background:#3b82f6; }
+    .wc-queue-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid #eef2f7; }
+    .wc-queue-row:first-child { border-top:0; }
+    .wc-queue-main { min-width:0; flex:1; }
+    .wc-queue-ref { font-size:.8rem; font-weight:800; color:#0f172a; }
+    .wc-queue-meta { color:#64748b; font-size:.72rem; margin-top:2px; overflow-wrap:anywhere; }
+    .wc-modal .modal-dialog { max-width:900px; }
+    .wc-workflow { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+    .wc-workflow > div { padding:10px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
+    @media (max-width: 767px) {
+      .wd-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .wd-content { grid-template-columns: 1fr; padding: 12px; }
+      .wd-grid { grid-template-columns: 1fr; }
+      .wd-field.full { grid-column: auto; }
+    }
+  </style>
+
+  <div class="au-hero mb-4">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-shield-check"></i></div>
+        <div>
+          <h1>Warranty Management</h1>
+          <p>Track active warranties, warranty claims, and expiring coverage.</p>
+        </div>
+      </div>
+      <a class="btn btn-light btn-sm fw-semibold" href="/admin/settings/aftercare"><i class="bi bi-sliders me-1"></i>Configure warranty</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Active Warranties</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiActive">0</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Active</span>
+            </div>
+            <span class="inv-kpi-sub">Currently under warranty coverage</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-shield-check"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Warranty Claims</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiClaims">0</span>
+              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Claims</span>
+            </div>
+            <span class="inv-kpi-sub">Filed warranty claims</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><i class="bi bi-exclamation-triangle"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Expiring Soon</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiExpiring">0</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">30 days</span>
+            </div>
+            <span class="inv-kpi-sub">Warranties expiring within 30 days</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);"><i class="bi bi-clock-history"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Total Warranties</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiTotal">0</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
+            </div>
+            <span class="inv-kpi-sub">All recorded warranty coverage</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb);"><i class="bi bi-shield"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><h5 class="mb-1 fw-bold">Warranty claim operations</h5><div class="small text-muted">Triage, inspection assignment, findings, decision, and remedy closure</div></div>
+      <span class="badge bg-warning-subtle text-warning" id="claimQueueCount">0 active claims</span>
+    </div>
+    <div id="claimQueueRows"><div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading claims...</div></div>
+  </div>
+
+  <div class="rp-toolbar">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Warranty Status</label>
+      <div class="d-flex gap-2">
+        <button class="btn btn-light rp-filter-btn active" data-status="all" onclick="filterStatus('all',this)"><i class="bi bi-list me-1"></i>All</button>
+        <button class="btn btn-light rp-filter-btn" data-status="active" onclick="filterStatus('active',this)"><i class="bi bi-shield-check me-1"></i>Active</button>
+        <button class="btn btn-light rp-filter-btn" data-status="claimed" onclick="filterStatus('claimed',this)"><i class="bi bi-exclamation-triangle me-1"></i>Claims</button>
+        <button class="btn btn-light rp-filter-btn" data-status="expired" onclick="filterStatus('expired',this)"><i class="bi bi-shield-x me-1"></i>Expired</button>
+        <button class="btn btn-light rp-filter-btn" data-status="incomplete" onclick="filterStatus('incomplete',this)"><i class="bi bi-calendar-x me-1"></i>Needs Dates</button>
+      </div>
+    </div>
+    <div class="rp-filter-group">
+      <label class="rp-filter-label">Type</label>
+      <div class="d-flex gap-2">
+        <button class="btn btn-light rp-filter-btn active" data-type="all" onclick="filterType('all',this)"><i class="bi bi-grid me-1"></i>All</button>
+        <button class="btn btn-light rp-filter-btn" data-type="booking" onclick="filterType('booking',this)"><i class="bi bi-wrench me-1"></i>Bookings</button>
+        <button class="btn btn-light rp-filter-btn" data-type="order" onclick="filterType('order',this)"><i class="bi bi-bag me-1"></i>Orders</button>
+      </div>
+    </div>
+    <div class="rp-filter-group search">
+      <label class="rp-filter-label">Search</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="searchInput" placeholder="Search by reference or customer name..." oninput="debounceSearch()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white" style="border-bottom: 1px solid #f1f5f9;">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0 fw-bold" id="tableTitle">All Warranties</h5>
+        <span class="badge bg-primary-subtle text-primary" id="tableCount">0 records</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover table-dense align-middle mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th><i class="bi bi-hash me-1"></i>Reference</th>
+            <th><i class="bi bi-person me-1"></i>Customer</th>
+            <th><i class="bi bi-tools me-1"></i>Service / Product</th>
+            <th><i class="bi bi-shield me-1"></i>Status</th>
+            <th><i class="bi bi-calendar me-1"></i>Start Date</th>
+            <th><i class="bi bi-calendar-check me-1"></i>End Date</th>
+            <th><i class="bi bi-clock me-1"></i>Remaining</th>
+            <th><i class="bi bi-gear me-1"></i>Action</th>
+          </tr>
+        </thead>
+        <tbody id="warrantyRows"></tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white py-3 border-top" id="warrantyFooter"></div>
+  </div>
+</div>
+
+<div class="modal fade wc-modal" id="warrantyClaimModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content border-0 shadow-lg">
+    <div class="modal-header bg-dark text-white"><div><h5 class="modal-title fw-bold" id="wcTitle">Warranty claim</h5><div class="small text-white-50" id="wcSubtitle"></div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body bg-light" id="wcBody"></div>
+    <div class="modal-footer bg-white"><button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+  </div></div>
+</div>
+
+<div class="modal fade warranty-detail-modal" id="warrantyDetailModal" tabindex="-1" aria-labelledby="warrantyDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-3 min-w-0">
+          <span class="d-inline-flex align-items-center justify-content-center rounded-2" style="width:40px;height:40px;background:rgba(255,255,255,.12);flex:0 0 auto;">
+            <i class="bi bi-shield-check fs-5"></i>
+          </span>
+          <div class="min-w-0">
+            <h5 class="modal-title fw-bold mb-1" id="warrantyDetailTitle">Warranty Details</h5>
+            <div class="small text-white-50 text-truncate" id="warrantyDetailSubtitle">Loading record...</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="warrantyDetailBody">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="text-muted small mt-3 mb-0">Loading warranty record...</p>
+        </div>
+      </div>
+      <div class="modal-footer bg-white border-top py-3">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentStatus = 'all';
+let currentType = 'all';
+let currentPage = 1;
+const pageSize = 15;
+let allData = [];
+let filteredData = [];
+let searchTimeout = null;
+let activeClaimId = null;
+const warrantyFooter = document.getElementById('warrantyFooter');
+const re = v => String(v ?? '—').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+function filterStatus(status, btn) {
+  currentStatus = status;
+  document.querySelectorAll('[data-status]').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tableTitle').textContent =
+    status === 'all' ? 'All Warranties' :
+    status === 'active' ? 'Active Warranties' :
+    status === 'expired' ? 'Expired Warranties' :
+    status === 'incomplete' ? 'Warranties Missing Dates' : 'Warranty Claims';
+  applyFilters();
+}
+
+function filterType(type, btn) {
+  currentType = type;
+  document.querySelectorAll('[data-type]').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => applyFilters(), 300);
+}
+
+function applyFilters() {
+  const search = (document.getElementById('searchInput').value || '').toLowerCase();
+  filteredData = allData.filter(item => {
+    if (currentStatus !== 'all' && item.warranty?.status !== currentStatus) return false;
+    if (currentType !== 'all' && item.type !== currentType) return false;
+    if (search) {
+      const ref = (item.reference || '').toLowerCase();
+      const name = (item.customer?.name || '').toLowerCase();
+      if (!ref.includes(search) && !name.includes(search)) return false;
+    }
+    return true;
+  });
+  document.getElementById('tableCount').textContent = filteredData.length + ' records';
+  currentPage = 1;
+  renderPage(1);
+}
+
+async function loadWarranties() {
+  try {
+    const [statsRes, listRes] = await Promise.all([
+      fetch('/api/admin/warranties/stats'),
+      fetch('/api/admin/warranties?limit=500')
+    ]);
+    if (statsRes.ok) {
+      const stats = await statsRes.json();
+      document.getElementById('kpiActive').textContent = stats.activeWarranty || 0;
+      document.getElementById('kpiClaims').textContent = stats.warrantyClaims || 0;
+      document.getElementById('kpiExpiring').textContent = stats.expiringSoon || 0;
+      document.getElementById('kpiTotal').textContent = stats.totalWarranties || 0;
+    }
+    if (listRes.ok) {
+      const data = await listRes.json();
+      allData = data.items || [];
+      filteredData = [...allData];
+      document.getElementById('tableCount').textContent = filteredData.length + ' records';
+      renderPage(1);
+    }
+  } catch (e) {
+    console.error('Failed to load warranties:', e);
+  }
+}
+
+async function loadClaimQueue() {
+  const target = document.getElementById('claimQueueRows');
+  try {
+    const response = await fetch('/api/admin/warranty-claims?active=true&limit=100', { headers:{ Accept:'application/json' } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to load claims');
+    document.getElementById('claimQueueCount').textContent = `${data.total || 0} active claim${data.total === 1 ? '' : 's'}`;
+    if (!data.claims?.length) {
+      target.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-shield-check fs-3 d-block mb-2 text-success"></i>No active warranty claims.</div>';
+      return;
+    }
+    target.innerHTML = data.claims.map(claim => `<div class="wc-queue-row">
+      <span class="wc-priority ${re(claim.priority)}"></span>
+      <div class="wc-queue-main"><div class="wc-queue-ref">${re(claim.claimReference)} <span class="badge bg-light text-dark border ms-1">${re(warrantyLabel(claim.status))}</span></div><div class="wc-queue-meta">${re(claim.sourceReference)} · ${re(claim.customerId?.name || 'Customer')} · ${re(claim.affectedItem?.name)} · filed ${re(warrantyDate(claim.submittedAt))}</div></div>
+      <button class="btn btn-sm btn-primary" onclick="openWarrantyClaim('${re(claim._id)}')"><i class="bi bi-clipboard2-pulse me-1"></i>Manage</button>
+    </div>`).join('');
+  } catch (error) {
+    target.innerHTML = `<div class="alert alert-danger m-3 mb-0">${re(error.message)}</div>`;
+  }
+}
+
+function claimActionPanel(claim, technicians) {
+  if (['submitted','triage'].includes(claim.status)) {
+    const technicianOptions = technicians.map(t => `<option value="${re(t._id)}">${re(t.name)}</option>`).join('');
+    return `<div class="card border-0 shadow-sm"><div class="card-body">
+      <h6 class="fw-bold">Admin triage and inspection</h6>
+      <div class="row g-2"><div class="col-md-4"><label class="form-label small fw-bold">Priority</label><select id="wcPriority" class="form-select"><option value="normal" ${claim.priority==='normal'?'selected':''}>Normal</option><option value="high" ${claim.priority==='high'?'selected':''}>High</option><option value="critical" ${claim.priority==='critical'?'selected':''}>Critical</option></select></div><div class="col-md-8"><label class="form-label small fw-bold">Triage note</label><input id="wcTriageNote" class="form-control" placeholder="Scope, safety instructions, initial assessment"></div></div>
+      <button class="btn btn-outline-primary mt-2" onclick="triageClaim()">Acknowledge triage</button>
+      <hr><div class="row g-2"><div class="col-md-5"><label class="form-label small fw-bold">Technician</label><select id="wcTechnician" class="form-select"><option value="">Select technician</option>${technicianOptions}</select></div><div class="col-md-4"><label class="form-label small fw-bold">Inspection date</label><input id="wcInspectionDate" type="date" class="form-control"></div><div class="col-md-3"><label class="form-label small fw-bold">Time slot</label><input id="wcTimeSlot" class="form-control" placeholder="9:00 AM"></div></div>
+      <button class="btn btn-primary mt-2" onclick="scheduleClaimInspection()"><i class="bi bi-calendar-check me-1"></i>Schedule inspection</button>
+    </div></div>`;
+  }
+  if (claim.status === 'inspection_completed') {
+    return `<div class="card border-0 shadow-sm"><div class="card-body"><h6 class="fw-bold">Coverage decision</h6><div class="alert alert-info small"><strong>Technician finding:</strong> ${re(claim.inspection?.diagnosis || 'No diagnosis')}<br><strong>Root cause:</strong> ${re(warrantyLabel(claim.inspection?.rootCause))}</div><div class="row g-2"><div class="col-md-4"><select id="wcOutcome" class="form-select"><option value="approved">Approve</option><option value="partially_approved">Partially approve</option><option value="denied">Deny</option></select></div><div class="col-md-4"><select id="wcRemedy" class="form-select"><option value="repair">Repair</option><option value="replacement">Replacement</option><option value="refund">Refund</option><option value="manufacturer_referral">Manufacturer referral</option><option value="reinspection">Reinspection</option></select></div><div class="col-md-4"><input id="wcAmount" type="number" min="0" class="form-control" placeholder="Approved amount"></div><div class="col-12"><textarea id="wcDecisionReason" class="form-control" rows="3" placeholder="Evidence-based decision reason (required)"></textarea></div></div><button class="btn btn-primary mt-2" onclick="decideClaim()">Record decision</button></div></div>`;
+  }
+  if (['approved','partially_approved','remedy_in_progress'].includes(claim.status)) {
+    return `<div class="card border-0 shadow-sm"><div class="card-body"><h6 class="fw-bold">Approved remedy</h6><div class="row g-2"><div class="col-md-6"><input id="wcOldSerial" class="form-control" placeholder="Old serial number (replacement only)"></div><div class="col-md-6"><input id="wcNewSerial" class="form-control" placeholder="New serial number (replacement only)"></div><div class="col-12"><textarea id="wcRemedyNotes" class="form-control" rows="3" placeholder="Work performed, parts, handover notes"></textarea></div></div><button class="btn btn-outline-primary mt-2 me-2" onclick="updateClaimRemedy(false)">Start / update remedy</button><button class="btn btn-success mt-2" onclick="updateClaimRemedy(true)">Mark resolved</button></div></div>`;
+  }
+  if (claim.status === 'resolved') return '<div class="alert alert-success mb-0"><strong>Remedy completed.</strong> Waiting for the customer to confirm the resolution. Admin override closure requires a documented reason.</div>';
+  if (claim.status === 'denied') return '<div class="alert alert-secondary">The claim was denied with a recorded reason. It can now be administratively closed.</div><button class="btn btn-dark" onclick="closeDeniedClaim()">Close denied claim</button>';
+  return '<div class="alert alert-light border mb-0">The assigned technician owns the next field action for this claim.</div>';
+}
+
+function renderWarrantyClaim(claim, technicians) {
+  document.getElementById('wcTitle').textContent = claim.claimReference;
+  document.getElementById('wcSubtitle').textContent = `${claim.sourceReference} · ${warrantyLabel(claim.status)}`;
+  const evidence = (claim.claimantEvidenceUrls || []).map(url => `<a class="btn btn-sm btn-outline-secondary me-1 mb-1" target="_blank" href="${re(url)}"><i class="bi bi-image me-1"></i>Evidence</a>`).join('') || '<span class="text-muted small">No customer evidence uploaded.</span>';
+  document.getElementById('wcBody').innerHTML = `<div class="wc-workflow mb-3"><div><div class="wd-label">Priority</div><strong>${re(warrantyLabel(claim.priority))}</strong></div><div><div class="wd-label">Source</div><strong>${re(warrantyLabel(claim.sourceType))}</strong></div><div><div class="wd-label">Coverage</div><strong>${re(claim.coverageSnapshot?.serviceName || claim.coverageSnapshot?.coverageType || 'Warranty')}</strong></div><div><div class="wd-label">Requested</div><strong>${re(warrantyLabel(claim.requestedRemedy))}</strong></div></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body"><h6 class="fw-bold">Customer report</h6><div class="small text-muted mb-1">${re(claim.affectedItem?.name)}${claim.affectedItem?.serialNumber ? ` · Serial ${re(claim.affectedItem.serialNumber)}` : ''}</div><p class="mb-2">${re(claim.description)}</p>${evidence}</div></div>
+    ${claim.inspection?.scheduledDate ? `<div class="alert alert-primary small"><strong>Inspection:</strong> ${re(warrantyDate(claim.inspection.scheduledDate,true))} ${re(claim.inspection.timeSlot || '')} · ${re(claim.assignedTechnicianId?.name || 'Technician')}</div>` : ''}
+    ${claimActionPanel(claim, technicians)}`;
+}
+
+window.openWarrantyClaim = async function(id) {
+  activeClaimId = id;
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('warrantyClaimModal'));
+  document.getElementById('wcBody').innerHTML = '<div class="text-center py-5"><span class="spinner-border"></span></div>';
+  modal.show();
+  try {
+    const [claimRes, techRes] = await Promise.all([fetch(`/api/admin/warranty-claims/${encodeURIComponent(id)}`), fetch('/api/admin/technicians')]);
+    const claimData = await claimRes.json(); const techData = await techRes.json();
+    if (!claimRes.ok) throw new Error(claimData.error || 'Claim could not be loaded');
+    renderWarrantyClaim(claimData.claim, techData.technicians || []);
+  } catch (error) { document.getElementById('wcBody').innerHTML = `<div class="alert alert-danger mb-0">${re(error.message)}</div>`; }
+};
+
+async function claimPatch(action, payload) {
+  const response = await fetch(`/api/admin/warranty-claims/${encodeURIComponent(activeClaimId)}/${action}`, { method:'PATCH', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify(payload) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Action failed');
+  await loadClaimQueue(); await openWarrantyClaim(activeClaimId); await loadWarranties();
+}
+window.triageClaim = () => claimPatch('triage',{ priority:document.getElementById('wcPriority').value, note:document.getElementById('wcTriageNote').value }).catch(e=>alert(e.message));
+window.scheduleClaimInspection = () => claimPatch('schedule-inspection',{ technicianId:document.getElementById('wcTechnician').value, scheduledDate:document.getElementById('wcInspectionDate').value, timeSlot:document.getElementById('wcTimeSlot').value, note:document.getElementById('wcTriageNote')?.value }).catch(e=>alert(e.message));
+window.decideClaim = () => claimPatch('decision',{ outcome:document.getElementById('wcOutcome').value, remedyType:document.getElementById('wcRemedy').value, amount:document.getElementById('wcAmount').value, reason:document.getElementById('wcDecisionReason').value }).catch(e=>alert(e.message));
+window.updateClaimRemedy = complete => claimPatch('remedy',{ complete, notes:document.getElementById('wcRemedyNotes').value, oldSerialNumber:document.getElementById('wcOldSerial').value, newSerialNumber:document.getElementById('wcNewSerial').value }).catch(e=>alert(e.message));
+window.closeDeniedClaim = () => claimPatch('close',{ overrideReason:'Administrative closure after documented denial decision' }).catch(e=>alert(e.message));
+
+function renderPage(page) {
+  const start = (page - 1) * pageSize;
+  const slice = filteredData.slice(start, start + pageSize);
+  if (!slice.length) {
+    document.getElementById('warrantyRows').innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-shield fs-4 d-block mb-2"></i>No warranty records found.</td></tr>';
+    warrantyFooter.innerHTML = '<nav><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next</a></li></ul></nav>';
+    return;
+  }
+  const now = Date.now();
+  document.getElementById('warrantyRows').innerHTML = slice.map(b => {
+    const w = b.warranty || {};
+    const status = w.status;
+    const typeBadge = b.type === 'order'
+      ? '<span class="badge bg-info text-white me-1"><i class="bi bi-bag me-1"></i>Order</span>'
+      : '<span class="badge bg-primary text-white me-1"><i class="bi bi-wrench me-1"></i>Booking</span>';
+    const statusBadge = status === 'claimed'
+      ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Claimed</span>'
+      : status === 'expired'
+        ? '<span class="badge bg-secondary"><i class="bi bi-shield-x me-1"></i>Expired</span>'
+        : status === 'incomplete'
+          ? '<span class="badge bg-danger"><i class="bi bi-calendar-x me-1"></i>Needs Dates</span>'
+        : '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Active</span>';
+    const endDate = w.endDate ? new Date(w.endDate) : null;
+    const startDate = w.startDate ? new Date(w.startDate) : null;
+    const remaining = endDate ? Math.max(0, Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))) : '—';
+    const totalDays = w.days || 30;
+    const elapsed = startDate ? Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)) : 0;
+    const progress = Math.min(100, Math.max(0, (elapsed / totalDays) * 100));
+    const progressColor = remaining <= 7 ? '#ef4444' : remaining <= 14 ? '#f59e0b' : '#10b981';
+    const progressWidth = status === 'claimed' ? 100 : progress;
+    const daysText = status === 'claimed'
+      ? '<span class="text-muted">Claimed</span>'
+      : status === 'expired'
+        ? '<span class="text-muted">Coverage ended</span>'
+      : status === 'incomplete'
+        ? '<span class="text-danger">Dates required</span>'
+      : (typeof remaining === 'number' ? `<strong style="color:${progressColor}">${remaining} days</strong>` : '—');
+    return `<tr>
+      <td class="fw-semibold">${typeBadge} ${re(b.reference)}</td>
+      <td>${re(b.customer?.name)}</td>
+      <td>${re(b.service)}</td>
+      <td>${statusBadge}</td>
+      <td>${startDate ? startDate.toLocaleDateString('en-PH') : '—'}</td>
+      <td>${endDate ? endDate.toLocaleDateString('en-PH') : '—'}</td>
+      <td>
+        <div class="mb-1">${daysText}</div>
+        <div class="warranty-progress">
+          <div class="warranty-progress-bar" style="width:${progressWidth}%; background:${status === 'claimed' ? '#f59e0b' : progressColor};"></div>
+        </div>
+      </td>
+      <td>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openWarrantyDetails('${re(b.type)}','${re(b._id)}',this)"><i class="bi bi-eye me-1"></i>View</button>
+      </td>
+    </tr>`;
+  }).join('');
+  renderPagination(page, Math.ceil(filteredData.length / pageSize) || 1, filteredData.length);
+}
+
+function renderPagination(page, pages, total) {
+  const disabled = total === 0;
+  warrantyFooter.innerHTML = `<nav><ul class="inv-pagination justify-content-end mb-0">
+    <li class="page-item ${page <= 1 || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page - 1}">Prev</a>
+    </li>
+    <li class="page-item active">
+      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
+    </li>
+    <li class="page-item ${page >= pages || disabled ? 'disabled' : ''}">
+      <a class="page-link" href="javascript:void(0)" data-page="${page + 1}">Next</a>
+    </li>
+  </ul></nav>`;
+  warrantyFooter.querySelectorAll('.page-link[data-page]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      const target = e.target.closest('.page-link');
+      const newPage = parseInt(target?.dataset.page);
+      if (!target?.closest('.page-item.disabled') && newPage >= 1 && newPage <= pages) {
+        currentPage = newPage;
+        renderPage(currentPage);
+      }
+    });
+  });
+}
+
+function warrantyDate(value, dateOnly = false) {
+  if (!value) return 'Not recorded';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not recorded';
+  const options = dateOnly
+    ? { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' }
+    : { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  return date.toLocaleString('en-PH', options);
+}
+
+function warrantyMoney(value) {
+  if (value === null || value === undefined || value === '') return 'Not recorded';
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : 'Not recorded';
+}
+
+function warrantyLabel(value) {
+  return String(value || 'Not recorded')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function warrantyField(label, value, full = false) {
+  return `<div class="wd-field${full ? ' full' : ''}">
+    <div class="wd-label">${re(label)}</div>
+    <div class="wd-field-value">${re(value || 'Not recorded')}</div>
+  </div>`;
+}
+
+function warrantySection(title, icon, body) {
+  return `<section class="wd-section">
+    <h6 class="wd-section-title"><i class="bi ${icon}"></i>${re(title)}</h6>
+    <div class="wd-section-body">${body}</div>
+  </section>`;
+}
+
+function warrantyStatusBadge(status) {
+  if (status === 'claimed') return '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Claimed</span>';
+  if (status === 'expired') return '<span class="badge bg-secondary"><i class="bi bi-shield-x me-1"></i>Expired</span>';
+  if (status === 'incomplete') return '<span class="badge bg-danger"><i class="bi bi-calendar-x me-1"></i>Needs Dates</span>';
+  return '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Active</span>';
+}
+
+function renderWarrantyDetails(detail) {
+  const warranty = detail.warranty || {};
+  const end = warranty.endDate ? new Date(warranty.endDate) : null;
+  const remainingDays = end && !Number.isNaN(end.getTime())
+    ? Math.ceil((end.getTime() - Date.now()) / 86400000)
+    : null;
+  const remainingText = warranty.status === 'claimed'
+    ? 'Claim filed'
+    : warranty.status === 'expired'
+      ? remainingDays === null ? 'Coverage ended' : `Expired ${Math.abs(Math.min(remainingDays, 0))} day(s) ago`
+      : warranty.status === 'incomplete'
+        ? 'Completion date required'
+        : remainingDays === null ? 'Not recorded' : `${Math.max(0, remainingDays)} day(s)`;
+
+  document.getElementById('warrantyDetailTitle').textContent = detail.reference || 'Warranty Details';
+  document.getElementById('warrantyDetailSubtitle').textContent = `${warrantyLabel(detail.type)} | ${warrantyLabel(detail.workflowStatus)}`;
+
+  const customer = detail.customer || {};
+  const technician = detail.technician || {};
+  const peopleHtml = `<div class="wd-grid">
+    ${warrantyField('Customer', customer.name)}
+    ${warrantyField('Contact number', customer.phone)}
+    ${warrantyField('Email address', customer.email)}
+    ${warrantyField('Assigned technician', technician.name || 'Not recorded')}
+    ${warrantyField('Service address', customer.address, true)}
+    ${(technician.phone || technician.email) ? warrantyField('Technician contact', [technician.phone, technician.email].filter(Boolean).join(' | '), true) : ''}
+  </div>`;
+
+  const records = detail.type === 'order' ? (detail.items || []) : (detail.services || []);
+  const recordsHtml = records.length ? records.map((item, index) => {
+    const title = detail.type === 'order'
+      ? [item.brand, item.model].filter(Boolean).join(' ') || `Product ${index + 1}`
+      : item.name || `Service ${index + 1}`;
+    const meta = detail.type === 'order'
+      ? [item.capacity, `Quantity: ${item.quantity || 1}`].filter(Boolean).join(' | ')
+      : [item.unitType, item.brand, item.model, item.capacity, `Quantity: ${item.quantity || 1}`, item.status ? warrantyLabel(item.status) : null].filter(Boolean).join(' | ');
+    return `<div class="wd-record">
+      <div class="wd-record-main"><div class="wd-record-title">${re(title)}</div><div class="wd-record-meta">${re(meta || 'No additional unit details')}</div></div>
+      <div class="wd-record-amount">${warrantyMoney(item.totalPrice ?? item.unitPrice)}</div>
+    </div>`;
+  }).join('') : '<div class="wd-empty">No service or product lines were recorded.</div>';
+
+  const payment = detail.payment || {};
+  const paymentStatusNotes = {
+    waiting_for_remittance: 'Customer payment was collected on-site and is awaiting technician remittance.',
+    payment_collected: 'Customer payment has been collected and is awaiting reconciliation.',
+    remitted: 'Technician remittance was submitted and is awaiting final verification.',
+    verified: 'Payment and remittance have been verified.',
+    paid: 'Payment is fully settled.',
+    partial: 'Only part of the required amount has been recorded.',
+    pending: 'Payment has not yet been fully recorded.',
+  };
+  const paymentFields = detail.type === 'order'
+    ? [
+        warrantyField('Payment status', warrantyLabel(payment.status)),
+        warrantyField('Payment method', warrantyLabel(payment.method)),
+        warrantyField('Subtotal', warrantyMoney(payment.subtotal)),
+        warrantyField('Delivery fee', warrantyMoney(payment.deliveryFee)),
+        warrantyField('Installation fee', warrantyMoney(payment.installationFee)),
+        warrantyField('Transportation fee', warrantyMoney(payment.transportationFee)),
+        warrantyField('Downpayment', warrantyMoney(payment.downpayment)),
+        warrantyField('Total collected', warrantyMoney(payment.amountPaid)),
+        warrantyField('Balance', warrantyMoney(payment.balance)),
+        warrantyField('Order total', warrantyMoney(payment.total), true),
+      ]
+    : [
+        warrantyField('Payment status', warrantyLabel(payment.status)),
+        warrantyField('Payment method', warrantyLabel(payment.method)),
+        warrantyField('Total collected', warrantyMoney(payment.amountPaid)),
+        warrantyField('Remaining balance', warrantyMoney(payment.balance)),
+        warrantyField('Service total', warrantyMoney(payment.total), true),
+      ];
+  const paymentsHtml = (detail.payments || []).length
+      ? `<div class="mt-3 pt-3 border-top"><div class="wd-label mb-2">Payment and remittance transactions</div>${detail.payments.map(transaction => {
+        const collectedDate = transaction.collectedAt || transaction.completedAt || transaction.submittedAt;
+        const collected = Boolean(transaction.collectedAt || ['payment_collected', 'waiting_for_remittance', 'remitted', 'verified', 'paid', 'partial'].includes(transaction.status));
+        const remitted = Boolean(transaction.remittedAt || transaction.verifiedAt || transaction.status === 'remitted' || transaction.status === 'verified');
+        const verified = Boolean(transaction.verifiedAt || transaction.status === 'verified' || transaction.status === 'paid');
+        const wasRejected = transaction.status === 'rejected' || transaction.rejectedAt;
+        return `<div class="wd-payment-entry">
+          <div class="d-flex justify-content-between gap-3 align-items-start">
+            <div class="wd-record-main"><div class="wd-record-title">${re(warrantyLabel(transaction.type))} via ${re(warrantyLabel(transaction.method))}</div><div class="wd-record-meta">${re(warrantyLabel(transaction.status))}${transaction.reference ? ` | Ref: ${re(transaction.reference)}` : ''}</div></div>
+            <div class="wd-record-amount">${warrantyMoney(transaction.amount)}</div>
+          </div>
+          <div class="wd-remit-steps">
+            <div class="wd-remit-step ${collected ? 'done' : 'pending'}"><i class="bi ${collected ? 'bi-cash-coin' : 'bi-clock'}"></i><div class="wd-remit-name">${collected ? 'Collected' : 'Submitted'}</div><div class="wd-remit-date">${re(warrantyDate(collectedDate))}</div></div>
+            <div class="wd-remit-line ${remitted ? 'done' : ''}"></div>
+            <div class="wd-remit-step ${remitted ? 'done' : 'pending'}"><i class="bi ${remitted ? 'bi-check-lg' : 'bi-hourglass-split'}"></i><div class="wd-remit-name">${remitted ? 'Remitted' : 'Awaiting remittance'}</div><div class="wd-remit-date">${re(remitted ? warrantyDate(transaction.remittedAt) : 'Technician action required')}</div></div>
+            <div class="wd-remit-line ${verified ? 'done' : ''}"></div>
+            <div class="wd-remit-step ${verified ? 'done' : 'pending'}"><i class="bi ${verified ? 'bi-check-lg' : 'bi-shield-lock'}"></i><div class="wd-remit-name">${verified ? 'Verified' : 'Admin verification'}</div><div class="wd-remit-date">${re(verified ? warrantyDate(transaction.verifiedAt || transaction.completedAt) : 'Pending remittance')}</div></div>
+          </div>
+          ${transaction.collectedByName ? `<div class="wd-record-meta mt-2">Collected by: ${re(transaction.collectedByName)}</div>` : ''}
+          ${transaction.remittanceNotes ? `<div class="wd-record-meta">Remittance notes: ${re(transaction.remittanceNotes)}</div>` : ''}
+          ${transaction.remittanceProofSubmitted ? '<div class="wd-record-meta text-success"><i class="bi bi-paperclip me-1"></i>Remittance proof submitted</div>' : ''}
+          ${wasRejected ? `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong>Rejected:</strong> ${re(transaction.rejectionReason || 'No reason recorded')}</div>` : ''}
+          ${!remitted && ['waiting_for_remittance', 'payment_collected'].includes(transaction.status) ? '<div class="alert alert-warning py-2 px-3 small mt-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>The technician must submit this collection from My Remittances before an admin can verify it.</div>' : ''}
+        </div>`;
+      }).join('')}</div>`
+    : '<div class="wd-empty mt-3 border-top">No separate payment-ledger entries were found; totals use the booking snapshot.</div>';
+  const reconciliation = payment.reconciliation || {};
+  const reconciliationHtml = reconciliation.hasLedgerMismatch
+    ? `<div class="alert alert-danger mt-3 mb-0">
+        <div class="fw-bold"><i class="bi bi-exclamation-octagon-fill me-1"></i>Payment ledger is incomplete</div>
+        <div class="small mt-1">The booking total is ${warrantyMoney(reconciliation.total)}, but traceable payment transactions account for only ${warrantyMoney(reconciliation.ledgerCollected)}. The unreconciled amount is <strong>${warrantyMoney(reconciliation.outstandingFromLedger)}</strong>.</div>
+        <div class="small mt-2">Do not treat this booking as financially settled until the missing collection is recorded and remitted.</div>
+        <a class="btn btn-sm btn-outline-danger mt-2" href="/admin/payments/remittance"><i class="bi bi-cash-stack me-1"></i>Open Remittance Queue</a>
+      </div>`
+    : '';
+  const paymentNote = paymentStatusNotes[payment.status]
+    ? `<div class="alert alert-light border mt-3 mb-0 py-2 px-3 small"><i class="bi bi-info-circle me-1 text-primary"></i>${re(paymentStatusNotes[payment.status])}</div>`
+    : '';
+
+  let operationalHtml = '';
+  if (detail.type === 'order') {
+    operationalHtml = `<div class="wd-grid">
+      ${warrantyField('Fulfillment', warrantyLabel(detail.fulfillmentType))}
+      ${warrantyField('Pickup location', detail.pickupLocation)}
+      ${warrantyField('Delivery address', detail.delivery?.address, true)}
+      ${warrantyField('Delivery notes', detail.delivery?.notes, true)}
+    </div>`;
+  } else {
+    const completion = detail.completion || {};
+    const parts = (completion.partsInstalled || []).map(part => `${part.name} x${part.quantity || 1}`).join(', ');
+    const actions = (completion.actionsPerformed || []).join(', ');
+    const equipment = [detail.equipment?.brand, detail.equipment?.model, detail.equipment?.unitType, detail.equipment?.hpDescription].filter(Boolean).join(' | ');
+    const isRepairOutcome = detail.serviceType === 'repair' || detail.issueDescription || parts || actions || completion.completionNotes;
+    operationalHtml = isRepairOutcome
+      ? `<div class="wd-grid">
+          ${warrantyField('Service type', warrantyLabel(detail.serviceType))}
+          ${warrantyField('Equipment', equipment)}
+          ${detail.issueDescription ? warrantyField('Reported issue', detail.issueDescription, true) : ''}
+          ${parts ? warrantyField('Parts installed', parts, true) : ''}
+          ${actions ? warrantyField('Actions performed', actions, true) : ''}
+          ${completion.completionNotes ? warrantyField('Completion notes', completion.completionNotes, true) : ''}
+          ${warrantyField('Completion proof', completion.proofSubmitted ? 'Submitted' : 'Not recorded')}
+        </div>`
+      : `<div class="wd-grid">
+          ${warrantyField('Service type', warrantyLabel(detail.serviceType))}
+          ${warrantyField('Equipment serviced', equipment)}
+          ${warrantyField('Completion proof', completion.proofSubmitted ? 'Submitted' : 'Not recorded')}
+          ${warrantyField('Next maintenance', completion.nextMaintenanceDays ? `${completion.nextMaintenanceDays} days` : 'Not recorded')}
+          ${completion.nextMaintenanceNotes ? warrantyField('Maintenance recommendation', completion.nextMaintenanceNotes, true) : ''}
+          <div class="wd-field full"><div class="alert alert-light border mb-0 py-2 px-3 small"><i class="bi bi-info-circle me-1 text-primary"></i>Repair diagnosis and installed-parts fields do not apply to this core service.</div></div>
+        </div>`;
+  }
+
+  const dateLabels = {
+    created: 'Record created', updated: 'Last updated', requestedService: 'Requested service date',
+    scheduledService: 'Scheduled service date', inspectionScheduled: 'Inspection scheduled',
+    inspectionCompleted: 'Inspection completed', diagnosisCompleted: 'Diagnosis completed',
+    quotationCreated: 'Quotation created', quotationExpires: 'Quotation expiry',
+    customerDecision: 'Customer decision', assigned: 'Technician assigned', paymentVerified: 'Payment verified', paymentCollected: 'On-site payment collected',
+    serviceCompleted: 'Service completed', requestedDelivery: 'Requested delivery date',
+    requestedPickup: 'Requested pickup date', technicianResponded: 'Technician responded',
+    orderCompleted: 'Order completed', warrantyStarted: 'Warranty started', warrantyEnds: 'Warranty ends',
+    warrantyClaimed: 'Warranty claimed', followUpScheduled: 'Follow-up scheduled', followUpCompleted: 'Follow-up completed',
+  };
+  const dateOnlyKeys = new Set(['requestedService', 'scheduledService', 'requestedDelivery', 'requestedPickup', 'warrantyStarted', 'warrantyEnds', 'followUpScheduled']);
+  const dates = Object.entries(detail.dates || {})
+    .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
+    .sort((a, b) => new Date(a[1]) - new Date(b[1]));
+  const datesHtml = dates.length ? `<div class="wd-timeline">${dates.map(([key, value]) => `<div class="wd-event">
+    <div class="wd-event-title">${re(dateLabels[key] || warrantyLabel(key))}</div>
+    <div class="wd-event-date">${re(warrantyDate(value, dateOnlyKeys.has(key)))}</div>
+  </div>`).join('')}</div>` : '<div class="wd-empty">No lifecycle dates were recorded.</div>';
+
+  const history = [...(detail.statusHistory || [])]
+    .filter(entry => entry.at)
+    .sort((a, b) => new Date(b.at) - new Date(a.at));
+  const historyHtml = history.length ? history.map(entry => `<div class="wd-record">
+    <div class="wd-record-main">
+      <div class="wd-record-title">${re(warrantyLabel(entry.status))}</div>
+      <div class="wd-record-meta">${re([entry.by, entry.note].filter(Boolean).join(' | ') || 'Workflow update')}</div>
+    </div>
+    <div class="wd-record-amount">${re(warrantyDate(entry.at))}</div>
+  </div>`).join('') : '<div class="wd-empty">No status history was recorded.</div>';
+
+  const claimHtml = warranty.status === 'claimed' || warranty.claimIssue
+    ? `<div class="wd-alert"><div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Warranty claim</div><div>${re(warranty.claimIssue || 'No claim description was recorded.')}</div><div class="small mt-2">Filed: ${re(warrantyDate(warranty.claimedAt))}</div></div>`
+    : '';
+  const coverageSourceHtml = warranty.datesInferred
+    ? '<div class="alert alert-info border mb-0 py-2 px-3 small"><i class="bi bi-info-circle me-1"></i>Coverage dates were reconstructed from the recorded job completion date using the saved warranty duration.</div>'
+    : '';
+
+  document.getElementById('warrantyDetailBody').innerHTML = `
+    <div class="wd-summary">
+      <div class="wd-summary-item"><div class="wd-label">Coverage status</div><div class="wd-value">${warrantyStatusBadge(warranty.status)}</div></div>
+      <div class="wd-summary-item"><div class="wd-label">Warranty start</div><div class="wd-value">${re(warrantyDate(warranty.startDate, true))}</div></div>
+      <div class="wd-summary-item"><div class="wd-label">Warranty end</div><div class="wd-value">${re(warrantyDate(warranty.endDate, true))}</div></div>
+      <div class="wd-summary-item"><div class="wd-label">Remaining</div><div class="wd-value">${re(remainingText)}</div></div>
+    </div>
+    <div class="wd-content">
+      <div class="wd-column">
+        ${claimHtml}
+        ${coverageSourceHtml}
+        ${warrantySection('Customer and assignment', 'bi-person-vcard', peopleHtml)}
+        ${warrantySection(detail.type === 'order' ? 'Products covered' : 'Services covered', detail.type === 'order' ? 'bi-box-seam' : 'bi-tools', recordsHtml)}
+        ${warrantySection(detail.type === 'order' ? 'Fulfillment details' : 'Service outcome', 'bi-clipboard-check', operationalHtml)}
+        ${warrantySection('Payment breakdown', 'bi-credit-card', `<div class="wd-grid">${paymentFields.join('')}</div>${paymentNote}${reconciliationHtml}${paymentsHtml}`)}
+      </div>
+      <div class="wd-column">
+        ${warrantySection('Important dates', 'bi-calendar3', datesHtml)}
+        ${warrantySection('Status history', 'bi-clock-history', historyHtml)}
+      </div>
+    </div>`;
+}
+
+window.openWarrantyDetails = async function(type, id, button) {
+  const modalElement = document.getElementById('warrantyDetailModal');
+  const body = document.getElementById('warrantyDetailBody');
+  const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+  const originalButton = button?.innerHTML;
+
+  document.getElementById('warrantyDetailTitle').textContent = 'Warranty Details';
+  document.getElementById('warrantyDetailSubtitle').textContent = 'Loading record...';
+  body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted small mt-3 mb-0">Loading warranty record...</p></div>';
+  modal.show();
+
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+  }
+
+  try {
+    const response = await fetch(`/api/admin/warranties/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'The warranty record could not be loaded.');
+    renderWarrantyDetails(data);
+  } catch (error) {
+    document.getElementById('warrantyDetailSubtitle').textContent = 'Unable to load record';
+    body.innerHTML = `<div class="p-4"><div class="alert alert-danger mb-0 d-flex gap-3 align-items-start">
+      <i class="bi bi-exclamation-octagon-fill fs-5"></i>
+      <div><div class="fw-bold">Warranty details unavailable</div><div class="small mt-1">${re(error.message || 'Please try again.')}</div></div>
+    </div></div>`;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalButton;
+    }
+  }
+};
+
+loadWarranties();
+loadClaimQueue().then(() => {
+  const focusedClaim = new URLSearchParams(location.search).get('claim');
+  if (focusedClaim) openWarrantyClaim(focusedClaim);
+});
+</script>

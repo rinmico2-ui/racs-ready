@@ -254,7 +254,7 @@ async function createToolUsageEntry({
           quantity: { $gte: quantityUsed },
         },
         { $inc: { quantity: -quantityUsed } },
-        { new: true },
+        { returnDocument: "after" },
       ).lean();
 
       if (!updatedItem) {
@@ -271,7 +271,7 @@ async function createToolUsageEntry({
     const toolsCategory = await Category.findOneAndUpdate(
       { name: "Tools & Equipment" },
       { $setOnInsert: { name: "Tools & Equipment" } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     ).lean();
 
     const unitPrice = Number(manualUnitPriceRaw || 0);
@@ -441,7 +441,7 @@ async function updateToolUsageEntry({
         const inv = await Tool.findOneAndUpdate(
           { _id: usage.inventoryItemId, quantity: { $gte: delta } },
           { $inc: { quantity: -delta } },
-          { new: true },
+          { returnDocument: "after" },
         );
         if (!inv) {
           const e = new Error("Insufficient stock for quantity increase");

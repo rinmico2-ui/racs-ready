@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Enterprise Booking Flow API
  * Mounted at /api/booking-flow
  * Handles the 6-stage booking lifecycle:
@@ -15,17 +15,17 @@ const router = express.Router();
 const auth = require("../middleware/authenticate");
 const audit = require("../utils/audit");
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAGE 2: Admin Reviews Booking Request
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * POST /api/booking-flow/:id/reject
  * Body: { reason: string, note?: string }
  * Admin rejects a pending booking.
- * Booking Status: pending → rejected
+ * Booking Status: pending â†’ rejected
  */
-router.post("/:id/reject", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.post("/:id/reject", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const { id } = req.params;
@@ -69,10 +69,10 @@ router.post("/:id/reject", auth.authenticate, auth.requireRole("admin", "secreta
  * POST /api/booking-flow/:id/verify-payment
  * Body: { notes?: string }
  * Admin verifies the payment proof and marks payment as verified.
- * Booking Status: pending → payment_verified
- * Payment Status: pending → paid
+ * Booking Status: pending â†’ payment_verified
+ * Payment Status: pending â†’ paid
  */
-router.post("/:id/verify-payment", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.post("/:id/verify-payment", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
@@ -135,9 +135,9 @@ const { calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 /**
  * POST /api/booking-flow/:id/move-to-queue
  * Moves a payment_verified booking to the assignment queue.
- * Booking Status: payment_verified → awaiting_assignment
+ * Booking Status: payment_verified â†’ awaiting_assignment
  */
-router.post("/:id/move-to-queue", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.post("/:id/move-to-queue", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const { id } = req.params;
@@ -157,15 +157,15 @@ router.post("/:id/move-to-queue", auth.authenticate, auth.requireRole("admin", "
   } catch (err) { next(err); }
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAGE 3: Assignment Queue
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * GET /api/booking-flow/queue
  * Returns all bookings in the assignment queue (awaiting_assignment).
  */
-router.get("/queue", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.get("/queue", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const { page = 1, limit = 20, search } = req.query;
@@ -199,7 +199,7 @@ router.get("/queue", auth.authenticate, auth.requireRole("admin", "secretary"), 
  * GET /api/booking-flow/queue/stats
  * Returns queue statistics.
  */
-router.get("/queue/stats", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.get("/queue/stats", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
 
@@ -246,25 +246,25 @@ router.get("/queue/stats", auth.authenticate, auth.requireRole("admin", "secreta
   } catch (err) { next(err); }
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAGE 4: Admin Assigns Technician
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * GET /api/booking-flow/:id/eligible-technicians
  * Returns technicians eligible for assignment.
  *
  * Eligibility is based on:
- *   ✓ Technician account is active
- *   ✓ Technician is not on leave on the booking date
- *   ✓ Technician has working hours configured on the booking date
- *   ✓ Technician has not exceeded booking capacity
+ *   âœ“ Technician account is active
+ *   âœ“ Technician is not on leave on the booking date
+ *   âœ“ Technician has working hours configured on the booking date
+ *   âœ“ Technician has not exceeded booking capacity
  *
  * Attendance status and availabilityStatus are NOT used to determine
- * future assignment eligibility — they are operational tracking for the
+ * future assignment eligibility â€” they are operational tracking for the
  * current workday only.
  */
-router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const Technician = require("../models/Technician");
     const TechnicianSchedule = require("../models/TechnicianSchedule");
@@ -275,7 +275,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking id" });
 
-    // ── 1. Fetch the booking to get its date & location ───────────────────
+    // â”€â”€ 1. Fetch the booking to get its date & location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const booking = await BookingService.findById(id).select("bookingDate location").lean();
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
@@ -288,7 +288,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
     const bookingLat = bookingCoords ? bookingCoords[1] : null;
     const bookingLng = bookingCoords ? bookingCoords[0] : null;
 
-    // ── 2. Fetch ALL active technicians ───────────────────────────────────
+    // â”€â”€ 2. Fetch ALL active technicians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const allTechs = await Technician.find({ active: true })
       .select("name email phone availabilityStatus rating location")
       .sort({ name: 1 })
@@ -300,7 +300,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
 
     const techIds = allTechs.map(t => t._id);
 
-    // ── 3. Batch-fetch schedules, leave records, and active assignments ────
+    // â”€â”€ 3. Batch-fetch schedules, leave records, and active assignments â”€â”€â”€â”€
     const [schedules, leaveRecords, activeAssignments] = await Promise.all([
       TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean(),
       LeaveRequest.find({
@@ -327,7 +327,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
       workloadMap[tid] = (workloadMap[tid] || 0) + 1;
     });
 
-    // ── 4. Filter technicians by eligibility criteria ─────────────────────
+    // â”€â”€ 4. Filter technicians by eligibility criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const MAX_ACTIVE_ASSIGNMENTS = 3;
 
     const eligible = [];
@@ -375,7 +375,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
         continue;
       }
 
-      // Technician is eligible — include current workload info
+      // Technician is eligible â€” include current workload info
       const techCoords = tech.location?.coordinates?.coordinates || tech.location?.coordinates;
       let distanceKm = null;
       let etaMin = null;
@@ -400,7 +400,7 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
       });
     }
 
-    // ── 5. AI scoring — rank eligible technicians by best fit ──────────────
+    // â”€â”€ 5. AI scoring â€” rank eligible technicians by best fit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const scoreTech = (t) => {
       let score = 0;
       const status = (t.availabilityStatus || "").toLowerCase();
@@ -408,8 +408,8 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
       // when an available one exists.
       if (status === "available") score += 100;
       else if (status === "online") score += 60;
-      else score += 0; // offline / unknown — heavily deprioritised
-      // Rating (0–5) weighted
+      else score += 0; // offline / unknown â€” heavily deprioritised
+      // Rating (0â€“5) weighted
       score += (t.rating || 0) * 8;
       // Workload: fewer active jobs is better
       score += Math.max(0, 40 - (t.currentWorkload || 0) * 15);
@@ -436,10 +436,10 @@ router.get("/:id/eligible-technicians", auth.authenticate, auth.requireRole("adm
  * POST /api/booking-flow/:id/assign
  * Body: { technicianId: string, priority?: string, notes?: string }
  * Admin assigns a technician to a booking.
- * Booking Status: awaiting_assignment → assigned
+ * Booking Status: awaiting_assignment â†’ assigned
  * Creates Assignment document.
  */
-router.post("/:id/assign", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.post("/:id/assign", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const Assignment = require("../models/Assignment");
@@ -559,7 +559,7 @@ router.post("/:id/assign", auth.authenticate, auth.requireRole("admin", "secreta
       });
     }
 
-    // ── Email: Notify Technician of Assignment ─────────────────────────────
+    // â”€â”€ Email: Notify Technician of Assignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const User = require("../models/User");
       const { sendTechnicianNotificationEmail } = require("../utils/mailer");
@@ -580,7 +580,7 @@ router.post("/:id/assign", auth.authenticate, auth.requireRole("admin", "secreta
           serviceName: booking.service?.name || "Service",
           dateLabel,
           timeLabel,
-          totalLabel: `₱${Number(booking.totalPrice || booking.estimatedFee || 0).toLocaleString()}`,
+          totalLabel: `â‚±${Number(booking.totalPrice || booking.estimatedFee || 0).toLocaleString()}`,
           locationAddress: booking.location?.address || "",
           issueDescription: booking.issueDescription || "",
         }).catch((err) => console.error("[MAILER] Failed to send assignment email:", err.message));
@@ -597,15 +597,15 @@ router.post("/:id/assign", auth.authenticate, auth.requireRole("admin", "secreta
   } catch (err) { next(err); }
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAGE 5: Technician Response (handled in technicianApi.js)
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // The accept/decline endpoints already exist in technicianApi.js.
 // We need to add booking status sync there (Phase 5).
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STAGE 6: Service Execution Status Sync
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * POST /api/booking-flow/:id/sync-status
@@ -655,7 +655,7 @@ router.post("/:id/sync-status", auth.authenticate, async (req, res, next) => {
  * Returns all bookings with their statuses for the admin appointments page.
  * Query: ?status=...&page=1&limit=20&search=...&date=YYYY-MM-DD
  */
-router.get("/all", auth.authenticate, auth.requireRole("admin", "secretary"), async (req, res, next) => {
+router.get("/all", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const { status, page = 1, limit = 20, search, date } = req.query;

@@ -64,6 +64,8 @@ projectMaterialSchema.pre("save", function () {
   this.totalPrice = (this.quantity || 0) * (this.unitPrice || 0);
 });
 
+projectMaterialSchema.index({ projectId: 1, status: 1, fulfilledAt: -1 });
+
 projectMaterialSchema.statics.getProjectSummary = async function (projectId) {
   const pipeline = [
     { $match: { projectId: new mongoose.Types.ObjectId(projectId) } },

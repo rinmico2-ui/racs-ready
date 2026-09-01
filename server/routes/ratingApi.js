@@ -5,6 +5,7 @@ const rating = require("../controllers/ratingController");
 
 // only authenticated users may rate
 router.use(auth.authenticate);
+router.use(auth.requireRole("customer"));
 
 // inventory rating
 router.post("/inventory/:id", rating.rateInventory);

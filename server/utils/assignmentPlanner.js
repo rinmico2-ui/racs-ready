@@ -3,6 +3,7 @@ const Technician = require('../models/Technician');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
+const { isBookingPast } = require('./bookingPolicy');
 
 const ACTIVE_BOOKING_STATUSES = [
   'assigned','confirmed','scheduled','on-the-way','arrived','in-progress','ongoing',
@@ -77,7 +78,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
   for (const booking of rows) {
     const key = dateKey(booking.bookingDate); const date = new Date(booking.bookingDate); const day = date.getDay();
     const target = bookingWindow(booking); const bookingCoords = coordinates(booking);
-    const priorTechIds = new Set((booking.cancellationHistory||[]).map(h => String(h.technicianId||'')).filter(Boolean));
+    const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
     const candidates = [];
     for (const tech of techs) {
       const tid=String(tech._id); const schedule=scheduleMap.get(tid);
@@ -117,6 +118,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
 async function createReviewedAssignment(bookingId, technicianId, actor, responseMinutes=30) {
   const booking=await BookingService.findById(bookingId);
   if (!booking || !['awaiting_assignment','pending_reassignment'].includes(booking.status)) throw new Error('Booking is no longer awaiting assignment');
+  if (isBookingPast(booking)) throw new Error('Cannot assign a technician — the scheduled time has passed. Please reschedule to a future date/time first.');
   const fresh=(await buildAssignmentPlan([booking],{reservePlan:false}))[0];
   const candidate=fresh?.candidates?.find(c=>c.technicianId===String(technicianId));
   if (!candidate) throw new Error('Technician is no longer eligible for this schedule');

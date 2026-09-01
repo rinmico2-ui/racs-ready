@@ -14,6 +14,7 @@ const geoip = require("geoip-lite");
 const { validationResult } = require("express-validator");
 const authController = require("./authController");
 const User = require("../models/User");
+const { isAccountEnabled } = require("../middleware/accountState");
 const LoginHistory = require("../models/LoginHistory");
 const FailedLoginAttempt = require("../models/FailedLoginAttempt");
 const AuthSession = require("../models/AuthSession");
@@ -236,7 +237,7 @@ exports.login = async (req, res, next) => {
     }
 
     // account locked?
-    if (user.blocked) {
+    if (!isAccountEnabled(user)) {
       const msg = "Account locked";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
       return res.status(403).json({ error: msg });

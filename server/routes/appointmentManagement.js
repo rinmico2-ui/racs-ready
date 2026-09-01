@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Enterprise Appointment Management API
  * Unified backend for the full booking lifecycle
  */
@@ -16,6 +16,9 @@ const Technician = require('../models/Technician');
 const { BookingStatus, PaymentStatus, FlowStages } = require('../models/BookingStatus');
 const { generateAssistantReport } = require('../utils/aiTechnicianAssistant');
 const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
+const { isBookingPast } = require('../utils/bookingPolicy');
+const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
+const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
 
@@ -64,7 +67,7 @@ router.post('/assignment-plan/confirm', requireRole(['admin','secretary']), asyn
   res.status(results.some(r=>r.success)?200:409).json({success:results.every(r=>r.success),assigned:results.filter(r=>r.success).length,failed:results.filter(r=>!r.success).length,results});
 });
 
-// ── AI-driven repair recommendation helper ───────────────────────────────────
+// â”€â”€ AI-driven repair recommendation helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function generateRepairRecommendations(booking) {
   try {
     const unitInfo = {
@@ -96,7 +99,7 @@ async function generateRepairRecommendations(booking) {
 /**
  * GET /api/admin/appointments/flow-stats
  * Dashboard overview: counts for each flow stage + individual status counts
- * Query: start (YYYY-MM-DD), end (YYYY-MM-DD) — optional date range filter
+ * Query: start (YYYY-MM-DD), end (YYYY-MM-DD) â€” optional date range filter
  */
 router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
@@ -193,7 +196,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching flow stats:', error);
+    console.error('âŒ Error fetching flow stats:', error);
     res.status(500).json({ error: 'Failed to fetch flow stats' });
   }
 });
@@ -224,6 +227,15 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       const stageKey = stageAlias[(stage || '').toLowerCase()] || (stage || '').toUpperCase();
       if (stageKey && FlowStages[stageKey]) {
         query.status = { $in: FlowStages[stageKey].statuses };
+      }
+      // Exclude bookings from past dates in the active tab â€” these should
+      // have been expired/rescheduled by the overdue scheduler.
+      if (stageKey === 'ACTIVE_JOBS') {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (!query.bookingDate) {
+          query.bookingDate = { $gte: todayStart };
+        }
       }
     }
     if (!query.status && status) {
@@ -265,7 +277,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       .lean();
 
     res.json({
-      bookings,
+      bookings: bookings.map(booking => withBookingReviewState(booking)),
       pagination: {
         page,
         limit,
@@ -274,7 +286,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching appointment list:', error);
+    console.error('âŒ Error fetching appointment list:', error);
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
@@ -290,25 +302,43 @@ router.get('/cancellation-log', requireRole(["admin", "secretary"]), async (req,
     page = parseInt(page);
     limit = Math.min(parseInt(limit) || 20, 100);
 
-    let query = { reassignmentCount: { $gt: 0 } };
+    const conditions = [];
+
+    // Technician cancellations/declines AND admin/system cancellations/auto-reschedules
     if (escalated === 'true') {
-      query.$or = [{ escalated: true }, { reassignmentCount: { $gte: 3 } }];
+      conditions.push({ $or: [{ escalated: true }, { reassignmentCount: { $gte: 3 } }] });
+    } else {
+      // Any booking that has at least one cancellation-history entry,
+      // or was reassigned at least once.
+      conditions.push({
+        $or: [
+          { reassignmentCount: { $gt: 0 } },
+          { "cancellationHistory.0": { $exists: true } },
+        ],
+      });
     }
 
     if (search) {
-      query.$or = [
-        { bookingReference: { $regex: search, $options: 'i' } },
-        { 'customer.name': { $regex: search, $options: 'i' } },
-        { 'customer.phone': { $regex: search, $options: 'i' } },
-        { 'cancellationHistory.technicianName': { $regex: search, $options: 'i' } },
-      ];
+      const rx = { $regex: String(search), $options: 'i' };
+      conditions.push({
+        $or: [
+          { bookingReference: rx },
+          { workOrderNumber: rx },
+          { 'customer.name': rx },
+          { 'customer.phone': rx },
+          { 'cancellationHistory.technicianName': rx },
+        ],
+      });
     }
+
+    const query = conditions.length ? { $and: conditions } : {};
 
     const total = await BookingService.countDocuments(query);
     const bookings = await BookingService.find(query)
       .sort({ reassignmentCount: -1, updatedAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
+      .select('bookingReference workOrderNumber customer service serviceModel serviceType services bookingDate status reassignmentCount escalated cancellationHistory refundStatus refundAmount refundMethod paymentStatus totalPrice downpaymentAmount updatedAt')
       .lean();
 
     res.json({
@@ -316,7 +346,7 @@ router.get('/cancellation-log', requireRole(["admin", "secretary"]), async (req,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error('❌ Error fetching cancellation log:', error);
+    console.error('âŒ Error fetching cancellation log:', error);
     res.status(500).json({ error: 'Failed to fetch cancellation log' });
   }
 });
@@ -335,6 +365,12 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
       booking.services?.some(item => item?.type === "repair");
     if (booking.status !== BookingStatus.PENDING) {
       return res.status(400).json({ error: `Cannot verify payment for booking in "${booking.status}" status` });
+    }
+    if (bookingReviewState(booking).isReviewOverdue) {
+      return res.status(409).json({
+        error: 'The requested schedule has passed. Contact the customer and reschedule before verifying this booking.',
+        code: 'BOOKING_REVIEW_OVERDUE',
+      });
     }
 
     const totalAmount = booking.totalPrice || booking.estimatedFee || 0;
@@ -366,13 +402,13 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
       : { status: 'paid', verifiedAt: new Date(), verifiedBy: req.user._id };
     await Payment.findOneAndUpdate({ bookingId: booking._id }, paymentUpdateData);
 
-    console.log(`✅ Payment verified for booking ${booking.bookingReference} (${isCOD ? 'COD - downpayment only' : 'full'})`);
+    console.log(`âœ… Payment verified for booking ${booking.bookingReference} (${isCOD ? 'COD - downpayment only' : 'full'})`);
 
     // Create notification
     const { createNotification } = require('../utils/notify');
     const io = req.app.get('io');
     const notifMessage = isCOD
-      ? `Downpayment for booking ${booking.bookingReference} verified. Balance of ₱${booking.balanceAmount.toLocaleString()} to be collected on-site.`
+      ? `Downpayment for booking ${booking.bookingReference} verified. Balance of â‚±${booking.balanceAmount.toLocaleString()} to be collected on-site.`
       : `Payment for booking ${booking.bookingReference} verified (full amount).`;
     await createNotification({
       type: 'payment_verified',
@@ -387,8 +423,88 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
 
     res.json({ success: true, booking, isCOD, balanceAmount: booking.balanceAmount });
   } catch (error) {
-    console.error('❌ Error verifying payment:', error);
+    console.error('âŒ Error verifying payment:', error);
     res.status(500).json({ error: 'Failed to verify payment' });
+  }
+});
+
+/**
+ * Replace an overdue requested schedule while preserving Pending Review.
+ * Payment verification remains a separate admin decision.
+ */
+router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const { newDate, newTime, contactConfirmed, notes } = req.body || {};
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid booking id' });
+    if (!newDate || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(newTime || ''))) {
+      return res.status(400).json({ error: 'A valid new date and time are required.' });
+    }
+    if (contactConfirmed !== true) {
+      return res.status(400).json({ error: 'Confirm that the customer agreed to the replacement schedule.' });
+    }
+
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.status !== BookingStatus.PENDING) {
+      return res.status(409).json({ error: `Only Pending Review bookings can use this reschedule action (current: "${booking.status}").` });
+    }
+    if (!bookingReviewState(booking).isReviewOverdue) {
+      return res.status(409).json({ error: 'This booking is not overdue for review.' });
+    }
+
+    const dateParts = String(newDate).split('-').map(Number);
+    const timeParts = String(newTime).split(':').map(Number);
+    const replacementStart = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], 0, 0);
+    if (Number.isNaN(replacementStart.getTime()) || replacementStart.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'The replacement schedule must be in the future.' });
+    }
+
+    const originalDate = booking.preferredDate || booking.bookingDate;
+    const originalStartTime = booking.preferredTime || booking.startTime || '';
+    const durationMinutes = Math.max(30, Number(booking.serviceDurationMinutes) || 60);
+    const replacementEnd = new Date(replacementStart.getTime() + durationMinutes * 60000);
+    const pad = value => String(value).padStart(2, '0');
+
+    booking.bookingDate = replacementStart;
+    if (booking.preferredDate) booking.preferredDate = replacementStart;
+    booking.startTime = newTime;
+    booking.endTime = `${pad(replacementEnd.getHours())}:${pad(replacementEnd.getMinutes())}`;
+    if (booking.preferredTime) booking.preferredTime = newTime;
+    booking.selectedTimeLabel = `${newTime} - ${booking.endTime}`;
+    booking.recordStatusHistory({
+      fromStatus: BookingStatus.PENDING,
+      toStatus: BookingStatus.PENDING,
+      changedBy: req.user._id,
+      changedByModel: 'User',
+      changedByName: req.user.name || req.user.email || 'Admin',
+      reason: 'Overdue review schedule replaced after customer contact',
+      notes: String(notes || '').trim().slice(0, 1000),
+      metadata: { originalDate, originalStartTime, replacementStart },
+    });
+    await booking.save();
+
+    const io = req.app.get('io');
+    const { createNotification } = require('../utils/notify');
+    await createNotification({
+      type: 'booking_rescheduled',
+      title: 'Booking Schedule Updated',
+      message: `Your requested service schedule for ${booking.bookingReference || 'your booking'} was updated to ${replacementStart.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}. The booking remains pending admin review.`,
+      userId: booking.customerId,
+      role: 'customer',
+      referenceId: booking._id,
+      referenceModel: 'BookingService',
+      link: '/tracking',
+      io,
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      booking: withBookingReviewState(booking.toObject()),
+      message: 'Schedule updated. The booking remains Pending Review.',
+    });
+  } catch (error) {
+    console.error('Failed to reschedule overdue pending review:', error);
+    res.status(500).json({ error: 'Failed to update the requested schedule' });
   }
 });
 
@@ -407,10 +523,10 @@ router.post('/:id/move-to-queue', requireRole(["admin", "secretary"]), async (re
     booking.status = BookingStatus.AWAITING_ASSIGNMENT;
     await booking.save();
 
-    console.log(`📋 Booking ${booking.bookingReference} moved to assignment queue`);
+    console.log(`ðŸ“‹ Booking ${booking.bookingReference} moved to assignment queue`);
     res.json({ success: true, booking });
   } catch (error) {
-    console.error('❌ Error moving to queue:', error);
+    console.error('âŒ Error moving to queue:', error);
     res.status(500).json({ error: 'Failed to move to queue' });
   }
 });
@@ -426,6 +542,13 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
 
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    // Reject assignment of past bookings â€” require reschedule instead
+    if (isBookingPast(booking)) {
+      return res.status(400).json({
+        error: 'Cannot assign a technician to an appointment whose scheduled time has passed. Please reschedule to a future date/time first.',
+      });
+    }
 
     // Repair bookings created by the multi-service flow are represented by
     // service items and may have serviceType="mixed". The old handler referred
@@ -453,7 +576,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       return res.status(409).json({ error: 'This technician is no longer eligible for the requested schedule. Refresh recommendations and choose again.' });
     }
 
-    // ── Safety: reject if technician already has a booking at this time ──
+    // â”€â”€ Safety: reject if technician already has a booking at this time â”€â”€
     {
       function _parseMin(v) {
         if (v === null || v === undefined) return NaN;
@@ -512,7 +635,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       return new Date(now.getTime() + 12 * 60 * 60 * 1000);
     }
 
-    // ── Auto-generate AI recommendations for repair service assignments ──
+    // â”€â”€ Auto-generate AI recommendations for repair service assignments â”€â”€
     let aiRecommendations = null;
     if (isRepair) {
       aiRecommendations = await generateRepairRecommendations(booking);
@@ -605,7 +728,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
         issuedAt: new Date(),
       });
       await eqAssignment.save();
-      // Use updateOne instead of tool.save() — tool may be a lean object
+      // Use updateOne instead of tool.save() â€” tool may be a lean object
       await Tool.updateOne(
         { _id: tool._id },
         { $inc: { reservedQuantity: quantity } }
@@ -652,7 +775,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       io,
     });
 
-    // ── Email: Notify Technician of Assignment ─────────────────────────────
+    // â”€â”€ Email: Notify Technician of Assignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const Technician = require('../models/Technician');
       const User = require('../models/User');
@@ -673,7 +796,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
           serviceName,
           dateLabel,
           timeLabel,
-          totalLabel: `₱${Number(booking.totalPrice || booking.estimatedFee || 0).toLocaleString()}`,
+          totalLabel: `â‚±${Number(booking.totalPrice || booking.estimatedFee || 0).toLocaleString()}`,
           locationAddress: booking.location?.address || '',
           issueDescription: booking.issueDescription || '',
         }).catch(err => console.error('[MAILER] Failed to send assignment email:', err.message));
@@ -682,10 +805,10 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       console.error('[MAILER] Assignment email error:', mailErr.message);
     }
 
-    console.log(`👤 Technician ${technicianId} assigned to booking ${booking.bookingReference}`);
+    console.log(`ðŸ‘¤ Technician ${technicianId} assigned to booking ${booking.bookingReference}`);
     res.json({ success: true, booking, assignment, equipment: [], aiRecommendations });
   } catch (error) {
-    console.error('❌ Error assigning technician:', error);
+    console.error('âŒ Error assigning technician:', error);
     res.status(500).json({ error: 'Failed to assign technician' });
   }
 });
@@ -707,7 +830,7 @@ router.get('/:id/ai-recommendations', requireRole(["admin", "secretary"]), async
     const aiRecommendations = await generateRepairRecommendations(booking);
     res.json({ serviceModel: booking.serviceModel, aiRecommendations });
   } catch (error) {
-    console.error('❌ Error generating AI recommendations:', error);
+    console.error('âŒ Error generating AI recommendations:', error);
     res.status(500).json({ error: 'Failed to generate AI recommendations' });
   }
 });
@@ -734,7 +857,7 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
     booking.rejectedBy = req.user._id;
     await booking.save();
 
-    console.log(`❌ Booking ${booking.bookingReference} rejected: ${reason}`);
+    console.log(`âŒ Booking ${booking.bookingReference} rejected: ${reason}`);
 
     // Create notification
     const { createNotification } = require('../utils/notify');
@@ -752,7 +875,7 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
 
     res.json({ success: true, booking });
   } catch (error) {
-    console.error('❌ Error rejecting booking:', error);
+    console.error('âŒ Error rejecting booking:', error);
     res.status(500).json({ error: 'Failed to reject booking' });
   }
 });
@@ -776,10 +899,10 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
     booking.cancellationReason = reason || 'Cancelled by admin';
     await booking.save();
 
-    console.log(`🚫 Booking ${booking.bookingReference} cancelled`);
+    console.log(`ðŸš« Booking ${booking.bookingReference} cancelled`);
     res.json({ success: true, booking });
   } catch (error) {
-    console.error('❌ Error cancelling booking:', error);
+    console.error('âŒ Error cancelling booking:', error);
     res.status(500).json({ error: 'Failed to cancel booking' });
   }
 });
@@ -930,7 +1053,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid booking id' });
 
-    // ── Helper: parse time string to minutes since midnight ────────────────
+    // â”€â”€ Helper: parse time string to minutes since midnight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function parseMinuteVal(value) {
       if (value === null || value === undefined) return NaN;
       const raw = String(value).trim();
@@ -957,7 +1080,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
       return bStart + serviceDuration + travelDuration + 30;
     }
 
-    // ── 1. Fetch the booking to get its date, time slot, and location ─────
+    // â”€â”€ 1. Fetch the booking to get its date, time slot, and location â”€â”€â”€â”€â”€
     const booking = await BookingService.findById(id)
       .select('bookingDate startTime endTime serviceDurationMinutes travelTime location bookingLocation')
       .lean();
@@ -970,7 +1093,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
     const targetStartMin = parseMinuteVal(booking.startTime);
     const targetEndMin = deriveEndMinutes(booking);
 
-    // ── 2. Fetch ALL active technicians ───────────────────────────────────
+    // â”€â”€ 2. Fetch ALL active technicians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const allTechs = await Technician.find({ active: true })
       .select('name phone email availabilityStatus rating location locationText')
       .sort({ name: 1 })
@@ -982,8 +1105,8 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
 
     const techIds = allTechs.map(t => t._id);
 
-    // ── 3. Batch-fetch schedules, leave records, active assignments, and
-    //        existing bookings on the same date for overlap checking ────────
+    // â”€â”€ 3. Batch-fetch schedules, leave records, active assignments, and
+    //        existing bookings on the same date for overlap checking â”€â”€â”€â”€â”€â”€â”€â”€
     const dayEnd = new Date(bookingDate);
     dayEnd.setHours(23, 59, 59, 999);
 
@@ -1044,7 +1167,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
       }
     }
 
-    // ── 4. Filter technicians by eligibility criteria ─────────────────────
+    // â”€â”€ 4. Filter technicians by eligibility criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const MAX_ACTIVE_ASSIGNMENTS = 3;
 
     const eligible = [];
@@ -1120,7 +1243,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
       });
     }
 
-    // Sort by AI score — genuinely rank by best fit
+    // Sort by AI score â€” genuinely rank by best fit
     const scoreTech = (t) => {
       let score = 0;
       const status = (t.availabilityStatus || '').toLowerCase();
@@ -1128,8 +1251,8 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
       // when an available one exists.
       if (status === 'available') score += 100;
       else if (status === 'online') score += 60;
-      else score += 0; // offline / unknown — heavily deprioritised
-      // Rating (0–5) weighted
+      else score += 0; // offline / unknown â€” heavily deprioritised
+      // Rating (0â€“5) weighted
       score += (t.rating || 0) * 8;
       // Workload: fewer active jobs is better
       score += Math.max(0, 40 - (t.currentWorkload || 0) * 15);
@@ -1147,7 +1270,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
 
     return res.json({ available: eligible, offlinePresent: ineligible, total: eligible.length, bookingLat, bookingLng });
   } catch (error) {
-    console.error('❌ Error fetching eligible technicians:', error);
+    console.error('âŒ Error fetching eligible technicians:', error);
     res.status(500).json({ error: 'Failed to fetch eligible technicians' });
   }
 });
@@ -1204,7 +1327,7 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
       pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) },
     });
   } catch (error) {
-    console.error('❌ Error fetching waiting-acceptance bookings:', error);
+    console.error('âŒ Error fetching waiting-acceptance bookings:', error);
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 });
@@ -1233,7 +1356,7 @@ router.post('/assignments/:assignmentId/extend-deadline', requireRole(["admin", 
     await assignment.save();
     res.json({ success: true, assignment });
   } catch (error) {
-    console.error('❌ Error extending deadline:', error);
+    console.error('âŒ Error extending deadline:', error);
     res.status(500).json({ error: 'Failed to extend deadline' });
   }
 });
@@ -1279,7 +1402,7 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
     booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
     await booking.save();
 
-    // ── Cleanup: Release reserved equipment for this booking ─────────────
+    // â”€â”€ Cleanup: Release reserved equipment for this booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const EquipmentAssignment = require('../models/EquipmentAssignment');
       const Tool = require('../models/Tool');
@@ -1307,12 +1430,12 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
 
     res.json({ success: true, booking });
   } catch (error) {
-    console.error('❌ Error force reassigning:', error);
+    console.error('âŒ Error force reassigning:', error);
     res.status(500).json({ error: 'Failed to reassign booking' });
   }
 });
 
-// ═══ EXPENSE MANAGEMENT ═══
+// â•â•â• EXPENSE MANAGEMENT â•â•â•
 
 /**
  * GET /api/admin/appointments/expenses
@@ -1351,7 +1474,7 @@ router.get('/expenses/list', requireRole(["admin", "secretary"]), async (req, re
       pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
   } catch (error) {
-    console.error('❌ Error fetching expenses:', error);
+    console.error('âŒ Error fetching expenses:', error);
     res.status(500).json({ error: 'Failed to fetch expenses' });
   }
 });
@@ -1380,7 +1503,7 @@ router.post('/expenses/:id/approve', requireRole("admin"), async (req, res) => {
       }
     }
 
-    console.log(`✅ Expense ${expense._id} approved by ${req.user.name || req.user.email}`);
+    console.log(`âœ… Expense ${expense._id} approved by ${req.user.name || req.user.email}`);
 
     // Create notification
     const { createNotification } = require('../utils/notify');
@@ -1399,7 +1522,7 @@ router.post('/expenses/:id/approve', requireRole("admin"), async (req, res) => {
 
     res.json({ success: true, expense });
   } catch (error) {
-    console.error('❌ Error approving expense:', error);
+    console.error('âŒ Error approving expense:', error);
     res.status(500).json({ error: 'Failed to approve expense' });
   }
 });
@@ -1426,11 +1549,11 @@ router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
       const booking = await BookingService.findById(expense.bookingId);
       if (booking) {
         const purchase = (booking.localPurchase || []).find(row => row.receiptUrl && row.receiptUrl === expense.receiptImage);
-        if (purchase) { purchase.adminVerificationStatus = 'correction_requested'; purchase.purchaseStatus = 'rejected'; purchase.notes = `${purchase.notes || ''}${purchase.notes ? ' · ' : ''}Admin correction: ${expense.rejectionReason}`; await booking.save(); }
+        if (purchase) { purchase.adminVerificationStatus = 'correction_requested'; purchase.purchaseStatus = 'rejected'; purchase.notes = `${purchase.notes || ''}${purchase.notes ? ' Â· ' : ''}Admin correction: ${expense.rejectionReason}`; await booking.save(); }
       }
     }
 
-    console.log(`❌ Expense ${expense._id} rejected by ${req.user.name || req.user.email}`);
+    console.log(`âŒ Expense ${expense._id} rejected by ${req.user.name || req.user.email}`);
 
     // Create notification
     const { createNotification } = require('../utils/notify');
@@ -1449,7 +1572,7 @@ router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
 
     res.json({ success: true, expense });
   } catch (error) {
-    console.error('❌ Error rejecting expense:', error);
+    console.error('âŒ Error rejecting expense:', error);
     res.status(500).json({ error: 'Failed to reject expense' });
   }
 });
@@ -1483,7 +1606,7 @@ router.get('/expenses/stats', requireRole(["admin", "secretary"]), async (req, r
       totalApprovedToday: totalApproved[0]?.total || 0,
     });
   } catch (error) {
-    console.error('❌ Error fetching expense stats:', error);
+    console.error('âŒ Error fetching expense stats:', error);
     res.status(500).json({ error: 'Failed to fetch expense stats' });
   }
 });
@@ -1578,7 +1701,7 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
       now: now.toISOString(),
     });
   } catch (error) {
-    console.error('❌ Error fetching verification warnings:', error);
+    console.error('âŒ Error fetching verification warnings:', error);
     res.status(500).json({ error: 'Failed to fetch verification warnings' });
   }
 });
@@ -1677,9 +1800,10 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
       }
     }
 
+    Object.assign(booking, bookingReviewState(booking));
     res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary });
   } catch (error) {
-    console.error('❌ Error fetching booking detail:', error);
+    console.error('âŒ Error fetching booking detail:', error);
     res.status(500).json({ error: 'Failed to fetch booking detail' });
   }
 });
@@ -1763,11 +1887,19 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
        return res.status(404).json({ error: 'Booking not found' });
      }
 
-     if (booking.status !== BookingStatus.PENDING_REASSIGNMENT) {
-       return res
-         .status(400)
-         .json({ error: `Booking is in "${booking.status}" status, not pending_reassignment` });
-     }
+      if (booking.status !== BookingStatus.PENDING_REASSIGNMENT) {
+        return res
+          .status(400)
+          .json({ error: `Booking is in "${booking.status}" status, not pending_reassignment` });
+      }
+
+      if (isBookingPast(booking)) {
+        return res.status(409).json({
+          error: 'Cannot auto-assign a technician to an appointment whose scheduled time has passed. Please resolve it via the Booking Resolution Center.',
+          code: 'PAST_DATE_BOOKING',
+          redirect: '/admin/appointments/attention?issue=past_date',
+        });
+      }
 
      const result = await (require('../utils/autoAssignment').autoAssignBooking(id));
 
@@ -1849,14 +1981,12 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
          .json({ error: 'This date and time slot is already booked by another appointment' });
      }
 
-    // Transition booking to re-scheduled — DO NOT overwrite the active
-    // date/time. The proposed schedule is stored in `proposedReschedule`
-    // and applied only once the customer confirms (reschedule-action accept),
-    // so the booking keeps its original slot until confirmation.
+    // Transition booking to re-scheduled or awaiting_assignment
+    // If no technician assigned, go to awaiting_assignment so admin can assign one
     const previousStatus = booking.status;
     const originalBookingDate = booking.bookingDate;
     const originalStartTime = booking.startTime;
-    booking.status = BookingStatus.RESCHEDULED;
+    booking.status = booking.technicianId ? BookingStatus.RESCHEDULED : BookingStatus.AWAITING_ASSIGNMENT;
     booking.rescheduleReason = `Admin proposed reschedule due to technician unavailability. Previous status: ${previousStatus}`;
     booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
     booking.cancellationHistory.push({
@@ -1914,7 +2044,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
       });
     }
 
-    // ── Cleanup: Release reserved equipment for this booking ─────────────
+    // â”€â”€ Cleanup: Release reserved equipment for this booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const EquipmentAssignment = require('../models/EquipmentAssignment');
       const Tool = require('../models/Tool');
@@ -1965,7 +2095,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
     if (notifyCustomer && booking.customerId) {
       await createNotification({
         type: 'booking_rescheduled',
-        title: 'Proposed Reschedule – Action Required',
+        title: 'Proposed Reschedule â€“ Action Required',
         message: `We propose to reschedule your ${booking.service?.name || 'a service'} appointment to ${newDateObj.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })} at ${newTime}. Please review and confirm in your booking history.`,
         userId: booking.customerId,
         role: 'customer',
@@ -2079,7 +2209,7 @@ router.get('/waiting-reassignment/slots', requireRole(['admin', 'secretary']), a
     const slots = windows.map(w => ({
       value: w.displayStart || w.start,
       end: w.displayEnd || w.end,
-      label: (w.displayStart || w.start) + ' – ' + (w.displayEnd || w.end),
+      label: (w.displayStart || w.start) + ' â€“ ' + (w.displayEnd || w.end),
       remainingCapacity: w.remainingCapacity || 0,
     }));
 
@@ -2245,6 +2375,7 @@ router.post('/:id/equipment', requireRole(['admin', 'secretary']), async (req, r
       notes,
       issuedBy: req.user?.name || String(req.user?._id),
       issuedAt: new Date(),
+      expectedReturnAt: expectedReturnForWorkDate(booking.bookingDate || new Date(), booking.endTime),
     });
     await Tool.findByIdAndUpdate(tool._id, { $inc: { reservedQuantity: requestedQty } });
     res.status(201).json({ success: true, assignment });
@@ -2267,7 +2398,7 @@ router.delete('/equipment-assignments/:assignmentId', requireRole(['admin', 'sec
     if (assignment.status !== 'reserved') return res.status(400).json({ error: 'Cannot remove a checked-out or returned assignment' });
     await Tool.findByIdAndUpdate(assignment.equipmentId, [{
       $set: { reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ['$reservedQuantity', 0] }, assignment.quantity || 1] }] } },
-    }]);
+    }], { updatePipeline: true });
     await assignment.deleteOne();
     res.json({ success: true, message: 'Equipment assignment removed' });
   } catch (error) {

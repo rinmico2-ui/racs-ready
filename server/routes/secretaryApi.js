@@ -706,6 +706,33 @@ router.get("/reports/inventory", async (req, res, next) => {
 
 router.get("/reports/revenue", async (req, res, next) => {
 	try {
+		const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
+		const enterpriseRevenueResult = await buildRevenueAnalytics(req.query);
+		const enterpriseAnalytics = enterpriseRevenueResult.analytics;
+		return res.json({
+			analytics: enterpriseAnalytics,
+			kpis: {
+				bookedValue: enterpriseAnalytics.totalRevenue,
+				recognizedRevenue: enterpriseAnalytics.recognizedRevenue,
+				grossCollections: enterpriseAnalytics.grossCollections,
+				refunds: enterpriseAnalytics.refunds,
+				netCollections: enterpriseAnalytics.netCollections,
+				outstandingValue: enterpriseAnalytics.outstandingValue,
+				operatingProfit: enterpriseAnalytics.operatingProfit,
+				collectionEfficiency: enterpriseAnalytics.collectionRate,
+			},
+			charts: {
+				dailyRevenue: enterpriseAnalytics.dailyRevenue,
+				monthlyRevenue: enterpriseAnalytics.monthlyRevenue,
+				paymentMethods: {
+					gcash: enterpriseAnalytics.gcashRevenue,
+					cash: enterpriseAnalytics.codRevenue,
+					bank: enterpriseAnalytics.bankRevenue,
+					other: enterpriseAnalytics.otherRevenue,
+				},
+			},
+		});
+
 		const BookingService = require("../models/BookingService");
 		const Payment = require("../models/Payment");
 

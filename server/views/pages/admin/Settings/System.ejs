@@ -228,7 +228,12 @@
                 <label class="form-label">Tagline</label>
                 <input type="text" class="form-control" name="tagline" id="bpTagline" maxlength="300" placeholder="Premium air conditioning & appliance care...">
               </div>
-              <div class="col-12">
+              <div class="col-md-6">
+                <label class="form-label" for="bpFoundedYear">Founded Year</label>
+                <input type="number" class="form-control" name="foundedYear" id="bpFoundedYear" min="1900" max="<%= new Date().getFullYear() %>" step="1" placeholder="e.g. 2016">
+                <div class="form-text">Used to calculate the public Years Experience statistic.</div>
+              </div>
+              <div class="col-md-6">
                 <label class="form-label">Business Address</label>
                 <textarea class="form-control" name="address" id="bpAddress" rows="2" maxlength="500" placeholder="San Leonardo, Nueva Ecija"></textarea>
               </div>
@@ -266,7 +271,53 @@
         </div>
       </div>
 
-      <!-- App Configuration -->
+      <!-- No-Show Policy -->
+      <div class="ss-card">
+        <div class="ss-card-head">
+          <div class="ch-icon amber"><i class="bi bi-person-exclamation"></i></div>
+          <h3>No-Show Policy</h3>
+        </div>
+        <div class="ss-card-body">
+          <div id="noShowPolicyAlert" class="alert d-none" role="alert"></div>
+          <form id="noShowPolicyForm">
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label" for="noShowWaitMinutes">Customer Waiting Period</label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="noShowWaitMinutes" min="1" max="120" step="1" value="15" required>
+                  <span class="input-group-text">min</span>
+                </div>
+                <div class="form-text">How long the technician waits after arriving before they can report a no-show.</div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">No-Show Fee Policy</label>
+                <div class="d-flex flex-column gap-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="noShowFeeMode" id="noShowModeNone" value="none">
+                    <label class="form-check-label" for="noShowModeNone">No charge to the customer</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="noShowFeeMode" id="noShowModeTravel" value="travel_fee">
+                    <label class="form-check-label" for="noShowModeTravel">Charge the travel fee (<span id="noShowTravelFeeHint">booking travel fare</span>)</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="noShowFeeMode" id="noShowModeFixed" value="fixed_fee">
+                    <label class="form-check-label" for="noShowModeFixed">Charge a fixed fee</label>
+                    <div class="input-group input-group-sm mt-1" style="max-width:220px;">
+                      <span class="input-group-text">&#8369;</span>
+                      <input type="number" class="form-control" id="noShowFixedFee" min="0" step="0.01" value="150" placeholder="Amount">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-text">Applied when an admin confirms a customer no-show. The fee is added to the booking's total.</div>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end">
+              <button type="submit" class="btn-ss primary" id="noShowPolicySaveBtn"><i class="bi bi-floppy"></i> Save No-Show Policy</button>
+            </div>
+          </form>
+        </div>
+      </div>
       <div class="ss-card">
         <div class="ss-card-head">
           <div class="ch-icon purple"><i class="bi bi-sliders"></i></div>
@@ -560,6 +611,7 @@
       if (data.phone) document.getElementById('bpPhone').value = data.phone;
       if (data.tagline) document.getElementById('bpTagline').value = data.tagline;
       if (data.address) document.getElementById('bpAddress').value = data.address;
+      if (data.foundedYear) document.getElementById('bpFoundedYear').value = data.foundedYear;
     })
     .catch(function() {});
 
@@ -573,6 +625,7 @@
         phone: document.getElementById('bpPhone').value,
         tagline: document.getElementById('bpTagline').value,
         address: document.getElementById('bpAddress').value,
+        foundedYear: document.getElementById('bpFoundedYear').value ? Number(document.getElementById('bpFoundedYear').value) : undefined,
       };
       fetch('/api/admin/settings/business-profile', {
         method: 'PUT',
@@ -645,6 +698,77 @@
       .finally(function() {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-floppy"></i> Save Payment Policy';
+      });
+  });
+})();
+
+(function() {
+  var form = document.getElementById('noShowPolicyForm');
+  var waitInput = document.getElementById('noShowWaitMinutes');
+  var feeRadios = document.querySelectorAll('input[name="noShowFeeMode"]');
+  var fixedInput = document.getElementById('noShowFixedFee');
+  var btn = document.getElementById('noShowPolicySaveBtn');
+  var alertBox = document.getElementById('noShowPolicyAlert');
+
+  function showNoShowAlert(message, type) {
+    if (!alertBox) return;
+    alertBox.className = 'alert alert-' + (type || 'info') + ' py-2 small';
+    alertBox.textContent = message;
+    alertBox.classList.remove('d-none');
+  }
+
+  function applyPolicy(policy) {
+    if (!policy) return;
+    if (policy.noShowWaitMinutes != null) waitInput.value = policy.noShowWaitMinutes;
+    var mode = policy.noShowPolicy && policy.noShowPolicy.mode ? policy.noShowPolicy.mode : 'none';
+    var fee = policy.noShowPolicy && policy.noShowPolicy.fixedFeeAmount;
+    document.querySelectorAll('input[name="noShowFeeMode"]').forEach(function(r) {
+      r.checked = (r.value === mode);
+    });
+    if (fee != null) fixedInput.value = fee;
+  }
+
+  fetch('/api/admin/settings/no-show-policy', { credentials: 'same-origin' })
+    .then(function(response) { return response.ok ? response.json() : null; })
+    .then(applyPolicy)
+    .catch(function() { showNoShowAlert('Unable to load the no-show policy.', 'warning'); });
+
+  if (form) form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    var minutes = Number(waitInput.value);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) {
+      showNoShowAlert('Enter a waiting period from 1 to 120 minutes.', 'danger');
+      waitInput.focus();
+      return;
+    }
+    var mode = 'none';
+    feeRadios.forEach(function(r) { if (r.checked) mode = r.value; });
+    var fixedFeeAmount = mode === 'fixed_fee' ? Number(fixedInput.value) : undefined;
+    if (mode === 'fixed_fee' && (!Number.isFinite(fixedFeeAmount) || fixedFeeAmount < 0)) {
+      showNoShowAlert('Enter a valid fixed fee amount.', 'danger');
+      fixedInput.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+    fetch('/api/admin/settings/no-show-policy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ noShowWaitMinutes: minutes, noShowPolicy: { mode: mode, fixedFeeAmount: fixedFeeAmount } }),
+    })
+      .then(function(response) {
+        return response.json().then(function(data) { return { ok: response.ok, data: data }; });
+      })
+      .then(function(result) {
+        if (!result.ok) throw new Error(result.data.error || 'Failed to save no-show policy.');
+        applyPolicy(result.data);
+        showNoShowAlert('No-show policy saved. It applies to new no-show confirmations.', 'success');
+      })
+      .catch(function(error) { showNoShowAlert(error.message || 'Unable to save the no-show policy.', 'danger'); })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-floppy"></i> Save No-Show Policy';
       });
   });
 })();

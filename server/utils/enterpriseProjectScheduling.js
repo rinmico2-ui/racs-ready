@@ -83,7 +83,11 @@ async function buildSchedulingContext(project, options={}) {
 }
 
 async function generateProjectSchedule(project, options={}) {
-  const orders = topoSort(await WorkOrder.find({projectId:project._id,status:{$ne:"cancelled"}}).lean());
+  const allOrders = await WorkOrder.find({projectId:project._id,status:{$ne:"cancelled"}}).lean();
+  const schedulableOrders = options.remainingOnly
+    ? allOrders.filter(order => !["completed", "cancelled"].includes(order.status) && Number(order.completedUnitCount || 0) < Number(order.unitCount || 0))
+    : allOrders;
+  const orders = topoSort(schedulableOrders);
   if(!orders.length) throw new Error("Generate valid draft work orders before scheduling");
   const context=await buildSchedulingContext(project,options);
   const workingDays=normalizeWorkingDays(options.workingDays?.length?options.workingDays:(project.schedulePlan?.workingDays?.length?project.schedulePlan.workingDays:project.preferredWorkingDays));
@@ -123,8 +127,11 @@ async function generateProjectSchedule(project, options={}) {
 
   for(const order of orders){
     const override=workOrderOverrides[String(order._id)]||null;
-    let remaining=Math.max(30,Math.ceil(Number(order.estimatedHours||1)*60));
-    let unitsRemaining=Math.max(0,Number(order.unitCount||0));
+    const unitsRemainingAtStart=options.remainingOnly?Math.max(0,Number(order.unitCount||0)-Number(order.completedUnitCount||0)):Math.max(0,Number(order.unitCount||0));
+    const remainingRatio=options.remainingOnly?unitsRemainingAtStart/Math.max(1,Number(order.unitCount||0)):1;
+    let remaining=Math.max(30,Math.ceil(Number(order.estimatedHours||1)*60*remainingRatio));
+    let unitsRemaining=unitsRemainingAtStart;
+    const availableUnits=options.remainingOnly?(order.units||[]).filter(unit=>!["completed","cancelled"].includes(unit.status)):(order.units||[]);
     let unitOffset=0;
     const missingEquipment=equipmentRequirements(order).filter(req=>Number(toolMap.get(String(req.toolId))?.quantity||0)<Number(req.quantity||1));
     if(missingEquipment.length){conflicts.push({type:"equipment",workOrderId:order._id,workOrderNumber:order.workOrderNumber,message:`${order.workOrderNumber||order.title} needs unavailable equipment: ${missingEquipment.map(req=>`${req.itemName} ×${req.quantity}`).join(", ")}.`,blocking:true,actions:["Change Equipment","Adjust Work Order","Start Procurement"]});continue;}
@@ -154,7 +161,7 @@ async function generateProjectSchedule(project, options={}) {
         const elapsed=Math.min(slot[1]-slot[0],Math.ceil(remaining/required));const end=slot[0]+elapsed;
         const unitRate=Number(order.unitCount||1)/Math.max(1,Number(order.estimatedHours||1)*60);
         const targetUnits=Math.min(unitsRemaining,Math.max(remaining-elapsed*required<=0?unitsRemaining:0,Math.round(elapsed*required*unitRate)));
-        selected.forEach((id,index)=>{const techUnits=Math.floor(targetUnits/required)+(index<targetUnits%required?1:0);const unitKeys=(order.units||[]).slice(unitOffset,unitOffset+techUnits).map(unit=>unit.unitKey).filter(Boolean);unitOffset+=techUnits;addBusy(id,cursor,slot[0],end,order.workOrderNumber||order.title,"project");allocations.push({projectId:project._id,workOrderId:order._id,technicianId:id,date:new Date(cursor),startTime:timeText(slot[0]),endTime:timeText(end),allocatedMinutes:elapsed,targetUnits:techUnits,unitKeys,generatedBy:"system",planningOnly:true});});
+        selected.forEach((id,index)=>{const techUnits=Math.floor(targetUnits/required)+(index<targetUnits%required?1:0);const unitKeys=availableUnits.slice(unitOffset,unitOffset+techUnits).map(unit=>unit.unitKey).filter(Boolean);unitOffset+=techUnits;addBusy(id,cursor,slot[0],end,order.workOrderNumber||order.title,"project");allocations.push({projectId:project._id,workOrderId:order._id,technicianId:id,date:new Date(cursor),startTime:timeText(slot[0]),endTime:timeText(end),allocatedMinutes:elapsed,targetUnits:techUnits,unitKeys,generatedBy:"system",planningOnly:options.planningOnly!==false});});
         reserveEquipment(order,cursor,slot[0],end);remaining-=elapsed*required;unitsRemaining-=targetUnits;woFinish.set(String(order._id),new Date(cursor));
       }
       cursor.setDate(cursor.getDate()+1);

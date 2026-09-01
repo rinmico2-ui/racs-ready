@@ -27,6 +27,8 @@ const FULFILLMENT_TYPES = [
   "customer_pickup",
 ];
 
+const SALES_CHANNELS = ["online", "walk_in", "phone", "admin"];
+
 // ─── Sub-schemas ─────────────────────────────────────────────────────────────
 
 const orderItemSchema = new mongoose.Schema(
@@ -46,6 +48,8 @@ const orderItemSchema = new mongoose.Schema(
     imageUrl: { type: String, trim: true },
     isHvac: { type: Boolean, default: false },
     parentHvacId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    manufacturerWarranty: { type: String, trim: true, maxlength: 1000, default: "" },
+    serialNumbers: { type: [String], default: [] },
   },
   { _id: false }
 );
@@ -72,6 +76,32 @@ const deliverySchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+const preparationItemSnapshotSchema = new mongoose.Schema({
+  name: { type: String, trim: true },
+  category: { type: String, enum: ["equipment", "consumable", "repair_part"] },
+  quantity: { type: Number, min: 0, default: 0 },
+  unit: { type: String, default: "pcs" },
+  status: { type: String, trim: true },
+}, { _id: false });
+
+const orderPreparationSchema = new mongoose.Schema({
+  dispatch: {
+    status: { type: String, enum: ["pending", "ready", "blocked", "not_required"], default: "pending", index: true },
+    readyAt: { type: Date, default: null },
+    readyBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    note: { type: String, trim: true, maxlength: 500, default: "" },
+  },
+  installation: {
+    status: { type: String, enum: ["not_required", "pending", "blocked", "confirmed", "completed", "cancelled"], default: "not_required", index: true },
+    dailyKitId: { type: mongoose.Schema.Types.ObjectId, ref: "DailyKit", default: null },
+    requirementVersion: { type: Number, default: 1, min: 1 },
+    requiredItems: { type: [preparationItemSnapshotSchema], default: [] },
+    blockers: { type: [String], default: [] },
+    lastSyncedAt: { type: Date, default: null },
+    confirmedAt: { type: Date, default: null },
+  },
+}, { _id: false });
 
 // ─── Main Order Schema ──────────────────────────────────────────────────────
 
@@ -161,6 +191,25 @@ const orderSchema = new mongoose.Schema(
 
     statusHistory: { type: [statusHistorySchema], default: [] },
 
+    // Two independent readiness contracts: the sellable unit/cargo is owned
+    // by dispatch, while installation tools and consumables are covered by
+    // the technician's consolidated Daily Kit.
+    preparation: { type: orderPreparationSchema, default: () => ({}) },
+
+    // Field execution evidence mirrors the technician Core Service lifecycle.
+    enRouteAt: { type: Date, default: null },
+    arrivedAt: { type: Date, default: null },
+    startedAt: { type: Date, default: null },
+    arrivalProofUrl: { type: String, default: null },
+    arrivalProofCapturedAt: { type: Date, default: null },
+    startProofUrl: { type: String, default: null },
+    startProofNotes: { type: String, trim: true, maxlength: 500, default: "" },
+    startProofCapturedAt: { type: Date, default: null },
+    proofPhoto: { type: String, default: null },
+
+    // Authoritative lifecycle date used by warranty and aftercare schedules.
+    completedAt: { type: Date, default: null },
+
     // human-readable order reference
     orderReference: {
       type: String,
@@ -171,6 +220,7 @@ const orderSchema = new mongoose.Schema(
 
     // financials
     subtotal: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
     deliveryFee: { type: Number, default: 0, min: 0 },
     installationFee: { type: Number, default: 0, min: 0 },
     transportationFee: { type: Number, default: 0, min: 0 },
@@ -205,6 +255,36 @@ const orderSchema = new mongoose.Schema(
       enum: ["pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "refunded", "paid", "failed", "partial"],
       default: "pending",
     },
+
+    salesChannel: {
+      type: String,
+      enum: SALES_CHANNELS,
+      default: "online",
+      index: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    refundStatus: {
+      type: String,
+      enum: ["none", "pending", "processing", "completed", "partial"],
+      default: "none",
+      index: true,
+    },
+
+    // Client-generated replay key. Combined with userId this makes checkout
+    // retries idempotent without allowing one customer to collide with another.
+    checkoutRequestId: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: null,
+    },
+    refundAmount: { type: Number, min: 0, default: 0 },
+    refundReason: { type: String, trim: true, maxlength: 1000, default: "" },
+    refundRequestedAt: { type: Date, default: null },
     // Snapshot the policy used when the order was placed. This must not
     // change when an admin updates the global percentage later.
     downpaymentPercentage: { type: Number, min: 1, max: 100, default: null },
@@ -212,6 +292,17 @@ const orderSchema = new mongoose.Schema(
     balanceAmount: { type: Number, min: 0, default: 0 },
     gcashNumber: { type: String, trim: true, default: null },
     gcashProofUrl: { type: String, trim: true, default: null },
+
+    // warranty (set when order is completed with installation)
+    warranty: {
+      days: { type: Number, default: 0 },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+      status: { type: String, enum: ["active", "claimed", "expired"], default: null },
+      claimIssue: { type: String, default: null },
+      claimedAt: { type: Date, default: null },
+      coverages: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
   },
   {
     timestamps: true,
@@ -222,8 +313,23 @@ const orderSchema = new mongoose.Schema(
 
 // ─── Indexes ────────────────────────────────────────────────────────────────
 
+orderSchema.index({ createdAt: -1 });
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index(
+  { userId: 1, checkoutRequestId: 1 },
+  { unique: true, partialFilterExpression: { checkoutRequestId: { $type: "string" } } },
+);
 orderSchema.index({ technicianId: 1, status: 1 });
+orderSchema.index({ status: 1, updatedAt: -1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ status: 1, completedAt: -1 });
+orderSchema.index({ status: 1, "statusHistory.timestamp": -1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ fulfillmentType: 1, createdAt: -1 });
+orderSchema.index({ "preparation.dispatch.status": 1, "preparation.installation.status": 1, createdAt: -1 });
+orderSchema.index({ paymentMethod: 1, createdAt: -1 });
+orderSchema.index({ technicianId: 1, createdAt: -1 });
+orderSchema.index({ "items.brand": 1, createdAt: -1 });
 
 // ─── Pre-save Middleware ────────────────────────────────────────────────────
 
@@ -286,7 +392,10 @@ orderSchema.pre("save", async function () {
 
   // Recalculate total
   this.subtotal = this.items.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
-  this.total = this.subtotal + (this.deliveryFee || 0) + (this.installationFee || 0) + (this.transportationFee || 0);
+  this.total = Math.max(0, this.subtotal - (this.discount || 0))
+    + (this.deliveryFee || 0)
+    + (this.installationFee || 0)
+    + (this.transportationFee || 0);
 });
 
 // ─── Instance Methods ───────────────────────────────────────────────────────

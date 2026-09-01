@@ -60,6 +60,17 @@ function selectedUnitTotal() {
   return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
 }
 function isLargeScaleSelection() { return selectedUnitTotal() >= LARGE_SCALE_MIN_UNITS; }
+function remainingBookingUnits() {
+  return Math.max(0, MAX_BOOKING_UNITS - selectedUnitTotal());
+}
+function selectedHpsTotalExcluding(hpValue, typeName) {
+  const target = parseFloat(hpValue);
+  return (BookingState.selectedHps || [])
+    .filter(item => (typeName === undefined || typeName === null)
+      ? item.hp !== target
+      : !(item.hp === target && item.airconType === typeName))
+    .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+}
 
 // DOM elements cache
 const DOM = {
@@ -1287,6 +1298,13 @@ function setupLocationAutoProgress() {
   const newInput = locationInput.cloneNode(true);
   locationInput.parentNode.replaceChild(newInput, locationInput);
 
+  // Restore previously entered location so navigating back/forward between
+  // steps never loses what the customer already typed.
+  if (!newInput.value && typeof BookingState !== 'undefined' && BookingState.location) {
+    newInput.value = BookingState.location;
+    newInput.classList.add('is-valid');
+  }
+
   // Display selected technician details
   displayTechnicianDetails();
 
@@ -1313,8 +1331,9 @@ function setupLocationAutoProgress() {
   // Setup locate buttons
   setupLocateButtons();
 
-  // Auto-populate user address if logged in and has a saved address
-  if (window.currentUser && window.currentUser.address) {
+  // Auto-populate user address if logged in, has a saved address, and the
+  // customer hasn't already entered their own location.
+  if (window.currentUser && window.currentUser.address && !BookingState.location) {
     const addr = window.currentUser.address;
     const savedAddress = (typeof addr === 'string' ? addr : (addr.street || addr.line1 || addr.address || '')).toString().trim();
     if (savedAddress) {
@@ -5465,7 +5484,7 @@ function renderAirconTypeSelection(airconTypes, container) {
 
   // Create type cards container
   const typesContainer = document.createElement('div');
-  typesContainer.className = 'row g-3 mb-4';
+  typesContainer.className = 'row g-2 g-md-3 mb-4';
 
   // Type icon mapping
   const typeIcons = {
@@ -5513,18 +5532,18 @@ function renderAirconTypeSelection(airconTypes, container) {
     const hpCount = type.hpPricing.length;
 
     typeCard.innerHTML = `
-      <div class="card-body p-3 text-center">
+      <div class="card-body p-2 p-md-3 text-center">
         <div class="mb-2">
-          <i class="bi ${typeIcons[type.type] || 'bi-fan'} fs-2 text-primary"></i>
+          <i class="bi ${typeIcons[type.type] || 'bi-fan'} fs-3 fs-md-2 text-primary"></i>
         </div>
-        <h6 class="fw-bold mb-1">${type.name}</h6>
-        <p class="text-muted small mb-2" style="font-size: 0.75rem;">${typeDescriptions[type.type] || type.description}</p>
+        <h6 class="fw-bold mb-1" style="font-size:0.9rem">${type.name}</h6>
+        <p class="text-muted small mb-2 d-none d-md-block" style="font-size: 0.75rem; line-height:1.35">${typeDescriptions[type.type] || type.description}</p>
         <div class="d-flex justify-content-center align-items-center gap-2">
-          <span class="badge bg-success bg-opacity-10 text-success">
+          <span class="badge bg-success bg-opacity-10 text-success" style="font-size:0.65rem">
             ₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}
           </span>
         </div>
-        <div class="text-muted mt-1" style="font-size: 0.7rem;">
+        <div class="text-muted mt-1" style="font-size: 0.65rem;">
           ${hpCount} HP options available
         </div>
       </div>
@@ -5715,7 +5734,7 @@ function renderHpOptionsForType(airconType, container) {
  */
 function createProfessionalHpCardForType(hpOption, index, airconType) {
   const col = document.createElement('div');
-  col.className = 'col-12 mb-3';
+  col.className = 'col-12';
 
   const card = document.createElement('div');
   card.className = 'card hp-selection-card border-2 bg-white shadow-sm';
@@ -5735,17 +5754,17 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
   `;
 
   card.innerHTML = `
-    <div class="card-body p-4">
-      <div class="row align-items-center">
-        <div class="col-md-6">
-          <div class="d-flex align-items-start">
-            <div class="form-check form-check-lg me-4">
-              <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}" 
-                     data-price="${hpOption.price}" data-type="${airconType.type}" style="width: 1.25rem; height: 1.25rem;">
+    <div class="card-body p-3 p-md-4">
+      <div class="row align-items-start align-items-md-center g-0 g-md-3">
+        <div class="col-12 col-md-6 mb-2 mb-md-0">
+          <div class="d-flex align-items-start gap-2 gap-md-3">
+            <div class="form-check form-check-lg">
+              <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}"
+                     data-price="${hpOption.price}" data-type="${airconType.type}" style="width: 1.25rem; height: 1.25rem; margin-top: .2rem;">
             </div>
             <div class="flex-grow-1">
-              <div class="d-flex align-items-center mb-2">
-                <span class="badge bg-primary bg-gradient rounded-pill px-3 py-2 me-2">
+              <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                <span class="badge bg-primary bg-gradient rounded-pill px-3 py-2">
                   ${hpOption.hp} HP
                 </span>
                 <div class="text-primary fw-bold fs-5">₱${hpOption.price.toLocaleString()}</div>
@@ -5761,24 +5780,24 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
             </div>
           </div>
         </div>
-        <div class="col-md-6">
-          <div class="hp-quantity-control" style="opacity:0.5;pointer-events:none;">
-            <label class="form-label fw-semibold text-dark mb-2">Quantity:</label>
-            <div class="quantity-selector">
-              <div class="input-group input-group-lg shadow-sm">
+        <div class="col-12 col-md-6">
+          <div class="hp-quantity-control w-100" style="opacity:0.5;pointer-events:none;">
+            <label class="form-label fw-semibold text-dark mb-2 d-none d-md-block">Quantity:</label>
+            <div class="quantity-selector w-100">
+              <div class="input-group input-group-lg shadow-sm w-100">
                 <button class="btn btn-outline-primary quantity-decrease" type="button" disabled
                         style="border-radius: 8px 0 0 8px; min-width: 50px;">
                   <i class="bi bi-dash-lg"></i>
                 </button>
-                <input type="number" class="form-control text-center hp-quantity-input fw-bold" 
-                       value="1" min="1" max="20" readonly disabled
+                <input type="number" class="form-control text-center hp-quantity-input fw-bold"
+                       value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled
                        style="background: #f8f9fa; border: none; font-size: 1.1rem;">
                 <button class="btn btn-outline-primary quantity-increase" type="button" disabled
                         style="border-radius: 0 8px 8px 0; min-width: 50px;">
                   <i class="bi bi-plus-lg"></i>
                 </button>
               </div>
-              <div class="text-muted small mt-2 text-center">
+              <div class="text-muted small mt-2 text-center d-none d-md-block">
                 <span class="quantity-price">₱${hpOption.price.toLocaleString()}</span> per unit
               </div>
             </div>
@@ -5915,12 +5934,15 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
 
   increaseBtn.addEventListener('click', () => {
     const currentValue = parseInt(quantityInput.value);
-    if (currentValue < 20) {
+    const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, airconType.type);
+    if (currentValue < maxAllowed) {
       const newValue = currentValue + 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantityForType(hpOption.hp, newValue, airconType.type);
       animateQuantityChange(quantityInput);
+    } else {
+      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     }
   });
 }
@@ -5954,7 +5976,7 @@ function updateHpQuantityForType(hp, quantity, type) {
  */
 function createProfessionalHpCard(hpOption, index) {
   const col = document.createElement('div');
-  col.className = 'col-12 mb-3';
+  col.className = 'col-12';
 
   const card = document.createElement('div');
   card.className = 'card hp-selection-card border-2 bg-white shadow-sm';
@@ -5973,17 +5995,17 @@ function createProfessionalHpCard(hpOption, index) {
   `;
 
   card.innerHTML = `
-    <div class="card-body p-4">
-      <div class="row align-items-center">
-        <div class="col-md-6">
-          <div class="d-flex align-items-start">
-            <div class="form-check form-check-lg me-4">
-              <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}" 
-                    data-price="${hpOption.price}" style="width: 1.25rem; height: 1.25rem;">
+    <div class="card-body p-3 p-md-4">
+      <div class="row align-items-start align-items-md-center g-0 g-md-3">
+        <div class="col-12 col-md-6 mb-2 mb-md-0">
+          <div class="d-flex align-items-start gap-2 gap-md-3">
+            <div class="form-check form-check-lg">
+              <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}"
+                    data-price="${hpOption.price}" style="width: 1.25rem; height: 1.25rem; margin-top: .2rem;">
             </div>
             <div class="flex-grow-1">
-              <div class="d-flex align-items-center mb-2">
-                <span class="badge bg-primary bg-gradient rounded-pill px-3 py-2 me-2">
+              <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                <span class="badge bg-primary bg-gradient rounded-pill px-3 py-2">
                   ${hpOption.hp} HP
                 </span>
                 <div class="text-primary fw-bold fs-5">₱${hpOption.price.toLocaleString()}</div>
@@ -5996,24 +6018,24 @@ function createProfessionalHpCard(hpOption, index) {
             </div>
           </div>
         </div>
-        <div class="col-md-6">
-          <div class="hp-quantity-control" style="opacity:0.5;pointer-events:none;">
-            <label class="form-label fw-semibold text-dark mb-2">Quantity:</label>
-            <div class="quantity-selector">
-              <div class="input-group input-group-lg shadow-sm">
+        <div class="col-12 col-md-6">
+          <div class="hp-quantity-control w-100" style="opacity:0.5;pointer-events:none;">
+            <label class="form-label fw-semibold text-dark mb-2 d-none d-md-block">Quantity:</label>
+            <div class="quantity-selector w-100">
+              <div class="input-group input-group-lg shadow-sm w-100">
                 <button class="btn btn-outline-primary quantity-decrease" type="button" disabled
                         style="border-radius: 8px 0 0 8px; min-width: 50px;">
                   <i class="bi bi-dash-lg"></i>
                 </button>
-                <input type="number" class="form-control text-center hp-quantity-input fw-bold" 
-                       value="1" min="1" max="20" readonly disabled
+                <input type="number" class="form-control text-center hp-quantity-input fw-bold"
+                       value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled
                        style="background: #f8f9fa; border: none; font-size: 1.1rem;">
                 <button class="btn btn-outline-primary quantity-increase" type="button" disabled
                         style="border-radius: 0 8px 8px 0; min-width: 50px;">
                   <i class="bi bi-plus-lg"></i>
                 </button>
               </div>
-              <div class="text-muted small mt-2 text-center">
+              <div class="text-muted small mt-2 text-center d-none d-md-block">
                 <span class="quantity-price">₱${hpOption.price.toLocaleString()}</span> per unit
               </div>
             </div>
@@ -6116,12 +6138,15 @@ function addHpCardEventListeners(card, hpOption) {
 
   increaseBtn.addEventListener('click', () => {
     const currentValue = parseInt(quantityInput.value);
-    if (currentValue < 20) {
+    const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, null);
+    if (currentValue < maxAllowed) {
       const newValue = currentValue + 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantity(hpOption.hp, newValue);
       animateQuantityChange(quantityInput);
+    } else {
+      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     }
   });
 }
@@ -6872,7 +6897,7 @@ function setupQuantityButtonOverride(modalElement) {
       e.stopPropagation();
 
       const currentValue = parseInt(quantityInput?.value || 1);
-      if (currentValue < 20) {
+      if (currentValue < remainingBookingUnits()) {
         const newValue = currentValue + 1;
         quantityInput.value = newValue;
 
@@ -6888,6 +6913,7 @@ function setupQuantityButtonOverride(modalElement) {
         updateCombinedPrice();
       } else {
         // Error feedback
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
         newIncreaseBtn.style.transform = 'scale(0.95)';
         setTimeout(() => {
           newIncreaseBtn.style.transform = 'scale(1)';
@@ -7027,7 +7053,8 @@ function setupHpCardQuantityOverrides(modalElement) {
       e.stopPropagation();
 
       const currentValue = parseInt(quantityInput.value);
-      if (currentValue < 20) {
+      const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpValue, null);
+      if (currentValue < maxAllowed) {
         const newValue = currentValue + 1;
         quantityInput.value = newValue;
 
@@ -7047,6 +7074,8 @@ function setupHpCardQuantityOverrides(modalElement) {
 
         // Update state
         updateHpQuantity(hpValue, newValue);
+      } else {
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
       }
     };
 
@@ -7588,7 +7617,7 @@ function updateCombinedPrice() {
       confirmBtn.dataset.requiresHp = shouldDisable ? 'true' : 'false'; // Mark if HP is required
     } else {
       const quantity = parseInt(DOM.quantityModalInput?.value || 0);
-      confirmBtn.disabled = quantity < 1 || quantity > 20;
+      confirmBtn.disabled = quantity < 1 || quantity > MAX_BOOKING_UNITS;
       confirmBtn.dataset.requiresHp = 'false';
     }
 
@@ -7801,6 +7830,13 @@ function confirmQuantitySelection() {
       return;
     }
 
+    const hpTotalUnits = BookingState.selectedHps.reduce((sum, hp) => sum + (Number(hp.quantity) || 0), 0);
+    if (selectedUnitTotal() + hpTotalUnits > MAX_BOOKING_UNITS) {
+      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+      resetProcessingFlag();
+      return;
+    }
+
 
     // Add each selected HP as a separate service item
     BookingState.selectedHps.forEach(hpSelection => {
@@ -7835,8 +7871,14 @@ function confirmQuantitySelection() {
 
     const quantity = parseInt(DOM.quantityModalInput.value);
 
-    if (isNaN(quantity) || quantity < 1 || quantity > 20) {
-      showError('Please enter a valid quantity (1-20)');
+    if (isNaN(quantity) || quantity < 1) {
+      showError('Please enter a valid quantity');
+      resetProcessingFlag();
+      return;
+    }
+
+    if (quantity > MAX_BOOKING_UNITS) {
+      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
       resetProcessingFlag();
       return;
     }
@@ -8015,7 +8057,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     hpData: hpData
   });
   if (selectedUnitTotal() + Number(quantity || 1) > MAX_BOOKING_UNITS) {
-    showError(`You can add a maximum of ${MAX_BOOKING_UNITS} units across all Core and Repair services.`);
+    showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     return;
   }
 
@@ -8139,10 +8181,25 @@ function validateStep(stepNumber) {
         (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
         BookingState.isProject === true ||
         !!BookingState.projectScheduling;
-      if (!BookingState.selectedDate || (!_isProject && !BookingState.selectedTimeSlot)) {
-        showError(_isProject
-          ? 'Please select a start date for your project'
-          : 'Please select both date and time for your appointment');
+      if (_isProject) {
+        // Projects require a fully validated start + end date range whose
+        // capacity verdict is sufficient — an insufficient window cannot be
+        // submitted.
+        const ps = BookingState.projectScheduling;
+        const hasEnd = !!(ps && ps.endDate) ||
+          !!(EnterpriseCalendar.getSelectedEndDate && EnterpriseCalendar.getSelectedEndDate());
+        if (!BookingState.selectedDate || !hasEnd) {
+          showError('Please select both a start date and an end date for your project');
+          return false;
+        }
+        const verdict = (EnterpriseCalendar.getWindowVerdict && EnterpriseCalendar.getWindowVerdict()) ||
+          (ps && ps.windowVerdict) || null;
+        if (verdict && verdict.sufficient === false) {
+          showError('This project window does not provide enough available working capacity. Please adjust your end date or use the recommended date.');
+          return false;
+        }
+      } else if (!BookingState.selectedDate || !BookingState.selectedTimeSlot) {
+        showError('Please select both date and time for your appointment');
         return false;
       }
       break;
@@ -8393,9 +8450,11 @@ function decreaseQuantity() {
 
 function increaseQuantity() {
   const current = parseInt(DOM.quantityModalInput.value);
-  if (current < MAX_BOOKING_UNITS) {
+  if (current < remainingBookingUnits()) {
     DOM.quantityModalInput.value = current + 1;
     updateCombinedPrice();
+  } else {
+    showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
   }
 }
 
@@ -8867,7 +8926,9 @@ async function renderManualCalendar() {
         serviceId: BookingState.selectedServiceId,
         duration: serviceDuration / totalQuantity,
         quantity: totalQuantity,
-        totalEstimatedMinutes: totalEstimatedMinutes
+        totalEstimatedMinutes: totalEstimatedMinutes,
+        travelTime: travelDuration,
+        showCommercialProjects: false
       });
 
     setTimeout(() => {
@@ -9798,6 +9859,57 @@ function selectTimeSlot(slot, buttonElement) {
 }
 
 /**
+ * Collect large-scale project scheduling info for review/checkout displays.
+ * Returns null-safe defaults for standard (appointment) bookings.
+ */
+function getProjectReviewInfo() {
+  const isProjectMode =
+    isLargeScaleSelection() ||
+    (typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
+    BookingState.isProject === true ||
+    !!BookingState.projectScheduling;
+
+  const fmt = d => {
+    if (!d) return '';
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime())
+      ? String(d)
+      : dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  if (!isProjectMode) {
+    return { isProject: false, start: '', end: '', estCompletion: '', units: 0, estHours: 0, minDays: 0, techs: 0 };
+  }
+
+  const ps = BookingState.projectScheduling || {};
+  const startRaw = ps.startDate || ps.preferredStartDate || ps.date || BookingState.selectedDate;
+  const endRaw = ps.endDate || ps.preferences?.completionDeadline ||
+    (EnterpriseCalendar.getSelectedEndDate ? EnterpriseCalendar.getSelectedEndDate() : null);
+  const verdict = (typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.getWindowVerdict && EnterpriseCalendar.getWindowVerdict()) || ps.windowVerdict || null;
+
+  const units = (BookingState.selectedServices || []).reduce((t, s) => t + (Number(s.quantity) || 1), 0) || 1;
+  const estMinutes = (BookingState.selectedServices || []).reduce((t, s) => t + ((s.duration || 60) * (s.quantity || 1)), 0);
+  const estHours = Math.round((estMinutes / 60) * 10) / 10;
+  const techs = verdict?.totalActiveTechnicians ?? null;
+  const dailyTeam = techs ? techs * 8 : 8; // fallback: 1 technician × 8h
+  const minDays = Math.max(1, Math.ceil(estHours / dailyTeam));
+
+  return {
+    isProject: true,
+    start: fmt(startRaw),
+    end: fmt(endRaw),
+    estCompletion: verdict?.estimatedCompletionDate || verdict?.earliestCompletionDate
+      ? fmt(verdict.estimatedCompletionDate || verdict.earliestCompletionDate)
+      : '',
+    sufficient: verdict ? !!verdict.sufficient : null,
+    units,
+    estHours,
+    minDays,
+    techs,
+  };
+}
+
+/**
  * Display Total Fee in Step 6
  * Professional fee calculation with breakdown
  */
@@ -9900,7 +10012,16 @@ function displayTotalFee() {
   if (locationEl) locationEl.textContent = locationText;
 
   let scheduleText = 'Not selected';
-  if (BookingState.selectedDate) {
+  const projectInfo = getProjectReviewInfo();
+  if (projectInfo.isProject) {
+    // Large-scale booking: show the preferred window (no time slot).
+    scheduleText = projectInfo.end
+      ? `${projectInfo.start} – ${projectInfo.end} · Preferred window`
+      : `${projectInfo.start} · End date not set`;
+    if (projectInfo.estCompletion) {
+      scheduleText += ` · Est. completion ${projectInfo.estCompletion}`;
+    }
+  } else if (BookingState.selectedDate) {
     const date = new Date(BookingState.selectedDate);
     const dateText = Number.isNaN(date.getTime())
       ? String(BookingState.selectedDate)
@@ -9909,6 +10030,26 @@ function displayTotalFee() {
     scheduleText = dateText + (timeText ? ` · ${timeText}` : '');
   }
   if (scheduleEl) scheduleEl.textContent = scheduleText;
+
+  // Project-specific summary row under Booking Details
+  const existingProjectNote = document.getElementById('feeProjectWindowNote');
+  if (existingProjectNote) existingProjectNote.remove();
+  if (projectInfo.isProject && scheduleEl) {
+    const detailsRow = scheduleEl.closest('.booking-review-details');
+    if (detailsRow) {
+      const note = document.createElement('div');
+      note.id = 'feeProjectWindowNote';
+      note.className = 'wide';
+      note.style.cssText = 'flex-basis:100%;font-size:.78rem;color:#475569;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-top:2px;';
+      const bits = [];
+      bits.push(`<i class="bi bi-collection me-1"></i><strong>${projectInfo.units}</strong> unit${projectInfo.units !== 1 ? 's' : ''}`);
+      bits.push(`est. work <strong>${projectInfo.estHours}h</strong>`);
+      bits.push(`min <strong>${projectInfo.minDays}</strong> working day${projectInfo.minDays !== 1 ? 's' : ''}`);
+      if (projectInfo.techs) bits.push(`${projectInfo.techs} technician${projectInfo.techs !== 1 ? 's' : ''} on team`);
+      note.innerHTML = `<i class="bi bi-kanban me-1 text-primary"></i>Large-scale project — ${bits.join(' · ')}. Unavailable dates inside your preferred window are skipped; no appointment time needed.`;
+      detailsRow.appendChild(note);
+    }
+  }
   if (distanceEl) {
     const distance = Number(BookingState.distance) || 0;
     const duration = Number(BookingState.travelDuration) || 0;
@@ -10449,6 +10590,11 @@ async function prepareBookingData() {
     }
   }
 
+  const maintenanceScheduleId = new URLSearchParams(window.location.search).get('maintenanceScheduleId');
+  if (maintenanceScheduleId && /^[a-f\d]{24}$/i.test(maintenanceScheduleId)) {
+    bookingData.maintenanceScheduleId = maintenanceScheduleId;
+  }
+
   return bookingData;
 }
 
@@ -10816,7 +10962,7 @@ function addCurrentRepairItem() {
   if (!item.unitType) return showAlert('Please select a service category and unit type.', 'warning');
   if (!item.brand) return showAlert('Please enter the brand name.', 'warning');
   if (item.problemDescription.length < 10) return showAlert('Please describe the problem in at least 10 characters.', 'warning');
-  if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`You can add a maximum of ${MAX_BOOKING_UNITS} units across all Core and Repair services.`, 'warning');
+  if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`Cannot add more than ${MAX_BOOKING_UNITS} units`, 'warning');
 
   const diagnosticFee = 500;
   const serviceItem = {
@@ -10960,15 +11106,27 @@ function setupRepairQuantityControls() {
   const minus = document.getElementById('repairQtyMinus');
   const plus = document.getElementById('repairQtyPlus');
   if (!qtyInput) return;
-  const clamp = () => {
-    let v = parseInt(qtyInput.value, 10);
-    if (isNaN(v) || v < 1) v = 1;
-    if (v > MAX_BOOKING_UNITS) v = MAX_BOOKING_UNITS;
-    qtyInput.value = v;
+  const clampValue = (v) => {
+    let n = parseInt(v, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    const maxAllowed = Math.max(1, remainingBookingUnits());
+    if (n > maxAllowed) {
+      n = maxAllowed;
+      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+    }
+    return n;
   };
-  if (minus) minus.addEventListener('click', () => { qtyInput.value = Math.max(1, (parseInt(qtyInput.value, 10) || 1) - 1); clamp(); });
-  if (plus) plus.addEventListener('click', () => { qtyInput.value = Math.min(MAX_BOOKING_UNITS, (parseInt(qtyInput.value, 10) || 1) + 1); clamp(); });
-  qtyInput.addEventListener('change', clamp);
+  const applyClamp = () => { qtyInput.value = clampValue(qtyInput.value); };
+  if (minus) minus.addEventListener('click', () => {
+    qtyInput.value = Math.max(1, (parseInt(qtyInput.value, 10) || 1) - 1);
+  });
+  if (plus) plus.addEventListener('click', () => {
+    qtyInput.value = clampValue((parseInt(qtyInput.value, 10) || 1) + 1);
+  });
+  qtyInput.addEventListener('input', () => {
+    if ((parseInt(qtyInput.value, 10) || 0) > remainingBookingUnits()) applyClamp();
+  });
+  qtyInput.addEventListener('change', applyClamp);
 }
 
 function setupRepairPhotoUpload() {
@@ -11068,9 +11226,14 @@ function hideRepairLoadingModal() {
 }
 
 // Initialize repair form controls when DOM is ready
-document.addEventListener('DOMContentLoaded', function () {
+function initRepairFormControls() {
   setupRepairQuantityControls();
   setupRepairPhotoUpload();
   const problemEl = document.getElementById('repairProblemDescription');
   if (problemEl) problemEl.addEventListener('input', updateRepairCharCount);
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initRepairFormControls);
+} else {
+  initRepairFormControls();
+}

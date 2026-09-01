@@ -237,7 +237,11 @@ router.post(
         typeof lng !== "number" ||
         typeof lat !== "number" ||
         Number.isNaN(lng) ||
-        Number.isNaN(lat)
+        Number.isNaN(lat) ||
+        lng < -180 ||
+        lng > 180 ||
+        lat < -90 ||
+        lat > 90
       ) {
         return res.status(400).json({ error: "invalid_coordinates" });
       }
@@ -246,7 +250,7 @@ router.post(
         { user: user._id },
         // GeoJSON order is [lng, lat]
         { location: { type: "Point", coordinates: [lng, lat] } },
-        { new: true },
+        { returnDocument: "after" },
       );
       if (!tech) return res.status(404).json({ error: "technician_not_found" });
 
@@ -317,7 +321,7 @@ router.post(
 router.get("/verify", authController.verify);
 
 // Dev login route — ONLY available in non-production environments
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEV_LOGIN === "true") {
   router.get("/dev-login", async (req, res) => {
     try {
       const Technician = require("../models/Technician");

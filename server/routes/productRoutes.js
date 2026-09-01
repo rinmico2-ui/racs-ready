@@ -93,7 +93,7 @@ router.get("/", async (req, res) => {
     res.json({ products: grouped });
   } catch (err) {
     console.error("GET /api/products error:", err);
-    res.status(500).json({ error: err.message || "Failed to fetch products" });
+    res.status(500).json({ error: "Failed to fetch products" });
   }
 });
 
@@ -124,9 +124,33 @@ router.get("/:id", async (req, res) => {
         .lean();
     }
 
-    res.json({ product: item, variants });
+    const publicProduct = {
+      _id: item._id,
+      modelLine: item.modelLine,
+      brand: item.brand,
+      category: item.category,
+      type: item.type,
+      inverter: Boolean(item.inverter),
+      imageUrl: item.imageUrl,
+      description: item.description,
+      specifications: item.specifications || {},
+      rating: item.rating || 0,
+      ratingCount: item.ratingCount || 0,
+      variants: (item.variants || []).filter((variant) => variant.active).map((variant) => ({
+        _id: variant._id,
+        capacity: variant.capacity,
+        capacityUnit: variant.capacityUnit,
+        btu: variant.btu,
+        sellingPrice: variant.sellingPrice,
+        quantity: variant.quantity,
+        status: variant.status,
+        sku: variant.sku,
+        specifications: variant.specifications || {},
+      })),
+    };
+    res.json({ product: publicProduct, variants });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to fetch product" });
   }
 });
 
@@ -325,7 +349,7 @@ router.get("/schedule/available-dates", async (req, res) => {
     res.json({ availableDates });
   } catch (err) {
     console.error("GET /api/products/schedule/available-dates error:", err);
-    res.status(500).json({ error: err.message || "Failed to fetch available dates" });
+    res.status(500).json({ error: "Failed to fetch available dates" });
   }
 });
 
@@ -471,7 +495,7 @@ router.get("/schedule/time-slots", async (req, res) => {
     res.json({ timeSlots });
   } catch (err) {
     console.error("GET /api/products/schedule/time-slots error:", err);
-    res.status(500).json({ error: err.message || "Failed to fetch time slots" });
+    res.status(500).json({ error: "Failed to fetch time slots" });
   }
 });
 

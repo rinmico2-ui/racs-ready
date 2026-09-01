@@ -109,6 +109,7 @@ expenseSchema.index({ technicianId: 1, expenseDate: -1 });
 expenseSchema.index({ technicianId: 1, status: 1 });
 expenseSchema.index({ type: 1, expenseDate: -1 });
 expenseSchema.index({ technicianId: 1, bookingId: 1 });
+expenseSchema.index({ status: 1, expenseDate: -1 });
 
 // ── Virtuals ─────────────────────────────────────────────────────────────────
 

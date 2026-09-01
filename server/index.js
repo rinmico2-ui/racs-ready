@@ -2,6 +2,8 @@ const express = require("express");
 const logger = require("./utils/logger").create("server");
 const cors = require("cors");
 const dotenv = require("dotenv");
+dotenv.config();
+
 const mongoose = require("mongoose");
 const path = require("path");
 const expressEjsLayouts = require("express-ejs-layouts");
@@ -9,12 +11,11 @@ const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const attachCurrentUser = require("./middleware/currentUser");
 const User = require("./models/User");
-const AuthSession = require("./models/AuthSession");
 const dns = require("dns");
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const rateLimit = require("express-rate-limit");
-
-dotenv.config();
+const { requireTrustedOrigin } = require("./middleware/apiSecurity");
+const apiAuth = require("./middleware/authenticate");
+const { isAccountEnabled } = require("./middleware/accountState");
 
 // ── Fail-fast: require critical secrets before anything else boots ──────────
 if (!process.env.JWT_SECRET) {
@@ -42,9 +43,9 @@ const MONGODB_URI =
 // Never write database credentials from the connection URI to application logs.
 logger.info("Connecting to MongoDB");
 
-mongoose
+const databaseReady = mongoose
   .connect(MONGODB_URI)
-  .then(async () => {
+  .then(async (mongooseInstance) => {
     logger.info("MongoDB connected successfully");
     // Seed default roles (idempotent — only creates roles that don't exist yet)
     try {
@@ -53,10 +54,43 @@ mongoose
     } catch (e) {
       logger.warn("Role seeding failed: %s", e && e.message);
     }
+
+    // Safety net: ensure at least one admin account exists
+    try {
+      const User = require("./models/User");
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (adminCount === 0) {
+        const email = (process.env.ADMIN_EMAIL || "xiejustina50@gmail.com").trim().toLowerCase();
+        const password = process.env.ADMIN_PASSWORD || "ChangeMe123!";
+        let admin = await User.findOne({ email });
+        if (!admin) {
+          admin = new User({
+            email,
+            role: "admin",
+            active: true,
+            firstName: process.env.ADMIN_FIRSTNAME || "Admin",
+            lastName: process.env.ADMIN_LASTNAME || "User",
+            phone: (process.env.ADMIN_PHONE || "0000000000").replace(/\D+/g, "").slice(0, 32) || "0000000000",
+          });
+          await admin.setPassword(password);
+          await admin.save();
+          logger.info("Auto-seeded admin account: %s", email);
+        } else {
+          admin.role = "admin";
+          admin.active = true;
+          await admin.setPassword(password);
+          await admin.save();
+          logger.info("Reactivated admin account (was last admin): %s", email);
+        }
+      }
+    } catch (e) {
+      logger.warn("Admin safety-net check failed: %s", e && e.message);
+    }
+    return mongooseInstance.connection.getClient();
   })
   .catch((err) => {
     logger.error("MongoDB connection error: %s", err.message);
-    process.exit(1);
+    throw err;
   });
 
 // Views Engine Setup
@@ -94,7 +128,8 @@ app.use((req, res, next) => {
     "img-src 'self' data: blob: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://*.arcgisonline.com https://api.qrserver.com; " +
     "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://c.basemaps.cartocdn.com https://d.basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://*.arcgisonline.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
     "font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-    "frame-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net;",
+    "frame-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+    "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
   );
   next();
 });
@@ -113,18 +148,13 @@ app.use((req, res, next) => {
     logger.http(
       "%s %s %d %dms",
       req.method,
-      req.url,
+      req.path,
       res.statusCode,
       ms.toFixed(1),
     );
   });
   next();
 });
-// increase payload limit to accommodate base64-encoded proof images
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cookieParser());
-
 // Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
 app.set('trust proxy', 1);
 
@@ -156,15 +186,25 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Throttle and reject untrusted browser mutations before parsing potentially
+// large request bodies.
+app.use("/api", apiLimiter, requireTrustedOrigin);
+app.use("/appointments", apiLimiter, requireTrustedOrigin);
+
+// Some payment proofs still arrive as base64 payloads.
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(cookieParser());
+
 // express-session (server-side sessions)
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const SESSION_TTL = Number(process.env.SESSION_TTL_MS) || 30 * 60 * 1000; // ms
 const SESSION_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET;
 
-// create a named session store so we can clear it in development on startup
+// Use a persistent session store so valid logins survive development restarts.
 const sessionStore = MongoStore.create({
-  mongoUrl: MONGODB_URI,
+  clientPromise: databaseReady,
   ttl: Math.floor(SESSION_TTL / 1000),
 });
 // Suppress "Unable to find the session to touch" warnings from stale cookies
@@ -187,37 +227,6 @@ app.use(
     },
   }),
 );
-
-// Development convenience: clear server-side sessions and invalidate JWT-bound sessionIds
-// on server start so restarting the dev server doesn't leave you logged in.
-if (process.env.NODE_ENV === "development") {
-  (async function clearDevSessions() {
-    try {
-      if (sessionStore && typeof sessionStore.clear === "function") {
-        await new Promise((resolve, reject) =>
-          sessionStore.clear((err) => (err ? reject(err) : resolve())),
-        );
-        // dev: express-session store cleared (log suppressed)
-      }
-    } catch (e) {
-      logger.warn(
-        "Dev: failed to clear session store on startup: %s",
-        e && e.message,
-      );
-    }
-
-    try {
-      await User.updateMany({}, { $unset: { currentSessionId: 1 } });
-      await AuthSession.updateMany({}, { $set: { revoked: true } });
-      // dev: user session ids invalidated and auth sessions revoked (log suppressed)
-    } catch (e) {
-      console.warn(
-        "Dev: failed to clear user session ids on startup:",
-        e && e.message,
-      );
-    }
-  })();
-}
 
 // Attach the current user to templates/res.locals when possible (non-blocking)
 app.use(attachCurrentUser);
@@ -242,6 +251,25 @@ app.use(function (req, res, next) {
   next();
 });
 
+// Evidence and payment uploads are not public assets. Authentication is
+// checked before static delivery; financial proofs are restricted to staff.
+app.use(
+  ["/uploads/gcash-receipts", "/uploads/project-payment-proofs"],
+  apiAuth.authenticate,
+  apiAuth.requireRole(["admin", "secretary"]),
+);
+app.use(
+  [
+    "/uploads/repairs",
+    "/uploads/repair-photos",
+    "/uploads/proofs",
+    "/uploads/completion-proofs",
+    "/uploads/expense-receipts",
+    "/uploads/project-work-submissions",
+    "/uploads/project-completion-proofs",
+  ],
+  apiAuth.authenticate,
+);
 app.use(express.static(path.join(__dirname, "public")));
 
 // ── Global company info middleware ──────────────────────────────────────────
@@ -310,6 +338,12 @@ app.use("/api/products", productRoutes);
 const orderRoutes = require("./routes/orderRoutes");
 app.use("/api/orders", orderRoutes);
 
+const maintenanceRoutes = require("./routes/maintenanceRoutes");
+app.use("/api/maintenance", maintenanceRoutes);
+
+const warrantyRoutes = require("./routes/warrantyRoutes");
+app.use("/api/warranty-claims", warrantyRoutes);
+
 const airconCartRoutes = require("./routes/airconCartRoutes");
 app.use("/api/aircon-cart", airconCartRoutes);
 
@@ -331,10 +365,10 @@ app.use("/api/bookings", bookingRoutesNew);
 const appointmentRoutes = require("./routes/appointmentRoutes");
 console.log("[startup] appointmentRoutes type", typeof appointmentRoutes);
 if (appointmentRoutes && typeof appointmentRoutes === "function") {
-  app.use("/api/appointments", apiLimiter, appointmentRoutes);
+  app.use("/api/appointments", appointmentRoutes);
   // Mount the same routes at /appointments so client-side code that posts to /appointments
   // (UI) is protected by the same server-side authentication checks.
-  app.use("/appointments", apiLimiter, appointmentRoutes);
+  app.use("/appointments", appointmentRoutes);
 } else {
   console.warn(
     "Appointment routes could not be mounted (not a function):",
@@ -343,7 +377,7 @@ if (appointmentRoutes && typeof appointmentRoutes === "function") {
 }
 
 const userRoutes = require("./routes/userRoutes");
-app.use("/api/users", apiLimiter, userRoutes);
+app.use("/api/users", userRoutes);
 
 const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authLimiter, authRoutes);
@@ -387,6 +421,8 @@ const bookingFlow = require("./routes/bookingFlow");
 app.use("/api/booking-flow", bookingFlow);
 
 // Enterprise Appointment Management API
+const equipmentReturnRoutes = require("./routes/equipmentReturnRoutes");
+app.use("/api/admin/appointments", equipmentReturnRoutes);
 const appointmentManagement = require("./routes/appointmentManagement");
 app.use("/api/admin/appointments", appointmentManagement);
 
@@ -396,7 +432,7 @@ app.use("/api", projectRoutes);
 
 // rating endpoints (requires login but not admin)
 const ratingApi = require("./routes/ratingApi");
-app.use("/api/rating", apiLimiter, ratingApi);
+app.use("/api/rating", ratingApi);
 
 // Notifications API
 const notificationRoutes = require("./routes/notifications");
@@ -417,9 +453,12 @@ app.use("/api/holidays", holidayRoutes);
 app.use((err, req, res, next) => {
   console.error(`[ERROR] ${err.stack}`);
   if (res.headersSent) return next(err);
+  const status = err.status || err.statusCode || 500;
   const isProd = process.env.NODE_ENV === "production";
-  res.status(500).json({
-    error: isProd ? "Internal server error" : err.message,
+  res.status(status).json({
+    error: isProd && status >= 500 ? "Internal server error" : err.message,
+    ...(err.code ? { code: err.code } : {}),
+    ...(Array.isArray(err.unavailable) ? { unavailable: err.unavailable } : {}),
   });
 });
 
@@ -481,19 +520,24 @@ setInterval(async () => {
 }, 60 * 60 * 1000); // check every hour
 // ── Overdue Booking Scheduler ─────────────────────────────────────────────────
 const { startOverdueScheduler } = require('./utils/overdueBookingScheduler');
-startOverdueScheduler();
+const { startMaintenanceScheduler } = require('./utils/maintenanceScheduler');
+const { startEquipmentReturnScheduler } = require('./utils/equipmentReturnScheduler');
 
 // ── Overtime Delay Monitor ─────────────────────────────────────────────────
 // Periodically scans active jobs that have overrun their buffered capacity end
 // and auto-notifies (notify-only) any later same-technician bookings on the
 // same day. See server/utils/delayNotifier.js.
 const { startDelayMonitor } = require('./utils/delayNotifier');
-startDelayMonitor();
 
-server = app.listen(PORT, () => {
-  console.log("✓ Server is running");
-  console.log(`→ http://localhost:${PORT}`);
-});
+function startBackgroundSchedulers() {
+  startOverdueScheduler();
+  startMaintenanceScheduler();
+  startEquipmentReturnScheduler();
+  startDelayMonitor();
+}
+
+const http = require("http");
+server = http.createServer(app);
 
 // ── Socket.io Setup for Live Tracking ────────────────────────────────────────
 const { Server } = require("socket.io");
@@ -529,15 +573,14 @@ io.use(async (socket, next) => {
     if (!token) {
       return next(new Error("Authentication required"));
     }
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     const user = await User.findById(payload.id).select("-passwordHash");
-    if (!user) {
+    if (!isAccountEnabled(user)) {
       return next(new Error("User not found"));
     }
     if (
       payload.sessionId &&
-      user.currentSessionId &&
-      payload.sessionId !== user.currentSessionId
+      payload.sessionId !== String(user.currentSessionId || "")
     ) {
       return next(new Error("Session expired"));
     }
@@ -555,18 +598,39 @@ io.use(async (socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("[socket] client connected:", socket.id, "user:", socket.user._id);
 
+  socket.join("user:" + socket.user._id);
+  if (socket.user.role === "customer") socket.join("customer:" + socket.user._id);
+  if (["admin", "secretary"].includes(socket.user.role)) socket.join("admin-room");
+  if (socket.user.role === "technician") {
+    const Technician = require("./models/Technician");
+    const ownTechnician = await Technician.findOne({ user: socket.user._id })
+      .select("_id name")
+      .lean()
+      .catch(() => null);
+    if (ownTechnician) {
+      socket.technicianId = String(ownTechnician._id);
+      socket.technicianName = ownTechnician.name || "Technician";
+      socket.join("tech:" + socket.technicianId);
+    }
+  }
+
   // Technician shares location
-  socket.on("tech:location", (data) => {
+  socket.on("tech:location", async (data = {}) => {
     if (socket.user.role !== "technician" && socket.user.role !== "admin") return;
-    io.emit("tech:location:update", {
-      techId: data.techId,
-      name: data.name,
-      lat: data.lat,
-      lng: data.lng,
-      status: data.status,
+    const lat = Number(data.lat);
+    const lng = Number(data.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+    const techId = socket.user.role === "technician" ? socket.technicianId : String(data.techId || "");
+    if (!techId || !mongoose.Types.ObjectId.isValid(techId)) return;
+    io.to("admin-room").emit("tech:location:update", {
+      techId,
+      name: socket.user.role === "technician" ? socket.technicianName : String(data.name || "Technician").slice(0, 100),
+      lat,
+      lng,
+      status: String(data.status || "").slice(0, 50),
       timestamp: Date.now(),
     });
   });
@@ -575,27 +639,34 @@ io.on("connection", (socket) => {
   socket.on("gps:update", async (data) => {
     try {
       if (socket.user.role !== "technician" && socket.user.role !== "admin") return;
-      const { techId, lat, lng, accuracy, bookingId, customerId } = data;
-      if (!techId || typeof lat !== "number" || typeof lng !== "number") return;
-
-      // Technicians can only update their own location
-      if (socket.user.role === "technician" && String(socket.user._id) !== String(techId)) {
-        return;
-      }
+      const { bookingId } = data || {};
+      const lat = Number(data && data.lat);
+      const lng = Number(data && data.lng);
+      const accuracy = Number(data && data.accuracy);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
       const Technician = require("./models/Technician");
-      await Technician.findOneAndUpdate(
-        { _id: techId },
+      const techId = socket.user.role === "technician" ? socket.technicianId : String(data.techId || "");
+      if (!techId || !mongoose.Types.ObjectId.isValid(techId)) return;
+      const updatedTechnician = await Technician.findOneAndUpdate(
+        { _id: techId, active: true },
         { location: { type: "Point", coordinates: [lng, lat] } },
-        { new: true },
+        { returnDocument: "after" },
       );
+      if (!updatedTechnician) return;
 
-      if (customerId) {
-        io.to("customer:" + customerId).emit("gps:location", {
+      if (bookingId && mongoose.Types.ObjectId.isValid(bookingId)) {
+        const BookingService = require("./models/BookingService");
+        const booking = await BookingService.findOne({
+          _id: bookingId,
+          technicianId: techId,
+          status: { $in: ["assigned", "confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "ongoing"] },
+        }).select("customerId").lean();
+        if (booking && booking.customerId) io.to("customer:" + booking.customerId).emit("gps:location", {
           techId,
           lat,
           lng,
-          accuracy,
+          accuracy: Number.isFinite(accuracy) ? accuracy : null,
           bookingId,
           timestamp: Date.now(),
         });
@@ -623,39 +694,34 @@ io.on("connection", (socket) => {
   socket.on("tech:join", (techId) => {
     const id = typeof techId === 'object' ? (techId.techId || techId.id || '') : techId;
     if (!id) return;
-    // Technicians can only join their own room; admins can join any
-    if (socket.user.role === "technician" && String(socket.user._id) !== String(id)) {
-      return;
+    if (socket.user.role === "technician" && String(socket.technicianId) === String(id)) {
+      socket.join("tech:" + socket.technicianId);
+    } else if (["admin", "secretary"].includes(socket.user.role) && mongoose.Types.ObjectId.isValid(id)) {
+      socket.join("tech:" + id);
     }
-    socket.join("tech:" + id);
-    console.log("[socket] technician joined room:", id);
   });
 
   // Customer joins their room for targeted tracking updates
   socket.on("customer:join", (customerId) => {
-    // Customers can only join their own room; admins can join any
-    if (socket.user.role === "customer" && String(socket.user._id) !== String(customerId)) {
-      return;
+    if (socket.user.role === "customer" && String(socket.user._id) === String(customerId)) {
+      socket.join("customer:" + socket.user._id);
+    } else if (["admin", "secretary"].includes(socket.user.role) && mongoose.Types.ObjectId.isValid(customerId)) {
+      socket.join("customer:" + customerId);
     }
-    socket.join("customer:" + customerId);
-    console.log("[socket] customer joined room:", customerId);
   });
 
   // Admin/secretary joins admin room for notifications
-  socket.on("admin:join", (userId) => {
+  socket.on("admin:join", () => {
     if (socket.user.role !== "admin" && socket.user.role !== "secretary") return;
     socket.join("admin-room");
-    socket.join("user:" + userId);
-    console.log("[socket] admin joined room:", userId);
+    socket.join("user:" + socket.user._id);
   });
 
   // Technician joins their user room for personal notifications
   socket.on("tech:user-join", (userId) => {
-    if (socket.user.role === "technician" && String(socket.user._id) !== String(userId)) {
-      return;
+    if (socket.user.role === "technician" && String(socket.user._id) === String(userId)) {
+      socket.join("user:" + socket.user._id);
     }
-    socket.join("user:" + userId);
-    console.log("[socket] technician joined user room:", userId);
   });
 
   socket.on("disconnect", () => {
@@ -858,3 +924,15 @@ setInterval(async () => {
     console.error("[watchdog] acceptance expiry error:", err.message);
   }
 }, 60 * 1000);
+
+databaseReady
+  .then(() => {
+    startBackgroundSchedulers();
+    server.listen(PORT, () => {
+      console.log("✓ Server is running");
+      console.log(`→ http://localhost:${PORT}`);
+    });
+  })
+  .catch(() => {
+    process.exit(1);
+  });

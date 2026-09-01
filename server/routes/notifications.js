@@ -5,18 +5,25 @@ const {
   authenticate,
 } = require("../middleware/authenticate");
 
+function inboxFilter(user) {
+  return {
+    $or: [
+      { userId: user._id },
+      { userId: null, role: user.role },
+    ],
+  };
+}
+
 // ── GET /api/notifications ─ Get notifications for current user ──────────────
 router.get("/", authenticate, async (req, res) => {
   try {
     const userId = req.user._id;
     const role = req.user.role;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const skip = (page - 1) * limit;
 
-    const filter = {
-      $or: [{ userId }, { role }],
-    };
+    const filter = inboxFilter(req.user);
 
     const [notifications, total, unreadCount] = await Promise.all([
       Notification.find(filter)
@@ -44,12 +51,7 @@ router.get("/", authenticate, async (req, res) => {
 // ── GET /api/notifications/unread-count ─ Get unread count only ──────────────
 router.get("/unread-count", authenticate, async (req, res) => {
   try {
-    const userId = req.user._id;
-    const role = req.user.role;
-
-    const unreadCount = await Notification.unreadCount({
-      $or: [{ userId }, { role }],
-    });
+    const unreadCount = await Notification.unreadCount(inboxFilter(req.user));
 
     res.json({ unreadCount });
   } catch (error) {
@@ -59,7 +61,7 @@ router.get("/unread-count", authenticate, async (req, res) => {
 });
 
 // ── GET /api/notifications/counts ─ Get sidebar badge counts ─────────────────
-router.get("/counts", authenticate, async (req, res) => {
+router.get("/counts", authenticate, require("../middleware/authenticate").requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const BookingService = require("../models/BookingService");
     const Expense = require("../models/Expense");
@@ -68,7 +70,7 @@ router.get("/counts", authenticate, async (req, res) => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [pendingBookings, activeJobs, pendingExpenses, assignmentQueue, escalatedBookings, pendingLeaveRequests, unreadNotifs, auditToday] =
+    const [pendingBookings, activeJobs, pendingExpenses, assignmentQueue, escalatedBookings, noShowBookings, noShowReviewBookings, attentionRequired, pendingLeaveRequests, unreadNotifs, auditToday] =
       await Promise.all([
         BookingService.countDocuments({ status: "pending" }),
         BookingService.countDocuments({
@@ -89,10 +91,26 @@ router.get("/counts", authenticate, async (req, res) => {
         BookingService.countDocuments({
           $or: [{ escalated: true }, { reassignmentCount: { $gte: 3 } }],
         }),
-        LeaveRequest.countDocuments({ status: "pending" }),
-        Notification.unreadCount({
-          $or: [{ userId: req.user._id }, { role: req.user.role }],
+        BookingService.countDocuments({ status: "no-show" }),
+        BookingService.countDocuments({
+          $or: [
+            { status: "no-show-reported" },
+            { status: "no-show", "noShowReport.reviewStatus": { $nin: ["confirmed", "rescheduled", "cancelled"] } },
+            { status: "reschedule-required" },
+          ],
         }),
+        BookingService.countDocuments({
+          isProject: { $ne: true },
+          $or: [
+            { status: { $in: ["pending_reassignment", "re-scheduled", "awaiting_assignment", "no-show-reported", "reschedule-required"] } },
+            { status: "no-show", "noShowReport.reviewStatus": { $nin: ["confirmed", "rescheduled", "cancelled"] } },
+            { status: "cancelled", updatedAt: { $gte: new Date(Date.now() - 90 * 86400000) } },
+            { status: { $in: ["on-the-way", "arrived", "in-progress", "inspection_scheduled", "inspection_in_progress", "repair_scheduled", "repair_in_progress"] }, bookingDate: { $lt: new Date() } },
+            { status: { $in: ["confirmed", "scheduled"] }, technicianId: null },
+          ],
+        }),
+        LeaveRequest.countDocuments({ status: "pending" }),
+        Notification.unreadCount(inboxFilter(req.user)),
         ActivityLog.countDocuments({ createdAt: { $gte: startOfToday } }),
       ]);
 
@@ -102,6 +120,9 @@ router.get("/counts", authenticate, async (req, res) => {
       pendingExpenses,
       assignmentQueue,
       escalatedBookings,
+      noShowBookings,
+      noShowReviewBookings,
+      attentionRequired,
       pendingLeaveRequests,
       unreadNotifications: unreadNotifs,
       auditToday,
@@ -115,7 +136,14 @@ router.get("/counts", authenticate, async (req, res) => {
 // ── PUT /api/notifications/:id/read ─ Mark one as read ───────────────────────
 router.put("/:id/read", authenticate, async (req, res) => {
   try {
-    const notif = await Notification.markRead(req.params.id);
+    const notif = await Notification.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        ...inboxFilter(req.user),
+      },
+      { read: true, readAt: new Date() },
+      { returnDocument: "after" },
+    );
     if (!notif) return res.status(404).json({ error: "Notification not found" });
     res.json({ notification: notif });
   } catch (error) {
@@ -157,9 +185,7 @@ router.delete("/bulk-delete", authenticate, async (req, res) => {
 // ── PUT /api/notifications/read-all ─ Mark all as read ───────────────────────
 router.put("/read-all", authenticate, async (req, res) => {
   try {
-    await Notification.markAllRead({
-      $or: [{ userId: req.user._id }, { role: req.user.role }],
-    });
+    await Notification.markAllRead(inboxFilter(req.user));
     res.json({ success: true });
   } catch (error) {
     console.error("Error marking all as read:", error);
@@ -170,9 +196,7 @@ router.put("/read-all", authenticate, async (req, res) => {
 // ── DELETE /api/notifications/delete-all ─ Delete all notifications ──────────
 router.delete("/delete-all", authenticate, async (req, res) => {
   try {
-    await Notification.deleteAll({
-      $or: [{ userId: req.user._id }, { role: req.user.role }],
-    });
+    await Notification.deleteAll(inboxFilter(req.user));
     res.json({ success: true });
   } catch (error) {
     console.error("Error deleting all notifications:", error);
@@ -183,7 +207,13 @@ router.delete("/delete-all", authenticate, async (req, res) => {
 // ── DELETE /api/notifications/:id ─ Delete a notification ────────────────────
 router.delete("/:id", authenticate, async (req, res) => {
   try {
-    await Notification.findByIdAndDelete(req.params.id);
+    const result = await Notification.deleteOne({
+      _id: req.params.id,
+      ...inboxFilter(req.user),
+    });
+    if (!result.deletedCount) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
     res.json({ success: true });
   } catch (error) {
     console.error("Error deleting notification:", error);

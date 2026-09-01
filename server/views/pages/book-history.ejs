@@ -19,6 +19,7 @@
           <p class="bh-subtitle">Your past bookings — view details, filter and download receipts</p>
         </div>
       </div>
+      <a href="/maintenance" class="btn btn-sm btn-light"><i class="bi bi-calendar2-check me-1"></i>My Maintenance</a>
     </div>
   </div>
 
@@ -478,59 +479,6 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .bh-modal-content {
-      background: rgba(255,255,255,0.95);
-      border: 1px solid rgba(255,255,255,0.9);
-      border-radius: 24px;
-      overflow: hidden;
-      box-shadow: 0 32px 64px rgba(15,36,96,0.2);
-      backdrop-filter: blur(20px);
-    }
-    .bh-modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 24px 28px;
-      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-      border-bottom: none;
-    }
-    .bh-modal-title {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: #fff;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .bh-modal-close {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: rgba(255,255,255,0.15);
-      border: 1.5px solid rgba(255,255,255,0.3);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    .bh-modal-close:hover {
-      background: rgba(255,255,255,0.25);
-      transform: rotate(90deg);
-    }
-    .bh-modal-body {
-      padding: 28px;
-    }
-    .bh-modal-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.75rem;
-      padding: 20px 28px;
-      background: rgba(241,245,249,0.5);
-      border-top: 1px solid rgba(148,163,184,0.1);
-    }
     .bh-btn-primary {
       display: inline-flex;
       align-items: center;
@@ -901,7 +849,7 @@
   <!-- Premium Modal -->
   <div class="modal fade" id="bhDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="bh-modal-content">
+      <div class="modal-content bh-modal-content">
         <div class="bh-modal-header">
           <h5 class="bh-modal-title">
             <i class="bi bi-calendar-check"></i> Booking Details
@@ -1481,5 +1429,815 @@
     }
   </style>
 
+  <!-- ═════════════════════════════════════════════════════════════
+       ENTERPRISE UI/UX OVERRIDES — Booking History
+       ═════════════════════════════════════════════════════════════ -->
+  <style>
+    .book-history-premium {
+      --ent-space: 1.25rem;
+      --ent-primary: #1d4ed8;
+      --ent-primary-2: #3b82f6;
+      --ent-slate: #0f172a;
+      --ent-muted: #64748b;
+      --ent-surface: #ffffff;
+      --ent-border: #e2e8f0;
+      --ent-radius: 18px;
+      --ent-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+      --ent-shadow: 0 4px 16px rgba(15,23,42,0.06);
+      --ent-shadow-lg: 0 20px 44px rgba(15,23,42,0.10);
+    }
+
+    /* Header */
+    .book-history-premium .bh-header-premium {
+      border-radius: var(--ent-radius);
+      padding: 2rem 2.25rem;
+      background: linear-gradient(120deg, #0f172a 0%, #1d4ed8 45%, #2563eb 100%);
+      box-shadow: var(--ent-shadow-lg);
+    }
+    .book-history-premium .bh-avatar-premium {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.14);
+      border: 1.5px solid rgba(255,255,255,0.22);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    }
+    .book-history-premium .bh-title {
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+    .book-history-premium .bh-subtitle {
+      color: rgba(255,255,255,0.78);
+      font-size: 0.92rem;
+      margin-top: 0.35rem;
+    }
+
+    /* Filter Card */
+    .book-history-premium .bh-filter-card {
+      background: var(--ent-surface);
+      border: 1px solid var(--ent-border);
+      border-radius: var(--ent-radius);
+      box-shadow: var(--ent-shadow);
+      backdrop-filter: none;
+    }
+    .book-history-premium .bh-filter-body {
+      padding: 1.5rem 1.75rem;
+    }
+    .book-history-premium .bh-filter-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ent-muted);
+      margin-bottom: 0.4rem;
+      font-weight: 700;
+    }
+    .book-history-premium .bh-filter-label i { color: var(--ent-primary-2); }
+    .book-history-premium .bh-input,
+    .book-history-premium .bh-select,
+    .book-history-premium .bh-date-input {
+      height: 48px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      background: #f8fafc;
+      font-weight: 500;
+      font-size: 0.9rem;
+      color: var(--ent-slate);
+      box-shadow: var(--ent-shadow-sm);
+      transition: all 0.2s ease;
+    }
+    .book-history-premium .bh-input:focus,
+    .book-history-premium .bh-select:focus,
+    .book-history-premium .bh-date-input:focus {
+      border-color: var(--ent-primary-2);
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.10);
+    }
+    .book-history-premium .bh-btn-clear {
+      height: 48px;
+      background: #fff;
+      border: 1.5px solid #fecaca;
+      border-radius: 12px;
+      color: #dc2626;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    .book-history-premium .bh-btn-clear:hover {
+      background: #fef2f2;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(220,38,38,0.10);
+    }
+
+    /* Table */
+    .book-history-premium .bh-table-card {
+      background: var(--ent-surface);
+      border: 1px solid var(--ent-border);
+      border-radius: var(--ent-radius);
+      box-shadow: var(--ent-shadow);
+      overflow: hidden;
+    }
+    .book-history-premium .bh-table thead th {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 1rem 1.1rem;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .book-history-premium .bh-table thead th i {
+      color: var(--ent-primary);
+      margin-right: 0.35rem;
+    }
+    .book-history-premium .bh-table tbody td {
+      padding: 1.15rem 1.1rem;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.88rem;
+      color: #334155;
+      vertical-align: middle;
+    }
+    .book-history-premium .bh-table tbody tr {
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .book-history-premium .bh-table tbody tr:hover {
+      background: #f8fafc;
+    }
+    .book-history-premium .bh-table tbody tr:last-child td { border-bottom: none; }
+
+    /* Badges */
+    .book-history-premium .bh-table .badge {
+      padding: 0.45em 0.85em;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .book-history-premium .bh-table .badge.bg-warning { color: #713f12; }
+    .book-history-premium .bh-table .badge.bg-info { color: #0c4a6e; }
+    .book-history-premium .bh-table .badge.bg-success { color: #fff; }
+    .book-history-premium .bh-table .badge.bg-secondary { color: #fff; }
+    .book-history-premium .bh-table .badge.bg-danger { color: #fff; }
+    .book-history-premium .bh-table .badge.bg-primary { color: #fff; }
+
+    /* Booking rows */
+    .book-history-premium .bh-row {
+      position: relative;
+    }
+    .book-history-premium .bh-row::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #cbd5e1;
+      transition: background 0.2s ease;
+    }
+    .book-history-premium .bh-row.bh-row--core::before { background: #3b82f6; }
+    .book-history-premium .bh-row.bh-row--repair::before { background: #f59e0b; }
+    .book-history-premium .bh-row.bh-row--mixed::before { background: #8b5cf6; }
+    .book-history-premium .bh-row:hover::before { width: 6px; }
+
+    .book-history-premium .bh-cell-title {
+      font-weight: 700;
+      color: var(--ent-slate);
+      font-size: 0.9rem;
+      line-height: 1.25;
+    }
+    .book-history-premium .bh-cell-meta {
+      font-size: 0.75rem;
+      color: var(--ent-muted);
+      margin-top: 0.15rem;
+    }
+    .book-history-premium .bh-cell-service {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .book-history-premium .bh-cell-service i {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: #eff6ff;
+      color: var(--ent-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+    }
+    .book-history-premium .bh-location {
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Actions */
+    .book-history-premium .bh-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.4rem;
+    }
+    .book-history-premium .bh-action-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #64748b;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+    .book-history-premium .bh-action-btn:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      color: #0f172a;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(15,23,42,0.06);
+    }
+    .book-history-premium .bh-action-btn.bh-action-btn--primary { color: var(--ent-primary); border-color: #bfdbfe; }
+    .book-history-premium .bh-action-btn.bh-action-btn--primary:hover { background: #eff6ff; }
+    .book-history-premium .bh-action-btn.bh-action-btn--danger { color: #dc2626; border-color: #fecaca; }
+    .book-history-premium .bh-action-btn.bh-action-btn--danger:hover { background: #fef2f2; }
+    .book-history-premium .bh-action-btn.bh-action-btn--warning { color: #b45309; border-color: #fde68a; }
+    .book-history-premium .bh-action-btn.bh-action-btn--warning:hover { background: #fffbeb; }
+    .book-history-premium .bh-action-btn.bh-action-btn--success { color: #15803d; border-color: #bbf7d0; }
+    .book-history-premium .bh-action-btn.bh-action-btn--success:hover { background: #f0fdf4; }
+
+    /* Pagination */
+    .book-history-premium .bh-pagination {
+      margin-top: 1.25rem;
+    }
+    .book-history-premium .bh-btn-page {
+      padding: 0.55rem 1.1rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #334155;
+      font-weight: 600;
+      font-size: 0.85rem;
+      box-shadow: var(--ent-shadow-sm);
+    }
+    .book-history-premium .bh-btn-page:hover:not(:disabled) {
+      background: #f8fafc;
+      border-color: var(--ent-primary-2);
+      color: var(--ent-primary);
+      transform: translateY(-1px);
+      box-shadow: var(--ent-shadow);
+    }
+    .book-history-premium .bh-count {
+      font-size: 0.82rem;
+      color: var(--ent-muted);
+      font-weight: 600;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       ENTERPRISE DETAIL MODAL
+       Unified premium layout: hero, timeline, section cards, receipt
+       ═══════════════════════════════════════════════════════════════ */
+    #bhDetailModal .modal-dialog { max-width: 640px; }
+    #bhDetailModal .bh-modal-content,
+    #bhDetailModal .modal-content {
+      display: flex;
+      flex-direction: column;
+      max-height: 92vh;
+      border: none;
+      border-radius: 20px;
+      box-shadow: 0 24px 64px -12px rgba(15,23,42,0.28);
+      background: #fff;
+      overflow: hidden;
+    }
+    #bhDetailModal .bh-modal-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      border-bottom: none;
+    }
+    #bhDetailModal .bh-modal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0;
+    }
+    #bhDetailModal .bh-modal-title i { font-size: 1.1rem; }
+    #bhDetailModal .bh-modal-close {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.11);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    #bhDetailModal .bh-modal-close:hover { background: rgba(255,255,255,0.2); transform: rotate(90deg); }
+    #bhDetailModal .bh-modal-body {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 1.25rem;
+      background: #f1f5f9;
+    }
+    #bhDetailModal .bh-modal-footer {
+      flex-shrink: 0;
+      padding: 0.85rem 1.5rem;
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.65rem;
+    }
+
+    /* ── Hero ── */
+    #bhDetailModal .bh-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #2563eb 100%);
+      border-radius: 16px;
+      padding: 1.4rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    #bhDetailModal .bh-hero::before {
+      content: '';
+      position: absolute;
+      top: -40%; right: -10%;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(96,165,250,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    #bhDetailModal .bh-hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+      position: relative; z-index: 1;
+    }
+    #bhDetailModal .bh-hero-left { min-width: 0; }
+    #bhDetailModal .bh-hero-status { margin-bottom: 0.55rem; }
+    #bhDetailModal .bh-hero-status .badge {
+      padding: 0.4em 0.85em;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 999px;
+      text-transform: capitalize;
+      letter-spacing: 0.02em;
+    }
+    #bhDetailModal .bh-hero-ref {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.25rem 0;
+      line-height: 1.15;
+    }
+    #bhDetailModal .bh-hero-type {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.72);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #bhDetailModal .bh-hero-type i { font-size: 0.9rem; }
+    #bhDetailModal .bh-hero-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    #bhDetailModal .bh-hero-id {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 0.2rem;
+    }
+    #bhDetailModal .bh-hero-id code {
+      color: rgba(255,255,255,0.75);
+      background: rgba(255,255,255,0.08);
+      padding: 0.1rem 0.35rem;
+      border-radius: 5px;
+      font-size: 0.68rem;
+    }
+    #bhDetailModal .bh-hero-created {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.5);
+    }
+    #bhDetailModal .bh-hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.5rem 1rem;
+      padding-top: 1.1rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      position: relative; z-index: 1;
+    }
+    #bhDetailModal .bh-hero-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.79rem;
+      color: rgba(255,255,255,0.88);
+      font-weight: 600;
+      min-width: 0;
+    }
+    #bhDetailModal .bh-hero-meta-item i { color: rgba(255,255,255,0.45); font-size: 0.92rem; flex-shrink: 0; }
+    #bhDetailModal .bh-hero-meta-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Status Timeline ── */
+    #bhDetailModal .bh-timeline {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      margin-top: 1.2rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative; z-index: 1;
+    }
+    #bhDetailModal .bh-timeline-step {
+      flex: 1 1 0;
+      min-width: 68px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      position: relative;
+    }
+    #bhDetailModal .bh-timeline-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 13px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: rgba(255,255,255,0.12);
+    }
+    #bhDetailModal .bh-timeline-step.bh-timeline--done:not(:last-child)::after {
+      background: rgba(34,197,94,0.55);
+    }
+    #bhDetailModal .bh-timeline-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.4);
+      z-index: 1;
+    }
+    #bhDetailModal .bh-timeline--done .bh-timeline-dot {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+    #bhDetailModal .bh-timeline--current .bh-timeline-dot {
+      background: #3b82f6;
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.25);
+    }
+    #bhDetailModal .bh-timeline-label {
+      font-size: 0.62rem;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    #bhDetailModal .bh-timeline--done .bh-timeline-label,
+    #bhDetailModal .bh-timeline--current .bh-timeline-label {
+      color: rgba(255,255,255,0.9);
+    }
+
+    /* ── Section Cards ── */
+    #bhDetailModal .bh-section-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 1.1rem 1.3rem;
+      margin-bottom: 0.85rem;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    #bhDetailModal .bh-section-card:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.06); transform: translateY(-1px); }
+    #bhDetailModal .bh-section-card:last-child { margin-bottom: 0; }
+    #bhDetailModal .bh-section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.85rem;
+    }
+    #bhDetailModal .bh-section-icon {
+      width: 30px; height: 30px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: #fff;
+      flex-shrink: 0;
+      background: #475569;
+    }
+    #bhDetailModal .bh-section-icon--blue { background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 3px 10px rgba(37,99,235,0.28); }
+    #bhDetailModal .bh-section-icon--green { background: linear-gradient(135deg, #16a34a, #22c55e); box-shadow: 0 3px 10px rgba(22,163,74,0.28); }
+    #bhDetailModal .bh-section-icon--purple { background: linear-gradient(135deg, #9333ea, #a855f7); box-shadow: 0 3px 10px rgba(147,51,234,0.28); }
+    #bhDetailModal .bh-section-icon--orange { background: linear-gradient(135deg, #ea580c, #f97316); box-shadow: 0 3px 10px rgba(234,88,12,0.28); }
+    #bhDetailModal .bh-section-icon--yellow { background: linear-gradient(135deg, #ca8a04, #facc15); box-shadow: 0 3px 10px rgba(202,138,4,0.28); }
+    #bhDetailModal .bh-section-icon--slate { background: linear-gradient(135deg, #475569, #64748b); box-shadow: 0 3px 10px rgba(71,85,105,0.28); }
+    #bhDetailModal .bh-section-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 800;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    /* ── Key-Value Grid ── */
+    #bhDetailModal .bh-kv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.8rem 1.25rem;
+    }
+    #bhDetailModal .bh-kv-item {
+      min-width: 0;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    #bhDetailModal .bh-kv-item:nth-last-child(-n+2) { border-bottom: none; padding-bottom: 0; }
+    #bhDetailModal .bh-kv-full { grid-column: 1 / -1; }
+    #bhDetailModal .bh-kv-label {
+      font-size: 0.66rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #94a3b8;
+      margin-bottom: 0.15rem;
+    }
+    #bhDetailModal .bh-kv-value {
+      font-size: 0.87rem;
+      font-weight: 600;
+      color: #1e293b;
+      line-height: 1.3;
+    }
+    #bhDetailModal .bh-kv-value--code {
+      display: inline-block;
+      font-size: 0.74rem;
+      color: #4338ca;
+      background: #eef2ff;
+      border: 1px solid #dbeafe;
+      padding: 0.15rem 0.4rem;
+      border-radius: 5px;
+      font-family: var(--bs-font-monospace, monospace);
+      word-break: break-all;
+    }
+    #bhDetailModal .bh-kv-value--xl {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #1d4ed8;
+    }
+    #bhDetailModal .bh-kv-problem {
+      font-size: 0.84rem;
+      line-height: 1.55;
+      color: #334155;
+      font-weight: 500;
+    }
+
+    /* ── Payment / Quotation Receipt ── */
+    #bhDetailModal .bh-payment-card,
+    #bhDetailModal .bh-quotation-card {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 11px;
+      padding: 0.85rem 1rem;
+      margin-top: 0.65rem;
+    }
+    #bhDetailModal .bh-payment-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.83rem;
+      padding: 0.3rem 0;
+      gap: 1rem;
+    }
+    #bhDetailModal .bh-payment-row:last-child { padding-bottom: 0; }
+    #bhDetailModal .bh-payment-label { color: #64748b; font-weight: 500; }
+    #bhDetailModal .bh-payment-value { font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; }
+    #bhDetailModal .bh-payment-value--negative { color: #dc2626; }
+    #bhDetailModal .bh-payment-value--success { color: #16a34a; }
+    #bhDetailModal .bh-payment-value--warning { color: #d97706; }
+    #bhDetailModal .bh-payment-row.bh-payment-total {
+      border-top: 1.5px dashed #cbd5e1;
+      margin-top: 0.45rem;
+      padding-top: 0.55rem;
+    }
+    #bhDetailModal .bh-payment-total .bh-payment-label {
+      color: #0f172a; font-weight: 800; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.06em;
+    }
+
+    /* ── Service Items ── */
+    #bhDetailModal .bh-service-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid #9333ea;
+      border-radius: 11px;
+      padding: 0.85rem 1.05rem;
+      margin-bottom: 0.6rem;
+    }
+    #bhDetailModal .bh-service-card:last-child { margin-bottom: 0; }
+    #bhDetailModal .bh-service-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    #bhDetailModal .bh-service-name {
+      font-weight: 700;
+      font-size: 0.87rem;
+      color: #1e293b;
+    }
+    #bhDetailModal .bh-service-meta {
+      font-size: 0.76rem;
+      color: #64748b;
+      margin-top: 0.1rem;
+    }
+    #bhDetailModal .bh-service-problem {
+      margin-top: 0.45rem;
+      font-size: 0.8rem;
+      color: #475569;
+      line-height: 1.5;
+    }
+    #bhDetailModal .bh-item-quotation {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 0.75rem 0.9rem;
+      margin-top: 0.6rem;
+    }
+
+    /* ── Alerts & Actions ── */
+    #bhDetailModal .bh-alert {
+      padding: 0.7rem 0.9rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    #bhDetailModal .bh-alert--danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    #bhDetailModal .bh-actions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 0.7rem;
+    }
+    #bhDetailModal .bh-actions-bar--inline { margin-top: 0; }
+    #bhDetailModal .bh-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      line-height: 1.4;
+    }
+    #bhDetailModal .bh-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    #bhDetailModal .bh-btn:disabled { opacity: 0.5; pointer-events: none; }
+    #bhDetailModal .bh-btn--success { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; box-shadow: 0 4px 14px rgba(22,163,74,0.28); }
+    #bhDetailModal .bh-btn--danger { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; box-shadow: 0 4px 14px rgba(220,38,38,0.28); }
+    #bhDetailModal .bh-btn--secondary { background: #fff; color: #334155; border: 1.5px solid #e2e8f0; }
+    #bhDetailModal .bh-btn--secondary:hover { border-color: #94a3b8; }
+    #bhDetailModal .bh-btn--warning { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; box-shadow: 0 4px 14px rgba(217,119,6,0.28); }
+    #bhDetailModal .bh-rate {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.28);
+      transition: all 0.15s ease;
+    }
+    #bhDetailModal .bh-rate:hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+    /* ── Rating ── */
+    #bhDetailModal .bh-stars { color: #f59e0b; font-size: 1.05rem; letter-spacing: 0.1em; }
+    #bhDetailModal .bh-rating-cta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      background: linear-gradient(120deg, #eff6ff, #eef2ff);
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      padding: 0.85rem 1.05rem;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #1e40af;
+    }
+
+    /* ── Status chips inside modal body ── */
+    #bhDetailModal .bh-modal-body .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.35em 0.75em;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: capitalize;
+      letter-spacing: 0.01em;
+      border: 1px solid transparent;
+    }
+    #bhDetailModal .bh-modal-body .badge.bg-primary { background: #eff6ff !important; color: #1d4ed8 !important; border-color: #bfdbfe; }
+    #bhDetailModal .bh-modal-body .badge.bg-success { background: #f0fdf4 !important; color: #15803d !important; border-color: #bbf7d0; }
+    #bhDetailModal .bh-modal-body .badge.bg-info { background: #f0f9ff !important; color: #0ea5e9 !important; border-color: #bae6fd; }
+    #bhDetailModal .bh-modal-body .badge.bg-warning { background: #fffbeb !important; color: #b45309 !important; border-color: #fde68a; }
+    #bhDetailModal .bh-modal-body .badge.bg-danger { background: #fef2f2 !important; color: #dc2626 !important; border-color: #fecaca; }
+    #bhDetailModal .bh-modal-body .badge.bg-secondary { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0; }
+
+    /* ── Legacy card fallback ── */
+    #bhDetailModal .bh-modal-body .card.border-0.bg-transparent {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      margin-bottom: 0.85rem;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+      overflow: hidden;
+    }
+    #bhDetailModal .bh-modal-body .card.border-0.bg-transparent > .card-body {
+      padding: 1.1rem 1.3rem;
+      background: #fff !important;
+      border-radius: 14px;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 767.98px) {
+      .book-history-premium .bh-header-premium { padding: 1.4rem 1.25rem; }
+      .book-history-premium .bh-title { font-size: 1.5rem; }
+      .book-history-premium .bh-filter-body { padding: 1.25rem; }
+      .book-history-premium .bh-table thead th { padding: 0.75rem; font-size: 0.62rem; }
+      .book-history-premium .bh-table tbody td { padding: 0.85rem; font-size: 0.82rem; }
+      .book-history-premium .bh-actions { flex-wrap: wrap; }
+      #bhDetailModal .bh-hero { padding: 1.15rem; }
+      #bhDetailModal .bh-hero-ref { font-size: 1.15rem; }
+      #bhDetailModal .bh-hero-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #bhDetailModal .bh-timeline-label { font-size: 0.58rem; }
+      #bhDetailModal .bh-section-card { padding: 1rem; }
+      #bhDetailModal .bh-kv-grid { grid-template-columns: 1fr; }
+      #bhDetailModal .bh-kv-item { border-bottom: none; padding-bottom: 0; }
+      #bhDetailModal .bh-modal-body { padding: 1rem; }
+      #bhDetailModal .bh-modal-header { padding: 0.9rem 1.15rem; }
+      #bhDetailModal .bh-modal-footer { padding: 0.85rem 1.15rem; }
+      #bhDetailModal .bh-section-icon { width: 28px; height: 28px; font-size: 0.8rem; }
+    }
+
+    @media (max-width: 575.98px) {
+      #bhDetailModal .modal-dialog { max-width: 100% !important; width: 100% !important; margin: 0 !important; min-height: 100vh !important; }
+      #bhDetailModal .modal-content { border-radius: 0 !important; max-height: 100vh !important; }
+      #bhDetailModal .bh-hero-top { flex-direction: column; }
+      #bhDetailModal .bh-hero-right { text-align: left; }
+      #bhDetailModal .bh-timeline { gap: 0; }
+      #bhDetailModal .bh-timeline-step { min-width: 58px; }
+      #bhDetailModal .bh-actions-bar .bh-btn { flex: 1 1 auto; }
+      #bhDetailModal .bh-modal-footer { flex-direction: column; align-items: stretch; }
+      #bhDetailModal .bh-modal-footer .bh-btn,
+      #bhDetailModal .bh-modal-footer .bh-btn-primary,
+      #bhDetailModal .bh-modal-footer .bh-btn-secondary { width: 100%; }
+    }
+  </style>
+
 <script src="/js/enterprise-calendar.js"></script>
-<script src="/js/book-history.js?v=20260816-whole-peso-downpayment"></script>
+<script src="/js/book-history.js?v=20260823-enterprise-modal-5"></script>

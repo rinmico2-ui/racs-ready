@@ -15,7 +15,7 @@
           <div class="about-img-badge" data-aos="zoom-in" data-aos-delay="400">
             <div class="about-badge-icon"><i class="bi bi-award-fill"></i></div>
             <div class="about-badge-text">
-              <span class="about-badge-number">10+</span>
+              <span class="about-badge-number"><%= Number((typeof publicStats === 'object' && publicStats && publicStats.yearsExperience) || 0).toLocaleString('en-PH') %></span>
               <span class="about-badge-label">Years of Excellence</span>
             </div>
           </div>

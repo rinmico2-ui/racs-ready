@@ -741,7 +741,7 @@
         <div class="au-hero-icon"><i class="bi bi-grid-1x2-fill"></i></div>
         <div>
           <h1>Dashboard</h1>
-          <p>Operational overview — bookings, technicians, revenue, and system status at a glance.</p>
+          <p>System-wide operations — bookings, orders, reviews, cash controls, equipment custody, and workforce status.</p>
         </div>
       </div>
       <div class="au-hero-stats">
@@ -752,6 +752,33 @@
       </div>
     </div>
   </div>
+
+  <!-- ═══ OPERATIONS CONTROL CENTER ═══ -->
+  <style>
+    .ops-center{margin-bottom:1.5rem}.ops-shell{background:#fff;border:1px solid #dbe4ef;border-radius:20px;box-shadow:0 8px 30px rgba(15,23,42,.06);overflow:hidden}.ops-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #e8eef5;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff}.ops-head h2{margin:0;font-size:1.05rem;font-weight:750;letter-spacing:-.01em}.ops-head p{margin:4px 0 0;color:#cbd5e1;font-size:.76rem}.ops-head-actions{display:flex;align-items:center;gap:10px;color:#cbd5e1;font-size:.7rem;white-space:nowrap}.ops-refresh{border:1px solid rgba(255,255,255,.25);color:#fff;background:rgba(255,255,255,.08);border-radius:9px;padding:7px 10px}.ops-refresh:hover{background:rgba(255,255,255,.16)}.ops-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:16px;background:#f8fafc}.ops-kpi{min-width:0;background:#fff;border:1px solid #e5eaf0;border-radius:14px;padding:14px;color:inherit;text-decoration:none;transition:.18s ease}.ops-kpi:hover{color:inherit;border-color:#bfdbfe;transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,23,42,.07)}.ops-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.ops-kpi-label{color:#64748b;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.045em}.ops-kpi-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#eff6ff;color:#2563eb}.ops-kpi.warn .ops-kpi-icon{background:#fffbeb;color:#d97706}.ops-kpi.danger .ops-kpi-icon{background:#fef2f2;color:#dc2626}.ops-kpi.success .ops-kpi-icon{background:#ecfdf5;color:#059669}.ops-kpi-value{color:#0f172a;font-weight:780;font-size:1.55rem;line-height:1.1;margin-top:10px;letter-spacing:-.025em}.ops-kpi-sub{color:#64748b;font-size:.71rem;margin-top:5px;min-height:2.1em;line-height:1.4}.ops-kpi-foot{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #f1f5f9;padding-top:8px;margin-top:9px;color:#475569;font-size:.65rem}.ops-kpi-foot a{color:#2563eb;text-decoration:none;font-weight:700}.ops-detail-grid{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:14px;padding:0 16px 16px;background:#f8fafc}.ops-panel{background:#fff;border:1px solid #e5eaf0;border-radius:14px;overflow:hidden;min-width:0}.ops-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eef2f7}.ops-panel-head h3{margin:0;font-size:.78rem;font-weight:750;color:#1e293b}.ops-panel-head a{font-size:.65rem;font-weight:700;text-decoration:none}.ops-panel-body{padding:10px 12px;max-height:238px;overflow:auto}.ops-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid #f1f5f9}.ops-row:last-child{border-bottom:0}.ops-row-main{min-width:0}.ops-row-title{color:#1e293b;font-size:.72rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ops-row-meta{color:#94a3b8;font-size:.64rem;margin-top:2px}.ops-row-value{color:#334155;font-size:.68rem;font-weight:700;white-space:nowrap}.ops-priority{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;margin-bottom:7px;text-decoration:none;font-size:.7rem;font-weight:650;background:#fffbeb;color:#92400e}.ops-priority.danger{background:#fef2f2;color:#991b1b}.ops-priority:hover{color:inherit;filter:brightness(.98)}.ops-empty{color:#94a3b8;font-size:.7rem;text-align:center;padding:24px 8px}.ops-error{margin:14px 16px;border-radius:10px;padding:11px 13px;background:#fef2f2;color:#991b1b;font-size:.75rem;display:none}@media(max-width:1199px){.ops-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-detail-grid{grid-template-columns:1fr 1fr}.ops-detail-grid .ops-panel:first-child{grid-column:1/-1}}@media(max-width:767px){.ops-head{align-items:flex-start;flex-direction:column}.ops-grid,.ops-detail-grid{grid-template-columns:1fr}.ops-detail-grid .ops-panel:first-child{grid-column:auto}.ops-kpi-sub{min-height:auto}}
+  </style>
+
+  <section class="ops-center" aria-labelledby="opsCenterTitle">
+    <div class="ops-shell">
+      <div class="ops-head"><div><h2 id="opsCenterTitle"><i class="bi bi-command me-2"></i>Operations Control Center</h2><p>Today’s workload, exceptions, cash custody, equipment accountability, and workforce attendance.</p></div><div class="ops-head-actions"><span id="opsAsOf">Loading current state…</span><button class="ops-refresh" id="opsRefresh" type="button" title="Refresh operations summary"><i class="bi bi-arrow-clockwise"></i></button></div></div>
+      <div class="ops-error" id="opsError" role="alert"></div>
+      <div class="ops-grid" id="opsGrid">
+        <a class="ops-kpi" href="/admin/appointments"><div class="ops-kpi-top"><span class="ops-kpi-label">Bookings Today</span><span class="ops-kpi-icon"><i class="bi bi-calendar2-check"></i></span></div><div class="ops-kpi-value" id="opsBookings">—</div><div class="ops-kpi-sub" id="opsBookingsSub">Loading scheduled work…</div><div class="ops-kpi-foot"><span id="opsBookingsActive">— active</span><span id="opsBookingsDone">— completed</span></div></a>
+        <a class="ops-kpi" href="/admin/inventory/aircon-orders"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today</span><span class="ops-kpi-icon"><i class="bi bi-box-seam"></i></span></div><div class="ops-kpi-value" id="opsOrders">—</div><div class="ops-kpi-sub" id="opsOrdersSub">Loading deliveries and pickups…</div><div class="ops-kpi-foot"><span id="opsOrdersActive">— active</span><span id="opsOrdersDone">— completed</span></div></a>
+        <a class="ops-kpi warn" href="/admin/operations/resolution-center"><div class="ops-kpi-top"><span class="ops-kpi-label">Needs Review</span><span class="ops-kpi-icon"><i class="bi bi-exclamation-diamond"></i></span></div><div class="ops-kpi-value" id="opsReview">—</div><div class="ops-kpi-sub" id="opsReviewBreakdown">Bookings, orders, and no-shows</div><div class="ops-kpi-foot"><span>Unified resolution queue</span><span id="opsReviewOverdue">— overdue</span></div></a>
+        <a class="ops-kpi danger" href="/admin/appointments/cancellation-log"><div class="ops-kpi-top"><span class="ops-kpi-label">Cancellation Log</span><span class="ops-kpi-icon"><i class="bi bi-journal-x"></i></span></div><div class="ops-kpi-value" id="opsCancellations">—</div><div class="ops-kpi-sub">Jobs with cancellation or reassignment history</div><div class="ops-kpi-foot"><span id="opsCancellationEvents">— events</span><span id="opsCancellationEscalated">— escalated</span></div></a>
+        <a class="ops-kpi success" href="/admin/payments"><div class="ops-kpi-top"><span class="ops-kpi-label">Collected Today</span><span class="ops-kpi-icon"><i class="bi bi-cash-coin"></i></span></div><div class="ops-kpi-value" id="opsCollected">—</div><div class="ops-kpi-sub" id="opsCollectedSub">Net cash collected from the payment ledger</div><div class="ops-kpi-foot"><span id="opsCollectedTx">— transactions</span><span id="opsRefunds">— refunds</span></div></a>
+        <a class="ops-kpi danger" href="/admin/inventory/equipment-returns?state=overdue"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue</span><span class="ops-kpi-icon"><i class="bi bi-tools"></i></span></div><div class="ops-kpi-value" id="opsEquipment">—</div><div class="ops-kpi-sub" id="opsEquipmentSub">Checked-out assets past return deadline</div><div class="ops-kpi-foot"><span id="opsEquipmentUnits">— units</span><span id="opsEquipmentTechs">— technicians</span></div></a>
+        <a class="ops-kpi warn" href="/admin/payments/remittance"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action</span><span class="ops-kpi-icon"><i class="bi bi-bank"></i></span></div><div class="ops-kpi-value" id="opsRemittance">—</div><div class="ops-kpi-sub" id="opsRemittanceSub">Collections requiring technician or admin action</div><div class="ops-kpi-foot"><span id="opsRemitTech">— with tech</span><span id="opsRemitAdmin">— to verify</span></div></a>
+        <a class="ops-kpi" href="/admin/staff/attendance"><div class="ops-kpi-top"><span class="ops-kpi-label">Attendance Today</span><span class="ops-kpi-icon"><i class="bi bi-person-check"></i></span></div><div class="ops-kpi-value" id="opsAttendance">—</div><div class="ops-kpi-sub" id="opsAttendanceSub">Present and late technicians vs active headcount</div><div class="ops-kpi-foot"><span id="opsAttendanceLate">— late</span><span id="opsAttendanceAbsent">— absent</span></div></a>
+      </div>
+      <div class="ops-detail-grid">
+        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-exclamation-triangle me-1 text-warning"></i>Operational Priorities</h3><span class="text-muted" style="font-size:.64rem">Highest-risk first</span></div><div class="ops-panel-body" id="opsPriorities"><div class="ops-empty">Loading priorities…</div></div></article>
+        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-arrow-return-left me-1 text-danger"></i>Overdue Equipment</h3><a href="/admin/inventory/equipment-returns?state=overdue">Open queue</a></div><div class="ops-panel-body" id="opsEquipmentRows"><div class="ops-empty">Loading custody records…</div></div></article>
+        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-shield-check me-1 text-primary"></i>Control Exceptions</h3><a href="/admin/payments/remittance">Remittance</a></div><div class="ops-panel-body" id="opsControlRows"><div class="ops-empty">Loading cash and attendance controls…</div></div></article>
+      </div>
+    </div>
+  </section>
 
   <!-- ═══ EXECUTIVE SUMMARY ═══ -->
   <div class="exec-summary-card" id="execSummaryCard">
@@ -890,6 +917,9 @@
   </style>
 
   <!-- ═══ KPI GRID ═══ -->
+  <% /* Retired legacy KPI strip: the Operations Control Center above is the
+        single source for today's operational KPIs. Kept server-side only
+        temporarily to make the dashboard consolidation explicit. 
   <div class="row g-3 mb-4" id="kpiGrid">
     <div class="col-lg col-md-6">
       <div class="stat-card h-100" data-accent="blue">
@@ -917,13 +947,13 @@
       <div class="stat-card h-100" data-accent="amber">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Review</h6>
+            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 500;">Pending Payments</h6>
             <div class="d-flex align-items-baseline gap-2">
               <span class="h3 mb-0 fw-bold text-dark" id="kpi-pending-review">--</span>
               <span class="kpi-trend up" id="kpi-pending-review-trend"><i class="bi bi-arrow-up"></i> 0%</span>
               <span class="kpi-percent-badge" id="kpi-pending-review-percent">0%</span>
             </div>
-            <small class="text-muted" id="kpi-pending-review-sub">Payments</small>
+            <small class="text-muted" id="kpi-pending-review-sub">Booking balances</small>
           </div>
           <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
             <i class="bi bi-clock-history text-white"></i>
@@ -1025,17 +1055,7 @@
   </div>
 
   <!-- ═══ INSIGHTS SUMMARY ═══ -->
-  <div class="dash-card mb-4" id="insightsCard">
-    <div class="dash-card-header">
-      <h6><i class="bi bi-lightbulb-fill me-1" style="color:#f59e0b;"></i>Today's Insights</h6>
-      <span class="meta" id="insightsTimestamp"></span>
-    </div>
-    <div class="dash-card-body">
-      <div class="row g-3" id="insightsGrid">
-        <div class="col-12"><div class="dash-empty">Generating insights...</div></div>
-      </div>
-    </div>
-  </div>
+  */ %>
 
   <!-- ═══ QUICK ACTIONS ═══ -->
   <div class="quick-bar">
@@ -1045,6 +1065,10 @@
     <a href="/admin/jobs/active" class="quick-btn"><i class="bi bi-briefcase" style="color:#059669;"></i>Job</a>
     <a href="/admin/payments" class="quick-btn"><i class="bi bi-currency-dollar" style="color:#10b981;"></i>Payment</a>
     <a href="/admin/inventory" class="quick-btn"><i class="bi bi-box-seam" style="color:#ef4444;"></i>Inventory</a>
+    <a href="/admin/inventory/equipment-returns" class="quick-btn"><i class="bi bi-arrow-return-left" style="color:#dc2626;"></i>Equipment Returns <span id="equipmentReturnsDashboardBadge" class="badge bg-danger" style="display:none"></span></a>
+    <a href="/admin/appointments/cancellation-log" class="quick-btn"><i class="bi bi-journal-x" style="color:#dc2626;"></i>Cancellations</a>
+    <a href="/admin/payments/remittance" class="quick-btn"><i class="bi bi-bank" style="color:#d97706;"></i>Remittance</a>
+    <a href="/admin/staff/attendance" class="quick-btn"><i class="bi bi-person-check" style="color:#0891b2;"></i>Attendance</a>
     <a href="/admin/staff/list" class="quick-btn"><i class="bi bi-people" style="color:#7c3aed;"></i>Staff</a>
     <a href="/admin/technicians" class="quick-btn"><i class="bi bi-wrench" style="color:#f59e0b;"></i>Technician</a>
     <a href="/admin/reports/service" class="quick-btn"><i class="bi bi-graph-up" style="color:#0891b2;"></i>Reports</a>
@@ -1187,13 +1211,14 @@
     <!-- RIGHT COL -->
     <div class="col-xl-4 col-lg-5 d-flex flex-column gap-4">
 
-      <!-- System Health -->
-      <div class="dash-card" id="healthBanner" data-card-type="healthBanner" style="cursor:pointer;">
+      <!-- Preparation Issues -->
+      <div class="dash-card" id="prepIssuesCard" style="cursor:pointer;">
         <div class="dash-card-header">
-          <h6><i class="bi bi-shield-check me-1" style="color:#10b981;" id="healthIcon"></i><span id="healthTitle">Loading system status...</span></h6>
+          <h6><i class="bi bi-exclamation-triangle me-1" style="color:#d97706;"></i>Preparation Issues</h6>
+          <span class="badge bg-warning text-dark ms-auto" id="prepIssuesBadge" style="font-size:0.7rem;">0</span>
         </div>
-        <div class="dash-card-body">
-          <div class="health-issues" id="healthIssues"></div>
+        <div class="dash-card-body" id="prepIssuesBody" style="max-height:300px;overflow-y:auto;">
+          <div class="dash-empty" style="color:#64748b;font-size:0.8rem;">No pending issues</div>
         </div>
       </div>
 
@@ -1403,4 +1428,220 @@
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/admin-operations-dashboard.js"></script>
 <script src="/js/admin-dashboard.js"></script>
+
+<!-- Resolve Prep Issue Modal -->
+<div class="modal fade" id="resolvePrepIssueModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+      <div class="modal-header" style="background:#fef3c7;border-bottom:1px solid #fcd34d;padding:16px 20px;">
+        <div>
+          <h6 class="modal-title fw-bold" style="color:#92400e;"><i class="bi bi-exclamation-triangle me-2"></i>Resolve Preparation Issue</h6>
+          <small style="color:#a16207;" id="resolveIssueSub">Select how to resolve this missing item</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:brightness(0) saturate(100%) invert(39%) sepia(49%) saturate(1000%) hue-rotate(346deg);"></button>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <!-- Item Info -->
+        <div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+          <div style="font-size:0.85rem;font-weight:600;color:#1e293b;" id="resolveItemName">—</div>
+          <div style="font-size:0.75rem;color:#64748b;margin-top:4px;" id="resolveItemDetails">—</div>
+          <div style="font-size:0.75rem;color:#64748b;margin-top:2px;" id="resolveItemRequiredBy">—</div>
+        </div>
+
+        <!-- Resolution Options -->
+        <div class="d-flex flex-column gap-2" id="resolveOptions">
+          <button class="btn btn-outline-success text-start p-3" onclick="resolveIssue('assigned_from_stock')" style="border-radius:10px;border:1px solid #86efac;">
+            <div style="font-weight:600;font-size:0.85rem;"><i class="bi bi-box-seam me-2"></i>Assign Available Equipment</div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Link an existing inventory item to the technician's kit</div>
+          </button>
+          <button class="btn btn-outline-primary text-start p-3" onclick="resolveIssue('procured')" style="border-radius:10px;border:1px solid #93c5fd;">
+            <div style="font-weight:600;font-size:0.85rem;"><i class="bi bi-cart-plus me-2"></i>Add / Procure Item</div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Add to inventory first, then assign to kit</div>
+          </button>
+          <button class="btn btn-outline-secondary text-start p-3" onclick="resolveIssue('not_required')" style="border-radius:10px;border:1px solid #d1d5db;">
+            <div style="font-weight:600;font-size:0.85rem;"><i class="bi bi-x-circle me-2"></i>Mark as Not Required</div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Item is not essential for this job</div>
+          </button>
+          <button class="btn btn-outline-warning text-start p-3" onclick="resolveIssue('rescheduled')" style="border-radius:10px;border:1px solid #fcd34d;">
+            <div style="font-weight:600;font-size:0.85rem;"><i class="bi bi-calendar-x me-2"></i>Reschedule Job</div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">Item is critical — reschedule until available</div>
+          </button>
+        </div>
+
+        <!-- Equipment Search (hidden by default) -->
+        <div id="resolveEquipSearch" style="display:none;margin-top:16px;">
+          <label style="font-size:0.8rem;font-weight:600;color:#374151;">Search Available Equipment</label>
+          <input type="text" class="form-control form-control-sm" id="resolveEquipInput" placeholder="Type to search..." style="border-radius:8px;margin-top:4px;" oninput="searchEquipForResolve()">
+          <div id="resolveEquipResults" style="max-height:200px;overflow-y:auto;margin-top:8px;"></div>
+        </div>
+
+        <!-- Note (for not_required / rescheduled) -->
+        <div id="resolveNoteWrap" style="display:none;margin-top:12px;">
+          <label style="font-size:0.8rem;font-weight:600;color:#374151;">Note (optional)</label>
+          <textarea class="form-control form-control-sm" id="resolveNote" rows="2" placeholder="Why is this not required? Or details about reschedule..." style="border-radius:8px;margin-top:4px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #f1f5f9;padding:12px 20px;">
+        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+        <button type="button" class="btn btn-sm btn-success fw-semibold" id="resolveConfirmBtn" onclick="confirmResolveIssue()" style="border-radius:8px;display:none;">
+          <i class="bi bi-check-lg me-1"></i>Confirm Resolution
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let _currentIssue = null;
+  let _selectedToolId = null;
+  let _selectedResolution = null;
+
+  window.openResolveModal = function(issue) {
+    _currentIssue = issue;
+    _selectedToolId = null;
+    _selectedResolution = null;
+    document.getElementById('resolveItemName').textContent = issue.itemName;
+    document.getElementById('resolveItemDetails').textContent = `Type: ${issue.category} | Qty: ${issue.quantity}`;
+    const jobInfo = issue.bookings.map(b => `${b.reference} — ${b.service}`).join(', ');
+    document.getElementById('resolveItemRequiredBy').textContent = `Required by: ${jobInfo}`;
+    document.getElementById('resolveIssueSub').textContent = `Reported by ${issue.technicianName}`;
+    document.getElementById('resolveEquipSearch').style.display = 'none';
+    document.getElementById('resolveNoteWrap').style.display = 'none';
+    document.getElementById('resolveConfirmBtn').style.display = 'none';
+    document.getElementById('resolveOptions').style.display = '';
+    new bootstrap.Modal(document.getElementById('resolvePrepIssueModal')).show();
+  };
+
+  window.resolveIssue = function(resolution) {
+    _selectedResolution = resolution;
+    _selectedToolId = null;
+    document.getElementById('resolveConfirmBtn').style.display = '';
+    document.getElementById('resolveOptions').style.display = 'none';
+
+    if (resolution === 'assigned_from_stock') {
+      document.getElementById('resolveEquipSearch').style.display = '';
+      document.getElementById('resolveNoteWrap').style.display = 'none';
+      document.getElementById('resolveEquipInput').value = _currentIssue.itemName;
+      document.getElementById('resolveEquipInput').focus();
+      searchEquipForResolve();
+    } else if (resolution === 'procured') {
+      window.location.href = '/admin/inventory/repair-parts?prefillName=' + encodeURIComponent(_currentIssue.itemName) + '&prefillType=' + encodeURIComponent(_currentIssue.category) + '&prefillQty=' + _currentIssue.quantity;
+    } else {
+      document.getElementById('resolveEquipSearch').style.display = 'none';
+      document.getElementById('resolveNoteWrap').style.display = '';
+      document.getElementById('resolveNote').focus();
+    }
+  };
+
+  window.searchEquipForResolve = async function() {
+    const q = document.getElementById('resolveEquipInput').value.trim();
+    const resultsEl = document.getElementById('resolveEquipResults');
+    if (!q) { resultsEl.innerHTML = ''; return; }
+    try {
+      const res = await fetch('/api/admin/daily-kit/available-equipment?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      if (!data.items || data.items.length === 0) {
+        resultsEl.innerHTML = '<div style="font-size:0.78rem;color:#64748b;padding:8px;">No matching equipment found</div>';
+        return;
+      }
+      resultsEl.innerHTML = data.items.map(item => `
+        <div class="p-2 mb-1" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;" onclick="selectEquipForResolve('${item._id}', '${item.itemName}', ${item.quantity})">
+          <div style="font-size:0.8rem;font-weight:600;color:#1e293b;">${item.itemName}</div>
+          <div style="font-size:0.72rem;color:#64748b;">Qty: ${item.quantity} | Code: ${item.toolCode || '—'} | ${item.assetStatus || 'available'}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      resultsEl.innerHTML = '<div style="font-size:0.78rem;color:#dc2626;padding:8px;">Search failed</div>';
+    }
+  };
+
+  window.selectEquipForResolve = function(toolId, name, qty) {
+    _selectedToolId = toolId;
+    document.getElementById('resolveEquipResults').innerHTML = `<div class="p-2" style="background:#d1fae5;border-radius:8px;border:1px solid #86efac;"><strong style="font-size:0.8rem;color:#065f46;">✓ Selected: ${name} (Qty: ${qty})</strong></div>`;
+  };
+
+  window.confirmResolveIssue = async function() {
+    if (!_currentIssue || !_selectedResolution) return;
+    const note = document.getElementById('resolveNote')?.value || '';
+    if ((_selectedResolution === 'assigned_from_stock') && !_selectedToolId) {
+      alert('Please select an equipment item from inventory');
+      return;
+    }
+    const btn = document.getElementById('resolveConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Resolving...';
+    try {
+      const res = await fetch('/api/admin/daily-kit/resolve-item', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kitId: _currentIssue.kitId,
+          itemName: _currentIssue.itemName,
+          resolution: _selectedResolution,
+          note,
+          toolId: _selectedToolId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        bootstrap.Modal.getInstance(document.getElementById('resolvePrepIssueModal')).hide();
+        loadPrepIssues();
+      } else {
+        alert(data.error || 'Failed to resolve issue');
+      }
+    } catch (e) {
+      alert('Network error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirm Resolution';
+    }
+  };
+
+  // Load preparation issues
+  window.loadPrepIssues = async function() {
+    const body = document.getElementById('prepIssuesBody');
+    const badge = document.getElementById('prepIssuesBadge');
+    if (!body) return;
+    try {
+      const res = await fetch('/api/admin/daily-kit/pending-issues');
+      const data = await res.json();
+      const issues = data.issues || [];
+      badge.textContent = issues.length;
+      badge.style.display = issues.length > 0 ? '' : 'none';
+      if (issues.length === 0) {
+        body.innerHTML = '<div class="dash-empty" style="color:#64748b;font-size:0.8rem;">No pending issues</div>';
+        return;
+      }
+      body.innerHTML = issues.map(issue => {
+        const jobRef = issue.bookings.map(b => b.reference).join(', ');
+        const jobSvc = issue.bookings.map(b => b.service).join(', ');
+        return `<div style="padding:10px;margin-bottom:8px;background:#fffbeb;border-radius:8px;border:1px solid #fcd34d;cursor:pointer;" onclick='openResolveModal(${JSON.stringify(issue).replace(/'/g, "&#39;")})'>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <i class="bi bi-exclamation-triangle" style="color:#d97706;font-size:0.85rem;"></i>
+            <strong style="font-size:0.8rem;color:#92400e;">${issue.itemName}</strong>
+          </div>
+          <div style="font-size:0.72rem;color:#92400e;margin-top:4px;">
+            ${issue.category} | Qty: ${issue.quantity}
+          </div>
+          <div style="font-size:0.68rem;color:#a16207;margin-top:2px;">
+            <i class="bi bi-person me-1"></i>${issue.technicianName} | <i class="bi bi-link-45deg me-1"></i>${jobRef}
+          </div>
+          <div style="font-size:0.65rem;color:#a16207;margin-top:2px;">${jobSvc}</div>
+          <button class="btn btn-sm btn-warning mt-2 fw-semibold" style="font-size:0.72rem;padding:3px 10px;border-radius:6px;">
+            <i class="bi bi-gear me-1"></i>Resolve
+          </button>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      body.innerHTML = '<div class="dash-empty" style="color:#dc2626;font-size:0.8rem;">Failed to load issues</div>';
+    }
+  };
+
+  // Initial load
+  loadPrepIssues();
+  setInterval(loadPrepIssues, 30000);
+})();
+</script>

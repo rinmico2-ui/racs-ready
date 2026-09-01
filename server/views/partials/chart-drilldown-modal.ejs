@@ -9,18 +9,25 @@
           <div class="cdm-header-icon"><i class="bi bi-bar-chart-line"></i></div>
           <div>
             <h5 class="cdm-title" id="cdmTitle">Chart Details</h5>
-            <p class="cdm-subtitle" id="cdmSubtitle">Click any slice or bar to filter the details below</p>
+            <p class="cdm-subtitle" id="cdmSubtitle">Selected analytics records</p>
           </div>
         </div>
-        <button type="button" class="cdm-close" data-bs-dismiss="modal" aria-label="Close">
-          <i class="bi bi-x-lg"></i>
-        </button>
+        <div class="cdm-header-actions">
+          <span class="cdm-live-badge" id="cdmLiveBadge"><i class="bi bi-database-check"></i> Live data</span>
+          <button type="button" class="cdm-close" data-bs-dismiss="modal" aria-label="Close">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Body: Split View -->
       <div class="cdm-body">
         <!-- Left: Chart -->
         <div class="cdm-chart-panel">
+          <div class="cdm-panel-heading">
+            <span class="cdm-panel-kicker">Selected view</span>
+            <strong id="cdmSelectionLabel">All records</strong>
+          </div>
           <div class="cdm-chart-wrapper">
             <canvas id="cdmChartCanvas"></canvas>
           </div>
@@ -30,6 +37,10 @@
 
         <!-- Right: Details -->
         <div class="cdm-detail-panel">
+          <div class="cdm-detail-heading">
+            <div><span class="cdm-panel-kicker">Underlying records</span><strong id="cdmDataHeading">Selection details</strong></div>
+            <span class="cdm-row-count" id="cdmHeaderRowCount"></span>
+          </div>
           <!-- Filter Chips -->
           <div class="cdm-filter-bar" id="cdmFilterBar">
             <span class="cdm-filter-label"><i class="bi bi-funnel"></i> Filter:</span>
@@ -37,7 +48,17 @@
           </div>
 
           <!-- Detail Table -->
-          <div class="cdm-table-wrap">
+          <div class="cdm-state" id="cdmLoadingState" hidden aria-live="polite">
+            <span class="cdm-spinner" aria-hidden="true"></span>
+            <strong>Loading selected records</strong>
+            <small>Retrieving the latest report data.</small>
+          </div>
+          <div class="cdm-state cdm-state-error" id="cdmErrorState" hidden role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Unable to load selected records</strong>
+            <small id="cdmErrorMessage">Please try the selection again.</small>
+          </div>
+          <div class="cdm-table-wrap" id="cdmTableWrap">
             <table class="cdm-table" id="cdmTable">
               <thead>
                 <tr id="cdmTableHead">

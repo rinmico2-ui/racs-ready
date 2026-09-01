@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { warrantyPolicySchema } = require('../utils/serviceWarrantyPolicy');
 
 // HP-based pricing schema for aircon services
 const hpPricingSchema = new mongoose.Schema({
@@ -73,6 +74,7 @@ const coreServiceSchema = new mongoose.Schema({
   },
   
   tags: [String],
+  warrantyPolicy: { type: warrantyPolicySchema(mongoose), default: () => ({ partsCoverage: { mode: 'same_as_workmanship', days: 90 } }) },
   active: { type: Boolean, default: true },
   meta: {
     title: { type: String },

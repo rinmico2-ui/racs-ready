@@ -58,14 +58,17 @@
 
     /* Toolbar */
     .rp-toolbar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
-    .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
-    .rp-filter-group.search { flex: 1.8; }
+    .rp-filter-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 160px; }
+    .rp-filter-group.search { flex: 1.8; min-width: 220px; }
     .rp-filter-label { font-size: 0.65rem; font-weight: 700; color: var(--rp-slate-400); text-transform: uppercase; letter-spacing: 0.6px; }
     .rp-filter-input { border-radius: 10px; border-color: var(--rp-slate-200); }
     .rp-search { flex: 1; min-width: 220px; }
     .rp-search .input-group-text { background: #fff; color: var(--rp-slate-400); border-color: var(--rp-slate-200); }
     .rp-search .form-control { border-color: var(--rp-slate-200); }
     .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
+    .rp-toolbar-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; width: 100%; }
+    .rp-reset-btn { height: 42px; border-radius: 10px; padding: 0 16px; font-weight: 600; font-size: 0.82rem; }
+    .rp-filter-count { font-size: 0.7rem; color: #2563eb; font-weight: 600; margin-left: 6px; background: #eff6ff; padding: 2px 8px; border-radius: 10px; }
 
     /* Quick Actions */
     .rp-actions-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
@@ -263,8 +266,8 @@
         <div class="au-hero-left">
           <div class="au-hero-icon"><i class="bi bi-box-seam"></i></div>
           <div>
-            <h1 style="color:#2563eb;">Parts &amp; Tools Catalog</h1>
-            <p>Manage inventory, pricing, and stock levels for service parts, tools, and equipment used in projects and repairs</p>
+            <h1 style="color:#2563eb;">Repair Parts Procurement</h1>
+            <p>Source, manage, and procure repair parts and equipment needed when stock is unavailable for ongoing repair jobs</p>
           </div>
         </div>
 
@@ -365,51 +368,129 @@
 
     <!-- Toolbar -->
     <div class="rp-toolbar">
-      <div class="rp-filter-group search">
-        <label class="rp-filter-label" for="rpSearch"><i class="bi bi-search me-1"></i>Search Parts</label>
-        <div class="input-group">
-          <span class="input-group-text" style="border-radius:10px 0 0 10px;"><i class="bi bi-search"></i></span>
-          <input type="text" class="form-control" id="rpSearch" placeholder="Part name, code, or supplier..." style="border-radius:0 10px 10px 0;">
+      <div class="rp-toolbar-row">
+        <div class="rp-filter-group search">
+          <label class="rp-filter-label" for="rpSearch"><i class="bi bi-search me-1"></i>Search Parts</label>
+          <div class="input-group">
+            <span class="input-group-text" style="border-radius:10px 0 0 10px;"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="rpSearch" placeholder="Part name, code, supplier, serial..." style="border-radius:0 10px 10px 0;">
+          </div>
         </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpClassFilter"><i class="bi bi-building-gear me-1"></i>Inventory Class</label>
+          <select class="form-select rp-filter-input" id="rpClassFilter" style="height:42px;">
+            <option value="">All Classes</option>
+            <option value="merchandise">Merchandise</option>
+            <option value="operational_asset">Operational Assets</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpStatusFilter"><i class="bi bi-funnel me-1"></i>Stock Status</label>
+          <select class="form-select rp-filter-input" id="rpStatusFilter" style="height:42px;">
+            <option value="">All Status</option>
+            <option value="in_stock">In Stock</option>
+            <option value="low_stock">Low Stock</option>
+            <option value="out_of_stock">Out of Stock</option>
+            <option value="discontinued">Discontinued</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpTypeFilter"><i class="bi bi-tag me-1"></i>Type</label>
+          <select class="form-select rp-filter-input" id="rpTypeFilter" style="height:42px;">
+            <option value="">All Types</option>
+            <option value="equipment">Equipment</option>
+            <option value="part">Repair Parts</option>
+            <option value="consumable">Consumables</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpAssetStatusFilter"><i class="bi bi-shield-check me-1"></i>Asset Status</label>
+          <select class="form-select rp-filter-input" id="rpAssetStatusFilter" style="height:42px;">
+            <option value="">All Asset Status</option>
+            <option value="available">Available</option>
+            <option value="reserved">Reserved</option>
+            <option value="checked_out">Checked Out</option>
+            <option value="under_maintenance">Under Maintenance</option>
+            <option value="damaged">Damaged</option>
+            <option value="retired">Retired</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpAssetCondFilter"><i class="bi bi-activity me-1"></i>Condition</label>
+          <select class="form-select rp-filter-input" id="rpAssetCondFilter" style="height:42px;">
+            <option value="">All Conditions</option>
+            <option value="good">Good</option>
+            <option value="fair">Fair</option>
+            <option value="needs_repair">Needs Repair</option>
+            <option value="damaged">Damaged</option>
+          </select>
+        </div>
+        <button class="btn btn-primary rp-filter-btn" type="button" onclick="applyFilters()" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
       </div>
-      <div class="rp-filter-group">
-        <label class="rp-filter-label" for="rpClassFilter"><i class="bi bi-building-gear me-1"></i>Inventory Class</label>
-        <select class="form-select rp-filter-input" id="rpClassFilter" style="height:42px;">
-          <option value="">All Classes</option>
-          <option value="merchandise">Merchandise</option>
-          <option value="operational_asset">Operational Assets</option>
-        </select>
+      <div class="rp-toolbar-row">
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpSupplierFilter"><i class="bi bi-truck me-1"></i>Supplier</label>
+          <select class="form-select rp-filter-input" id="rpSupplierFilter" style="height:42px;">
+            <option value="">All Suppliers</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpStockLevelFilter"><i class="bi bi-box me-1"></i>Stock Level</label>
+          <select class="form-select rp-filter-input" id="rpStockLevelFilter" style="height:42px;">
+            <option value="">All Stock Levels</option>
+            <option value="in_stock">Has Stock (>0)</option>
+            <option value="out_of_stock">No Stock (0)</option>
+            <option value="low_stock">Low Stock (≤ Min)</option>
+            <option value="has_reserved">Has Reserved (>0)</option>
+            <option value="no_reserved">No Reserved (0)</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpPriceFilter"><i class="bi bi-cash me-1"></i>Price Range</label>
+          <select class="form-select rp-filter-input" id="rpPriceFilter" style="height:42px;">
+            <option value="">All Prices</option>
+            <option value="0-100">₱0 - ₱100</option>
+            <option value="100-500">₱100 - ₱500</option>
+            <option value="500-1000">₱500 - ₱1,000</option>
+            <option value="1000-5000">₱1,000 - ₱5,000</option>
+            <option value="5000+">₱5,000+</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpAssignableFilter"><i class="bi bi-person-check me-1"></i>Assignable</label>
+          <select class="form-select rp-filter-input" id="rpAssignableFilter" style="height:42px;">
+            <option value="">All Items</option>
+            <option value="yes">Assignable</option>
+            <option value="no">Not Assignable</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpActiveFilter"><i class="bi bi-toggle-on me-1"></i>Active Status</label>
+          <select class="form-select rp-filter-input" id="rpActiveFilter" style="height:42px;">
+            <option value="">All Items</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+        <div class="rp-filter-group">
+          <label class="rp-filter-label" for="rpSort"><i class="bi bi-arrow-down-up me-1"></i>Sort By</label>
+          <select class="form-select rp-filter-input" id="rpSort" style="height:42px;">
+            <option value="itemName">Name A-Z</option>
+            <option value="-itemName">Name Z-A</option>
+            <option value="quantity">Stock Low-High</option>
+            <option value="-quantity">Stock High-Low</option>
+            <option value="-createdAt">Newest First</option>
+            <option value="createdAt">Oldest First</option>
+            <option value="costPrice">Cost Low-High</option>
+            <option value="-costPrice">Cost High-Low</option>
+            <option value="sellingPrice">Price Low-High</option>
+            <option value="-sellingPrice">Price High-Low</option>
+            <option value="-reservedQuantity">Most Reserved</option>
+            <option value="category">Category A-Z</option>
+          </select>
+        </div>
+        <button class="btn btn-outline-secondary rp-reset-btn" type="button" onclick="resetFilters()" title="Reset all filters"><i class="bi bi-arrow-clockwise me-1"></i>Reset</button>
       </div>
-      <div class="rp-filter-group">
-        <label class="rp-filter-label" for="rpStatusFilter"><i class="bi bi-funnel me-1"></i>Status</label>
-        <select class="form-select rp-filter-input" id="rpStatusFilter" style="height:42px;">
-          <option value="">All Status</option>
-          <option value="in_stock">In Stock</option>
-          <option value="low_stock">Low Stock</option>
-          <option value="out_of_stock">Out of Stock</option>
-          <option value="discontinued">Discontinued</option>
-        </select>
-      </div>
-      <div class="rp-filter-group">
-        <label class="rp-filter-label" for="rpTypeFilter"><i class="bi bi-tag me-1"></i>Type</label>
-        <select class="form-select rp-filter-input" id="rpTypeFilter" style="height:42px;">
-          <option value="">All Types</option>
-          <option value="equipment">Equipment</option>
-          <option value="part">Repair Parts</option>
-          <option value="consumable">Consumables</option>
-        </select>
-      </div>
-      <div class="rp-filter-group">
-        <label class="rp-filter-label" for="rpSort"><i class="bi bi-arrow-down-up me-1"></i>Sort By</label>
-        <select class="form-select rp-filter-input" id="rpSort" style="height:42px;">
-          <option value="itemName">Name A-Z</option>
-          <option value="-itemName">Name Z-A</option>
-          <option value="quantity">Stock Low-High</option>
-          <option value="-quantity">Stock High-Low</option>
-          <option value="-createdAt">Newest</option>
-        </select>
-      </div>
-      <button class="btn btn-primary rp-filter-btn" type="button" onclick="applyFilters()" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
     </div>
 
     <!-- Category Filter -->
@@ -692,6 +773,7 @@
       renderStats();
       loadSnapshots();
       renderCatPills();
+      populateSupplierFilter();
       currentPage = 1;
       renderTable();
     } catch (e) {
@@ -864,18 +946,60 @@
     const statusFilter = document.getElementById('rpStatusFilter').value;
     const typeFilter = document.getElementById('rpTypeFilter').value;
     const classFilter = document.getElementById('rpClassFilter').value;
+    const assetStatusFilter = document.getElementById('rpAssetStatusFilter')?.value || '';
+    const assetCondFilter = document.getElementById('rpAssetCondFilter')?.value || '';
+    const supplierFilter = document.getElementById('rpSupplierFilter')?.value || '';
+    const stockLevelFilter = document.getElementById('rpStockLevelFilter')?.value || '';
+    const priceFilter = document.getElementById('rpPriceFilter')?.value || '';
+    const assignableFilter = document.getElementById('rpAssignableFilter')?.value || '';
+    const activeFilter = document.getElementById('rpActiveFilter')?.value || '';
     const sort = document.getElementById('rpSort').value;
 
     let filtered = allParts.filter(p => {
-      if (p.active === false) return false;
+      // Active filter
+      if (activeFilter === 'active' && p.active === false) return false;
+      if (activeFilter === 'inactive' && p.active !== false) return false;
+      if (!activeFilter && p.active === false) return false;
+
       if (selectedCategory && p.category !== selectedCategory) return false;
       if (statusFilter && p.status !== statusFilter) return false;
       if (typeFilter && (p.type || 'part') !== typeFilter) return false;
       if (classFilter && effectiveClass(p) !== classFilter) return false;
+
+      // Asset status filter
+      if (assetStatusFilter && p.assetStatus !== assetStatusFilter) return false;
+
+      // Asset condition filter
+      if (assetCondFilter && p.assetCondition !== assetCondFilter) return false;
+
+      // Supplier filter
+      if (supplierFilter && p.supplier !== supplierFilter) return false;
+
+      // Stock level filter
+      if (stockLevelFilter === 'in_stock' && (p.quantity || 0) <= 0) return false;
+      if (stockLevelFilter === 'out_of_stock' && (p.quantity || 0) > 0) return false;
+      if (stockLevelFilter === 'low_stock' && (p.quantity || 0) > (p.minStockLevel || 0)) return false;
+      if (stockLevelFilter === 'has_reserved' && (p.reservedQuantity || 0) <= 0) return false;
+      if (stockLevelFilter === 'no_reserved' && (p.reservedQuantity || 0) > 0) return false;
+
+      // Price range filter (based on selling price for merchandise, cost price for assets)
+      if (priceFilter) {
+        const price = effectiveClass(p) === 'merchandise' ? (p.sellingPrice || 0) : (p.costPrice || 0);
+        if (priceFilter === '0-100' && (price < 0 || price > 100)) return false;
+        if (priceFilter === '100-500' && (price < 100 || price > 500)) return false;
+        if (priceFilter === '500-1000' && (price < 500 || price > 1000)) return false;
+        if (priceFilter === '1000-5000' && (price < 1000 || price > 5000)) return false;
+        if (priceFilter === '5000+' && price < 5000) return false;
+      }
+
+      // Assignable filter
+      if (assignableFilter === 'yes' && p.assignable !== true) return false;
+      if (assignableFilter === 'no' && p.assignable === true) return false;
+
       if (search) {
         const typeLabels = { equipment: 'equipment', part: 'part', consumable: 'consumable', tool: 'equipment' };
         const typeLabel = typeLabels[p.type] || 'part';
-        const haystack = [p.itemName, p.specification, p.supplier, p.barcode, p.category, p.description, p.serialNumber, typeLabel].filter(Boolean).join(' ').toLowerCase();
+        const haystack = [p.itemName, p.specification, p.supplier, p.barcode, p.category, p.description, p.serialNumber, p.assetCode, typeLabel].filter(Boolean).join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
       }
       return true;
@@ -891,6 +1015,18 @@
       return String(aVal).localeCompare(String(bVal)) * sortDir;
     });
     lastFiltered = filtered;
+
+    // Update filter count badge
+    const countEl = document.getElementById('rpFilterCount');
+    if (countEl) {
+      const activeCount = [statusFilter, typeFilter, classFilter, assetStatusFilter, assetCondFilter, supplierFilter, stockLevelFilter, priceFilter, assignableFilter, activeFilter, selectedCategory].filter(Boolean).length;
+      if (activeCount > 0) {
+        countEl.textContent = activeCount + ' filter' + (activeCount > 1 ? 's' : '');
+        countEl.style.display = 'inline-block';
+      } else {
+        countEl.style.display = 'none';
+      }
+    }
 
     if (filtered.length === 0) {
       tbody.innerHTML = '<tr><td colspan="15"><div class="rp-empty"><i class="bi bi-inbox"></i><p>No inventory items found</p></div></td></tr>';
@@ -920,14 +1056,14 @@
           ${p.specification ? `<div class="rp-spec">${esc(p.specification)}</div>` : ''}
         </td>
         <td><span class="rp-type-badge ${typeBadgeClass}">${typeLabel}</span></td>
-        <td><span class="rp-class-badge ${inventoryClass}"><i class="bi ${inventoryClass === 'operational_asset' ? 'bi-tools' : 'bi-bag-check'}"></i>${classLabel}</span>${inventoryClass === 'operational_asset' ? `<div class="rp-min-stock mt-1">${esc((p.assetStatus || 'available').replaceAll('_', ' '))}</div>` : ''}</td>
+        <td><span class="rp-class-badge ${inventoryClass}"><i class="bi ${inventoryClass === 'operational_asset' ? 'bi-tools' : 'bi-bag-check'}"></i>${classLabel}</span>${inventoryClass === 'operational_asset' ? `<div class="rp-min-stock mt-1" style="cursor:pointer;" onclick="editAssetStatus('${p._id}', '${esc(p.assetStatus || 'available')}')" title="Click to edit status"><i class="bi bi-pencil-square" style="font-size:0.7rem;margin-right:4px;"></i>${esc((p.assetStatus || 'available').replaceAll('_', ' '))}</div>` : ''}</td>
         <td><span class="rp-cat-badge ${catClass}">${esc(p.category || 'General')}</span></td>
         <td>
           <div class="rp-stock ${p.status}"><span class="rp-stock-dot"></span>${p.quantity || 0} ${p.unit || 'pcs'}</div>
           <div class="rp-min-stock">Min: ${p.minStockLevel || 0}</div>
         </td>
         <td><span class="rp-stock in_stock"><span class="rp-stock-dot"></span>${p.available != null ? p.available : Math.max(0, (p.quantity || 0) - (p.reservedQuantity || 0))} ${p.unit || 'pcs'}</span></td>
-        <td><span class="rp-stock low_stock"><span class="rp-stock-dot"></span>${p.reserved != null ? p.reserved : (p.reservedQuantity || 0)} ${p.unit || 'pcs'}</span></td>
+        <td style="cursor:pointer;" onclick="editReservedQty('${p._id}', ${p.reserved != null ? p.reserved : (p.reservedQuantity || 0)}, '${p.unit || 'pcs'}', '${esc(p.itemName)}')" title="Click to edit reserved quantity"><span class="rp-stock low_stock"><span class="rp-stock-dot"></span>${p.reserved != null ? p.reserved : (p.reservedQuantity || 0)} ${p.unit || 'pcs'} <i class="bi bi-pencil-square" style="font-size:0.7rem;margin-left:4px;opacity:0.6;"></i></span></td>
         <td><span class="rp-stock out_of_stock"><span class="rp-stock-dot"></span>${p.consumed != null ? p.consumed : 0} ${p.unit || 'pcs'}</span></td>
         <td><span class="rp-price-cost">₱${Number(p.costPrice || 0).toLocaleString()}</span></td>
         <td>${inventoryClass === 'merchandise' ? `<span class="rp-price">₱${Number(p.sellingPrice || 0).toLocaleString()}</span>` : '<span class="text-muted">Not sellable</span>'}</td>
@@ -991,12 +1127,36 @@
   window.renderTable = renderTable;
   window.applyFilters = function() { currentPage = 1; renderTable(); };
 
+  // ── Reset Filters ────────────────────────────────────────────────────
+  window.resetFilters = function() {
+    ['rpSearch','rpStatusFilter','rpTypeFilter','rpClassFilter','rpAssetStatusFilter','rpAssetCondFilter','rpSupplierFilter','rpStockLevelFilter','rpPriceFilter','rpAssignableFilter','rpActiveFilter','rpSort'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = id === 'rpSort' ? 'itemName' : '';
+    });
+    selectedCategory = '';
+    renderCatPills();
+    currentPage = 1;
+    renderTable();
+  };
+
+  // ── Populate Supplier Filter ──────────────────────────────────────────
+  function populateSupplierFilter() {
+    const select = document.getElementById('rpSupplierFilter');
+    if (!select) return;
+    const suppliers = [...new Set(allParts.map(p => p.supplier).filter(Boolean))].sort();
+    const current = select.value;
+    select.innerHTML = '<option value="">All Suppliers</option>' +
+      suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    select.value = current;
+  }
+
   // ── Event Listeners ───────────────────────────────────────────────────
+  const filterIds = ['rpSearch','rpStatusFilter','rpClassFilter','rpTypeFilter','rpAssetStatusFilter','rpAssetCondFilter','rpSupplierFilter','rpStockLevelFilter','rpPriceFilter','rpAssignableFilter','rpActiveFilter','rpSort'];
+  filterIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => { currentPage = 1; renderTable(); });
+  });
   document.getElementById('rpSearch').addEventListener('input', () => { currentPage = 1; renderTable(); });
-  document.getElementById('rpStatusFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
-  document.getElementById('rpClassFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
-  document.getElementById('rpTypeFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
-  document.getElementById('rpSort').addEventListener('change', () => { currentPage = 1; renderTable(); });
 
   window.updateInventoryClassForm = function() {
     const inventoryClass = document.querySelector('input[name="partInventoryClass"]:checked')?.value || 'merchandise';
@@ -1026,7 +1186,14 @@
     document.getElementById('partModalTitle').textContent = 'Add New Item';
     document.getElementById('partModalSub').textContent = 'Fill in the item details below';
     document.getElementById('partSaveBtn').innerHTML = '<i class="bi bi-plus-lg me-1"></i>Add Item';
-    ['partName','partSpec','partSupplier','partDesc','partSerialNumber'].forEach(id => document.getElementById(id).value = '');
+    
+    // Clear all text inputs
+    ['partName','partSpec','partSupplier','partDesc','partSerialNumber'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    
+    // Set defaults
     document.getElementById('partType').value = 'part';
     document.getElementById('partUnit').value = 'pcs';
     document.getElementById('partCategory').value = 'General';
@@ -1040,8 +1207,11 @@
     document.getElementById('partAssetStatus').value = 'available';
     document.getElementById('partMaintenanceInterval').value = '180';
     document.getElementById('partAssignable').checked = true;
+    
     updateInventoryClassForm();
     document.getElementById('partMargin').textContent = '₱0 (0%)';
+    document.getElementById('partMargin').style.color = '#ef4444';
+    
     new bootstrap.Modal(document.getElementById('partModal')).show();
   };
 
@@ -1049,32 +1219,193 @@
   window.editPart = function(id) {
     const p = allParts.find(x => x._id === id);
     if (!p) return;
+    
     document.getElementById('partEditId').value = id;
     document.getElementById('partModalTitle').textContent = 'Edit Item';
     document.getElementById('partModalSub').textContent = p.itemName;
     document.getElementById('partSaveBtn').innerHTML = '<i class="bi bi-check-lg me-1"></i>Update Item';
+    
+    // Basic Info
     document.getElementById('partName').value = p.itemName || '';
     document.getElementById('partType').value = (p.type === 'tool' ? 'equipment' : p.type) || 'part';
-    document.getElementById('partUnit').value = p.unit || 'pcs';
     document.getElementById('partCategory').value = p.category || 'General';
     document.getElementById('partSpec').value = p.specification || '';
+    document.getElementById('partSupplier').value = p.supplier || '';
+    document.getElementById('partSerialNumber').value = p.serialNumber || '';
+    document.getElementById('partDesc').value = p.description || '';
+    
+    // Pricing & Stock
+    document.getElementById('partUnit').value = p.unit || 'pcs';
     document.getElementById('partCostPrice').value = p.costPrice || 0;
     document.getElementById('partSellingPrice').value = p.sellingPrice || 0;
     document.getElementById('partQty').value = p.quantity || 0;
     document.getElementById('partMinStock').value = p.minStockLevel || 3;
-    document.getElementById('partSupplier').value = p.supplier || '';
-    document.getElementById('partSerialNumber').value = p.serialNumber || '';
-    document.getElementById('partDesc').value = p.description || '';
-    const inventoryClass = effectiveClass(p);
-    document.querySelector(`input[name="partInventoryClass"][value="${inventoryClass}"]`).checked = true;
+    
+    // Inventory Class
+    const inventoryClass = p.inventoryClass || (p.sellable !== false ? 'merchandise' : 'operational_asset');
+    const classRadio = document.querySelector(`input[name="partInventoryClass"][value="${inventoryClass}"]`);
+    if (classRadio) classRadio.checked = true;
+    
+    // Asset Fields (for operational assets)
     document.getElementById('partAssetCode').value = p.assetCode || '';
     document.getElementById('partAssetCondition').value = p.assetCondition || 'good';
     document.getElementById('partAssetStatus').value = p.assetStatus || 'available';
     document.getElementById('partMaintenanceInterval').value = p.maintenanceIntervalDays ?? 180;
     document.getElementById('partAssignable').checked = p.assignable !== false;
+    
     updateInventoryClassForm();
-    document.getElementById('partMargin').dispatchEvent(new Event('input'));
+    
+    // Trigger margin calculation
+    const costEl = document.getElementById('partCostPrice');
+    if (costEl) costEl.dispatchEvent(new Event('input'));
+    
     new bootstrap.Modal(document.getElementById('partModal')).show();
+  };
+
+  // ── Edit Reserved Quantity (Quick Edit) ──────────────────────────────
+  window.editReservedQty = async function(id, currentReserved, unit, itemName) {
+    const p = allParts.find(x => x._id === id);
+    if (!p) return;
+    
+    const onHand = p.quantity || 0;
+    const maxReserved = onHand;
+    
+    let html = `
+      <div style="text-align:center;">
+        <div style="margin-bottom:16px;">
+          <div style="font-size:0.9rem;color:#64748b;margin-bottom:4px;">On Hand: <strong>${onHand} ${unit}</strong></div>
+          <div style="font-size:0.9rem;color:#64748b;">Current Reserved: <strong>${currentReserved} ${unit}</strong></div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:0.8rem;color:#64748b;margin-bottom:6px;font-weight:600;">New Reserved Quantity</label>
+          <input type="number" id="editReservedInput" min="0" max="${maxReserved}" value="${currentReserved}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:1rem;text-align:center;">
+          <small style="display:block;margin-top:6px;color:#94a3b8;">Max: ${maxReserved} ${unit}</small>
+        </div>
+      </div>
+    `;
+    
+    // Patch the confirm button to capture the input value BEFORE the modal closes
+    const result = await new Promise((resolve) => {
+      let overlay = document.getElementById('rpConfirmModal');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'rpConfirmModal';
+        overlay.className = 'rp-confirm-overlay';
+        overlay.innerHTML = `
+          <div class="rp-confirm-modal">
+            <div class="rp-confirm-header">
+              <span class="rp-confirm-title"></span>
+              <button class="rp-confirm-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="rp-confirm-body">
+              <div class="rp-confirm-icon"><i class="bi"></i></div>
+              <div class="rp-confirm-message"></div>
+              <div class="rp-confirm-actions">
+                <button class="rp-confirm-cancel"></button>
+                <button class="rp-confirm-delete"></button>
+              </div>
+            </div>
+          </div>
+        `;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.classList.remove('show'); resolve(false); } });
+        overlay.querySelector('.rp-confirm-close').addEventListener('click', () => { overlay.classList.remove('show'); resolve(false); });
+        document.body.appendChild(overlay);
+      }
+      overlay.querySelector('.rp-confirm-title').textContent = 'Edit Reserved Quantity';
+      overlay.querySelector('.rp-confirm-icon').className = 'rp-confirm-icon info';
+      overlay.querySelector('.rp-confirm-icon i').className = 'bi bi-info-circle-fill';
+      overlay.querySelector('.rp-confirm-message').innerHTML = html;
+      overlay.querySelector('.rp-confirm-cancel').textContent = 'Cancel';
+      overlay.querySelector('.rp-confirm-delete').textContent = 'Update';
+      overlay.querySelector('.rp-confirm-cancel').onclick = () => { overlay.classList.remove('show'); resolve(false); };
+      // Capture input value BEFORE closing
+      overlay.querySelector('.rp-confirm-delete').onclick = () => {
+        const input = document.getElementById('editReservedInput');
+        const val = input ? parseInt(input.value) : currentReserved;
+        overlay.classList.remove('show');
+        resolve(val);
+      };
+      overlay.classList.add('show');
+    });
+    
+    if (result === false) return;
+    
+    const newReserved = typeof result === 'number' ? result : currentReserved;
+    console.log('[editReservedQty] New reserved value:', newReserved, 'for id:', id);
+    
+    if (newReserved < 0 || newReserved > maxReserved) {
+      Swal.fire({ icon: 'warning', title: 'Invalid', text: `Reserved quantity must be between 0 and ${maxReserved}.`, confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK' });
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/admin/tools/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ reservedQuantity: newReserved })
+      });
+      const data = await res.json();
+      console.log('[editReservedQty] API response:', res.status, data);
+      if (res.ok) {
+        showRpToast(`Reserved quantity updated to ${newReserved} ${unit}`, 'success');
+        await loadParts();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update reserved quantity.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+    }
+  };
+
+  // ── Edit Asset Status (Quick Edit) ────────────────────────────────────
+  window.editAssetStatus = async function(id, currentStatus) {
+    const p = allParts.find(x => x._id === id);
+    if (!p) return;
+    
+    const statusOptions = [
+      { value: 'available', label: 'Available', icon: 'bi-check-circle', color: '#22c55e' },
+      { value: 'reserved', label: 'Reserved', icon: 'bi-lock', color: '#f59e0b' },
+      { value: 'checked_out', label: 'Checked Out', icon: 'bi-box-arrow-right', color: '#3b82f6' },
+      { value: 'under_maintenance', label: 'Under Maintenance', icon: 'bi-wrench', color: '#8b5cf6' },
+      { value: 'damaged', label: 'Damaged', icon: 'bi-exclamation-triangle', color: '#ef4444' },
+      { value: 'retired', label: 'Retired', icon: 'bi-x-circle', color: '#64748b' }
+    ];
+    
+    let html = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">';
+    statusOptions.forEach(opt => {
+      const isSelected = currentStatus === opt.value;
+      html += `<label style="border:2px solid ${isSelected ? opt.color : '#e2e8f0'};border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;gap:8px;background:${isSelected ? opt.color + '15' : '#fff'};transition:all 0.2s;">
+        <input type="radio" name="assetStatusEdit" value="${opt.value}" ${isSelected ? 'checked' : ''} style="margin:0;">
+        <i class="bi ${opt.icon}" style="color:${opt.color};font-size:1rem;"></i>
+        <span style="font-weight:600;color:${opt.color};">${opt.label}</span>
+      </label>`;
+    });
+    html += '</div>';
+    
+    const result = await showRpConfirm('Change Asset Status', html, 'Update', 'Cancel', 'info');
+    if (!result) return;
+    
+    const newStatus = document.querySelector('input[name="assetStatusEdit"]:checked')?.value;
+    if (!newStatus) return;
+    
+    try {
+      const res = await fetch(`/api/admin/tools/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ assetStatus: newStatus })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showRpToast(`Status updated to ${newStatus.replaceAll('_', ' ')}`, 'success');
+        await loadParts();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update status.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+    }
   };
 
   // ── Save Part ─────────────────────────────────────────────────────────
@@ -1299,7 +1630,10 @@
     const qty = parseInt(document.getElementById('stockAdjustQty').value) || 0;
     if (qty <= 0) { Swal.fire({ icon: 'warning', title: 'Required', text: 'Enter a quantity.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#f59e0b' }); return; }
 
-    const reason = document.getElementById('stockReason').value;
+    const reasonEl = document.getElementById('stockReason');
+    let reason = reasonEl ? reasonEl.value : null;
+    // Ensure reason is always a valid enum value or null; never send empty string
+    if (reason === '') reason = null;
     const notes = document.getElementById('stockNotes').value.trim();
     const type = stockType === 'in' ? 'stock_in' : 'stock_out';
     const delta = stockType === 'in' ? qty : -qty;
@@ -1326,9 +1660,13 @@
         }
       } else {
         const data = await res.json();
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+        console.error('[STOCK] Adjustment failed:', data);
+        Swal.fire({ icon: 'error', title: 'Stock Adjustment Failed', html: `<div style="text-align:left;font-size:0.9rem;"><strong>Error:</strong> ${esc(data.error || 'Unknown error')}<br><br><strong>Details:</strong><br>Part ID: ${esc(partId)}<br>Type: ${esc(type)}<br>Delta: ${delta}<br>Reason: ${esc(reason || 'none')}</div>`, confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
       }
-    } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' }); }
+    } catch (e) { 
+      console.error('[STOCK] Network error:', e);
+      Swal.fire({ icon: 'error', title: 'Error', text: `Network error: ${e.message}`, confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' }); 
+    }
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirm Adjustment'; }
   };
 
@@ -1342,6 +1680,7 @@
   let _currentProcurePart = null;
   let _procureProcessing = false;
   let _procureFinalizing = false;
+  let _procureSkippedParts = [];
 
   // ── Project-procure mode ──────────────────────────────────────────────
   let _procureProjectId = null;
@@ -1403,24 +1742,44 @@
     if (el) el.textContent = _procureQueue.length;
     if (_procureQueue.length === 0) {
       const banner = document.getElementById('procureBanner');
+      const hasSkipped = _procureSkippedParts.length > 0;
       if (banner) {
         const isProject = !!_procureProjectId;
         const returnLabel = isProject ? 'Return to Project' : 'Return to Queue';
         const returnAction = isProject ? `finalizeProcurement()` : 'finalizeProcurement()';
-        banner.innerHTML = `
-          <i class="bi bi-check-circle-fill" style="font-size:1.2rem;color:#16a34a;"></i>
-          <div style="flex:1;">
-            <div style="font-weight:600;color:#166534;font-size:0.85rem;">Procurement Items Processed</div>
-            <div style="font-size:0.78rem;color:#16a34a;" id="procureFinalMsg">${isProject ? 'Items checked. Click below when ready to return to your project.' : 'Reserving stock and updating booking...'}</div>
-          </div>
-          <button class="btn btn-sm btn-primary fw-semibold" id="returnToQueueBtn" onclick="${returnAction}" style="border-radius:8px;">
-            <i class="bi bi-arrow-left me-1"></i>${returnLabel}
-          </button>
-        `;
-        banner.style.background = '#f0fdf4';
-        banner.style.borderColor = '#bbf7d0';
+        if (hasSkipped) {
+          const skippedList = _procureSkippedParts.map(name => `<li>${esc(name)}</li>`).join('');
+          banner.innerHTML = `
+            <i class="bi bi-exclamation-triangle-fill" style="font-size:1.2rem;color:#d97706;"></i>
+            <div style="flex:1;">
+              <div style="font-weight:600;color:#92400e;font-size:0.85rem;">Some Parts Were Skipped — Still Out of Stock</div>
+              <div style="font-size:0.78rem;color:#92400e;">These parts were NOT procured and still have insufficient stock:<ul style="margin:4px 0 0 1rem;padding:0;">${skippedList}</ul>Reserving parts will keep failing until these are actually stocked.</div>
+            </div>
+            <button class="btn btn-sm btn-warning fw-semibold" id="returnToQueueBtn" onclick="${returnAction}" style="border-radius:8px;">
+              <i class="bi bi-arrow-left me-1"></i>${returnLabel} Anyway
+            </button>
+          `;
+          banner.style.background = '#fffbeb';
+          banner.style.borderColor = '#fde68a';
+        } else {
+          banner.innerHTML = `
+            <i class="bi bi-check-circle-fill" style="font-size:1.2rem;color:#16a34a;"></i>
+            <div style="flex:1;">
+              <div style="font-weight:600;color:#166534;font-size:0.85rem;">Procurement Items Processed</div>
+              <div style="font-size:0.78rem;color:#16a34a;" id="procureFinalMsg">${isProject ? 'Items checked. Click below when ready to return to your project.' : 'Reserving stock and updating booking...'}</div>
+            </div>
+            <button class="btn btn-sm btn-primary fw-semibold" id="returnToQueueBtn" onclick="${returnAction}" style="border-radius:8px;">
+              <i class="bi bi-arrow-left me-1"></i>${returnLabel}
+            </button>
+          `;
+          banner.style.background = '#f0fdf4';
+          banner.style.borderColor = '#bbf7d0';
+        }
       }
-      if (!_procureProjectId && _procureBookingId && !_procureFinalizing) {
+      // Only auto-finalize (and auto-redirect) when every part actually got
+      // stocked. If anything was skipped, wait for the admin to explicitly
+      // acknowledge it above instead of silently treating skip as success.
+      if (!hasSkipped && !_procureProjectId && _procureBookingId && !_procureFinalizing) {
         _procureFinalizing = true;
         setTimeout(window.finalizeProcurement, 150);
       }
@@ -1448,7 +1807,7 @@
           _procureProcessing = false;
           updateProcureBanner();
           Swal.fire({ icon: 'warning', title: 'Part Skipped', html: '<strong>' + esc(part.name) + '</strong> was not added to inventory.<br>The procurement queue will wait for this part.', confirmButtonText: '<i class="bi bi-arrow-repeat"></i> Re-open Form', showCancelButton: true, cancelButtonText: '<i class="bi bi-x-lg"></i> Skip for Now', confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b', iconColor: '#f59e0b', reverseButtons: true }).then(result => {
-            if (result.isConfirmed) { processNextProcure(); } else { _procureProcessing = false; processNextProcure(); }
+            if (result.isConfirmed) { processNextProcure(); } else { if (!_procureSkippedParts.includes(part.name)) _procureSkippedParts.push(part.name); _procureQueue = _procureQueue.filter(p => p !== part); _procureProcessing = false; processNextProcure(); }
           });
         } else { _procureProcessing = false; processNextProcure(); }
       };
@@ -1469,7 +1828,7 @@
         if (!_procureStockAdjusted) {
           _procureQueue.unshift(part); _procureProcessing = false; updateProcureBanner();
           Swal.fire({ icon: 'warning', title: 'Stock Not Adjusted', html: '<strong>' + esc(part.name) + '</strong> stock was not updated.<br>Current: ' + (existing.quantity || 0) + ', Needed: ' + neededQty, confirmButtonText: '<i class="bi bi-arrow-repeat"></i> Re-open Adjustment', showCancelButton: true, cancelButtonText: '<i class="bi bi-x-lg"></i> Skip for Now', confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b', iconColor: '#f59e0b', reverseButtons: true }).then(result => {
-            if (result.isConfirmed) { processNextProcure(); } else { _procureProcessing = false; processNextProcure(); }
+            if (result.isConfirmed) { processNextProcure(); } else { if (!_procureSkippedParts.includes(part.name)) _procureSkippedParts.push(part.name); _procureQueue = _procureQueue.filter(p => p !== part); _procureProcessing = false; processNextProcure(); }
           });
         } else { _procureProcessing = false; processNextProcure(); }
       };
@@ -1539,19 +1898,20 @@
             window.location.replace('/admin/appointments/repair-scheduling');
           }, 700);
         } else {
-          if (msg) msg.textContent = 'Error: ' + (data.error || 'Failed to finalize');
-          if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-left me-1"></i>Try Again'; }
+          if (msg) msg.textContent = 'Error: ' + (data.error || 'Failed to finalize') + ' — redirecting back...';
+          if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Redirecting...'; }
+          setTimeout(() => { window.location.href = '/admin/appointments/repair-scheduling'; }, 2000);
         }
       }
     } catch (e) {
       const returnUrl = _procureProjectId ? `/admin/projects/${_procureProjectId}` : '/admin/appointments/repair-scheduling';
       const returnLabel = _procureProjectId ? 'Return to Project' : 'Return to Queue';
-      if (msg) msg.textContent = 'Network error. Click below to return.';
+      if (msg) msg.textContent = 'Network error. Redirecting back automatically...';
       if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-arrow-left me-1"></i>${returnLabel}`;
-        btn.onclick = () => { window.location.href = returnUrl; };
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Redirecting...';
       }
+      setTimeout(() => { window.location.href = returnUrl; }, 2000);
     }
   };
 
@@ -1593,6 +1953,7 @@
       if (materials && materials.length > 0) {
         _procureParts = materials;
         _procureQueue = [...materials];
+        _procureSkippedParts = [];
         const container = document.querySelector('.rp-inner');
         const banner = document.createElement('div');
         banner.id = 'procureBanner';
@@ -1624,6 +1985,7 @@
       if (parts && parts.length > 0) {
         _procureParts = parts;
         _procureQueue = [...parts];
+        _procureSkippedParts = [];
         const container = document.querySelector('.rp-inner');
         const banner = document.createElement('div');
         banner.id = 'procureBanner';
@@ -1646,6 +2008,25 @@
       } else if (parts) {
         _procureFinalizing = true;
         window.finalizeProcurement();
+      }
+    });
+  } else if (getQueryParam('prefillName')) {
+    // Daily-kit notification prefill: open Add Item modal with pre-filled values
+    loadParts().then(() => {
+      const name = getQueryParam('prefillName');
+      const type = getQueryParam('prefillType') || 'equipment';
+      const qty = getQueryParam('prefillQty') || '1';
+
+      openPartModal();
+      document.getElementById('partModalTitle').textContent = 'Add Equipment from Notification';
+      document.getElementById('partModalSub').textContent = 'Requested by technician — fill in remaining details';
+      document.getElementById('partName').value = name;
+      document.getElementById('partType').value = type;
+      document.getElementById('partQty').value = qty;
+      if (type === 'equipment') {
+        document.querySelector('input[name="partInventoryClass"][value="operational_asset"]').checked = true;
+        updateInventoryClassForm();
+        document.getElementById('partAssignable').checked = true;
       }
     });
   } else {

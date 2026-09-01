@@ -150,6 +150,9 @@
 </style>
 <div class="admin-dashboard container-fluid py-4 appointments-combined">
   <%- include('../../../partials/dashboard-styles') %>
+  <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
+  <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
+  <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
   <style>
     /* Unified Appointments UI */
     .appointments-combined {
@@ -294,60 +297,6 @@
       box-shadow: 0 12px 40px rgba(2, 6, 23, 0.09), 0 4px 10px rgba(2,6,23,0.05);
     }
 
-
-
-    /* compact table / controls */
-    .appts-controls,
-    .requests-controls {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-      padding: 12px 16px;
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.08));
-      border: 1px solid rgba(37, 99, 235, 0.15);
-      border-radius: 18px;
-      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
-    }
-    .appts-controls .form-control,
-    .appts-controls .form-select,
-    .requests-controls .form-control,
-    .requests-controls .form-select {
-      min-width: 150px;
-      height: 40px;
-      border-radius: 12px;
-      border: 1px solid rgba(100, 116, 139, 0.25);
-      font-size: 0.85rem;
-      color: var(--appt-muted);
-      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-    .appts-controls .form-control:focus,
-    .appts-controls .form-select:focus,
-    .requests-controls .form-control:focus,
-    .requests-controls .form-select:focus {
-      border-color: var(--appt-primary);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-    }
-    .appts-controls .btn,
-    .requests-controls .btn,
-    .requests-controls button {
-      border-radius: 999px;
-      padding: 6px 18px;
-      border: none;
-      background: linear-gradient(120deg, var(--appt-primary), var(--appt-secondary));
-      color: #fff;
-      font-weight: 600;
-      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .appts-controls .btn:hover,
-    .requests-controls .btn:hover,
-    .requests-controls button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 14px 26px rgba(37, 99, 235, 0.28);
-    }
-
     .req-status {
       text-transform: capitalize;
       font-weight: 600;
@@ -364,17 +313,6 @@
     }
     .request-customer-btn:hover {
       text-decoration: underline;
-    }
-    .requests-controls {
-      padding: 12px 16px;
-    }
-    .requests-filter-card .form-label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--appt-muted);
-      letter-spacing: 0.2em;
-      margin-bottom: 4px;
     }
     .appointments-combined .table thead th {
       background: linear-gradient(135deg, #f8fafc, #f1f5f9);
@@ -587,92 +525,84 @@
       <div id="tab-list" class="tab-pane">
         <div class="panel-card">
           <!-- Premium Filters -->
-          <div class="admin-filter-bar">
-            <div class="filter-group">
-              <div class="filter-item" style="flex: 1; min-width: 280px;">
-                <i class="bi bi-search"></i>
-                <input
-                  id="filterSearchCombined"
-                  class="form-control"
-                  placeholder="Booking ref, customer, service, id..."
-                />
-              </div>
-              <div class="filter-item">
-                <i class="bi bi-calendar3"></i>
-                <input
-                  id="filterStartCombined"
-                  type="date"
-                  class="form-control"
-                  aria-label="Start date"
-                />
-              </div>
-              <div class="filter-item">
-                <i class="bi bi-calendar3"></i>
-                <input
-                  id="filterEndCombined"
-                  type="date"
-                  class="form-control"
-                  aria-label="End date"
-                />
-              </div>
-              <div class="filter-item">
-                <i class="bi bi-person-badge"></i>
-                <select
-                  id="filterTechCombined"
-                  class="form-select"
-                >
-                  <option value="all">All technicians</option>
-                </select>
-              </div>
-              <div class="filter-item">
-                <i class="bi bi-gear"></i>
-                <select
-                  id="filterServiceType"
-                  class="form-select"
-                >
-                  <option value="all">All Services</option>
-                  <option value="core">Core Services</option>
-                  <option value="repair">Repair Services</option>
-                </select>
-              </div>
-            </div>
-            <div class="filter-actions">
+          <div class="workflow-overview-filter">
+            <div class="workflow-overview-filter-group" style="flex:1;flex-wrap:wrap;">
+              <span class="workflow-overview-filter-label"><i class="bi bi-search"></i> Search</span>
+              <input
+                id="filterSearchCombined"
+                class="form-control form-control-sm"
+                placeholder="Booking ref, customer, service, id..."
+                style="min-width:200px;"
+              />
+              <span class="workflow-overview-filter-label"><i class="bi bi-calendar3"></i> From</span>
+              <input
+                id="filterStartCombined"
+                type="date"
+                class="form-control form-control-sm"
+                aria-label="Start date"
+                style="width:150px;"
+              />
+              <span class="workflow-overview-filter-label"><i class="bi bi-calendar3"></i> To</span>
+              <input
+                id="filterEndCombined"
+                type="date"
+                class="form-control form-control-sm"
+                aria-label="End date"
+                style="width:150px;"
+              />
+              <span class="workflow-overview-filter-label"><i class="bi bi-person-badge"></i> Technician</span>
+              <select
+                id="filterTechCombined"
+                class="form-select form-select-sm"
+                style="width:160px;"
+              >
+                <option value="all">All technicians</option>
+              </select>
+              <span class="workflow-overview-filter-label"><i class="bi bi-gear"></i> Service</span>
+              <select
+                id="filterServiceType"
+                class="form-select form-select-sm"
+                style="width:160px;"
+              >
+                <option value="all">All Services</option>
+                <option value="core">Core Services</option>
+                <option value="repair">Repair Services</option>
+              </select>
               <button
                 id="btn-filter-combined"
                 type="button"
-                class="btn btn-primary"
+                class="btn btn-sm btn-primary fw-semibold"
               >
-                Apply Filter
+                <i class="bi bi-funnel me-1"></i>Apply
               </button>
             </div>
           </div>
 
-          <div class="table-responsive">
-            <table class="table table-hover table-dense align-middle mb-0">
+          <div class="table-responsive workflow-record-table-shell">
+            <table class="table align-middle workflow-record-table">
               <thead>
                 <tr>
                   <th>Booking Ref</th>
                   <th>Appointment</th>
                   <th>Customer</th>
                   <th>Service</th>
-                  <th class="d-none">Technician</th>
                   <th>Payment</th>
                   <th>Status</th>
-                  <th style="width: 160px">Actions</th>
+                  <th class="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="appointmentsBodyCombined">
                 <tr>
-                  <td colspan="8" class="text-center text-muted py-4">
-                    Loading…
+                  <td colspan="7" class="text-center py-5 text-muted">
+                    <div class="spinner-border text-primary"></div>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="mt-3 d-flex justify-content-between align-items-center">
-            <div id="appointmentsCountCombined" class="text-muted small">—</div>
+          <div class="workflow-overview-table-footer">
+            <small class="text-muted" id="appointmentsCountCombined">—</small>
             <nav>
               <ul
                 class="pagination pagination-sm mb-0"
@@ -685,21 +615,20 @@
 
       <!-- TAB: BOOKING REQUESTS -->
       <div id="tab-requests" class="tab-pane d-none">
-        <div class="admin-filter-bar">
-          <div class="filter-group">
-            <div class="filter-item" style="flex: 1; min-width: 320px;">
-              <i class="bi bi-search"></i>
-              <input
-                id="requestSearchCombined"
-                class="form-control"
-                placeholder="Search by customer, email, service, id..."
-              />
-            </div>
+        <div class="workflow-overview-filter">
+          <div class="workflow-overview-filter-group" style="flex:1;">
+            <span class="workflow-overview-filter-label"><i class="bi bi-search"></i> Search</span>
+            <input
+              id="requestSearchCombined"
+              class="form-control form-control-sm"
+              placeholder="Search by customer, email, service, id..."
+              style="flex:1;min-width:280px;"
+            />
           </div>
-          <div class="filter-actions">
+          <div class="workflow-overview-filter-group">
             <button
               id="requestRefreshCombined"
-              class="btn btn-outline"
+              class="btn btn-sm btn-outline-secondary"
             >
               <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
@@ -717,54 +646,56 @@
             </div>
           </div>
 
-          <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle text-start">
+          <div class="table-responsive workflow-record-table-shell">
+            <table class="table align-middle workflow-record-table">
               <thead>
                 <tr>
                   <th>Request ID</th>
                   <th>Customer</th>
-                  <th class="d-none">Service</th>
+                  <th>Service</th>
                   <th>Est. fee</th>
-                  <th class="d-none">ETA</th>
                   <th>Date / Time</th>
                   <th>Payment</th>
                   <th>Status</th>
-                  <th style="width: 220px">Actions</th>
+                  <th class="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="requestsTableBodyCombined">
                 <tr>
-                  <td colspan="6" class="text-center text-muted py-4">
-                    Loading request queue…
+                  <td colspan="8" class="text-center py-5 text-muted">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2">Loading request queue…</p>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <div id="requestsCountCombined" class="text-muted small mt-2">—</div>
+          <div class="workflow-overview-table-footer">
+            <small class="text-muted" id="requestsCountCombined">—</small>
+          </div>
         </div>
       </div>
 
       <!-- TAB: RESCHEDULE -->
       <div id="tab-reschedule" class="tab-pane d-none">
         <div class="panel-card">
-          <div class="d-flex align-items-center justify-content-between mb-3">
-            <div class="fw-bold">Reschedule Requests</div>
-            <div class="d-flex gap-2">
-              <select id="rescheduleStatusFilter" class="form-select form-select-sm" style="width: auto;">
+          <div class="workflow-overview-section-head">
+            <h6><i class="bi bi-arrow-repeat me-2 text-info"></i>Reschedule Requests</h6>
+            <div class="workflow-overview-filter-group">
+              <select id="rescheduleStatusFilter" class="form-select form-select-sm" style="width:auto;">
                 <option value="all">All Status</option>
                 <option value="pending" selected>Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
               </select>
-              <button id="refreshRescheduleRequests" class="btn btn-sm btn-outline-primary">
+              <button id="refreshRescheduleRequests" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
               </button>
             </div>
           </div>
-          <div class="table-responsive">
-            <table class="table table-hover table-sm" id="rescheduleRequestsTable">
-              <thead class="table-light">
+          <div class="table-responsive workflow-record-table-shell">
+            <table class="table align-middle workflow-record-table" id="rescheduleRequestsTable">
+              <thead>
                 <tr>
                   <th>Booking Ref</th>
                   <th>Customer</th>
@@ -773,12 +704,12 @@
                   <th>Requested Date/Time</th>
                   <th>Reason</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th class="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="rescheduleRequestsTableBody">
                 <tr>
-                  <td colspan="8" class="text-center text-muted">
+                  <td colspan="8" class="text-center py-5 text-muted">
                     <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                     Loading reschedule requests...
                   </td>
@@ -786,8 +717,8 @@
               </tbody>
             </table>
           </div>
-          <div id="rescheduleRequestsPagination" class="d-flex justify-content-between align-items-center mt-3">
-            <div class="small text-muted" id="rescheduleRequestsCount">0 requests</div>
+          <div class="workflow-overview-table-footer">
+            <small class="text-muted" id="rescheduleRequestsCount">0 requests</small>
             <nav>
               <ul class="pagination pagination-sm mb-0" id="rescheduleRequestsPaginationNav">
               </ul>
@@ -799,29 +730,30 @@
       <!-- TAB: CANCEL -->
       <div id="tab-cancel" class="tab-pane d-none">
         <div class="panel-card">
-          <div class="fw-bold mb-2">Cancelled Appointments</div>
-          <p class="text-muted small mb-3">
+          <div class="workflow-overview-section-head">
+            <h6><i class="bi bi-x-octagon me-2 text-danger"></i>Cancelled Appointments</h6>
+          </div>
+          <p class="text-muted small mb-3 px-3">
             Review appointments that have been cancelled. Use the table below to
             inspect details or reinstate bookings when appropriate.
           </p>
-          <div class="table-responsive">
-            <table class="table table-hover table-dense align-middle mb-0">
+          <div class="table-responsive workflow-record-table-shell">
+            <table class="table align-middle workflow-record-table">
               <thead>
                 <tr>
                   <th>Booking Ref</th>
                   <th>Appointment</th>
                   <th>Customer</th>
-                  <th class="d-none">Service</th>
-                  <th class="d-none">Technician</th>
+                  <th>Service</th>
                   <th>Payment</th>
                   <th>Status</th>
-                  <th style="width: 160px">Actions</th>
+                  <th class="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="cancelledAppointmentsBody">
                 <tr>
-                  <td colspan="10" class="text-center text-muted py-4">
-                    Loading cancelled appointments…
+                  <td colspan="7" class="text-center py-5 text-muted">
+                    <div class="spinner-border text-primary"></div>
                   </td>
                 </tr>
               </tbody>
@@ -833,14 +765,14 @@
       <!-- TAB: WAITING FOR ACCEPTANCE -->
       <div id="tab-waiting-accept" class="tab-pane d-none">
         <div class="panel-card">
-          <div class="d-flex align-items-center justify-content-between mb-3">
-            <div class="fw-bold"><i class="bi bi-hourglass-split me-2"></i>Waiting for Technician Acceptance</div>
+          <div class="workflow-overview-section-head">
+            <h6><i class="bi bi-hourglass-split me-2 text-warning"></i>Waiting for Technician Acceptance</h6>
             <small class="text-muted" id="waitingAcceptCount">0 bookings</small>
           </div>
-          <p class="text-muted small mb-3">
+          <p class="text-muted small mb-3 px-3">
             Bookings that have been assigned to a technician but are awaiting their confirmation.
           </p>
-          <div id="waitingAcceptContainer">
+          <div id="waitingAcceptContainer" class="workflow-record-list">
             <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
           </div>
           <div class="d-flex justify-content-center mt-3" id="waitingAcceptPagination"></div>
@@ -1194,10 +1126,10 @@
       function showLoadingRow(tbody) {
         if (!tbody) return;
         tbody.innerHTML =
-          '<tr><td colspan="10" class="text-center py-4">'<
-            +'<div class="spinner-border spinner-border-sm" role="status" ' 
-            + 'style="vertical-align:middle;margin-right:6px;"><span class="visually-hidden">Loading...</span></div>'
-            + 'Loading…</td></tr>';
+          '<tr><td colspan="10" class="text-center py-5">' +
+            '<div class="spinner-border spinner-border-sm" role="status" ' +
+            'style="vertical-align:middle;margin-right:6px;"><span class="visually-hidden">Loading...</span></div>' +
+            'Loading…</td></tr>';
       }
 
       // Load initial overview (list KPIs + table + trend)
@@ -1392,7 +1324,7 @@
 
         if (!list || !list.length) {
           tbody.innerHTML =
-            `<tr><td colspan="10" class="text-center text-muted py-4">No ${statusLabelText} found.</td></tr>`;
+            `<tr><td colspan="7" class="text-center text-muted py-4">No ${statusLabelText} found.</td></tr>`;
           document.getElementById("appointmentsCountCombined").innerText =
             `0 ${statusLabelText}`;
           return;
@@ -1419,13 +1351,13 @@
           const paymentBadge = `<span class='badge bg-${a.paymentStatus === "paid" ? "success" : a.paymentStatus === "failed" ? "danger" : "warning"} text-uppercase'>${a.paymentStatus || "pending"}</span>`;
           const badgeStatus = statusLabel(a.status);
           const onTheWayBtn = badgeStatus === "scheduled"
-            ? `<button class='btn btn-sm btn-outline-info on-the-way-appt' data-id='${a._id || a.id || ""}' title='Mark on the way'><i class='bi bi-truck'></i></button>`
+            ? `<button class='btn btn-sm btn-info on-the-way-appt' data-id='${a._id || a.id || ""}' title='Mark on the way'><i class='bi bi-truck me-1'></i>On the way</button>`
             : "";
           const arrivedBtn = badgeStatus === "on-the-way"
-            ? `<button class='btn btn-sm btn-outline-primary arrived-appt' data-id='${a._id || a.id || ""}' title='Mark arrived'><i class='bi bi-geo-alt-fill'></i></button>`
+            ? `<button class='btn btn-sm btn-primary arrived-appt' data-id='${a._id || a.id || ""}' title='Mark arrived'><i class='bi bi-geo-alt-fill me-1'></i>Arrived</button>`
             : "";
           const completeBtn = ["scheduled", "in-progress", "on-the-way"].includes(badgeStatus)
-            ? `<button class='btn btn-sm btn-outline-success complete-appt' data-id='${a._id || a.id || ""}' title='Complete'><i class='bi bi-check2-circle'></i></button>`
+            ? `<button class='btn btn-sm btn-success complete-appt' data-id='${a._id || a.id || ""}' title='Complete'><i class='bi bi-check2-circle me-1'></i>Complete</button>`
             : "";
           const bookingRef =
             a.bookingReference || a.reference || a._id || a.id || "—";
@@ -1447,7 +1379,7 @@
 
           // Optional formatter fallback removed; use computed timeRange
 
-          tr.innerHTML = `<td class="td-truncate-md" title="${bookingRef}"><div class='fw-semibold text-truncate'>${bookingRef}</div></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td><div class="text-truncate">${svcName}</div>${svcTypeBadge}</td><td class="td-truncate-md d-none" title="${techName}">${techName}</td><td>${paymentBadge}</td><td>${badge}</td><td><div class='d-flex gap-2'><button class='btn btn-micro btn-outline-secondary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye'></i></button><button class='btn btn-micro btn-outline-secondary edit-appt' data-id='${a._id || a.id || ""}' title='Edit'><i class='bi bi-pencil'></i></button>${onTheWayBtn.replace('btn-sm','btn-micro')}${completeBtn.replace('btn-sm', 'btn-micro')}</div></td>`;
+          tr.innerHTML = `<td class="td-truncate-md" title="${bookingRef}"><code class="workflow-record-ref">${bookingRef}</code></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td><div class="text-truncate">${svcName}</div>${svcTypeBadge}</td><td>${paymentBadge}</td><td>${badge}</td><td class="text-center"><div class='d-flex gap-1 justify-content-center flex-wrap'><button class='btn btn-sm btn-primary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye me-1'></i>View</button><button class='btn btn-sm btn-primary edit-appt' data-id='${a._id || a.id || ""}' title='Edit'><i class='bi bi-pencil me-1'></i>Edit</button>${onTheWayBtn}${completeBtn}</div></td>`;
           tbody.appendChild(tr);
         });
         document.getElementById("appointmentsCountCombined").innerText =
@@ -2908,27 +2840,26 @@
         body.innerHTML = "";
         if (!filtered.length) {
           body.innerHTML =
-            '<tr><td colspan="7" class="text-center text-muted py-4">No requests matched your current filters.</td></tr>';
+            '<tr><td colspan="8" class="workflow-record-empty">No requests matched your current filters.</td></tr>';
         } else {
           filtered.forEach((rq) => {
             const tr = document.createElement("tr");
             const canValidate = rq.status === "pending";
             tr.innerHTML = `
-              <td class="text-nowrap">${rq.bookingReference || rq.id}</td>
+              <td><code class="workflow-record-ref">${rq.bookingReference || rq.id}</code></td>
               <td class="text-start td-truncate-md" title="${rq.customerName}\n${rq.customerEmail || ''}">
                 <button type="button" class="request-customer-btn view-req-details fw-semibold text-dark text-truncate" style="border:none;background:none;padding:0;" data-id="${rq.id}">${rq.customerName}</button>
                 <div class="text-muted text-truncate text-micro">${rq.customerEmail || "—"}</div>
               </td>
-              <td class="text-start td-truncate-md d-none" title="${rq.service}">${rq.service}</td>
+              <td class="text-start td-truncate-md" title="${rq.service}">${rq.service}</td>
               <td class="text-end">${rq.estimatedFee != null ? "₱" + Number(rq.estimatedFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</td>
-              <td class="text-end d-none">${rq.travelTime ? rq.travelTime + " min" : "—"}</td>
               <td class="text-nowrap">${formatDate(rq.date) || "—"}<div class="text-muted text-micro">${formatTime(rq.time)}</div></td>
               <td class="text-start">${rq.paymentMethod || ""}${rq.paymentReference ? ` (${rq.paymentReference})` : ""}</td>
               <td class="text-center"><span class="badge req-status bg-${statusBadgeClass(rq.status)}">${rq.status}</span></td>
-              <td class="text-start">
-                <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn btn-micro btn-outline-secondary view-req-details" data-id="${rq.id}">Details</button>
-                  <button class="btn btn-micro btn-outline-secondary view-payment" data-id="${rq.id}" title="View payment"><i class="bi bi-credit-card-2-front-fill"></i></button>
+              <td class="text-center">
+                <div class="d-flex gap-1 justify-content-center flex-wrap">
+                  <button class="btn btn-sm btn-outline-secondary view-req-details" data-id="${rq.id}"><i class="bi bi-eye me-1"></i>Details</button>
+                  <button class="btn btn-sm btn-outline-secondary view-payment" data-id="${rq.id}" title="View payment"><i class="bi bi-credit-card-2-front-fill"></i></button>
                 </div>
               </td>
             `;
@@ -3012,12 +2943,11 @@
             tbody.innerHTML = "";
             if (!appts.length) {
               tbody.innerHTML =
-                '<tr><td colspan="10" class="text-center text-muted py-4">No cancelled appointments found.</td></tr>';
+                '<tr><td colspan="7" class="text-center text-muted py-4">No cancelled appointments found.</td></tr>';
             } else {
               appts.slice(0, 200).forEach((a) => {
                 const tr = document.createElement("tr");
                 const bookingDate = a.bookingDate || a.date || a.start || new Date();
-                // compute a time range like elsewhere for consistency
                 const startTimeStr = a.startTime || a.time || "";
                 const startMinNum = Number(a.startTime || a.time);
                 const endMinRaw = Number(a.endTime);
@@ -3036,19 +2966,14 @@
                 const paymentBadge = `<span class='badge bg-${a.paymentStatus === "paid" ? "success" : a.paymentStatus === "failed" ? "danger" : "warning"} text-uppercase'>${a.paymentStatus || "pending"}</span>`;
                 const bookingRef =
                   a.bookingReference || a.reference || a._id || a.id || "—";
-                const bookedAt = a.createdAt
-                  ? new Date(a.createdAt).toLocaleString()
-                  : "—";
 
                 let custName = a.customerName || (typeof a.customer === "object" && a.customer ? a.customer.name || a.customer.firstName || "Customer" : a.customer) || "Customer";
                 if (typeof custName === "object") custName = "Customer";
                 let custEmail = a.customerEmail || (typeof a.customer === "object" && a.customer ? a.customer.email : a.customerEmail) || "";
                 let svcName = a.serviceName || a.service || a.serviceType || (typeof a.serviceId === "object" && a.serviceId ? a.serviceId.name || a.serviceId.title : a.serviceId) || "Service";
                 if (typeof svcName === "object") svcName = "Service";
-                let techName = a.technicianName || (typeof a.technician === "object" && a.technician ? a.technician.name || a.technician.firstName : a.technician) || "TBD";
-                if (typeof techName === "object") techName = "TBD";
 
-                tr.innerHTML = `<td class="td-truncate-md" title="${bookingRef}"><div class='fw-semibold text-truncate'>${bookingRef}</div></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td class="td-truncate-md d-none" title="${svcName}">${svcName}</td><td class="td-truncate-md d-none" title="${techName}">${techName}</td><td>${paymentBadge}</td><td>${badge}</td><td><div class='d-flex gap-2'><button class='btn btn-micro btn-outline-secondary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye'></i></button></div></td>`;
+                tr.innerHTML = `<td><code class="workflow-record-ref">${bookingRef}</code></td><td class="text-nowrap">${new Date(bookingDate).toLocaleDateString()}<div class="text-muted text-micro">${timeRange}</div></td><td class="td-truncate-md" title="${custName}\n${custEmail}"><div class="fw-semibold text-truncate text-dark">${custName}</div><div class='text-muted text-truncate text-micro'>${custEmail}</div></td><td><div class="text-truncate">${svcName}</div></td><td>${paymentBadge}</td><td>${badge}</td><td class="text-center"><div class='d-flex gap-1 justify-content-center'><button class='btn btn-sm btn-primary view-appt' data-id='${a._id || a.id || ""}' title='View'><i class='bi bi-eye me-1'></i>View</button></div></td>`;
                 tbody.appendChild(tr);
               });
             }
@@ -3089,7 +3014,7 @@
             
             if (!appts.length) {
               tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center text-muted py-4">No reschedule requests found.</td></tr>';
+                '<tr><td colspan="8" class="workflow-record-empty">No reschedule requests found.</td></tr>';
             } else {
               appts.forEach((a) => {
                 const tr = document.createElement("tr");
@@ -3120,20 +3045,20 @@
                 }
                 
                 tr.innerHTML = `
-                  <td class="fw-semibold">${bookingRef}</td>
+                  <td><code class="workflow-record-ref">${bookingRef}</code></td>
                   <td>${custName}</td>
                   <td>${svcName}</td>
                   <td>
                     <div>${new Date(bookingDate).toLocaleDateString()}</div>
-                    <div class="text-muted small">${startTimeStr ? formatTime(startTimeStr) : ""}</div>
+                    <div class="text-muted text-micro">${startTimeStr ? formatTime(startTimeStr) : ""}</div>
                   </td>
                   <td>
                     <div>${requestedDate ? new Date(requestedDate).toLocaleDateString() : ""}</div>
-                    <div class="text-muted small">${requestedTime ? formatTime(requestedTime) : ""}</div>
+                    <div class="text-muted text-micro">${requestedTime ? formatTime(requestedTime) : ""}</div>
                   </td>
                   <td class="text-truncate" style="max-width: 200px;" title="${reason}">${reason || "—"}</td>
                   <td>${statusBadge}</td>
-                  <td>${actions}</td>
+                  <td class="text-center">${actions}</td>
                 `;
                 tbody.appendChild(tr);
               });
@@ -3148,7 +3073,7 @@
           const tbody = document.getElementById("rescheduleRequestsTableBody");
           if (tbody) {
             tbody.innerHTML =
-              '<tr><td colspan="8" class="text-center text-danger py-4">Failed to load reschedule requests.</td></tr>';
+              '<tr><td colspan="8" class="workflow-record-empty text-danger">Failed to load reschedule requests.</td></tr>';
           }
         }
       }
@@ -3304,7 +3229,7 @@
       async function loadWaitingAcceptTab() {
         const container = document.getElementById("waitingAcceptContainer");
         const pagination = document.getElementById("waitingAcceptPagination");
-        container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
+        container.innerHTML = '<div class="workflow-record-empty"><div class="spinner-border text-primary"></div><p class="mt-2 mb-0">Loading...</p></div>';
         if (pagination) pagination.innerHTML = '';
 
         try {
@@ -3319,40 +3244,42 @@
           if (badge) { badge.textContent = total; badge.style.display = total > 0 ? 'inline-block' : 'none'; }
 
           if (!bookings.length) {
-            container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-1 d-block mb-2"></i><p>All assigned bookings have been accepted.</p></div>';
+            container.innerHTML = '<div class="workflow-record-empty"><i class="bi bi-check-circle fs-1 d-block mb-2"></i><p class="mb-0">All assigned bookings have been accepted.</p></div>';
             return;
           }
 
-          container.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;">' + bookings.map(b => {
+          container.innerHTML = bookings.map(b => {
             const tech = b.technician;
             const assignedAt = b.assignedAt ? new Date(b.assignedAt).toLocaleString() : '—';
             const bDate = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString() : '—';
-            return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;">' +
-              '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">' +
+            return '<div class="workflow-record-card">' +
+              '<div class="workflow-record-head">' +
                 '<div>' +
-                  '<div style="font-size:.72rem;color:#94a3b8;font-weight:600;">' + (b.bookingReference || b._id.slice(-8).toUpperCase()) + '</div>' +
-                  '<div style="font-size:.95rem;font-weight:700;color:#1e293b;">' + (b.customer?.name || 'Unknown') + '</div>' +
-                  '<div style="font-size:.82rem;color:#64748b;">' + (b.service?.name || '—') + '</div>' +
+                  '<div class="workflow-record-ref">' + (b.bookingReference || b._id.slice(-8).toUpperCase()) + '</div>' +
+                  '<div class="workflow-record-title">' + (b.customer?.name || 'Unknown') + '</div>' +
+                  '<div class="workflow-record-subtitle">' + (b.service?.name || '—') + '</div>' +
                 '</div>' +
-                '<span style="padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;background:#fffbeb;color:#92400e;white-space:nowrap;"><i class="bi bi-clock me-1"></i>Waiting</span>' +
+                '<span class="ao-st-badge ao-st-pending_payment"><i class="bi bi-clock me-1"></i>Waiting</span>' +
               '</div>' +
-              '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:#475569;">' +
-                '<span><i class="bi bi-calendar3 me-1" style="color:#94a3b8;"></i>' + bDate + '</span>' +
-                '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>' + (b.startTime || '—') + ' - ' + (b.endTime || '—') + '</span>' +
-                '<span><i class="bi bi-geo-alt me-1" style="color:#94a3b8;"></i>' + (b.address || '—') + '</span>' +
+              '<div class="workflow-record-grid">' +
+                '<div class="workflow-record-meta"><i class="bi bi-calendar3"></i> ' + bDate + '</div>' +
+                '<div class="workflow-record-meta"><i class="bi bi-clock"></i> ' + (b.startTime || '—') + ' - ' + (b.endTime || '—') + '</div>' +
+                '<div class="workflow-record-meta"><i class="bi bi-geo-alt"></i> ' + (b.address || '—') + '</div>' +
               '</div>' +
-              (tech ? '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;">' +
-                '<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">' + (tech.name || 'T')[0].toUpperCase() + '</div>' +
-                '<div style="font-size:.78rem;">' +
-                  '<div style="font-weight:600;color:#1e293b;">' + tech.name + '</div>' +
-                  '<div style="font-size:.7rem;color:#64748b;">' + (tech.phone || tech.email || '—') + '</div>' +
+              (tech ? '<div class="workflow-record-actions">' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">' + (tech.name || 'T')[0].toUpperCase() + '</div>' +
+                  '<div style="font-size:.78rem;">' +
+                    '<div style="font-weight:600;color:#1e293b;">' + tech.name + '</div>' +
+                    '<div style="font-size:.7rem;color:#64748b;">' + (tech.phone || tech.email || '—') + '</div>' +
+                  '</div>' +
                 '</div>' +
-                '<div style="margin-left:auto;font-size:.7rem;color:#94a3b8;">Assigned: ' + assignedAt + '</div>' +
+                '<div style="font-size:.7rem;color:#94a3b8;">Assigned: ' + assignedAt + '</div>' +
               '</div>' : '') +
             '</div>';
-          }).join('') + '</div>';
+          }).join('');
         } catch(e) {
-          container.innerHTML = '<div class="alert alert-danger small">Failed to load bookings</div>';
+          container.innerHTML = '<div class="workflow-record-empty"><i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-danger"></i><p class="mb-0 text-danger">Failed to load bookings</p></div>';
         }
       }
 

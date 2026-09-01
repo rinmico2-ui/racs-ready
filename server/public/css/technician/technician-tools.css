@@ -1,0 +1,278 @@
+/* ============================================================
+   Technician My Tools — Responsive Enterprise UI
+   Mobile-first, clean hierarchy, senior UI/UX fit-and-finish.
+   ============================================================ */
+
+.tt-page {
+  --tt-bg: #f8fafc;
+  --tt-surface: #ffffff;
+  --tt-border: #e2e8f0;
+  --tt-border-2: #cbd5e1;
+  --tt-ink: #0f172a;
+  --tt-ink-2: #334155;
+  --tt-ink-3: #64748b;
+  --tt-primary: #2563eb;
+  --tt-primary-2: #3b82f6;
+  --tt-success: #10b981;
+  --tt-warning: #f59e0b;
+  --tt-danger: #dc2626;
+  --tt-cyan: #06b6d4;
+  --tt-radius: 16px;
+  --tt-radius-sm: 12px;
+  --tt-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+  --tt-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.07);
+  --tt-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --tt-transition: all 0.25s var(--tt-ease);
+}
+
+/* Remove the centered max-width column for this page so content fills the area and stacks from the left */
+.admin-content main:has(.tt-page) {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+}
+.admin-content main:has(.tt-page) .tt-page {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.tt-page {
+  color: var(--tt-ink);
+  padding: 2rem 1.5rem 1.5rem;
+  display: block !important; width: 100% !important; box-sizing: border-box;
+}
+.tt-page > .container-fluid {
+  display: block !important; width: 100% !important; padding: 0 !important; box-sizing: border-box;
+}
+
+@media (max-width: 991px) {
+  .tt-page { padding: 1.5rem 1.25rem 1.25rem; }
+}
+@media (max-width: 767px) {
+  .tt-page { padding: 1.25rem 1rem 1rem; }
+}
+@media (max-width: 480px) {
+  .tt-page { padding: 1rem 0.75rem 1rem; }
+}
+
+/* --- Page header (mirrors dashboard .td-hero) --- */
+.tt-page-header {
+  display: block !important; width: 100% !important;
+  margin-bottom: 1.5rem;
+  text-align: left;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.tt-page-header h4 {
+  font-size: 1.5rem; font-weight: 700; margin: 0;
+  display: flex; align-items: center; gap: 0.5rem; line-height: 1.2;
+  color: #fff;
+}
+.tt-page-header h4 i { color: #fff; font-size: 1.2rem; }
+.tt-page-header small { font-size: 0.9rem; color: #94a3b8; display: block; margin-top: 4px; text-align: left; }
+
+@media (max-width: 767px) {
+  .tt-page-header {
+    padding: 1.25rem;
+    border-radius: 12px;
+  }
+  .tt-page-header h4 { font-size: 1.25rem; }
+  .tt-page-header small { font-size: 0.85rem; }
+}
+
+@media (max-width: 480px) {
+  .tt-page-header {
+    padding: 1rem;
+  }
+  .tt-page-header h4 { font-size: 1.1rem; }
+  .tt-page-header small { font-size: 0.8rem; }
+}
+
+/* --- Panels (mirror dashboard .td-panel) --- */
+.tt-page .td-panel {
+  background: #fff; border: 1px solid #eef2f7; border-radius: 14px;
+  overflow: hidden; transition: var(--tt-transition);
+  display: block !important; width: 100% !important; margin-bottom: 1.25rem;
+  box-sizing: border-box;
+}
+.tt-page .td-panel:hover { box-shadow: var(--tt-shadow); }
+
+.tt-page .td-panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fff;
+}
+.tt-page .td-panel-title {
+  font-size: 0.9rem; font-weight: 700; color: var(--tt-ink); margin: 0;
+  display: flex; align-items: center; gap: 0.55rem;
+}
+.tt-page .td-panel-title i { font-size: 1.05rem; }
+.tt-page .td-panel-header .badge {
+  font-size: 0.72rem; font-weight: 700; padding: 0.45em 0.75em; border-radius: 999px;
+}
+
+.tt-page .td-panel-header-sub {
+  padding: 0.5rem 20px 0; font-size: 0.78rem; color: var(--tt-ink-3); font-weight: 500;
+}
+
+.tt-page .td-panel-body { padding: 16px 20px; }
+
+/* --- Tool cards (assigned tools, modal items, usage log) --- */
+.tt-page .tool-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  border-radius: 12px; background: #f8fafc; border: 1px solid #eef2f7;
+  margin-bottom: 10px; transition: var(--tt-transition);
+}
+.tt-page .tool-card:last-child { margin-bottom: 0; }
+.tt-page .tool-card:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+.tt-page .tool-icon {
+  width: 42px; height: 42px; min-width: 42px; border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe); color: var(--tt-primary);
+  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.tt-page .tool-info { flex: 1; min-width: 0; }
+.tt-page .tool-info h6 {
+  font-size: 0.85rem; font-weight: 700; color: var(--tt-ink); margin: 0 0 2px; line-height: 1.35;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tt-page .tool-info p {
+  font-size: 0.75rem; color: var(--tt-ink-3); margin: 0; line-height: 1.45;
+  overflow-wrap: break-word; word-wrap: break-word;
+}
+
+.tt-page .tool-card > .badge,
+.tt-page .tool-card .badge {
+  font-size: 0.72rem; font-weight: 700; padding: 0.45em 0.75em; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tt-page .tool-card .btn { margin-left: auto; }
+
+/* Usage-log variant (green accent) */
+#equipmentUsage .tool-card,
+#beModalBody .tool-card:nth-child(odd) { background: #f8fafc; }
+#equipmentUsage .tool-card .tool-icon { background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: var(--tt-success); box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.12); }
+
+/* --- Booking rows (mirror dashboard .td-assign-card) --- */
+.tt-page .booking-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 16px; border: 1px solid #eef2f7; border-radius: 12px;
+  background: #fff; margin-bottom: 10px; cursor: pointer; transition: var(--tt-transition);
+}
+.tt-page .booking-row:hover { background: #f8faff; border-color: #3b82f6; }
+.tt-page .booking-row:last-child { margin-bottom: 0; }
+.tt-page .booking-row-orphan { border-style: dashed; background: #fffdf5; }
+.tt-page .booking-row-orphan:hover { background: #fff8e1; }
+
+.tt-page .booking-row-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.tt-page .booking-ref { font-weight: 700; font-size: 0.85rem; color: var(--tt-ink); overflow-wrap: break-word; word-wrap: break-word; line-height: 1.35; }
+.tt-page .booking-meta { font-size: 0.75rem; color: var(--tt-ink-3); overflow-wrap: break-word; word-wrap: break-word; line-height: 1.4; }
+
+.tt-page .booking-row-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.tt-page .booking-row-right .badge { font-size: 0.7rem; font-weight: 700; padding: 0.45em 0.75em; border-radius: 999px; }
+.tt-page .booking-row-right .bi-chevron-right { color: #94a3b8; font-size: 0.9rem; }
+
+/* --- Tool history --- */
+.tt-page .tool-history-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.85rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem;
+}
+.tt-page .tool-history-item:last-child { border-bottom: none; }
+.tt-page .tool-history-item strong { color: var(--tt-ink); font-weight: 700; overflow-wrap: break-word; word-wrap: break-word; }
+.tt-page .tool-history-item .text-end { text-align: right; }
+.tt-page .tool-history-item .badge { font-size: 0.72rem; font-weight: 700; padding: 0.45em 0.65em; border-radius: 999px; }
+
+/* --- Empty / loading states --- */
+.tt-page .td-panel-body .text-muted i.bi { color: #cbd5e1; font-size: 1.8rem; margin-bottom: 0.35rem; }
+
+/* --- Log Equipment Modal --- */
+#logEquipmentModal .modal-content {
+  border: none; border-radius: var(--tt-radius); box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+#logEquipmentModal .modal-content > div:first-child {
+  background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+  padding: 1.25rem 1.5rem !important;
+  border-radius: var(--tt-radius) var(--tt-radius) 0 0 !important;
+}
+#logEquipmentModal .modal-body { padding: 1.25rem 1.5rem; }
+#logEquipmentModal .modal-body label {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--tt-ink-3); margin-bottom: 0.4rem; display: block;
+}
+#logEquipmentModal .form-control,
+#logEquipmentModal .form-select {
+  border-radius: 10px; border-color: var(--tt-border); font-size: 0.9rem; padding: 0.65rem 0.9rem;
+}
+#logEquipmentModal .form-control:focus,
+#logEquipmentModal .form-select:focus { border-color: var(--tt-primary); box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.12); }
+#logEquipmentModal .modal-body + div { padding: 0 1.5rem 1.25rem; display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+/* --- Booking equipment modal --- */
+#bookingEquipmentModal .modal-header { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1.1rem 1.35rem; border-bottom: 1px solid #f1f5f9; }
+#bookingEquipmentModal .modal-title { font-weight: 700; font-size: 1rem; overflow-wrap: break-word; word-wrap: break-word; }
+#bookingEquipmentModal .text-muted { overflow-wrap: break-word; word-wrap: break-word; }
+#beModalBody .tool-card { margin-bottom: 0.65rem; }
+#beModalBody .tool-card:last-child { margin-bottom: 0; }
+#beModalBody .tool-card .btn { font-size: 0.72rem; font-weight: 600; border-radius: 8px; }
+
+/* ============================================================
+   Responsive breakpoints (same as /technician dashboard)
+   ============================================================ */
+
+@media (max-width: 991px) {
+  .tt-page .td-panel-header { padding: 1rem 1.25rem; }
+  .tt-page .td-panel-body { padding: 1rem 1.25rem; }
+  .tt-page .td-panel-header-sub { padding-left: 1.25rem; padding-right: 1.25rem; }
+}
+
+@media (max-width: 767px) {
+  .tt-page .td-panel-header { flex-wrap: wrap; gap: 0.5rem; padding: 1rem 1.25rem; }
+  .tt-page .td-panel-body { padding: 1rem 1.25rem; }
+  .tt-page .tool-card { padding: 1rem; gap: 12px; }
+  .tt-page .tool-icon { width: 38px; height: 38px; font-size: 1rem; }
+  .tt-page .tool-info h6 { font-size: 0.8rem; }
+  .tt-page .tool-info p { font-size: 0.72rem; }
+  .tt-page .booking-row { padding: 1rem; }
+  .tt-page .booking-ref { font-size: 0.8rem; }
+  .tt-page .booking-meta { font-size: 0.72rem; }
+  .tt-page .tool-history-item { font-size: 0.82rem; }
+}
+
+@media (max-width: 480px) {
+  .tt-page .td-panel { border-radius: 12px; margin-bottom: 0.75rem; }
+  .tt-page .td-panel-header { padding: 0.875rem 1rem; }
+  .tt-page .td-panel-body { padding: 0.875rem 1rem; }
+  .tt-page .td-panel-header-sub { padding-left: 1rem; padding-right: 1rem; font-size: 0.72rem; }
+
+  .tt-page .tool-card { flex-direction: column; align-items: flex-start; padding: 0.875rem 1rem; }
+  .tt-page .tool-card > .badge { margin-left: 0; }
+  .tt-page .tool-card .btn { margin-left: 0; width: 100%; }
+  .tt-page .tool-icon { width: 38px; height: 38px; font-size: 1rem; }
+
+  .tt-page .booking-row { flex-direction: column; align-items: flex-start; padding: 0.875rem 1rem; }
+  .tt-page .booking-row-right { width: 100%; justify-content: flex-start; }
+
+  .tt-page .tool-history-item {
+    flex-direction: column; align-items: flex-start; gap: 0.35rem;
+    padding: 0.75rem 0; font-size: 0.82rem;
+  }
+  .tt-page .tool-history-item .text-end { text-align: left; width: 100%; }
+
+  #logEquipmentModal .modal-dialog { margin: 0.5rem; }
+  #logEquipmentModal .modal-content { border-radius: 12px; }
+  #logEquipmentModal .modal-body { padding: 1rem; }
+  #logEquipmentModal .modal-content > div:first-child { padding: 1rem 1.25rem !important; }
+
+  .modal-lg .modal-dialog { margin: 0.5rem; }
+  .modal-lg .modal-content { border-radius: 12px; }
+}

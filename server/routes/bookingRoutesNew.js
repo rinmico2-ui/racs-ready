@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const BookingService = require('../models/BookingService');
 const auth = require('../middleware/authenticate');
@@ -11,6 +12,8 @@ const { createNotification } = require('../utils/notify');
 const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
 const audit = require('../utils/audit');
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
+const MaintenanceSchedule = require('../models/MaintenanceSchedule');
+const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -24,13 +27,6 @@ router.post('/create-new', async (req, res) => {
   let savedBooking = null;
   try {
     console.log('📝 Creating new booking (simplified)...');
-    console.log('Request body keys:', Object.keys(req.body));
-    console.log('🔍 Full Request Analysis:');
-    console.log('   Headers:', Object.keys(req.headers));
-    console.log('   Cookies:', req.headers.cookie);
-    console.log('   Session ID:', req.sessionID);
-    console.log('   Session data:', req.session);
-    
     // Check authentication at the very beginning
     console.log('🔐 Authentication Check:');
     console.log('   req.user exists:', !!req.user);
@@ -63,7 +59,8 @@ router.post('/create-new', async (req, res) => {
       travelDurationMinutes,
       isProject,
       projectScheduling,
-      quantity
+      quantity,
+      maintenanceScheduleId
     } = req.body;
 
     // Convert 'cash' to 'cod' for the booking schema
@@ -182,6 +179,35 @@ router.post('/create-new', async (req, res) => {
         details: 'Your account is missing an email address. Please update your profile.'
       });
     }
+
+    let maintenanceContext = null;
+    if (maintenanceScheduleId) {
+      if (!mongoose.isValidObjectId(maintenanceScheduleId)) {
+        return res.status(400).json({ error: 'Invalid maintenance schedule.' });
+      }
+      const maintenanceServiceIds = parsedServices
+        .map((service) => service.serviceId)
+        .filter((id) => mongoose.isValidObjectId(id));
+      const maintenanceCatalogItems = await CoreService.find({
+        _id: { $in: maintenanceServiceIds },
+        active: { $ne: false },
+      }).select('name title').lean();
+      const isMaintenanceService = maintenanceCatalogItems.some((service) =>
+        /maintenan|clean|preventive|tune.?up/i.test(String(service.name || service.title || ''))
+      );
+      if (!isMaintenanceService) {
+        return res.status(400).json({ error: 'Select a maintenance or cleaning service for this maintenance cycle.' });
+      }
+      maintenanceContext = await MaintenanceSchedule.findOne({
+        _id: maintenanceScheduleId,
+        customerId: userId,
+        status: { $in: ['upcoming', 'due', 'overdue'] },
+        bookingId: null,
+      }).select('_id assetId intervalDays').lean();
+      if (!maintenanceContext) {
+        return res.status(409).json({ error: 'This maintenance cycle is already booked or unavailable.' });
+      }
+    }
     
     // ========================================
     // BACKEND: Optional technician assignment
@@ -220,7 +246,24 @@ router.post('/create-new', async (req, res) => {
     if (effectiveIsProject) {
       const ps = projectScheduling || {};
       const projStartDate = ps.preferredStartDate || bookingDate;
-      const projEndDate = ps.preferredCompletionDeadline || ps.preferredStartDate || bookingDate;
+      const projEndDate = ps.preferredCompletionDeadline
+        || ps.endDate
+        || (ps.preferences && ps.preferences.completionDeadline)
+        || ps.preferredStartDate
+        || bookingDate;
+      const hasExplicitRange = Boolean(
+        ps.preferredCompletionDeadline || ps.endDate
+        || (ps.preferences && ps.preferences.completionDeadline)
+      );
+
+      // A project booking must carry an explicit, validated date range.
+      // Without this guard a customer who only clicked a start date would be
+      // booked as an accidental 1-day project.
+      if (!hasExplicitRange) {
+        return res.status(400).json({
+          error: 'Please select both a start date and an end date for your project schedule.',
+        });
+      }
 
       if (projStartDate && projEndDate) {
         const sumQty = Array.isArray(parsedServices)
@@ -228,22 +271,24 @@ router.post('/create-new', async (req, res) => {
           : 0;
         const totalQty = Number(quantity) > 0 ? Number(quantity) : (sumQty > 0 ? sumQty : 1);
         const estHours = Number(ps.estimatedTotalHours) || (serviceDurationMin / 60);
-        const rangeDays = Math.max(1, Math.ceil((new Date(projEndDate) - new Date(projStartDate)) / 86400000) + 1);
-        const requiredTechs = Math.max(1, Math.ceil(estHours / (rangeDays * 8)));
 
-        const rangeCheck = await schedulingEngine.validateProjectDateRange({
+        // Window-capacity validation: the customer's range is a preferred
+        // window — unavailable dates inside it are skipped and feasibility is
+        // judged on TOTAL available technician-hours across the window, not
+        // on every single day being fully free.
+        const winCheck = await schedulingEngine.getProjectWindowAvailability({
           startDate: projStartDate,
           endDate: projEndDate,
-          requiredTechnicians: requiredTechs,
-          serviceModel: parsedServices[0]?.type === 'repair' ? 'RepairService' : 'CoreService',
+          requiredHours: Math.max(1, Math.round(estHours * 10) / 10),
+          totalUnits: totalQty,
         });
 
-        if (!rangeCheck.valid || !rangeCheck.available) {
-          let msg = rangeCheck.message || 'The selected date range cannot be accommodated due to insufficient technician capacity.';
-          if (rangeCheck.nextAvailableRange) {
-            msg += ` Suggested alternative: ${rangeCheck.nextAvailableRange.startDate} to ${rangeCheck.nextAvailableRange.endDate}.`;
+        if (!winCheck.sufficient) {
+          let msg = `The selected project window (${projStartDate} to ${projEndDate}) does not provide enough available working capacity for this project. Required: ${Math.max(1, Math.round(estHours * 10) / 10)} technician-hours · Available: ${winCheck.totals ? winCheck.totals.totalAvailableHours : 0} technician-hours across ${winCheck.totals ? winCheck.totals.workableDays : 0} workable day(s).`;
+          if (winCheck.earliestCompletionDate) {
+            msg += ` Earliest estimated completion based on current availability: ${winCheck.earliestCompletionDate}.`;
           }
-          return res.status(409).json({ error: msg, validationResult: rangeCheck });
+          return res.status(409).json({ error: msg, validationResult: winCheck });
         }
       }
     } else {
@@ -403,6 +448,13 @@ router.post('/create-new', async (req, res) => {
 
       // Status
       status: 'pending',
+
+      maintenance: maintenanceContext ? {
+        isMaintenance: true,
+        assetId: maintenanceContext.assetId,
+        scheduleId: maintenanceContext._id,
+        nextRecommendedDays: maintenanceContext.intervalDays,
+      } : undefined,
       
       // Legacy payment fields
       gateway: paymentMethod,
@@ -441,6 +493,21 @@ router.post('/create-new', async (req, res) => {
     console.log('\nSaving booking (pre-save hooks will fetch real data)...');
     await booking.save();
     savedBooking = booking;
+
+    if (maintenanceContext) {
+      try {
+        await linkScheduleToBooking({
+          scheduleId: maintenanceContext._id,
+          bookingId: booking._id,
+          customerId: userId,
+        });
+      } catch (maintenanceError) {
+        booking.status = 'cancelled';
+        booking.cancellationReason = 'Maintenance cycle could not be reserved.';
+        await booking.save();
+        throw maintenanceError;
+      }
+    }
 
     // ── Large-Scale / Project detection ───────────────────────────────────
     if (effectiveIsProject) {
@@ -640,6 +707,9 @@ router.post('/create-new', async (req, res) => {
   } catch (error) {
     console.error('❌ Booking creation error:', error);
     console.error('Error stack:', error.stack);
+    if (savedBooking?.status === 'cancelled' && savedBooking.cancellationReason === 'Maintenance cycle could not be reserved.') {
+      return res.status(error.status || 409).json({ error: error.message });
+    }
     // A committed booking is successful even if later notification/payment
     // follow-up fails. Returning 500 here would invite a duplicate retry.
     if (savedBooking && !res.headersSent) {
@@ -855,6 +925,7 @@ async function applyProjectScheduling(booking, req, opts = {}) {
           lng: booking.location.lng,
         } : undefined,
         isLargeScale: totalUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS,
+        projectPhase: booking.serviceType === 'repair' ? 'assessment' : 'execution',
       };
 
       // ── Populate repair data from BookingService ──
@@ -1467,6 +1538,16 @@ router.get('/:id/service-items', async (req, res) => {
     const booking = await BookingService.findById(req.params.id).lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    const legacyRequestedSchedule = booking.rescheduleRequest?.requested
+      && booking.rescheduleRequest?.status === 'pending'
+      && booking.rescheduleRequest?.requestedDate
+      && booking.rescheduleRequest?.requestedTime
+      ? {
+          date: booking.rescheduleRequest.requestedDate,
+          startTime: booking.rescheduleRequest.requestedTime,
+          notes: booking.rescheduleRequest.reason || '',
+        }
+      : null;
     return res.json({
       bookingId: booking._id,
       bookingReference: booking.bookingReference,
@@ -1475,7 +1556,11 @@ router.get('/:id/service-items', async (req, res) => {
       services: bookingServices(booking),
       changeRequests: (booking.serviceChangeRequests || []).map(row => ({
         _id: row._id, status: row.status, requestedAt: row.requestedAt,
-        summary: row.summary, reason: row.reason, proposedSchedule: row.proposedSchedule,
+        summary: summarizeChanges(row.beforeServices || [], row.proposedServices || []), reason: row.reason,
+        requestedSchedule: row.requestedSchedule?.date
+          ? row.requestedSchedule
+          : (["pending", "schedule_proposed"].includes(row.status) ? legacyRequestedSchedule : null),
+        proposedSchedule: row.proposedSchedule,
         adminDecision: row.adminDecision,
       })),
     });
@@ -1499,8 +1584,39 @@ router.post('/:id/service-change-requests', async (req, res) => {
     const beforeServices = bookingServices(booking);
     const proposedServices = await validatedServiceItems(req.body.services, booking);
     const summary = summarizeChanges(beforeServices, proposedServices);
-    if (!summary.added && !summary.edited && !summary.removed) {
-      return res.status(400).json({ error: 'No service changes were detected.' });
+    const scheduleInput = req.body.requestedSchedule || null;
+    const hasRequestedSchedule = Boolean(scheduleInput?.date && scheduleInput?.startTime);
+    if (!summary.added && !summary.edited && !summary.removed && !hasRequestedSchedule) {
+      return res.status(400).json({ error: 'No service or schedule changes were detected.' });
+    }
+    let requestedSchedule;
+    if (hasRequestedSchedule) {
+      const dateKey = String(scheduleInput.date).slice(0, 10);
+      const timeValue = String(scheduleInput.startTime).trim();
+      const date = new Date(`${dateKey}T00:00:00`);
+      const startMinutes = parseTimeToMinutes(scheduleInput.startTime);
+      const validTimeShape = /^\d{1,2}:\d{2}\s*(AM|PM)?$/i.test(timeValue) || /^\d{1,4}$/.test(timeValue);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || Number.isNaN(date.getTime()) || !validTimeShape || !Number.isFinite(startMinutes) || startMinutes < 0 || startMinutes >= 1440) {
+        return res.status(400).json({ error: 'A valid requested date and start time are required.' });
+      }
+      const requestedAt = new Date(date);
+      requestedAt.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+      if (requestedAt <= new Date()) {
+        return res.status(400).json({ error: 'The requested schedule must be in the future.' });
+      }
+      const inspectionDuration = await getInspectionDurationMinutes();
+      const buffer = await getBufferMinutes();
+      const endMinutes = startMinutes
+        + capacityMinutes(proposedServices, inspectionDuration)
+        + Number(booking.travelTime || 0)
+        + buffer;
+      await assertCompanyCapacity(date, startMinutes, endMinutes, booking._id);
+      requestedSchedule = {
+        date,
+        startTime: String(scheduleInput.startTime),
+        endTime: minutesToTimeString(endMinutes),
+        notes: String(scheduleInput.notes || req.body.reason || '').trim(),
+      };
     }
     const policy = mutationPolicy(booking);
     const requestRecord = {
@@ -1512,6 +1628,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
       beforeServices,
       proposedServices,
       summary,
+      requestedSchedule,
       adminDecision: policy.direct ? { decidedBy: req.user._id, decidedByName: 'System policy', decidedAt: new Date(), reason: policy.reason } : undefined,
     };
 
@@ -1520,7 +1637,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
       const buffer = await getBufferMinutes();
       const startMinutes = parseTimeToMinutes(booking.startTime);
       const endMinutes = startMinutes + capacityMinutes(proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
-      if (booking.bookingDate && Number.isFinite(startMinutes)) {
+      if (!requestedSchedule && booking.bookingDate && Number.isFinite(startMinutes)) {
         await assertCompanyCapacity(booking.bookingDate, startMinutes, endMinutes, booking._id);
         booking.endTime = minutesToTimeString(endMinutes);
       }
@@ -1536,6 +1653,21 @@ router.post('/:id/service-change-requests', async (req, res) => {
         booking.balanceAmount = Math.max(0, booking.totalPrice - dp);
         booking.amountPaid = dp;
       }
+      if (requestedSchedule) {
+        booking.bookingDate = requestedSchedule.date;
+        booking.startTime = requestedSchedule.startTime;
+        booking.selectedTimeLabel = requestedSchedule.startTime;
+        booking.endTime = requestedSchedule.endTime;
+        booking.services.forEach(item => {
+          item.schedule = {
+            ...(item.schedule?.toObject?.() || item.schedule || {}),
+            date: requestedSchedule.date,
+            startTime: requestedSchedule.startTime,
+            endTime: requestedSchedule.endTime,
+            kind: item.type === 'repair' ? 'inspection' : 'service',
+          };
+        });
+      }
     }
     booking.serviceChangeRequests.push(requestRecord);
     await booking.save();
@@ -1543,7 +1675,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
     await createNotification({
       type: policy.direct ? 'booking_change_approved' : 'booking_change_requested',
       title: policy.direct ? 'Booking services updated' : 'Booking service change requested',
-      message: `${booking.bookingReference || booking._id}: ${summary.added} added, ${summary.edited} edited, ${summary.removed} removed.`,
+      message: `${booking.bookingReference || booking._id}: ${summary.added} added, ${summary.edited} edited, ${summary.removed} removed${requestedSchedule ? `; schedule requested for ${requestedSchedule.date.toLocaleDateString('en-PH')} at ${requestedSchedule.startTime}` : ''}.`,
       role: 'admin', referenceId: booking._id, referenceModel: 'BookingService',
       link: `/admin/appointments?booking=${booking._id}`, priority: policy.direct ? 'normal' : 'high', io: req.app.get('io'),
     });
@@ -1580,6 +1712,11 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
     booking.totalInitialCost = totals.totalInitialCost; booking.totalFinalCost = totals.totalFinalCost; booking.totalPrice = totals.totalPrice;
     change.status = 'customer_accepted_schedule';
     change.adminDecision = { ...(change.adminDecision?.toObject?.() || change.adminDecision || {}), decidedAt: new Date(), reason: 'Customer accepted the proposed schedule.' };
+    if (booking.rescheduleRequest?.status === 'pending' || booking.rescheduleRequest?.status === 'superseded') {
+      booking.rescheduleRequest.status = 'approved';
+      booking.rescheduleRequest.processedBy = req.user._id;
+      booking.rescheduleRequest.processedAt = new Date();
+    }
     await booking.save();
     await Promise.all([
       createNotification({ type: 'booking_change_approved', title: 'Customer accepted proposed schedule', message: `${booking.bookingReference || booking._id} was updated.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: 'normal', io: req.app.get('io') }),
@@ -1754,13 +1891,17 @@ router.post('/:id/warranty-claim', async (req, res) => {
     if (booking.customerId?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not your booking' });
     }
-    if (booking.status !== 'under_warranty' && booking.status !== 'repair_completed') {
+    if (!['completed', 'under_warranty', 'repair_completed', 'warranty_claim'].includes(booking.status)) {
       return res.status(400).json({ success: false, message: `Cannot file claim from status: ${booking.status}` });
     }
-    if (booking.warranty?.status === 'expired') {
+    const { resolveWarrantyCoverages, bookingCompletionDate } = require('../utils/warrantyLifecycle');
+    const activeCoverage = resolveWarrantyCoverages(booking.warranty, bookingCompletionDate(booking))
+      .find(coverage => coverage.status === 'active');
+    if (!activeCoverage) {
       return res.status(400).json({ success: false, message: 'Warranty has expired' });
     }
-    if (booking.warranty?.status === 'claimed') {
+    const WarrantyClaim = require('../models/WarrantyClaim');
+    if (await WarrantyClaim.exists({ customerId: req.user._id, sourceType: 'booking', sourceId: booking._id, coverageId: activeCoverage.coverageId, active: true })) {
       return res.status(400).json({ success: false, message: 'A claim is already active for this booking' });
     }
 
@@ -1768,6 +1909,26 @@ router.post('/:id/warranty-claim', async (req, res) => {
     if (!issue || !issue.trim()) {
       return res.status(400).json({ success: false, message: 'Issue description is required' });
     }
+
+    const description = issue.trim().slice(0, 3000);
+    if (description.length < 10) return res.status(400).json({ success: false, message: 'Describe the issue in at least 10 characters' });
+    const crypto = require('crypto');
+    const service = booking.services?.[0] || booking.service || {};
+    const isInstallation = activeCoverage.coverageType === 'installation';
+    const claim = await WarrantyClaim.create({
+      claimReference: `WC-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+      customerId: req.user._id,
+      sourceType: 'booking', sourceId: booking._id,
+      sourceReference: booking.bookingReference || booking.workOrderNumber || String(booking._id),
+      serviceAddress: booking.customer?.address || booking.location?.address || booking.address || '',
+      coverageId: activeCoverage.coverageId,
+      coverageSnapshot: activeCoverage,
+      claimType: isInstallation ? 'installation_workmanship' : 'repair_workmanship',
+      affectedItem: { itemKey: String(service.serviceId || service._id || booking.serviceId || 'service'), name: service.name || booking.service?.name || 'Completed service' },
+      description, discoveredAt: new Date(), requestedRemedy: 'inspection',
+      priority: 'normal',
+      history: [{ status:'submitted', actorId:req.user._id, actorRole:'customer', actorName:booking.customer?.name || 'Customer', note:'Warranty claim submitted through legacy booking endpoint' }],
+    });
 
     booking.warranty.status = 'claimed';
     booking.warranty.claimIssue = issue.trim();
@@ -1797,7 +1958,7 @@ router.post('/:id/warranty-claim', async (req, res) => {
       });
     }
 
-    res.json({ success: true, status: booking.status });
+    res.json({ success: true, status: booking.status, claimReference: claim.claimReference });
   } catch (err) {
     console.error('Warranty claim error:', err);
     res.status(500).json({ success: false, message: 'Failed to file warranty claim' });

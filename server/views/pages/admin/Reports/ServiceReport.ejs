@@ -265,17 +265,24 @@
     </div>
   </div>
 
+  <% if (typeof reportError !== 'undefined' && reportError) { %>
+    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      <span><%= reportError %></span>
+    </div>
+  <% } %>
+
   <!-- --- SECTION NAV --- -->
   <div class="report-nav" id="reportNav">
     <button class="report-nav-btn active" data-target="top"><i class="bi bi-speedometer2"></i>Overview</button>
     <button class="report-nav-btn" data-target="section-bookings"><i class="bi bi-calendar-check"></i>Bookings</button>
-    <button class="report-nav-btn" data-target="section-revenue"><i class="bi bi-cash-stack"></i>Revenue</button>
+    <button class="report-nav-btn" data-target="section-revenue"><i class="bi bi-cash-stack"></i>Value &amp; Cost</button>
     <button class="report-nav-btn" data-target="section-technicians"><i class="bi bi-people"></i>Technicians</button>
     <button class="report-nav-btn" data-target="section-customers"><i class="bi bi-heart"></i>Customers</button>
     <button class="report-nav-btn" data-target="section-service"><i class="bi bi-gear"></i>Services</button>
     <button class="report-nav-btn" data-target="section-operations"><i class="bi bi-clipboard-check"></i>Operations</button>
     <button class="report-nav-btn" data-target="section-financial"><i class="bi bi-calculator"></i>Financial</button>
-    <button class="report-nav-btn" data-target="section-ai"><i class="bi bi-robot"></i>AI</button>
+    <button class="report-nav-btn" data-target="section-ai"><i class="bi bi-lightbulb"></i>Insights</button>
     <button class="report-nav-btn" data-target="section-geographic"><i class="bi bi-geo-alt"></i>Geographic</button>
     <button class="report-nav-btn" data-target="section-service-costs"><i class="bi bi-calculator-fill"></i>Service Costs</button>
     <button class="report-nav-btn" data-target="section-equipment-used"><i class="bi bi-hammer"></i>Equipment</button>
@@ -297,7 +304,7 @@
     <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="50">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon green"><i class="bi bi-check-circle-fill"></i></div>
-        <span class="kpi-enterprise-badge green"><%= analytics ? analytics.avgRating : "0.0" %> ?</span>
+        <span class="kpi-enterprise-badge green"><%= analytics ? analytics.avgRating : "0.0" %> / 5</span>
       </div>
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Completion Rate</p>
@@ -311,7 +318,7 @@
         <span class="kpi-enterprise-badge amber">₱<%= analytics ? Math.round(analytics.avgBookingValue).toLocaleString() : 0 %> avg</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Revenue</p>
+        <p class="kpi-enterprise-label">Booked Service Value</p>
         <div class="kpi-enterprise-value"><span id="kpiTotalRevenue">₱<%= analytics ? Number(analytics.accurateTotalRevenue || analytics.totalRevenue || 0).toLocaleString() : "0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkRevenue"></canvas></div>
@@ -321,7 +328,7 @@
         <div class="kpi-enterprise-icon orange"><i class="bi bi-tools"></i></div>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Parts Cost (COGS)</p>
+        <p class="kpi-enterprise-label">Known Direct Service Cost</p>
         <div class="kpi-enterprise-value"><span>₱<%= analytics ? Number(analytics.totalPartsCost || 0).toLocaleString() : "0" %></span></div>
       </div>
     </div>
@@ -331,9 +338,9 @@
         <span class="kpi-enterprise-badge green"><%= analytics && analytics.grossProfit > 0 ? 'Profitable' : 'Check costs' %></span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Completed-Service Gross Profit</p>
+        <p class="kpi-enterprise-label">Completed-Service Contribution</p>
         <div class="kpi-enterprise-value"><span style="color:<%= analytics && analytics.grossProfit >= 0 ? '#059669' : '#dc2626' %>">₱<%= analytics ? Number(analytics.grossProfit || 0).toLocaleString() : "0" %></span></div>
-        <small style="color:#64748b;">Revenue − parts COGS</small>
+        <small style="color:#64748b;">Completed value less recorded direct service costs</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="140">
@@ -341,7 +348,7 @@
         <div class="kpi-enterprise-icon red"><i class="bi bi-receipt"></i></div>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Total Expenses</p>
+        <p class="kpi-enterprise-label">Approved Operating Expenses</p>
         <div class="kpi-enterprise-value"><span>₱<%= analytics ? Number(analytics.totalExpenses || 0).toLocaleString() : "0" %></span></div>
         <small style="color:#64748b;">Operating expenses</small>
       </div>
@@ -356,7 +363,7 @@
         <span class="kpi-enterprise-badge purple"><%= analytics ? analytics.cancelledBookings : 0 %> cancelled</span>
       </div>
       <div class="kpi-enterprise-body">
-        <p class="kpi-enterprise-label">Pending Jobs</p>
+        <p class="kpi-enterprise-label">Pending Jobs in Cohort</p>
         <div class="kpi-enterprise-value"><span id="kpiProjectedBookings"><%= analytics ? analytics.pendingBookings.toLocaleString() : "0" %></span></div>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkProjected"></canvas></div>
@@ -375,7 +382,7 @@
     <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="250">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon red"><i class="bi bi-star-fill"></i></div>
-        <span class="kpi-enterprise-badge red"><%= analytics ? analytics.avgRating : "0.0" %> ? avg</span>
+        <span class="kpi-enterprise-badge red"><%= analytics ? analytics.avgRating : "0.0" %> / 5 avg</span>
       </div>
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Customer Satisfaction</p>
@@ -401,7 +408,7 @@
       </div>
       <div class="filter-item">
         <i class="bi bi-activity"></i>
-        <select class="form-select" name="status"><option value="all">All statuses</option><% ['pending','confirmed','scheduled','on-the-way','arrived','in-progress','completed','cancelled'].forEach(function(s) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase()) %></option><% }); %></select>
+        <select class="form-select" name="status"><option value="all">All statuses</option><% ['pending','payment_verified','awaiting_assignment','assigned','pending_reassignment','confirmed','scheduled','on-the-way','arrived','in-progress','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','completed','repair_completed','closed','cancelled','rejected','repair_declined','no-show'].forEach(function(s) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/[-_]/g,' ').replace(/\b\w/g, c => c.toUpperCase()) %></option><% }); %></select>
       </div>
       <div class="filter-item"><i class="bi bi-building-gear"></i><select class="form-select" name="scale"><option value="all">All booking scales</option><option value="standard" <%= filters.scale === 'standard' ? 'selected' : '' %>>Standard</option><option value="large" <%= filters.scale === 'large' ? 'selected' : '' %>>Large-scale projects</option></select></div>
       <div class="filter-item"><i class="bi bi-credit-card"></i><select class="form-select" name="payment"><option value="all">All payment methods</option><option value="gcash" <%= filters.payment === 'gcash' ? 'selected' : '' %>>GCash</option><option value="cod" <%= filters.payment === 'cod' ? 'selected' : '' %>>Cash / COD</option><option value="other" <%= filters.payment === 'other' ? 'selected' : '' %>>Other</option></select></div>
@@ -450,7 +457,7 @@
           <span class="meta">Distribution</span>
         </div>
         <div class="dash-card-body d-flex flex-column">
-          <div class="chart-container" style="height:170px;"><canvas id="serviceMixChart"></canvas></div>
+          <div class="chart-container" style="height:210px;"><canvas id="serviceMixChart"></canvas></div>
           <ul class="list-unstyled small mb-0 mt-2 px-1">
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom" style="border-color:#f1f5f9!important;">
               <span style="color:#94a3b8;font-size:0.78rem;"><i class="bi bi-circle-fill me-2" style="color:#06b6d4;font-size:0.55rem;"></i>Core Service</span>
@@ -475,8 +482,8 @@
     <div class="col-12">
       <div class="dash-card" data-aos="fade-up">
         <div class="dash-card-header">
-          <h6><i class="bi bi-calendar2-week me-1" style="color:#0891b2;"></i>Booking Forecast</h6>
-          <span class="meta">14-day projection with trend line</span>
+          <h6><i class="bi bi-calendar2-week me-1" style="color:#0891b2;"></i>Booking Baseline Forecast</h6>
+          <span class="meta">Next 7 days using selected-period weekday averages</span>
         </div>
         <div class="dash-card-body">
           <div class="chart-container" style="height:240px;"><canvas id="bookingForecastChart"></canvas></div>
@@ -490,8 +497,8 @@
     <div class="col-lg-6">
       <div class="dash-card h-100" data-aos="fade-up">
         <div class="dash-card-header">
-          <h6><i class="bi bi-bar-chart me-1" style="color:#7c3aed;"></i>Technician Utilization</h6>
-          <span class="meta">Top 10 utilization rates</span>
+          <h6><i class="bi bi-bar-chart me-1" style="color:#7c3aed;"></i>Technician Completion Rate</h6>
+          <span class="meta">Completed share of assigned cohort</span>
         </div>
         <div class="dash-card-body">
           <div class="chart-container" style="height:240px;"><canvas id="techUtilizationChart"></canvas></div>
@@ -559,30 +566,30 @@
           <span class="kpi-enterprise-badge amber">Avg: <%= analytics ? analytics.avgRating : "0.0" %></span>
         </div>
         <div class="dash-card-body">
-          <div class="chart-container" style="height:180px;"><canvas id="ratingDistributionChart"></canvas></div>
+          <div class="chart-container" style="height:220px;"><canvas id="ratingDistributionChart"></canvas></div>
           <div class="rating-grid">
             <div class="rating-item">
-              <div class="rating-stars">?????</div>
+              <div class="rating-stars"><% for (let star = 0; star < 5; star++) { %><i class="bi bi-star-fill"></i><% } %></div>
               <div class="rating-count"><%= analytics ? analytics.ratingDistribution[5] : 0 %></div>
               <div class="rating-label">5 Stars</div>
             </div>
             <div class="rating-item">
-              <div class="rating-stars">????</div>
+              <div class="rating-stars"><% for (let star = 0; star < 4; star++) { %><i class="bi bi-star-fill"></i><% } %></div>
               <div class="rating-count"><%= analytics ? analytics.ratingDistribution[4] : 0 %></div>
               <div class="rating-label">4 Stars</div>
             </div>
             <div class="rating-item">
-              <div class="rating-stars">???</div>
+              <div class="rating-stars"><% for (let star = 0; star < 3; star++) { %><i class="bi bi-star-fill"></i><% } %></div>
               <div class="rating-count"><%= analytics ? analytics.ratingDistribution[3] : 0 %></div>
               <div class="rating-label">3 Stars</div>
             </div>
             <div class="rating-item">
-              <div class="rating-stars">??</div>
+              <div class="rating-stars"><% for (let star = 0; star < 2; star++) { %><i class="bi bi-star-fill"></i><% } %></div>
               <div class="rating-count"><%= analytics ? analytics.ratingDistribution[2] : 0 %></div>
               <div class="rating-label">2 Stars</div>
             </div>
             <div class="rating-item">
-              <div class="rating-stars">?</div>
+              <div class="rating-stars"><i class="bi bi-star-fill"></i></div>
               <div class="rating-count"><%= analytics ? analytics.ratingDistribution[1] : 0 %></div>
               <div class="rating-label">1 Star</div>
             </div>
@@ -719,14 +726,14 @@
     </div>
   </div>
 
-  <!-- --- REVENUE ANALYTICS --- -->
-  <div class="section-label" id="section-revenue">Revenue Analytics</div>
+  <!-- --- BOOKED VALUE ANALYTICS --- -->
+  <div class="section-label" id="section-revenue">Booked Value Analytics</div>
 
   <div class="row g-4 mt-1">
     <div class="col-lg-4">
       <div class="dash-card h-100" data-aos="fade-up">
         <div class="dash-card-header">
-          <h6><i class="bi bi-gear-fill me-1" style="color:#06b6d4;"></i>Core Service Revenue</h6>
+          <h6><i class="bi bi-gear-fill me-1" style="color:#06b6d4;"></i>Core Service Booked Value</h6>
         </div>
         <div class="dash-card-body">
           <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.coreRevenueAccurate.toLocaleString() : "0" %></div>
@@ -740,7 +747,7 @@
     <div class="col-lg-4">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
         <div class="dash-card-header">
-          <h6><i class="bi bi-tools me-1" style="color:#8b5cf6;"></i>Repair Service Revenue</h6>
+          <h6><i class="bi bi-tools me-1" style="color:#8b5cf6;"></i>Repair Service Booked Value</h6>
         </div>
         <div class="dash-card-body">
           <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.repairRevenueAccurate.toLocaleString() : "0" %></div>
@@ -754,13 +761,13 @@
     <div class="col-lg-4">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
         <div class="dash-card-header">
-          <h6><i class="bi bi-cash-stack me-1" style="color:#10b981;"></i>Accurate Total Revenue</h6>
+          <h6><i class="bi bi-cash-stack me-1" style="color:#10b981;"></i>Total Booked Value</h6>
         </div>
         <div class="dash-card-body">
           <div style="font-size:1.5rem;font-weight:600;color:#0f172a;">₱<%= analytics ? analytics.accurateTotalRevenue.toLocaleString() : "0" %></div>
           <div class="d-flex align-items-center justify-content-between mt-2">
             <span style="font-size:0.72rem;color:#94a3b8;">Avg ₱<%= analytics ? Math.round(analytics.accurateAvgBookingValue).toLocaleString() : 0 %> / booking</span>
-            <span class="kpi-enterprise-badge green">90d</span>
+            <span class="kpi-enterprise-badge green"><%= analytics && analytics.filterContext && analytics.filterContext.range === 'custom' ? 'Custom' : ((analytics && analytics.filterContext ? analytics.filterContext.range : '90') + 'd') %></span>
           </div>
         </div>
       </div>
@@ -788,7 +795,7 @@
                 <th style="text-align:center;">Cancelled</th>
                 <th style="text-align:center;">Rate</th>
                 <th style="text-align:center;">Rating</th>
-                <th style="text-align:right;">Revenue</th>
+                <th style="text-align:right;">Assigned Booked Value</th>
               </tr>
             </thead>
             <tbody>
@@ -819,7 +826,7 @@
                       <span style="font-size:0.7rem;color:#94a3b8;">No ratings</span>
                     <% } %>
                   </td>
-                  <td style="text-align:right;font-weight:700;color:#059669;">?<%= tech.revenue.toLocaleString() %></td>
+                  <td style="text-align:right;font-weight:700;color:#059669;">&#8369;<%= tech.revenue.toLocaleString() %></td>
                 </tr>
               <% }); %>
             </tbody>
@@ -899,7 +906,7 @@
     <div class="col-lg-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="50">
         <div class="dash-card-header">
-          <h6><i class="bi bi-bar-chart-line me-1" style="color:#3b82f6;"></i>Monthly Revenue Trend</h6>
+          <h6><i class="bi bi-bar-chart-line me-1" style="color:#3b82f6;"></i>Monthly Booked Value Trend</h6>
           <span class="meta">Core vs Repair (6 months)</span>
         </div>
         <div class="dash-card-body">
@@ -926,7 +933,7 @@
               <th>Segment</th>
               <th style="text-align:center;">Bookings / Units</th>
               <th style="text-align:center;">Completion Rate</th>
-              <th style="text-align:right;">Avg Revenue</th>
+              <th style="text-align:right;">Avg Booked Value</th>
               <th style="text-align:center;">Customer Rating</th>
             </tr>
           </thead>
@@ -1002,7 +1009,7 @@
         <div class="dash-card-header"><h6><i class="bi bi-building-gear me-1" style="color:#3b82f6;"></i>Booking Scale</h6></div>
         <div class="dash-card-body">
           <% [{ key: 'standard', label: 'Standard bookings' }, { key: 'largeScale', label: 'Large-scale projects' }].forEach(function(item) { const scale = analytics && analytics.bookingScale ? analytics.bookingScale[item.key] : { bookings: 0, units: 0, revenue: 0 }; %>
-            <div class="p-3 mb-2" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"><div class="d-flex justify-content-between"><strong><%= item.label %></strong><span class="badge-status neutral"><%= scale.bookings %></span></div><div class="mt-2" style="font-size:.75rem;color:#64748b;"><%= scale.units %> units · ₱<%= Math.round(scale.revenue).toLocaleString() %> revenue</div></div>
+            <div class="p-3 mb-2" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"><div class="d-flex justify-content-between"><strong><%= item.label %></strong><span class="badge-status neutral"><%= scale.bookings %></span></div><div class="mt-2" style="font-size:.75rem;color:#64748b;"><%= scale.units %> units · ₱<%= Math.round(scale.revenue).toLocaleString() %> booked value</div></div>
           <% }); %>
         </div>
       </div>
@@ -1198,18 +1205,18 @@
     </div>
   </div>
 
-  <!-- --- AI INTELLIGENCE --- -->
-  <div class="section-label" id="section-ai">AI Insights</div>
+  <!-- --- OPERATIONAL INSIGHTS --- -->
+  <div class="section-label" id="section-ai">Operational Insights</div>
 
   <div class="dash-card mt-1" data-aos="fade-up" style="border-left:3px solid #8b5cf6;">
     <div class="dash-card-header">
-      <h6><i class="bi bi-robot me-1" style="color:#8b5cf6;"></i>AI-Powered Service Intelligence</h6>
-      <span class="kpi-enterprise-badge purple">Schema-Based Analysis</span>
+      <h6><i class="bi bi-clipboard-data me-1" style="color:#8b5cf6;"></i>Rule-Based Service Intelligence</h6>
+      <span class="kpi-enterprise-badge purple">Measured thresholds</span>
     </div>
     <div class="dash-card-body">
-      <!-- AI Recommendations -->
+      <!-- Operational recommendations -->
       <div class="mt-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-        <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:12px;"><i class="bi bi-magic me-2" style="color:#8b5cf6;"></i>AI-Generated Recommendations</div>
+        <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:12px;"><i class="bi bi-signpost-split me-2" style="color:#8b5cf6;"></i>Operational Recommendations</div>
           <%
             const aiRecs = [];
             if (analytics) {
@@ -1237,7 +1244,7 @@
 
               let smSummary = core + ' core, ' + repair + ' repair, ' + orders + ' product order' + (orders === 1 ? '' : 's') + '.';
               let smAdvice = '';
-              if (orders > core + repair) smAdvice = 'Orders are the largest revenue channel. Consider expanding product offerings.';
+              if (orders > core + repair) smAdvice = 'Orders are the largest demand channel. Review product capacity and fulfillment performance.';
               else if (core > repair && repair < core * 0.25) smAdvice = 'Core services dominate. Upsell repair packages to improve per-booking value.';
               else if (repair > core) smAdvice = 'Repair demand is strong. Ensure parts inventory and technician skills keep up.';
               else smAdvice = 'Service mix is balanced. Maintain inventory for both core and repair lines.';
@@ -1253,8 +1260,8 @@
 
               if (avg > 0) {
                 let revSummary = 'Average booking value is ₱' + Math.round(avg).toLocaleString() + '.';
-                let revAdvice = avg < 500 ? 'Average value is low. Bundle add-ons or premium options to raise per-booking revenue.' : 'Average value is healthy. Continue offering value-added services to protect margin.';
-                aiRecs.push({ title: 'Revenue Efficiency', summary: revSummary, advice: revAdvice });
+                let revAdvice = avg < 500 ? 'Average value is low. Review service bundles and add-ons that are relevant to customer needs.' : 'Average value is healthy. Continue tracking completion and direct costs to protect contribution.';
+                aiRecs.push({ title: 'Booking Value', summary: revSummary, advice: revAdvice });
               }
 
               if (aiRecs.length < 3) {
@@ -1326,11 +1333,11 @@
   <div class="section-label" id="section-service-costs">Service Cost Breakdown</div>
   <% const serviceCosts = analytics && analytics.serviceCosts ? analytics.serviceCosts : {}; const costRows = analytics && analytics.completedServiceCosts ? analytics.completedServiceCosts : []; const allLocalPurchases = costRows.flatMap(s => (s.localPurchases || []).map(lp => ({ ...lp, serviceName: s.serviceName, reference: s.reference, technician: s.technician }))); %>
   <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);">
-    <% [{label:'Service Revenue',value:serviceCosts.revenue,color:'#2563eb',icon:'bi-cash-stack'},{label:'Actual Direct Labor',value:serviceCosts.laborCost,color:'#7c3aed',icon:'bi-people'},{label:'Consumables Cost',value:serviceCosts.consumablesCost,color:'#f59e0b',icon:'bi-droplet'},{label:'Repair Parts Cost',value:serviceCosts.partsCost,color:'#ef4444',icon:'bi-tools'},{label:'Local Purchase Cost',value:serviceCosts.localPurchaseCost,color:'#c2410c',icon:'bi-shop'},{label:'Gross Profit',value:serviceCosts.grossProfit,color:'#10b981',icon:'bi-graph-up-arrow'}].forEach(function(x){ %>
+    <% [{label:'Completed Service Value',value:serviceCosts.revenue,color:'#2563eb',icon:'bi-cash-stack'},{label:'Actual Direct Labor',value:serviceCosts.laborCost,color:'#7c3aed',icon:'bi-people'},{label:'Consumables Cost',value:serviceCosts.consumablesCost,color:'#f59e0b',icon:'bi-droplet'},{label:'Repair Parts Cost',value:serviceCosts.partsCost,color:'#ef4444',icon:'bi-tools'},{label:'Local Purchase Cost',value:serviceCosts.localPurchaseCost,color:'#c2410c',icon:'bi-shop'},{label:'Service Contribution',value:serviceCosts.grossProfit,color:'#10b981',icon:'bi-graph-up-arrow'}].forEach(function(x){ %>
       <div class="kpi-enterprise" style="border-top:3px solid <%= x.color %>"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon" style="background:<%= x.color %>;color:#fff"><i class="bi <%= x.icon %>"></i></div></div><div class="kpi-enterprise-label"><%= x.label %></div><div class="kpi-enterprise-value">₱<%= Math.round(Number(x.value||0)).toLocaleString() %></div></div>
     <% }); %>
   </div>
-  <div class="dash-card mb-3"><div class="dash-card-header"><h6><i class="bi bi-calculator me-1 text-primary"></i>Completed Services — Expand for Resources Used</h6><span class="kpi-enterprise-badge green"><%= Number(serviceCosts.grossProfitMargin||0).toFixed(1) %>% margin</span></div><div class="dash-card-body table-responsive"><table class="table-dash"><thead><tr><th>Service</th><th style="text-align:right">Revenue</th><th style="text-align:right">Labor</th><th style="text-align:right">Consumables</th><th style="text-align:right">Repair Parts</th><th style="text-align:right">Gross Profit</th></tr></thead><tbody id="completedServicesBody">
+  <div class="dash-card mb-3"><div class="dash-card-header"><h6><i class="bi bi-calculator me-1 text-primary"></i>Completed Services — Expand for Resources Used</h6><span class="kpi-enterprise-badge green"><%= Number(serviceCosts.grossProfitMargin||0).toFixed(1) %>% contribution margin</span></div><div class="dash-card-body table-responsive"><table class="table-dash"><thead><tr><th>Service</th><th style="text-align:right">Completed Value</th><th style="text-align:right">Labor</th><th style="text-align:right">Consumables</th><th style="text-align:right">Repair Parts</th><th style="text-align:right">Contribution</th></tr></thead><tbody id="completedServicesBody">
     <% if (!costRows.length) { %><tr><td colspan="6" class="dash-empty">No completed service cost records in this period.</td></tr><% } costRows.forEach(function(s, idx){ %><tr class="cs-row" data-idx="<%= idx %>"><td><details><summary style="cursor:pointer;font-weight:700;color:#334155"><%= s.serviceName %> <i class="bi bi-chevron-down ms-1"></i><div style="font-size:.66rem;color:#94a3b8;font-weight:400"><%= s.reference %> · <%= s.customer %></div></summary><div style="font-size:.7rem;color:#64748b;padding:8px 0 0 12px"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Consumables:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / ₱'+Math.round(i.cost).toLocaleString()).join(', ') : 'None recorded' %></div><div><strong>Repair Parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / ₱'+Math.round(i.cost).toLocaleString()).join(', ') : 'None recorded' %></div><% if (s.localPurchases && s.localPurchases.length) { %><div style="margin-top:6px;padding:6px 8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;"><strong style="color:#c2410c;"><i class="bi bi-shop me-1"></i>Local Purchases (External Shop):</strong><% s.localPurchases.forEach(function(lp) { %><div style="padding:2px 0;color:#92400e;">• <%= lp.partName %> — <span style="font-weight:600;">Cost: ₱<%= Math.round(lp.actualPurchaseCost).toLocaleString() %></span> · Quoted: ₱<%= Math.round(lp.quotedCustomerPrice).toLocaleString() %> · <span style="font-size:.65rem;"><%= lp.source %></span><% if (lp.receiptUrl) { %> <a href="<%= lp.receiptUrl %>" target="_blank" style="color:#2563eb;font-size:.65rem;"><i class="bi bi-receipt me-1"></i>Receipt</a><% } %></div><% }); %></div><% } %></div></details></td><td style="text-align:right">₱<%= Math.round(s.revenue).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.laborCost).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.consumablesCost).toLocaleString() %></td><td style="text-align:right">₱<%= Math.round(s.partsCost + (s.localPurchaseCost||0)).toLocaleString() %></td><td style="text-align:right;font-weight:700;color:<%= s.grossProfit>=0?'#059669':'#dc2626' %>">₱<%= Math.round(s.grossProfit).toLocaleString() %></td></tr><% }); %>
   </tbody></table><div id="completedServicesPagination" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #edf1f6;"><span id="csPageInfo" style="font-size:.72rem;color:#64748b;"></span><div id="csPageButtons" style="display:flex;gap:4px;"></div></div></div></div>
 
@@ -1356,8 +1363,8 @@
     weeklyData: report.weeklyData ? Object.entries(report.weeklyData).map(([key, val]) => ({ week: key, bookings: finiteNumber(val.bookings), revenue: finiteNumber(val.revenue), completed: finiteNumber(val.completed) })) : [],
     ratingDistribution: report.ratingDistribution ? [5,4,3,2,1].map(key => finiteNumber(report.ratingDistribution[key])) : [0,0,0,0,0],
     statusBreakdown: report.statusBreakdown ? Object.entries(report.statusBreakdown).map(([status, count]) => ({ status, count: finiteNumber(count) })) : [],
-    dailyTrend: report.dailyTrend || [], topServices: report.topServices || [], techUtilization: report.techUtilization || [], weeklyCsat: report.weeklyCsat || [],
-    totalBookings: finiteNumber(report.totalBookings), completedBookings: finiteNumber(report.completedBookings), pendingBookings: finiteNumber(report.pendingBookings),
+    dailyTrend: report.dailyTrend || [], bookingForecast: report.bookingForecast || [], topServices: report.topServices || [], techUtilization: report.techUtilization || [], weeklyCsat: report.weeklyCsat || [],
+    totalBookings: finiteNumber(report.totalBookings), completedBookings: finiteNumber(report.completedBookings), pendingBookings: finiteNumber(report.pendingBookings), activeTechnicianCount: finiteNumber(report.activeTechnicianCount),
     cancelledBookings: finiteNumber(report.cancelledBookings), inProgressBookings: finiteNumber(report.inProgressBookings), avgRating: finiteNumber(report.avgRating),
     totalRevenue: finiteNumber(report.totalRevenue), avgBookingValue: finiteNumber(report.avgBookingValue), gcashBookings: finiteNumber(report.gcashBookings),
     codBookings: finiteNumber(report.codBookings), otherPaymentBookings: finiteNumber(report.otherPaymentBookings), coreServiceBookings: finiteNumber(report.coreServiceBookings),
@@ -1365,7 +1372,8 @@
     bookingDrilldown: report.bookingDrilldown || [], orderDrilldown: report.orderDrilldown || [],
     technicianStats: report.technicianStats || {}, topTechnicians: report.topTechnicians || [], weeklyCancellation: report.weeklyCancellation || [],
     customerSegments: report.customerSegments || { oneTime: 0, returning: 0, loyal: 0 }, monthlyRevenueTrend: report.monthlyRevenueTrend || [],
-    priorityBreakdown: report.priorityBreakdown || { low: 0, medium: 0, high: 0, critical: 0 }, applianceArray: report.applianceArray || []
+    priorityBreakdown: report.priorityBreakdown || { low: 0, medium: 0, high: 0, critical: 0 }, applianceArray: report.applianceArray || [],
+    reportEnd: report.reportEnd || null
   };
   const reportPayloadJson = JSON.stringify(reportPayload).replace(/</g, '\\u003c');
 %>
@@ -1378,7 +1386,7 @@ if (reportRangeSelect) reportRangeSelect.addEventListener('change', function() {
 });
 
 function initCharts() {
-  if (typeof Chart === "undefined" || typeof ChartDrilldown === "undefined") { return; }
+  if (typeof Chart === "undefined") { return; }
   if (window.__serviceReportChartsInitialized) return;
   window.__serviceReportChartsInitialized = true;
   Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
@@ -1388,12 +1396,58 @@ function initCharts() {
 
   var SA = serviceAnalytics;
   var total = SA.totalBookings || 1;
-  var colors = ChartDrilldown.palette(8);
-
   /* -- Helper: open drilldown -- */
-  var bookingColumns = [{ key:'reference', label:'Booking' },{ key:'customer', label:'Customer' },{ key:'contact', label:'Contact' },{ key:'service', label:'Service' },{ key:'status', label:'Status' },{ key:'technician', label:'Technician' },{ key:'date', label:'Date' },{ key:'amount', label:'Amount', align:'right' }];
-  function openDrill(title, subtitle, chartCfg, details, filters, filterField, summary, columns) {
-    ChartDrilldown.open({ title: title, subtitle: subtitle || 'Click any element to filter the details below', chartConfig: chartCfg, details: details, columns: columns || bookingColumns, filters: filters || [], filterField: filterField || 'category', summary: summary || {} });
+  var bookingColumns = [{ key:'reference', label:'Reference' },{ key:'customer', label:'Customer' },{ key:'service', label:'Service' },{ key:'status', label:'Status' },{ key:'technician', label:'Technician' },{ key:'payment', label:'Payment' },{ key:'rating', label:'Rating' },{ key:'date', label:'Date' },{ key:'amount', label:'Booked Value', align:'right' }];
+  function formatLiveSummary(summary) {
+    summary = summary || {};
+    return {
+      records: { label: 'Records', value: Number(summary.records || 0).toLocaleString() },
+      bookedValue: { label: 'Booked value', value: '\u20B1' + Math.round(Number(summary.bookedValue || 0)).toLocaleString() },
+      completed: { label: 'Completed', value: Number(summary.completed || 0).toLocaleString() },
+      averageRating: { label: 'Average rating', value: Number(summary.averageRating || 0).toFixed(1) + ' / 5' }
+    };
+  }
+  async function fetchLiveDetails(details) {
+    var records = details.filter(function(row) { return row.id && row.recordType; }).map(function(row) { return { id: row.id, type: row.recordType }; });
+    if (!records.length) return { rows: [], summary: formatLiveSummary({}) };
+    var response = await fetch('/api/admin/reports/service/drilldown', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ records: records })
+    });
+    if (response.status === 401) throw new Error('Your admin session has expired. Sign in again and retry.');
+    if (!response.ok) {
+      var errorBody = await response.json().catch(function() { return {}; });
+      throw new Error(errorBody.error || 'The selected records could not be loaded.');
+    }
+    var payload = await response.json();
+    var sourceRows = new Map(details.map(function(row) { return [row.recordType + ':' + row.id, row]; }));
+    payload.rows = (payload.rows || []).map(function(row) {
+      var source = sourceRows.get(row.recordType + ':' + row.id) || {};
+      return Object.assign({}, source, row, { label: row.customer, value: row.reference });
+    });
+    payload.summary = formatLiveSummary(payload.summary);
+    return payload;
+  }
+  function openDrill(title, subtitle, chartCfg, details, filters, filterField, summary, columns, interaction) {
+    if (typeof ChartDrilldown === 'undefined') return;
+    interaction = interaction || {};
+    ChartDrilldown.open({
+      title: title,
+      subtitle: subtitle || 'Selected analytics records',
+      selectionLabel: interaction.selectionLabel || 'Selected records',
+      dataHeading: title + ' records',
+      chartConfig: chartCfg,
+      selectedElement: interaction.selectedElement,
+      details: details,
+      loadDetails: function() { return fetchLiveDetails(details); },
+      onChartSelect: interaction.resolveDetails ? function(selection) { return fetchLiveDetails(interaction.resolveDetails(selection)); } : null,
+      columns: columns || bookingColumns,
+      filters: filters || [],
+      filterField: filterField || 'category',
+      summary: summary || {}
+    });
   }
   function bookingDetails(field, transform, predicate) {
     return SA.bookingDrilldown.filter(predicate || function(){ return true; }).map(function(row) {
@@ -1406,19 +1460,67 @@ function initCharts() {
     var hits = chart ? chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, true) : [];
     var selected = details;
     var selectedLabel = 'All';
+    var selectedDataset = '';
+    var selectedElement = null;
+    function resolveDetails(selection) {
+      var label = String(selection.label);
+      var datasetLabel = String(selection.datasetLabel || '');
+      return details.filter(function(row) {
+        if (matcher) return matcher(row, label, datasetLabel, selection.index);
+        return String(row.category || '').toLowerCase() === label.toLowerCase();
+      });
+    }
     if (hits.length) {
       var hit = hits[0];
       selectedLabel = String(chart.data.labels[hit.index]);
-      var datasetLabel = chart.data.datasets[hit.datasetIndex] ? String(chart.data.datasets[hit.datasetIndex].label || '') : '';
-      selected = details.filter(function(row) {
-        if (matcher) return matcher(row, selectedLabel, datasetLabel, hit.index);
-        return String(row.category || '').toLowerCase() === selectedLabel.toLowerCase();
-      });
-      subtitle += ' — Selected: ' + selectedLabel + (datasetLabel ? ' / ' + datasetLabel : '');
-    } else {
-      subtitle += ' — Click directly on a point, bar, or slice to isolate it.';
+      selectedDataset = chart.data.datasets[hit.datasetIndex] ? String(chart.data.datasets[hit.datasetIndex].label || '') : '';
+      selectedElement = { index: hit.index, datasetIndex: hit.datasetIndex };
+      selected = resolveDetails({ label: selectedLabel, datasetLabel: selectedDataset, index: hit.index, datasetIndex: hit.datasetIndex });
     }
-    openDrill(title, subtitle, chartCfg, selected, [], 'category', Object.assign({}, summary || {}, { selected: selectedLabel, records: selected.length }));
+    var selectionText = selectedLabel + (selectedDataset ? ' / ' + selectedDataset : '');
+    openDrill(title, subtitle, chartCfg, selected, [], 'category', Object.assign({}, summary || {}, { selected: selectedLabel, records: selected.length }), null, {
+      selectionLabel: selectionText,
+      selectedElement: selectedElement,
+      resolveDetails: resolveDetails
+    });
+  }
+
+  var serviceNoDataPlugin = {
+    id: 'serviceNoData',
+    afterDraw: function(chart) {
+      var hasData = chart.data.datasets.some(function(dataset) {
+        return (dataset.data || []).some(function(value) { return Number(value) > 0; });
+      });
+      if (hasData) return;
+      var area = chart.chartArea;
+      if (!area) return;
+      var context = chart.ctx;
+      context.save();
+      context.fillStyle = '#94a3b8';
+      context.font = '600 12px Inter, system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('No records in this chart window', (area.left + area.right) / 2, (area.top + area.bottom) / 2);
+      context.restore();
+    }
+  };
+
+  function renderInteractiveChart(canvas, config, handler) {
+    config.options = config.options || {};
+    config.options.plugins = config.options.plugins || {};
+    var existingLegend = config.options.plugins.legend || {};
+    existingLegend.display = true;
+    existingLegend.position = existingLegend.position || ((config.type === 'doughnut' || config.type === 'pie') ? 'bottom' : 'top');
+    existingLegend.labels = Object.assign({ usePointStyle: true, boxWidth: 7, padding: 12, font: { size: 10 } }, existingLegend.labels || {});
+    config.options.plugins.legend = existingLegend;
+    config.options.onClick = function(event, elements) {
+      if (elements.length && handler) handler(event.native || event);
+    };
+    config.options.onHover = function(event, elements) {
+      var target = event.native && event.native.target ? event.native.target : canvas;
+      target.style.cursor = elements.length ? 'pointer' : 'default';
+    };
+    return new Chart(canvas, Object.assign({}, config, { plugins: (config.plugins || []).concat(serviceNoDataPlugin) }));
   }
 
   /* -- Booking Trend -- */
@@ -1427,13 +1529,11 @@ function initCharts() {
     var g1 = ctx1.getContext('2d').createLinearGradient(0,0,0,300); g1.addColorStop(0,'rgba(6,182,212,0.35)'); g1.addColorStop(1,'rgba(6,182,212,0.02)');
     var g2 = ctx1.getContext('2d').createLinearGradient(0,0,0,300); g2.addColorStop(0,'rgba(139,92,246,0.35)'); g2.addColorStop(1,'rgba(139,92,246,0.02)');
     var trendLabels = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.day; }) : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-    var trendBookings = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.bookings; }) : [42,51,49,58,64,72,60];
-    var trendCompleted = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.completed; }) : [38,47,45,53,59,66,56];
+    var trendBookings = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.bookings; }) : [0,0,0,0,0,0,0];
+    var trendCompleted = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.completed; }) : [0,0,0,0,0,0,0];
     var trendChartCfg = { type: "line", data: { labels: trendLabels, datasets: [{ label: "Bookings", data: trendBookings, borderColor: "#06b6d4", backgroundColor: g1, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 },{ label: "Completed", data: trendCompleted, borderColor: "#8b5cf6", backgroundColor: g2, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', titleFont: { weight: '700' }, padding: 12, cornerRadius: 8, boxPadding: 4 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
     var trendDetails = SA.bookingDrilldown.map(function(b) { return Object.assign({ label: b.customer, value: b.reference, category: b.day }, b); });
-    ctx1.style.cursor = 'pointer';
-    ctx1.addEventListener('click', function(event) { openSelected(event, ctx1, 'Booking Trend', 'Customer and booking records for the selected reporting day', trendChartCfg, trendDetails, { totalBookings:trendDetails.length }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return String(row.date).slice(0,10)===exact && (dataset!=='Completed' || row.status==='completed'); }); });
-    new Chart(ctx1, trendChartCfg);
+    renderInteractiveChart(ctx1, trendChartCfg, function(event) { openSelected(event, ctx1, 'Booking Trend', 'Customer and booking records for the selected reporting day', trendChartCfg, trendDetails, { totalBookings:trendDetails.length }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return String(row.date).slice(0,10)===exact && (dataset!=='Completed' || row.statusGroup==='completed'); }); });
   }
 
   /* -- Service Mix -- */
@@ -1442,13 +1542,11 @@ function initCharts() {
     var smLabels = ["Core Service", "Repair", "Orders"];
     var smData = [SA.coreServiceBookings || 0, SA.repairBookings || 0, SA.orderBookings || 0];
     var smColors = ["#06b6d4", "#8b5cf6", "#db2777"];
-    var smChartCfg = { type: "doughnut", data: { labels: smLabels, datasets: [{ data: smData, backgroundColor: smColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "70%", animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
+    var smChartCfg = { type: "doughnut", data: { labels: smLabels, datasets: [{ data: smData, backgroundColor: smColors, borderWidth: 3, borderColor: '#fff', hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "68%", animation: { duration: 1200 }, plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
     var smDetails = SA.bookingDrilldown.concat(SA.orderDrilldown).map(function(row) { return Object.assign({ label:row.customer, value:row.reference }, row); });
     var smColumns = [{ key:'reference', label:'Reference' },{ key:'customer', label:'Customer' },{ key:'contact', label:'Contact' },{ key:'service', label:'Service / Products' },{ key:'status', label:'Status' },{ key:'amount', label:'Amount', align:'right' }];
     var smFilters = smLabels.map(function(l, i) { return { key: l, label: l, color: smColors[i] }; });
-    ctx2.style.cursor = 'pointer';
-    ctx2.addEventListener('click', function(event) { openSelected(event, ctx2, 'Service Mix', 'Customer records for the selected service segment', smChartCfg, smDetails, { total:smDetails.length }); });
-    new Chart(ctx2, smChartCfg);
+    renderInteractiveChart(ctx2, smChartCfg, function(event) { openSelected(event, ctx2, 'Service Mix', 'Customer records for the selected service segment', smChartCfg, smDetails, { total:smDetails.length }); });
   }
 
   /* -- Payment Method -- */
@@ -1460,24 +1558,19 @@ function initCharts() {
     var pmChartCfg = { type: "doughnut", data: { labels: pmLabels, datasets: [{ data: pmData, backgroundColor: pmColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
     var pmDetails = bookingDetails('payment');
     var pmFilters = pmLabels.map(function(l, i) { return { key: l, label: l, color: pmColors[i] }; });
-    ctx3.style.cursor = 'pointer';
-    ctx3.addEventListener('click', function(event) { openSelected(event, ctx3, 'Payment Method Breakdown', 'Bookings using the selected payment method', pmChartCfg, pmDetails, { total:pmDetails.length }); });
-    new Chart(ctx3, pmChartCfg);
+    renderInteractiveChart(ctx3, pmChartCfg, function(event) { openSelected(event, ctx3, 'Payment Method Breakdown', 'Bookings using the selected payment method', pmChartCfg, pmDetails, { total:pmDetails.length }); });
   }
 
   /* -- Status Distribution -- */
   var ctx4 = document.getElementById("statusChart");
   if (ctx4) {
-    var smap = {}; SA.statusBreakdown.forEach(function(x) { smap[x.status] = x.count; });
-    var sdLabels = ["Confirmed", "Completed", "Pending", "Cancelled", "In Progress", "Scheduled"];
-    var sdData = [smap.confirmed || 0, smap.completed || 0, smap.pending || 0, smap.cancelled || 0, smap["in-progress"] || 0, smap.scheduled || 0];
-    var sdColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6"];
+    var sdLabels = ["Pending", "In Progress", "Completed", "Cancelled"];
+    var sdData = [SA.pendingBookings || 0, SA.inProgressBookings || 0, SA.completedBookings || 0, SA.cancelledBookings || 0];
+    var sdColors = ["#f59e0b", "#06b6d4", "#10b981", "#ef4444"];
     var sdChartCfg = { type: "doughnut", data: { labels: sdLabels, datasets: [{ data: sdData, backgroundColor: sdColors, borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var sdDetails = bookingDetails('status', function(row) { var s=String(row.status||'').toLowerCase(); return s==='in-progress'?'In Progress':s.charAt(0).toUpperCase()+s.slice(1); });
+    var sdDetails = bookingDetails('statusGroup', function(row) { var labels={pending:'Pending',in_progress:'In Progress',completed:'Completed',cancelled:'Cancelled'}; return labels[row.statusGroup] || 'Pending'; });
     var sdFilters = sdLabels.map(function(l, i) { return { key: l, label: l, color: sdColors[i] }; });
-    ctx4.style.cursor = 'pointer';
-    ctx4.addEventListener('click', function(event) { openSelected(event, ctx4, 'Status Distribution', 'Bookings with the selected status', sdChartCfg, sdDetails, { total:sdDetails.length }); });
-    new Chart(ctx4, sdChartCfg);
+    renderInteractiveChart(ctx4, sdChartCfg, function(event) { openSelected(event, ctx4, 'Status Distribution', 'Bookings in the selected lifecycle group', sdChartCfg, sdDetails, { total:sdDetails.length }); });
   }
 
   /* -- Tech Utilization -- */
@@ -1486,12 +1579,10 @@ function initCharts() {
     var techLabels = SA.techUtilization.length > 0 ? SA.techUtilization.map(function(t) { return t.name; }) : ["N/A"];
     var techData = SA.techUtilization.length > 0 ? SA.techUtilization.map(function(t) { return t.utilization; }) : [0];
     var techBg = techData.map(function(v) { return v >= 80 ? '#10b981' : v >= 50 ? '#3b82f6' : '#f59e0b'; });
-    var tuChartCfg = { type: "bar", data: { labels: techLabels, datasets: [{ label: "Utilization %", data: techData, backgroundColor: techBg, hoverBackgroundColor: '#1d4ed8', borderRadius: 6, barThickness: 14 }] }, options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return c.parsed.x + '% utilization'; } } } }, scales: { x: { max: 100, grid: { display: false }, ticks: { display: false }, border: { display: false } }, y: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: '500' } }, border: { display: false } } } } };
+    var tuChartCfg = { type: "bar", data: { labels: techLabels, datasets: [{ label: "Completion rate %", data: techData, backgroundColor: techBg, hoverBackgroundColor: '#1d4ed8', borderRadius: 6, barThickness: 14 }] }, options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 7 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return c.parsed.x + '% completion rate'; } } } }, scales: { x: { max: 100, grid: { display: false }, ticks: { display: false }, border: { display: false } }, y: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: '500' } }, border: { display: false } } } } };
     var tuDetails = bookingDetails('technician');
     var tuFilters = techLabels.map(function(l, i) { return { key: l, label: l, color: techBg[i] }; });
-    ctx5.style.cursor = 'pointer';
-    ctx5.addEventListener('click', function(event) { openSelected(event, ctx5, 'Technician Utilization', 'Bookings assigned to the selected technician', tuChartCfg, tuDetails, { avg:(techData.reduce(function(a,b){return a+b;},0)/techData.length).toFixed(1)+'%' }); });
-    new Chart(ctx5, tuChartCfg);
+    renderInteractiveChart(ctx5, tuChartCfg, function(event) { openSelected(event, ctx5, 'Technician Completion Rate', 'Bookings assigned to the selected technician', tuChartCfg, tuDetails, { avg:(techData.reduce(function(a,b){return a+b;},0)/techData.length).toFixed(1)+'%' }); });
   }
 
   /* -- CSAT Trend -- */
@@ -1500,45 +1591,40 @@ function initCharts() {
     var g6 = ctx6.getContext('2d').createLinearGradient(0, 0, 0, 250); g6.addColorStop(0, 'rgba(245,158,11,0.3)'); g6.addColorStop(1, 'rgba(245,158,11,0.02)');
     var csatLabels = SA.weeklyCsat.length > 0 ? SA.weeklyCsat.map(function(w) { return w.week; }) : ["W1", "W2", "W3", "W4", "W5", "W6"];
     var csatData = SA.weeklyCsat.length > 0 ? SA.weeklyCsat.map(function(w) { return w.avg; }) : [0, 0, 0, 0, 0, 0];
-    var csatChartCfg = { type: "line", data: { labels: csatLabels, datasets: [{ label: "CSAT", data: csatData, borderColor: "#f59e0b", backgroundColor: g6, borderWidth: 2.5, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#f59e0b", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return 'Rating: ' + c.parsed.y.toFixed(1) + '/5.0'; } } } }, scales: { y: { min: 3.5, max: 5.0, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return v.toFixed(1); } }, border: { display: false } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var csatDetails = bookingDetails('rating', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(age+1); }, function(row){return row.rating>0;});
+    var csatChartCfg = { type: "line", data: { labels: csatLabels, datasets: [{ label: "Average rating / 5", data: csatData, borderColor: "#f59e0b", backgroundColor: g6, borderWidth: 2.5, fill: true, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#f59e0b", pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 7 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return 'Rating: ' + c.parsed.y.toFixed(1) + '/5.0'; } } } }, scales: { y: { min: 0, max: 5.0, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return v.toFixed(1); } }, border: { display: false } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
+    var reportEndMs = SA.reportEnd ? new Date(SA.reportEnd).getTime() : Date.now();
+    var csatDetails = bookingDetails('rating', function(row) { var age=Math.max(0,Math.floor((reportEndMs-new Date(row.date).getTime())/604800000)); return 'W'+(age+1); }, function(row){return row.rating>0;});
     var csatFilters = csatLabels.map(function(l) { return { key: l, label: l }; });
-    ctx6.style.cursor = 'pointer';
-    ctx6.addEventListener('click', function(event) { openSelected(event, ctx6, 'CSAT Trend', 'Rated bookings contributing to the selected week', csatChartCfg, csatDetails, { rated:csatDetails.length }); });
-    new Chart(ctx6, csatChartCfg);
+    renderInteractiveChart(ctx6, csatChartCfg, function(event) { openSelected(event, ctx6, 'CSAT Trend', 'Rated bookings contributing to the selected week', csatChartCfg, csatDetails, { rated:csatDetails.length }); });
   }
 
   /* -- Booking Forecast -- */
   var ctx7 = document.getElementById("bookingForecastChart");
   if (ctx7) {
     var baseLabels = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.day; }) : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    var baseData = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.bookings; }) : [42, 51, 49, 58, 64, 72, 60];
-    var predicted = baseData.map(function(v) { return Math.round(v * 1.2); });
+    var baseData = SA.dailyTrend.length > 0 ? SA.dailyTrend.map(function(d) { return d.bookings; }) : [0, 0, 0, 0, 0, 0, 0];
+    var forecastRows = SA.bookingForecast && SA.bookingForecast.length ? SA.bookingForecast : baseLabels.map(function(day) { return { day: day, date: '', bookings: 0 }; });
+    var predicted = forecastRows.map(function(row) { return row.bookings; });
     var g7a = ctx7.getContext('2d').createLinearGradient(0, 0, 0, 250); g7a.addColorStop(0, 'rgba(6,182,212,0.3)'); g7a.addColorStop(1, 'rgba(6,182,212,0.02)');
-    var bfLabels = baseLabels.concat(baseLabels.map(function(d) { return d + "+"; }));
-    var bfAllData = baseData.concat(predicted);
+    var bfLabels = baseLabels.concat(forecastRows.map(function(row) { return row.day + (row.date ? ' ' + row.date.slice(5) : ''); }));
     var bfChartCfg = { type: "line", data: { labels: bfLabels, datasets: [{ label: "Historical", data: baseData.concat(Array(baseLabels.length).fill(null)), borderColor: "#06b6d4", backgroundColor: g7a, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }, { label: "Forecast", data: Array(baseLabels.length).fill(null).concat(predicted), borderColor: "#8b5cf6", borderDash: [6, 4], borderWidth: 2.5, tension: 0.4, fill: false, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', padding: 12, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45 } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
     var bfDetails = bookingDetails('day');
     var bfFilters = bfLabels.map(function(l) { return { key: l, label: l }; });
-    ctx7.style.cursor = 'pointer';
-    ctx7.addEventListener('click', function(event) { openSelected(event, ctx7, 'Booking Forecast Details', 'Actual bookings underlying the selected historical point; forecast points have no fabricated records', bfChartCfg, bfDetails, { historical:baseData.reduce(function(a,b){return a+b;},0) }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return dataset==='Historical' && String(row.date).slice(0,10)===exact; }); });
-    new Chart(ctx7, bfChartCfg);
+    renderInteractiveChart(ctx7, bfChartCfg, function(event) { openSelected(event, ctx7, 'Booking Forecast Details', 'Actual bookings underlying the selected historical point; forecast points have no fabricated records', bfChartCfg, bfDetails, { historical:baseData.reduce(function(a,b){return a+b;},0) }, function(row,label,dataset,index){ var exact=SA.dailyTrend[index]&&SA.dailyTrend[index].date; return dataset==='Historical' && String(row.date).slice(0,10)===exact; }); });
   }
 
   /* -- Weekly Trend -- */
   var ctx8 = document.getElementById("weeklyTrendChart");
-  if (ctx8 && SA.weeklyData.length > 0) {
+  if (ctx8) {
     var g8a = ctx8.getContext('2d').createLinearGradient(0, 0, 0, 300); g8a.addColorStop(0, 'rgba(6,182,212,0.35)'); g8a.addColorStop(1, 'rgba(6,182,212,0.02)');
     var g8b = ctx8.getContext('2d').createLinearGradient(0, 0, 0, 300); g8b.addColorStop(0, 'rgba(139,92,246,0.35)'); g8b.addColorStop(1, 'rgba(139,92,246,0.02)');
     var wtLabels = SA.weeklyData.map(function(d) { return d.week; });
     var wtBookings = SA.weeklyData.map(function(d) { return d.bookings; });
     var wtCompleted = SA.weeklyData.map(function(d) { return d.completed; });
     var wtChartCfg = { type: "line", data: { labels: wtLabels, datasets: [{ label: "Bookings", data: wtBookings, borderColor: "#06b6d4", backgroundColor: g8a, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#06b6d4", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }, { label: "Completed", data: wtCompleted, borderColor: "#8b5cf6", backgroundColor: g8b, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#8b5cf6", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 16 } }, tooltip: { backgroundColor: '#0f172a', padding: 12, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var wtDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); });
+    var wtDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((reportEndMs-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); });
     var wtFilters = [];
-    ctx8.style.cursor = 'pointer';
-    ctx8.addEventListener('click', function(event) { openSelected(event, ctx8, 'Weekly Trend', 'Bookings contributing to the selected reporting week', wtChartCfg, wtDetails, { totalBookings:wtDetails.length }, function(row,label,dataset){return row.category===label && (dataset!=='Completed'||row.status==='completed');}); });
-    new Chart(ctx8, wtChartCfg);
+    renderInteractiveChart(ctx8, wtChartCfg, function(event) { openSelected(event, ctx8, 'Weekly Trend', 'Bookings contributing to the selected reporting week', wtChartCfg, wtDetails, { totalBookings:wtDetails.length }, function(row,label,dataset){return row.category===label && (dataset!=='Completed'||row.statusGroup==='completed');}); });
   }
 
   /* -- Rating Distribution -- */
@@ -1547,27 +1633,24 @@ function initCharts() {
     var rdLabels = ["5 Stars", "4 Stars", "3 Stars", "2 Stars", "1 Star"];
     var rdData = SA.ratingDistribution;
     var rdColors = ["#10b981", "#3b82f6", "#f59e0b", "#94a3b8", "#ef4444"];
-    var rdChartCfg = { type: "doughnut", data: { labels: rdLabels, datasets: [{ data: rdData, backgroundColor: rdColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "60%", animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var rdDetails = bookingDetails('rating', function(row) { return row.rating ? row.rating + (row.rating === 1 ? ' Star' : ' Stars') : 'Not Rated'; }, function(row) { return row.rating > 0; });
+    var rdChartCfg = { type: "doughnut", data: { labels: rdLabels, datasets: [{ data: rdData, backgroundColor: rdColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "60%", animation: { duration: 1200 }, plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
+    var rdDetails = bookingDetails('rating', function(row) { var rating=Math.max(1,Math.min(5,Math.round(Number(row.rating)||0))); return rating + (rating === 1 ? ' Star' : ' Stars'); }, function(row) { return row.rating > 0; });
     var rdFilters = rdLabels.map(function(l, i) { return { key: l, label: l, color: rdColors[i] }; });
-    ctx9.style.cursor = 'pointer';
-    ctx9.addEventListener('click', function(event) { openSelected(event, ctx9, 'Rating Distribution', 'Bookings with the selected customer rating', rdChartCfg, rdDetails, { rated:rdDetails.length }); });
-    new Chart(ctx9, rdChartCfg);
+    renderInteractiveChart(ctx9, rdChartCfg, function(event) { openSelected(event, ctx9, 'Rating Distribution', 'Bookings with the selected customer rating', rdChartCfg, rdDetails, { rated:rdDetails.length }); });
   }
 
   /* -- Status Breakdown -- */
   var ctx10 = document.getElementById("statusBreakdownChart");
-  if (ctx10 && SA.statusBreakdown.length > 0) {
+  if (ctx10) {
     var sc = { 'completed': '#10b981', 'pending': '#f59e0b', 'confirmed': '#3b82f6', 'scheduled': '#8b5cf6', 'cancelled': '#ef4444', 'in-progress': '#06b6d4', 'on-the-way': '#ec4899', 'pending_review': '#f59e0b', 'awaiting_assignment': '#f97316' };
-    var sbLabels = SA.statusBreakdown.map(function(s) { return s.status; });
+    var sbKeys = SA.statusBreakdown.map(function(s) { return s.status; });
+    var sbLabels = sbKeys.map(function(status) { return String(status).replace(/[-_]/g, ' ').replace(/\b\w/g, function(letter) { return letter.toUpperCase(); }); });
     var sbCounts = SA.statusBreakdown.map(function(s) { return s.count; });
     var sbColors = SA.statusBreakdown.map(function(s) { return sc[s.status] || '#94a3b8'; });
     var sbChartCfg = { type: "pie", data: { labels: sbLabels, datasets: [{ data: sbCounts, backgroundColor: sbColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
     var sbDetails = bookingDetails('status');
     var sbFilters = sbLabels.map(function(l, i) { return { key: l, label: l, color: sbColors[i] }; });
-    ctx10.style.cursor = 'pointer';
-    ctx10.addEventListener('click', function(event) { openSelected(event, ctx10, 'Status Breakdown', 'Bookings with the selected workflow status', sbChartCfg, sbDetails, { total:sbDetails.length }); });
-    new Chart(ctx10, sbChartCfg);
+    renderInteractiveChart(ctx10, sbChartCfg, function(event) { openSelected(event, ctx10, 'Status Breakdown', 'Bookings with the selected workflow status', sbChartCfg, sbDetails, { total:sbDetails.length }, function(row,label,dataset,index) { return row.status === sbKeys[index]; }); });
   }
 
   /* -- Cancellation Trend -- */
@@ -1578,10 +1661,8 @@ function initCharts() {
     var canCounts = SA.weeklyCancellation.length > 0 ? SA.weeklyCancellation.map(function(w) { return w.cancelled; }) : [0,0,0,0,0,0,0,0,0,0,0,0];
     var g11 = ctx11.getContext('2d').createLinearGradient(0, 0, 0, 200); g11.addColorStop(0, 'rgba(239,68,68,0.3)'); g11.addColorStop(1, 'rgba(239,68,68,0.02)');
     var canChartCfg = { type: "line", data: { labels: canLabels, datasets: [{ label: "Cancellation Rate %", data: canRates, borderColor: "#ef4444", backgroundColor: g11, borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: "#fff", pointBorderColor: "#ef4444", pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5, yAxisID: 'y' }, { label: "Cancelled Count", data: canCounts, borderColor: "#f59e0b", backgroundColor: 'transparent', borderWidth: 2, tension: 0.4, fill: false, pointBackgroundColor: "#fff", pointBorderColor: "#f59e0b", pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } }, border: { display: false } }, y: { position: 'left', grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return v + '%'; } }, border: { display: false }, max: 100 }, y1: { position: 'right', grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
-    var canDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((Date.now()-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); }, function(row) { return row.status === 'cancelled'; });
-    ctx11.style.cursor = 'pointer';
-    ctx11.addEventListener('click', function(event) { openSelected(event, ctx11, 'Cancellation Trend', 'Cancelled bookings from the selected reporting week', canChartCfg, canDetails, { cancelled:canDetails.length }); });
-    new Chart(ctx11, canChartCfg);
+    var canDetails = bookingDetails('date', function(row) { var age=Math.max(0,Math.floor((reportEndMs-new Date(row.date).getTime())/604800000)); return 'W'+(12-age); }, function(row) { return row.statusGroup === 'cancelled'; });
+    renderInteractiveChart(ctx11, canChartCfg, function(event) { openSelected(event, ctx11, 'Cancellation Trend', 'Cancelled bookings from the selected reporting week', canChartCfg, canDetails, { cancelled:canDetails.length }); });
   }
 
   /* -- Customer Segments -- */
@@ -1591,14 +1672,12 @@ function initCharts() {
     var csData = [SA.customerSegments.oneTime || 0, SA.customerSegments.returning || 0, SA.customerSegments.loyal || 0];
     var csColors = ["#94a3b8", "#3b82f6", "#f59e0b"];
     var csChartCfg = { type: "doughnut", data: { labels: csLabels, datasets: [{ data: csData, backgroundColor: csColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "65%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
-    var customerFrequency = {}; SA.bookingDrilldown.forEach(function(row) { var key=row.contact||row.customer; customerFrequency[key]=(customerFrequency[key]||0)+1; });
-    var csDetails = bookingDetails('customer', function(row) { var count=customerFrequency[row.contact||row.customer]||1; return count >= 5 ? 'Loyal' : count >= 2 ? 'Returning' : 'One-Time'; });
-    ctx12.style.cursor = 'pointer';
-    ctx12.addEventListener('click', function(event) { openSelected(event, ctx12, 'Customer Segments', 'Bookings belonging to the selected repeat-customer segment', csChartCfg, csDetails, { customers:Object.keys(customerFrequency).length }); });
-    new Chart(ctx12, csChartCfg);
+    var customerFrequency = {}; SA.bookingDrilldown.forEach(function(row) { var key=row.customerId||row.contact||row.customer; customerFrequency[key]=true; });
+    var csDetails = bookingDetails('customerSegment');
+    renderInteractiveChart(ctx12, csChartCfg, function(event) { openSelected(event, ctx12, 'Customer Segments', 'Bookings belonging to the selected lifetime customer segment', csChartCfg, csDetails, { customers:Object.keys(customerFrequency).length }); });
   }
 
-  /* -- Monthly Revenue Trend -- */
+  /* -- Monthly Booked Value Trend -- */
   var ctx13 = document.getElementById("monthlyRevenueChart");
   if (ctx13) {
     var mrLabels = SA.monthlyRevenueTrend.length > 0 ? SA.monthlyRevenueTrend.map(function(m) { return m.month; }) : ["M1","M2","M3","M4","M5","M6"];
@@ -1608,10 +1687,8 @@ function initCharts() {
     var g13a = ctx13.getContext('2d').createLinearGradient(0, 0, 0, 200); g13a.addColorStop(0, 'rgba(6,182,212,0.3)'); g13a.addColorStop(1, 'rgba(6,182,212,0.02)');
     var g13b = ctx13.getContext('2d').createLinearGradient(0, 0, 0, 200); g13b.addColorStop(0, 'rgba(139,92,246,0.3)'); g13b.addColorStop(1, 'rgba(139,92,246,0.02)');
     var mrChartCfg = { type: "bar", data: { labels: mrLabels, datasets: [{ label: "Core", data: mrCore, backgroundColor: "#06b6d4", borderRadius: 4, barPercentage: 0.6 }, { label: "Repair", data: mrRepair, backgroundColor: "#8b5cf6", borderRadius: 4, barPercentage: 0.6 }, { label: "Total", data: mrTotal, type: "line", borderColor: "#10b981", backgroundColor: 'transparent', borderWidth: 2.5, tension: 0.4, pointBackgroundColor: "#fff", pointBorderColor: "#10b981", pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6, fill: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: "top", align: "end", labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8, callbacks: { label: function(c) { return c.dataset.label + ': ₱' + c.parsed.y.toLocaleString(); } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: function(v) { return '₱' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v); } }, border: { display: false } } } } };
-    var mrDetails = bookingDetails('month');
-    ctx13.style.cursor = 'pointer';
-    ctx13.addEventListener('click', function(event) { openSelected(event, ctx13, 'Monthly Revenue Trend', 'Bookings contributing to the selected month and revenue segment', mrChartCfg, mrDetails, { revenue:mrDetails.reduce(function(sum,row){return sum+(Number(row.amount)||0);},0) }, function(row,label,dataset){return row.month===label && (dataset==='Total'||row.segment===(dataset==='Core'?'Core Service':'Repair'));}); });
-    new Chart(ctx13, mrChartCfg);
+    var mrDetails = bookingDetails('month', null, function(row) { return row.statusGroup !== 'cancelled'; });
+    renderInteractiveChart(ctx13, mrChartCfg, function(event) { openSelected(event, ctx13, 'Monthly Booked Value Trend', 'Bookings contributing to the selected month and service segment', mrChartCfg, mrDetails, { bookedValue:mrDetails.reduce(function(sum,row){return sum+(Number(row.amount)||0);},0) }, function(row,label,dataset){return row.month===label && (dataset==='Total'||row.segment===(dataset==='Core'?'Core Service':'Repair'));}); });
   }
 
   /* -- Priority Distribution -- */
@@ -1622,9 +1699,7 @@ function initCharts() {
     var prColors = ["#94a3b8", "#3b82f6", "#f59e0b", "#ef4444"];
     var prChartCfg = { type: "doughnut", data: { labels: prLabels, datasets: [{ data: prData, backgroundColor: prColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "60%", animation: { duration: 1200 }, plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } } } };
     var prDetails = bookingDetails('priority', function(row) { var p=String(row.priority||'medium'); return p.charAt(0).toUpperCase()+p.slice(1); });
-    ctx14.style.cursor = 'pointer';
-    ctx14.addEventListener('click', function(event) { openSelected(event, ctx14, 'Priority Distribution', 'Bookings assigned the selected operational priority', prChartCfg, prDetails, { bookings:prDetails.length }); });
-    new Chart(ctx14, prChartCfg);
+    renderInteractiveChart(ctx14, prChartCfg, function(event) { openSelected(event, ctx14, 'Priority Distribution', 'Bookings assigned the selected operational priority', prChartCfg, prDetails, { bookings:prDetails.length }); });
   }
 
   /* -- Appliance Type Breakdown -- */
@@ -1633,11 +1708,9 @@ function initCharts() {
     var apLabels = SA.applianceArray.length > 0 ? SA.applianceArray.map(function(a) { return a.type; }) : ["N/A"];
     var apData = SA.applianceArray.length > 0 ? SA.applianceArray.map(function(a) { return a.count; }) : [0];
     var apColors = ["#06b6d4", "#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444"];
-    var apChartCfg = { type: "bar", data: { labels: apLabels, datasets: [{ label: "Bookings", data: apData, backgroundColor: apColors.slice(0, apLabels.length), borderRadius: 6, barThickness: 24 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } }, border: { display: false } }, y: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8' }, border: { display: false } } } } };
+    var apChartCfg = { type: "bar", data: { labels: apLabels, datasets: [{ label: "Bookings", data: apData, backgroundColor: apColors.slice(0, apLabels.length), borderRadius: 6, barThickness: 24 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 1200 }, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 7 } }, tooltip: { backgroundColor: '#0f172a', padding: 10, cornerRadius: 8 } }, scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } }, border: { display: false } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', precision: 0 }, border: { display: false } } } } };
     var apDetails = bookingDetails('appliance');
-    ctx15.style.cursor = 'pointer';
-    ctx15.addEventListener('click', function(event) { openSelected(event, ctx15, 'Appliance Type Breakdown', 'Bookings for the selected appliance or unit type', apChartCfg, apDetails, { bookings:apDetails.length }); });
-    new Chart(ctx15, apChartCfg);
+    renderInteractiveChart(ctx15, apChartCfg, function(event) { openSelected(event, ctx15, 'Appliance Type Breakdown', 'Bookings for the selected appliance or unit type', apChartCfg, apDetails, { bookings:apDetails.length }); });
   }
 
   /* -- Sparklines -- */
@@ -1651,16 +1724,16 @@ function initCharts() {
     return new Chart(c, { type: 'line', data: { labels: data.map(function(_,i){return i+1;}), datasets: [{ data: data, borderColor: color, backgroundColor: grad, fill: true, tension: 0.4, borderWidth: 1.5 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 800 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, elements: { point: { radius: 0 } }, scales: { x: { display: false }, y: { display: false } } } });
   }
 
-  var baseData = serviceAnalytics.dailyTrend.length > 0 ? serviceAnalytics.dailyTrend.map(function(d) { return d.bookings; }) : [42,51,49,58,64,72,60];
-  var predicted = baseData.map(function(v) { return Math.round(v * 1.2); });
-  var revenuePerBooking = serviceAnalytics.avgBookingValue > 0 ? serviceAnalytics.avgBookingValue : 1500;
+  var baseData = serviceAnalytics.dailyTrend.length > 0 ? serviceAnalytics.dailyTrend.map(function(d) { return d.bookings; }) : [0,0,0,0,0,0,0];
+  var predicted = (serviceAnalytics.bookingForecast || []).map(function(row) { return row.bookings; });
+  var revenuePerBooking = serviceAnalytics.avgBookingValue > 0 ? serviceAnalytics.avgBookingValue : 0;
 
   createSparkline('kpiSparkTotalBookings', baseData, '#3b82f6');
-  createSparkline('kpiSparkCompletion', serviceAnalytics.dailyTrend.length > 0 ? serviceAnalytics.dailyTrend.map(function(d) { return d.completed; }) : [38,47,45,53,59,66,56], '#10b981');
+  createSparkline('kpiSparkCompletion', serviceAnalytics.dailyTrend.length > 0 ? serviceAnalytics.dailyTrend.map(function(d) { return d.completed; }) : [0,0,0,0,0,0,0], '#10b981');
   createSparkline('kpiSparkRevenue', baseData.map(function(v) { return v * revenuePerBooking; }), '#f59e0b');
   createSparkline('kpiSparkProjected', predicted, '#8b5cf6');
-  createSparkline('kpiSparkTechs', [5,5,6,5,5,4,5], '#06b6d4');
-  createSparkline('kpiSparkRating', serviceAnalytics.weeklyCsat.length > 0 ? serviceAnalytics.weeklyCsat.map(function(w) { return w.avg; }) : [4.5,4.6,4.7,4.5,4.8,4.6], '#ef4444');
+  createSparkline('kpiSparkTechs', [serviceAnalytics.activeTechnicianCount], '#06b6d4');
+  createSparkline('kpiSparkRating', serviceAnalytics.weeklyCsat.length > 0 ? serviceAnalytics.weeklyCsat.map(function(w) { return w.avg; }) : [0,0,0,0,0,0], '#ef4444');
 
   /* -- Pipeline bars -- */
   document.querySelectorAll('[data-completion]').forEach(function(el) {
@@ -1675,15 +1748,19 @@ function initCharts() {
 
   /* -- CSV Export -- */
   document.getElementById('exportReportBtn').addEventListener('click', function() {
-    var rows = [];
-    document.querySelectorAll('table tbody tr').forEach(function(tr) {
-      var cols = Array.from(tr.querySelectorAll('td')).map(function(td) { return td.innerText.trim(); });
-      if (cols.length > 0 && cols[0] !== '') rows.push(cols.join(','));
+    var columns = ['reference','date','customer','contact','service','segment','status','technician','payment','scale','brand','appliance','rating','amount'];
+    function csvCell(value) {
+      var text = value == null ? '' : String(value);
+      return '"' + text.replace(/"/g, '""') + '"';
+    }
+    var rows = [columns.map(csvCell).join(',')];
+    serviceAnalytics.bookingDrilldown.forEach(function(row) {
+      rows.push(columns.map(function(column) { return csvCell(row[column]); }).join(','));
     });
-    var csv = 'Service,Bookings,Completion Rate,Avg Revenue,Customer Rating,Status,Payment,Technician,Amount\n' + rows.join('\n');
+    var csv = '\uFEFF' + rows.join('\r\n');
     var blob = new Blob([csv], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
-    var a = document.createElement('a'); a.href = url; a.download = 'service-report.csv'; a.click();
+    var a = document.createElement('a'); a.href = url; a.download = 'service-report-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
     URL.revokeObjectURL(url);
   });
 }

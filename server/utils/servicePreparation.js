@@ -18,7 +18,12 @@ function scoreMatch(item, wanted) {
   return words.reduce((score, word) => score + (text.includes(word) ? 1 : 0), 0);
 }
 
-async function buildServicePreparation(booking) {
+async function buildServicePreparation(booking, opts = {}) {
+  // preferToolIds: inventory ids already present in the technician's current
+  // daily kit. Requirements keep resolving to these "sticky" picks instead of
+  // drifting to whatever unit happens to have the most stock right now —
+  // otherwise every re-sync manufactures phantom "new requirement" deltas.
+  const preferToolIds = opts.preferToolIds instanceof Set ? opts.preferToolIds : null;
   const itemContext = Array.isArray(booking?.services)
     ? booking.services.map(item => `${item?.name || ''} ${item?.repairIssue || ''} ${item?.problemDescription || ''}`).join(' ')
     : '';
@@ -51,10 +56,16 @@ async function buildServicePreparation(booking) {
   }).select('itemName category description type inventoryClass quantity reservedQuantity unit assignable assetStatus').lean();
 
   const pick = (wanted, kind) => {
+    const sticky = (item) => (preferToolIds && preferToolIds.has(String(item._id)) ? 1 : 0);
     const candidates = inventory.filter(item => {
       if (kind === 'equipment') return Tool.effectiveInventoryClass(item) === 'operational_asset' && item.type !== 'consumable' && item.assignable !== false;
       return item.type === 'consumable';
-    }).map(item => ({ item, score: scoreMatch(item, wanted) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score || available(b.item) - available(a.item));
+    }).map(item => ({ item, score: scoreMatch(item, wanted) })).filter(x => x.score > 0).sort((a, b) =>
+      b.score - a.score ||
+      sticky(b.item) - sticky(a.item) ||
+      available(b.item) - available(a.item) ||
+      String(a.item.itemName).localeCompare(String(b.item.itemName))
+    );
     return candidates[0]?.item || null;
   };
 

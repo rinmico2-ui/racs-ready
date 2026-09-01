@@ -45,6 +45,8 @@ const notificationSchema = new mongoose.Schema(
         "booking_verify_reminder",
         "service_delay",
         "project_verified",
+        "project_plan_confirmed",
+        "project_lead_participation_accepted",
         "project_team_assigned",
         "project_lead_accepted",
         "project_lead_declined",
@@ -52,6 +54,17 @@ const notificationSchema = new mongoose.Schema(
         "project_member_declined",
         "project_risk",
         "project_progress",
+        "project_status_update",
+        "project_all_units_done",
+        "project_inspection_submitted",
+        "project_quotation_approved",
+        "project_quotation_rejected",
+        "project_issue",
+        "project_payment",
+        "daily_acceptance_required",
+        "daily_acceptance_confirmed",
+        "daily_acceptance_declined",
+        "assignment_update",
         "booking_change_requested",
         "booking_change_approved",
         "booking_change_rejected",
@@ -59,6 +72,18 @@ const notificationSchema = new mongoose.Schema(
         "booking_update_acknowledgement",
         "payroll_approved",
         "payroll_paid",
+        "daily_kit_issue",
+        "booking_no_show",
+        "booking_waiting_customer",
+        "booking_no_show_report",
+        "maintenance_due_soon",
+        "maintenance_due",
+        "maintenance_overdue",
+        "maintenance_scheduled",
+        "maintenance_completed",
+        "equipment_return_reminder",
+        "equipment_return_overdue",
+        "equipment_return_resolved",
       ],
       required: true,
       index: true,
@@ -79,6 +104,12 @@ const notificationSchema = new mongoose.Schema(
         "User",
         "Project",
         "Payment",
+        "WorkOrder",
+        "ProjectIssue",
+        "CustomerAsset",
+        "MaintenanceSchedule",
+        "Payroll",
+        "EquipmentAssignment",
       ],
     },
 
@@ -108,7 +139,7 @@ notificationSchema.statics.markRead = async function (id) {
   return this.findByIdAndUpdate(
     id,
     { read: true, readAt: new Date() },
-    { new: true }
+    { returnDocument: "after" }
   );
 };
 
@@ -133,7 +164,7 @@ notificationSchema.statics.deleteAll = async function (filter = {}) {
 // Static: mark multiple as read by ids
 notificationSchema.statics.markReadMany = async function (ids, userId, role) {
   return this.updateMany(
-    { _id: { $in: ids }, read: false, $or: [{ userId }, { role }] },
+    { _id: { $in: ids }, read: false, $or: [{ userId }, { userId: null, role }] },
     { read: true, readAt: new Date() }
   );
 };
@@ -142,7 +173,7 @@ notificationSchema.statics.markReadMany = async function (ids, userId, role) {
 notificationSchema.statics.deleteManyByIds = async function (ids, userId, role) {
   return this.deleteMany({
     _id: { $in: ids },
-    $or: [{ userId }, { role }],
+    $or: [{ userId }, { userId: null, role }],
   });
 };
 

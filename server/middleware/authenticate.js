@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { isAccountEnabled } = require("./accountState");
 
-const JWT_SECRET = process.env.JWT_SECRET;
 // Sliding session: keep relatively short expiry and rotate on activity
 const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000; // 30 minutes
 const ROTATE_THRESHOLD_MS =
@@ -30,14 +30,13 @@ module.exports = {
       let payload = null;
       if (token) {
         try {
-          payload = jwt.verify(token, JWT_SECRET);
+          payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
           user = await User.findById(payload.id).select("-passwordHash");
           // if token stored sessionId check as before
           if (
             user &&
             payload.sessionId &&
-            user.currentSessionId &&
-            payload.sessionId !== user.currentSessionId
+            payload.sessionId !== String(user.currentSessionId || "")
           ) {
             user = null;
           }
@@ -66,7 +65,11 @@ module.exports = {
         }
       }
 
-      if (!user) {
+      if (!isAccountEnabled(user)) {
+        if (req.session && req.session.userId) {
+          req.session.destroy(() => {});
+        }
+        res.clearCookie("auth_token", { path: "/" });
         return res.status(401).json({ error: "Not authenticated" });
       }
 
@@ -74,8 +77,7 @@ module.exports = {
       if (payload) {
         if (
           payload.sessionId &&
-          user.currentSessionId &&
-          payload.sessionId !== user.currentSessionId
+          payload.sessionId !== String(user.currentSessionId || "")
         ) {
           res.clearCookie("auth_token", { path: "/" });
           return res.status(401).json({ error: "Not authenticated" });
@@ -93,6 +95,7 @@ module.exports = {
       }
 
       req.user = user;
+      res.set("Cache-Control", "no-store, private");
       // expose to templates
       try {
         res.locals.user = user;
@@ -111,7 +114,7 @@ module.exports = {
             : MAX_AGE_MS;                // 30 minutes (default)
           const newToken = jwt.sign(
             { id: user._id, role: user.role, sessionId: user.currentSessionId, rememberMe: isRememberMe },
-            JWT_SECRET,
+            process.env.JWT_SECRET,
             { expiresIn: Math.floor(rotationMaxAge / 1000) + "s" },
           );
           const isProd = process.env.NODE_ENV === "production";

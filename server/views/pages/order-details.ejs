@@ -1,0 +1,464 @@
+<%
+  const statusLabels = {
+    pending_payment: 'Pending Payment', preparing_unit: 'Preparing Unit', ready_for_pickup: 'Ready for Pickup',
+    technician_assigned: 'Technician Assigned', technician_accepted: 'Technician Confirmed',
+    technician_declined: 'Reassigning Technician', out_for_delivery: 'En Route', arrived: 'Arrived',
+    installing: 'Installing', completed: 'Completed', cancelled: 'Cancelled'
+  };
+  const statusIcons = {
+    pending_payment: 'bi-clock', preparing_unit: 'bi-box-seam', ready_for_pickup: 'bi-bag-check',
+    technician_assigned: 'bi-person-gear', technician_accepted: 'bi-person-check-fill',
+    technician_declined: 'bi-person-x', out_for_delivery: 'bi-truck', arrived: 'bi-geo-alt-fill',
+    installing: 'bi-tools', completed: 'bi-check-circle-fill', cancelled: 'bi-x-circle-fill'
+  };
+  const fulfillmentLabels = {
+    delivery_only: 'Legacy Delivery Only', delivery_installation: 'Delivery + Installation', customer_pickup: 'Customer Pickup'
+  };
+  const paymentMethodLabels = {
+    cod: 'GCash downpayment, balance on completion', cash_onsite: 'Cash at store pickup',
+    gcash: 'GCash', gcash_full: 'GCash full payment', gcash_downpayment: 'GCash downpayment',
+    paymongo: 'PayMongo', cash: 'Cash', downpayment: 'Downpayment', other: 'Other'
+  };
+  const paymentStatusLabels = {
+    pending: 'Pending verification', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance',
+    remitted: 'Remitted', verified: 'Verified', rejected: 'Rejected', refunded: 'Refunded', paid: 'Paid',
+    failed: 'Failed', partial: 'Partially paid'
+  };
+  const guidance = {
+    pending_payment: 'Your payment submission is awaiting verification.',
+    preparing_unit: order.fulfillmentType === 'customer_pickup'
+      ? 'Your unit is being prepared for store pickup.'
+      : 'Your unit and installation requirements are being prepared.',
+    ready_for_pickup: 'Your order is ready. Bring a valid ID when collecting it from the store.',
+    technician_assigned: 'A technician has been assigned and is reviewing the work.',
+    technician_accepted: 'Your technician confirmed the assignment and schedule.',
+    technician_declined: 'Operations is assigning another qualified technician.',
+    out_for_delivery: 'Your technician and ordered unit are on the way.',
+    arrived: 'The technician has arrived at the installation address.',
+    installing: 'Installation is currently in progress.',
+    completed: 'This order has been completed.',
+    cancelled: 'This order was cancelled and is no longer being processed.'
+  };
+  const deliveryStages = [
+    { statuses:['pending_payment'], label:'Payment' },
+    { statuses:['preparing_unit'], label:'Preparation' },
+    { statuses:['technician_assigned','technician_accepted','technician_declined'], label:'Assigned' },
+    { statuses:['out_for_delivery'], label:'En Route' },
+    { statuses:['arrived','installing'], label:'Installation' },
+    { statuses:['completed'], label:'Complete' }
+  ];
+  const pickupStages = [
+    { statuses:['pending_payment'], label:'Payment' },
+    { statuses:['preparing_unit'], label:'Preparation' },
+    { statuses:['ready_for_pickup'], label:'Ready' },
+    { statuses:['completed'], label:'Collected' }
+  ];
+  const stages = order.fulfillmentType === 'customer_pickup' ? pickupStages : deliveryStages;
+  let activeStage = stages.findIndex(stage => stage.statuses.includes(order.status));
+  if (order.status === 'completed') activeStage = stages.length - 1;
+  if (activeStage < 0) activeStage = 0;
+  const scheduleDate = order.fulfillmentType === 'customer_pickup' ? order.pickupDate : order.delivery && order.delivery.preferredDate;
+  const technicianRef = (order.technician && order.technician._id)
+    || (order.technicianId && (order.technicianId._id || order.technicianId)) || '';
+  const coordinates = order.delivery && order.delivery.coordinates && Array.isArray(order.delivery.coordinates.coordinates)
+    ? order.delivery.coordinates.coordinates : [];
+  const hasCoordinates = coordinates.length === 2 && Number.isFinite(Number(coordinates[0])) && Number.isFinite(Number(coordinates[1]));
+  const trackable = ['technician_assigned','technician_accepted','out_for_delivery','arrived','installing'].includes(order.status);
+  const maintenanceSchedules = (order.maintenanceAssets || []).map(asset => asset.maintenanceSchedule).filter(Boolean);
+  const nextMaintenance = maintenanceSchedules.slice().sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+  const peso = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+%>
+
+<style>
+  :root { --od-ink:#0f172a; --od-muted:#64748b; --od-line:#e2e8f0; --od-blue:#2563eb; }
+  .order-detail-page { min-height:100vh; background:#f4f7fb; color:var(--od-ink); }
+  .od-hero { position:relative; overflow:hidden; padding:2.4rem 0 5.3rem; color:#fff; background:linear-gradient(135deg,#0f172a 0%,#183b73 55%,#1d4ed8 100%); }
+  .od-hero::after { content:''; position:absolute; width:520px; height:520px; top:-310px; right:-90px; border-radius:50%; background:rgba(96,165,250,.18); }
+  .od-hero .container { position:relative; z-index:1; }
+  .od-back { display:inline-flex; align-items:center; gap:.45rem; margin-bottom:1.35rem; color:#dbeafe; text-decoration:none; font-size:.8rem; font-weight:700; }
+  .od-back:hover { color:#fff; }
+  .od-eyebrow { margin-bottom:.4rem; color:#93c5fd; font-size:.7rem; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
+  .od-title { margin:0; font-size:clamp(1.65rem,4vw,2.45rem); font-weight:850; letter-spacing:-.04em; }
+  .od-hero-meta { display:flex; flex-wrap:wrap; gap:.55rem; margin-top:1rem; }
+  .od-pill { display:inline-flex; align-items:center; gap:.4rem; min-height:31px; padding:.35rem .7rem; border:1px solid rgba(255,255,255,.17); border-radius:999px; background:rgba(255,255,255,.1); color:#eff6ff; font-size:.72rem; font-weight:700; }
+  .od-workspace { position:relative; z-index:2; margin-top:-3.1rem; padding-bottom:4rem; }
+  .od-grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(280px,.85fr); gap:1.15rem; align-items:start; }
+  .od-stack { display:grid; gap:1.15rem; }
+  .od-card { overflow:hidden; border:1px solid var(--od-line); border-radius:16px; background:#fff; box-shadow:0 8px 28px rgba(15,23,42,.06); }
+  .od-card-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.15rem; border-bottom:1px solid var(--od-line); }
+  .od-card-head h2 { display:flex; align-items:center; gap:.55rem; margin:0; font-size:.92rem; font-weight:800; }
+  .od-card-head h2 i { color:var(--od-blue); }
+  .od-card-body { padding:1.15rem; }
+  .od-status { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .68rem; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:.7rem; font-weight:800; }
+  .od-status.completed { background:#ecfdf5; color:#047857; }
+  .od-status.cancelled { background:#fef2f2; color:#b91c1c; }
+  .od-status.pending_payment, .od-status.technician_declined { background:#fff7ed; color:#c2410c; }
+  .od-guidance { display:flex; align-items:flex-start; gap:.8rem; padding:1rem; border:1px solid #bfdbfe; border-radius:12px; background:#eff6ff; }
+  .od-guidance > i { display:flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 34px; border-radius:9px; background:#dbeafe; color:#1d4ed8; }
+  .od-guidance strong { display:block; margin-bottom:.15rem; font-size:.78rem; color:#1e3a8a; }
+  .od-guidance span { display:block; color:#475569; font-size:.78rem; line-height:1.5; }
+  .od-steps { display:grid; grid-template-columns:repeat(<%= stages.length %>,1fr); gap:0; margin-top:1.2rem; }
+  .od-step { position:relative; min-width:0; text-align:center; color:#94a3b8; }
+  .od-step:not(:last-child)::after { content:''; position:absolute; top:14px; left:calc(50% + 15px); width:calc(100% - 30px); height:2px; background:#e2e8f0; }
+  .od-step.done:not(:last-child)::after { background:#2563eb; }
+  .od-step-dot { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; width:29px; height:29px; margin:0 auto .45rem; border:2px solid #cbd5e1; border-radius:50%; background:#fff; font-size:.65rem; font-weight:800; }
+  .od-step.done .od-step-dot, .od-step.current .od-step-dot { border-color:#2563eb; background:#2563eb; color:#fff; }
+  .od-step.current .od-step-dot { box-shadow:0 0 0 5px #dbeafe; }
+  .od-step-label { overflow:hidden; text-overflow:ellipsis; font-size:.65rem; font-weight:750; white-space:nowrap; }
+  .od-step.done .od-step-label, .od-step.current .od-step-label { color:#1e40af; }
+  .od-product { display:grid; grid-template-columns:68px minmax(0,1fr) auto; gap:.85rem; align-items:center; padding:.85rem 0; }
+  .od-product + .od-product { border-top:1px solid #edf2f7; }
+  .od-product img { width:68px; height:68px; padding:.35rem; object-fit:contain; border:1px solid #e5eaf1; border-radius:11px; background:#f8fafc; }
+  .od-product-name { margin-bottom:.25rem; font-size:.84rem; font-weight:800; }
+  .od-product-meta { color:var(--od-muted); font-size:.7rem; }
+  .od-product-price { color:#1d4ed8; font-size:.82rem; font-weight:800; white-space:nowrap; }
+  .od-facts { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+  .od-fact { padding:.8rem; border:1px solid #e8edf4; border-radius:11px; background:#fafcff; }
+  .od-fact.wide { grid-column:1/-1; }
+  .od-label { display:block; margin-bottom:.3rem; color:#94a3b8; font-size:.61rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+  .od-value { color:#334155; font-size:.77rem; font-weight:650; line-height:1.5; word-break:break-word; }
+  .od-cost-line { display:flex; justify-content:space-between; gap:1rem; padding:.55rem 0; color:#64748b; font-size:.75rem; }
+  .od-cost-line + .od-cost-line { border-top:1px solid #edf2f7; }
+  .od-cost-line strong { color:#334155; }
+  .od-cost-line.total { margin-top:.3rem; padding-top:.85rem; color:#0f172a; font-size:.88rem; font-weight:800; }
+  .od-cost-line.total strong { color:#1d4ed8; font-size:1rem; }
+  .od-timeline { position:relative; margin-left:.45rem; padding-left:1.35rem; }
+  .od-timeline::before { content:''; position:absolute; top:.35rem; bottom:.4rem; left:.32rem; width:2px; background:#dbeafe; }
+  .od-event { position:relative; padding:0 0 1rem; }
+  .od-event:last-child { padding-bottom:0; }
+  .od-event::before { content:''; position:absolute; top:.25rem; left:-1.32rem; width:11px; height:11px; border:2px solid #fff; border-radius:50%; background:#60a5fa; box-shadow:0 0 0 2px #bfdbfe; }
+  .od-event:first-child::before { background:#2563eb; box-shadow:0 0 0 3px #dbeafe; }
+  .od-event-title { font-size:.77rem; font-weight:800; color:#334155; }
+  .od-event-time { margin-top:.15rem; color:#94a3b8; font-size:.65rem; }
+  .od-event-note { margin-top:.25rem; color:#64748b; font-size:.72rem; line-height:1.45; }
+  .od-map { width:100%; height:330px; border-radius:12px; background:#e2e8f0; }
+  .od-map-bar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-top:.7rem; padding:.65rem; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; }
+  .od-map-action { border:1px solid #dbe3ee; border-radius:8px; background:#fff; padding:.4rem .6rem; color:#334155; font-size:.68rem; font-weight:750; }
+  .od-eta { color:#1d4ed8; font-size:.73rem; font-weight:800; text-align:center; }
+  .od-notice { padding:.85rem; border-radius:11px; font-size:.74rem; line-height:1.5; }
+  .od-notice.refund { background:#fff7ed; color:#9a3412; }
+  .od-notice.maintenance { background:#ecfeff; color:#155e75; }
+  .od-notice.warranty { background:#eff6ff; color:#1e3a8a; border:1px solid #bfdbfe; }
+  .od-primary-action { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:42px; border-radius:10px; background:#2563eb; color:#fff; text-decoration:none; font-size:.78rem; font-weight:800; }
+  .od-primary-action:hover { background:#1d4ed8; color:#fff; }
+  .od-secondary-action { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:40px; margin-top:.55rem; border:1px solid #dbe3ee; border-radius:10px; background:#fff; color:#475569; text-decoration:none; font-size:.75rem; font-weight:750; }
+  .od-secondary-action:hover { background:#f8fafc; color:#1d4ed8; }
+  .od-empty-track { padding:2rem 1rem; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc; text-align:center; color:#64748b; }
+  .custom-customer-icon, .custom-tech-icon { border:0; background:transparent; }
+  .custom-customer-icon i, .custom-tech-icon i { font-size:30px; filter:drop-shadow(0 3px 4px rgba(15,23,42,.25)); }
+  .custom-customer-icon i { color:#dc2626; } .custom-tech-icon i { color:#2563eb; }
+  @media (max-width:991.98px) { .od-grid { grid-template-columns:1fr; } }
+  @media (max-width:575.98px) {
+    .od-hero { padding-top:1.8rem; }
+    .od-card-body, .od-card-head { padding:.9rem; }
+    .od-facts { grid-template-columns:1fr; }
+    .od-fact.wide { grid-column:auto; }
+    .od-product { grid-template-columns:56px minmax(0,1fr); }
+    .od-product img { width:56px; height:56px; }
+    .od-product-price { grid-column:2; }
+    .od-step-label { font-size:.58rem; }
+    .od-map { height:280px; }
+  }
+</style>
+
+<main class="order-detail-page">
+  <header class="od-hero">
+    <div class="container" style="max-width:1180px;">
+      <a class="od-back" href="/my-orders"><i class="bi bi-arrow-left"></i> Back to My Orders</a>
+      <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+        <div>
+          <div class="od-eyebrow">Customer order record</div>
+          <h1 class="od-title"><%= order.orderReference || order._id %></h1>
+          <div class="od-hero-meta">
+            <span class="od-pill"><i class="bi bi-calendar3"></i> Placed <%= new Date(order.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) %></span>
+            <span class="od-pill"><i class="bi <%= order.fulfillmentType === 'customer_pickup' ? 'bi-shop' : 'bi-truck' %>"></i> <%= fulfillmentLabels[order.fulfillmentType] || order.fulfillmentType %></span>
+          </div>
+        </div>
+        <span class="od-status <%= order.status %>" style="background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.2);">
+          <i class="bi <%= statusIcons[order.status] || 'bi-circle' %>"></i><%= statusLabels[order.status] || order.status %>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <div class="od-workspace">
+    <div class="container" style="max-width:1180px;">
+      <div class="od-grid">
+        <div class="od-stack">
+          <section class="od-card">
+            <div class="od-card-head">
+              <h2><i class="bi bi-diagram-3"></i> Order progress</h2>
+              <span class="od-status <%= order.status %>"><%= statusLabels[order.status] || order.status %></span>
+            </div>
+            <div class="od-card-body">
+              <div class="od-guidance">
+                <i class="bi <%= statusIcons[order.status] || 'bi-info-circle' %>"></i>
+                <div><strong><%= ['completed','cancelled'].includes(order.status) ? 'Latest update' : 'What happens next' %></strong><span><%= guidance[order.status] || 'We will update this page as your order progresses.' %></span></div>
+              </div>
+              <% if (order.status !== 'cancelled') { %>
+                <div class="od-steps" aria-label="Order lifecycle">
+                  <% stages.forEach((stage, index) => { const stateClass = index < activeStage ? 'done' : (index === activeStage ? 'current' : ''); %>
+                    <div class="od-step <%= stateClass %>">
+                      <div class="od-step-dot"><%= index < activeStage ? '✓' : index + 1 %></div>
+                      <div class="od-step-label"><%= stage.label %></div>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-box-seam"></i> Ordered products</h2><span class="small text-muted"><%= (order.items || []).length %> line item<%= (order.items || []).length === 1 ? '' : 's' %></span></div>
+            <div class="od-card-body">
+              <% (order.items || []).forEach(item => { %>
+                <article class="od-product">
+                  <img src="<%= item.imageUrl || '/images/products/default.png' %>" alt="<%= [item.brand,item.modelLine].filter(Boolean).join(' ') || 'Air conditioner' %>">
+                  <div><div class="od-product-name"><%= item.brand ? item.brand + ' ' : '' %><%= item.modelLine || 'Aircon Unit' %></div><div class="od-product-meta"><%= item.capacity || '' %> <%= item.capacity ? (item.capacityUnit || 'HP') : '' %> · Quantity <%= item.quantity || 1 %> · &#8369;<%= peso(item.unitPrice) %> each</div></div>
+                  <div class="od-product-price">&#8369;<%= peso(item.totalPrice || Number(item.unitPrice || 0) * Number(item.quantity || 1)) %></div>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-clock-history"></i> Order timeline</h2></div>
+            <div class="od-card-body">
+              <% if (order.statusHistory && order.statusHistory.length) { %>
+                <div class="od-timeline">
+                  <% order.statusHistory.slice().reverse().forEach(event => { %>
+                    <div class="od-event">
+                      <div class="od-event-title"><%= statusLabels[event.status] || event.status %></div>
+                      <div class="od-event-time"><%= new Date(event.timestamp).toLocaleString('en-PH', { dateStyle:'medium', timeStyle:'short' }) %></div>
+                      <% if (event.note) { %><div class="od-event-note"><%= event.note %></div><% } %>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } else { %>
+                <div class="od-empty-track"><i class="bi bi-clock-history fs-3 d-block mb-2"></i>No timeline updates are available yet.</div>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-geo-alt"></i> Live tracking</h2><span class="small text-muted">Updates while the job is active</span></div>
+            <div class="od-card-body">
+              <% if (hasCoordinates && trackable && technicianRef) { %>
+                <div id="orderDetailMap" class="od-map" data-lat="<%= Number(coordinates[1]) %>" data-lng="<%= Number(coordinates[0]) %>" data-tech-id="<%= technicianRef %>"></div>
+                <div class="od-map-bar">
+                  <button class="od-map-action" id="focusCustomer" type="button"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Destination</button>
+                  <span class="od-eta" id="orderEta"><span class="spinner-border spinner-border-sm me-1"></span>Calculating route</span>
+                  <button class="od-map-action" id="focusTechnician" type="button" disabled><i class="bi bi-person-badge-fill text-primary me-1"></i>Technician</button>
+                </div>
+              <% } else { %>
+                <div class="od-empty-track">
+                  <i class="bi <%= order.status === 'completed' ? 'bi-check-circle' : (order.status === 'cancelled' ? 'bi-x-circle' : 'bi-truck') %> fs-3 d-block mb-2"></i>
+                  <strong><%= order.status === 'completed' ? 'Order completed' : (order.status === 'cancelled' ? 'Tracking closed' : 'Tracking will appear here') %></strong>
+                  <div class="small mt-1"><%= order.status === 'completed' ? 'Live location is no longer required.' : (order.status === 'cancelled' ? 'This order is no longer active.' : 'Location becomes available after technician dispatch.') %></div>
+                </div>
+              <% } %>
+            </div>
+          </section>
+        </div>
+
+        <aside class="od-stack">
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-receipt"></i> Payment summary</h2></div>
+            <div class="od-card-body">
+              <div class="od-cost-line"><span>Products subtotal</span><strong>&#8369;<%= peso(order.subtotal) %></strong></div>
+              <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation fee</span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
+              <% if (Number(order.deliveryFee || 0) > 0) { %><div class="od-cost-line"><span>Delivery fee</span><strong>&#8369;<%= peso(order.deliveryFee) %></strong></div><% } %>
+              <% if (Number(order.transportationFee || 0) > 0) { %><div class="od-cost-line"><span>Transportation</span><strong>&#8369;<%= peso(order.transportationFee) %></strong></div><% } %>
+              <div class="od-cost-line total"><span>Order total</span><strong>&#8369;<%= peso(order.total) %></strong></div>
+              <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="od-cost-line"><span>Required downpayment</span><strong>&#8369;<%= peso(order.downpaymentAmount) %></strong></div><% } %>
+              <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(order.balanceAmount) %></strong></div>
+              <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= paymentMethodLabels[order.paymentMethod] || order.paymentMethod || 'Not specified' %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
+              <% if (order.refundStatus && order.refundStatus !== 'none') { %><div class="od-notice refund mt-3"><strong>Refund <%= order.refundStatus %></strong><br>&#8369;<%= peso(order.refundAmount) %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></div><% } %>
+            </div>
+          </section>
+
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-card-list"></i> Order information</h2></div>
+            <div class="od-card-body">
+              <div class="od-facts">
+                <div class="od-fact"><span class="od-label">Customer</span><div class="od-value"><%= order.customer && order.customer.name || 'Not provided' %></div></div>
+                <div class="od-fact"><span class="od-label">Contact</span><div class="od-value"><%= order.customer && order.customer.phone || order.delivery && order.delivery.contactNumber || 'Not provided' %></div></div>
+                <div class="od-fact"><span class="od-label">Fulfillment</span><div class="od-value"><%= fulfillmentLabels[order.fulfillmentType] || order.fulfillmentType %></div></div>
+                <div class="od-fact"><span class="od-label">Schedule</span><div class="od-value"><%= scheduleDate ? new Date(scheduleDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) : 'To be confirmed' %><%= order.timeSlot ? ' · ' + order.timeSlot : '' %></div></div>
+                <div class="od-fact wide"><span class="od-label"><%= order.fulfillmentType === 'customer_pickup' ? 'Pickup location' : 'Installation address' %></span><div class="od-value"><%= order.fulfillmentType === 'customer_pickup' ? (order.pickupLocation || 'CALIDRO RACS Store') : (order.delivery && order.delivery.address || 'Not provided') %></div></div>
+                <% if (order.delivery && order.delivery.notes) { %><div class="od-fact wide"><span class="od-label">Customer notes</span><div class="od-value"><%= order.delivery.notes %></div></div><% } %>
+                <% if (order.cancellationReason) { %><div class="od-fact wide"><span class="od-label">Cancellation reason</span><div class="od-value"><%= order.cancellationReason %></div></div><% } %>
+              </div>
+            </div>
+          </section>
+
+          <section class="od-card">
+            <div class="od-card-head"><h2><i class="bi bi-person-badge"></i> Assigned technician</h2></div>
+            <div class="od-card-body">
+              <% if (order.technician && order.technician.name) { %>
+                <div class="od-facts"><div class="od-fact wide"><span class="od-label">Technician</span><div class="od-value"><strong><%= order.technician.name %></strong><% if (order.technician.phone) { %><br><%= order.technician.phone %><% } %><% if (order.technician.email) { %><br><%= order.technician.email %><% } %></div></div></div>
+              <% } else { %><div class="text-center py-2 text-muted small"><i class="bi bi-person-plus fs-3 d-block mb-2"></i>Technician assignment is pending.</div><% } %>
+            </div>
+          </section>
+
+          <% if (order.status === 'completed' && (order.maintenanceAssets || []).length) { %>
+            <section class="od-card">
+              <div class="od-card-head"><h2><i class="bi bi-calendar2-check"></i> Maintenance</h2></div>
+              <div class="od-card-body"><div class="od-notice maintenance"><strong><%= (order.maintenanceAssets || []).length %> registered unit<%= (order.maintenanceAssets || []).length === 1 ? '' : 's' %></strong><br><%= nextMaintenance ? 'Next maintenance is due ' + new Date(nextMaintenance.dueDate).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) + '.' : 'Maintenance scheduling is available for these units.' %></div><a class="od-secondary-action" href="/maintenance"><i class="bi bi-calendar2-check"></i> View Maintenance</a></div>
+            </section>
+          <% } %>
+
+          <% if (order.status === 'completed') { %>
+            <section class="od-card" id="orderWarrantyCard">
+              <div class="od-card-head"><h2><i class="bi bi-shield-check"></i> Warranty and defects</h2></div>
+              <div class="od-card-body" id="orderWarrantyBody"><div class="text-center text-muted py-2 small"><span class="spinner-border spinner-border-sm me-2"></span>Checking coverage...</div></div>
+            </section>
+          <% } %>
+
+          <section class="od-card"><div class="od-card-body"><a class="od-primary-action" href="/my-orders"><i class="bi bi-list-ul"></i> Return to My Orders</a><a class="od-secondary-action" href="/products"><i class="bi bi-snow"></i> Browse Air Conditioners</a></div></section>
+        </aside>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="modal fade" id="orderWarrantyClaimModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><form class="modal-content border-0 shadow-lg" id="orderWarrantyClaimForm">
+    <div class="modal-header bg-dark text-white"><div><h5 class="modal-title fw-bold">Report a warranty issue</h5><div class="small text-white-50">A complete report helps us inspect and resolve the correct unit faster.</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body bg-light"><div class="alert alert-info small"><strong>Safety first:</strong> Stop using the unit if there is smoke, burning smell, exposed wiring, refrigerant leak, or another immediate hazard.</div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label small fw-bold">Warranty coverage</label><select class="form-select" name="coverageId" id="orderClaimCoverage" required></select></div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Affected product</label><select class="form-select" name="itemKey" id="orderClaimItem" required></select></div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Issue type</label><select class="form-select" name="claimType" id="orderClaimType" required></select></div>
+        <div class="col-md-6"><label class="form-label small fw-bold">When did you notice it?</label><input class="form-control" type="date" name="discoveredAt" id="orderClaimDiscovered" required></div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Serial number <span class="text-muted">(if available)</span></label><input class="form-control" name="serialNumber" maxlength="120" placeholder="Serial on the unit or warranty card"></div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Preferred remedy</label><select class="form-select" name="requestedRemedy"><option value="inspection">Inspection first</option><option value="repair">Repair</option><option value="replacement">Replacement</option><option value="refund">Refund review</option><option value="manufacturer_referral">Manufacturer assistance</option></select></div>
+        <div class="col-12"><label class="form-label small fw-bold">What is wrong?</label><textarea class="form-control" name="description" minlength="10" maxlength="3000" rows="4" required placeholder="Describe the symptom, when it happens, and troubleshooting already attempted."></textarea></div>
+        <div class="col-12"><label class="form-label small fw-bold">Evidence images <span class="text-muted">(up to 5, 5 MB each)</span></label><input class="form-control" type="file" name="evidence" accept="image/jpeg,image/png,image/webp" multiple></div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="safetyRisk" value="true" id="orderClaimSafety"><label class="form-check-label small" for="orderClaimSafety">This may be a safety risk or the unit is unsafe to operate.</label></div></div>
+      </div><div class="alert alert-danger d-none mt-3 mb-0" id="orderWarrantyError"></div>
+    </div>
+    <div class="modal-footer bg-white"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="orderClaimSubmit"><i class="bi bi-send me-1"></i>Submit claim</button></div>
+  </form></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const orderId = <%- JSON.stringify(String(order._id)) %>;
+    const claimTypeLabels = { product_defect:'Product defect', installation_workmanship:'Installation workmanship', replacement_part:'Replacement part', safety_defect:'Safety defect', repair_workmanship:'Repair workmanship', diagnostic_accuracy:'Diagnostic accuracy' };
+    let warrantyEligibility = null;
+    async function loadOrderWarranty() {
+      const body = document.getElementById('orderWarrantyBody');
+      if (!body) return;
+      try {
+        const response = await fetch(`/api/warranty-claims/eligibility/order/${encodeURIComponent(orderId)}`, { headers:{Accept:'application/json'} });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Coverage could not be loaded.');
+        warrantyEligibility = data;
+        if (!data.eligible && !data.activeClaims?.length) {
+          body.innerHTML = '<div class="text-muted small">No active CALIDRO workmanship or seller warranty is recorded for this order. Manufacturer warranty terms on the product receipt may still apply.</div>';
+          return;
+        }
+        const active = (data.coverages || []).map(c => `<div class="od-fact wide mb-2"><span class="od-label">${escapeOrderText(c.serviceName || c.coverageType || 'Coverage')}</span><div class="od-value"><strong>${escapeOrderText(c.days)} days</strong> · through ${new Date(c.endDate).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'})}<br><span class="text-muted">${escapeOrderText((c.coveredItems || []).join(' · ') || 'Recorded warranty terms apply.')}</span></div></div>`).join('');
+        const claims = (data.activeClaims || []).map(c => `<div class="od-notice warranty mb-2"><strong>${escapeOrderText(c.claimReference)}</strong><br>Status: ${escapeOrderText(String(c.status).replace(/_/g,' '))}${c.status==='resolved'?`<button class="btn btn-sm btn-success d-block mt-2" type="button" onclick="confirmOrderWarrantyResolution('${escapeOrderText(c._id)}')">Confirm resolution</button>`:''}</div>`).join('');
+        body.innerHTML = `${active}${claims}${data.eligible ? '<button class="od-primary-action border-0 w-100 mt-2" type="button" id="openOrderClaim"><i class="bi bi-shield-exclamation"></i> Report a Defect</button>' : ''}<div class="small text-muted mt-2">CALIDRO workmanship/seller coverage is separate from the manufacturer warranty stated for each product.</div>`;
+        document.getElementById('openOrderClaim')?.addEventListener('click', openOrderClaim);
+      } catch (error) { body.innerHTML = `<div class="od-notice refund">${escapeOrderText(error.message)}</div>`; }
+    }
+    function escapeOrderText(value) { const node=document.createElement('span'); node.textContent=String(value ?? ''); return node.innerHTML; }
+    function openOrderClaim() {
+      const coverages = warrantyEligibility?.coverages || [];
+      const coverageSelect = document.getElementById('orderClaimCoverage');
+      coverageSelect.innerHTML = coverages.map(c => `<option value="${escapeOrderText(c.coverageId)}">${escapeOrderText(c.serviceName || c.coverageType || 'Coverage')} · until ${new Date(c.endDate).toLocaleDateString('en-PH')}</option>`).join('');
+      document.getElementById('orderClaimDiscovered').value = new Date().toISOString().slice(0,10);
+      updateOrderClaimTypes();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('orderWarrantyClaimModal')).show();
+    }
+    function updateOrderClaimTypes() {
+      const coverage = (warrantyEligibility?.coverages || []).find(c => c.coverageId === document.getElementById('orderClaimCoverage').value);
+      document.getElementById('orderClaimType').innerHTML = (coverage?.allowedClaimTypes || []).map(type => `<option value="${escapeOrderText(type)}">${escapeOrderText(claimTypeLabels[type] || type)}</option>`).join('');
+      const coverageItemKey = String(coverage?.itemKey || coverage?.serviceId || '');
+      const items = (warrantyEligibility.items || []).filter(item => !coverageItemKey || String(item.itemKey) === coverageItemKey);
+      document.getElementById('orderClaimItem').innerHTML = items.map(item => `<option value="${escapeOrderText(item.itemKey)}">${escapeOrderText(item.name)}</option>`).join('');
+    }
+    document.getElementById('orderClaimCoverage')?.addEventListener('change', updateOrderClaimTypes);
+    window.confirmOrderWarrantyResolution = async function(claimId) {
+      if (!confirm('Confirm that the warranty remedy has been completed to your satisfaction?')) return;
+      try { const response=await fetch(`/api/warranty-claims/${encodeURIComponent(claimId)}/confirm-resolution`,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:'{}'}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'Could not confirm resolution.'); await loadOrderWarranty(); alert('Resolution confirmed. The claim is now closed.'); }
+      catch(error){ alert(error.message); }
+    };
+    document.getElementById('orderWarrantyClaimForm')?.addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const button = document.getElementById('orderClaimSubmit'); const errorBox = document.getElementById('orderWarrantyError');
+      button.disabled=true; errorBox.classList.add('d-none');
+      try {
+        const formData = new FormData(event.currentTarget); formData.set('sourceType','order'); formData.set('sourceId',orderId); formData.set('safetyRisk',document.getElementById('orderClaimSafety').checked?'true':'false');
+        const response = await fetch('/api/warranty-claims',{method:'POST',body:formData,headers:{Accept:'application/json'}}); const data=await response.json();
+        if(!response.ok) throw new Error(data.error || 'Claim could not be submitted.');
+        bootstrap.Modal.getInstance(document.getElementById('orderWarrantyClaimModal'))?.hide(); event.currentTarget.reset(); await loadOrderWarranty();
+        alert(`Warranty claim ${data.claim.claimReference} was submitted.`);
+      } catch(error) { errorBox.textContent=error.message; errorBox.classList.remove('d-none'); }
+      finally { button.disabled=false; }
+    });
+    loadOrderWarranty();
+    if (typeof window.io === 'function') {
+      const socket = window.io({ path:'/socket.io' });
+      let refreshTimer = null;
+      socket.on('order:status-change', function (update) {
+        if (String(update && update.orderId || '') !== orderId) return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(function () { window.location.reload(); }, 600);
+      });
+    }
+
+    const mapElement = document.getElementById('orderDetailMap');
+    if (!mapElement || typeof window.L === 'undefined') return;
+    const customerLat = Number(mapElement.dataset.lat);
+    const customerLng = Number(mapElement.dataset.lng);
+    const technicianId = mapElement.dataset.techId;
+    if (!Number.isFinite(customerLat) || !Number.isFinite(customerLng) || !technicianId) return;
+
+    const map = L.map(mapElement).setView([customerLat, customerLng], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+    const customerIcon = L.divIcon({ html:'<i class="bi bi-geo-alt-fill"></i>', className:'custom-customer-icon', iconSize:[30,30], iconAnchor:[15,30] });
+    const technicianIcon = L.divIcon({ html:'<i class="bi bi-person-badge-fill"></i>', className:'custom-tech-icon', iconSize:[30,30], iconAnchor:[15,30] });
+    L.marker([customerLat, customerLng], { icon:customerIcon }).addTo(map).bindTooltip('Installation address');
+    document.getElementById('focusCustomer')?.addEventListener('click', function () { map.flyTo([customerLat, customerLng], 16); });
+
+    let technicianMarker = null;
+    let routeLayer = null;
+    let technicianPosition = null;
+    const technicianButton = document.getElementById('focusTechnician');
+    technicianButton?.addEventListener('click', function () { if (technicianPosition) map.flyTo(technicianPosition, 16); });
+
+    async function refreshLocation() {
+      try {
+        const response = await fetch('/api/services/technician-location?id=' + encodeURIComponent(technicianId), { cache:'no-store' });
+        if (!response.ok) throw new Error('Location unavailable');
+        const location = await response.json();
+        const lat = Number(location.lat), lng = Number(location.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Location unavailable');
+        technicianPosition = [lat, lng];
+        technicianButton.disabled = false;
+        if (technicianMarker) technicianMarker.setLatLng(technicianPosition);
+        else technicianMarker = L.marker(technicianPosition, { icon:technicianIcon }).addTo(map).bindTooltip('Technician');
+
+        const routeResponse = await fetch('/api/services/osrm-route?coords=' + encodeURIComponent(lng + ',' + lat + ';' + customerLng + ',' + customerLat), { cache:'no-store' });
+        const routeData = await routeResponse.json();
+        const route = routeData && routeData.routes && routeData.routes[0];
+        if (route && route.geometry) {
+          if (routeLayer) map.removeLayer(routeLayer);
+          routeLayer = L.geoJSON(route.geometry, { style:{ color:'#2563eb', weight:4, opacity:.82 } }).addTo(map);
+          const minutes = Math.max(1, Math.round(Number(route.duration || 0) / 60));
+          const distance = Math.max(0, Number(route.distance || 0) / 1000).toFixed(1);
+          document.getElementById('orderEta').textContent = minutes + ' min · ' + distance + ' km';
+        }
+      } catch (_) {
+        document.getElementById('orderEta').textContent = 'Waiting for technician location';
+      }
+    }
+    refreshLocation();
+    window.setInterval(refreshLocation, 30000);
+  });
+</script>

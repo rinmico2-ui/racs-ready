@@ -32,15 +32,23 @@ exports.rateInventory = async (req, res, next) => {
     const item = await Inventory.findById(id);
     if (!item) return res.status(404).json({ error: "not found" });
 
+    const Order = require("../models/Order");
+    const purchased = await Order.exists({
+      userId: req.user._id,
+      status: "completed",
+      "items.inventoryId": item._id,
+    });
+    if (!purchased) {
+      return res.status(403).json({ error: "Only verified purchasers can rate this item" });
+    }
+
     // record individual rating for history
     const Rating = require("../models/Rating");
-    await Rating.create({
-      customerId: req.user && req.user._id,
-      targetType: "inventory",
-      targetId: id,
-      score,
-      comment,
-    });
+    await Rating.findOneAndUpdate(
+      { customerId: req.user._id, targetType: "inventory", targetId: id },
+      { $set: { score, comment: comment ? String(comment).slice(0, 1000) : null } },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    );
 
     return res.json({ success: true, score });
   } catch (err) {
@@ -49,39 +57,9 @@ exports.rateInventory = async (req, res, next) => {
 };
 
 exports.rateTechnician = async (req, res, next) => {
-  try {
-    const id = req.params.id;
-    const score = Number(req.body.score);
-    if (!mongoose.Types.ObjectId.isValid(id))
-      return res.status(400).json({ error: "invalid technician id" });
-    if (!Number.isFinite(score) || score < 1 || score > 5)
-      return res.status(400).json({ error: "score must be between 1 and 5" });
-
-    const Technician = require("../models/Technician");
-    const tech = await Technician.findById(id);
-    if (!tech) return res.status(404).json({ error: "not found" });
-
-    const oldCount = tech.ratingCount || 0;
-    const oldTotal = (tech.rating || 0) * oldCount;
-    const newCount = oldCount + 1;
-    const newAvg = (oldTotal + score) / newCount;
-    tech.rating = newAvg;
-    tech.ratingCount = newCount;
-    await tech.save();
-
-    const Rating = require("../models/Rating");
-    await Rating.create({
-      customerId: req.user && req.user._id,
-      targetType: "technician",
-      targetId: id,
-      score,
-      comment: null,
-    });
-
-    return res.json({ rating: tech.rating, ratingCount: tech.ratingCount });
-  } catch (err) {
-    next(err);
-  }
+  return res.status(410).json({
+    error: "Rate the completed booking or order associated with this technician",
+  });
 };
 
 // rate a specific booking and optionally update technician average
@@ -98,32 +76,28 @@ exports.rateBooking = async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "not found" });
+    if (String(booking.customerId || "") !== String(req.user._id)) {
+      return res.status(403).json({ error: "You can only rate your own booking" });
+    }
+    if (!["completed", "repair_completed", "closed"].includes(booking.status)) {
+      return res.status(409).json({ error: "Only completed bookings can be rated" });
+    }
     const isUpdate = !!booking.customerRating;
 
     // Use findByIdAndUpdate to avoid triggering heavy pre-save hooks
     await BookingService.findByIdAndUpdate(id, {
-      $set: { customerRating: score, customerRatingComment: comment },
+      $set: { customerRating: score, customerRatingComment: comment ? String(comment).slice(0, 1000) : null },
     });
 
     if (booking.technicianId) {
       await recalcTechnicianRating(booking.technicianId);
     }
     const Rating = require("../models/Rating");
-    if (isUpdate) {
-      await Rating.findOneAndUpdate(
-        { customerId: req.user && req.user._id, targetType: "booking", targetId: id },
-        { score, comment },
-        { new: true }
-      );
-    } else {
-      await Rating.create({
-        customerId: req.user && req.user._id,
-        targetType: "booking",
-        targetId: id,
-        score,
-        comment,
-      });
-    }
+    await Rating.findOneAndUpdate(
+      { customerId: req.user._id, targetType: "booking", targetId: id },
+      { $set: { score, comment: comment ? String(comment).slice(0, 1000) : null } },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    );
     return res.json({ success: true, score, updated: isUpdate });
   } catch (err) {
     next(err);
@@ -145,9 +119,15 @@ exports.rateOrder = async (req, res, next) => {
     const Order = require("../models/Order");
     const order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "not found" });
+    if (String(order.userId || "") !== String(req.user._id)) {
+      return res.status(403).json({ error: "You can only rate your own order" });
+    }
+    if (order.status !== "completed") {
+      return res.status(409).json({ error: "Only completed orders can be rated" });
+    }
 
     order.customerRating = score;
-    order.customerRatingComment = comment;
+    order.customerRatingComment = comment ? String(comment).slice(0, 1000) : null;
     await order.save();
 
     if (order.technicianId) {
@@ -155,13 +135,11 @@ exports.rateOrder = async (req, res, next) => {
     }
     
     const Rating = require("../models/Rating");
-    await Rating.create({
-      customerId: req.user && req.user._id,
-      targetType: "order",
-      targetId: id,
-      score,
-      comment,
-    });
+    await Rating.findOneAndUpdate(
+      { customerId: req.user._id, targetType: "order", targetId: id },
+      { $set: { score, comment: comment ? String(comment).slice(0, 1000) : null } },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    );
     
     return res.json({ order });
   } catch (err) {

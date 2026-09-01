@@ -16,6 +16,8 @@ npm-debug.log*
 # Logs
 logs
 *.log
+cookies*.txt
+server-logs.txt
 pids
 tmp_*.err
 tmp_*.js

@@ -29,5 +29,6 @@ const ratingSchema = new mongoose.Schema({
 
 // Performance indexes
 ratingSchema.index({ targetType: 1, targetId: 1 });
+ratingSchema.index({ targetType: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Rating", ratingSchema);

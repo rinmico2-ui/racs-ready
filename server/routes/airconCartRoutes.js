@@ -66,7 +66,7 @@ router.get("/", async (req, res) => {
 
     res.json({ cart });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to load cart" });
   }
 });
 
@@ -127,7 +127,7 @@ router.post("/add", async (req, res) => {
     await cart.save();
     res.json({ message: "Item added to cart", cart });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to update cart" });
   }
 });
 
@@ -145,7 +145,7 @@ router.delete("/:itemId", async (req, res) => {
 
     res.json({ message: "Item removed from cart", cart });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to remove cart item" });
   }
 });
 
@@ -161,7 +161,7 @@ router.post("/clear", async (req, res) => {
     );
     res.json({ message: "Cart cleared" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to clear cart" });
   }
 });
 
@@ -205,7 +205,7 @@ router.post("/buy-now", async (req, res) => {
 
     res.json({ message: "Order ready for checkout", redirect: "/aircon-cart?checkout=now" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to prepare checkout" });
   }
 });
 

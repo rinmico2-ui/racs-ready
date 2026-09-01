@@ -12,6 +12,36 @@ const PROJECT_STATUSES = [
   "on_hold",
 ];
 
+const scheduleRecoveryHistorySchema = new mongoose.Schema({
+  revisionNumber: { type: Number, min: 1, required: true },
+  action: { type: String, enum: ["recovery", "extension"], required: true },
+  reasonCategory: {
+    type: String,
+    enum: ["weather", "material_delay", "customer_change", "access_constraint", "staffing", "technical_complexity", "safety", "external_dependency", "other"],
+    required: true,
+  },
+  reason: { type: String, trim: true, maxlength: 1500, required: true },
+  impactSummary: { type: String, trim: true, maxlength: 1500, default: "" },
+  originalBaselineCompletionDate: { type: Date, required: true },
+  previousApprovedCompletionDate: { type: Date, required: true },
+  revisedApprovedCompletionDate: { type: Date, required: true },
+  forecastBefore: { type: Date, default: null },
+  forecastAfter: { type: Date, required: true },
+  recoveryStartDate: { type: Date, required: true },
+  affectedWorkOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  approvedByName: { type: String, trim: true, maxlength: 150, default: "Administrator" },
+  approvedAt: { type: Date, default: Date.now },
+  customerNotification: {
+    requested: { type: Boolean, default: true },
+    status: { type: String, enum: ["not_requested", "pending", "sent", "partial", "failed"], default: "pending" },
+    inAppSent: { type: Boolean, default: false },
+    emailSent: { type: Boolean, default: false },
+    sentAt: { type: Date, default: null },
+    error: { type: String, trim: true, maxlength: 500, default: "" },
+  },
+}, { _id: true });
+
 const projectSchema = new mongoose.Schema({
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -59,6 +89,20 @@ const projectSchema = new mongoose.Schema({
   projectPhase: {
     type: String,
     enum: ['assessment', 'quotation_review', 'execution'],
+  },
+
+  // The repair assessment is a traceable site visit, separate from the later
+  // crew mobilization used for execution.
+  assessmentVisit: {
+    status: {
+      type: String,
+      enum: ["pending", "en_route", "arrived", "completed"],
+      default: "pending",
+    },
+    enRouteAt: Date,
+    arrivedAt: Date,
+    completedAt: Date,
+    technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
   },
 
   // Lead-submitted inspection report (Phase 1)
@@ -137,10 +181,28 @@ const projectSchema = new mongoose.Schema({
     generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     confirmedAt: Date,
   },
+  // Schedule commitments are governed separately from the mutable execution
+  // forecast. The original customer commitment is never overwritten; every
+  // recovery or extension is recorded as a new audited revision.
+  scheduleGovernance: {
+    originalBaselineCompletionDate: { type: Date, default: null },
+    currentApprovedCompletionDate: { type: Date, default: null },
+    currentForecastCompletionDate: { type: Date, default: null },
+    riskStatus: { type: String, enum: ["unknown", "on_track", "at_risk", "behind"], default: "unknown" },
+    revisionNumber: { type: Number, min: 0, default: 0 },
+    lastAssessedAt: { type: Date, default: null },
+    lastRecoveryAt: { type: Date, default: null },
+    history: { type: [scheduleRecoveryHistorySchema], default: [] },
+  },
   preferredCompletionDeadline: { type: Date },
 
   actualStartDate: { type: Date },
   actualCompletionDate: { type: Date },
+  // Set when the project reaches "closed" status. Previously written by the
+  // close handler but missing from this schema, so Mongoose strict mode
+  // silently dropped it and the admin detail page's stage detection
+  // (ProjectDetail.ejs reads p.closedAt) never advanced past "completed".
+  closedAt: { type: Date },
 
   projectManager: {
     _id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -314,6 +376,10 @@ const projectSchema = new mongoose.Schema({
   // Flag to avoid re-notifying lead when all units complete
   _allUnitsNotified: { type: Boolean, default: false },
 
+  // Last time an admin/secretary pushed a status update to the customer
+  // (powers the "Notify Customer" action + light anti-spam throttle)
+  lastCustomerNotifiedAt: { type: Date, default: null },
+
   // ── Repair-Specific Data (snapshot from BookingService at project creation) ──
   repair: {
     serviceType: { type: String, enum: ["core", "repair"], default: "core" },
@@ -373,6 +439,7 @@ const projectSchema = new mongoose.Schema({
       usedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
       usedAt: Date,
     }],
+    partsUsageSubmissionIds: [{ type: String, trim: true }],
     warranty: {
       days: { type: Number, default: 30 },
       startDate: Date,
@@ -481,6 +548,9 @@ projectSchema.pre("save", function () {
   // Business classification is quantity-based and cannot be overridden by a
   // stale client flag or by duration estimates.
   this.isLargeScale = Number(this.totalUnits || this.quantity || 0) >= 8;
+  if (this.isLargeScale && !this.projectPhase) {
+    this.projectPhase = this.repair?.serviceType === "repair" ? "assessment" : "execution";
+  }
   this.updatedAt = new Date();
 });
 
@@ -596,6 +666,8 @@ projectSchema.statics.getDashboardStats = async function () {
           accepted: [{ $match: { status: "accepted" } }, { $count: "count" }],
           completed: [{ $match: { status: "completed" } }, { $count: "count" }],
           closed: [{ $match: { status: "closed" } }, { $count: "count" }],
+          onHold: [{ $match: { status: "on_hold" } }, { $count: "count" }],
+          cancelled: [{ $match: { status: "cancelled" } }, { $count: "count" }],
           totalUnitsCompleted: [
             { $group: { _id: null, total: { $sum: "$completedUnits" } } },
           ],
@@ -644,6 +716,8 @@ projectSchema.statics.getDashboardStats = async function () {
     accepted: "accepted",
     ready: "ready",
     closed: "closed",
+    onHold: "on_hold",
+    cancelled: "cancelled",
   };
   const trends = {};
   for (const [key, status] of Object.entries(statusKeys)) {
@@ -664,6 +738,8 @@ projectSchema.statics.getDashboardStats = async function () {
     accepted: counts.accepted[0]?.count || 0,
     completed: counts.completed[0]?.count || 0,
     closed: counts.closed[0]?.count || 0,
+    onHold: counts.onHold[0]?.count || 0,
+    cancelled: counts.cancelled[0]?.count || 0,
     totalUnitsCompleted: counts.totalUnitsCompleted[0]?.total || 0,
     trends,
   };

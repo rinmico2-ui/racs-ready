@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { warrantyPolicySchema } = require('../utils/serviceWarrantyPolicy');
 
 // HP-based pricing schema for aircon repair services
 const hpPricingSchema = new mongoose.Schema({
@@ -19,6 +20,7 @@ const partSchema = new mongoose.Schema({
 
 const repairServiceSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
+  slug: { type: String, required: true, unique: true, index: true, trim: true },
   icon: { type: String },
   applianceType: { type: String, index: true },
   commonFaults: [String],
@@ -72,7 +74,8 @@ const repairServiceSchema = new mongoose.Schema({
   // Technician final pricing (set after diagnosis)
   allowTechnicianPricing: { type: Boolean, default: true }, // Allow technician to set final price
   
-  warrantyDays: { type: Number, default: 0 },
+  warrantyDays: { type: Number, min: 90, default: 90 },
+  warrantyPolicy: { type: warrantyPolicySchema(mongoose), default: () => ({ partsCoverage: { mode: 'same_as_workmanship', days: 90 } }) },
   availabilityLocations: [String],
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },

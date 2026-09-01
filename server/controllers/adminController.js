@@ -4,6 +4,9 @@ const ActivityLog = require("../models/ActivityLog");
 const Brand = require("../models/Brand");
 const Category = require("../models/Category");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
+const { escapeRegex } = require("../utils/stringSecurity");
+const { normalizeServiceWarrantyPolicy } = require("../utils/serviceWarrantyPolicy");
+const { normalizeAuditQuery, csvCell } = require("../utils/auditTrailPolicy");
 
 function sanitizeEmail(e) {
   return String(e || "")
@@ -63,7 +66,7 @@ exports.listCustomers = async (req, res, next) => {
 
     const [customers, total] = await Promise.all([
       User.find(filter)
-        .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires")
+        .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires -currentSessionId")
         .sort({ createdAt: -1 })
         .skip(page * limit)
         .limit(limit)
@@ -194,7 +197,7 @@ exports.listStaff = async (req, res, next) => {
     const users = await User.find({
       role: { $in: ["secretary", "technician"] },
     })
-      .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires")
+      .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires -currentSessionId")
       .lean();
 
     // 2) load Technician docs and Secretary metadata so we can merge / enrich Users
@@ -411,7 +414,7 @@ exports.getStaff = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
     const user = await User.findById(id)
-      .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires")
+      .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires -currentSessionId")
       .lean();
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ staff: user });
@@ -423,7 +426,7 @@ exports.getStaff = async (req, res, next) => {
 exports.editStaff = async (req, res, next) => {
   try {
     const id = req.params.id;
-    console.log("editStaff called with id:", id, "body:", JSON.stringify(req.body));
+    console.log("editStaff called with id:", id);
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
     const { role, active, firstName, lastName, email, phone } = req.body;
@@ -559,11 +562,29 @@ exports.auditStats = async (req, res, next) => {
     weekAgo.setDate(weekAgo.getDate() - 6);
     weekAgo.setHours(0, 0, 0, 0);
 
-    const [total, today, byCategory, weekSeries] = await Promise.all([
+    const securityWindow = new Date(now);
+    securityWindow.setDate(securityWindow.getDate() - 6);
+    securityWindow.setHours(0, 0, 0, 0);
+
+    const [total, today, reviewToday, securityEvents, byCategory, byRisk, byOutcome, weekSeries] = await Promise.all([
       ActivityLog.countDocuments({}),
       ActivityLog.countDocuments({ createdAt: { $gte: startOfDay } }),
+      ActivityLog.countDocuments({
+        createdAt: { $gte: startOfDay },
+        $or: [
+          { riskLevel: { $in: ["high", "critical"] } },
+          { outcome: { $in: ["failure", "blocked"] } },
+        ],
+      }),
+      ActivityLog.countDocuments({ category: "auth", createdAt: { $gte: securityWindow } }),
       ActivityLog.aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
+      ]),
+      ActivityLog.aggregate([
+        { $group: { _id: "$riskLevel", count: { $sum: 1 } } },
+      ]),
+      ActivityLog.aggregate([
+        { $group: { _id: "$outcome", count: { $sum: 1 } } },
       ]),
       ActivityLog.aggregate([
         { $match: { createdAt: { $gte: weekAgo } } },
@@ -576,11 +597,23 @@ exports.auditStats = async (req, res, next) => {
       o[x._id || "system"] = x.count;
       return o;
     }, {});
+    const riskMap = byRisk.reduce((o, x) => {
+      o[x._id || "info"] = x.count;
+      return o;
+    }, {});
+    const outcomeMap = byOutcome.reduce((o, x) => {
+      o[x._id || "unknown"] = x.count;
+      return o;
+    }, {});
 
     res.json({
       total,
       today,
+      reviewToday,
+      securityEvents,
       byCategory: catMap,
+      byRisk: riskMap,
+      byOutcome: outcomeMap,
       weekSeries,
     });
   } catch (err) {
@@ -591,57 +624,17 @@ exports.auditStats = async (req, res, next) => {
 // Enterprise audit trail — filterable, categorized, paginated, CSV-exportable
 exports.listAuditTrail = async (req, res, next) => {
   try {
-    const {
-      category,
-      entityType,
-      actionType,
-      module: moduleFilter,
-      q = "",
-      actor,
-      referenceId,
-      from,
-      to,
-      page = 1,
-      limit = 25,
-      sort = "-createdAt",
-      format,
-    } = req.query;
-
-    const query = {};
-    if (category) query.category = category;
-    if (entityType) query.entityType = entityType;
-    if (actionType) query.actionType = actionType;
-    if (moduleFilter) query.module = moduleFilter;
-    if (actor && mongoose.Types.ObjectId.isValid(actor)) query.actor = actor;
-    if (referenceId && mongoose.Types.ObjectId.isValid(referenceId)) query.entityId = referenceId;
-    if (from || to) {
-      query.createdAt = {};
-      if (from) query.createdAt.$gte = new Date(from);
-      if (to) {
-        const t = new Date(to);
-        t.setHours(23, 59, 59, 999);
-        query.createdAt.$lte = t;
-      }
-    }
-    if (q) {
-      const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      query.$or = [
-        { action: re },
-        { actorName: re },
-        { actorRole: re },
-        { entityType: re },
-        { module: re },
-      ];
-    }
+    const { query, page, limit, sort } = normalizeAuditQuery(req.query);
 
     const total = await ActivityLog.countDocuments(query);
-    const safeLimit = Math.min(Number(limit), 100);
-    const items = await ActivityLog.find(query)
+    const isCsvExport = req.query.format === "csv";
+    const itemQuery = ActivityLog.find(query)
       .sort(sort)
-      .skip((Number(page) - 1) * safeLimit)
-      .limit(safeLimit)
       .populate("actor", "email firstName lastName name role")
-      .lean();
+      .populate("target", "email firstName lastName name role");
+    if (isCsvExport) itemQuery.limit(10000);
+    else itemQuery.skip((page - 1) * limit).limit(limit);
+    const items = await itemQuery.lean();
 
     const mapped = items.map((l) => ({
       _id: l._id,
@@ -659,46 +652,86 @@ exports.listAuditTrail = async (req, res, next) => {
         (l.actor && l.actor.firstName && l.actor.lastName ? `${l.actor.firstName} ${l.actor.lastName}` : "") ||
         "System",
       actorRole: l.actorRole || (l.actor && l.actor.role) || "",
+      target: l.target ? l.target._id : (l.target || null),
+      targetName:
+        (l.target && l.target.name) ||
+        (l.target && l.target.firstName && l.target.lastName ? `${l.target.firstName} ${l.target.lastName}` : "") ||
+        "",
+      targetEmail: l.target && l.target.email ? l.target.email : "",
+      outcome: l.outcome || "unknown",
+      riskLevel: l.riskLevel || "info",
+      source: l.source || (l.actor ? "authenticated_user" : "system"),
+      requestId: l.requestId || "",
+      requestMethod: l.requestMethod || "",
+      requestPath: l.requestPath || "",
+      userAgent: l.userAgent || "",
       ip: l.ip || "",
       details: l.details || {},
       createdAt: l.createdAt,
     }));
 
-    if (format === "csv") {
-      const head = ["Date", "Category", "Action", "Type", "Actor", "Role", "Entity", "Entity ID", "IP", "Details"];
+    if (isCsvExport) {
+      const head = ["Date", "Risk", "Outcome", "Category", "Action", "Type", "Actor", "Role", "Target", "Entity", "Entity ID", "Source", "Method", "Path", "IP", "Request ID", "User Agent", "Details"];
       const csv = [head, ...mapped.map((l) => [
         l.createdAt ? new Date(l.createdAt).toISOString() : "",
+        l.riskLevel,
+        l.outcome,
         l.category,
         l.action,
         l.actionType,
         l.actorName,
         l.actorRole,
+        l.targetName || l.targetEmail,
         l.entityType,
         l.entityId ? l.entityId.toString() : "",
+        l.source,
+        l.requestMethod,
+        l.requestPath,
         l.ip,
+        l.requestId,
+        l.userAgent,
         JSON.stringify(l.details),
-      ])].map((r) => r.map((c) => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      ])].map((row) => row.map(csvCell).join(",")).join("\n");
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", 'attachment; filename="audit-trail.csv"');
+      if (total > 10000) res.setHeader("X-Audit-Export-Truncated", "true");
       return res.send(csv);
     }
 
-    const byActionType = await ActivityLog.aggregate([
-      { $match: query },
-      { $group: { _id: "$actionType", count: { $sum: 1 } } },
+    const [byActionType, byRisk, byOutcome] = await Promise.all([
+      ActivityLog.aggregate([
+        { $match: query },
+        { $group: { _id: "$actionType", count: { $sum: 1 } } },
+      ]),
+      ActivityLog.aggregate([
+        { $match: query },
+        { $group: { _id: "$riskLevel", count: { $sum: 1 } } },
+      ]),
+      ActivityLog.aggregate([
+        { $match: query },
+        { $group: { _id: "$outcome", count: { $sum: 1 } } },
+      ]),
     ]);
 
     res.json({
       items: mapped,
       pagination: {
-        page: Number(page),
-        limit: safeLimit,
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / safeLimit),
+        pages: Math.ceil(total / limit),
       },
       aggregates: {
         byActionType: byActionType.reduce((o, x) => {
           o[x._id || "action"] = x.count;
+          return o;
+        }, {}),
+        byRisk: byRisk.reduce((o, x) => {
+          o[x._id || "info"] = x.count;
+          return o;
+        }, {}),
+        byOutcome: byOutcome.reduce((o, x) => {
+          o[x._id || "unknown"] = x.count;
           return o;
         }, {}),
       },
@@ -990,7 +1023,15 @@ exports.analyticsSummary = async (req, res, next) => {
     }
 
     // ── Revenue data (all sources: services, POS, orders) ──
+    var revenueSnapshot = null;
     try {
+      var { buildRevenueDashboardSnapshot } = require("../utils/revenueAnalytics");
+      revenueSnapshot = await buildRevenueDashboardSnapshot(new Date());
+    } catch (revenueError) {
+      console.error("[analyticsSummary] Enterprise revenue snapshot error:", revenueError.message);
+    }
+
+    if (!revenueSnapshot) try {
       var Payment = require("../models/Payment");
       var BookingService = require("../models/BookingService");
       var WalkInSale = require("../models/WalkInSale");
@@ -1264,6 +1305,31 @@ exports.analyticsSummary = async (req, res, next) => {
       data.pendingExpensesTotal = (pendExpAgg && pendExpAgg[0]) ? pendExpAgg[0].total : 0;
 
     } catch (e) {}
+
+    if (revenueSnapshot) {
+      try {
+        var Expense = require("../models/Expense");
+        var [expenseTypes, pendingExpenseRows] = await Promise.all([
+          Expense.aggregate([
+            { $match: { status: "approved", expenseDate: { $gte: startOfMonth, $lte: endOfDay } } },
+            { $group: { _id: "$type", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+            { $sort: { total: -1 } },
+          ]),
+          Expense.aggregate([
+            { $match: { status: "pending" } },
+            { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$amount" } } },
+          ]),
+        ]);
+        data.expensesByType = expenseTypes.map(function (row) {
+          return { type: row._id || "other", total: row.total, count: row.count };
+        });
+        data.pendingExpenses = pendingExpenseRows[0] ? pendingExpenseRows[0].count : 0;
+        data.pendingExpensesTotal = pendingExpenseRows[0] ? pendingExpenseRows[0].total : 0;
+      } catch (expenseError) {
+        console.error("[analyticsSummary] Expense snapshot error:", expenseError.message);
+      }
+      Object.assign(data, revenueSnapshot, { revenueCurrency: "PHP" });
+    }
 
     // ── Enterprise: Customer Ratings ──
     try {
@@ -1556,6 +1622,7 @@ exports.createCoreService = async (req, res, next) => {
       exclusions,
       isAirconService,
       airconTypes,
+      warrantyPolicy,
       active,
     } = req.body || {};
     if (!name || !slug || !category)
@@ -1565,6 +1632,7 @@ exports.createCoreService = async (req, res, next) => {
     const CoreService = require("../models/CoreService");
     const existing = await CoreService.findOne({ slug });
     if (existing) return res.status(409).json({ error: "slug already exists" });
+    const normalizedWarranty = normalizeServiceWarrantyPolicy(warrantyPolicy, { slug, name }, "core");
     const svc = new CoreService({
       name,
       slug,
@@ -1575,6 +1643,7 @@ exports.createCoreService = async (req, res, next) => {
       exclusions: Array.isArray(exclusions) ? exclusions : [],
       isAirconService: isAirconService === true || isAirconService === "true",
       airconTypes: Array.isArray(airconTypes) ? airconTypes : undefined,
+      warrantyPolicy: normalizedWarranty,
       active: active !== false,
     });
     await svc.save();
@@ -1593,7 +1662,7 @@ exports.editCoreService = async (req, res, next) => {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "invalid id" });
-    const updates = req.body || {};
+    const updates = { ...(req.body || {}) };
     if (updates.slug) {
       const CoreService = require("../models/CoreService");
       const other = await CoreService.findOne({
@@ -1603,8 +1672,25 @@ exports.editCoreService = async (req, res, next) => {
       if (other) return res.status(409).json({ error: "slug already exists" });
     }
     const CoreService = require("../models/CoreService");
+    const existingService = await CoreService.findById(id).lean();
+    if (!existingService) return res.status(404).json({ error: "not found" });
+    if (Object.prototype.hasOwnProperty.call(updates, "warrantyPolicy")) {
+      const previousPolicy = normalizeServiceWarrantyPolicy(existingService.warrantyPolicy, existingService, "core");
+      const nextPolicy = normalizeServiceWarrantyPolicy(
+        updates.warrantyPolicy,
+        { ...existingService, slug: updates.slug || existingService.slug, name: updates.name || existingService.name },
+        "core",
+      );
+      const previousComparable = { ...previousPolicy, termsVersion: undefined };
+      const nextComparable = { ...nextPolicy, termsVersion: undefined };
+      nextPolicy.termsVersion = JSON.stringify(previousComparable) === JSON.stringify(nextComparable)
+        ? previousPolicy.termsVersion
+        : Math.min(1000000, Math.max(1, Number(previousPolicy.termsVersion) || 1) + 1);
+      updates.warrantyPolicy = nextPolicy;
+    }
     const svc = await CoreService.findByIdAndUpdate(id, updates, {
-      new: true,
+      returnDocument: "after",
+      runValidators: true,
     }).lean();
     if (!svc) return res.status(404).json({ error: "not found" });
     await logAction(req.user._id, svc._id, "coreService.update", req, {
@@ -1641,7 +1727,7 @@ exports.listPurchases = async (req, res, next) => {
 
     // simple search support
     if (req.query.search) {
-      const re = new RegExp(req.query.search, "i");
+      const re = new RegExp(escapeRegex(req.query.search), "i");
       query.$or = [
         { _id: re },
         { "items.name": re },
@@ -1731,6 +1817,7 @@ exports.createRepairService = async (req, res, next) => {
       allowTechnicianPricing,
       airconTypes,
       estimatedDurationMinutes,
+      warrantyPolicy,
       active,
     } = req.body || {};
     if (!name || !slug)
@@ -1738,6 +1825,7 @@ exports.createRepairService = async (req, res, next) => {
     const RepairService = require("../models/RepairService");
     const existing = await RepairService.findOne({ slug });
     if (existing) return res.status(409).json({ error: "slug already exists" });
+    const normalizedWarranty = normalizeServiceWarrantyPolicy(warrantyPolicy, { slug, name }, "repair");
     const svc = new RepairService({
       name,
       slug,
@@ -1749,6 +1837,8 @@ exports.createRepairService = async (req, res, next) => {
       allowTechnicianPricing: allowTechnicianPricing !== false && allowTechnicianPricing !== "false",
       airconTypes: Array.isArray(airconTypes) ? airconTypes : undefined,
       estimatedDurationMinutes,
+      warrantyDays: normalizedWarranty.workmanshipDays,
+      warrantyPolicy: normalizedWarranty,
       active: active !== false,
     });
     await svc.save();
@@ -1767,7 +1857,7 @@ exports.editRepairService = async (req, res, next) => {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "invalid id" });
-    const updates = req.body || {};
+    const updates = { ...(req.body || {}) };
     if (updates.slug) {
       const RepairService = require("../models/RepairService");
       const other = await RepairService.findOne({
@@ -1777,8 +1867,26 @@ exports.editRepairService = async (req, res, next) => {
       if (other) return res.status(409).json({ error: "slug already exists" });
     }
     const RepairService = require("../models/RepairService");
+    const existingService = await RepairService.findById(id).lean();
+    if (!existingService) return res.status(404).json({ error: "not found" });
+    if (Object.prototype.hasOwnProperty.call(updates, "warrantyPolicy")) {
+      const previousPolicy = normalizeServiceWarrantyPolicy(existingService.warrantyPolicy, existingService, "repair");
+      const nextPolicy = normalizeServiceWarrantyPolicy(
+        updates.warrantyPolicy,
+        { ...existingService, slug: updates.slug || existingService.slug, name: updates.name || existingService.name },
+        "repair",
+      );
+      const previousComparable = { ...previousPolicy, termsVersion: undefined };
+      const nextComparable = { ...nextPolicy, termsVersion: undefined };
+      nextPolicy.termsVersion = JSON.stringify(previousComparable) === JSON.stringify(nextComparable)
+        ? previousPolicy.termsVersion
+        : Math.min(1000000, Math.max(1, Number(previousPolicy.termsVersion) || 1) + 1);
+      updates.warrantyPolicy = nextPolicy;
+      updates.warrantyDays = nextPolicy.workmanshipDays;
+    }
     const svc = await RepairService.findByIdAndUpdate(id, updates, {
-      new: true,
+      returnDocument: "after",
+      runValidators: true,
     }).lean();
     if (!svc) return res.status(404).json({ error: "not found" });
     await logAction(req.user._id, svc._id, "repairService.update", req, {
@@ -2188,7 +2296,7 @@ exports.upsertTechnicianSchedule = async (req, res, next) => {
       const updated = await TechnicianSchedule.findOneAndUpdate(
         { technicianId: tid },
         { $set: { workingDays: wd, nonWorkingWeekdays: nw, restDates: rd } },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
       );
       return updated;
     }
@@ -2304,7 +2412,7 @@ exports.updateRolePermissions = async (req, res, next) => {
         .json({ error: `Unknown permissions: ${invalid.join(", ")}` });
     const updates = { permissions };
     if (typeof description === "string") updates.description = description.trim();
-    const role = await Role.findByIdAndUpdate(id, updates, { new: true }).lean();
+    const role = await Role.findByIdAndUpdate(id, updates, { returnDocument: "after" }).lean();
     if (!role) return res.status(404).json({ error: "Role not found" });
     await logAction(req.user._id, role._id, "role.updatePermissions", req, {
       roleName: role.name,
@@ -2350,7 +2458,7 @@ exports.setUserPermissions = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       id,
       { permissions },
-      { new: true },
+      { returnDocument: "after" },
     )
       .select("_id email firstName lastName role permissions")
       .lean();
@@ -2373,7 +2481,7 @@ exports.clearUserPermissions = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       id,
       { $unset: { permissions: 1 } },
-      { new: true },
+      { returnDocument: "after" },
     )
       .select("_id email firstName lastName role permissions")
       .lean();
@@ -2481,7 +2589,7 @@ exports.createInventory = async (req, res, next) => {
     if (brand && mongoose.Types.ObjectId.isValid(brand)) {
       brandId = brand;
     } else if (brand && typeof brand === "string" && brand.trim()) {
-      let b = await Brand.findOne({ name: new RegExp(`^${brand.trim()}$`, "i") });
+      let b = await Brand.findOne({ name: new RegExp(`^${escapeRegex(brand.trim(), 200)}$`, "i") });
       if (!b) b = await Brand.create({ name: brand.trim() });
       brandId = b._id;
     }
@@ -2491,7 +2599,7 @@ exports.createInventory = async (req, res, next) => {
     if (category && mongoose.Types.ObjectId.isValid(category)) {
       categoryId = category;
     } else if (category && typeof category === "string" && category.trim()) {
-      let c = await Category.findOne({ name: new RegExp(`^${category.trim()}$`, "i") });
+      let c = await Category.findOne({ name: new RegExp(`^${escapeRegex(category.trim(), 200)}$`, "i") });
       if (!c) c = await Category.create({ name: category.trim() });
       categoryId = c._id;
     } else {
@@ -2574,7 +2682,7 @@ exports.editInventory = async (req, res, next) => {
       if (mongoose.Types.ObjectId.isValid(bVal)) {
         item.brand = bVal;
       } else if (typeof bVal === "string" && bVal.trim()) {
-        let b = await Brand.findOne({ name: new RegExp(`^${bVal.trim()}$`, "i") });
+        let b = await Brand.findOne({ name: new RegExp(`^${escapeRegex(bVal.trim(), 200)}$`, "i") });
         if (!b) b = await Brand.create({ name: bVal.trim() });
         item.brand = b._id;
       }
@@ -2586,7 +2694,7 @@ exports.editInventory = async (req, res, next) => {
       if (mongoose.Types.ObjectId.isValid(cVal)) {
         item.category = cVal;
       } else if (typeof cVal === "string" && cVal.trim()) {
-        let c = await Category.findOne({ name: new RegExp(`^${cVal.trim()}$`, "i") });
+        let c = await Category.findOne({ name: new RegExp(`^${escapeRegex(cVal.trim(), 200)}$`, "i") });
         if (!c) c = await Category.create({ name: cVal.trim() });
         item.category = c._id;
       }
@@ -2770,7 +2878,7 @@ exports.editTool = async (req, res, next) => {
       "itemName","unit","quantity","minStockLevel","costPrice","sellingPrice",
       "specification","description","supplier","status","active","category","type",
       "serialNumber","inventoryClass","assetCode","assetCondition","assetStatus",
-      "maintenanceIntervalDays","lastMaintenanceAt","assignable",
+      "maintenanceIntervalDays","lastMaintenanceAt","assignable","reservedQuantity",
     ];
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) tool[key] = req.body[key];

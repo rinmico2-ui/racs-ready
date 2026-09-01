@@ -13,6 +13,8 @@ const ASSIGNMENT_STATUSES = [
   "expired",
   "en_route",
   "on_site",
+  "waiting_for_customer",
+  "no_show_reported",
   "in_progress",
   "completed",
   "cancelled",
@@ -28,6 +30,15 @@ const assignmentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "BookingService",
       required: true,
+      index: true,
+    },
+    // Large-scale projects create normal technician assignments so they appear
+    // in the same operational inbox. Keep the owning project explicit instead
+    // of relying only on the booking snapshot.
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
       index: true,
     },
     serviceItemId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
@@ -78,6 +89,8 @@ const assignmentSchema = new mongoose.Schema(
     declineReason: { type: String, trim: true, maxlength: 500 },
     enRouteAt: { type: Date },
     arrivedAt: { type: Date },
+    arrivalProofUrl: { type: String, trim: true },
+    arrivalProofCapturedAt: { type: Date },
     startedAt: { type: Date },
     startProofUrl: { type: String, trim: true },
     startProofNotes: { type: String, trim: true, maxlength: 500 },
@@ -88,6 +101,11 @@ const assignmentSchema = new mongoose.Schema(
     cancelledAt: { type: Date },
     expiredAt: { type: Date },
     expiredReason: { type: String, trim: true, maxlength: 500 },
+
+    // ── No-show waiting / report lifecycle ───────────────────────────────────
+    waitingForCustomerAt: { type: Date },
+    noShowReportedAt: { type: Date },
+    contactAttempts: { type: [String], default: [] },   // ['Call','SMS','In-app notification']
 
     // ── Equipment lifecycle ──────────────────────────────────────────────────
     resourcesReserved: { type: Boolean, default: false },
@@ -145,6 +163,7 @@ const assignmentSchema = new mongoose.Schema(
 assignmentSchema.index({ technicianId: 1, status: 1 });
 assignmentSchema.index({ technicianId: 1, bookingDate: -1 });
 assignmentSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
+assignmentSchema.index({ projectId: 1, technicianId: 1, status: 1 });
 assignmentSchema.index({ status: 1, assignedAt: -1 });
 assignmentSchema.index({ acceptanceDeadline: 1, status: 1 });
 assignmentSchema.index({ slaDeadline: 1, status: 1 });
@@ -160,6 +179,8 @@ assignmentSchema.virtual("statusLabel").get(function () {
     expired: "Assignment Expired",
     en_route: "En Route",
     on_site: "On Site",
+    waiting_for_customer: "Waiting for Customer",
+    no_show_reported: "No-Show Reported",
     in_progress: "In Progress",
     completed: "Completed",
     cancelled: "Cancelled",
@@ -170,7 +191,7 @@ assignmentSchema.virtual("statusLabel").get(function () {
 
 /** Whether the assignment is in an active/transitional state */
 assignmentSchema.virtual("isActive").get(function () {
-  return ["accepted", "en_route", "on_site", "in_progress"].includes(
+  return ["accepted", "en_route", "on_site", "waiting_for_customer", "in_progress"].includes(
     this.status
   );
 });
@@ -206,7 +227,7 @@ assignmentSchema.statics.getDashboardCounts = async function (technicianId) {
         active: [
           {
             $match: {
-              status: { $in: ["accepted", "en_route", "on_site", "in_progress"] },
+              status: { $in: ["accepted", "en_route", "on_site", "waiting_for_customer", "in_progress"] },
             },
           },
           { $count: "count" },

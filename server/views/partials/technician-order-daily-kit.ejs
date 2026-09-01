@@ -1,0 +1,114 @@
+<style>
+  .odk-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:14px 16px;border:1px solid #bfdbfe;border-radius:14px;background:linear-gradient(135deg,#eff6ff,#f8fbff);box-shadow:0 5px 18px rgba(37,99,235,.07)}
+  .odk-bar-main{display:flex;align-items:center;gap:11px;min-width:0}.odk-bar-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:11px;background:#2563eb;color:#fff}.odk-bar-title{font-size:.86rem;font-weight:800;color:#1e3a8a}.odk-bar-copy{margin-top:2px;font-size:.72rem;color:#475569}.odk-bar-actions{display:flex;align-items:center;gap:8px}.odk-date{width:140px;font-size:.75rem}.odk-status{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:.66rem;font-weight:800;text-transform:uppercase}.odk-status.pending{background:#fef3c7;color:#92400e}.odk-status.ready{background:#dcfce7;color:#166534}.odk-status.blocked{background:#fee2e2;color:#991b1b}.odk-inline-link{width:100%;border:0;text-align:left;background:transparent}.odk-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.odk-summary{padding:11px;border:1px solid #e2e8f0;border-radius:11px;background:#f8fafc}.odk-summary strong{display:block;font-size:1rem;color:#0f172a}.odk-summary span{font-size:.68rem;color:#64748b}.odk-section{margin-top:14px}.odk-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;font-size:.76rem;font-weight:800;color:#334155}.odk-job,.odk-item{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;margin-bottom:7px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}.odk-job-icon,.odk-item-icon{display:grid;place-items:center;width:31px;height:31px;flex:0 0 31px;border-radius:9px;background:#eff6ff;color:#2563eb}.odk-item-main{flex:1;min-width:0}.odk-name{font-size:.77rem;font-weight:750;color:#0f172a}.odk-meta{margin-top:2px;font-size:.68rem;color:#64748b}.odk-pill{padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:.61rem;font-weight:800;text-transform:uppercase;white-space:nowrap}.odk-pill.ok{background:#dcfce7;color:#166534}.odk-pill.warn{background:#fef3c7;color:#92400e}.odk-pill.bad{background:#fee2e2;color:#991b1b}.odk-issue{margin-top:7px;padding:7px 8px;border-radius:8px;background:#fef2f2;color:#991b1b;font-size:.68rem}.odk-item-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.odk-item-actions .btn{font-size:.65rem;padding:3px 7px}.odk-empty{padding:22px;text-align:center;border:1px dashed #cbd5e1;border-radius:10px;color:#64748b;font-size:.75rem}@media(max-width:720px){.odk-bar{align-items:flex-start;flex-direction:column}.odk-bar-actions{width:100%;flex-wrap:wrap}.odk-date{flex:1}.odk-bar-actions .btn{flex:1}.odk-summary-grid{grid-template-columns:1fr}}
+</style>
+
+<section class="odk-bar" aria-label="Daily preparation center">
+  <div class="odk-bar-main">
+    <div class="odk-bar-icon"><i class="bi bi-briefcase-fill"></i></div>
+    <div>
+      <div class="odk-bar-title">Daily Preparation</div>
+      <div class="odk-bar-copy" id="odkBarCopy">Loading the shared kit for bookings and installation orders...</div>
+    </div>
+  </div>
+  <div class="odk-bar-actions">
+    <span class="odk-status pending" id="odkBarStatus"><i class="bi bi-hourglass-split"></i> Loading</span>
+    <input class="form-control form-control-sm odk-date" id="odkBarDate" type="date" aria-label="Preparation date">
+    <button class="btn btn-primary btn-sm fw-bold" id="odkOpenButton" type="button"><i class="bi bi-box2-heart me-1"></i>Review Kit</button>
+  </div>
+</section>
+
+<div class="modal fade" id="odkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div><h5 class="modal-title"><i class="bi bi-briefcase-fill me-2 text-primary"></i>Daily Preparation</h5><div class="text-muted small" id="odkModalDate"></div></div>
+        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="odkBody"><div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Building the shared kit...</div></div>
+      <div class="modal-footer">
+        <span class="small text-muted me-auto" id="odkFooterHint">Review all requirements before confirming.</span>
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-success" id="odkConfirm" type="button" style="display:none"><i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var state={date:'',payload:null,loading:false};
+  var resolvedStatuses=['confirmed_available','not_required','assigned_from_stock','procured','rescheduled'];
+  function el(id){return document.getElementById(id)}
+  function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function localDateKey(value){var d=value?new Date(value):new Date();if(Number.isNaN(d.getTime()))d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+  function niceDate(value){var d=new Date(value+'T00:00:00');return d.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
+  function statusInfo(kit,jobs){
+    if(!jobs.length)return {cls:'pending',icon:'bi-calendar-x',label:'No jobs',copy:'No accepted booking or installation requires a kit on this date.'};
+    if(kit.hasDelta)return {cls:'blocked',icon:'bi-exclamation-triangle',label:'Review update',copy:'New requirements were added after the kit was prepared.'};
+    if(['confirmed','in_progress'].includes(kit.status))return {cls:'ready',icon:'bi-check-circle',label:'Confirmed',copy:(kit.items||[]).length+' kit item(s) prepared for '+jobs.length+' job(s).'};
+    var unavailable=(kit.items||[]).filter(function(i){return i.checkoutStatus==='unavailable'&&!i.exception?.approved&&!resolvedStatuses.includes(i.resolution?.status)}).length;
+    return unavailable?{cls:'blocked',icon:'bi-exclamation-octagon',label:'Blocked',copy:unavailable+' unavailable item(s) require a decision.'}:{cls:'pending',icon:'bi-hourglass-split',label:'Pending',copy:'Review and confirm '+(kit.items||[]).length+' requirement(s) before departure.'};
+  }
+  async function request(url,options){var response=await fetch(url,{credentials:'same-origin',...(options||{})});var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
+  function setBar(payload){
+    var kit=payload.kit||{},jobs=payload.jobDetails||[],info=statusInfo(kit,jobs);
+    el('odkBarStatus').className='odk-status '+info.cls;
+    el('odkBarStatus').innerHTML='<i class="bi '+info.icon+'"></i> '+esc(info.label);
+    el('odkBarCopy').textContent=info.copy;
+  }
+  function itemStatus(item){
+    if(item.resolution?.status==='admin_notified')return {cls:'warn',label:'Admin notified'};
+    if(item.exception?.approved||resolvedStatuses.includes(item.resolution?.status))return {cls:'ok',label:item.resolution?.status==='not_required'?'Not required':'Resolved'};
+    if(['checked_out','issued','standard_kit','reserved'].includes(item.checkoutStatus))return {cls:'ok',label:String(item.checkoutStatus).replace(/_/g,' ')};
+    if(item.checkoutStatus==='unavailable')return {cls:'bad',label:'Unavailable'};
+    return {cls:'warn',label:'Pending'};
+  }
+  function render(payload){
+    var kit=payload.kit||{},jobs=payload.jobDetails||[],items=kit.items||[],delta=kit.deltaItems||[];
+    var unavailable=[...items,...delta].filter(function(i){return i.checkoutStatus==='unavailable'&&!i.exception?.approved&&!resolvedStatuses.includes(i.resolution?.status)});
+    var equipment=items.filter(function(i){return i.category==='equipment'}).length;
+    var consumables=items.filter(function(i){return i.category!=='equipment'}).length;
+    var html='<div class="odk-summary-grid"><div class="odk-summary"><strong>'+jobs.length+'</strong><span>Jobs covered</span></div><div class="odk-summary"><strong>'+equipment+'</strong><span>Reusable equipment</span></div><div class="odk-summary"><strong>'+consumables+'</strong><span>Consumables / parts</span></div></div>';
+    html+='<div class="odk-section"><div class="odk-section-title"><span>Jobs covered by this kit</span></div>';
+    if(jobs.length)jobs.forEach(function(job){html+='<div class="odk-job"><div class="odk-job-icon"><i class="bi '+(job.orderId?'bi-box-seam':'bi-wrench-adjustable')+'"></i></div><div class="odk-item-main"><div class="odk-name">'+esc(job.serviceName)+'</div><div class="odk-meta">'+esc(job.customerName||job.serviceType||'Service job')+(job.startTime?' · '+esc(job.startTime):'')+'</div></div><span class="odk-pill">'+esc(String(job.status||'accepted').replace(/_/g,' '))+'</span></div>'});
+    else html+='<div class="odk-empty"><i class="bi bi-calendar-x d-block fs-4 mb-1"></i>No accepted jobs are scheduled for this date.</div>';
+    html+='</div><div class="odk-section"><div class="odk-section-title"><span>Equipment and consumables</span><span>'+(items.length+delta.length)+' item(s)</span></div>';
+    function renderItem(item,isDelta){var st=itemStatus(item),icon=item.category==='equipment'?'bi-tools':item.category==='repair_part'?'bi-gear':'bi-droplet';html+='<div class="odk-item"><div class="odk-item-icon"><i class="bi '+icon+'"></i></div><div class="odk-item-main"><div class="odk-name">'+esc(item.name)+' ×'+Math.max(1,Number(item.quantity)||1)+(isDelta?' <span class="badge text-bg-warning ms-1">NEW</span>':'')+'</div><div class="odk-meta">'+esc(String(item.category||'item').replace(/_/g,' '))+' · '+esc(item.unit||'pcs')+'</div>'+(item.conflict?.message?'<div class="odk-issue"><i class="bi bi-exclamation-triangle me-1"></i>'+esc(item.conflict.message)+'</div>':'');if(item.checkoutStatus==='unavailable'&&!item.exception?.approved&&!resolvedStatuses.includes(item.resolution?.status)){if(item.resolution?.status==='admin_notified')html+='<div class="odk-meta mt-2"><i class="bi bi-hourglass-split me-1"></i>Waiting for inventory administration.</div>';else html+='<div class="odk-item-actions"><button class="btn btn-outline-success" data-odk-action="alternative" data-name="'+esc(item.name)+'" data-category="'+esc(item.category)+'">Use alternative</button><button class="btn btn-outline-secondary" data-odk-action="not-required" data-name="'+esc(item.name)+'" data-category="'+esc(item.category)+'">Not required</button><button class="btn btn-outline-warning" data-odk-action="notify" data-name="'+esc(item.name)+'">Notify admin</button></div>'}html+='</div><span class="odk-pill '+st.cls+'">'+esc(st.label)+'</span></div>'}
+    if(items.length||delta.length){items.forEach(function(i){renderItem(i,false)});delta.forEach(function(i){renderItem(i,true)})}else html+='<div class="odk-empty"><i class="bi bi-box-seam d-block fs-4 mb-1"></i>No catalog-backed requirements were generated. Contact operations before departure.</div>';
+    html+='</div>';
+    el('odkBody').innerHTML=html;
+    var canConfirm=kit.status==='draft'||Boolean(kit.hasDelta);
+    el('odkConfirm').style.display=canConfirm?'':'none';
+    el('odkConfirm').disabled=unavailable.length>0||!items.length&&!delta.length;
+    el('odkConfirm').innerHTML=unavailable.length?'<i class="bi bi-exclamation-triangle me-1"></i>Resolve '+unavailable.length+' issue(s)':kit.hasDelta?'<i class="bi bi-plus-circle me-1"></i>Prepare Additional Items':'<i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation';
+    el('odkFooterHint').textContent=unavailable.length?'Unavailable requirements must be resolved before confirmation.':'Confirmation checks out equipment and issues consumables for all covered jobs.';
+  }
+  async function load(date,showModal){
+    if(state.loading)return;state.loading=true;state.date=date||state.date||localDateKey();el('odkBarDate').value=state.date;el('odkModalDate').textContent=niceDate(state.date);
+    if(showModal)el('odkBody').innerHTML='<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Building the shared kit...</div>';
+    try{var payload=await request('/api/technician/daily-kit?date='+encodeURIComponent(state.date));state.payload=payload;setBar(payload);if(showModal||el('odkModal').classList.contains('show'))render(payload)}catch(error){el('odkBarStatus').className='odk-status blocked';el('odkBarStatus').innerHTML='<i class="bi bi-exclamation-triangle"></i> Error';el('odkBarCopy').textContent=error.message;if(showModal)el('odkBody').innerHTML='<div class="alert alert-danger">'+esc(error.message)+'</div>'}finally{state.loading=false}
+  }
+  window.openOrderDailyKit=function(date){state.date=date||el('odkBarDate').value||localDateKey();el('odkBarDate').value=state.date;bootstrap.Modal.getOrCreateInstance(el('odkModal')).show();load(state.date,true)};
+  window.refreshOrderDailyKit=function(){return load(state.date||localDateKey(),false)};
+  async function resolveItem(button){
+    var action=button.dataset.odkAction,name=button.dataset.name,category=button.dataset.category;
+    try{
+      if(action==='notify'){await request('/api/technician/daily-kit/notify-admin-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemName:name,date:state.date})});await Swal.fire({title:'Admin Notified',text:'Operations was notified about '+name+'.',icon:'success'});return load(state.date,true)}
+      var body={itemName:name,category:category,date:state.date};
+      if(action==='alternative'){var alt=await Swal.fire({title:'Use Alternative',input:'text',inputLabel:'What equipment or material will you use?',inputPlaceholder:'Alternative item or personal equipment',showCancelButton:true,inputValidator:function(v){return !String(v||'').trim()?'Describe the alternative.':undefined}});if(!alt.isConfirmed)return;body.resolution='confirmed_available';body.source=String(alt.value).trim()}
+      else{var decision=await Swal.fire({title:'Mark as Not Required',html:'<div class="text-start"><label class="form-label">Reason</label><select id="odkReason" class="form-select"><option value="existing_equipment_sufficient">Existing equipment is sufficient</option><option value="job_condition_not_required">Job condition does not require it</option><option value="alternative_approved_material">Approved alternative is available</option><option value="recommendation_not_applicable">Recommendation is not applicable</option><option value="other">Other</option></select><label class="form-label mt-2">Notes</label><textarea id="odkReasonNote" class="form-control" rows="2" maxlength="300"></textarea></div>',showCancelButton:true,confirmButtonText:'Confirm decision',preConfirm:function(){var reason=document.getElementById('odkReason').value,note=document.getElementById('odkReasonNote').value.trim();if(reason==='other'&&!note){Swal.showValidationMessage('Explain the reason.');return false}return {reasonCode:reason,note:note}}});if(!decision.isConfirmed)return;body.resolution='not_required';body.reasonCode=decision.value.reasonCode;body.note=decision.value.note}
+      await request('/api/technician/daily-kit/resolve-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});await load(state.date,true);
+    }catch(error){Swal.fire('Unable to update item',error.message,'error')}
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    state.date=localDateKey();el('odkBarDate').value=state.date;
+    el('odkOpenButton').addEventListener('click',function(){window.openOrderDailyKit(el('odkBarDate').value)});
+    el('odkBarDate').addEventListener('change',function(){state.date=this.value;load(state.date,false)});
+    el('odkBody').addEventListener('click',function(event){var button=event.target.closest('[data-odk-action]');if(button)resolveItem(button)});
+    el('odkConfirm').addEventListener('click',async function(){var button=this;if(!window.confirm('Confirm Daily Preparation for '+niceDate(state.date)+'? Equipment will be checked out and consumables issued.'))return;button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Confirming';try{await request('/api/technician/daily-kit/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:state.date})});await load(state.date,true);if(typeof window.fetchOrders==='function')window.fetchOrders();await Swal.fire({title:'Preparation Confirmed',text:'The shared Daily Kit is ready. Installation orders may proceed when dispatch is ready.',icon:'success',timer:2200,showConfirmButton:false})}catch(error){Swal.fire('Preparation Incomplete',error.message,'error')}finally{button.disabled=false}});
+    load(state.date,false);
+  });
+})();
+</script>

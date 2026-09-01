@@ -251,6 +251,7 @@
             <th>Pricing Structure</th>
             <th>Est. Duration</th>
             <th>Config</th>
+            <th>Warranty</th>
             <th>Status</th>
             <th class="text-end pe-4">Actions</th>
           </tr>
@@ -283,6 +284,7 @@
                     <%= svc.allowTechnicianPricing !== false ? 'Tech Pricing' : 'Fixed Price' %>
                   </span>
                 </td>
+                <td><span class="badge <%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary border border-primary-subtle' %>"><%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'Disabled' : ((svc.warrantyPolicy && svc.warrantyPolicy.workmanshipDays) || svc.warrantyDays || 90) + ' days' %></span></td>
                 <td>
                   <span class="badge <%= statusBadge(svc.active) %>"><%= svc.active ? 'Active' : 'Inactive' %></span>
                 </td>
@@ -293,7 +295,7 @@
             <% }); %>
           <% } else { %>
             <tr>
-              <td colspan="8" class="text-center text-muted py-5">No repair services defined.</td>
+              <td colspan="9" class="text-center text-muted py-5">No repair services defined.</td>
             </tr>
           <% } %>
         </tbody>
@@ -333,7 +335,7 @@
 
 <!-- modal for repair service create/edit -->
 <div class="modal fade modal-premium" id="repairServiceModal" tabindex="-1" aria-labelledby="repairServiceModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <form id="repairServiceForm" class="modal-content">
       <div class="modal-header">
         <div class="modal-title-area">
@@ -426,6 +428,25 @@
             </div>
           </div>
 
+          <div class="col-12">
+            <div class="card border border-primary-subtle shadow-sm">
+              <div class="card-header bg-primary-subtle d-flex justify-content-between align-items-center py-3">
+                <div><h6 class="mb-1 fw-bold"><i class="bi bi-shield-check me-2"></i>Repair Warranty Policy</h6><div class="small text-muted">Defines workmanship, installed-parts coverage, reinspection, and response targets.</div></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="warrantyEnabled" id="repairWarrantyEnabled" checked><label class="form-check-label fw-semibold" for="repairWarrantyEnabled">Enabled</label></div>
+              </div>
+              <div class="card-body bg-light"><div class="row g-3">
+                <div class="col-md-3"><label class="modal-label">Coverage type</label><select class="form-select" name="warrantyCoverageType"><option value="workmanship">Repair workmanship</option><option value="diagnostic">Diagnostic / reinspection</option><option value="installation">Installation workmanship</option></select></div>
+                <div class="col-md-3"><label class="modal-label">Workmanship days</label><input class="form-control" type="number" name="warrantyWorkmanshipDays" min="90" max="3650" value="90" required><div class="form-hint">Minimum 90 days.</div></div>
+                <div class="col-md-3"><label class="modal-label">Free reinspection days</label><input class="form-control" type="number" name="warrantyReinspectionDays" min="1" max="3650" value="90" required></div>
+                <div class="col-md-3"><label class="modal-label">Claim response target</label><div class="input-group"><input class="form-control" type="number" name="warrantyResponseDays" min="1" max="30" value="2" required><span class="input-group-text">days</span></div></div>
+                <div class="col-md-4"><label class="modal-label">Installed parts coverage</label><select class="form-select" name="warrantyPartsMode"><option value="same_as_workmanship">Same as workmanship</option><option value="custom">Custom duration</option><option value="manufacturer_terms">Manufacturer terms</option><option value="not_included">Not included</option></select></div>
+                <div class="col-md-2"><label class="modal-label">Custom parts days</label><input class="form-control" type="number" name="warrantyPartsDays" min="90" max="3650" placeholder="90"></div>
+                <div class="col-md-6"><label class="modal-label">Covered scope <span class="text-muted">(one per line)</span></label><textarea class="form-control" name="warrantyCoveredItems" rows="3" placeholder="Repair workmanship; installed replacement parts"></textarea></div>
+                <div class="col-12"><label class="modal-label">Exclusions <span class="text-muted">(one per line)</span></label><textarea class="form-control" name="warrantyPolicyExclusions" rows="2" placeholder="Unrelated faults; misuse; power irregularity; unauthorized third-party work"></textarea></div>
+              </div></div>
+            </div>
+          </div>
+
           <!-- AIRCON TYPES CONFIGURATION (Dynamic) -->
           <div class="col-12 d-none" id="airconConfigSection">
             <div class="card border border-info-subtle shadow-sm">
@@ -467,6 +488,20 @@
     const form = document.getElementById('repairServiceForm');
     let editingId = null;
     let currentAirconTypes = [];
+
+    function setWarrantyPolicy(policy) {
+      const p = policy || {};
+      form.warrantyEnabled.checked = p.enabled !== false;
+      form.warrantyCoverageType.value = p.coverageType || 'workmanship';
+      form.warrantyWorkmanshipDays.value = p.workmanshipDays || 90;
+      form.warrantyReinspectionDays.value = p.freeReinspectionDays || 90;
+      form.warrantyResponseDays.value = p.claimResponseDays || 2;
+      form.warrantyPartsMode.value = p.partsCoverage?.mode || 'same_as_workmanship';
+      form.warrantyPartsDays.value = p.partsCoverage?.days || '';
+      form.warrantyCoveredItems.value = (p.coveredItems || []).join('\n');
+      form.warrantyPolicyExclusions.value = (p.exclusions || []).join('\n');
+    }
+    function lines(value) { return String(value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean); }
 
     const isAirconToggle = document.getElementById('isAirconServiceCheck');
     const airconSection = document.getElementById('airconConfigSection');
@@ -568,6 +603,7 @@
         form.allowTechnicianPricing.checked = data.allowTechnicianPricing !== false;
         form.active.checked = !!data.active;
         currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
+        setWarrantyPolicy(data.warrantyPolicy);
       } else {
         editingId = null;
         modalEl.querySelector('.modal-title').innerText = 'New Repair Service';
@@ -575,6 +611,7 @@
         form.active.checked = true;
         form.allowTechnicianPricing.checked = true;
         currentAirconTypes = [];
+        setWarrantyPolicy(null);
       }
       isAirconToggle.dispatchEvent(new Event('change'));
       renderMatrix();
@@ -622,6 +659,16 @@
         allowTechnicianPricing: form.allowTechnicianPricing.checked,
         airconTypes: cleanAirconTypes,
         active: form.active.checked,
+        warrantyPolicy: {
+          enabled: form.warrantyEnabled.checked,
+          coverageType: form.warrantyCoverageType.value,
+          workmanshipDays: parseInt(form.warrantyWorkmanshipDays.value || '90'),
+          freeReinspectionDays: parseInt(form.warrantyReinspectionDays.value || '90'),
+          claimResponseDays: parseInt(form.warrantyResponseDays.value || '2'),
+          coveredItems: lines(form.warrantyCoveredItems.value),
+          exclusions: lines(form.warrantyPolicyExclusions.value),
+          partsCoverage: { mode: form.warrantyPartsMode.value, days: form.warrantyPartsDays.value ? parseInt(form.warrantyPartsDays.value) : null },
+        },
       };
       let url = '/api/admin/repair-services';
       let method = 'POST';

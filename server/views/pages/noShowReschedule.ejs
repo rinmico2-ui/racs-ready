@@ -1,107 +1,82 @@
-<%- include('../partials/head', { title: 'Reschedule Booking | CALIDRO RACS' }) %>
-<%- include('../partials/navbar') %>
-
-<section class="py-5" style="min-height:80vh;background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);">
+<section class="py-5" style="min-height:80vh;background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-8">
+      <div class="col-xl-9 col-lg-10">
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-          
-          <div class="py-4 px-4 text-white text-center" style="background:linear-gradient(135deg,#d97706,#b45309);">
-            <div style="font-size:3rem;margin-bottom:.5rem;">🗓️</div>
-            <h2 class="fw-bold mb-1">Reschedule Service</h2>
-            <p class="mb-0" style="opacity:.9;">Please select a new date and time for your booking.</p>
+          <div class="py-4 px-4 text-white text-center" style="background:linear-gradient(135deg,#b45309,#92400e);">
+            <i class="bi bi-calendar2-check d-block mb-2" style="font-size:2.75rem;"></i>
+            <h2 class="fw-bold mb-1">Choose Your New Visit</h2>
+            <p class="mb-0" style="opacity:.92;">Select from the same live availability used for new service bookings.</p>
           </div>
 
           <div class="card-body p-4 p-md-5">
-
             <% if (typeof error !== 'undefined') { %>
-              <!-- Error State (Token Expired / Invalid) -->
               <div class="text-center py-4">
                 <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:4rem;"></i>
-                <h3 class="mt-3 text-danger fw-bold">Link Expired or Invalid</h3>
+                <h3 class="mt-3 text-danger fw-bold">Link Unavailable</h3>
                 <p class="text-muted"><%= error %></p>
                 <a href="/contact" class="btn btn-primary mt-3 px-4 py-2">Contact Support</a>
               </div>
             <% } else { %>
-              
-              <!-- Booking Summary -->
-              <div class="bg-light p-3 rounded-3 mb-4 border">
-                <div class="row text-center text-md-start align-items-center">
-                  <div class="col-md-6 mb-2 mb-md-0">
-                    <span class="text-muted small d-block">Booking Reference</span>
-                    <strong class="fs-5 text-dark"><%= booking.bookingReference || booking.workOrderNumber || 'N/A' %></strong>
+              <div id="rescheduleWorkspace">
+                <div class="bg-light p-3 rounded-3 mb-4 border">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <span class="text-muted small d-block">Booking Reference</span>
+                      <strong class="fs-5 text-dark"><%= booking.bookingReference || booking.workOrderNumber || 'N/A' %></strong>
+                    </div>
+                    <div class="col-md-6">
+                      <span class="text-muted small d-block">Service</span>
+                      <strong class="text-dark"><%= booking.service && booking.service.name ? booking.service.name : (booking.serviceName || 'Aircon Service') %></strong>
+                    </div>
+                    <div class="col-md-6">
+                      <span class="text-muted small d-block">Previous Schedule</span>
+                      <strong class="text-dark"><%= booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not set' %> <%= booking.startTime || '' %></strong>
+                    </div>
+                    <div class="col-md-6">
+                      <span class="text-muted small d-block">Resolution Reason</span>
+                      <strong class="text-dark">Customer No-Show</strong>
+                    </div>
                   </div>
-                  <div class="col-md-6">
-                    <span class="text-muted small d-block">Service</span>
-                    <strong class="text-dark"><%= booking.service ? booking.service.name : 'Aircon Service' %></strong>
+                </div>
+
+                <div id="scheduleMessage" class="alert alert-danger d-none" role="alert"></div>
+
+                <div class="mb-4">
+                  <h5 class="fw-bold mb-1">Select an Available Date</h5>
+                  <p class="text-muted small mb-3">Availability includes service duration, quantity, travel time, operating buffer, existing bookings, and technician schedules.</p>
+                  <div id="calendarGrid"></div>
+                  <div id="timeSelection" class="mt-4 d-none">
+                    <h6 class="fw-semibold mb-3">Select an Available Time</h6>
+                    <div id="timeSlots"></div>
                   </div>
+                </div>
+
+                <div id="selectionSummary" class="alert alert-info d-none align-items-center mb-4">
+                  <i class="bi bi-calendar-check fs-3 me-3 text-primary"></i>
+                  <div>
+                    <div class="fw-semibold text-primary">New Schedule Selected</div>
+                    <div id="selectedDateText" class="text-dark">Date: --</div>
+                    <div id="selectedTimeText" class="text-dark">Time: --</div>
+                  </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                  <button type="button" id="btnConfirmCancel" class="btn btn-outline-danger">Cancel This Booking</button>
+                  <button type="button" id="btnConfirmReschedule" class="btn btn-primary btn-lg fw-bold px-4" disabled>
+                    Confirm New Schedule <i class="bi bi-arrow-right ms-2"></i>
+                  </button>
                 </div>
               </div>
 
-              <!-- Action Tabs -->
-              <ul class="nav nav-pills nav-fill mb-4 bg-light rounded-pill p-1 border" id="rescheduleTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link active rounded-pill fw-semibold" id="pick-date-tab" data-bs-toggle="tab" data-bs-target="#pick-date" type="button" role="tab">Pick a New Date</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button class="nav-link rounded-pill text-danger fw-semibold" id="cancel-tab" data-bs-toggle="tab" data-bs-target="#cancel-booking" type="button" role="tab">Cancel & Refund</button>
-                </li>
-              </ul>
-
-              <div class="tab-content" id="rescheduleTabsContent">
-                
-                <!-- Pick Date Tab -->
-                <div class="tab-pane fade show active" id="pick-date" role="tabpanel">
-                  <div class="text-center mb-4">
-                    <h5 class="fw-bold">Select Available Slot</h5>
-                    <p class="text-muted small">Choose a new date and time for our technician to arrive.</p>
-                  </div>
-
-                  <!-- Calendar Container -->
-                  <div id="ent-calendar-wrapper" class="mb-4">
-                    <div id="calendarGrid"></div>
-                    <div id="timeSlotGrid" class="mt-3"></div>
-                  </div>
-
-                  <!-- Selected Info Box -->
-                  <div id="selectionSummary" class="alert alert-info d-none d-flex align-items-center mb-4">
-                    <i class="bi bi-calendar-check fs-3 me-3 text-primary"></i>
-                    <div>
-                      <div class="fw-semibold text-primary">New Schedule Selected</div>
-                      <div id="selectedDateText" class="text-dark">Date: --</div>
-                      <div id="selectedTimeText" class="text-dark">Time: --</div>
-                    </div>
-                  </div>
-
-                  <div class="d-grid">
-                    <button type="button" id="btnConfirmReschedule" class="btn btn-primary btn-lg fw-bold" disabled>
-                      Confirm New Schedule <i class="bi bi-arrow-right ms-2"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Cancel Tab -->
-                <div class="tab-pane fade" id="cancel-booking" role="tabpanel">
-                  <div class="text-center py-3">
-                    <div class="mb-4 text-danger">
-                      <i class="bi bi-x-circle-fill" style="font-size:3rem;"></i>
-                    </div>
-                    <h4 class="fw-bold text-danger">Cancel This Booking?</h4>
-                    <p class="text-muted mb-4">
-                      Are you sure you want to cancel this booking permanently? 
-                      If you paid a downpayment or fully via GCash, your refund will be processed according to our policy.
-                    </p>
-                    <button type="button" id="btnConfirmCancel" class="btn btn-outline-danger btn-lg fw-bold px-5">
-                      Yes, Cancel My Booking
-                    </button>
-                  </div>
-                </div>
-
+              <div id="rescheduleSuccess" class="text-center py-4 d-none">
+                <i class="bi bi-check-circle-fill text-success" style="font-size:4rem;"></i>
+                <h3 class="mt-3 fw-bold">New Visit Confirmed</h3>
+                <p id="successSchedule" class="lead mb-2"></p>
+                <p class="text-muted">Your booking is now awaiting technician assignment. You do not need to submit another request.</p>
+                <a href="/book-history" class="btn btn-primary mt-2">View Booking History</a>
               </div>
-              
             <% } %>
-
           </div>
         </div>
       </div>
@@ -114,92 +89,115 @@
 <script src="/js/enterprise-calendar.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-  const token = "<%= token %>";
-  const serviceId = "<%= booking.service ? booking.service._id : '' %>";
-  const btnConfirmReschedule = document.getElementById('btnConfirmReschedule');
-  const btnConfirmCancel = document.getElementById('btnConfirmCancel');
-  
+  const token = <%- JSON.stringify(token) %>;
+  const serviceId = <%- JSON.stringify(String(booking.serviceId || (booking.service && booking.service._id) || '')) %>;
+  const serviceDuration = <%= Math.max(1, Number(booking.serviceDurationMinutes) || 60) %>;
+  const quantity = <%= Number(booking.serviceDurationMinutes) > 0 ? 1 : Math.max(1, Number(booking.quantity) || 1) %>;
+  const confirmButton = document.getElementById('btnConfirmReschedule');
+  const cancelButton = document.getElementById('btnConfirmCancel');
+  const messageBox = document.getElementById('scheduleMessage');
   let selectedDate = null;
   let selectedTime = null;
 
-  // Initialize Enterprise Calendar
-  if (typeof EnterpriseCalendar !== 'undefined') {
-    await EnterpriseCalendar.init({
-      serviceId: serviceId || null,
-      duration: 90
-    });
+  const dateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const showError = (message) => {
+    messageBox.textContent = message;
+    messageBox.classList.remove('d-none');
+    messageBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  const resetButton = () => {
+    confirmButton.disabled = !selectedDate || !selectedTime;
+    confirmButton.innerHTML = 'Confirm New Schedule <i class="bi bi-arrow-right ms-2"></i>';
+  };
+  const handleScheduleSelect = ({ date, slot }) => {
+    selectedDate = dateKey(date);
+    selectedTime = slot.startTime;
+    messageBox.classList.add('d-none');
+    const summary = document.getElementById('selectionSummary');
+    summary.classList.remove('d-none');
+    summary.classList.add('d-flex');
+    document.getElementById('selectedDateText').textContent = `Date: ${date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+    document.getElementById('selectedTimeText').textContent = `Time: ${slot.label || slot.startTime}`;
+    resetButton();
+  };
 
-    EnterpriseCalendar.onSelect((dateStr, slot) => {
-      selectedDate = dateStr;
-      selectedTime = slot.startTime;
-      
-      const summary = document.getElementById('selectionSummary');
-      summary.classList.remove('d-none');
-      document.getElementById('selectedDateText').innerText = `Date: ${new Date(dateStr).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'})}`;
-      document.getElementById('selectedTimeText').innerText = `Time: ${slot.startTime}`;
-      
-      btnConfirmReschedule.disabled = false;
-    });
+  if (typeof EnterpriseCalendar === 'undefined') {
+    showError('The scheduling calendar could not be loaded. Please refresh the page.');
+    return;
   }
 
-  // Handle Reschedule
-  btnConfirmReschedule.addEventListener('click', async () => {
+  try {
+    await EnterpriseCalendar.init({
+      serviceId: serviceId || null,
+      duration: serviceDuration,
+      quantity,
+      resetSelection: true,
+      onSelect: handleScheduleSelect,
+    });
+  } catch (error) {
+    showError('Availability could not be loaded. Please refresh the page and try again.');
+  }
+
+  confirmButton.addEventListener('click', async () => {
     if (!selectedDate || !selectedTime) return;
-    
-    btnConfirmReschedule.disabled = true;
-    btnConfirmReschedule.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Processing...';
-    
+    confirmButton.disabled = true;
+    confirmButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking availability...';
+    messageBox.classList.add('d-none');
+
     try {
-      const res = await fetch(`/api/reschedule/no-show/${token}`, {
+      const response = await fetch(`/api/reschedule/no-show/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newDate: selectedDate, newTime: selectedTime })
+        body: JSON.stringify({ newDate: selectedDate, newTime: selectedTime }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        window.location.href = '/book-history?rescheduled=true';
-      } else {
-        alert(data.error || 'Failed to reschedule.');
-        btnConfirmReschedule.disabled = false;
-        btnConfirmReschedule.innerHTML = 'Confirm New Schedule <i class="bi bi-arrow-right ms-2"></i>';
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.refreshSlots) {
+          selectedDate = null;
+          selectedTime = null;
+          document.getElementById('selectionSummary').classList.add('d-none');
+          document.getElementById('selectionSummary').classList.remove('d-flex');
+          await EnterpriseCalendar.init({
+            serviceId: serviceId || null,
+            duration: serviceDuration,
+            quantity,
+            resetSelection: true,
+            onSelect: handleScheduleSelect,
+          });
+        }
+        throw new Error(data.error || 'The booking could not be rescheduled.');
       }
-    } catch (err) {
-      alert('A network error occurred.');
-      btnConfirmReschedule.disabled = false;
-      btnConfirmReschedule.innerHTML = 'Confirm New Schedule <i class="bi bi-arrow-right ms-2"></i>';
+
+      document.getElementById('rescheduleWorkspace').classList.add('d-none');
+      document.getElementById('rescheduleSuccess').classList.remove('d-none');
+      document.getElementById('successSchedule').textContent = `${data.newDate} at ${data.newTime}`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      showError(error.message || 'A network error occurred. Please try again.');
+      resetButton();
     }
   });
 
-  // Handle Cancel
-  if(btnConfirmCancel) {
-    btnConfirmCancel.addEventListener('click', async () => {
-      if (!confirm("Are you sure you want to cancel this booking and request a refund?")) return;
-      
-      btnConfirmCancel.disabled = true;
-      btnConfirmCancel.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Cancelling...';
-      
-      try {
-        const res = await fetch(`/api/reschedule/no-show/${token}/cancel`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        if (res.ok) {
-          window.location.href = '/book-history?cancelled=true';
-        } else {
-          alert(data.error || 'Failed to cancel.');
-          btnConfirmCancel.disabled = false;
-          btnConfirmCancel.innerHTML = 'Yes, Cancel My Booking';
-        }
-      } catch (err) {
-        alert('A network error occurred.');
-        btnConfirmCancel.disabled = false;
-        btnConfirmCancel.innerHTML = 'Yes, Cancel My Booking';
-      }
-    });
-  }
+  cancelButton.addEventListener('click', async () => {
+    if (!confirm('Cancel this booking permanently?')) return;
+    cancelButton.disabled = true;
+    cancelButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cancelling...';
+    try {
+      const response = await fetch(`/api/reschedule/no-show/${encodeURIComponent(token)}/cancel`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'The booking could not be cancelled.');
+      window.location.href = '/book-history?cancelled=true';
+    } catch (error) {
+      showError(error.message || 'A network error occurred. Please try again.');
+      cancelButton.disabled = false;
+      cancelButton.textContent = 'Cancel This Booking';
+    }
+  });
 });
 </script>
 <% } %>
-
-<%- include('../partials/footer') %>

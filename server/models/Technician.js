@@ -55,7 +55,7 @@ technicianSchema.statics.updateLocation = function (techId, lng, lat) {
   return this.findByIdAndUpdate(
     techId,
     { location: { type: "Point", coordinates: [lng, lat] } },
-    { new: true },
+    { returnDocument: "after" },
   );
 };
 

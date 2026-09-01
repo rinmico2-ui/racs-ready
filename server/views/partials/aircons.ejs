@@ -1782,7 +1782,7 @@
 
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="/js/checkout-calendar.js"></script>
+  <script src="/js/checkout-calendar.js?v=20260826-service-slot-parity"></script>
 
   <script>
     (function () {
@@ -1912,6 +1912,9 @@
         selectedVariantIdx = null;
         selectedQuantity = 1;
         selectedFulfillment = null;
+        _routeDistanceKm = 0;
+        _routeDurationMin = 0;
+        _transportFee = 0;
         currentStep = 1;
 
         const g = GROUPS[gIdx];
@@ -2010,11 +2013,12 @@
         updateWizardUI();
 
         // Initialize Checkout Calendar
-        const estDuration = Math.max(60, (selectedQuantity || 1) * 60);
         if (!checkoutCalendar) {
           checkoutCalendar = new CheckoutCalendar('checkoutCalendarContainer', {
             fulfillmentType: selectedFulfillment,
-            duration: estDuration,
+            duration: 60,
+            quantity: selectedQuantity || 1,
+            travelTime: 30,
             onDateSelect: (dateStr) => {
               document.getElementById('wizardDate').value = dateStr;
               document.getElementById('wizardDateError').style.display = 'none';
@@ -2024,7 +2028,9 @@
             }
           });
         } else {
-          checkoutCalendar.setDuration(estDuration);
+          checkoutCalendar.setDuration(60);
+          checkoutCalendar.setQuantity(selectedQuantity || 1);
+          checkoutCalendar.setTravelTime(30);
         }
 
         // Set min date for date pickers via Flatpickr for pickup
@@ -2075,6 +2081,7 @@
 
         // Setup quantity
         selectedQuantity = 1;
+        if (checkoutCalendar) checkoutCalendar.setQuantity(1);
         document.getElementById('wizardQuantity').textContent = '1';
         document.getElementById('wizardMaxQuantity').textContent = v.quantity;
         document.getElementById('wizardQuantityContainer').style.display = 'block';
@@ -2090,6 +2097,7 @@
         if (newQ > max) newQ = max;
         selectedQuantity = newQ;
         document.getElementById('wizardQuantity').textContent = String(newQ);
+        if (checkoutCalendar) checkoutCalendar.setQuantity(newQ);
         
         // Update price display dynamically based on quantity
         document.getElementById('wizardSelectedPrice').textContent = `₱${(v.sellingPrice * newQ).toLocaleString()}`;
@@ -2693,6 +2701,8 @@
               }
               _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
               var meta = document.getElementById('reviewTransportMeta');
+              updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, isRoad);
+              if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin || 30);
               if (meta) meta.textContent = _routeDistanceKm + ' km × ₱' + (window._farePerKm || 40) + '/km';
             })
             .catch(function() {
@@ -2706,6 +2716,8 @@
               _routeDistanceKm = Math.round(hKm * 14) / 10;
               _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
               _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
+              updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, false);
+              if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin || 30);
             });
         });
       }

@@ -933,6 +933,7 @@
             <th class="text-center"><i class="bi bi-list-check"></i>Features</th>
             <th class="text-center"><i class="bi bi-basket2"></i>Inclusions</th>
             <th><i class="bi bi-journal-check"></i>Bookings</th>
+            <th><i class="bi bi-shield-check"></i>Warranty</th>
             <th><i class="bi bi-check2-circle"></i>Status</th>
             <th class="text-end pe-4"><i class="bi bi-gear"></i>Actions</th>
           </tr>
@@ -962,6 +963,7 @@
                 <td class="text-center"><span class="badge bg-light text-dark border core-count-badge"><%= (svc.features && svc.features.length) || 0 %></span></td>
                 <td class="text-center"><span class="badge bg-light text-dark border core-count-badge"><%= (svc.includedItems && svc.includedItems.length) || 0 %></span></td>
                 <td><span class="core-booking-badge"><i class="bi bi-graph-up-arrow"></i><%= svc.bookingCount || 0 %></span></td>
+                <td><span class="badge <%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary border border-primary-subtle' %>"><%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'Disabled' : ((svc.warrantyPolicy && svc.warrantyPolicy.workmanshipDays) || 90) + ' days' %></span></td>
                 <td>
                   <span class="badge <%= svc.active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' %>"><%= svc.active ? 'Active' : 'Inactive' %></span>
                 </td>
@@ -972,7 +974,7 @@
             <% }); %>
           <% } else { %>
             <tr>
-              <td colspan="8" class="text-center core-empty-state">
+              <td colspan="9" class="text-center core-empty-state">
                 <i class="bi bi-inboxes"></i>
                 <div>No core services defined.</div>
               </td>
@@ -992,7 +994,7 @@
 
 <!-- modal to create/edit core service -->
 <div class="modal fade" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <form id="coreServiceForm" class="modal-content">
       <div class="modal-header au-hero text-white" style="background: linear-gradient(135deg,#0f172a 0%,#1d4ed8 50%,#2563eb 100%) !important;">
         <div class="d-flex align-items-center gap-3">
@@ -1098,6 +1100,25 @@
             </div>
           </div>
 
+          <div class="col-12">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center p-3">
+                <div><h6 class="mb-1 d-flex align-items-center gap-2"><i class="bi bi-shield-check text-primary"></i> Workmanship Warranty Policy</h6><div class="small text-muted">Saved into each completed booking as immutable customer-facing terms.</div></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="warrantyEnabled" id="coreWarrantyEnabled" checked><label class="form-check-label fw-semibold" for="coreWarrantyEnabled">Enabled</label></div>
+              </div>
+              <div class="card-body p-3"><div class="row g-3">
+                <div class="col-md-3"><label class="form-label">Coverage type</label><select class="form-select" name="warrantyCoverageType"><option value="workmanship">Workmanship</option><option value="installation">Installation</option><option value="diagnostic">Diagnostic / reinspection</option></select></div>
+                <div class="col-md-3"><label class="form-label">Workmanship days</label><input class="form-control" type="number" name="warrantyWorkmanshipDays" min="90" max="3650" value="90" required><div class="form-text">Minimum 90 days.</div></div>
+                <div class="col-md-3"><label class="form-label">Free reinspection days</label><input class="form-control" type="number" name="warrantyReinspectionDays" min="1" max="3650" value="90" required></div>
+                <div class="col-md-3"><label class="form-label">Claim response target</label><div class="input-group"><input class="form-control" type="number" name="warrantyResponseDays" min="1" max="30" value="2" required><span class="input-group-text">days</span></div></div>
+                <div class="col-md-4"><label class="form-label">Parts supplied during service</label><select class="form-select" name="warrantyPartsMode"><option value="same_as_workmanship">Same as workmanship</option><option value="custom">Custom duration</option><option value="manufacturer_terms">Separate manufacturer terms</option><option value="not_included">Not included</option></select></div>
+                <div class="col-md-2"><label class="form-label">Custom parts days</label><input class="form-control" type="number" name="warrantyPartsDays" min="90" max="3650" placeholder="90"></div>
+                <div class="col-md-6"><label class="form-label">Covered scope <span class="text-muted">(one item per line)</span></label><textarea class="form-control" name="warrantyCoveredItems" rows="3" placeholder="Workmanship performed within the approved service scope"></textarea></div>
+                <div class="col-12"><label class="form-label">Exclusions <span class="text-muted">(one item per line)</span></label><textarea class="form-control" name="warrantyPolicyExclusions" rows="2" placeholder="Pre-existing defects; misuse; power irregularity; unauthorized third-party work"></textarea></div>
+              </div></div>
+            </div>
+          </div>
+
           <div class="col-12 d-none" id="airconConfigSection">
             <div class="card border-0 shadow-sm">
               <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 p-3">
@@ -1165,6 +1186,34 @@
     const form = document.getElementById('coreServiceForm');
     let editingId = null;
     let currentAirconTypes = [];
+    let warrantyDaysTouched = false;
+
+    function setWarrantyPolicy(policy) {
+      const p = policy || {};
+      form.warrantyEnabled.checked = p.enabled !== false;
+      form.warrantyCoverageType.value = p.coverageType || 'workmanship';
+      form.warrantyWorkmanshipDays.value = p.workmanshipDays || 90;
+      form.warrantyReinspectionDays.value = p.freeReinspectionDays || 90;
+      form.warrantyResponseDays.value = p.claimResponseDays || 2;
+      form.warrantyPartsMode.value = p.partsCoverage?.mode || 'same_as_workmanship';
+      form.warrantyPartsDays.value = p.partsCoverage?.days || '';
+      form.warrantyCoveredItems.value = (p.coveredItems || []).join('\n');
+      form.warrantyPolicyExclusions.value = (p.exclusions || []).join('\n');
+    }
+    function lines(value) { return String(value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean); }
+    form.warrantyWorkmanshipDays.addEventListener('input', () => { warrantyDaysTouched = true; });
+    form.slug.addEventListener('input', () => {
+      if (editingId || warrantyDaysTouched) return;
+      const defaults = {
+        'aircon-installation':[180,'installation'], 'aircon-relocation':[180,'installation'],
+        'dismantling-reinstall':[180,'installation'], 'cctv-installation':[180,'installation'],
+        'system-reprocess':[90,'diagnostic'], 'leak-testing':[90,'diagnostic'],
+      };
+      const recommendation = defaults[form.slug.value.trim().toLowerCase()] || [90,'workmanship'];
+      form.warrantyWorkmanshipDays.value = recommendation[0];
+      form.warrantyCoverageType.value = recommendation[1];
+      form.warrantyReinspectionDays.value = Math.min(90, recommendation[0]);
+    });
 
     const isAirconToggle = document.getElementById('isAirconServiceCheckCore');
     const airconSection = document.getElementById('airconConfigSection');
@@ -1294,12 +1343,16 @@
         form.isAirconService.checked = !!data.isAirconService;
         form.active.checked = !!data.active;
         currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
+        setWarrantyPolicy(data.warrantyPolicy);
+        warrantyDaysTouched = true;
       } else {
         editingId = null;
         modalEl.querySelector('.modal-title').innerText = 'New Core Service';
         form.reset();
         form.active.checked = true;
         currentAirconTypes = [];
+        setWarrantyPolicy(null);
+        warrantyDaysTouched = false;
       }
       isAirconToggle.dispatchEvent(new Event('change'));
       renderMatrix();
@@ -1345,6 +1398,16 @@
         isAirconService: form.isAirconService.checked,
         airconTypes: cleanAirconTypes,
         active: form.active.checked,
+        warrantyPolicy: {
+          enabled: form.warrantyEnabled.checked,
+          coverageType: form.warrantyCoverageType.value,
+          workmanshipDays: parseInt(form.warrantyWorkmanshipDays.value || '90'),
+          freeReinspectionDays: parseInt(form.warrantyReinspectionDays.value || '90'),
+          claimResponseDays: parseInt(form.warrantyResponseDays.value || '2'),
+          coveredItems: lines(form.warrantyCoveredItems.value),
+          exclusions: lines(form.warrantyPolicyExclusions.value),
+          partsCoverage: { mode: form.warrantyPartsMode.value, days: form.warrantyPartsDays.value ? parseInt(form.warrantyPartsDays.value) : null },
+        },
       };
       let url = '/api/admin/core-services';
       let method = 'POST';

@@ -2352,6 +2352,248 @@
     .kpi-enterprise-value { font-size: 1.1rem; }
     .kpi-enterprise-label { font-size: 0.62rem; }
   }
+
+  /* Technician order details. These deliberately use a page-specific namespace
+     so older booking/detail styles cannot override the order workspace. */
+  #detailPanelHeader.to-order-detail-header {
+    padding: 14px 20px 16px;
+    overflow: visible;
+  }
+  #detailPanelStatusBadge.detail-status-badge { font-size: 0.62rem; padding: 4px 9px 4px 7px; }
+  #detailPanelStatusBadge.to-detail-status.pending { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+  #detailPanelStatusBadge.to-detail-status.scheduled,
+  #detailPanelStatusBadge.to-detail-status.on-the-way { color: #1d4ed8; background: #dbeafe; border-color: #bfdbfe; }
+  #detailPanelStatusBadge.to-detail-status.confirmed,
+  #detailPanelStatusBadge.to-detail-status.completed { color: #047857; background: #d1fae5; border-color: #a7f3d0; }
+  #detailPanelStatusBadge.to-detail-status.in-progress { color: #7c2d12; background: #ffedd5; border-color: #fed7aa; }
+  #detailPanelStatusBadge.to-detail-status.cancelled { color: #b91c1c; background: #fee2e2; border-color: #fecaca; }
+  #detailPanelStatusBadge.to-detail-status.pending::before,
+  #detailPanelStatusBadge.to-detail-status.in-progress::before { background: #f59e0b; }
+  #detailPanelStatusBadge.to-detail-status.cancelled::before { background: #ef4444; }
+  #detailPanelStatusBadge.to-detail-status.scheduled::before,
+  #detailPanelStatusBadge.to-detail-status.on-the-way::before { background: #3b82f6; }
+  .to-order-progress {
+    position: relative;
+    z-index: 1;
+    margin-top: 14px;
+    padding: 13px 14px 12px;
+    border: 1px solid #dbe4ef;
+    border-radius: 13px;
+    background: #f8fafc;
+  }
+  .to-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+  .to-progress-current { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .to-progress-current-icon {
+    width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center;
+    justify-content: center; flex: 0 0 auto; color: #1d4ed8; background: #dbeafe;
+  }
+  .to-progress-current.live .to-progress-current-icon { color: #047857; background: #d1fae5; }
+  .to-progress-current.cancelled .to-progress-current-icon { color: #b91c1c; background: #fee2e2; }
+  .to-progress-copy { min-width: 0; }
+  .to-progress-title { color: #0f172a; font-size: 0.78rem; font-weight: 800; line-height: 1.2; }
+  .to-progress-sub { color: #64748b; font-size: 0.65rem; line-height: 1.35; margin-top: 2px; }
+  .to-live-chip { display: inline-flex; align-items: center; gap: 6px; color: #047857; font-size: 0.62rem; font-weight: 800; letter-spacing: .08em; }
+  .to-live-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 4px #d1fae5; }
+  .to-progress-rail { display: grid; grid-template-columns: repeat(var(--step-count), minmax(0, 1fr)); gap: 0; }
+  .to-progress-step { position: relative; min-width: 0; text-align: center; }
+  .to-progress-step::before {
+    content: ''; position: absolute; top: 12px; left: -50%; right: 50%; height: 2px; background: #dbe4ef;
+  }
+  .to-progress-step:first-child::before { display: none; }
+  .to-progress-step.done::before, .to-progress-step.active::before { background: #3b82f6; }
+  .to-progress-dot {
+    position: relative; z-index: 1; width: 25px; height: 25px; margin: 0 auto 5px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #94a3b8; background: #fff;
+    border: 2px solid #dbe4ef; font-size: .63rem;
+  }
+  .to-progress-step.done .to-progress-dot { color: #fff; background: #2563eb; border-color: #2563eb; }
+  .to-progress-step.active .to-progress-dot { color: #1d4ed8; background: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+  .to-progress-label { color: #94a3b8; font-size: .56rem; font-weight: 700; line-height: 1.15; }
+  .to-progress-step.done .to-progress-label, .to-progress-step.active .to-progress-label { color: #334155; }
+
+  .to-detail-shell { max-width: 1180px; margin: 0 auto; padding: 18px 20px 28px; }
+  .to-detail-overview {
+    display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px;
+    margin-bottom: 14px; color: #fff; border-radius: 16px;
+    background: linear-gradient(125deg, #0f172a 0%, #1e3a8a 70%, #2563eb 100%);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .14);
+  }
+  .to-detail-overview-main { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .to-detail-overview-icon {
+    width: 46px; height: 46px; flex: 0 0 auto; border-radius: 13px; display: grid; place-items: center;
+    background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.16); font-size: 1.15rem;
+  }
+  .to-detail-eyebrow { color: #bfdbfe; font-size: .61rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .to-detail-overview h4 { margin: 3px 0 2px; color: #fff; font-size: 1.05rem; font-weight: 800; }
+  .to-detail-overview p { margin: 0; color: #dbeafe; font-size: .72rem; }
+  .to-detail-total { flex: 0 0 auto; text-align: right; }
+  .to-detail-total span { display: block; color: #bfdbfe; font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .to-detail-total strong { display: block; margin-top: 2px; color: #fff; font-size: 1.2rem; font-weight: 850; }
+  .to-detail-summary { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+  .to-summary-cell { padding: 12px 13px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+  .to-summary-cell span { display: block; margin-bottom: 4px; color: #64748b; font-size: .59rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+  .to-summary-cell strong { display: block; color: #172033; font-size: .78rem; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+  .to-detail-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .75fr); gap: 14px; align-items: start; }
+  .to-detail-column { display: grid; gap: 14px; min-width: 0; }
+  .to-detail-card { overflow: hidden; border: 1px solid #e1e8f0; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(15,23,42,.035); }
+  .to-detail-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 15px; border-bottom: 1px solid #edf1f6; }
+  .to-detail-card-title { display: flex; align-items: center; gap: 8px; margin: 0; color: #172033; font-size: .78rem; font-weight: 800; }
+  .to-detail-card-title i { color: #2563eb; }
+  .to-detail-card-count { color: #64748b; font-size: .64rem; font-weight: 700; }
+  .to-detail-card-body { padding: 14px 15px; }
+  .to-info-list { display: grid; gap: 0; }
+  .to-info-row { display: grid; grid-template-columns: 33px minmax(0,1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f3f7; }
+  .to-info-row:first-child { padding-top: 0; }
+  .to-info-row:last-child { padding-bottom: 0; border-bottom: 0; }
+  .to-info-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #2563eb; background: #eff6ff; font-size: .76rem; }
+  .to-info-label { color: #718096; font-size: .59rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+  .to-info-value { margin-top: 2px; color: #1e293b; font-size: .76rem; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+  .to-info-note { margin-top: 4px; color: #64748b; font-size: .7rem; line-height: 1.5; white-space: pre-line; }
+  .to-contact-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+  .to-contact-action { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 9px; color: #334155; background: #fff; font-size: .68rem; font-weight: 750; text-decoration: none; }
+  .to-contact-action:hover { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
+  .to-item-row { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 11px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f0f3f7; }
+  .to-item-row:first-child { padding-top: 0; }
+  .to-item-row:last-child { padding-bottom: 0; border-bottom: 0; }
+  .to-item-icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: #1d4ed8; background: #eff6ff; }
+  .to-item-name { color: #172033; font-size: .77rem; font-weight: 800; line-height: 1.3; }
+  .to-item-meta { margin-top: 3px; color: #64748b; font-size: .67rem; }
+  .to-item-amount { color: #172033; font-size: .75rem; font-weight: 800; text-align: right; }
+  .to-readiness-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f3f7; }
+  .to-readiness-row:first-child { padding-top: 0; }
+  .to-readiness-row:last-of-type { border-bottom: 0; }
+  .to-readiness-name { color: #263449; font-size: .73rem; font-weight: 750; }
+  .to-readiness-name i { width: 19px; color: #64748b; }
+  .to-state-pill { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; font-size: .57rem; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+  .to-state-pill.ready { color: #047857; background: #d1fae5; }
+  .to-state-pill.pending { color: #92400e; background: #fef3c7; }
+  .to-state-pill.blocked { color: #b91c1c; background: #fee2e2; }
+  .to-blocker-list { margin: 10px 0 0; padding: 10px 12px 10px 29px; border: 1px solid #fde68a; border-radius: 10px; color: #854d0e; background: #fffbeb; font-size: .68rem; line-height: 1.5; }
+  .to-detail-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 11px; color: #1d4ed8; font-size: .68rem; font-weight: 800; text-decoration: none; }
+  .to-payment-status { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; font-size: .59rem; font-weight: 800; text-transform: capitalize; }
+  .to-payment-status.settled { color: #047857; background: #d1fae5; }
+  .to-payment-status.unsettled { color: #92400e; background: #fef3c7; }
+  .to-money-row { display: flex; justify-content: space-between; gap: 15px; padding: 7px 0; color: #64748b; font-size: .7rem; }
+  .to-money-row strong { color: #263449; font-weight: 750; }
+  .to-money-row.total { margin-top: 4px; padding-top: 11px; border-top: 1px solid #e2e8f0; color: #172033; font-weight: 800; }
+  .to-money-row.total strong { color: #0f172a; font-size: .87rem; }
+  .to-timeline { position: relative; display: grid; gap: 12px; }
+  .to-timeline-item { position: relative; display: grid; grid-template-columns: 10px minmax(0,1fr); gap: 10px; }
+  .to-timeline-item:not(:last-child)::after { content: ''; position: absolute; left: 4px; top: 12px; bottom: -13px; width: 1px; background: #dbe4ef; }
+  .to-timeline-dot { width: 9px; height: 9px; margin-top: 3px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 0 3px #dbeafe; }
+  .to-timeline-status { color: #334155; font-size: .69rem; font-weight: 800; text-transform: capitalize; }
+  .to-timeline-time { margin-top: 2px; color: #718096; font-size: .62rem; }
+  .to-timeline-note { margin-top: 2px; color: #64748b; font-size: .65rem; line-height: 1.4; }
+  .to-actions-wrap .to-btn { min-height: 39px; justify-content: center; }
+
+  @media (max-width: 850px) {
+    .to-detail-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .to-detail-grid { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 768px) and (max-width: 991px) {
+    .mw-split-right {
+      position: fixed; inset: 0; z-index: 1060; width: 100%; max-width: 100%;
+      height: 100vh; min-height: 100vh;
+    }
+    .mw-split-right-inner { height: 100vh; min-height: 100vh; }
+  }
+  @media (max-width: 575px) {
+    #detailPanelHeader.to-order-detail-header { padding: 11px 12px 12px; }
+    .detail-panel-title { max-width: 155px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .detail-panel-close { display: none; }
+    .to-progress-head { margin-bottom: 9px; }
+    .to-progress-sub, .to-live-chip { display: none; }
+    .to-order-progress { padding: 11px 8px 10px; }
+    .to-progress-label { font-size: .48rem; }
+    .to-detail-shell { padding: 12px 10px 22px; }
+    .to-detail-overview { padding: 14px; align-items: flex-start; }
+    .to-detail-overview-icon { width: 39px; height: 39px; }
+    .to-detail-overview h4 { font-size: .88rem; }
+    .to-detail-overview p { font-size: .65rem; }
+    .to-detail-total strong { font-size: .95rem; }
+    .to-detail-summary { gap: 8px; }
+    .to-summary-cell { padding: 10px; }
+    .to-detail-card-head, .to-detail-card-body { padding-left: 12px; padding-right: 12px; }
+    .detail-panel-actions { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .to-actions-wrap .to-btn { flex: 1 1 130px; }
+  }
+
+  /* Shared compact detail scale used by both technician bookings and orders. */
+  #detailPanelHeader.to-order-detail-header { padding: 10px 16px 10px; }
+  .compact-work-progress.trk-card {
+    position: relative; z-index: 1; margin-top: 10px; overflow: hidden;
+    border: 1px solid #dbe7f1; border-radius: 11px; background: #fff;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+  }
+  .compact-work-progress .trk-card-header { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: linear-gradient(135deg,#f0f9ff,#e0f2fe); border-bottom: 1px solid #e0f2fe; }
+  .compact-work-progress .trk-card-title { display: flex; align-items: center; gap: 6px; margin: 0; color: #0f172a; font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .compact-work-progress .trk-card-body { padding: 8px 10px 9px; }
+  .compact-work-progress .trk-live-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; color: #15803d; background: #dcfce7; font-size: .55rem; font-weight: 850; letter-spacing: .08em; }
+  .compact-work-progress .trk-pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; animation: compactProgressPulse 2s ease-in-out infinite; }
+  .compact-work-progress .trk-current-action { display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 8px; border: 1px solid #bfdbfe; border-radius: 10px; background: linear-gradient(135deg,#eff6ff,#f0fdf4); }
+  .compact-work-progress .trk-current-action.live { border-color: #86efac; background: linear-gradient(135deg,#ecfdf5,#f0fdf4); }
+  .compact-work-progress .trk-current-action-icon { width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; background: #2563eb; font-size: .76rem; }
+  .compact-work-progress .trk-current-action.live .trk-current-action-icon { background: #16a34a; }
+  .compact-work-progress .trk-current-action.live .trk-current-action-icon i { animation: compactProgressSpin 1.4s linear infinite; }
+  .compact-work-progress .trk-current-action-title { color: #0f172a; font-size: .72rem; font-weight: 800; line-height: 1.2; }
+  .compact-work-progress .trk-current-action-sub { margin-top: 1px; color: #64748b; font-size: .59rem; line-height: 1.25; }
+  .compact-work-progress .trk-task-list { display: flex; flex-direction: row; gap: 0; padding: 1px 0 2px; overflow-x: auto; }
+  .compact-work-progress .trk-task { position: relative; display: flex; flex: 1; min-width: 74px; flex-direction: column; align-items: center; padding: 0 3px; text-align: center; }
+  .compact-work-progress .trk-task::before { content: ''; position: absolute; z-index: 0; top: 13px; left: -50%; width: 100%; height: 2px; background: #e2e8f0; }
+  .compact-work-progress .trk-task:first-child::before { display: none; }
+  .compact-work-progress .trk-task.done::before, .compact-work-progress .trk-task.active::before { background: #2563eb; }
+  .compact-work-progress .trk-task-dot { position: relative; z-index: 1; width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border: 2px solid #e2e8f0; border-radius: 50%; color: #94a3b8; background: #f8fafc; font-size: .7rem; }
+  .compact-work-progress .trk-task.done .trk-task-dot { color: #fff; background: #2563eb; border-color: #2563eb; }
+  .compact-work-progress .trk-task.active .trk-task-dot { color: #fff; background: #16a34a; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.13); }
+  .compact-work-progress .trk-task-body { padding-top: 5px; }
+  .compact-work-progress .trk-task-label { color: #64748b; font-size: .58rem; font-weight: 750; line-height: 1.15; }
+  .compact-work-progress .trk-task.done .trk-task-label, .compact-work-progress .trk-task.active .trk-task-label { color: #0f172a; }
+  .compact-work-progress .trk-task-desc { display: none; }
+  @keyframes compactProgressPulse { 50% { opacity: .45; transform: scale(.8); } }
+  @keyframes compactProgressSpin { to { transform: rotate(360deg); } }
+
+  .to-detail-shell { max-width: 1040px; padding: 12px 16px 18px; }
+  .to-detail-overview { gap: 12px; padding: 12px 15px; margin-bottom: 9px; border-radius: 12px; box-shadow: 0 7px 20px rgba(15,23,42,.12); }
+  .to-detail-overview-icon { width: 38px; height: 38px; border-radius: 10px; font-size: .94rem; }
+  .to-detail-overview h4 { font-size: .9rem; }
+  .to-detail-overview p { font-size: .64rem; }
+  .to-detail-total strong { font-size: 1rem; }
+  .to-detail-summary { gap: 7px; margin-bottom: 9px; }
+  .to-summary-cell { padding: 8px 10px; border-radius: 10px; }
+  .to-summary-cell span { margin-bottom: 2px; font-size: .53rem; }
+  .to-summary-cell strong { font-size: .7rem; }
+  .to-detail-grid, .to-detail-column { gap: 9px; }
+  .to-detail-grid { grid-template-columns: minmax(0,1.4fr) minmax(250px,.72fr); }
+  .to-detail-card { border-radius: 11px; }
+  .to-detail-card-head { padding: 9px 12px; }
+  .to-detail-card-title { font-size: .7rem; }
+  .to-detail-card-body { padding: 10px 12px; }
+  .to-info-row { grid-template-columns: 29px minmax(0,1fr); gap: 8px; padding: 7px 0; }
+  .to-info-icon { width: 28px; height: 28px; border-radius: 8px; font-size: .68rem; }
+  .to-info-value { font-size: .7rem; }
+  .to-contact-actions { margin-top: 9px; }
+  .to-contact-action { padding: 6px 9px; font-size: .63rem; }
+  .to-item-row { grid-template-columns: 32px minmax(0,1fr) auto; gap: 9px; padding: 8px 0; }
+  .to-item-icon { width: 32px; height: 32px; border-radius: 8px; }
+  .to-item-name { font-size: .7rem; }
+  .to-item-meta, .to-item-amount { font-size: .62rem; }
+  .to-readiness-row { padding: 7px 0; }
+  .to-money-row { padding: 5px 0; font-size: .65rem; }
+  .to-timeline { gap: 9px; }
+  .detail-panel-actions { padding: 8px 14px; justify-content: flex-start; }
+  .to-actions-wrap { justify-content: flex-start; }
+  .to-actions-wrap .to-btn { min-height: 35px; padding: 7px 13px; border-radius: 9px; font-size: .72rem; }
+
+  @media (max-width: 850px) { .to-detail-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 575px) {
+    #detailPanelHeader.to-order-detail-header { padding: 9px 10px; }
+    .compact-work-progress.trk-card { margin-top: 8px; }
+    .compact-work-progress .trk-current-action-sub, .compact-work-progress .trk-live-tag { display: none; }
+    .compact-work-progress .trk-task { min-width: 62px; }
+    .to-detail-shell { padding: 9px 8px 16px; }
+    .to-detail-overview { padding: 10px 11px; }
+    .to-detail-summary { gap: 6px; }
+  }
 </style>
 <div class="technician-page">
   <div class="container-fluid px-3 px-md-4 py-3 py-md-4">
@@ -2463,6 +2705,8 @@
       </div>
     </div>
 
+    <%- include('../../partials/technician-order-daily-kit') %>
+
     <!-- Enterprise Filter Bar -->
     <div class="mw-filter-bar mw-animate-fade-in">
       <div class="mw-search">
@@ -2537,20 +2781,18 @@
     arrived:{label:'Arrived',cls:'arrived'}, installing:{label:'Installing',cls:'installing'},
     completed:{label:'Completed',cls:'completed'}, cancelled:{label:'Cancelled',cls:'cancelled'}
   };
-  var SICONS={technician_assigned:'bi-bell-fill',technician_accepted:'bi-check-circle-fill',technician_declined:'bi-x-circle-fill',out_for_delivery:'bi-truck',arrived:'bi-geo-alt-fill',installing:'bi-tools',completed:'bi-check2-all',cancelled:'bi-x-circle'};
-
-  var FFLOW=['Assigned','Accepted','En Route','Arrived','Installing','Completed'];
-  var FDEL=['Assigned','Accepted','En Route','Arrived','Completed'];
+  var FFLOW=['Accept','Daily Prep','En Route','Arrived','Installation','Done'];
+  var FDEL=['Accept','En Route','Arrived','Done'];
   
   function getFlow(t) { return t==='delivery_only' ? FDEL : FFLOW; }
   
-  function getFlowIndex(s) {
+  function getFlowIndex(s, fulfillmentType) {
     if(s==='technician_assigned') return 0;
-    if(s==='technician_accepted' || s==='preparing_unit') return 1;
-    if(s==='out_for_delivery') return 2;
-    if(s==='arrived') return 3;
-    if(s==='installing') return 4;
-    if(s==='completed') return 5;
+    if(s==='technician_accepted' || s==='preparing_unit') return fulfillmentType==='delivery_installation' ? 1 : 0;
+    if(s==='out_for_delivery') return fulfillmentType==='delivery_installation' ? 2 : 1;
+    if(s==='arrived') return fulfillmentType==='delivery_installation' ? 3 : 2;
+    if(s==='installing' && fulfillmentType==='delivery_installation') return 4;
+    if(s==='completed') return getFlow(fulfillmentType).length - 1;
     return -1;
   }
 
@@ -2580,20 +2822,69 @@
   };
 
   var ORDER_STEP_DESCRIPTIONS = {
-    'Assigned':'Order is waiting for your response.',
-    'Accepted':'You have accepted the order.',
-    'En Route':'You are on the way to the delivery location.',
-    'Arrived':'You have arrived at the delivery location.',
-    'Installing':'Installation is in progress.',
-    'Completed':'Order completed. Great job!'
+    'Accept':'Review and accept the assigned order.',
+    'Daily Prep':'Review and confirm the shared equipment and consumables kit.',
+    'En Route':'Travel to the customer delivery location.',
+    'Arrived':'Confirm arrival at the customer location.',
+    'Installation':'Install, test, and document the ordered units.',
+    'Done':'Delivery and service work are finished.'
   };
 
-  function badge(s){
-    var c=SCFG[s]||{label:s,cls:'pending'}, ic=SICONS[s]||'bi-circle';
-    return '<span class="to-badge '+c.cls+'"><i class="bi '+ic+'"></i>'+c.label+'</span>';
+  function esc(s) {
+    if(s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
   }
-  
-  function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):'';}
+
+  function orderItemName(item) {
+    item = item || {};
+    return [item.brand, item.modelLine || item.name || item.productName].filter(Boolean).join(' ') || 'Air-conditioning unit';
+  }
+
+  function orderItemMeta(item) {
+    item = item || {};
+    var parts = [];
+    if(item.capacity) parts.push(String(item.capacity) + (item.capacityUnit ? ' ' + item.capacityUnit : ''));
+    parts.push('Qty ' + Math.max(1, Number(item.quantity) || 1));
+    if((item.serialNumbers || []).length) parts.push((item.serialNumbers || []).length + ' serial recorded');
+    return parts.join(' · ');
+  }
+
+  function peso(value) {
+    return '₱' + Number(value || 0).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function displayDate(value, includeTime) {
+    if(!value) return 'Not scheduled';
+    var d = new Date(value);
+    if(Number.isNaN(d.getTime())) return 'Not scheduled';
+    return d.toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'}) +
+      (includeTime ? ' · ' + d.toLocaleTimeString('en-PH', {hour:'numeric', minute:'2-digit'}) : '');
+  }
+
+  function orderDateKey(value) {
+    var d = value ? new Date(value) : new Date();
+    if(Number.isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function fulfillmentLabel(type) {
+    if(type === 'delivery_installation') return 'Delivery & Installation';
+    if(type === 'delivery_only') return 'Delivery Only';
+    if(type === 'customer_pickup') return 'Customer Pickup';
+    return 'Order Fulfillment';
+  }
+
+  function paymentMethodLabel(method) {
+    var labels = {cod:'Cash on Delivery',cash:'Cash',cash_onsite:'Cash On-site',gcash:'GCash',gcash_full:'GCash Full Payment',gcash_downpayment:'GCash Downpayment',paymongo:'PayMongo',downpayment:'Downpayment',other:'Other'};
+    return labels[method] || String(method || 'Not specified').replace(/_/g, ' ');
+  }
+
+  function phoneHref(value) {
+    var normalized = String(value || '').trim().replace(/[^+\d]/g, '');
+    return normalized ? normalized : '';
+  }
 
   window.fetchOrders = function() {
     _search = document.getElementById('toSearch').value.trim();
@@ -2605,9 +2896,15 @@
     document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
     
     fetch(url)
-    .then(r=>r.json())
+    .then(async function(r) {
+      var payload = await r.json();
+      if(!r.ok) throw new Error(payload.error || 'Unable to load technician orders.');
+      return payload;
+    })
     .then(data=>{
-      var allOrders = data.orders||[];
+      var allOrders = (data.orders||[]).filter(function(order) {
+        return order.fulfillmentType === 'delivery_only' || order.fulfillmentType === 'delivery_installation';
+      });
       // Client-side filter for comma-separated statuses
       _orders = _statuses.length ? allOrders.filter(o=>_statuses.includes(o.status)) : allOrders;
       updateKPIs(data.kpi||{});
@@ -2645,17 +2942,18 @@
     _orders.forEach(function(o) {
       var id = esc(o._id);
       var sel = (_selectedId === o._id) ? ' selected' : '';
-      var items = (o.items || []).map(function(i) { return esc(i.brand + ' ' + i.modelLine); }).join(', ') || '1 Item';
+      var items = (o.items || []).map(function(i) { return esc(orderItemName(i)); }).join(', ') || 'Order item';
       var cust = esc((o.customer && o.customer.name) || 'Customer');
       var sc = SCFG[o.status] || { label: o.status, cls: 'pending' };
       var p = PILL[sc.cls] || PILL.pending;
       var dObj = (o.delivery && o.delivery.preferredDate) ? new Date(o.delivery.preferredDate) : null;
+      if(dObj && Number.isNaN(dObj.getTime())) dObj = null;
       var day = dObj ? dObj.getDate() : '—';
       var month = dObj ? dObj.toLocaleDateString('en-PH', { month: 'short' }) : '';
-      var dtime = esc((o.delivery && o.delivery.preferredTime) ? o.delivery.preferredTime : 'TBD');
+      var dtime = esc(o.timeSlot || 'TBD');
       var addr = (o.delivery && o.delivery.address) ? esc(o.delivery.address.length > 26 ? o.delivery.address.slice(0, 26) + '…' : o.delivery.address) : 'No address';
       var live = ['out_for_delivery', 'arrived', 'installing'].includes(o.status);
-      h += '<div class="to-order-card tjc' + sel + (live ? ' tjc-live' : '') + '" data-id="' + id + '" onclick="window.viewOrder(\'' + id + '\')">';
+      h += '<div class="to-order-card tjc' + sel + (live ? ' tjc-live' : '') + '" data-id="' + id + '" role="button" tabindex="0">';
       h += '<div class="tjc-date"><div class="tjc-date-day">' + day + '</div><div class="tjc-date-month">' + month + '</div></div>';
       h += '<div class="tjc-main">';
       h += '<div class="tjc-top"><div class="tjc-title">' + items + '</div><span class="tjc-status" style="background:' + p.bg + ';color:' + p.text + ';">' + esc(sc.label) + '</span></div>';
@@ -2691,7 +2989,7 @@
     _selectedId = null;
     document.getElementById('leftPane').classList.remove('panel-open');
     document.getElementById('rightPane').classList.remove('open');
-    if(window.innerWidth < 992) document.body.classList.remove('order-sheet-open');
+    document.body.classList.remove('order-sheet-open');
     document.getElementById('detailPanelEmpty').style.display = 'flex';
     document.getElementById('detailPanelHeader').style.display = 'none';
     document.getElementById('detailPanelContent').style.display = 'none';
@@ -2702,98 +3000,180 @@
   function openDetailPanel(o) {
     document.getElementById('leftPane').classList.add('panel-open');
     document.getElementById('rightPane').classList.add('open');
-    if(window.innerWidth < 992) document.body.classList.add('order-sheet-open');
+    document.body.classList.add('order-sheet-open');
     document.getElementById('detailPanelEmpty').style.display = 'none';
     
-    document.getElementById('detailPanelHeader').style.display = 'block';
+    var header = document.getElementById('detailPanelHeader');
+    header.classList.add('to-order-detail-header');
+    header.style.display = 'block';
     document.getElementById('detailPanelCustomer').textContent = o.customer?.name || 'Customer';
     document.getElementById('detailPanelRef').textContent = 'Order #' + (o.orderReference||o._id.substring(o._id.length-6).toUpperCase());
     var b=SCFG[o.status]||{label:o.status,cls:''};
     document.getElementById('detailPanelStatusBadge').textContent = b.label;
-    document.getElementById('detailPanelStatusBadge').className = 'trk-status-pill ' + statusBadgeClass(o.status);
+    document.getElementById('detailPanelStatusBadge').className = 'detail-status-badge to-detail-status ' + statusBadgeClass(o.status);
     
     var flow = getFlow(o.fulfillmentType);
-    var ai = getFlowIndex(o.status);
+    var ai = getFlowIndex(o.status, o.fulfillmentType);
     var liveStatuses = ['out_for_delivery','arrived','installing'];
     var isLive = liveStatuses.indexOf(o.status) !== -1;
     var act = ORDER_PROGRESS_ACTIONS[o.status] || { t: b.label, s: 'In progress', icon: 'bi-circle' };
+    if(o.fulfillmentType === 'delivery_installation' && ['technician_accepted','preparing_unit'].includes(o.status)) {
+      var kitState = o.preparation?.installation?.status || 'pending';
+      act = ['confirmed','completed'].includes(kitState)
+        ? { t:'Daily Preparation confirmed', s:'The installation kit is ready. Confirm dispatch readiness before departure.', icon:'bi-briefcase-fill' }
+        : { t:'Complete Daily Preparation', s:'Review and confirm equipment and consumables before going En Route.', icon:'bi-briefcase' };
+    }
 
-    var opHtml = '<div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>' + (isLive ? '<span class="trk-live-tag"><span class="trk-pulse-dot live"></span> LIVE</span>' : '') + '</div>';
-    opHtml += '<div class="trk-card-body">';
-    opHtml += '<div class="trk-current-action '+(isLive?'live':'')+'"><div class="trk-current-action-icon"><i class="bi '+(isLive?'bi-arrow-repeat':act.icon)+'"></i></div><div class="trk-current-action-text"><div class="trk-current-action-title">'+esc(act.t)+'</div><div class="trk-current-action-sub">'+esc(act.s)+'</div></div></div>';
+    var opHtml = '<div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>';
+    if(isLive) opHtml += '<span class="trk-live-tag"><span class="trk-pulse-dot"></span> LIVE</span>';
+    opHtml += '</div><div class="trk-card-body">';
+    opHtml += '<div class="trk-current-action '+(isLive?'live':'')+'"><div class="trk-current-action-icon"><i class="bi '+esc(isLive?'bi-arrow-repeat':act.icon)+'"></i></div><div class="trk-current-action-text"><div class="trk-current-action-title">'+esc(act.t)+'</div><div class="trk-current-action-sub">'+esc(act.s)+'</div></div></div>';
     opHtml += '<div class="trk-task-list">';
     flow.forEach(function(step, i) {
       var state = i < ai ? 'done' : (i === ai ? 'active' : '');
       var icon = 'bi-circle';
       if(i < ai) icon = 'bi-check-lg';
       else if(i === ai) {
-        if(step==='Assigned') icon='bi-bell-fill';
-        else if(step==='Accepted') icon='bi-check-circle-fill';
-        else if(step==='En Route') icon='bi-truck';
-        else if(step==='Arrived') icon='bi-geo-alt-fill';
-        else if(step==='Installing') icon='bi-tools';
-        else icon='bi-circle-fill';
-      }
+        if(step==='Accept') icon='bi-check-circle-fill';
+        else if(step==='Daily Prep') icon='bi-briefcase-fill';
+        else if(step==='En Route') icon='bi-sign-turn-right';
+        else if(step==='Arrived') icon='bi-geo-alt';
+        else if(step==='Installation') icon='bi-tools';
+        else icon='bi-check-circle';
+      } else if(step==='Accept') icon='bi-check-lg';
+      else if(step==='Daily Prep') icon='bi-briefcase';
+      else if(step==='En Route') icon='bi-sign-turn-right';
+      else if(step==='Arrived') icon='bi-geo-alt';
+      else if(step==='Installation') icon='bi-tools';
+      else icon='bi-check-circle';
       var desc = ORDER_STEP_DESCRIPTIONS[step] || '';
       opHtml += '<div class="trk-task '+state+'"><div class="trk-task-dot"><i class="bi '+icon+'"></i></div><div class="trk-task-body"><div class="trk-task-label">'+esc(step)+'</div>'+(desc?'<div class="trk-task-desc">'+esc(desc)+'</div>':'')+'</div></div>';
     });
     opHtml += '</div></div>';
-    document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress';
-    document.getElementById('detailPanelWorkflow').innerHTML = opHtml;
+    var workflow = document.getElementById('detailPanelWorkflow');
+    workflow.className = 'trk-card trk-work-progress compact-work-progress';
+    workflow.innerHTML = opHtml;
     
-    var itemsLabel = (o.items||[]).map(i => esc(i.brand + ' ' + i.modelLine)).join(', ') || '1 Item';
-    var h = '<div class="trk-card" style="margin-bottom:20px;">';
-    h += '<div class="trk-card-body">';
-    h += '<div class="trk-detail-hero" style="margin-bottom:8px;padding-bottom:14px;">';
-    h += '<div class="trk-detail-hero-icon"><i class="bi bi-box-seam"></i></div>';
-    h += '<div class="trk-detail-hero-text">';
-    h += '<div class="trk-detail-hero-title">' + esc(itemsLabel) + '</div>';
-    h += '<div class="trk-detail-hero-sub">Order #' + esc(o.orderReference || o._id.substring(o._id.length - 6).toUpperCase()) + ' · ' + esc(o.fulfillmentType === 'delivery_installation' ? 'Delivery & Installation' : 'Delivery Only') + '</div>';
-    h += '</div></div>';
-    h += '<div class="trk-detail-row"><div class="trk-detail-icon"><i class="bi bi-truck"></i></div><div class="trk-detail-content"><div class="trk-detail-label">Service Type</div><div class="trk-detail-value">' + esc(o.fulfillmentType === 'delivery_installation' ? 'Delivery & Installation' : 'Delivery Only') + '</div></div></div>';
-    h += '<div class="trk-detail-row"><div class="trk-detail-icon"><i class="bi bi-person"></i></div><div class="trk-detail-content"><div class="trk-detail-label">Customer Contact</div><div class="trk-detail-value">' + esc((o.customer?.name || 'Customer') + ' · ' + (o.customer?.phone || 'N/A')) + '</div></div></div>';
-    h += '<div class="trk-detail-row"><div class="trk-detail-icon"><i class="bi bi-geo-alt"></i></div><div class="trk-detail-content"><div class="trk-detail-label">Delivery Address</div><div class="trk-detail-value" style="font-size:0.82rem;">' + esc(o.delivery?.address || 'N/A') + '</div></div></div>';
-    h += '<div class="trk-detail-row"><div class="trk-detail-icon"><i class="bi bi-calendar3"></i></div><div class="trk-detail-content"><div class="trk-detail-label">Schedule</div><div class="trk-detail-value">' + (o.delivery?.preferredDate ? new Date(o.delivery.preferredDate).toLocaleDateString() : 'TBD') + (o.delivery?.preferredTime ? ' at ' + esc(o.delivery.preferredTime) : '') + '</div></div></div>';
-    h += '</div></div>';
-    
-    h += '<div class="trk-card">';
-    h += '<div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-box"></i> Order Items (' + (o.items?.length || 0) + ')</h6></div>';
-    h += '<div class="trk-card-body">';
-    (o.items||[]).forEach(i => {
-      h += '<div class="trk-detail-subsection" style="margin-bottom:8px;">';
-      h += '<div class="trk-detail-subhead"><i class="bi bi-cpu"></i> ' + esc(i.brand + ' ' + i.modelLine) + '</div>';
-      h += '<div class="trk-detail-subtext">Capacity: ' + esc(i.capacity + ' ' + i.capacityUnit) + '</div>';
-      h += '</div>';
-    });
-    h += '</div></div>';
-    
-    if (o.resourcesReserved !== undefined || o.preparationStatus) {
-      h += '<div class="trk-card" style="margin-bottom:16px;">';
-      h += '<div class="trk-card-body">';
-      h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:10px;">';
-      h += '<div style="width:28px;height:28px;background:#16a34a;color:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-box-seam" style="font-size:0.75rem;"></i></div>';
-      h += '<div style="flex:1;">';
-      h += '<div style="font-weight:700;font-size:0.82rem;color:#166534;">Resource Preparation</div>';
-      h += '<div style="font-size:0.72rem;color:#166534cc;">Status: <span class="badge ' + (o.preparationStatus === 'reserved' ? 'bg-success' : o.preparationStatus === 'issue' ? 'bg-danger' : 'bg-secondary') + '" style="font-size:0.65rem;padding:3px 7px;">' + (o.preparationStatus || 'pending').replace(/_/g, ' ').toUpperCase() + '</span>';
-      if (o.resourcesReservedAt) h += ' · Reserved: ' + new Date(o.resourcesReservedAt).toLocaleString('en-PH');
-      h += '</div>';
-      if (o.preparationIssue) h += '<div style="font-size:0.72rem;color:#dc2626;margin-top:2px;">' + esc(o.preparationIssue) + '</div>';
-      h += '</div></div></div></div>';
+    var prep = o.preparation || {};
+    var dispatchPrep = prep.dispatch || {status:'pending'};
+    var installPrep = prep.installation || {status:o.fulfillmentType === 'delivery_installation' ? 'pending' : 'not_required', blockers:[]};
+    var dispatchReady = dispatchPrep.status === 'ready';
+    var installReady = o.fulfillmentType !== 'delivery_installation' || installPrep.status === 'confirmed' || installPrep.status === 'completed';
+    var preparationDate = orderDateKey(o.delivery?.preferredDate);
+    var prepBlocked = installPrep.status === 'blocked';
+    var prepBlockers = [];
+    if(!dispatchReady) prepBlockers.push('Operations has not marked the ordered unit dispatch-ready.');
+    if(!installReady) {
+      var installationBlockers = Array.isArray(installPrep.blockers) && installPrep.blockers.length
+        ? installPrep.blockers
+        : ['Daily Preparation is not confirmed for this installation.'];
+      prepBlockers = prepBlockers.concat(installationBlockers);
     }
-    
-    document.getElementById('detailPanelContent').innerHTML = '<div class="ent-panel" style="padding:12px;">' + h + '</div>';
+
+    var reference = o.orderReference || o._id.substring(o._id.length - 6).toUpperCase();
+    var itemsLabel = (o.items||[]).map(orderItemName).join(', ') || 'Order item';
+    var schedule = displayDate(o.delivery?.preferredDate, false);
+    if(o.timeSlot) schedule += ' · ' + o.timeSlot;
+    var address = o.delivery?.address || 'No delivery address recorded';
+    var phone = o.customer?.phone || o.delivery?.contactNumber || '';
+    var phoneLink = phoneHref(phone);
+    var coords = o.delivery?.coordinates?.coordinates || [];
+    var destination = coords.length === 2 && Number.isFinite(Number(coords[0])) && Number.isFinite(Number(coords[1]))
+      ? Number(coords[1]) + ',' + Number(coords[0]) : address;
+    var mapsHref = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destination);
+    var paymentSettled = ['paid','verified','remitted'].includes(o.paymentStatus);
+    var requiredItems = installPrep.requiredItems || [];
+    var history = (o.statusHistory || []).slice().reverse().slice(0, 8);
+    var h = '<div class="to-detail-shell">';
+    h += '<section class="to-detail-overview"><div class="to-detail-overview-main"><div class="to-detail-overview-icon"><i class="bi bi-box-seam"></i></div><div><div class="to-detail-eyebrow">Assigned order</div><h4>'+esc(itemsLabel)+'</h4><p>Order #'+esc(reference)+' · '+esc(fulfillmentLabel(o.fulfillmentType))+'</p></div></div><div class="to-detail-total"><span>Order total</span><strong>'+esc(peso(o.total))+'</strong></div></section>';
+    h += '<div class="to-detail-summary">';
+    h += '<div class="to-summary-cell"><span>Schedule</span><strong>'+esc(schedule)+'</strong></div>';
+    h += '<div class="to-summary-cell"><span>Fulfillment</span><strong>'+esc(fulfillmentLabel(o.fulfillmentType))+'</strong></div>';
+    h += '<div class="to-summary-cell"><span>Customer</span><strong>'+esc(o.customer?.name || 'Customer')+'</strong></div>';
+    h += '<div class="to-summary-cell"><span>Current status</span><strong>'+esc(b.label)+'</strong></div></div>';
+    h += '<div class="to-detail-grid"><div class="to-detail-column">';
+
+    h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-geo-alt-fill"></i>Customer &amp; Destination</h6></div><div class="to-detail-card-body"><div class="to-info-list">';
+    h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-person"></i></div><div><div class="to-info-label">Customer contact</div><div class="to-info-value">'+esc(o.customer?.name || 'Customer')+(phone?' · '+esc(phone):'')+'</div></div></div>';
+    h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-pin-map"></i></div><div><div class="to-info-label">Delivery address</div><div class="to-info-value">'+esc(address)+'</div></div></div>';
+    h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-calendar3"></i></div><div><div class="to-info-label">Delivery schedule</div><div class="to-info-value">'+esc(schedule)+'</div></div></div>';
+    if(o.delivery?.notes) h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-sticky"></i></div><div><div class="to-info-label">Customer instructions</div><div class="to-info-note">'+esc(o.delivery.notes)+'</div></div></div>';
+    h += '</div><div class="to-contact-actions">';
+    if(phoneLink) {
+      h += '<a class="to-contact-action" href="tel:'+esc(phoneLink)+'"><i class="bi bi-telephone"></i>Call</a>';
+      h += '<a class="to-contact-action" href="sms:'+esc(phoneLink)+'"><i class="bi bi-chat-dots"></i>Text</a>';
+    }
+    h += '<a class="to-contact-action" href="'+esc(mapsHref)+'" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>';
+    h += '</div></div></section>';
+
+    h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-boxes"></i>Order Items</h6><span class="to-detail-card-count">'+(o.items?.length || 0)+' line item'+((o.items?.length || 0)===1?'':'s')+'</span></div><div class="to-detail-card-body">';
+    if((o.items || []).length) {
+      (o.items || []).forEach(function(item) {
+        var lineTotal = Number(item.totalPrice || (Number(item.unitPrice || 0) * Math.max(1, Number(item.quantity) || 1)));
+        h += '<div class="to-item-row"><div class="to-item-icon"><i class="bi bi-snow"></i></div><div><div class="to-item-name">'+esc(orderItemName(item))+'</div><div class="to-item-meta">'+esc(orderItemMeta(item))+'</div></div><div class="to-item-amount">'+esc(peso(lineTotal))+'</div></div>';
+      });
+    } else h += '<div class="text-muted small">No item details were recorded.</div>';
+    h += '</div></section>';
+
+    h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-clock-history"></i>Execution History</h6></div><div class="to-detail-card-body">';
+    if(history.length) {
+      h += '<div class="to-timeline">';
+      history.forEach(function(entry) {
+        var historyStatus = SCFG[entry.status]?.label || String(entry.status || 'Status update').replace(/_/g, ' ');
+        h += '<div class="to-timeline-item"><div class="to-timeline-dot"></div><div><div class="to-timeline-status">'+esc(historyStatus)+'</div><div class="to-timeline-time">'+esc(displayDate(entry.timestamp, true))+'</div>'+(entry.note?'<div class="to-timeline-note">'+esc(entry.note)+'</div>':'')+'</div></div>';
+      });
+      h += '</div>';
+    } else h += '<div class="text-muted small">No status updates have been recorded yet.</div>';
+    h += '</div></section></div><div class="to-detail-column">';
+
+    h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-clipboard2-check"></i>Departure Readiness</h6></div><div class="to-detail-card-body">';
+    h += '<div class="to-readiness-row"><div class="to-readiness-name"><i class="bi bi-box-seam"></i>Unit &amp; dispatch</div><span class="to-state-pill '+(dispatchReady?'ready':dispatchPrep.status==='blocked'?'blocked':'pending')+'">'+esc(String(dispatchPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
+    if(o.fulfillmentType === 'delivery_installation') {
+      h += '<div class="to-readiness-row"><div><div class="to-readiness-name"><i class="bi bi-tools"></i>Installation Daily Kit</div>'+(requiredItems.length?'<div class="to-item-meta">'+requiredItems.length+' required kit item'+(requiredItems.length===1?'':'s')+'</div>':'')+'</div><span class="to-state-pill '+(installReady?'ready':prepBlocked?'blocked':'pending')+'">'+esc(String(installPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
+      h += '<button type="button" class="to-detail-link odk-inline-link" onclick="openOrderDailyKit(\''+esc(preparationDate)+'\')"><i class="bi bi-box2-heart"></i>Open Daily Preparation <i class="bi bi-arrow-right"></i></button>';
+    }
+    if(prepBlockers.length) h += '<ul class="to-blocker-list">'+prepBlockers.map(function(reason){return '<li>'+esc(reason)+'</li>';}).join('')+'</ul>';
+    h += '</div></section>';
+
+    h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-receipt"></i>Payment Snapshot</h6><span class="to-payment-status '+(paymentSettled?'settled':'unsettled')+'">'+esc(String(o.paymentStatus || 'pending').replace(/_/g,' '))+'</span></div><div class="to-detail-card-body">';
+    h += '<div class="to-money-row"><span>Payment method</span><strong>'+esc(paymentMethodLabel(o.paymentMethod))+'</strong></div>';
+    h += '<div class="to-money-row"><span>Products subtotal</span><strong>'+esc(peso(o.subtotal))+'</strong></div>';
+    if(Number(o.deliveryFee || 0)) h += '<div class="to-money-row"><span>Delivery fee</span><strong>'+esc(peso(o.deliveryFee))+'</strong></div>';
+    if(Number(o.installationFee || 0)) h += '<div class="to-money-row"><span>Installation fee</span><strong>'+esc(peso(o.installationFee))+'</strong></div>';
+    if(Number(o.transportationFee || 0)) h += '<div class="to-money-row"><span>Transportation fee</span><strong>'+esc(peso(o.transportationFee))+'</strong></div>';
+    if(Number(o.downpaymentAmount || 0)) h += '<div class="to-money-row"><span>Downpayment</span><strong>'+esc(peso(o.downpaymentAmount))+'</strong></div>';
+    if(Number(o.balanceAmount || 0) && !paymentSettled) h += '<div class="to-money-row"><span>Recorded balance</span><strong>'+esc(peso(o.balanceAmount))+'</strong></div>';
+    h += '<div class="to-money-row total"><span>Order total</span><strong>'+esc(peso(o.total))+'</strong></div></div></section>';
+
+    if(o.arrivalProofUrl || o.startProofUrl || o.proofPhoto || o.startedAt || o.completedAt) {
+      h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-shield-check"></i>Work Evidence</h6></div><div class="to-detail-card-body"><div class="to-info-list">';
+      if(o.arrivalProofUrl) h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-camera"></i></div><div><div class="to-info-label">Arrival proof</div><div class="to-info-value">Recorded '+esc(displayDate(o.arrivalProofCapturedAt || o.arrivedAt, true))+'</div></div></div>';
+      if(o.startProofUrl) h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-tools"></i></div><div><div class="to-info-label">Installation start proof</div><div class="to-info-value">Recorded '+esc(displayDate(o.startProofCapturedAt || o.startedAt, true))+'</div>'+(o.startProofNotes?'<div class="to-info-note">'+esc(o.startProofNotes)+'</div>':'')+'</div></div>';
+      if(o.proofPhoto) h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-check2-circle"></i></div><div><div class="to-info-label">Completion proof</div><div class="to-info-value">Recorded '+esc(displayDate(o.completedAt, true))+'</div></div></div>';
+      h += '</div></div></section>';
+    }
+    h += '</div></div></div>';
+
+    document.getElementById('detailPanelContent').innerHTML = h;
     document.getElementById('detailPanelContent').style.display = 'block';
+    document.getElementById('detailPanelBody').scrollTop = 0;
     
     var aHtml = '';
     var s = o.status;
     var ftype = o.fulfillmentType;
-    var oid = o._id;
+    var oid = esc(o._id);
     
     if(s === 'technician_assigned') {
       aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
       aHtml += '<button class="to-btn to-btn-decline" data-action="decline" data-id="'+oid+'"><i class="bi bi-x-lg"></i>Decline</button>';
     } else if(s === 'technician_accepted' || s === 'preparing_unit') {
-      aHtml += '<button class="to-btn to-btn-enroute" data-action="status" data-id="'+oid+'" data-status="out_for_delivery"><i class="bi bi-truck"></i>Mark En Route</button>';
+      if(ftype === 'delivery_installation' && !installReady) {
+        aHtml += '<button class="to-btn to-btn-enroute" data-action="open-kit" data-date="'+esc(preparationDate)+'"><i class="bi bi-briefcase"></i>Open Daily Preparation</button>';
+      } else if(!dispatchReady) {
+        aHtml += '<button class="to-btn to-btn-enroute" data-action="blocked" data-message="Operations must mark the ordered unit dispatch-ready before departure."><i class="bi bi-box-seam"></i>Awaiting Dispatch Readiness</button>';
+      } else {
+        aHtml += '<button class="to-btn to-btn-enroute" data-action="status" data-id="'+oid+'" data-status="out_for_delivery"><i class="bi bi-truck"></i>Mark En Route</button>';
+      }
     } else if(s === 'out_for_delivery') {
       aHtml += '<button class="to-btn to-btn-arrived" data-action="status" data-id="'+oid+'" data-status="arrived"><i class="bi bi-geo-alt-fill"></i>Mark Arrived</button>';
     } else if(s === 'arrived') {
@@ -2818,8 +3198,19 @@
   window.doAccept = async function(id) {
     try {
       const res = await fetch('/api/orders/'+id+'/accept', {method:'POST'});
-      if(!res.ok) throw new Error("Failed to accept");
-      Swal.fire({title:"Accepted",text:"Order accepted.",icon:"success",timer:1500,showConfirmButton:false});
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || "Failed to accept");
+      var acceptedOrder = _orders.find(o=>String(o._id)===String(id)) || {};
+      var acceptedDate = orderDateKey(acceptedOrder.delivery?.preferredDate);
+      if(data.preparationReview?.hasDelta) {
+        const result = await Swal.fire({title:"Order Accepted — Kit Update Required",html:'<div class="text-start small">This installation added new Daily Kit requirements:<br><strong>'+data.preparationReview.deltaItems.map(i=>esc(i.name)+' × '+Number(i.quantity||1)).join('<br>')+'</strong></div>',icon:"warning",showCancelButton:true,confirmButtonText:"Open Daily Preparation",cancelButtonText:"Review Later"});
+        if(result.isConfirmed) openOrderDailyKit(acceptedDate);
+      } else if(acceptedOrder.fulfillmentType === 'delivery_installation') {
+        const result = await Swal.fire({title:"Order Accepted",text:"Review and confirm the Daily Preparation kit before departure.",icon:"success",showCancelButton:true,confirmButtonText:"Open Daily Preparation",cancelButtonText:"Review Later"});
+        if(result.isConfirmed) openOrderDailyKit(acceptedDate);
+      } else {
+        Swal.fire({title:"Accepted",text:"Order accepted and ready for the delivery workflow.",icon:"success",timer:2200,showConfirmButton:false});
+      }
       fetchOrders();
     } catch(e) { Swal.fire("Error",e.message,"error"); }
   };
@@ -2849,21 +3240,96 @@
     });
   };
   
+  async function readOrderProof(file) {
+    if(!file) throw new Error('A photo is required.');
+    if(!['image/jpeg','image/jpg','image/png','image/webp'].includes(file.type)) throw new Error('Use a JPEG, PNG, or WebP image.');
+    if(file.size > 5 * 1024 * 1024) throw new Error('Photo must be 5 MB or smaller.');
+    return new Promise((resolve,reject)=>{var reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Could not read the selected photo.'));reader.readAsDataURL(file);});
+  }
+
+  async function captureOrderStageProof(status) {
+    var isArrival = status === 'arrived';
+    var result = await Swal.fire({
+      title: isArrival ? 'Proof of Arrival' : 'Proof of Starting Installation',
+      html:'<div class="text-start"><p class="text-muted small">'+(isArrival?'Take or upload a photo showing that you reached the customer location.':'Take or upload a photo showing the site before installation work begins.')+'</p><label class="form-label fw-semibold">Photo <span class="text-danger">*</span></label><input id="orderStageProof" type="file" accept="image/*" capture="environment" class="form-control mb-3">'+(isArrival?'':'<label class="form-label">Starting notes (optional)</label><textarea id="orderStageNotes" class="form-control" rows="2" maxlength="500"></textarea>')+'</div>',
+      showCancelButton:true,
+      confirmButtonText:isArrival?'Submit & Mark Arrived':'Submit & Start Installation',
+      preConfirm:async()=>{
+        try {
+          var proof=await readOrderProof(document.getElementById('orderStageProof').files[0]);
+          return isArrival?{arrivalProofUrl:proof}:{startProofUrl:proof,startProofNotes:(document.getElementById('orderStageNotes').value||'').trim()};
+        } catch(error) { Swal.showValidationMessage(error.message); return false; }
+      }
+    });
+    return result.isConfirmed ? result.value : null;
+  }
+
+  async function captureOrderCompletion(order) {
+    var required=(order.preparation?.installation?.requiredItems||[]).filter(i=>i.category==='consumable');
+    var consumableHtml=required.length?'<hr><div class="fw-semibold mb-2">Installation consumables used</div>'+required.map((i,index)=>'<div class="d-flex align-items-center gap-2 mb-2"><div class="flex-grow-1"><div class="small fw-semibold">'+esc(i.name)+'</div><div class="text-muted" style="font-size:.7rem">Required coverage: '+Number(i.quantity||0)+' '+esc(i.unit||'pcs')+'</div></div><input id="orderUsage'+index+'" class="form-control form-control-sm" type="number" min="0" max="'+Number(i.quantity||0)+'" value="0" style="width:80px"></div>').join(''):'';
+    var unitCount=(order.items||[]).reduce((sum,item)=>sum+((item.isHvac!==false||item.parentHvacId||item.capacity)?Math.max(1,Number(item.quantity)||1):0),0);
+    var serialHtml=order.fulfillmentType==='delivery_installation'?'<label class="form-label fw-semibold mt-2">Installed unit serial numbers <span class="text-danger">*</span></label><textarea id="orderSerialNumbers" class="form-control" rows="3" placeholder="One serial number per line"></textarea><div class="form-text">Required: '+unitCount+' unique serial number(s), in the same order as the product list.</div>':'';
+    var result=await Swal.fire({
+      title:order.fulfillmentType==='delivery_installation'?'Complete Installation':'Complete Delivery',
+      width:640,
+      html:'<div class="text-start"><label class="form-label fw-semibold">Completion photo <span class="text-danger">*</span></label><input id="orderCompletionProof" type="file" accept="image/*" capture="environment" class="form-control">'+serialHtml+consumableHtml+'</div>',
+      showCancelButton:true,
+      confirmButtonText:'Submit Proof & Complete',
+      confirmButtonColor:'#059669',
+      preConfirm:async()=>{
+        try {
+          var completionProofUrl=await readOrderProof(document.getElementById('orderCompletionProof').files[0]);
+          var serialEl=document.getElementById('orderSerialNumbers');
+          var serialNumbers=serialEl?serialEl.value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean):[];
+          if(new Set(serialNumbers.map(v=>v.toLowerCase())).size!==serialNumbers.length) throw new Error('Serial numbers must be unique.');
+          if(order.fulfillmentType==='delivery_installation'&&serialNumbers.length!==unitCount) throw new Error('Enter exactly '+unitCount+' installed unit serial number(s).');
+          var consumables=required.map((item,index)=>({itemName:item.name,quantityUsed:Math.max(0,Number(document.getElementById('orderUsage'+index).value)||0)}));
+          return {completionProofUrl,serialNumbers,consumables};
+        } catch(error) { Swal.showValidationMessage(error.message); return false; }
+      }
+    });
+    return result.isConfirmed ? result.value : null;
+  }
+
   window.doStatus = async function(id, status) {
     try {
+      const order = _orders.find(o => String(o._id) === String(id)) || {};
+      var evidence={};
+      if(status==='arrived'||status==='installing') {
+        evidence=await captureOrderStageProof(status);
+        if(!evidence) return;
+      } else if(status==='completed') {
+        evidence=await captureOrderCompletion(order);
+        if(!evidence) return;
+      } else {
+        var confirmation=await Swal.fire({title:'Go En Route?',text:'Confirm that you are leaving for the customer location.',icon:'question',showCancelButton:true,confirmButtonText:'Mark En Route'});
+        if(!confirmation.isConfirmed) return;
+      }
       const res = await fetch('/api/orders/'+id+'/status', {
         method:'PATCH',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({status:status,note:'Status updated to '+SCFG[status].label})
+        body:JSON.stringify({status:status,note:'Status updated to '+SCFG[status].label,...evidence})
       });
-      if(!res.ok) throw new Error("Failed to update status");
-      if(status === 'completed') await collectOrderPayment(id);
+      const data=await res.json();
+      if(!res.ok && data.code === 'ORDER_PREPARATION_REQUIRED') {
+        var kitBlocked = order.fulfillmentType === 'delivery_installation' && (data.blockers || []).some(function(reason) {
+          return /daily preparation|daily kit|installation requirement|newly added/i.test(String(reason));
+        });
+        await Swal.fire({title:'Departure Preparation Required',text:data.error || 'Complete all departure checks before going En Route.',icon:'warning',confirmButtonText:kitBlocked?'Open Daily Preparation':'OK'});
+        if(kitBlocked) openOrderDailyKit(orderDateKey(order.delivery?.preferredDate));
+        fetchOrders();
+        return;
+      }
+      if(!res.ok) throw new Error(data.error || "Failed to update status");
+      await Swal.fire({title:status==='completed'?'Work Completed':'Status Updated',text:'Order is now '+SCFG[status].label+'.',icon:'success',timer:1800,showConfirmButton:false});
+      if(status === 'completed' && ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod) && !['paid','verified','remitted'].includes(order.paymentStatus)) await collectOrderPayment(id);
       fetchOrders();
     } catch(e) { Swal.fire("Error",e.message,"error"); }
   };
 
   async function collectOrderPayment(id) {
     var order=_orders.find(o=>String(o._id)===String(id))||{};
-    const result=await Swal.fire({title:'Collect Payment',html:`<div class="text-start"><label class="form-label">Amount Due</label><input id="opAmount" type="number" class="form-control mb-2" value="${Number(order.total||0)}"><label class="form-label">Payment Method</label><select id="opMethod" class="form-select mb-2"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select><label class="form-label">Reference Number</label><input id="opRef" class="form-control mb-2" placeholder="Required for GCash / Bank"><label class="form-label">Receipt Screenshot</label><input id="opProof" type="file" accept="image/*" class="form-control mb-2"><label class="form-label">Customer Signature</label><input id="opSignature" class="form-control" placeholder="Customer full name" required></div>`,showCancelButton:true,confirmButtonText:'Record Collection',preConfirm:async()=>{const method=document.getElementById('opMethod').value,reference=document.getElementById('opRef').value.trim(),customerSignature=document.getElementById('opSignature').value.trim(),file=document.getElementById('opProof').files[0];if(!customerSignature||((method==='gcash'||method==='bank')&&(!reference||!file))){Swal.showValidationMessage('Signature and required transfer evidence are missing.');return false;}const proofUrl=file?await new Promise((ok,bad)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=bad;f.readAsDataURL(file);}):null;return {amount:Number(document.getElementById('opAmount').value),method,reference,proofUrl,customerSignature};}});
+    const amountDue=Number(order.balanceAmount||order.total||0);
+    const result=await Swal.fire({title:'Collect Payment',html:`<div class="text-start"><label class="form-label">Amount Due</label><input id="opAmount" type="number" class="form-control mb-2" value="${amountDue}" max="${amountDue}"><label class="form-label">Payment Method</label><select id="opMethod" class="form-select mb-2"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select><label class="form-label">Reference Number</label><input id="opRef" class="form-control mb-2" placeholder="Required for GCash / Bank"><label class="form-label">Receipt Screenshot</label><input id="opProof" type="file" accept="image/*" class="form-control mb-2"><label class="form-label">Customer Signature</label><input id="opSignature" class="form-control" placeholder="Customer full name" required></div>`,showCancelButton:true,confirmButtonText:'Record Collection',preConfirm:async()=>{const method=document.getElementById('opMethod').value,reference=document.getElementById('opRef').value.trim(),customerSignature=document.getElementById('opSignature').value.trim(),file=document.getElementById('opProof').files[0];if(!customerSignature||((method==='gcash'||method==='bank')&&(!reference||!file))){Swal.showValidationMessage('Signature and required transfer evidence are missing.');return false;}const proofUrl=file?await new Promise((ok,bad)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=bad;f.readAsDataURL(file);}):null;return {amount:Number(document.getElementById('opAmount').value),method,reference,proofUrl,customerSignature};}});
     if(!result.isConfirmed) return;
     const location=await new Promise(ok=>{if(!navigator.geolocation)return ok(null);navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}),()=>ok(null),{timeout:5000});});
     const r=await fetch('/api/orders/'+id+'/collect-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...result.value,location})});
@@ -2879,6 +3345,14 @@
     }
   });
 
+  document.getElementById('toOrdersList').addEventListener('keydown', function(e) {
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    var card = e.target.closest('.to-order-card[data-id]');
+    if(!card) return;
+    e.preventDefault();
+    window.viewOrder(card.dataset.id);
+  });
+
   // Delegated click handlers — action bar buttons
   document.getElementById('detailPanelActions').addEventListener('click', function(e) {
     var btn = e.target.closest('[data-action]');
@@ -2888,6 +3362,8 @@
     if(action === 'accept') window.doAccept(id);
     else if(action === 'decline') window.doDecline(id);
     else if(action === 'status') window.doStatus(id, btn.dataset.status);
+    else if(action === 'open-kit') openOrderDailyKit(btn.dataset.date || '');
+    else if(action === 'blocked') Swal.fire({title:'Preparation Required',text:btn.dataset.message||'Complete departure preparation before going En Route.',icon:'warning',confirmButtonText:'OK'});
   });
 
   // Setup tabs
@@ -2905,6 +3381,12 @@
 
   document.getElementById('toSearch').addEventListener('keyup', e=>{
     if(e.key==='Enter') { _page=1; fetchOrders(); }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if(e.key === 'Escape' && document.getElementById('rightPane').classList.contains('open')) {
+      window.closeDetailPanel();
+    }
   });
 
   function updateClock() {

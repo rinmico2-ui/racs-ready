@@ -2429,10 +2429,6 @@ section:has(.row.g-4.align-items-center) .text-center {
     font-size: 1.15rem;
   }
 
-  .ent-stepper {
-    display: none;
-  }
-
   .ent-payment-tabs {
     flex-direction: column;
   }

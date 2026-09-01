@@ -9,6 +9,7 @@ var ChartDrilldown = (function () {
   var _chartInstance = null;
   var _config = null;
   var _activeFilter = null;
+  var _requestVersion = 0;
 
   /* ── DOM helpers ── */
   function $(id) { return document.getElementById(id); }
@@ -23,10 +24,14 @@ var ChartDrilldown = (function () {
   function open(cfg) {
     _config = cfg;
     _activeFilter = null;
+    _requestVersion += 1;
 
     // Title + subtitle
     $('cdmTitle').textContent = cfg.title || 'Chart Details';
     $('cdmSubtitle').textContent = cfg.subtitle || 'Click any slice or bar to filter the details below';
+    if ($('cdmSelectionLabel')) $('cdmSelectionLabel').textContent = cfg.selectionLabel || 'All records';
+    if ($('cdmDataHeading')) $('cdmDataHeading').textContent = cfg.dataHeading || 'Selection details';
+    if ($('cdmLiveBadge')) $('cdmLiveBadge').hidden = typeof cfg.loadDetails !== 'function';
 
     // Render chart into modal
     renderChart(cfg.chartConfig);
@@ -41,7 +46,7 @@ var ChartDrilldown = (function () {
     renderSummary(cfg.summary || {});
 
     // Bind export
-    $('cdmExportBtn').onclick = function () { exportCSV(cfg.details || [], cfg.columns, _activeFilter, cfg.filterField, cfg.title); };
+    $('cdmExportBtn').onclick = function () { exportCSV(_config.details || [], _config.columns, _activeFilter, _config.filterField, _config.title); };
 
     // Show modal
     var modalEl = $('cdmChartDrilldown') || $('chartDrilldownModal');
@@ -51,9 +56,17 @@ var ChartDrilldown = (function () {
     var bsModal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true, focus: true });
     bsModal.show();
 
+    if (typeof cfg.loadDetails === 'function') {
+      loadDetails(cfg.loadDetails, cfg.selectionLabel);
+    } else {
+      setViewState('ready');
+    }
+
     // Cleanup on close
     modalEl.addEventListener('hidden.bs.modal', function handler() {
+      _requestVersion += 1;
       destroyChart();
+      _config = null;
       bsModal.dispose();
       modalEl.removeEventListener('hidden.bs.modal', handler);
     });
@@ -68,8 +81,13 @@ var ChartDrilldown = (function () {
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
 
-    // Clone config to avoid mutating the original
-    var cfg = JSON.parse(JSON.stringify(chartCfg));
+    // Functions and canvas gradients cannot be serialized into the modal.
+    // Use solid semantic fallbacks while preserving the source data and axes.
+    var cfg = JSON.parse(JSON.stringify(chartCfg, function (key, value) {
+      if (typeof value === 'function') return undefined;
+      if ((key === 'backgroundColor' || key === 'borderColor') && value && typeof value === 'object' && !Array.isArray(value)) return undefined;
+      return value;
+    }));
 
     // Apply enterprise defaults
     if (!cfg.options) cfg.options = {};
@@ -78,18 +96,19 @@ var ChartDrilldown = (function () {
     cfg.options.animation = { duration: 800, easing: 'easeOutQuart' };
 
     if (!cfg.options.plugins) cfg.options.plugins = {};
-    if (!cfg.options.plugins.legend) {
-      cfg.options.plugins.legend = { display: true, position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10, font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' } } };
-    }
-    if (!cfg.options.plugins.tooltip) {
-      cfg.options.plugins.tooltip = { backgroundColor: 'rgba(15,23,42,0.92)', titleFont: { size: 12, weight: '700' }, bodyFont: { size: 11 }, padding: 12, cornerRadius: 10, displayColors: true, boxPadding: 4 };
-    }
+    cfg.options.plugins.legend = Object.assign({ display: true, position: 'bottom' }, cfg.options.plugins.legend || {});
+    cfg.options.plugins.legend.display = true;
+    cfg.options.plugins.legend.position = 'bottom';
+    cfg.options.plugins.legend.labels = Object.assign({ padding: 16, usePointStyle: true, pointStyleWidth: 10, boxWidth: 8, font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' } }, cfg.options.plugins.legend.labels || {});
+    cfg.options.plugins.tooltip = Object.assign({ backgroundColor: 'rgba(15,23,42,0.92)', titleFont: { size: 12, weight: '700' }, bodyFont: { size: 11 }, padding: 12, cornerRadius: 8, displayColors: true, boxPadding: 4 }, cfg.options.plugins.tooltip || {});
 
     // Ensure datasets have proper colors for line charts
     if (cfg.type === 'line' && cfg.data && cfg.data.datasets) {
-      cfg.data.datasets.forEach(function (ds) {
+      cfg.data.datasets.forEach(function (ds, index) {
         if (!ds.borderWidth) ds.borderWidth = 2.5;
         if (ds.tension === undefined) ds.tension = 0.4;
+        if (!ds.borderColor) ds.borderColor = palette(index + 1)[index];
+        if (!ds.backgroundColor) ds.backgroundColor = hexToAlpha(ds.borderColor, 0.12);
       });
     }
 
@@ -98,7 +117,61 @@ var ChartDrilldown = (function () {
       if (cfg.options.cutout === undefined) cfg.options.cutout = '65%';
     }
 
+    cfg.options.onHover = function (event, elements) {
+      if (event.native && event.native.target) event.native.target.style.cursor = elements.length && typeof _config.onChartSelect === 'function' ? 'pointer' : 'default';
+    };
+    cfg.options.onClick = function (event, elements) {
+      if (!elements.length || typeof _config.onChartSelect !== 'function') return;
+      var element = elements[0];
+      var label = cfg.data.labels[element.index];
+      var dataset = cfg.data.datasets[element.datasetIndex] || {};
+      var selection = { index: element.index, datasetIndex: element.datasetIndex, label: label, datasetLabel: dataset.label || '' };
+      _chartInstance.setActiveElements([{ datasetIndex: element.datasetIndex, index: element.index }]);
+      _chartInstance.update();
+      loadDetails(function () { return _config.onChartSelect(selection); }, String(label) + (dataset.label ? ' / ' + dataset.label : ''));
+    };
+
     _chartInstance = new Chart(ctx, cfg);
+    if (_config.selectedElement && Number.isInteger(_config.selectedElement.index)) {
+      _chartInstance.setActiveElements([{ datasetIndex: _config.selectedElement.datasetIndex || 0, index: _config.selectedElement.index }]);
+      _chartInstance.update();
+    }
+  }
+
+  function setViewState(state, message) {
+    var loading = $('cdmLoadingState');
+    var error = $('cdmErrorState');
+    var table = $('cdmTableWrap');
+    var filters = $('cdmFilterBar');
+    var exportButton = $('cdmExportBtn');
+    var summary = $('cdmSummaryBar');
+    if (loading) loading.hidden = state !== 'loading';
+    if (error) error.hidden = state !== 'error';
+    if (table) table.hidden = state === 'loading' || state === 'error';
+    if (filters && state !== 'ready') filters.style.display = 'none';
+    if (exportButton) exportButton.disabled = state !== 'ready';
+    if (summary) summary.hidden = state !== 'ready';
+    if (state !== 'ready' && $('cdmHeaderRowCount')) $('cdmHeaderRowCount').textContent = '';
+    if (state === 'error' && $('cdmErrorMessage')) $('cdmErrorMessage').textContent = message || 'Please try the selection again.';
+  }
+
+  async function loadDetails(loader, selectionLabel) {
+    var requestId = ++_requestVersion;
+    if ($('cdmSelectionLabel')) $('cdmSelectionLabel').textContent = selectionLabel || 'Selected records';
+    setViewState('loading');
+    try {
+      var payload = await loader();
+      if (requestId !== _requestVersion || !_config) return;
+      var details = payload && (payload.rows || payload.details) ? (payload.rows || payload.details) : [];
+      _config.details = details;
+      renderFilters(_config.filters || [], _config.filterField, details);
+      renderTable(details, _config.columns, null);
+      renderSummary(payload && payload.summary ? payload.summary : (_config.summary || {}));
+      setViewState('ready');
+    } catch (error) {
+      if (requestId !== _requestVersion) return;
+      setViewState('error', error && error.message ? error.message : 'Please try the selection again.');
+    }
   }
 
   function destroyChart() {
@@ -257,11 +330,35 @@ var ChartDrilldown = (function () {
             if (col.align === 'right') td.className = 'text-end';
             var raw = row[col.key];
             if (raw === undefined || raw === null || raw === '') raw = '—';
-            if (col.key === 'amount' && typeof raw === 'number') {
+            if ((col.currency || col.key === 'amount') && typeof raw === 'number') {
               td.textContent = '₱' + raw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            } else if (col.key === 'date' && raw !== '—') {
+              td.classList.add('cdm-money');
+            } else if ((col.date || col.key === 'date') && raw !== '—') {
               var date = new Date(raw);
-              td.textContent = isNaN(date.getTime()) ? String(raw) : date.toLocaleString('en-PH');
+              td.textContent = isNaN(date.getTime()) ? String(raw) : date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+            } else if (col.key === 'status') {
+              var badge = document.createElement('span');
+              var normalizedStatus = String(raw).toLowerCase().replace(/_/g, '-');
+              var tone = ['completed', 'repair-completed', 'closed'].includes(normalizedStatus) ? 'success'
+                : ['cancelled', 'rejected', 'repair-declined', 'no-show'].includes(normalizedStatus) ? 'danger'
+                : ['in-progress', 'repair-in-progress', 'inspection-in-progress', 'arrived', 'on-the-way'].includes(normalizedStatus) ? 'info' : 'warning';
+              badge.className = 'cdm-status ' + tone;
+              badge.textContent = String(raw).replace(/[-_]/g, ' ');
+              td.appendChild(badge);
+            } else if (col.key === 'payment') {
+              var paymentBadge = document.createElement('span');
+              paymentBadge.className = 'cdm-payment';
+              paymentBadge.textContent = String(raw).replace(/_/g, ' ');
+              td.appendChild(paymentBadge);
+            } else if (col.key === 'rating') {
+              var rating = Number(raw);
+              td.textContent = rating > 0 ? rating.toFixed(1) + ' / 5' : '-';
+              if (rating > 0) td.classList.add('cdm-rating');
+            } else if (col.key === 'reference') {
+              var reference = document.createElement('strong');
+              reference.className = 'cdm-reference';
+              reference.textContent = String(raw);
+              td.appendChild(reference);
             } else {
               td.textContent = String(raw).replace(/_/g, ' ');
             }
@@ -302,7 +399,9 @@ var ChartDrilldown = (function () {
       });
     }
 
-    if (countEl) countEl.textContent = filtered.length + ' row' + (filtered.length !== 1 ? 's' : '');
+    var countText = filtered.length + ' row' + (filtered.length !== 1 ? 's' : '');
+    if (countEl) countEl.textContent = countText;
+    if ($('cdmHeaderRowCount')) $('cdmHeaderRowCount').textContent = countText;
   }
 
   /* ── Summary stats ── */
@@ -331,7 +430,7 @@ var ChartDrilldown = (function () {
     var headers = columns ? columns.map(function (c) { return c.label; }) : ['Item', 'Value'];
     var rows = filtered.map(function (r) {
       if (columns) {
-        return columns.map(function (c) { return r[c.key] || ''; });
+        return columns.map(function (c) { return r[c.key] === undefined || r[c.key] === null ? '' : r[c.key]; });
       }
       return [r.label, r.value];
     });

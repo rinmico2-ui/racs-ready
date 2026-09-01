@@ -215,6 +215,19 @@ async function autoAssignBooking(bookingId, options = {}) {
       };
     }
 
+    // Past-date guard: a booking whose scheduled time already elapsed must be
+    // rescheduled via the Resolution Center, not auto-assigned.
+    const { isBookingPast } = require('./bookingPolicy');
+    if (isBookingPast(booking)) {
+      await session.abortTransaction();
+      session.endSession();
+      return {
+        success: false,
+        error: 'Cannot assign — the scheduled time has passed. Resolve this booking in the Resolution Center.',
+        code: 'PAST_DATE_BOOKING',
+      };
+    }
+
     const eligible = await findVacantTechnicians(booking);
 
     if (eligible.length === 0) {

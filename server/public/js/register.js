@@ -168,8 +168,8 @@
       return window.authUtils.swalError('Missing information', 'Please complete all required fields.');
     }
 
-    if (!/^\d{1,2}$/.test(mathCaptcha)) {
-      return window.authUtils.swalError('Invalid captcha', 'Captcha must be a 1-2 digit number.');
+    if (!/^\d{1,3}$/.test(mathCaptcha)) {
+      return window.authUtils.swalError('Invalid captcha', 'Captcha must be a 1-3 digit number.');
     }
 
     if (!/^[A-Za-z\s]{1,20}$/.test(firstName)) {

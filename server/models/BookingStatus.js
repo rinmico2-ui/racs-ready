@@ -28,6 +28,8 @@ const BookingStatus = {
   SCHEDULED: 'scheduled',
   ON_THE_WAY: 'on-the-way',
   ARRIVED: 'arrived',
+  WAITING_FOR_CUSTOMER: 'waiting-for-customer',
+  NO_SHOW_REPORTED: 'no-show-reported',
   IN_PROGRESS: 'in-progress',
 
   // Stage 7: Completion
@@ -37,6 +39,8 @@ const BookingStatus = {
   CANCELLED: 'cancelled',
   EXPIRED: 'expired',
   RESCHEDULED: 're-scheduled',
+  NO_SHOW: 'no-show',
+  RESCHEDULE_REQUIRED: 'reschedule-required',
 
   // ── Repair Work Order Lifecycle ──────────────────────────────────────
   // Step 1: Customer submits a repair request (inspection-first)
@@ -146,6 +150,25 @@ const StatusTransitions = {
   ],
   [BookingStatus.ARRIVED]: [
     BookingStatus.IN_PROGRESS,
+    BookingStatus.WAITING_FOR_CUSTOMER,
+  ],
+  [BookingStatus.WAITING_FOR_CUSTOMER]: [
+    BookingStatus.NO_SHOW_REPORTED,
+    BookingStatus.IN_PROGRESS,
+  ],
+  [BookingStatus.NO_SHOW_REPORTED]: [
+    BookingStatus.NO_SHOW,
+    BookingStatus.RESCHEDULE_REQUIRED,
+    BookingStatus.AWAITING_ASSIGNMENT,
+  ],
+  [BookingStatus.NO_SHOW]: [
+    BookingStatus.RESCHEDULE_REQUIRED,
+    BookingStatus.AWAITING_ASSIGNMENT,
+    BookingStatus.CANCELLED,
+  ],
+  [BookingStatus.RESCHEDULE_REQUIRED]: [
+    BookingStatus.AWAITING_ASSIGNMENT,
+    BookingStatus.CANCELLED,
   ],
   [BookingStatus.IN_PROGRESS]: [
     BookingStatus.COMPLETED,
@@ -259,7 +282,7 @@ const FlowStages = {
   },
   ASSIGNMENT_QUEUE: {
     label: 'Assignment Queue',
-    statuses: [BookingStatus.AWAITING_ASSIGNMENT, BookingStatus.ASSIGNED, BookingStatus.PENDING_REASSIGNMENT],
+    statuses: [BookingStatus.AWAITING_ASSIGNMENT, BookingStatus.ASSIGNED, BookingStatus.PENDING_REASSIGNMENT, BookingStatus.RESCHEDULED],
     color: '#8b5cf6',
     icon: 'bi-people',
   },
@@ -271,7 +294,6 @@ const FlowStages = {
       BookingStatus.ON_THE_WAY,
       BookingStatus.ARRIVED,
       BookingStatus.IN_PROGRESS,
-      BookingStatus.RESCHEDULED,
     ],
     color: '#22c55e',
     icon: 'bi-tools',

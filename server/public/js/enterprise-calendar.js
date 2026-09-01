@@ -23,8 +23,10 @@ const EnterpriseCalendar = (() => {
   let _technicianId = null;
   let _duration = 90;
   let _quantity = 1;
+  let _travelTime = 30;
   let _onSelectCb = null;
   let _nextStep = 5;
+  let _showCommercialProjects = true;
 
   // Large-scale / project mode
   let _mode = "appointment"; // "appointment" | "project"
@@ -34,6 +36,10 @@ const EnterpriseCalendar = (() => {
   let _selectingEndDate = false; // true when waiting for end-date click
   let _lastValidationResult = null;
   let _isValidating = false;
+  let _projectAvailability = null;  // Map<dateKey, dayRecord> from window-availability
+  let _availabilityMeta = null;     // { totalActiveTechnicians, dailyHours, horizonStart, horizonEnd }
+  let _windowResult = null;         // last preferred-window verdict for the selected range
+  let _windowError = null;          // transport/API failure message (distinct from "insufficient")
 
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -75,10 +81,12 @@ const EnterpriseCalendar = (() => {
     _serviceId = opts.serviceId;
     _technicianId = opts.technicianId || null;
     _duration = opts.duration || 90;
+    _travelTime = Math.max(0, Number(opts.travelTime) || 30);
     // Project classification is based on the total units in the complete
     // Core + Repair request, not only the last service card opened.
     _quantity = Math.min(40, Math.max(1, Number(opts.quantity) || 1, getCustomerUnitTotal()));
     _onSelectCb = typeof opts.onSelect === 'function' ? opts.onSelect : null;
+    _showCommercialProjects = opts.showCommercialProjects !== false;
     if (opts.resetSelection === true) {
       _selectedDate = null;
       _selectedSlot = null;
@@ -133,6 +141,8 @@ const EnterpriseCalendar = (() => {
         const params = new URLSearchParams({ duration: _duration, mode: 'manual' });
         if (_serviceId) params.set('serviceId', _serviceId);
         if (_quantity > 1) params.set('quantity', _quantity);
+        if (_travelTime > 0) params.set('travelTime', _travelTime);
+        if (_technicianId) params.set('technicianId', _technicianId);
         schPromise = fetch(`/api/schedule/available-dates?${params.toString()}`);
       } else {
         schPromise = Promise.resolve({ ok: false });
@@ -154,29 +164,56 @@ const EnterpriseCalendar = (() => {
         }
       }
 
-      // ── Load project-mode capacity data ────────────────────────────────
-      // When the project is too large for a standard appointment, the main
-      // schedule data is blocked. We still need per-date capacity info (how
-      // many technicians are available) so the customer can see available
-      // days. Fetch with a nominal 60-min duration (quantity=1) to get the
-      // base technician-slot capacity map.
-      _projectCapacityData = null;
+      // ── Load project-mode availability data ─────────────────────────────
+      // Project mode uses the window-availability endpoint, which returns
+      // REAL per-day technician counts (e.g. "1 of 2 technicians") and
+      // capacity-hours per date. This is what powers the calendar states,
+      // the availability summary, and the capacity verdict.
+      _projectAvailability = null;
+      _availabilityMeta = null;
+      _projectCapacityData = null; // legacy fallback only
       if (_mode === 'project' || _scheduleData.blocked) {
+        const todayKey = formatDateKey(new Date());
+        const horizon = new Date();
+        horizon.setDate(horizon.getDate() + 75);
         try {
-          const capParams = new URLSearchParams({
-            duration: '60',
-            quantity: '1',
-            mode: 'manual',
+          const avRes = await fetch('/api/projects/window-availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ startDate: todayKey, endDate: formatDateKey(horizon) }),
           });
-          if (_serviceId) capParams.set('serviceId', _serviceId);
-          const capRes = await fetch(`/api/schedule/available-dates?${capParams.toString()}`);
-          if (capRes.ok) {
-            const capData = await capRes.json();
-            _projectCapacityData = capData.availableDates || null;
+          if (avRes.ok) {
+            const avData = await avRes.json();
+            _projectAvailability = new Map((avData.days || []).map(d => [d.date, d]));
+            _availabilityMeta = {
+              totalActiveTechnicians: avData.totalActiveTechnicians || 0,
+              dailyHours: avData.dailyHours || 8,
+              horizonStart: todayKey,
+              horizonEnd: formatDateKey(horizon),
+            };
           }
-        } catch (capErr) {
-          console.warn('EnterpriseCalendar: project capacity data load error', capErr);
-          _projectCapacityData = null;
+        } catch (avErr) {
+          console.warn('EnterpriseCalendar: window-availability load error', avErr);
+        }
+
+        // Legacy fallback so a failed availability fetch cannot brick the UI.
+        if (!_projectAvailability) {
+          try {
+            const capParams = new URLSearchParams({
+              duration: '60',
+              quantity: '1',
+              mode: 'manual',
+            });
+            if (_serviceId) capParams.set('serviceId', _serviceId);
+            const capRes = await fetch(`/api/schedule/available-dates?${capParams.toString()}`);
+            if (capRes.ok) {
+              const capData = await capRes.json();
+              _projectCapacityData = capData.availableDates || null;
+            }
+          } catch (capErr) {
+            console.warn('EnterpriseCalendar: project capacity data load error', capErr);
+            _projectCapacityData = null;
+          }
         }
       }
 
@@ -422,7 +459,7 @@ const EnterpriseCalendar = (() => {
     html += `</div>`; // end grid
 
     // ── Commercial project bars (read-only) ──────────────────────────────
-    if (monthProjects.length > 0) {
+    if (_showCommercialProjects && monthProjects.length > 0) {
       html += `<div class="ent-project-strip">`;
       html += `<div class="ent-project-strip-title"><i class="bi bi-kanban"></i>Commercial Projects (${monthProjects.length}) — remaining capacity shown above</div>`;
       monthProjects.forEach(p => {
@@ -481,6 +518,12 @@ const EnterpriseCalendar = (() => {
   }
 
   async function handleDateSelect(dateStr) {
+    // Block past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(dateStr + 'T00:00:00');
+    if (selectedDate < today) return;
+
     const parts = dateStr.split('-');
     _selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     _selectedSlot = null;
@@ -596,6 +639,7 @@ const EnterpriseCalendar = (() => {
       if (_serviceId) params.set('serviceId', _serviceId);
       if (_duration) params.set('duration', _duration);
       if (_quantity > 1) params.set('quantity', _quantity);
+      if (_travelTime > 0) params.set('travelTime', _travelTime);
       if (_technicianId) params.set('technicianId', _technicianId);
       const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`, { cache: 'no-store' });
       if (!resp.ok) return null;
@@ -739,8 +783,6 @@ const EnterpriseCalendar = (() => {
       if (!holMap[key]) holMap[key] = { type: 'non-working', name: n.reason || 'Non-working day' };
     });
 
-    const totalHours = Math.round((_totalEstimatedMinutes / 60) * 10) / 10;
-
     // ── Build capacity map from project-capacity data ──────────────────
     // Shows how many technician slots are available per date, so customers
     // can visually pick dates with sufficient capacity for their project.
@@ -763,9 +805,12 @@ const EnterpriseCalendar = (() => {
     let html = `<div class="ent-calendar ent-calendar-project">`;
 
     // Banner
+    const totalHours = Math.round((_totalEstimatedMinutes / 60) * 10) / 10;
+    const techCount = _availabilityMeta?.totalActiveTechnicians || null;
+    const bannerTechNote = techCount ? ` Our team currently has <strong>${techCount} technician${techCount !== 1 ? 's' : ''}</strong> available.` : '';
     const bannerSub = _scheduleData.blocked
-      ? `This service requires multiple working days (est. ${totalHours}h total). The chart below shows available technician capacity per day — select a start and end date for your project.`
-      : `This service requires multiple working days (est. ${totalHours}h total). Select a start and end date — no appointment time needed.`;
+      ? `This service requires multiple working days (est. ${totalHours}h of work). Select your <strong>preferred start and end dates</strong> — work is scheduled on available days inside this window, and unavailable dates are skipped.${bannerTechNote}`
+      : `This service requires multiple working days (est. ${totalHours}h of work). Select a preferred date window — no appointment time needed.${bannerTechNote}`;
     html += `
       <div class="ent-project-banner">
         <i class="bi bi-kanban"></i>
@@ -813,10 +858,10 @@ const EnterpriseCalendar = (() => {
       </div>
       <div class="ent-cal-legend">
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Limited Techs</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>Fully Booked</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Limited Capacity</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>No Project Capacity</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot selected"></span>Selected</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot in-range"></span>In Range</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot in-range"></span>In Preferred Window</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>Non-Working</div>
       </div>
@@ -836,6 +881,7 @@ const EnterpriseCalendar = (() => {
       const isToday = key === formatDateKey(today);
       const holInfo = holMap[key];
       const availSlots = capacityMap[key];
+      const availInfo = _projectAvailability ? (_projectAvailability.get(key) || null) : null;
       const projReserved = projReservedMap[key] || 0;
 
       let cellClass = 'ent-cal-cell';
@@ -857,25 +903,60 @@ const EnterpriseCalendar = (() => {
           reasonText = 'Non-Working Day';
           tooltipText = `Non-Working: ${holInfo.name}`;
         }
+      } else if (availInfo) {
+        // Real availability data from the window-availability endpoint.
+        // Labels always distinguish actual TECHNICIANS from work CAPACITY —
+        // a slot count must never be shown as a technician count.
+        const T = availInfo.totalTechnicians ?? (_availabilityMeta?.totalActiveTechnicians || 0);
+        const A = availInfo.availableTechnicians ?? 0;
+        const hrs = Math.round((availInfo.capacityHours || 0) * 10) / 10;
+        if (!availInfo.isWorkingDay || availInfo.status === 'none') {
+          cellClass += ' full';
+          reasonText = 'No Project Capacity';
+          tooltipText = 'No project capacity available on this date';
+        } else if (availInfo.status === 'partial') {
+          cellClass += ' limited';
+          clickable = true;
+          slotsText = `${A} of ${T} technicians`;
+          reasonText = 'Limited Capacity';
+          tooltipText = `Limited capacity: ${A} of ${T} technicians available (~${hrs}h project capacity)${projReserved > 0 ? ` · ${projReserved} reserved by projects` : ''}`;
+        } else {
+          cellClass += ' available';
+          clickable = true;
+          slotsText = `${A} technicians`;
+          reasonText = 'Fully Available';
+          tooltipText = `${A} technicians available · full daily capacity (~${hrs}h)`;
+        }
       } else if (availSlots !== undefined) {
-        // We have capacity data — show availability tiers
+        // Legacy fallback: slot counts from /api/schedule/available-dates.
+        // These are WORK SLOTS, never technicians.
         if (availSlots <= 0) {
           cellClass += ' full';
-          reasonText = 'Fully Booked';
+          reasonText = 'No Project Capacity';
           tooltipText = 'No available capacity on this date';
         } else if (availSlots <= 3) {
           cellClass += ' limited';
           clickable = true;
-          slotsText = `${availSlots} tech${availSlots !== 1 ? 's' : ''}`;
-          tooltipText = `Limited: only ${availSlots} technician slot${availSlots !== 1 ? 's' : ''} available${projReserved > 0 ? ` (${projReserved} reserved by projects)` : ''}`;
+          slotsText = `${availSlots} work slot${availSlots !== 1 ? 's' : ''}`;
+          reasonText = 'Limited Capacity';
+          tooltipText = `Limited capacity: only ${availSlots} work slot${availSlots !== 1 ? 's' : ''} available${projReserved > 0 ? ` (${projReserved} reserved by projects)` : ''}`;
         } else {
           cellClass += ' available';
           clickable = true;
-          slotsText = `${availSlots} tech${availSlots !== 1 ? 's' : ''}`;
-          tooltipText = `${availSlots} technician slot${availSlots !== 1 ? 's' : ''} available${projReserved > 0 ? ` (${projReserved} reserved by projects)` : ''}`;
+          slotsText = `${availSlots} work slots`;
+          reasonText = 'Fully Available';
+          tooltipText = `${availSlots} work slots available${projReserved > 0 ? ` (${projReserved} reserved by projects)` : ''}`;
         }
+      } else if (_projectAvailability && _availabilityMeta && key >= _availabilityMeta.horizonStart && key <= _availabilityMeta.horizonEnd) {
+        // Inside the loaded availability horizon but no record — the company
+        // does not operate on this date. Never offer it for selection; the
+        // backend validator treats it the same way.
+        cellClass += ' non-working';
+        reasonText = 'Non-Working Day';
+        tooltipText = 'Not a working day';
       } else {
-        // No capacity data — show as working day (available)
+        // Beyond the loaded horizon or no data — permissive fallback so far-
+        // future windows stay selectable; server-side validation decides.
         cellClass += ' available';
         clickable = true;
         tooltipText = projReserved > 0 ? `${projReserved} technician(s) reserved by projects` : 'Working day — select to set date';
@@ -891,7 +972,9 @@ const EnterpriseCalendar = (() => {
       if (_selectedDate && _selectedEndDate) {
         const startKey = formatDateKey(_selectedDate);
         const endKey = formatDateKey(_selectedEndDate);
-        if (key > startKey && key < endKey && !isPast && !holInfo) {
+        // The ENTIRE preferred window stays highlighted — availability state
+        // is shown on top of the highlight, never replaces it.
+        if (key > startKey && key < endKey && !isPast) {
           cellClass += ' in-range';
         }
       }
@@ -913,49 +996,57 @@ const EnterpriseCalendar = (() => {
 
     html += `</div>`;
 
-    // ── Date Range Validation Status ────────────────────────────────────
+    // ── Preferred Window Capacity Verdict ─────────────────────────────────
     if (_selectedDate && _selectedEndDate && !_selectingEndDate) {
       if (_isValidating) {
         html += `
           <div class="ent-range-validation ent-range-validating">
             <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-            <span>Validating technician capacity for the selected date range...</span>
+            <span>Checking available work capacity inside your preferred window...</span>
           </div>`;
-      } else if (_lastValidationResult) {
-        if (_lastValidationResult.valid && _lastValidationResult.available) {
+      } else if (_windowError) {
+        html += `
+          <div class="ent-range-validation ent-range-invalid" id="projectRangeValidation">
+            <i class="bi bi-wifi-off me-2"></i>
+            <span>${_windowError}</span>
+          </div>`;
+      } else if (_windowResult) {
+        const wr = _windowResult;
+        const t = wr.totals || {};
+        const techLine = `${wr.totalActiveTechnicians || 0} technician${(wr.totalActiveTechnicians || 0) !== 1 ? 's' : ''} on the team · ${wr.dailyHours || 8}h/day each`;
+        if (wr.sufficient) {
+          const estDone = wr.estimatedCompletionDate
+            ? ` Project can be completed by <strong>${formatDateDisplay(wr.estimatedCompletionDate)}</strong>${formatDateKey(new Date(wr.estimatedCompletionDate)) < formatDateKey(_selectedEndDate) ? ' — earlier than your preferred end date' : ''}.`
+            : '';
           html += `
-            <div class="ent-range-validation ent-range-valid">
-              <i class="bi bi-check-circle-fill me-2"></i>
-              <span>Date range confirmed! Sufficient technician capacity is available.</span>
+            <div class="ent-range-validation ent-range-valid" id="projectRangeValidation">
+              <div style="flex:1;">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <span>This preferred date window can accommodate the project.</span>
+                </div>
+                <div class="small mt-1">${techLine}</div>
+                <div class="small">Available capacity in window: <strong>${t.totalAvailableHours ?? 0} technician-hours</strong> across ${t.workableDays ?? 0} workable day(s)</div>
+                <div class="small">Required project capacity: <strong>${wr.requiredHours} technician-hours</strong></div>${estDone}
+                <div class="small text-muted mt-1">Note: The final work schedule will be generated based on technician availability and confirmed project planning.</div>
+              </div>
             </div>`;
         } else {
+          const earliest = wr.earliestCompletionDate
+            ? `<p class="mb-1 small">Earliest estimated completion based on current availability: <strong>${formatDateDisplay(wr.earliestCompletionDate)}</strong></p>`
+            : '<p class="mb-1 small">No feasible completion date was found within the next 180 days at current staffing levels.</p>';
           html += `
             <div class="ent-range-validation ent-range-invalid" id="projectRangeValidation">
-              <div class="d-flex align-items-start gap-2">
+              <div class="d-flex align-items-start gap-2" style="flex:1;">
                 <i class="bi bi-exclamation-triangle-fill" style="font-size:1.2rem;margin-top:0.15rem;flex-shrink:0;"></i>
-                <div>
-                  <strong>Cannot accommodate this date range</strong>
-                  <p class="mb-1 mt-1 small">${_lastValidationResult.message || 'Insufficient technician capacity for one or more days in the selected range.'}</p>`;
-
-          if (_lastValidationResult.insufficientDay) {
-            html += `<p class="mb-1 small text-muted">Problem day: ${_lastValidationResult.insufficientDay.date} — only ${_lastValidationResult.insufficientDay.availableCapacity} technician(s) available, ${_lastValidationResult.insufficientDay.requiredCapacity} required.</p>`;
-          }
-
-          if (_lastValidationResult.nextAvailableRange) {
-            html += `
-              <div class="mt-2 p-2 bg-white rounded border" style="font-size:0.85rem;">
-                <strong>Suggested Alternative:</strong>
-                <div class="d-flex align-items-center gap-2 mt-1">
-                  <i class="bi bi-calendar-range text-primary"></i>
-                  <span>${_lastValidationResult.nextAvailableRange.startDate} — ${_lastValidationResult.nextAvailableRange.endDate}</span>
-                  <button class="btn btn-sm btn-outline-primary ms-auto" onclick="EnterpriseCalendar.applySuggestedRange('${_lastValidationResult.nextAvailableRange.startDate}', '${_lastValidationResult.nextAvailableRange.endDate}')">
-                    Apply
-                  </button>
-                </div>
-              </div>`;
-          }
-
-          html += `
+                <div style="flex:1;">
+                  <strong>The selected date range does not provide enough available working capacity for this project.</strong>
+                  <p class="mb-1 mt-1 small">This window provides approximately <strong>${t.workableDays ?? 0} workable day(s)</strong> (${t.totalAvailableHours ?? 0} technician-hours), but this project is estimated to require at least <strong>${wr.minimumRequiredDays} working day(s)</strong> (${wr.requiredHours} technician-hours).</p>
+                  ${earliest}
+                  <div class="d-flex gap-2 mt-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="adjustEndDateBtn"><i class="bi bi-calendar-range me-1"></i>Adjust End Date</button>
+                    ${wr.earliestCompletionDate ? `<button type="button" class="btn btn-sm btn-primary" id="useRecommendedBtn"><i class="bi bi-check2 me-1"></i>Use Recommended Date</button>` : ''}
+                  </div>
                 </div>
               </div>
             </div>`;
@@ -980,12 +1071,26 @@ const EnterpriseCalendar = (() => {
       render();
     });
 
-    // Day clicks → range selection
-    container.querySelectorAll('.ent-cal-cell.available').forEach(cell => {
+    // Day clicks → range selection (both available and limited-capacity days)
+    container.querySelectorAll('.ent-cal-cell.available, .ent-cal-cell.limited').forEach(cell => {
       cell.addEventListener('click', () => handleProjectDateSelect(cell.dataset.date));
       cell.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleProjectDateSelect(cell.dataset.date); }
       });
+    });
+
+    // Insufficient-window actions
+    document.getElementById('adjustEndDateBtn')?.addEventListener('click', () => {
+      _selectedEndDate = null;
+      _selectingEndDate = true;
+      _windowResult = null;
+      render();
+      container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    document.getElementById('useRecommendedBtn')?.addEventListener('click', () => {
+      if (_windowResult && _windowResult.earliestCompletionDate && _selectedDate) {
+        applySuggestedRange(formatDateKey(_selectedDate), _windowResult.earliestCompletionDate);
+      }
     });
 
     renderProjectPreferences();
@@ -1008,6 +1113,7 @@ const EnterpriseCalendar = (() => {
         _selectedEndDate = null;
         _selectingEndDate = true;
         _lastValidationResult = null;
+        _windowResult = null;
       } else if (_selectingEndDate) {
         const startKey = formatDateKey(_selectedDate);
         const clickedKey = formatDateKey(clickedDate);
@@ -1017,10 +1123,12 @@ const EnterpriseCalendar = (() => {
           _selectedEndDate = null;
           _selectingEndDate = true;
           _lastValidationResult = null;
+          _windowResult = null;
         } else {
           _selectedEndDate = clickedDate;
           _selectingEndDate = false;
           _lastValidationResult = null;
+          _windowResult = null;
         }
       }
     } else {
@@ -1028,6 +1136,7 @@ const EnterpriseCalendar = (() => {
       _selectedEndDate = null;
       _selectingEndDate = true;
       _lastValidationResult = null;
+      _windowResult = null;
     }
 
     _selectedSlot = null;
@@ -1049,45 +1158,52 @@ const EnterpriseCalendar = (() => {
   }
 
   /**
-   * Validate the selected project date range against technician capacity.
-   * Calls the backend and renders the result in the preferences panel.
-   * Returns true if the range is valid, false otherwise.
+   * Validate the selected preferred window against available technician
+   * capacity. The range is treated as a PREFERRED WINDOW: unavailable dates
+   * inside it are skipped and feasibility is judged on total technician-hours.
+   * Returns true when the window can accommodate the project.
    */
   async function validateProjectRange() {
     if (!_selectedDate || !_selectedEndDate) return false;
 
     _isValidating = true;
+    _windowResult = null;
+    _windowError = null;
     render();
 
     try {
-      const totalHours = Math.round((_totalEstimatedMinutes / 60) * 10) / 10;
-      // Estimate required technicians based on total hours and range length
-      const rangeDays = Math.max(1, Math.ceil((_selectedEndDate.getTime() - _selectedDate.getTime()) / 86400000));
-      const requiredTechs = Math.max(1, Math.ceil(totalHours / (rangeDays * 8)));
+      const requiredHours = Math.max(1, Math.round((_totalEstimatedMinutes / 60) * 10) / 10);
+      const totalUnits = getCustomerUnitTotal();
 
-      const resp = await fetch('/api/projects/validate-range', {
+      const resp = await fetch('/api/projects/window-availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate: formatDateKey(_selectedDate),
           endDate: formatDateKey(_selectedEndDate),
-          requiredTechnicians: requiredTechs,
+          requiredHours,
+          totalUnits,
         }),
       });
 
       if (!resp.ok) {
-        _lastValidationResult = { valid: false, available: false, message: 'Unable to validate date range. Please try again.' };
+        // Transport/API failure (e.g. 404 when the server hasn't been
+        // restarted) — NOT a genuine capacity verdict.
+        _windowResult = null;
+        _windowError = 'Unable to verify technician availability right now (the scheduling service may be out of date). Please try again shortly.';
         _isValidating = false;
         render();
         return false;
       }
 
-      _lastValidationResult = await resp.json();
+      _windowResult = await resp.json();
+      _windowError = null;
       _isValidating = false;
       render();
+      syncProjectSelection();
 
-      if (!_lastValidationResult.valid || !_lastValidationResult.available) {
-        // Scroll to the validation message so the user sees it
+      if (!_windowResult.sufficient) {
+        // Scroll to the verdict so the customer sees why, plus options.
         setTimeout(() => {
           const msgEl = document.getElementById('projectRangeValidation');
           if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1098,7 +1214,8 @@ const EnterpriseCalendar = (() => {
       return true;
     } catch (e) {
       console.error('EnterpriseCalendar: range validation error', e);
-      _lastValidationResult = { valid: false, available: false, message: 'Network error. Please check your connection and try again.' };
+      _windowResult = null;
+      _windowError = 'Network error while checking technician availability. Please check your connection and try again.';
       _isValidating = false;
       render();
       return false;
@@ -1134,12 +1251,21 @@ const EnterpriseCalendar = (() => {
         ? `<span class="ent-range-partial">${formatDateDisplay(_selectedDate)} — select end date above</span>`
         : '<span class="text-muted">Not selected</span>';
 
-    // Count working days in range
+    // Count calendar days and holidays / non-working days in the selected
+    // range so the note reflects real capacity-bearing days.
     let workingDaysCount = 0;
+    let excludedDaysCount = 0;
     if (_selectedDate && _selectedEndDate) {
-      const msPerDay = 86400000;
-      const diffMs = _selectedEndDate.getTime() - _selectedDate.getTime();
-      workingDaysCount = Math.round(diffMs / msPerDay) + 1; // inclusive
+      const excludedKeys = new Set();
+      (_holidaysData?.holidays || []).forEach(h => excludedKeys.add(formatDateKey(new Date(h.date))));
+      (_holidaysData?.nonWorkingDays || []).forEach(n => excludedKeys.add(formatDateKey(new Date(n.date))));
+      const cursor = new Date(_selectedDate); cursor.setHours(0, 0, 0, 0);
+      const end = new Date(_selectedEndDate); end.setHours(0, 0, 0, 0);
+      while (cursor <= end) {
+        workingDaysCount++;
+        if (excludedKeys.has(formatDateKey(cursor))) excludedDaysCount++;
+        cursor.setDate(cursor.getDate() + 1);
+      }
     }
 
     prefsHost.innerHTML = `
@@ -1148,10 +1274,12 @@ const EnterpriseCalendar = (() => {
         <p class="ent-project-prefs-note">These are preferences only. The Operations Team will prepare the final multi-day schedule based on technician availability, company workload, and your selected date range.</p>
 
         <div class="ent-pref-group">
-          <label class="ent-pref-label">Selected Date Range</label>
+          <label class="ent-pref-label">Preferred Project Window</label>
           <div class="ent-range-display">${rangeDisplay}</div>
-          ${workingDaysCount > 0 ? `<div class="ent-project-prefs-note mt-1">${workingDaysCount} calendar day${workingDaysCount > 1 ? 's' : ''} selected. Working days will be finalized by the Operations Team.</div>` : ''}
+          ${workingDaysCount > 0 ? `<div class="ent-project-prefs-note mt-1">${workingDaysCount} calendar day${workingDaysCount > 1 ? 's' : ''} selected${excludedDaysCount > 0 ? ` &middot; ${excludedDaysCount} holiday/non-working day${excludedDaysCount > 1 ? 's' : ''} in this window` : ''}. Unavailable dates inside the window are skipped — the end date is the latest acceptable completion date.</div>` : ''}
         </div>
+
+        ${buildProjectEstimateHtml()}
 
         <div class="ent-pref-group">
           <label class="ent-pref-label">Preferred Working Days</label>
@@ -1170,7 +1298,7 @@ const EnterpriseCalendar = (() => {
 
         <div class="ent-pref-group">
           <label class="ent-pref-label" for="prefTotalUnits">Total Units <span class="text-muted fw-normal">(e.g. rooms, floors, buildings)</span></label>
-          <input type="number" class="form-control form-control-sm" id="prefTotalUnits" min="8" max="40" value="${Math.min(40, Math.max(8, getCustomerUnitTotal()))}" readonly style="max-width:240px;border-radius:10px;">
+          <input type="number" class="form-control form-control-sm" id="prefTotalUnits" min="1" max="40" value="${Math.min(40, Math.max(1, getCustomerUnitTotal()))}" readonly style="max-width:240px;border-radius:10px;">
           <div class="ent-project-prefs-note mt-1">Calculated from the quantities entered for all Core and Repair services.</div>
         </div>
 
@@ -1195,6 +1323,73 @@ const EnterpriseCalendar = (() => {
     if (units) units.addEventListener('change', syncProjectSelection);
   }
 
+  /**
+   * Project estimate + availability summary + draft schedule preview for the
+   * selected preferred window. Renders nothing until a full window exists and
+   * has been validated (_windowResult populated).
+   */
+  function buildProjectEstimateHtml() {
+    if (!(_selectedDate && _selectedEndDate) || !_windowResult) return '';
+    const wr = _windowResult;
+    const t = wr.totals || {};
+    const techs = wr.totalActiveTechnicians || 0;
+    const units = getCustomerUnitTotal();
+    const estHours = Math.round((_totalEstimatedMinutes / 60) * 10) / 10;
+    const dailyTeam = techs * (wr.dailyHours || 8);
+    const minDays = Math.max(1, Math.ceil(estHours / Math.max(1, dailyTeam)));
+
+    let html = `
+      <div class="ent-pref-group">
+        <label class="ent-pref-label">Project Estimate</label>
+        <div class="ent-est-grid">
+          <div class="ent-est-item"><span class="ent-est-num">${units}</span><span class="ent-est-cap">units</span></div>
+          <div class="ent-est-item"><span class="ent-est-num">${estHours}h</span><span class="ent-est-cap">estimated work</span></div>
+          <div class="ent-est-item"><span class="ent-est-num">${minDays}</span><span class="ent-est-cap">min working day${minDays !== 1 ? 's' : ''}</span></div>
+          <div class="ent-est-item"><span class="ent-est-num">${techs}</span><span class="ent-est-cap">technician${techs !== 1 ? 's' : ''} on team</span></div>
+        </div>
+      </div>`;
+
+    if (Array.isArray(wr.days) && wr.days.length) {
+      const stateLabel = (d) => {
+        if (!d.isWorkingDay) return { text: d.reason || 'Non-working day', cls: 'muted' };
+        if (d.status === 'full') return { text: 'Available', cls: 'ok' };
+        if (d.status === 'partial') return { text: `Limited Capacity (${d.availableTechnicians} of ${d.totalTechnicians} technicians)`, cls: 'warn' };
+        return { text: 'No Project Capacity', cls: 'bad' };
+      };
+      html += `
+      <div class="ent-pref-group">
+        <label class="ent-pref-label">Availability Summary</label>
+        <div class="ent-avail-summary">
+          ${wr.days.map(d => {
+            const s = stateLabel(d);
+            return `<div class="ent-avail-row"><span class="ent-avail-date"><i class="bi bi-calendar3 me-1"></i>${formatDateDisplay(d.date)}</span><span class="ent-avail-state ent-avail-${s.cls}">${s.text}</span><span class="ent-avail-hours">${d.capacityHours > 0 ? `${Math.round(d.capacityHours * 10) / 10}h` : ''}</span></div>`;
+          }).join('')}
+          <div class="ent-avail-total">
+            <span>Available capacity in window: <strong>${t.totalAvailableHours ?? 0} technician-hours</strong> (${t.workableDays ?? 0} workable day(s))</span>
+          </div>
+          ${wr.requiredHours ? `<div class="ent-avail-total"><span>Required project capacity: <strong>${wr.requiredHours} technician-hours</strong></span></div>` : ''}
+        </div>
+      </div>`;
+    }
+
+    if (wr.sufficient) {
+      html += `
+      <div class="ent-pref-group">
+        <label class="ent-pref-label">Draft Schedule Preview</label>
+        <p class="ent-project-prefs-note mb-2">Tentative allocation of work across available days — finalized by the Operations Team.</p>
+        <div class="ent-schedule-preview">
+          ${(wr.draftSchedule || []).map(e => e.status === 'work'
+            ? `<div class="ent-sched-row ent-sched-work"><i class="bi bi-check2-circle me-1"></i><strong>${formatDateDisplay(e.date)}</strong><span>${e.units != null ? `${e.units} unit${e.units !== 1 ? 's' : ''}` : `${e.hours}h`}${e.units != null ? ` (${e.hours}h)` : ''}</span></div>`
+            : `<div class="ent-sched-row ent-sched-skip"><i class="bi bi-dash-circle me-1"></i><strong>${formatDateDisplay(e.date)}</strong><span class="text-muted">Skipped — ${e.reason || 'unavailable'}</span></div>`
+          ).join('')}
+          <div class="ent-sched-row ent-sched-done"><i class="bi bi-flag-fill me-1"></i><strong>Project Complete${wr.estimatedCompletionDate ? ` — ${formatDateDisplay(wr.estimatedCompletionDate)}` : ''}</strong></div>
+        </div>
+      </div>`;
+    }
+
+    return html;
+  }
+
   function readProjectPrefs() {
     const prefs = { workingDays: [], preferredWorkingHours: 'morning', completionDeadline: null, totalUnits: 1, startDate: null };
     const daysHost = document.getElementById('prefWorkingDays');
@@ -1211,7 +1406,7 @@ const EnterpriseCalendar = (() => {
     const units = document.getElementById('prefTotalUnits');
     if (units && units.value) {
       const n = parseInt(units.value, 10);
-      prefs.totalUnits = Number.isFinite(n) ? Math.min(40, Math.max(8, n)) : 8;
+      prefs.totalUnits = Number.isFinite(n) ? Math.min(40, Math.max(1, n)) : 1;
     }
     return prefs;
   }
@@ -1226,6 +1421,18 @@ const EnterpriseCalendar = (() => {
       endDate: _selectedEndDate || null,
       preferences: prefs
     };
+    const wrWindow = _windowResult && _windowResult.window ? _windowResult.window : null;
+    if (wrWindow && _selectedDate && _selectedEndDate &&
+        wrWindow.startDate === formatDateKey(_selectedDate) &&
+        wrWindow.endDate === formatDateKey(_selectedEndDate)) {
+      selection.windowVerdict = {
+        sufficient: !!_windowResult.sufficient,
+        requiredHours: _windowResult.requiredHours ?? null,
+        totalAvailableHours: _windowResult.totals?.totalAvailableHours ?? null,
+        estimatedCompletionDate: _windowResult.estimatedCompletionDate || null,
+        earliestCompletionDate: _windowResult.earliestCompletionDate || null,
+      };
+    }
     if (window.BookingState) {
       window.BookingState.selectedDate = _selectedDate;
       window.BookingState.isProject = true;
@@ -1244,12 +1451,14 @@ const EnterpriseCalendar = (() => {
   function getSelectedSlot() { return _selectedSlot; }
   function isProjectMode() { return _mode === 'project'; }
   function getMode() { return _mode; }
+  function getWindowVerdict() { return _windowResult; }
 
   function resetRange() {
     _selectedDate = null;
     _selectedEndDate = null;
     _selectingEndDate = false;
     _lastValidationResult = null;
+    _windowResult = null;
     _isValidating = false;
     render();
   }
@@ -1278,6 +1487,7 @@ const EnterpriseCalendar = (() => {
     _selectedEndDate = new Date(parseInt(partsEnd[0]), parseInt(partsEnd[1]) - 1, parseInt(partsEnd[2]));
     _selectingEndDate = false;
     _lastValidationResult = null;
+    _windowResult = null;
 
     // Navigate calendar to the suggested start month
     _currentMonth = new Date(_selectedDate.getFullYear(), _selectedDate.getMonth(), 1);
@@ -1302,6 +1512,7 @@ const EnterpriseCalendar = (() => {
    */
   function resetValidation() {
     _lastValidationResult = null;
+    _windowResult = null;
     _isValidating = false;
   }
 
@@ -1315,6 +1526,7 @@ const EnterpriseCalendar = (() => {
     onSelect,
     isProjectMode,
     getMode,
+    getWindowVerdict,
     getCustomerUnitTotal,
     formatDateKey,
     minutesToTime,

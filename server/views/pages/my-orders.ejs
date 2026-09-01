@@ -18,6 +18,9 @@
         <a href="/products" class="btn btn-outline-light rounded-pill px-4 fw-semibold">
           <i class="bi bi-plus-lg me-2"></i>Start New Order
         </a>
+        <a href="/maintenance" class="btn btn-outline-light rounded-pill px-4 fw-semibold">
+          <i class="bi bi-calendar2-check me-2"></i>My Maintenance
+        </a>
       </div>
     </div>
   </div>
@@ -253,6 +256,7 @@
       border-radius: 10px;
       background: #fff;
       color: #3b82f6;
+      text-decoration: none;
       font-size: 0.78rem;
       font-weight: 600;
       cursor: pointer;
@@ -262,6 +266,83 @@
     .ord-track-btn:hover {
       background: #eff6ff;
       border-color: #bfdbfe;
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    .ord-track-btn .ord-view-chevron {
+      margin-left: auto;
+      transition: transform .2s ease;
+    }
+    .ord-track-btn[aria-expanded="true"] .ord-view-chevron {
+      transform: rotate(90deg);
+    }
+    .ord-detail-panel {
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      background: linear-gradient(180deg,#f8fbff 0%,#fff 100%);
+    }
+    .ord-detail-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .ord-detail-heading strong {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #1e3a8a;
+      font-size: .85rem;
+    }
+    .ord-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 9px;
+    }
+    .ord-detail-item {
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .ord-detail-item.wide { grid-column: 1 / -1; }
+    .ord-detail-label {
+      display: block;
+      margin-bottom: 3px;
+      color: #94a3b8;
+      font-size: .62rem;
+      font-weight: 750;
+      letter-spacing: .45px;
+      text-transform: uppercase;
+    }
+    .ord-detail-value {
+      color: #334155;
+      font-size: .78rem;
+      font-weight: 650;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .ord-cost-list {
+      display: grid;
+      gap: 5px;
+    }
+    .ord-cost-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      color: #64748b;
+      font-size: .75rem;
+    }
+    .ord-cost-line.total {
+      margin-top: 3px;
+      padding-top: 6px;
+      border-top: 1px solid #e2e8f0;
+      color: #1e40af;
+      font-weight: 800;
     }
 
     /* Refined order controls */
@@ -409,6 +490,8 @@
       }
       .ord-product-price { font-size:.82rem; }
       .ord-action-row > * { width:100% !important; flex-basis:100% !important; }
+      .ord-detail-grid { grid-template-columns:1fr; }
+      .ord-detail-item.wide { grid-column:auto; }
     }
   </style>
 
@@ -424,6 +507,12 @@
         };
         const fulfillLabels = {
           delivery_only: 'Delivery Only', delivery_installation: 'Delivery + Installation', customer_pickup: 'Pickup'
+        };
+        const paymentMethodLabels = {
+          cod: 'Cash on delivery', cash_onsite: 'Cash on site', gcash: 'GCash', gcash_full: 'GCash (full payment)', gcash_downpayment: 'GCash (downpayment)', paymongo: 'PayMongo', cash: 'Cash', downpayment: 'Downpayment', other: 'Other'
+        };
+        const paymentStatusLabels = {
+          pending: 'Pending', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance', remitted: 'Remitted', verified: 'Verified', rejected: 'Rejected', refunded: 'Refunded', paid: 'Paid', failed: 'Failed', partial: 'Partially paid'
         };
         const statusGuidance = {
           pending_payment: 'Complete or wait for payment verification. We will prepare the unit once payment is confirmed.',
@@ -477,6 +566,9 @@
           const canManage = ['pending_payment', 'preparing_unit', 'technician_assigned'].includes(order.status);
           const technicianRef = order.technicianId || (order.technician && order.technician._id) || '';
           const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
+          const orderGuidance = order.fulfillmentType === 'customer_pickup' && order.status === 'preparing_unit'
+            ? 'Your unit is being prepared for store pickup. We will notify you when it is ready.'
+            : statusGuidance[order.status];
         %>
         <div class="ord-card" data-order-group="<%= orderGroup %>" data-order-search="<%= orderSearch %>">
           <!-- Header -->
@@ -522,15 +614,28 @@
               <i class="bi <%= statusIcons[order.status] || 'bi-info-circle' %>"></i>
               <div>
                 <strong><%= order.status === 'completed' || order.status === 'cancelled' ? 'Order update' : 'What happens next' %></strong>
-                <span><%= statusGuidance[order.status] || 'We will update this order as it moves to the next step.' %></span>
+                <span><%= orderGuidance || 'We will update this order as it moves to the next step.' %></span>
               </div>
             </div>
+
+            <% if (order.status === 'completed' && order.maintenanceAssets && order.maintenanceAssets.length) { const nextMaint = order.maintenanceAssets.map(function(asset){ return asset.maintenanceSchedule; }).filter(Boolean).sort(function(a,b){ return new Date(a.dueDate) - new Date(b.dueDate); })[0]; %>
+              <div class="ord-info-row" style="background:#ecfeff;color:#155e75;">
+                <i class="bi bi-calendar2-check"></i>
+                <span><strong>Maintenance:</strong> <%= nextMaint ? ('Next due ' + new Date(nextMaint.dueDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' })) : 'Installation date required' %></span>
+                <a href="/maintenance" class="btn btn-sm btn-outline-info ms-auto">View</a>
+              </div>
+            <% } %>
 
             <!-- Delivery Info -->
             <% if (order.delivery && order.delivery.address) { %>
               <div class="ord-info-row" style="background:#eff6ff;color:#1e40af;">
                 <i class="bi bi-geo-alt-fill"></i>
                 <span><%= order.delivery.address %><% if (order.delivery.preferredDate) { %> · <i class="bi bi-calendar3 ms-1"></i> <%= new Date(order.delivery.preferredDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %><% } %></span>
+              </div>
+            <% } else if (order.fulfillmentType === 'customer_pickup' && order.pickupDate) { %>
+              <div class="ord-info-row" style="background:#f0fdf4;color:#166534;">
+                <i class="bi bi-shop"></i>
+                <span><strong>Store pickup:</strong> <%= new Date(order.pickupDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %> during posted store hours</span>
               </div>
             <% } %>
 
@@ -551,6 +656,12 @@
               <div class="ord-info-row mt-2" style="background:#fffbeb;color:#92400e;">
                 <i class="bi bi-wallet2"></i>
                 <span><strong><%= order.downpaymentPercentage || 10 %>% downpayment:</strong> &#8369;<%= Number(order.downpaymentAmount).toLocaleString() %> &middot; <strong>Remaining:</strong> &#8369;<%= Number(order.balanceAmount || 0).toLocaleString() %></span>
+              </div>
+            <% } %>
+            <% if (order.refundStatus && order.refundStatus !== 'none') { %>
+              <div class="ord-info-row mt-2" style="background:<%= order.refundStatus === 'completed' ? '#ecfdf5' : '#fff7ed' %>;color:<%= order.refundStatus === 'completed' ? '#047857' : '#9a3412' %>;">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span><strong>Refund <%= order.refundStatus %>:</strong> &#8369;<%= Number(order.refundAmount || 0).toLocaleString() %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></span>
               </div>
             <% } %>
 
@@ -582,44 +693,111 @@
             <% } %>
 
             <!-- Primary order actions -->
-            <% if ((order.statusHistory && order.statusHistory.length > 0) || canManage) { %>
-              <div class="ord-action-row">
-                <% if (order.statusHistory && order.statusHistory.length > 0) { %>
-                  <button class="ord-track-btn" type="button" data-bs-toggle="collapse" data-bs-target="#tracking-<%= order._id %>" aria-expanded="false" aria-controls="tracking-<%= order._id %>" onclick="setTimeout(() => window.dispatchEvent(new Event('resize')), 350)">
-                    <i class="bi bi-clock-history"></i> Tracking & timeline
-                  </button>
-                <% } %>
-                <% if (canManage && technicianRef && !pendingReschedule) { %>
-                  <button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech-id="<%= technicianRef %>">
-                    <i class="bi bi-calendar-event"></i> Reschedule
-                  </button>
-                <% } %>
-                <% if (canManage) { %>
-                  <button class="ord-danger-btn ord-cancel-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>">
-                    <i class="bi bi-x-circle"></i> Cancel order
-                  </button>
-                <% } %>
-              </div>
-            <% } %>
+            <div class="ord-action-row">
+              <a class="ord-track-btn" href="/my-orders/<%= order._id %>" aria-label="View details for order <%= order.orderReference || order._id %>">
+                <i class="bi bi-info-circle"></i> View Details
+                <i class="bi bi-chevron-right ord-view-chevron" aria-hidden="true"></i>
+              </a>
+              <% if (canManage && (technicianRef || order.fulfillmentType === 'customer_pickup') && !pendingReschedule) { %>
+                <button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech-id="<%= technicianRef %>" data-fulfillment="<%= order.fulfillmentType %>">
+                  <i class="bi bi-calendar-event"></i> Reschedule
+                </button>
+              <% } %>
+              <% if (canManage) { %>
+                <button class="ord-danger-btn ord-cancel-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>">
+                  <i class="bi bi-x-circle"></i> Cancel order
+                </button>
+              <% } %>
+            </div>
 
-            <% if (order.statusHistory && order.statusHistory.length > 0) { %>
-              <div class="collapse" id="tracking-<%= order._id %>">
+            <div class="collapse" id="tracking-<%= order._id %>">
+              <div class="ord-detail-panel">
+                <div class="ord-detail-heading">
+                  <strong><i class="bi bi-receipt"></i> Order Details</strong>
+                  <span class="ord-status <%= order.status %>"><%= statusLabels[order.status] || order.status %></span>
+                </div>
+                <div class="ord-detail-grid">
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Customer</span>
+                    <div class="ord-detail-value"><%= (order.customer && order.customer.name) || 'Not provided' %></div>
+                  </div>
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Contact</span>
+                    <div class="ord-detail-value">
+                      <%= (order.customer && order.customer.phone) || (order.delivery && order.delivery.contactNumber) || 'No phone provided' %>
+                      <% if (order.customer && order.customer.email) { %><br><%= order.customer.email %><% } %>
+                    </div>
+                  </div>
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Fulfillment</span>
+                    <div class="ord-detail-value"><%= fulfillLabels[order.fulfillmentType] || order.fulfillmentType || 'Not specified' %></div>
+                  </div>
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Schedule</span>
+                    <div class="ord-detail-value">
+                      <% const orderScheduleDate = order.fulfillmentType === 'customer_pickup' ? order.pickupDate : (order.delivery && order.delivery.preferredDate); %>
+                      <%= orderScheduleDate ? new Date(orderScheduleDate).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) : 'To be confirmed' %>
+                      <% if (order.timeSlot) { %> at <%= order.timeSlot %><% } %>
+                    </div>
+                  </div>
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Payment</span>
+                    <div class="ord-detail-value"><%= paymentMethodLabels[order.paymentMethod] || order.paymentMethod || 'Not specified' %> &middot; <%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></div>
+                  </div>
+                  <div class="ord-detail-item">
+                    <span class="ord-detail-label">Technician</span>
+                    <div class="ord-detail-value"><%= (order.technician && order.technician.name) || 'To be assigned' %><% if (order.technician && order.technician.phone) { %><br><%= order.technician.phone %><% } %></div>
+                  </div>
+                  <div class="ord-detail-item wide">
+                    <span class="ord-detail-label"><%= order.fulfillmentType === 'customer_pickup' ? 'Pickup location' : 'Delivery address' %></span>
+                    <div class="ord-detail-value"><%= order.fulfillmentType === 'customer_pickup' ? (order.pickupLocation || 'CALIDRO RACS Store') : ((order.delivery && order.delivery.address) || 'Address not provided') %></div>
+                  </div>
+                  <% if (order.delivery && order.delivery.notes) { %>
+                    <div class="ord-detail-item wide">
+                      <span class="ord-detail-label">Delivery notes</span>
+                      <div class="ord-detail-value"><%= order.delivery.notes %></div>
+                    </div>
+                  <% } %>
+                  <% if (order.cancellationReason) { %>
+                    <div class="ord-detail-item wide">
+                      <span class="ord-detail-label">Cancellation reason</span>
+                      <div class="ord-detail-value"><%= order.cancellationReason %></div>
+                    </div>
+                  <% } %>
+                  <div class="ord-detail-item wide">
+                    <span class="ord-detail-label">Payment summary</span>
+                    <div class="ord-cost-list">
+                      <div class="ord-cost-line"><span>Products subtotal</span><strong>&#8369;<%= Number(order.subtotal || 0).toLocaleString() %></strong></div>
+                      <% if (Number(order.deliveryFee || 0) > 0) { %><div class="ord-cost-line"><span>Delivery fee</span><strong>&#8369;<%= Number(order.deliveryFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation fee</span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.transportationFee || 0) > 0) { %><div class="ord-cost-line"><span>Transportation fee</span><strong>&#8369;<%= Number(order.transportationFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="ord-cost-line"><span>Downpayment</span><strong>&#8369;<%= Number(order.downpaymentAmount).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.balanceAmount || 0) > 0) { %><div class="ord-cost-line"><span>Remaining balance</span><strong>&#8369;<%= Number(order.balanceAmount).toLocaleString() %></strong></div><% } %>
+                      <div class="ord-cost-line total"><span>Order total</span><strong>&#8369;<%= Number(order.total || 0).toLocaleString() %></strong></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
                 <div class="row mt-3">
                   <!-- Timeline -->
                   <div class="col-md-5">
                     <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Order Timeline</div>
-                    <div class="ord-timeline">
-                      <% order.statusHistory.slice().reverse().forEach((h, hIdx) => { %>
-                        <div class="ord-timeline-item">
-                          <div class="ord-timeline-dot <%= hIdx === 0 ? 'active' : 'completed' %>"></div>
-                          <div class="ord-timeline-status"><%= statusLabels[h.status] || h.status %></div>
-                          <div class="ord-timeline-time"><%= new Date(h.timestamp).toLocaleString('en-PH') %></div>
-                          <% if (h.note) { %>
-                            <div class="ord-timeline-note"><%= h.note %></div>
-                          <% } %>
-                        </div>
-                      <% }) %>
-                    </div>
+                    <% if (order.statusHistory && order.statusHistory.length > 0) { %>
+                      <div class="ord-timeline">
+                        <% order.statusHistory.slice().reverse().forEach((h, hIdx) => { %>
+                          <div class="ord-timeline-item">
+                            <div class="ord-timeline-dot <%= hIdx === 0 ? 'active' : 'completed' %>"></div>
+                            <div class="ord-timeline-status"><%= statusLabels[h.status] || h.status %></div>
+                            <div class="ord-timeline-time"><%= new Date(h.timestamp).toLocaleString('en-PH') %></div>
+                            <% if (h.note) { %>
+                              <div class="ord-timeline-note"><%= h.note %></div>
+                            <% } %>
+                          </div>
+                        <% }) %>
+                      </div>
+                    <% } else { %>
+                      <div class="small text-muted">No timeline updates are available yet.</div>
+                    <% } %>
                   </div>
                   <!-- Map -->
                   <div class="col-md-7">
@@ -659,8 +837,7 @@
                     <% } %>
                   </div>
                 </div>
-              </div>
-            <% } %>
+            </div>
           </div>
         </div>
       <% }) %>
@@ -715,6 +892,7 @@
   </div>
 
   <!-- Leaflet already loaded by main layout -->
+  <script src="/socket.io/socket.io.js"></script>
 
   <style>
     .custom-customer-icon { background:none; border:none; }
@@ -733,6 +911,20 @@
       const searchInput = document.getElementById('orderSearch');
       const noResults = document.getElementById('orderNoResults');
       let activeFilter = 'all';
+
+      if (typeof window.io === 'function') {
+        const orderSocket = window.io({ path:'/socket.io' });
+        let refreshTimer = null;
+        orderSocket.on('order:status-change', function(update) {
+          clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(function() {
+            if (window.Swal) {
+              Swal.fire({ toast:true, position:'top-end', icon:'info', title:'Order updated', text:'Refreshing the latest order status…', showConfirmButton:false, timer:900 });
+            }
+            setTimeout(function() { window.location.reload(); }, 500);
+          }, 250);
+        });
+      }
 
       const pageParams = new URLSearchParams(window.location.search);
       if (pageParams.get('payment') === 'success') {
@@ -809,7 +1001,7 @@
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Unable to cancel this order.');
-            await showResult('success', 'Order cancelled', 'Your order status has been updated.');
+            await showResult('success', 'Order cancelled', data.message || 'Your order status has been updated.');
             window.location.reload();
           } catch (error) {
             button.disabled = false;
@@ -839,7 +1031,7 @@
         const selected = availableDates.find(function (row) { return row.date === dateSelect.value; });
         const slots = selected && Array.isArray(selected.timeSlots) ? selected.timeSlots : [];
         timeSelect.innerHTML = '<option value="">Choose a time</option>' + slots.map(function (slot) {
-          return '<option value="' + slot.time + '">' + slot.time + '</option>';
+          return '<option value="' + slot.time + '">' + (slot.label || slot.time) + '</option>';
         }).join('');
         timeSelect.disabled = slots.length === 0;
         updateRescheduleSubmit();
@@ -863,10 +1055,27 @@
           rescheduleModal.show();
 
           try {
-            const response = await fetch('/api/schedule/technician/' + encodeURIComponent(button.dataset.techId) + '/available-slots');
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Unable to load available schedules.');
-            availableDates = (data.availableDates || []).filter(function (row) { return row.available && row.timeSlots && row.timeSlots.length; });
+            if (button.dataset.fulfillment === 'customer_pickup') {
+              const response = await fetch('/api/public/company/store-open-hours');
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error || 'Unable to load store hours.');
+              const hours = Array.isArray(data.hours) ? data.hours : [];
+              const today = new Date(); today.setHours(0,0,0,0);
+              availableDates = [];
+              for (let offset = 1; offset <= 30; offset++) {
+                const date = new Date(today); date.setDate(today.getDate() + offset);
+                const day = hours.find(function(row) { return Number(row.dayOfWeek) === date.getDay(); });
+                if (!day || !day.open || Number(day.endMinutes) <= Number(day.startMinutes)) continue;
+                const key = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+                availableDates.push({ date:key, available:true, timeSlots:[{ time:'store_hours', label:'During store hours' }] });
+              }
+            } else {
+              const response = await fetch('/api/schedule/technician/' + encodeURIComponent(button.dataset.techId) + '/available-slots');
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error || 'Unable to load available schedules.');
+              availableDates = data.availableDates || [];
+            }
+            availableDates = availableDates.filter(function (row) { return row.available && row.timeSlots && row.timeSlots.length; });
             if (!availableDates.length) throw new Error('No open schedules are available in the next 30 days. Please contact us for help.');
 
             dateSelect.innerHTML = '<option value="">Choose a date</option>' + availableDates.map(function (row) {
@@ -910,7 +1119,8 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const mapElements = document.querySelectorAll('.ord-track-map');
+      // Tracking is rendered only on the dedicated order details page.
+      const mapElements = [];
       const customerIcon = L.divIcon({ html:'<i class="bi bi-geo-alt-fill"></i>', className:'custom-customer-icon', iconSize:[32,32], iconAnchor:[16,32] });
       const techIcon = L.divIcon({ html:'<i class="bi bi-person-badge-fill"></i>', className:'custom-tech-icon', iconSize:[32,32], iconAnchor:[16,32] });
 

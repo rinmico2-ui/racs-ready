@@ -7,6 +7,7 @@
  * app.use('/dashboard', requireLogin, dashboardRouter);
  */
 const User = require('../models/User');
+const { isAccountEnabled } = require('./accountState');
 
 module.exports = {
   requireLogin: async function (req, res, next) {
@@ -15,7 +16,7 @@ module.exports = {
         return res.redirect('/login');
       }
       const user = await User.findById(req.session.userId).select('-passwordHash');
-      if (!user) {
+      if (!isAccountEnabled(user)) {
         req.session.destroy(() => {});
         return res.redirect('/login');
       }
