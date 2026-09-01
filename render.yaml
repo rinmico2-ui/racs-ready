@@ -27,6 +27,6 @@ services:
       - key: BREVO_API_KEY
         sync: false
       - key: FROM_EMAIL
-        value: no-reply@calidroracs.devs.surf
+        value: racsready396@gmail.com
       - key: FROM_NAME
         value: CALIDRO RACS
