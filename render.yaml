@@ -24,9 +24,9 @@ services:
         sync: false
       - key: APP_URL
         sync: false
-      - key: RESEND_API_KEY
+      - key: BREVO_API_KEY
         sync: false
       - key: FROM_EMAIL
-        sync: false
+        value: no-reply@calidroracs.devs.surf
       - key: FROM_NAME
         value: CALIDRO RACS

@@ -2,16 +2,16 @@ const https = require("https");
 const nodemailer = require("nodemailer");
 const logger = require("./logger").create("mailer");
 
-// Render/production always uses Resend. Local development always uses SMTP.
+// Render/production always uses Brevo. Local development always uses SMTP.
 // Render sets RENDER="true" automatically, so a stale custom provider setting
 // cannot accidentally make the deployed service connect to Gmail SMTP.
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-const RESEND_API_URL = "https://api.resend.com/emails";
+const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const IS_RENDER =
   process.env.RENDER === "true" ||
   Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
-const MAIL_PROVIDER = IS_RENDER || IS_PRODUCTION ? "resend" : "smtp";
+const MAIL_PROVIDER = IS_RENDER || IS_PRODUCTION ? "brevo" : "smtp";
 const FROM_EMAIL = process.env.FROM_EMAIL || "";
 const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
@@ -44,18 +44,18 @@ function getSmtpTransport() {
 function sendMail({ to, subject, html, text }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
 
-  if (MAIL_PROVIDER === "resend") {
-    if (!RESEND_API_KEY) {
-      const error = new Error("Resend is selected but RESEND_API_KEY is not configured.");
+  if (MAIL_PROVIDER === "brevo") {
+    if (!BREVO_API_KEY) {
+      const error = new Error("Brevo is selected but BREVO_API_KEY is not configured.");
       logger.error(error.message);
       return Promise.reject(error);
     }
     if (!FROM_EMAIL) {
-      const error = new Error("Resend is selected but FROM_EMAIL is not configured.");
+      const error = new Error("Brevo is selected but FROM_EMAIL is not configured.");
       logger.error(error.message);
       return Promise.reject(error);
     }
-    return sendViaResend({ to, subject, html, text });
+    return sendViaBrevo({ to, subject, html, text });
   }
 
   // SMTP/Nodemailer is used only for local development.
@@ -84,26 +84,34 @@ function sendMail({ to, subject, html, text }) {
     });
 }
 
-function sendViaResend({ to, subject, html, text }) {
+function sendViaBrevo({ to, subject, html, text }) {
+  const recipients = (Array.isArray(to) ? to : [to])
+    .flatMap((recipient) =>
+      typeof recipient === "string"
+        ? recipient.split(",").map((email) => ({ email: email.trim() }))
+        : [recipient],
+    )
+    .filter((recipient) => recipient && recipient.email);
+
   const payload = JSON.stringify({
-    from: `${FROM_NAME} <${FROM_EMAIL}>`,
-    to: Array.isArray(to) ? to : [to],
+    sender: { name: FROM_NAME, email: FROM_EMAIL },
+    to: recipients,
     subject,
-    html,
-    text: text || "",
+    ...(html ? { htmlContent: html } : { textContent: text || "" }),
   });
 
-  console.log("[MAILER] (Resend) Sending from:", FROM_EMAIL, "to:", to);
+  console.log("[MAILER] (Brevo) Sending from:", FROM_EMAIL, "to:", to);
 
   return new Promise((resolve, reject) => {
-    const url = new URL(RESEND_API_URL);
+    const url = new URL(BREVO_API_URL);
     const req = https.request({
       hostname: url.hostname,
       port: 443,
       path: url.pathname,
       method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
+        accept: "application/json",
+        "api-key": BREVO_API_KEY,
         "Content-Type": "application/json",
         "Content-Length": Buffer.byteLength(payload),
       },
@@ -119,14 +127,14 @@ function sendViaResend({ to, subject, html, text }) {
           parsed = {};
         }
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          const messageId = parsed.id || `resend-${res.statusCode}`;
-          console.log("[MAILER] (Resend) Email accepted:", messageId);
-          resolve({ messageId, provider: "resend" });
+          const messageId = parsed.messageId || `brevo-${res.statusCode}`;
+          console.log("[MAILER] (Brevo) Email accepted:", messageId);
+          resolve({ messageId, provider: "brevo" });
         } else {
           const detail = parsed.message || parsed.error || body || "Unknown error";
-          const errMsg = `Resend API ${res.statusCode}: ${detail}`;
-          console.log("[MAILER] (Resend) Send failed:", errMsg);
-          logger.warn("Resend send failed %s", errMsg);
+          const errMsg = `Brevo API ${res.statusCode}: ${detail}`;
+          console.log("[MAILER] (Brevo) Send failed:", errMsg);
+          logger.warn("Brevo send failed %s", errMsg);
           reject(new Error(errMsg));
         }
       });
@@ -134,13 +142,13 @@ function sendViaResend({ to, subject, html, text }) {
 
     req.on("timeout", () => {
       req.destroy();
-      const err = new Error("Resend API request timed out");
-      console.log("[MAILER] (Resend) Timeout:", err.message);
+      const err = new Error("Brevo API request timed out");
+      console.log("[MAILER] (Brevo) Timeout:", err.message);
       reject(err);
     });
 
     req.on("error", (err) => {
-      console.log("[MAILER] (Resend) Request error:", err.message);
+      console.log("[MAILER] (Brevo) Request error:", err.message);
       reject(err);
     });
 
