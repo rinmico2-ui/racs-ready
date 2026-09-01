@@ -34,41 +34,18 @@ function getSmtpTransport() {
 function sendMail({ to, subject, html, text }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
 
-  // Use Nodemailer SMTP in development / localhost
-  if (process.env.NODE_ENV !== "production") {
-    const transport = getSmtpTransport();
-    if (!transport) {
-      console.log("[MAILER] No email transport available - email not sent");
-      logger.warn("No email transport available; emails will not be sent.");
-      return Promise.resolve(false);
-    }
-    return transport
-      .sendMail({
-        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-        to,
-        subject,
-        html,
-        text: text || "",
-      })
-      .then((info) => {
-        console.log("[MAILER] (SMTP) Email sent successfully:", info.messageId);
-        return { messageId: info.messageId };
-      })
-      .catch((err) => {
-        console.log("[MAILER] (SMTP) Send failed:", err.message);
-        logger.warn("SMTP send failed %s", err.message);
-        throw err;
-      });
-  }
-
-  // Use Brevo API in production
+  // Use Brevo API when API key is available (works on Render and any hosted env)
   if (BREVO_API_KEY) {
     return sendViaBrevo({ to, subject, html, text });
   }
 
-  console.log("[MAILER] No email transport available - email not sent");
-  return Promise.resolve(false);
-
+  // Fallback to Nodemailer SMTP (localhost / development)
+  const transport = getSmtpTransport();
+  if (!transport) {
+    console.log("[MAILER] No email transport available - email not sent");
+    logger.warn("No email transport available; emails will not be sent.");
+    return Promise.resolve(false);
+  }
   return transport
     .sendMail({
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
