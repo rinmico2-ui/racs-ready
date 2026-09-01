@@ -94,7 +94,7 @@
         if (!response.ok) {
           throw new Error(result.error || 'The verification code could not be confirmed.');
         }
-        await window.authUtils.swalSuccess('Email verified', result.message || 'Your account is ready. Please sign in.');
+        // The destination login page owns the single verification-success alert.
         window.location.assign(result.redirect || '/login?verified=1');
       } catch (error) {
         window.authUtils.swalError('Verification failed', error.message || 'Please try again.');
