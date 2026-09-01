@@ -49,6 +49,13 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /id="waScheduleSummary"/);
   assert.match(html, /id="waCartDrawer"/);
   assert.match(html, /id="waVariantBackdrop"/);
+  assert.match(html, /id="waMap"/);
+  assert.match(html, /id="waLocateMe"/);
+  assert.match(html, /id="waFitRoute"/);
+  assert.match(html, /\/api\/public\/company\/location/);
+  assert.match(html, /\/api\/geocoding\/reverse/);
+  assert.match(html, /drawAuthoritativeRoute\(quote\.geometry\)/);
+  assert.match(html, /scheduleInputsChanged\(\);\s*refreshDeliveryQuote/);
   assert.match(html, /mode:"all"/);
   assert.match(html, /\/api\/walk-in-aircon\/checkout/);
 });

@@ -16,6 +16,10 @@
   .wa-cart{max-height:235px;overflow:auto;padding:.75rem 1rem}.wa-cart-item{display:grid;grid-template-columns:1fr auto;gap:.4rem;padding:.65rem 0;border-bottom:1px solid #f1f5f9}.wa-cart-name{font-size:.78rem;font-weight:750;color:#1e293b}.wa-cart-meta{font-size:.68rem;color:#64748b}.wa-cart-controls{display:flex;align-items:center;gap:.4rem}.wa-cart-controls button{width:25px;height:25px;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155}.wa-cart-controls span{min-width:18px;text-align:center;font-size:.75rem;font-weight:800}.wa-cart-total{font-size:.78rem;font-weight:800;color:#1d4ed8;text-align:right}
   .wa-form{padding:1rem;border-top:1px solid #edf2f7;background:#f8fafc}.wa-section{margin-bottom:.85rem;padding:.9rem;border:1px solid #e5eaf2;border-radius:13px;background:#fff}.wa-section-title{display:flex;align-items:center;gap:.45rem;margin:0 0 .7rem;font-size:.72rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#334155}.wa-section-title i{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#eff6ff;color:#2563eb}.wa-fields{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}.wa-wide{grid-column:1/-1}.wa-field{width:100%;min-height:40px;border:1px solid #cfd9e6;border-radius:9px;background:#fff;padding:.6rem .7rem;font-size:.77rem;outline:none}.wa-label{display:block;font-size:.68rem;color:#475569;font-weight:750;margin-bottom:.3rem}.wa-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}.wa-choice button{min-height:68px;border:1px solid #dbe3ee;border-radius:10px;padding:.55rem .35rem;background:#fff;color:#64748b;font-size:.69rem;font-weight:750;transition:.18s ease}.wa-choice button i{font-size:1rem;margin-bottom:.2rem}.wa-choice button small{display:block;margin-top:.15rem;color:#94a3b8;font-size:.57rem;font-weight:600}.wa-choice button:hover{border-color:#93c5fd;background:#f8fbff}.wa-choice button.active{background:#eff6ff;color:#1d4ed8;border-color:#60a5fa;box-shadow:0 0 0 2px rgba(37,99,235,.08)}.wa-choice button.active small{color:#3b82f6}
   .wa-address-wrap{position:relative}.wa-address-results{position:absolute;z-index:30;left:0;right:0;top:100%;max-height:170px;overflow:auto;background:#fff;border:1px solid #dbe3ee;border-radius:9px;box-shadow:0 12px 26px rgba(15,23,42,.16)}.wa-address-results button{width:100%;border:0;border-bottom:1px solid #f1f5f9;background:#fff;padding:.65rem;text-align:left;font-size:.72rem;color:#334155}.wa-address-results button:hover{background:#eff6ff}
+  .wa-map-card{overflow:hidden;border:1px solid #dbe3ee;border-radius:13px;background:#fff;box-shadow:0 7px 22px rgba(15,23,42,.07);transition:border-color .2s ease,box-shadow .2s ease}.wa-map-card:hover,.wa-map-card:focus-within{border-color:#93c5fd;box-shadow:0 9px 26px rgba(37,99,235,.1)}
+  .wa-map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.7rem .75rem;border-bottom:1px solid #e2e8f0;background:linear-gradient(180deg,#fff,#f8fafc)}.wa-map-toolbar h5{margin:0;color:#0f172a;font-size:.75rem;font-weight:850}.wa-map-toolbar p{margin:2px 0 0;color:#64748b;font-size:.6rem;line-height:1.35}.wa-map-actions{display:flex;gap:.3rem;flex-shrink:0}.wa-map-action{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;min-height:31px;padding:.3rem .5rem;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#334155;font-size:.61rem;font-weight:750}.wa-map-action:hover:not(:disabled){border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.wa-map-action:disabled{opacity:.42;cursor:not-allowed}
+  .wa-map-stage{position:relative;background:#e8eef7}.wa-map{width:100%;height:285px;z-index:1;transition:height .25s ease}.wa-map-card.expanded .wa-map{height:430px}.wa-map-spinner{position:absolute;z-index:850;left:50%;top:12px;display:none;align-items:center;gap:.4rem;transform:translateX(-50%);padding:.45rem .65rem;border:1px solid #dbe3ee;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 5px 18px rgba(15,23,42,.15);color:#334155;font-size:.62rem;font-weight:750}.wa-map-spinner.show{display:flex}.wa-map-legend{position:absolute;z-index:800;left:9px;bottom:22px;display:flex;flex-direction:column;gap:4px;padding:7px 9px;border:1px solid rgba(203,213,225,.9);border-radius:8px;background:rgba(255,255,255,.94);box-shadow:0 4px 13px rgba(15,23,42,.12);color:#334155;font-size:.58rem;font-weight:750}.wa-map-legend span{display:flex;align-items:center;gap:5px}.wa-map-dot{width:8px;height:8px;border-radius:50%;background:#2563eb;box-shadow:0 0 0 2px #dbeafe}.wa-map-dot.customer{background:#ef4444;box-shadow:0 0 0 2px #fee2e2}
+  .wa-map-selection{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.7rem;padding:.7rem .75rem;border-top:1px solid #e2e8f0}.wa-map-selection-main{display:flex;align-items:flex-start;gap:.55rem;min-width:0}.wa-map-selection-icon{display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border-radius:8px;background:#f1f5f9;color:#64748b}.wa-map-selection.has-location .wa-map-selection-icon{background:#dcfce7;color:#15803d}.wa-map-selection-status{color:#b45309;font-size:.58rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.wa-map-selection.has-location .wa-map-selection-status{color:#15803d}.wa-map-address{margin-top:2px;overflow:hidden;color:#334155;font-size:.65rem;font-weight:650;line-height:1.35;text-overflow:ellipsis}.wa-map-coordinate{min-width:142px;padding-left:.7rem;border-left:1px solid #e2e8f0;text-align:right}.wa-map-coordinate span{display:block;color:#94a3b8;font-size:.54rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.wa-map-coordinate strong{display:block;margin-top:2px;color:#334155;font:700 .61rem ui-monospace,SFMono-Regular,Menlo,monospace}.wa-map-coordinate small{display:block;margin-top:2px;color:#64748b;font-size:.55rem}.wa-map-card .leaflet-control-layers,.wa-map-card .leaflet-bar{border:0;border-radius:8px;box-shadow:0 3px 13px rgba(15,23,42,.16)}
   .wa-quote{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .7rem;margin-top:.15rem;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:.69rem}
   .wa-schedule-card{overflow:hidden;border:1px solid #dbe5f0;border-radius:12px;background:#fff}.wa-calendar-head{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;gap:.35rem;padding:.65rem .7rem;border-bottom:1px solid #edf2f7;background:#f8fafc}.wa-calendar-head h5{margin:0;text-align:center;font-size:.8rem;font-weight:850;color:#1e293b}.wa-cal-nav{width:32px;height:32px;border:1px solid #d7e0eb;border-radius:9px;background:#fff;color:#334155}.wa-cal-nav:hover:not(:disabled){border-color:#60a5fa;color:#1d4ed8;background:#eff6ff}.wa-cal-nav:disabled{opacity:.35;cursor:not-allowed}.wa-weekdays,.wa-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:0 .55rem}.wa-weekdays{padding-top:.55rem}.wa-weekdays span{text-align:center;color:#94a3b8;font-size:.57rem;font-weight:850;text-transform:uppercase}.wa-calendar{min-height:220px;padding-top:.35rem;padding-bottom:.6rem;align-content:start}.wa-date,.wa-cal-blank{aspect-ratio:1/1;min-width:0}.wa-date{position:relative;border:1px solid transparent;border-radius:9px;background:#f8fafc;padding:.25rem .1rem;text-align:center;color:#334155;transition:.16s ease}.wa-date strong{display:block;font-size:.73rem;line-height:1}.wa-date small{display:block;margin-top:.2rem;color:#16a34a;font-size:.5rem;font-weight:800}.wa-date.available{border-color:#bbf7d0;background:#f0fdf4}.wa-date.available:hover{transform:translateY(-1px);border-color:#4ade80;box-shadow:0 4px 10px rgba(22,163,74,.12)}.wa-date.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 5px 12px rgba(37,99,235,.24)}.wa-date.active small{color:#dbeafe}.wa-date.unavailable{color:#cbd5e1;background:#fafafa;cursor:not-allowed}.wa-date.today:after{content:"";position:absolute;bottom:4px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#f59e0b}.wa-calendar-state{display:flex;align-items:center;justify-content:center;gap:.45rem;min-height:42px;padding:.55rem .7rem;border-top:1px solid #edf2f7;background:#f8fafc;color:#64748b;font-size:.66rem;text-align:center}.wa-calendar-state.error{color:#b91c1c;background:#fef2f2}.wa-calendar-legend{display:flex;gap:.8rem;align-items:center;margin-top:.45rem;color:#64748b;font-size:.6rem}.wa-calendar-legend i{display:inline-block;width:8px;height:8px;margin-right:.25rem;border-radius:3px}.wa-calendar-legend .open{background:#bbf7d0;border:1px solid #4ade80}.wa-calendar-legend .closed{background:#f1f5f9;border:1px solid #cbd5e1}
   .wa-time-area{margin-top:.75rem}.wa-time-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem}.wa-time-heading strong{font-size:.72rem;color:#334155}.wa-time-heading span{font-size:.61rem;color:#64748b}.wa-time-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}.wa-time-slot{min-height:38px;border:1px solid #dbe3ee;border-radius:9px;background:#fff;color:#334155;font-size:.68rem;font-weight:750;transition:.16s ease}.wa-time-slot:hover{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.wa-time-slot.active{border-color:#2563eb;background:#2563eb;color:#fff;box-shadow:0 4px 10px rgba(37,99,235,.2)}.wa-time-empty{grid-column:1/-1;padding:.7rem;border:1px dashed #cbd5e1;border-radius:9px;background:#f8fafc;color:#64748b;font-size:.67rem;text-align:center}.wa-time-group{grid-column:1/-1;margin-top:.2rem;color:#64748b;font-size:.59rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.wa-schedule-summary{display:flex;gap:.55rem;align-items:flex-start;margin-top:.65rem;padding:.65rem;border-radius:9px;background:#ecfdf5;color:#166534;font-size:.68rem}.wa-schedule-summary i{margin-top:.05rem}.wa-schedule-summary strong{display:block;margin-bottom:.1rem}
@@ -23,7 +27,7 @@
   .wa-modal-backdrop{position:fixed;inset:0;z-index:1060;display:grid;place-items:center;padding:1rem;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:.2s ease}.wa-modal-backdrop.show{opacity:1;visibility:visible}.wa-variant-modal{width:min(590px,100%);max-height:88vh;overflow:auto;border-radius:18px;background:#fff;box-shadow:0 25px 70px rgba(15,23,42,.28);transform:translateY(12px) scale(.98);transition:.2s ease}.wa-modal-backdrop.show .wa-variant-modal{transform:none}.wa-variant-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.15rem;border-bottom:1px solid #e5eaf2}.wa-variant-head h3{margin:0;font-size:1rem;font-weight:850}.wa-variant-product{display:grid;grid-template-columns:100px 1fr;gap:1rem;align-items:center;padding:1rem 1.15rem;background:#f8fafc}.wa-variant-product img{width:100px;height:76px;border-radius:10px;object-fit:cover;background:#fff}.wa-variant-product .placeholder{width:100px;height:76px;display:grid;place-items:center;border-radius:10px;background:#eff6ff;color:#60a5fa;font-size:1.7rem}.wa-variant-product strong{display:block;color:#0f172a}.wa-variant-product span{font-size:.72rem;color:#64748b}.wa-variant-list{display:grid;gap:.55rem;padding:1rem 1.15rem 1.2rem}.wa-variant-option{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:.8rem;width:100%;padding:.75rem .8rem;border:1px solid #dbe3ee;border-radius:11px;background:#fff;text-align:left;transition:.16s ease}.wa-variant-option:hover{border-color:#60a5fa;background:#f8fbff}.wa-variant-capacity strong{display:block;color:#1e293b;font-size:.8rem}.wa-variant-capacity span{color:#64748b;font-size:.64rem}.wa-variant-price{color:#0f172a;font-size:.82rem;font-weight:850}.wa-variant-option .wa-add{pointer-events:none}
   @media(max-width:1100px){.wa-products{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media(max-width:760px){.wa-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;padding:.75rem}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}.wa-hero{align-items:flex-start}.wa-cart-launch{padding:.6rem}.wa-cart-launch .label{display:none}.wa-product-body{padding:.75rem}.wa-product h3{font-size:.82rem}.wa-product-meta{font-size:.63rem}.wa-add{padding:.42rem .58rem}}
-  @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-time-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-calendar{min-height:205px;padding-left:.35rem;padding-right:.35rem}.wa-weekdays{padding-left:.35rem;padding-right:.35rem}}
+  @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-time-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-calendar{min-height:205px;padding-left:.35rem;padding-right:.35rem}.wa-weekdays{padding-left:.35rem;padding-right:.35rem}.wa-map-toolbar{align-items:flex-start;flex-direction:column}.wa-map-actions{width:100%}.wa-map-action{flex:1}.wa-map-action span{display:none}.wa-map{height:250px}.wa-map-card.expanded .wa-map{height:350px}.wa-map-selection{grid-template-columns:1fr}.wa-map-coordinate{padding:.55rem 0 0 38px;border-left:0;border-top:1px solid #f1f5f9;text-align:left}}
 </style>
 
 <section class="wa-shell" aria-labelledby="waTitle">
@@ -65,6 +69,25 @@
           <div class="wa-fields">
             <div class="wa-wide wa-address-wrap"><label class="wa-label" for="waAddress">Search and select installation address</label><input class="wa-field" id="waAddress" autocomplete="off" placeholder="Street, barangay, city"><div id="waAddressResults" class="wa-address-results wa-hidden"></div></div>
             <input type="hidden" id="waLat"><input type="hidden" id="waLng">
+            <div class="wa-wide wa-map-card" id="waMapCard">
+              <div class="wa-map-toolbar">
+                <div><h5><i class="bi bi-map me-1 text-primary"></i>Delivery route map</h5><p>Search an address, click the map, or drag the red pin to the exact installation point.</p></div>
+                <div class="wa-map-actions" aria-label="Delivery map controls">
+                  <button type="button" class="wa-map-action" id="waLocateMe" title="Use current location"><i class="bi bi-crosshair"></i><span>My location</span></button>
+                  <button type="button" class="wa-map-action" id="waFitRoute" title="Show full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Fit route</span></button>
+                  <button type="button" class="wa-map-action" id="waExpandMap" title="Expand map"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
+                </div>
+              </div>
+              <div class="wa-map-stage">
+                <div class="wa-map" id="waMap" role="application" aria-label="Interactive delivery route map"></div>
+                <div class="wa-map-spinner" id="waMapSpinner"><span class="spinner-border spinner-border-sm"></span><span id="waMapSpinnerText">Calculating route…</span></div>
+                <div class="wa-map-legend" aria-label="Map legend"><span><i class="wa-map-dot"></i>CALIDRO RACS</span><span><i class="wa-map-dot customer"></i>Installation point</span></div>
+              </div>
+              <div class="wa-map-selection" id="waMapSelection" aria-live="polite">
+                <div class="wa-map-selection-main"><span class="wa-map-selection-icon"><i class="bi bi-geo-alt"></i></span><div><div class="wa-map-selection-status" id="waMapStatus">Location not pinned</div><div class="wa-map-address" id="waMapAddress">Choose a search result or select the exact point on the map.</div></div></div>
+                <div class="wa-map-coordinate"><span>Coordinates</span><strong id="waMapCoordinates">Not selected</strong><small id="waMapSource">Waiting for location</small></div>
+              </div>
+            </div>
             <div class="wa-wide" id="waQuote"><div class="wa-quote"><span>Select an address for the route quote.</span><strong>—</strong></div></div>
             <div class="wa-wide"><label class="wa-label" for="waTechnician">Assign technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help"><i class="bi bi-info-circle me-1"></i>The calendar below is calculated specifically for the selected technician, cart quantity, and travel time.</p></div>
             <div class="wa-wide">
@@ -129,6 +152,8 @@
     date: "", time: "", availableDates: new Map(), availableSlots: [],
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
     scheduleRequest: 0, slotRequest: 0, loaded: false, checkoutId: "",
+    map: null, deliveryMarker: null, companyMarker: null, routeLayer: null,
+    company: null, companyPromise: null, quoteRequest: 0, reverseRequest: 0,
   };
   const $ = (id) => document.getElementById(id);
   const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -151,6 +176,7 @@
     $("waCartBackdrop").classList.add("show");
     document.body.style.overflow = "hidden";
     $("waCloseCart").focus();
+    if (state.fulfillment === "delivery_installation") ensureDeliveryMap();
   }
 
   function closeCart() {
@@ -174,6 +200,202 @@
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Request failed");
     return data;
+  }
+
+  function loadCompanyLocation() {
+    if (!state.companyPromise) {
+      state.companyPromise = jsonFetch("/api/public/company/location")
+        .then(location => {
+          const lat = Number(location?.lat), lng = Number(location?.lng);
+          state.company = Number.isFinite(lat) && Number.isFinite(lng)
+            ? { lat, lng, address: String(location.address || "CALIDRO RACS") }
+            : { lat: 14.676049, lng: 121.043731, address: "CALIDRO RACS" };
+          return state.company;
+        })
+        .catch(() => {
+          state.company = { lat: 14.676049, lng: 121.043731, address: "CALIDRO RACS" };
+          return state.company;
+        });
+    }
+    return state.companyPromise;
+  }
+
+  function setMapLoading(loading, message = "Calculating route…") {
+    $("waMapSpinnerText").textContent = message;
+    $("waMapSpinner").classList.toggle("show", loading);
+  }
+
+  function updateMapSelection(lat, lng, address, source) {
+    $("waMapSelection").classList.add("has-location");
+    $("waMapStatus").textContent = "Installation pin confirmed";
+    $("waMapAddress").textContent = address || "Resolving the selected street address…";
+    $("waMapCoordinates").textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    $("waMapSource").textContent = source || "Map selection";
+    $("waFitRoute").disabled = false;
+  }
+
+  function clearRouteLayer() {
+    if (state.map && state.routeLayer) state.map.removeLayer(state.routeLayer);
+    state.routeLayer = null;
+  }
+
+  function resetDeliveryPoint() {
+    state.quoteRequest += 1;
+    state.reverseRequest += 1;
+    state.quote = {};
+    clearRouteLayer();
+    state.deliveryMarker?.setOpacity(0);
+    $("waMapSelection").classList.remove("has-location");
+    $("waMapStatus").textContent = "Location not pinned";
+    $("waMapAddress").textContent = "Choose a search result or select the exact point on the map.";
+    $("waMapCoordinates").textContent = "Not selected";
+    $("waMapSource").textContent = "Waiting for location";
+    $("waFitRoute").disabled = true;
+    setMapLoading(false);
+  }
+
+  function drawAuthoritativeRoute(geometry) {
+    clearRouteLayer();
+    if (!state.map || !geometry || !window.L) return;
+    state.routeLayer = L.geoJSON(geometry, { style: { color: "#6366f1", weight: 5, opacity: .86 } }).addTo(state.map);
+    const bounds = state.routeLayer.getBounds();
+    if (bounds.isValid()) state.map.fitBounds(bounds, { padding: [34, 34] });
+  }
+
+  async function refreshDeliveryQuote(lat, lng) {
+    const requestId = ++state.quoteRequest;
+    state.quote = {};
+    renderTotals();
+    setMapLoading(true);
+    $("waQuote").innerHTML = '<div class="wa-quote"><span>Calculating verified road route…</span><span class="spinner-border spinner-border-sm"></span></div>';
+    try {
+      const quote = await jsonFetch("/api/walk-in-aircon/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fulfillmentType: "delivery_installation", coordinates: { lat, lng } }),
+      });
+      if (requestId !== state.quoteRequest) return;
+      state.quote = quote;
+      $("waQuote").innerHTML = `<div class="wa-quote"><span>${Number(quote.distanceKm || 0).toFixed(1)} km · about ${Number(quote.durationMin || 0)} min · ${quote.source === "road" ? "road route" : "estimated route"}</span><strong>${money(quote.additionalTotal)}</strong></div>`;
+      drawAuthoritativeRoute(quote.geometry);
+      renderTotals();
+      scheduleInputsChanged();
+    } catch (error) {
+      if (requestId !== state.quoteRequest) return;
+      state.quote = {};
+      clearRouteLayer();
+      $("waQuote").innerHTML = `<div class="wa-quote text-danger"><span>${esc(error.message)}</span><strong>Route unavailable</strong></div>`;
+      renderTotals();
+    } finally {
+      if (requestId === state.quoteRequest) setMapLoading(false);
+    }
+  }
+
+  async function reverseDeliveryPoint(lat, lng, requestId) {
+    try {
+      const result = await jsonFetch(`/api/geocoding/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`);
+      if (requestId !== state.reverseRequest) return;
+      const address = String(result.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      $("waAddress").value = address;
+      $("waMapAddress").textContent = address;
+      state.deliveryMarker?.setPopupContent(`<strong>Installation point</strong><br>${esc(address)}`);
+    } catch (_) {
+      if (requestId !== state.reverseRequest) return;
+      const fallback = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      $("waAddress").value = fallback;
+      $("waMapAddress").textContent = fallback;
+    }
+  }
+
+  function setDeliveryPoint(rawLat, rawLng, options = {}) {
+    const lat = Number(rawLat), lng = Number(rawLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const reverseRequestId = ++state.reverseRequest;
+    const address = String(options.address || "");
+    $("waLat").value = lat.toFixed(7);
+    $("waLng").value = lng.toFixed(7);
+    if (address) $("waAddress").value = address;
+    updateMapSelection(lat, lng, address, options.source);
+    clearRouteLayer();
+    if (state.deliveryMarker) {
+      state.deliveryMarker.setLatLng([lat, lng]).setOpacity(1);
+      state.deliveryMarker.setPopupContent(`<strong>Installation point</strong><br>${esc(address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`)}`);
+    }
+    if (state.map && options.focus !== false) state.map.flyTo([lat, lng], Number(options.zoom) || 16, { duration: .55 });
+
+    // Availability is intentionally started before routing finishes. A routing-provider
+    // delay must never leave the technician calendar in an inert state.
+    state.quote = {};
+    renderTotals();
+    scheduleInputsChanged();
+    refreshDeliveryQuote(lat, lng);
+    if (options.reverse) reverseDeliveryPoint(lat, lng, reverseRequestId);
+  }
+
+  function ensureDeliveryMap() {
+    if (!window.L) {
+      $("waMapAddress").textContent = "The map library did not load. Address search and scheduling are still available.";
+      return;
+    }
+    if (state.map) {
+      setTimeout(() => state.map?.invalidateSize(), 120);
+      return;
+    }
+    const fallback = { lat: 14.676049, lng: 121.043731 };
+    state.map = L.map("waMap", { zoomControl: false, scrollWheelZoom: false, preferCanvas: true }).setView([fallback.lat, fallback.lng], 13);
+    const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors", maxZoom: 19 }).addTo(state.map);
+    const satellite = L.layerGroup([
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 }),
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { attribution: "Labels &copy; Esri", maxZoom: 19 }),
+    ]);
+    L.control.zoom({ position: "bottomright" }).addTo(state.map);
+    L.control.scale({ position: "bottomleft", imperial: false, maxWidth: 100 }).addTo(state.map);
+    L.control.layers({ "Detailed streets": streets, "Satellite + labels": satellite }, null, { position: "topright", collapsed: true }).addTo(state.map);
+
+    const deliveryIcon = L.divIcon({ className: "wa-delivery-marker", iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -38], html: '<div style="width:34px;height:34px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:#ef4444;transform:rotate(-45deg);box-shadow:0 3px 9px rgba(15,23,42,.35)"><span style="position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;background:#fff;transform:translate(-50%,-50%)"></span></div>' });
+    state.deliveryMarker = L.marker([fallback.lat, fallback.lng], { icon: deliveryIcon, draggable: true, keyboard: true, title: "Installation point" }).addTo(state.map).setOpacity(0);
+    state.deliveryMarker.on("dragend", () => {
+      const point = state.deliveryMarker.getLatLng();
+      setDeliveryPoint(point.lat, point.lng, { reverse: true, focus: false, source: "Dragged installation pin" });
+    });
+    state.map.on("click", event => setDeliveryPoint(event.latlng.lat, event.latlng.lng, { reverse: true, focus: false, source: "Point selected on map" }));
+
+    loadCompanyLocation().then(company => {
+      if (!state.map) return;
+      const companyIcon = L.divIcon({ className: "wa-company-marker", iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -34], html: '<div style="width:30px;height:30px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:#2563eb;transform:rotate(-45deg);box-shadow:0 3px 9px rgba(15,23,42,.3)"><i class="bi bi-building text-white" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(45deg);font-size:.72rem"></i></div>' });
+      state.companyMarker = L.marker([company.lat, company.lng], { icon: companyIcon, title: "CALIDRO RACS", zIndexOffset: -100 }).addTo(state.map).bindPopup(`<strong>CALIDRO RACS</strong><br>${esc(company.address)}`);
+      if (!$("waLat").value) state.map.setView([company.lat, company.lng], 14);
+    });
+
+    const savedLat = Number($("waLat").value), savedLng = Number($("waLng").value);
+    if (Number.isFinite(savedLat) && Number.isFinite(savedLng) && $("waLat").value) {
+      state.deliveryMarker.setLatLng([savedLat, savedLng]).setOpacity(1);
+      updateMapSelection(savedLat, savedLng, $("waAddress").value, "Saved checkout location");
+    }
+    setTimeout(() => state.map?.invalidateSize(), 180);
+  }
+
+  function fitDeliveryRoute() {
+    if (!state.map) return;
+    if (state.routeLayer?.getBounds?.().isValid()) return state.map.fitBounds(state.routeLayer.getBounds(), { padding: [34, 34] });
+    const lat = Number($("waLat").value), lng = Number($("waLng").value);
+    loadCompanyLocation().then(company => {
+      if (Number.isFinite(lat) && Number.isFinite(lng) && $("waLat").value) state.map.fitBounds([[company.lat, company.lng], [lat, lng]], { padding: [34, 34] });
+      else state.map.setView([company.lat, company.lng], 14);
+    });
+  }
+
+  function locateDeliveryPoint() {
+    ensureDeliveryMap();
+    if (!navigator.geolocation) return toast("This browser does not support location detection.", "danger");
+    setMapLoading(true, "Locating this device…");
+    navigator.geolocation.getCurrentPosition(position => {
+      setMapLoading(false);
+      setDeliveryPoint(position.coords.latitude, position.coords.longitude, { reverse: true, zoom: 17, source: position.coords.accuracy ? `Device GPS · ±${Math.round(position.coords.accuracy)} m` : "Device GPS" });
+    }, error => {
+      setMapLoading(false);
+      toast(error?.code === 1 ? "Location permission was denied. Search the address or click the map instead." : "The device location could not be detected. Search the address or click the map instead.", "danger");
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
   }
 
   async function initialize() {
@@ -287,6 +509,7 @@
     state.fulfillment = value; state.date = "";
     document.querySelectorAll("#waFulfillmentChoices button").forEach(button => { const active = button.dataset.value === value; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
     $("waDeliverySection").classList.toggle("wa-hidden", value !== "delivery_installation"); $("waPickupSection").classList.toggle("wa-hidden", value !== "customer_pickup"); $("waSerialSection").classList.toggle("wa-hidden", value !== "carry_out"); renderTotals(); scheduleInputsChanged();
+    if (value === "delivery_installation") ensureDeliveryMap();
   }
 
   function setCalendarStatus(message, type = "info", loading = false) {
@@ -364,11 +587,9 @@
   }
 
   async function selectAddress(row) {
-    $("waAddress").value = row.display_name || ""; $("waLat").value = row.lat || ""; $("waLng").value = row.lon || ""; $("waAddressResults").classList.add("wa-hidden"); $("waQuote").innerHTML = '<div class="wa-quote"><span>Calculating verified road route…</span><span class="spinner-border spinner-border-sm"></span></div>';
-    try {
-      state.quote = await jsonFetch("/api/walk-in-aircon/quote", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ fulfillmentType:"delivery_installation", coordinates:{lat:row.lat,lng:row.lon} }) });
-      $("waQuote").innerHTML = `<div class="wa-quote"><span>${Number(state.quote.distanceKm || 0).toFixed(1)} km · about ${Number(state.quote.durationMin || 0)} min</span><strong>${money(state.quote.additionalTotal)}</strong></div>`; renderTotals(); scheduleInputsChanged();
-    } catch (error) { state.quote = {}; $("waQuote").innerHTML = `<div class="wa-quote text-danger"><span>${esc(error.message)}</span><strong>Unavailable</strong></div>`; renderTotals(); }
+    $("waAddressResults").classList.add("wa-hidden");
+    ensureDeliveryMap();
+    setDeliveryPoint(row.lat, row.lon, { address: row.display_name || "", source: "Verified address search", zoom: 16 });
   }
 
   async function loadDates() {
@@ -487,6 +708,7 @@
     state.availableSlots = [];
     state.time = "";
     state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    resetDeliveryPoint();
     await initialize();
     renderAvailabilityCalendar();
     resetTimeSlots();
@@ -504,7 +726,7 @@
   $("waAddress").addEventListener("input", () => {
     $("waLat").value = "";
     $("waLng").value = "";
-    state.quote = {};
+    resetDeliveryPoint();
     $("waAddressResults").classList.add("wa-hidden");
     $("waQuote").innerHTML = '<div class="wa-quote"><span>Select an address suggestion to verify the route.</span><strong>—</strong></div>';
     scheduleInputsChanged();
@@ -514,6 +736,13 @@
   });
   $("waCalendarPrev").addEventListener("click", () => moveCalendarMonth(-1));
   $("waCalendarNext").addEventListener("click", () => moveCalendarMonth(1));
+  $("waLocateMe").addEventListener("click", locateDeliveryPoint);
+  $("waFitRoute").addEventListener("click", fitDeliveryRoute);
+  $("waExpandMap").addEventListener("click", () => {
+    const expanded = $("waMapCard").classList.toggle("expanded");
+    $("waExpandMap").innerHTML = expanded ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>' : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
+    setTimeout(() => state.map?.invalidateSize(), 280);
+  });
   $("waOpenCart").addEventListener("click", openCart);
   $("waCloseCart").addEventListener("click", closeCart);
   $("waCartBackdrop").addEventListener("click", closeCart);
