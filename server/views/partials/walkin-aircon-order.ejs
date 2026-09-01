@@ -1,0 +1,285 @@
+<style>
+  .wa-shell{max-width:1240px;margin:0 auto}
+  .wa-hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.5rem 1.65rem;margin-bottom:1rem;border-radius:20px;color:#fff;background:linear-gradient(125deg,#0f172a,#1e3a8a 68%,#2563eb);box-shadow:0 14px 36px rgba(30,58,138,.2)}
+  .wa-hero h2{font-size:1.45rem;font-weight:800;margin:0 0 .35rem}.wa-hero p{margin:0;color:#bfdbfe;font-size:.88rem}
+  .wa-hero-mark{width:58px;height:58px;display:grid;place-items:center;border-radius:17px;background:rgba(255,255,255,.13);font-size:1.6rem}
+  .wa-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(350px,.85fr);gap:1rem;align-items:start}
+  .wa-panel{background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 5px 22px rgba(15,23,42,.05);overflow:hidden}
+  .wa-toolbar{display:flex;gap:.65rem;padding:1rem;border-bottom:1px solid #edf2f7}.wa-search{position:relative;flex:1}.wa-search i{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#94a3b8}.wa-search input,.wa-toolbar select{width:100%;height:42px;border:1px solid #dbe3ee;border-radius:11px;background:#f8fafc;padding:.65rem .85rem;font-size:.85rem;outline:none}.wa-search input{padding-left:2.4rem}.wa-search input:focus,.wa-toolbar select:focus,.wa-field:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.09);background:#fff}
+  .wa-products{padding:1rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem;min-height:260px}
+  .wa-product{display:flex;flex-direction:column;border:1px solid #e5eaf2;border-radius:15px;overflow:hidden;background:#fff;transition:.2s ease}.wa-product:hover{transform:translateY(-2px);border-color:#bfdbfe;box-shadow:0 10px 24px rgba(37,99,235,.09)}
+  .wa-product-image{height:150px;background:linear-gradient(145deg,#f8fafc,#eef4ff);display:grid;place-items:center;padding:1rem}.wa-product-image img{width:100%;height:100%;object-fit:contain}.wa-product-image i{font-size:3rem;color:#93c5fd}
+  .wa-product-body{display:flex;flex-direction:column;gap:.55rem;padding:.9rem;flex:1}.wa-brand{text-transform:uppercase;letter-spacing:.08em;color:#2563eb;font-weight:800;font-size:.65rem}.wa-product h3{margin:0;color:#172033;font-size:.94rem;font-weight:750}.wa-chips{display:flex;gap:.35rem;flex-wrap:wrap}.wa-chip{padding:.2rem .45rem;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.65rem;font-weight:700}.wa-product select{width:100%;border:1px solid #dbe3ee;border-radius:9px;padding:.5rem;font-size:.76rem;background:#fff}.wa-price-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:auto}.wa-price{font-weight:850;color:#0f172a}.wa-stock{font-size:.68rem;color:#15803d}.wa-add{border:0;border-radius:9px;padding:.52rem .7rem;background:#2563eb;color:#fff;font-weight:750;font-size:.76rem}.wa-add:hover{background:#1d4ed8}.wa-add:disabled{opacity:.5}
+  .wa-empty{grid-column:1/-1;text-align:center;padding:4rem 1rem;color:#64748b}.wa-empty i{display:block;font-size:2rem;color:#cbd5e1;margin-bottom:.5rem}
+  .wa-checkout{position:sticky;top:84px}.wa-checkout-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid #edf2f7}.wa-checkout-head h3{font-size:1rem;font-weight:800;margin:0}.wa-count{display:grid;place-items:center;min-width:27px;height:27px;padding:0 .4rem;border-radius:9px;background:#dbeafe;color:#1d4ed8;font-size:.75rem;font-weight:800}
+  .wa-cart{max-height:235px;overflow:auto;padding:.75rem 1rem}.wa-cart-item{display:grid;grid-template-columns:1fr auto;gap:.4rem;padding:.65rem 0;border-bottom:1px solid #f1f5f9}.wa-cart-name{font-size:.78rem;font-weight:750;color:#1e293b}.wa-cart-meta{font-size:.68rem;color:#64748b}.wa-cart-controls{display:flex;align-items:center;gap:.4rem}.wa-cart-controls button{width:25px;height:25px;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155}.wa-cart-controls span{min-width:18px;text-align:center;font-size:.75rem;font-weight:800}.wa-cart-total{font-size:.78rem;font-weight:800;color:#1d4ed8;text-align:right}
+  .wa-form{padding:1rem;border-top:1px solid #edf2f7}.wa-section{margin-bottom:1rem}.wa-section-title{display:flex;align-items:center;gap:.4rem;margin:0 0 .65rem;font-size:.73rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#475569}.wa-fields{display:grid;grid-template-columns:1fr 1fr;gap:.55rem}.wa-wide{grid-column:1/-1}.wa-field{width:100%;border:1px solid #dbe3ee;border-radius:9px;background:#fff;padding:.58rem .68rem;font-size:.76rem;outline:none}.wa-label{display:block;font-size:.67rem;color:#64748b;font-weight:700;margin-bottom:.25rem}.wa-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}.wa-choice button{border:1px solid #dbe3ee;border-radius:9px;padding:.52rem .35rem;background:#fff;color:#64748b;font-size:.68rem;font-weight:750}.wa-choice button.active{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+  .wa-address-wrap{position:relative}.wa-address-results{position:absolute;z-index:30;left:0;right:0;top:100%;max-height:170px;overflow:auto;background:#fff;border:1px solid #dbe3ee;border-radius:9px;box-shadow:0 12px 26px rgba(15,23,42,.16)}.wa-address-results button{width:100%;border:0;border-bottom:1px solid #f1f5f9;background:#fff;padding:.65rem;text-align:left;font-size:.72rem;color:#334155}.wa-address-results button:hover{background:#eff6ff}
+  .wa-quote{display:flex;justify-content:space-between;gap:.5rem;padding:.55rem .65rem;margin-top:.5rem;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:.68rem}.wa-calendar{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem}.wa-date{border:1px solid #dbe3ee;border-radius:9px;background:#fff;padding:.45rem .25rem;text-align:center;color:#475569}.wa-date strong,.wa-date span{display:block}.wa-date strong{font-size:.75rem}.wa-date span{font-size:.62rem}.wa-date.active{background:#2563eb;border-color:#2563eb;color:#fff}.wa-date:disabled{opacity:.45}
+  .wa-summary{padding:.75rem 1rem;background:#f8fafc;border-top:1px solid #edf2f7}.wa-sum-row{display:flex;justify-content:space-between;font-size:.74rem;color:#64748b;margin:.25rem 0}.wa-sum-row strong{color:#334155}.wa-sum-total{padding-top:.5rem;margin-top:.5rem;border-top:1px dashed #cbd5e1;font-size:.95rem;font-weight:850;color:#0f172a}.wa-submit{width:100%;border:0;border-radius:11px;padding:.75rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:.83rem;font-weight:800;box-shadow:0 5px 14px rgba(37,99,235,.2)}.wa-submit:disabled{opacity:.55;box-shadow:none}.wa-help{font-size:.66rem;color:#64748b;margin:.35rem 0 0}.wa-hidden{display:none!important}
+  @media(max-width:1050px){.wa-layout{grid-template-columns:1fr}.wa-checkout{position:static}.wa-products{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:760px){.wa-products{grid-template-columns:1fr 1fr}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}}
+  @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-calendar{grid-template-columns:repeat(3,1fr)}}
+</style>
+
+<section class="wa-shell" aria-labelledby="waTitle">
+  <header class="wa-hero">
+    <div><h2 id="waTitle">Walk-in Aircon Order</h2><p>Select a unit, collect payment, and assign installation to an available technician in one checkout.</p></div>
+    <div class="wa-hero-mark"><i class="bi bi-snow2"></i></div>
+  </header>
+  <div class="wa-layout">
+    <section class="wa-panel">
+      <div class="wa-toolbar">
+        <div class="wa-search"><i class="bi bi-search"></i><input id="waSearch" type="search" placeholder="Search brand, model, capacity, or barcode" autocomplete="off"></div>
+        <select id="waTypeFilter" aria-label="Filter aircon type"><option value="">All aircon types</option></select>
+      </div>
+      <div class="wa-products" id="waProducts"><div class="wa-empty"><span class="spinner-border spinner-border-sm"></span><p>Loading aircons…</p></div></div>
+    </section>
+
+    <aside class="wa-panel wa-checkout">
+      <div class="wa-checkout-head"><h3><i class="bi bi-cart3 me-2 text-primary"></i>Order cart</h3><span class="wa-count" id="waCartCount">0</span></div>
+      <div class="wa-cart" id="waCart"><div class="wa-empty" style="padding:1.5rem .5rem"><i class="bi bi-cart"></i><p class="mb-0">Select an aircon to begin.</p></div></div>
+      <form class="wa-form" id="waCheckoutForm" novalidate>
+        <section class="wa-section">
+          <h4 class="wa-section-title"><i class="bi bi-person"></i>Customer</h4>
+          <div class="wa-fields">
+            <div class="wa-wide"><label class="wa-label" for="waCustomerName">Full name</label><input class="wa-field" id="waCustomerName" maxlength="160" required></div>
+            <div><label class="wa-label" for="waCustomerEmail">Email</label><input class="wa-field" id="waCustomerEmail" type="email" maxlength="254" required></div>
+            <div><label class="wa-label" for="waCustomerPhone">Phone</label><input class="wa-field" id="waCustomerPhone" inputmode="tel" maxlength="20" required></div>
+          </div>
+        </section>
+        <section class="wa-section">
+          <h4 class="wa-section-title"><i class="bi bi-box-seam"></i>Fulfillment</h4>
+          <div class="wa-choice" id="waFulfillmentChoices">
+            <button type="button" data-value="delivery_installation" class="active"><i class="bi bi-truck d-block"></i>Deliver + install</button>
+            <button type="button" data-value="customer_pickup"><i class="bi bi-calendar2-check d-block"></i>Pickup later</button>
+            <button type="button" data-value="carry_out"><i class="bi bi-bag-check d-block"></i>Carry out</button>
+          </div>
+        </section>
+        <section class="wa-section" id="waDeliverySection">
+          <h4 class="wa-section-title"><i class="bi bi-geo-alt"></i>Installation assignment</h4>
+          <div class="wa-fields">
+            <div class="wa-wide wa-address-wrap"><label class="wa-label" for="waAddress">Search and select installation address</label><input class="wa-field" id="waAddress" autocomplete="off" placeholder="Street, barangay, city"><div id="waAddressResults" class="wa-address-results wa-hidden"></div></div>
+            <input type="hidden" id="waLat"><input type="hidden" id="waLng">
+            <div class="wa-wide" id="waQuote"><div class="wa-quote"><span>Select an address for the route quote.</span><strong>—</strong></div></div>
+            <div class="wa-wide"><label class="wa-label" for="waTechnician">Technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help">Dates and time slots are calculated specifically for this technician.</p></div>
+            <div class="wa-wide"><label class="wa-label">Available installation dates</label><div class="wa-calendar" id="waCalendar"><p class="wa-help wa-wide">Select a technician and address first.</p></div></div>
+            <div class="wa-wide"><label class="wa-label" for="waTimeSlot">Available time</label><select class="wa-field" id="waTimeSlot"><option value="">Select an available date first</option></select></div>
+          </div>
+        </section>
+        <section class="wa-section wa-hidden" id="waPickupSection"><label class="wa-label" for="waPickupDate">Pickup date</label><input class="wa-field" id="waPickupDate" type="date"></section>
+        <section class="wa-section wa-hidden" id="waSerialSection"><label class="wa-label" for="waSerials">Serial numbers (one per unit)</label><textarea class="wa-field" id="waSerials" rows="3" placeholder="One serial number per line"></textarea><p class="wa-help">Required because the units are handed over immediately.</p></section>
+        <section class="wa-section">
+          <h4 class="wa-section-title"><i class="bi bi-credit-card"></i>Payment</h4>
+          <div class="wa-fields">
+            <div><label class="wa-label" for="waPayment">Method</label><select class="wa-field" id="waPayment"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option><option value="card">Card</option></select></div>
+            <div><label class="wa-label" for="waAmountPaid">Amount paid</label><input class="wa-field" id="waAmountPaid" type="number" min="0" step="0.01"></div>
+            <div><label class="wa-label" for="waDiscount">Discount</label><input class="wa-field" id="waDiscount" type="number" min="0" step="0.01" value="0"></div>
+            <div id="waReferenceWrap" class="wa-hidden"><label class="wa-label" for="waReference">Payment reference</label><input class="wa-field" id="waReference" maxlength="160"></div>
+          </div>
+        </section>
+        <div class="wa-summary">
+          <div class="wa-sum-row"><span>Products</span><strong id="waSubtotal">₱0.00</strong></div>
+          <div class="wa-sum-row"><span>Installation</span><strong id="waInstallFee">₱0.00</strong></div>
+          <div class="wa-sum-row"><span>Transportation</span><strong id="waTransportFee">₱0.00</strong></div>
+          <div class="wa-sum-row"><span>Discount</span><strong id="waDiscountView">−₱0.00</strong></div>
+          <div class="wa-sum-row wa-sum-total"><span>Total</span><strong id="waTotal">₱0.00</strong></div>
+        </div>
+        <button class="wa-submit mt-3" id="waSubmit" type="submit" disabled><i class="bi bi-check2-circle me-1"></i>Create paid order</button>
+      </form>
+    </aside>
+  </div>
+</section>
+
+<script>
+(() => {
+  const state = { products: [], cart: [], fulfillment: "delivery_installation", quote: {}, date: "", loaded: false, checkoutId: "" };
+  const $ = (id) => document.getElementById(id);
+  const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[ch]);
+  const uuid = () => window.crypto?.randomUUID?.().replace(/-/g, "") || `${Date.now()}${Math.random().toString(36).slice(2)}`;
+  state.checkoutId = uuid();
+
+  function toast(message, type = "info") {
+    if (window.Swal) return Swal.fire({ icon: type === "danger" ? "error" : type, title: type === "success" ? "Order created" : "Walk-in aircon order", text: message, confirmButtonColor: "#2563eb" });
+    window.alert(message);
+  }
+
+  document.querySelectorAll("[data-walkin-mode]").forEach(button => button.addEventListener("click", () => {
+    const aircon = button.dataset.walkinMode === "aircon";
+    document.querySelectorAll("[data-walkin-mode]").forEach(tab => { tab.classList.toggle("active", tab === button); tab.setAttribute("aria-selected", String(tab === button)); });
+    $("walkinServicesPane").classList.toggle("d-none", aircon);
+    $("walkinAirconPane").classList.toggle("d-none", !aircon);
+    if (aircon && !state.loaded) initialize();
+  }));
+
+  async function jsonFetch(url, options) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  async function initialize() {
+    state.loaded = true;
+    try {
+      const [products, options] = await Promise.all([
+        jsonFetch("/api/walk-in-aircon/products"),
+        jsonFetch("/api/appointments/walk-in-options"),
+      ]);
+      state.products = products.items || [];
+      const types = [...new Set(state.products.map(item => item.type).filter(Boolean))].sort();
+      $("waTypeFilter").innerHTML = '<option value="">All aircon types</option>' + types.map(type => `<option value="${esc(type)}">${esc(type)}</option>`).join("");
+      $("waTechnician").innerHTML = '<option value="">Choose technician</option>' + (options.technicians || []).map(tech => `<option value="${esc(tech._id)}">${esc(tech.name)}${tech.email ? ` · ${esc(tech.email)}` : ""}</option>`).join("");
+      renderProducts();
+    } catch (error) {
+      $("waProducts").innerHTML = `<div class="wa-empty"><i class="bi bi-exclamation-circle"></i><p>${esc(error.message)}</p><button type="button" class="btn btn-sm btn-outline-primary" id="waRetry">Retry</button></div>`;
+      $("waRetry")?.addEventListener("click", () => { state.loaded = false; initialize(); });
+    }
+  }
+
+  function productGroups() {
+    const q = $("waSearch").value.trim().toLowerCase();
+    const type = $("waTypeFilter").value;
+    const filtered = state.products.filter(item => (!type || item.type === type) && (!q || [item.brand,item.modelLine,item.itemName,item.barcode,item.sku,item.capacity].join(" ").toLowerCase().includes(q)));
+    return [...filtered.reduce((map, item) => { const key = item.parentHvacId; if (!map.has(key)) map.set(key, []); map.get(key).push(item); return map; }, new Map()).entries()];
+  }
+
+  function renderProducts() {
+    const groups = productGroups();
+    if (!groups.length) { $("waProducts").innerHTML = '<div class="wa-empty"><i class="bi bi-snow"></i><p>No available aircons match this search.</p></div>'; return; }
+    $("waProducts").innerHTML = groups.map(([id, variants]) => {
+      const first = variants[0];
+      const options = variants.map(item => `<option value="${esc(item._id)}">${esc(item.capacity)} ${esc(item.capacityUnit)} · ${money(item.sellingPrice)} · ${item.available} left</option>`).join("");
+      return `<article class="wa-product" data-product="${esc(id)}"><div class="wa-product-image">${first.imageUrl ? `<img src="${esc(first.imageUrl)}" alt="${esc(first.modelLine)}" loading="lazy">` : '<i class="bi bi-snow2"></i>'}</div><div class="wa-product-body"><span class="wa-brand">${esc(first.brand || "Air conditioner")}</span><h3>${esc(first.modelLine)}</h3><div class="wa-chips"><span class="wa-chip">${esc(first.type || "Aircon")}</span>${first.inverter ? '<span class="wa-chip">Inverter</span>' : ""}</div><select class="wa-variant">${options}</select><div class="wa-price-row"><div><div class="wa-price">${money(first.sellingPrice)}</div><div class="wa-stock">${first.available} in stock</div></div><button type="button" class="wa-add"><i class="bi bi-plus-lg"></i> Add</button></div></div></article>`;
+    }).join("");
+    $("waProducts").querySelectorAll(".wa-product").forEach(card => {
+      const select = card.querySelector(".wa-variant");
+      const sync = () => { const item = state.products.find(row => row._id === select.value); card.querySelector(".wa-price").textContent = money(item?.sellingPrice); card.querySelector(".wa-stock").textContent = `${item?.available || 0} in stock`; };
+      select.addEventListener("change", sync);
+      card.querySelector(".wa-add").addEventListener("click", () => addToCart(select.value));
+    });
+  }
+
+  function addToCart(id) {
+    const item = state.products.find(row => row._id === id); if (!item) return;
+    const existing = state.cart.find(row => row._id === id);
+    if (existing) { if (existing.quantity >= item.available) return toast("No more stock is available for this capacity.", "danger"); existing.quantity++; }
+    else state.cart.push({ ...item, quantity: 1 });
+    scheduleInputsChanged(); renderCart();
+  }
+
+  function changeQuantity(id, delta) {
+    const row = state.cart.find(item => item._id === id); if (!row) return;
+    row.quantity = Math.min(row.available, row.quantity + delta);
+    if (row.quantity <= 0) state.cart = state.cart.filter(item => item._id !== id);
+    scheduleInputsChanged(); renderCart();
+  }
+
+  function totals() {
+    const subtotal = state.cart.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
+    const discount = Math.max(0, Number($("waDiscount").value) || 0);
+    const delivery = state.fulfillment === "delivery_installation";
+    const installation = delivery ? Number(state.quote.installationFee || 0) : 0;
+    const transport = delivery ? Number(state.quote.transportationFee || 0) : 0;
+    return { subtotal, discount, installation, transport, total: Math.max(0, subtotal - discount + installation + transport) };
+  }
+
+  function renderCart() {
+    const units = state.cart.reduce((sum, item) => sum + item.quantity, 0); $("waCartCount").textContent = units;
+    $("waCart").innerHTML = state.cart.length ? state.cart.map(item => `<div class="wa-cart-item"><div><div class="wa-cart-name">${esc(item.brand)} ${esc(item.modelLine)}</div><div class="wa-cart-meta">${esc(item.capacity)} ${esc(item.capacityUnit)} · ${money(item.sellingPrice)}</div><div class="wa-cart-controls mt-1"><button type="button" data-id="${esc(item._id)}" data-delta="-1">−</button><span>${item.quantity}</span><button type="button" data-id="${esc(item._id)}" data-delta="1">+</button></div></div><div class="wa-cart-total">${money(item.sellingPrice * item.quantity)}</div></div>`).join("") : '<div class="wa-empty" style="padding:1.5rem .5rem"><i class="bi bi-cart"></i><p class="mb-0">Select an aircon to begin.</p></div>';
+    $("waCart").querySelectorAll("[data-delta]").forEach(button => button.addEventListener("click", () => changeQuantity(button.dataset.id, Number(button.dataset.delta))));
+    renderTotals();
+  }
+
+  function renderTotals() {
+    const t = totals(); $("waSubtotal").textContent = money(t.subtotal); $("waInstallFee").textContent = money(t.installation); $("waTransportFee").textContent = money(t.transport); $("waDiscountView").textContent = `−${money(t.discount)}`; $("waTotal").textContent = money(t.total); $("waSubmit").disabled = !state.cart.length;
+    if ($("waPayment").value !== "cash") $("waAmountPaid").value = t.total.toFixed(2);
+  }
+
+  function syncPaymentMode() {
+    const electronic = $("waPayment").value !== "cash";
+    $("waReferenceWrap").classList.toggle("wa-hidden", !electronic);
+    $("waAmountPaid").readOnly = electronic;
+    if (electronic) $("waAmountPaid").value = totals().total.toFixed(2);
+  }
+
+  function setFulfillment(value) {
+    state.fulfillment = value; state.date = "";
+    document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.classList.toggle("active", button.dataset.value === value));
+    $("waDeliverySection").classList.toggle("wa-hidden", value !== "delivery_installation"); $("waPickupSection").classList.toggle("wa-hidden", value !== "customer_pickup"); $("waSerialSection").classList.toggle("wa-hidden", value !== "carry_out"); renderTotals(); scheduleInputsChanged();
+  }
+
+  function scheduleInputsChanged() { state.date = ""; $("waTimeSlot").innerHTML = '<option value="">Select an available date first</option>'; if (state.fulfillment === "delivery_installation" && $("waTechnician").value && $("waLat").value && state.cart.length) loadDates(); }
+
+  async function searchAddress() {
+    const query = $("waAddress").value.trim(); $("waLat").value = ""; $("waLng").value = ""; state.quote = {}; scheduleInputsChanged(); renderTotals();
+    if (query.length < 5) return $("waAddressResults").classList.add("wa-hidden");
+    try {
+      const rows = await jsonFetch(`/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`);
+      $("waAddressResults").innerHTML = rows.length ? rows.map((row, index) => `<button type="button" data-index="${index}">${esc(row.display_name)}</button>`).join("") : '<p class="wa-help p-2">No matching address found.</p>';
+      $("waAddressResults").classList.remove("wa-hidden");
+      $("waAddressResults").querySelectorAll("button").forEach(button => button.addEventListener("click", () => selectAddress(rows[Number(button.dataset.index)])));
+    } catch (error) { $("waAddressResults").innerHTML = `<p class="wa-help p-2 text-danger">${esc(error.message)}</p>`; $("waAddressResults").classList.remove("wa-hidden"); }
+  }
+
+  async function selectAddress(row) {
+    $("waAddress").value = row.display_name || ""; $("waLat").value = row.lat || ""; $("waLng").value = row.lon || ""; $("waAddressResults").classList.add("wa-hidden"); $("waQuote").innerHTML = '<div class="wa-quote"><span>Calculating verified road route…</span><span class="spinner-border spinner-border-sm"></span></div>';
+    try {
+      state.quote = await jsonFetch("/api/walk-in-aircon/quote", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ fulfillmentType:"delivery_installation", coordinates:{lat:row.lat,lng:row.lon} }) });
+      $("waQuote").innerHTML = `<div class="wa-quote"><span>${Number(state.quote.distanceKm || 0).toFixed(1)} km · about ${Number(state.quote.durationMin || 0)} min</span><strong>${money(state.quote.additionalTotal)}</strong></div>`; renderTotals(); scheduleInputsChanged();
+    } catch (error) { state.quote = {}; $("waQuote").innerHTML = `<div class="wa-quote text-danger"><span>${esc(error.message)}</span><strong>Unavailable</strong></div>`; renderTotals(); }
+  }
+
+  async function loadDates() {
+    const technicianId = $("waTechnician").value; if (!technicianId || !state.cart.length || !$("waLat").value) return;
+    $("waCalendar").innerHTML = '<p class="wa-help wa-wide"><span class="spinner-border spinner-border-sm me-1"></span>Checking technician calendar…</p>';
+    try {
+      const params = new URLSearchParams({ duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId });
+      const data = await jsonFetch(`/api/schedule/available-dates?${params}`);
+      const dates = (data.availableDates || []).filter(row => Number(row.availableSlots || 0) > 0).slice(0, 24);
+      $("waCalendar").innerHTML = dates.length ? dates.map(row => { const d = new Date(`${String(row.date).slice(0,10)}T00:00:00`); return `<button type="button" class="wa-date" data-date="${esc(String(row.date).slice(0,10))}"><span>${d.toLocaleDateString("en-PH",{month:"short"})}</span><strong>${d.getDate()}</strong><span>${row.availableSlots} slots</span></button>`; }).join("") : '<p class="wa-help wa-wide text-danger">No available dates for this technician. Choose another technician.</p>';
+      $("waCalendar").querySelectorAll("[data-date]").forEach(button => button.addEventListener("click", () => selectDate(button.dataset.date, button)));
+    } catch (error) { $("waCalendar").innerHTML = `<p class="wa-help wa-wide text-danger">${esc(error.message)}</p>`; }
+  }
+
+  async function selectDate(date, button) {
+    state.date = date; $("waCalendar").querySelectorAll(".wa-date").forEach(row => row.classList.toggle("active", row === button)); $("waTimeSlot").innerHTML = '<option value="">Loading available times…</option>';
+    try {
+      const params = new URLSearchParams({ date, duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId:$("waTechnician").value });
+      const data = await jsonFetch(`/api/schedule/time-slots?${params}`); const slots = (data.timeSlots || []).filter(slot => slot.available === true);
+      $("waTimeSlot").innerHTML = slots.length ? '<option value="">Choose time</option>' + slots.map(slot => `<option value="${esc(slot.startTime)}">${esc(slot.label || slot.startTime)}</option>`).join("") : '<option value="">No available times</option>';
+    } catch (error) { $("waTimeSlot").innerHTML = `<option value="">${esc(error.message)}</option>`; }
+  }
+
+  function validate() {
+    if (!state.cart.length) return "Add at least one aircon.";
+    if ($("waCustomerName").value.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("waCustomerEmail").value.trim()) || $("waCustomerPhone").value.replace(/\D/g,"").length < 7) return "Enter the customer's complete name, email, and phone number.";
+    if (state.fulfillment === "delivery_installation" && (!$("waLat").value || !$("waTechnician").value || !state.date || !$("waTimeSlot").value)) return "Select a verified address, technician, available date, and time.";
+    if (state.fulfillment === "customer_pickup" && !$("waPickupDate").value) return "Choose the customer pickup date.";
+    const units = state.cart.reduce((sum,item)=>sum+item.quantity,0), serials = $("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean);
+    if (state.fulfillment === "carry_out" && serials.length !== units) return `Enter exactly ${units} serial number(s) for immediate handover.`;
+    if (Number($("waDiscount").value || 0) > totals().subtotal) return "Discount cannot exceed the product subtotal.";
+    if (Number($("waAmountPaid").value || 0) < totals().total) return `Collect the full total of ${money(totals().total)}.`;
+    if ($("waPayment").value !== "cash" && $("waReference").value.trim().length < 4) return "Enter the electronic payment reference.";
+    return "";
+  }
+
+  async function submit(event) {
+    event.preventDefault(); const error = validate(); if (error) return toast(error, "danger");
+    const button = $("waSubmit"); button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating stock and schedule…';
+    const payload = { checkoutRequestId:state.checkoutId, customer:{name:$("waCustomerName").value.trim(),email:$("waCustomerEmail").value.trim(),phone:$("waCustomerPhone").value.trim(),address:$("waAddress").value.trim()}, items:state.cart.map(item=>({toolId:item._id,quantity:item.quantity})), fulfillmentType:state.fulfillment, pickupDate:$("waPickupDate").value, technicianId:state.fulfillment === "delivery_installation" ? $("waTechnician").value : null, delivery:state.fulfillment === "delivery_installation" ? {address:$("waAddress").value.trim(),preferredDate:state.date,coordinates:{lat:$("waLat").value,lng:$("waLng").value}} : null, timeSlot:state.fulfillment === "delivery_installation" ? $("waTimeSlot").value : null, serialNumbers:$("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean), paymentMethod:$("waPayment").value, paymentReference:$("waReference").value.trim(), amountPaid:Number($("waAmountPaid").value), discount:Number($("waDiscount").value || 0) };
+    try {
+      const result = await jsonFetch("/api/walk-in-aircon/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+      const ref = result.order?.orderReference || "Order"; await toast(`${ref} was created and paid.${state.fulfillment === "delivery_installation" ? " The technician was assigned and the calendar was reserved." : ""}`, "success");
+      state.cart = []; state.quote = {}; state.date = ""; state.checkoutId = uuid(); $("waCheckoutForm").reset(); setFulfillment("delivery_installation"); renderCart(); await initializeAfterCheckout();
+    } catch (err) { toast(err.message || "Checkout failed.", "danger"); }
+    finally { button.disabled = !state.cart.length; button.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Create paid order'; }
+  }
+
+  async function initializeAfterCheckout() { state.loaded = false; await initialize(); $("waCalendar").innerHTML = '<p class="wa-help wa-wide">Select a technician and address first.</p>'; $("waTimeSlot").innerHTML = '<option value="">Select an available date first</option>'; }
+
+  let searchTimer; $("waSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderProducts, 180); }); $("waTypeFilter").addEventListener("change", renderProducts); document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.addEventListener("click", () => setFulfillment(button.dataset.value))); $("waTechnician").addEventListener("change", scheduleInputsChanged); $("waDiscount").addEventListener("input", renderTotals); $("waPayment").addEventListener("change", syncPaymentMode); $("waAddress").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchAddress, 400); }); $("waCheckoutForm").addEventListener("submit", submit);
+  const tomorrow = new Date(Date.now() + 86400000); $("waPickupDate").min = tomorrow.toISOString().slice(0,10); renderCart();
+})();
+</script>

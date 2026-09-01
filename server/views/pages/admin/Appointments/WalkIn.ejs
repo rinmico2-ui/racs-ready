@@ -5,6 +5,9 @@
     :root{--sv-b:#2563eb;--sv-bd:#1d4ed8;--sv-bl:#60a5fa;--sv-bs:rgba(37,99,235,0.08);--sv-g:#10b981;--sv-r:#ef4444;--sv-c:#f59e0b;--sv-f:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;--sv-r1:12px;--sv-r2:16px;--sv-sh:0 2px 16px rgba(15,23,42,0.04);--sv-sh2:0 8px 32px rgba(15,23,42,0.06);--sv-e:cubic-bezier(0.16,1,0.3,1)}
     .walkin-page{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
     .walkin-page .walkin-shell{position:relative}
+    .walkin-page .walkin-mode-tabs{display:flex;gap:.5rem;max-width:1100px;margin:0 auto 1rem;padding:.4rem;background:#eaf0f8;border:1px solid #dbe4f0;border-radius:15px}
+    .walkin-page .walkin-mode-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:.55rem;padding:.8rem 1rem;border:0;border-radius:11px;background:transparent;color:#64748b;font-weight:750;transition:.2s ease}
+    .walkin-page .walkin-mode-tab.active{background:#fff;color:#1d4ed8;box-shadow:0 4px 14px rgba(15,23,42,.08)}
 
     /* Enterprise Hero */
     .walkin-page .ent-hero{position:relative;overflow:hidden;padding:3.5rem 0 4rem;background:linear-gradient(160deg,#e0f2fe 0%,#f0fdf4 35%,#e0e7ff 70%,#ede9fe 100%);border-bottom:1px solid rgba(37,99,235,0.06);border-radius:20px;margin-bottom:1.5rem}
@@ -298,6 +301,14 @@
     }
   </style>
 
+  <% if (typeof airconOrdersEnabled !== 'undefined' && airconOrdersEnabled) { %>
+    <nav class="walkin-mode-tabs" aria-label="Walk-in transaction type">
+      <button type="button" class="walkin-mode-tab active" data-walkin-mode="services" aria-selected="true"><i class="bi bi-tools"></i>Services</button>
+      <button type="button" class="walkin-mode-tab" data-walkin-mode="aircon" aria-selected="false"><i class="bi bi-snow"></i>Aircon Orders</button>
+    </nav>
+  <% } %>
+
+  <div id="walkinServicesPane">
   <section class="ent-hero">
     <div class="ent-hero-orb ent-hero-orb-1"></div>
     <div class="ent-hero-orb ent-hero-orb-2"></div>
@@ -959,6 +970,13 @@
       </div>
     </div>
   </form>
+  </div>
+
+  <% if (typeof airconOrdersEnabled !== 'undefined' && airconOrdersEnabled) { %>
+    <div id="walkinAirconPane" class="d-none">
+      <%- include('../../../partials/walkin-aircon-order') %>
+    </div>
+  <% } %>
 </div>
 
 <link rel="stylesheet" id="ent-calendar-styles" href="/css/enterprise-calendar.css?v=20260814-walkin">

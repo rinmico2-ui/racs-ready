@@ -398,6 +398,7 @@ app.use("/api/inventory", inventoryRoutes);
 
 const posRoutes = require("./routes/posRoutes");
 app.use("/api/pos", posRoutes);
+app.use("/api/walk-in-aircon", posRoutes.walkInAirconRouter);
 
 const psgcRoutes = require("./routes/psgcRoutes");
 app.use("/api/psgc", psgcRoutes);

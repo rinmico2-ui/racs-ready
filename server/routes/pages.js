@@ -1356,6 +1356,7 @@ router.get(
     res.render("pages/admin/Appointments/WalkIn", {
       title: "Walk-in Appointment",
       layout: "layouts/admin",
+      airconOrdersEnabled: true,
     });
   },
 );
@@ -3736,6 +3737,7 @@ router.get(
     res.render("pages/admin/Appointments/WalkIn", {
       title: "Walk-in Appointment",
       layout: "layouts/secretary",
+      airconOrdersEnabled: false,
     });
   },
 );

@@ -261,8 +261,8 @@
         <div class="pos-header-left">
           <div class="pos-header-icon"><i class="bi bi-shop"></i></div>
           <div class="pos-header-title">
-            <h5>Point of Sale</h5>
-            <small>Scan, search, and process sales in one place.</small>
+            <h5>Parts &amp; Tools POS</h5>
+            <small>Scan, search, and process merchandise sales.</small>
           </div>
         </div>
       </div>
@@ -282,13 +282,12 @@
       <div id="barcodeNotice" style="display:none;background:#f59e0b10;border:1px solid #f59e0b40;color:#f59e0b;padding:8px 16px;font-size:0.8rem;border-radius:8px;margin:0 16px 8px 16px;align-items:center;"></div>
       <div class="pos-tabs">
         <button class="pos-tab active" onclick="switchTab('tools', this)"><i class="bi bi-box-seam"></i> Parts &amp; Tools</button>
-        <button class="pos-tab" onclick="switchTab('aircons', this)"><i class="bi bi-snow"></i> Aircons</button>
       </div>
       <div class="pos-categories" id="posCategories"></div>
       <div class="pos-grid" id="posGrid">
         <div class="pos-empty"><i class="bi bi-box-seam"></i><p>Loading parts...</p></div>
       </div>
-      <div class="pos-grid" id="posAirconGrid" style="display:none;">
+      <div class="pos-grid d-none" id="posAirconGrid" style="display:none;" aria-hidden="true">
         <div class="pos-empty"><i class="bi bi-snow"></i><p>Loading aircons...</p></div>
       </div>
     </div>

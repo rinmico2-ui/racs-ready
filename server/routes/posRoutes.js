@@ -9,6 +9,8 @@ const WalkInSale = require("../models/WalkInSale");
 const Order = require("../models/Order");
 const Payment = require("../models/Payment");
 const User = require("../models/User");
+const Technician = require("../models/Technician");
+const BookingService = require("../models/BookingService");
 const auth = require("../middleware/authenticate");
 const { escapeRegex } = require("../utils/stringSecurity");
 const {
@@ -94,6 +96,13 @@ function normalizedSerialNumbers(values) {
     throw posOrderError("Every aircon unit must have a unique serial number.", 400, "POS_SERIAL_DUPLICATE");
   }
   return result;
+}
+
+function addMinutesToTime(value, minutes) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
+  if (!match) return "";
+  const total = ((Number(match[1]) * 60 + Number(match[2]) + Math.max(1, Number(minutes) || 60)) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,42 +205,10 @@ router.get("/tools/barcode/:barcode", async (req, res) => {
       });
     }
 
-    // 2. Try HVACProduct variants
-    const hvac = await HVACProduct.findOne({ "variants.barcode": barcode, active: true }).lean();
-    if (hvac) {
-      const variant = hvac.variants.find(v => v.barcode === barcode && v.active !== false);
-      if (variant) {
-        const available = variant.quantity || 0;
-        if (available <= 0) return res.status(400).json({ error: "Item is out of stock" });
-        const brandDoc = hvac.brand && typeof hvac.brand === "object" ? hvac.brand : null;
-        return res.json({
-          _id: variant._id, parentHvacId: hvac._id,
-          itemName: `${hvac.modelLine} ${variant.capacity}${variant.capacityUnit || "HP"}`,
-          category: hvac.type || "Aircon", unit: "unit",
-          barcode: variant.barcode, sellingPrice: variant.sellingPrice, costPrice: variant.costPrice,
-          available, source: "aircon",
-          brand: brandDoc ? brandDoc.name : "",
-          modelLine: hvac.modelLine, capacity: variant.capacity, capacityUnit: variant.capacityUnit,
-          inverter: hvac.inverter, imageUrl: hvac.imageUrl,
-        });
-      }
-    }
-
-    // 3. Try legacy Inventory collection
-    const inv = await Inventory.findOne({ barcode, active: true }).lean();
-    if (inv) {
-      const available = inv.quantity || 0;
-      if (available <= 0) return res.status(400).json({ error: "Item is out of stock" });
-      return res.json({
-        _id: inv._id, itemName: inv.modelLine + " " + inv.capacity + (inv.capacityUnit || "HP"),
-        category: inv.type || "Aircon", unit: "unit",
-        barcode: inv.barcode, sellingPrice: inv.sellingPrice, costPrice: inv.costPrice,
-        available, source: "aircon_legacy",
-        modelLine: inv.modelLine, capacity: inv.capacity, capacityUnit: inv.capacityUnit,
-      });
-    }
-
-    return res.status(404).json({ error: "Item not found" });
+    return res.status(404).json({
+      error: "Part or tool not found. Aircon orders are created from Walk-in Appointments.",
+      code: "POS_MERCHANDISE_ONLY",
+    });
   } catch (err) {
     console.error("POS barcode lookup error:", err);
     res.status(500).json({ error: "Failed to lookup barcode" });
@@ -241,7 +218,7 @@ router.get("/tools/barcode/:barcode", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/pos/aircons — List aircon units for POS (flattened from HVACProduct variants)
 // ─────────────────────────────────────────────────────────────────────────────
-router.get("/aircons", async (req, res) => {
+async function listAircons(req, res) {
   try {
     const { q, brand, type } = req.query;
     const filter = { active: true };
@@ -310,7 +287,8 @@ router.get("/aircons", async (req, res) => {
     console.error("POS aircons error:", err);
     res.status(500).json({ error: "Failed to load aircons" });
   }
-});
+}
+router.get("/aircons", listAircons);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/pos/aircon-brands — Distinct brands from HVAC products
@@ -377,7 +355,7 @@ router.get("/categories", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/aircon-quote — Counter quote for delivery + installation
 // ─────────────────────────────────────────────────────────────────────────────
-router.post("/aircon-quote", async (req, res) => {
+async function quoteAirconOrder(req, res) {
   try {
     const fulfillmentType = String(req.body?.fulfillmentType || "");
     if (fulfillmentType !== "delivery_installation") {
@@ -397,12 +375,13 @@ router.post("/aircon-quote", async (req, res) => {
   } catch (error) {
     return res.status(Number(error.status) || 400).json({ error: error.message, code: error.code });
   }
-});
+}
+router.post("/aircon-quote", quoteAirconOrder);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/aircon-checkout — Create a walk-in Order, never a WalkInSale
 // ─────────────────────────────────────────────────────────────────────────────
-router.post("/aircon-checkout", async (req, res) => {
+async function checkoutAirconOrder(req, res) {
   let session;
   try {
     const customer = normalizedCustomer(req.body?.customer);
@@ -478,12 +457,24 @@ router.post("/aircon-checkout", async (req, res) => {
     let routeDistanceKm = 0;
     let routeDurationMin = 0;
     let installationFee = 0;
+    let selectedTechnician = null;
     if (fulfillmentChoice === "carry_out") {
       pickupDate = new Date();
     } else if (fulfillmentChoice === "customer_pickup") {
       pickupDate = validatePickupDate(req.body?.pickupDate, settings.storeHours);
     } else {
       fulfillmentType = "delivery_installation";
+      const technicianId = String(req.body?.technicianId || "").trim();
+      if (!mongoose.isValidObjectId(technicianId)) {
+        throw posOrderError("Choose an available technician for this installation.", 400, "POS_TECHNICIAN_REQUIRED");
+      }
+      selectedTechnician = await Technician.findOne({ _id: technicianId, active: true })
+        .populate({ path: "user", select: "firstName lastName email phone active blocked role" })
+        .lean();
+      if (!selectedTechnician || !selectedTechnician.user || selectedTechnician.user.role !== "technician"
+        || selectedTechnician.user.active === false || selectedTechnician.user.blocked === true) {
+        throw posOrderError("The selected technician is no longer available for assignment.", 409, "POS_TECHNICIAN_UNAVAILABLE");
+      }
       const address = String(req.body?.delivery?.address || "").trim().slice(0, 500);
       const preferredDate = parseDateOnly(req.body?.delivery?.preferredDate);
       timeSlot = String(req.body?.timeSlot || "").trim().slice(0, 40);
@@ -512,6 +503,7 @@ router.post("/aircon-checkout", async (req, res) => {
         duration: "60",
         quantity: String(totalUnits),
         travelTime: String(routeDurationMin),
+        technicianId: String(selectedTechnician._id),
       });
       const slotAvailable = slotCheck.statusCode < 400
         && Array.isArray(slotCheck.payload?.timeSlots)
@@ -564,7 +556,12 @@ router.post("/aircon-checkout", async (req, res) => {
       });
     }
     const now = new Date();
-    const status = fulfillmentChoice === "carry_out" ? "completed" : "preparing_unit";
+    const status = fulfillmentChoice === "carry_out"
+      ? "completed"
+      : (fulfillmentType === "delivery_installation" ? "technician_assigned" : "preparing_unit");
+    const technicianName = selectedTechnician
+      ? `${selectedTechnician.user?.firstName || ""} ${selectedTechnician.user?.lastName || ""}`.trim() || selectedTechnician.name || "Technician"
+      : "";
     const order = new Order({
       userId: customerUser._id,
       salesChannel: "walk_in",
@@ -576,6 +573,14 @@ router.post("/aircon-checkout", async (req, res) => {
       pickupDate,
       delivery,
       timeSlot,
+      technicianId: selectedTechnician?._id || null,
+      technician: selectedTechnician ? {
+        _id: selectedTechnician._id,
+        name: technicianName,
+        phone: selectedTechnician.user?.phone || selectedTechnician.phone || "",
+        email: selectedTechnician.user?.email || selectedTechnician.userEmail || "",
+      } : undefined,
+      technicianAcceptance: selectedTechnician ? { status: "pending" } : undefined,
       status,
       completedAt: status === "completed" ? now : null,
       paymentMethod: payment.order,
@@ -592,7 +597,13 @@ router.post("/aircon-checkout", async (req, res) => {
         dispatch: { status: fulfillmentType === "customer_pickup" ? "not_required" : "pending" },
         installation: { status: fulfillmentType === "delivery_installation" ? "pending" : "not_required" },
       },
-      statusHistory: [{ status, timestamp: now, note: fulfillmentChoice === "carry_out" ? "Walk-in payment and immediate handover completed" : "Walk-in aircon order created and fully paid" }],
+      statusHistory: [{
+        status,
+        timestamp: now,
+        note: fulfillmentChoice === "carry_out"
+          ? "Walk-in payment and immediate handover completed"
+          : (selectedTechnician ? `Walk-in aircon order created, paid, and assigned to ${technicianName}` : "Walk-in aircon order created and fully paid"),
+      }],
     });
     if (status === "completed") {
       const warrantyRule = warrantyRuleForOrder(await getAftercarePolicy());
@@ -600,6 +611,76 @@ router.post("/aircon-checkout", async (req, res) => {
       if (warrantySnapshot) order.warranty = warrantySnapshot;
     }
     await order.save({ session });
+
+    if (selectedTechnician && fulfillmentType === "delivery_installation") {
+      const serviceDurationMinutes = Math.max(60, totalUnits * 60);
+      const booking = new BookingService({
+        sourceOrderId: order._id,
+        customerId: customerUser._id,
+        customer: {
+          _id: customerUser._id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          address: delivery.address,
+        },
+        technicianId: selectedTechnician._id,
+        technician: {
+          _id: selectedTechnician._id,
+          name: technicianName,
+          phone: selectedTechnician.user?.phone || selectedTechnician.phone || "",
+          email: selectedTechnician.user?.email || selectedTechnician.userEmail || "",
+        },
+        bookingDate: delivery.preferredDate,
+        startTime: timeSlot,
+        endTime: addMinutesToTime(timeSlot, serviceDurationMinutes),
+        selectedTimeLabel: timeSlot,
+        status: "scheduled",
+        serviceType: "core",
+        service: {
+          name: "Air Conditioner Installation",
+          description: `Delivery and installation for ${order.orderReference || "walk-in aircon order"}`,
+          basePrice: installationFee,
+        },
+        servicePrice: installationFee,
+        serviceDurationMinutes,
+        services: enrichedItems.map((item) => ({
+          name: `${item.brand || "Air Conditioner"} ${item.modelLine || ""} Installation`.trim(),
+          type: "core",
+          quantity: item.quantity,
+          unitPrice: installationFee / Math.max(1, totalUnits),
+          totalPrice: (installationFee / Math.max(1, totalUnits)) * item.quantity,
+          status: "assigned",
+          hpDescription: item.capacity ? `${item.capacity} ${item.capacityUnit || "HP"}` : "",
+          airconTypeName: item.modelLine || "Air Conditioner",
+          duration: Math.max(60, item.quantity * 60),
+          isAirconService: true,
+          technicianId: selectedTechnician._id,
+          technicianName,
+          schedule: {
+            date: delivery.preferredDate,
+            startTime: timeSlot,
+            endTime: addMinutesToTime(timeSlot, serviceDurationMinutes),
+            durationMinutes: serviceDurationMinutes,
+            kind: "service",
+          },
+        })),
+        estimatedFee: installationFee + transportationFee,
+        travelFare: transportationFee,
+        travelTime: routeDurationMin,
+        paymentMethod: payment.payment === "gcash" ? "gcash" : (payment.payment === "cash" ? "cod" : "other"),
+        paymentStatus: "paid",
+        amountPaid: total,
+        balanceAmount: 0,
+        downpaymentPercentage: 100,
+        downpaymentAmount: total,
+        assignedAt: now,
+        assignedBy: req.user._id,
+        location: { address: delivery.address, coordinates: delivery.coordinates },
+      });
+      await booking.save({ session });
+      order.bookingId = booking._id;
+    }
 
     const paymentRecord = new Payment({
       orderId: order._id,
@@ -628,6 +709,29 @@ router.post("/aircon-checkout", async (req, res) => {
     order.paymentId = paymentRecord._id;
     await order.save({ session });
     await session.commitTransaction();
+
+    if (selectedTechnician?.user?._id) {
+      try {
+        const { createNotification } = require("../utils/notify");
+        await createNotification({
+          type: "assignment_new",
+          title: "New Walk-in Aircon Order",
+          message: `You have been assigned to ${order.orderReference || "an aircon installation"}. Review the order and schedule.`,
+          userId: selectedTechnician.user._id,
+          role: "technician",
+          referenceId: order._id,
+          referenceModel: "Order",
+          link: "/technician/orders",
+          io: req.app.get("io"),
+        });
+        req.app.get("io")?.to(`tech:${selectedTechnician._id}`).emit("order:assigned", {
+          orderId: order._id,
+          orderReference: order.orderReference,
+        });
+      } catch (notificationError) {
+        console.error("[POS] Walk-in aircon technician notification failed:", notificationError.message);
+      }
+    }
 
     if (status === "completed") {
       try {
@@ -664,7 +768,8 @@ router.post("/aircon-checkout", async (req, res) => {
   } finally {
     if (session) await session.endSession();
   }
-});
+}
+router.post("/aircon-checkout", checkoutAirconOrder);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/checkout — Process a walk-in sale
@@ -1011,4 +1116,11 @@ router.post("/sales/:id/void", async (req, res) => {
   }
 });
 
+const walkInAirconRouter = express.Router();
+walkInAirconRouter.use(auth.authenticate, auth.requireRole("admin"));
+walkInAirconRouter.get("/products", listAircons);
+walkInAirconRouter.post("/quote", quoteAirconOrder);
+walkInAirconRouter.post("/checkout", checkoutAirconOrder);
+
+router.walkInAirconRouter = walkInAirconRouter;
 module.exports = router;
