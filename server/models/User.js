@@ -45,6 +45,14 @@ const userSchema = new mongoose.Schema({
   resetPasswordTokenHash: String,
   resetPasswordExpires: Date,
   lastPasswordChange: Date,
+  // Existing accounts and staff remain verified by default. Public registration
+  // explicitly sets this to false until the email OTP is confirmed.
+  emailVerified: { type: Boolean, default: true, index: true },
+  emailVerifiedAt: Date,
+  emailVerificationOtpHash: { type: String, select: false },
+  emailVerificationExpires: { type: Date, select: false },
+  emailVerificationLastSentAt: { type: Date, select: false },
+  emailVerificationAttempts: { type: Number, default: 0, select: false },
   // Admin / policy fields
   blocked: { type: Boolean, default: false },
   vip: { type: Boolean, default: false },
@@ -114,6 +122,10 @@ userSchema.methods.toJSON = function () {
   delete obj.passwordHash;
   delete obj.resetPasswordTokenHash;
   delete obj.resetPasswordExpires;
+  delete obj.emailVerificationOtpHash;
+  delete obj.emailVerificationExpires;
+  delete obj.emailVerificationLastSentAt;
+  delete obj.emailVerificationAttempts;
   delete obj.currentSessionId;
   return obj;
 };

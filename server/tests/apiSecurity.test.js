@@ -78,6 +78,10 @@ test("safe methods do not require an Origin header", () => {
 
 test("account state rejects disabled and blocked users", () => {
   assert.equal(isAccountEnabled({ active: true, blocked: false }), true);
+  assert.equal(
+    isAccountEnabled({ active: true, blocked: false, emailVerified: false }),
+    false,
+  );
   assert.equal(isAccountEnabled({ active: false, blocked: false }), false);
   assert.equal(isAccountEnabled({ active: true, blocked: true }), false);
   assert.equal(isAccountEnabled(null), false);

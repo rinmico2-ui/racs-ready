@@ -5,6 +5,132 @@
   if (!form) return;
 
   var btn = document.getElementById('registerBtn');
+  var verificationPanel = document.getElementById('registerVerificationPanel');
+  var verificationEmail = document.getElementById('registerVerificationEmail');
+  var verificationOtp = document.getElementById('register-otp');
+  var verifyOtpBtn = document.getElementById('verifyRegisterOtpBtn');
+  var resendOtpBtn = document.getElementById('resendRegisterOtpBtn');
+  var changeRegistrationBtn = document.getElementById('changeRegistrationEmailBtn');
+  var pendingVerificationEmail = '';
+  var resendTimer = null;
+
+  function startVerificationCooldown(seconds) {
+    if (!resendOtpBtn) return;
+    if (resendTimer) clearInterval(resendTimer);
+    var remaining = Math.max(1, Number(seconds) || 60);
+    resendOtpBtn.disabled = true;
+    resendOtpBtn.textContent = 'Resend in ' + remaining + 's';
+    resendTimer = setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(resendTimer);
+        resendTimer = null;
+        resendOtpBtn.disabled = false;
+        resendOtpBtn.textContent = 'Resend code';
+        return;
+      }
+      resendOtpBtn.textContent = 'Resend in ' + remaining + 's';
+    }, 1000);
+  }
+
+  function showRegistrationVerification(email, startCooldown) {
+    pendingVerificationEmail = String(email || '').trim().toLowerCase();
+    if (!pendingVerificationEmail || !verificationPanel) return;
+    if (typeof window.openSignUp === 'function') window.openSignUp();
+    form.classList.add('d-none');
+    verificationPanel.classList.remove('d-none');
+    if (verificationEmail) verificationEmail.textContent = pendingVerificationEmail;
+    if (verificationOtp) {
+      verificationOtp.value = '';
+      setTimeout(function () { verificationOtp.focus(); }, 100);
+    }
+    if (startCooldown !== false) startVerificationCooldown(60);
+  }
+
+  window.showRegistrationVerification = showRegistrationVerification;
+
+  if (verificationOtp) {
+    verificationOtp.addEventListener('input', function () {
+      this.value = String(this.value || '').replace(/\D+/g, '').slice(0, 6);
+    });
+    verificationOtp.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && verifyOtpBtn) {
+        event.preventDefault();
+        verifyOtpBtn.click();
+      }
+    });
+  }
+
+  if (changeRegistrationBtn) {
+    changeRegistrationBtn.addEventListener('click', function () {
+      verificationPanel.classList.add('d-none');
+      form.classList.remove('d-none');
+      if (resendTimer) clearInterval(resendTimer);
+      resendTimer = null;
+      pendingVerificationEmail = '';
+      var emailField = document.getElementById('register-email');
+      if (emailField) emailField.focus();
+    });
+  }
+
+  if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', async function () {
+      var otp = verificationOtp ? verificationOtp.value.trim() : '';
+      if (!/^\d{6}$/.test(otp)) {
+        return window.authUtils.swalError('Invalid code', 'Enter the 6-digit code from your email.');
+      }
+
+      var previousText = verifyOtpBtn.innerHTML;
+      verifyOtpBtn.disabled = true;
+      verifyOtpBtn.innerHTML = '<span class="spinner"></span> Verifying...';
+      try {
+        var response = await fetch('/api/auth/verify-register-otp', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: pendingVerificationEmail, otp: otp }),
+        });
+        var result = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          throw new Error(result.error || 'The verification code could not be confirmed.');
+        }
+        await window.authUtils.swalSuccess('Email verified', result.message || 'Your account is ready. Please sign in.');
+        window.location.assign(result.redirect || '/login?verified=1');
+      } catch (error) {
+        window.authUtils.swalError('Verification failed', error.message || 'Please try again.');
+      } finally {
+        verifyOtpBtn.disabled = false;
+        verifyOtpBtn.innerHTML = previousText;
+      }
+    });
+  }
+
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener('click', async function () {
+      if (!pendingVerificationEmail) return;
+      resendOtpBtn.disabled = true;
+      try {
+        var response = await fetch('/api/auth/resend-register-otp', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: pendingVerificationEmail }),
+        });
+        var result = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          if (response.status === 429 && result.retryAfter) {
+            startVerificationCooldown(result.retryAfter);
+          }
+          throw new Error(result.error || 'Unable to resend the code.');
+        }
+        startVerificationCooldown(60);
+        window.authUtils.swalSuccess('Code sent', result.message || 'A new code was sent to your email.');
+      } catch (error) {
+        if (!resendTimer) resendOtpBtn.disabled = false;
+        window.authUtils.swalError('Unable to resend', error.message || 'Please try again later.');
+      }
+    });
+  }
 
   // --- Password Toggles ---
   function setupToggle(toggleEl) {
@@ -185,8 +311,8 @@
       return window.authUtils.swalError('Invalid phone', 'Phone must be a Philippine mobile number (e.g. 09XXXXXXXXX).');
     }
 
-    if (email.length > 30) {
-      return window.authUtils.swalError('Invalid email', 'Email cannot exceed 30 characters.');
+    if (email.length > 254) {
+      return window.authUtils.swalError('Invalid email', 'Email cannot exceed 254 characters.');
     }
 
     if (!window.authUtils.validateEmail(email)) {
@@ -237,8 +363,18 @@
       });
       var body = await res.json().catch(function () { return {}; });
 
-      if (res.status === 201) {
-        window.location.href = '/login?registered=1';
+      if (res.ok && body.requiresVerification) {
+        showRegistrationVerification(body.email || email, true);
+        window.authUtils.swalSuccess('Check your email', body.message || 'Enter the verification code we sent you.');
+      } else if (body && body.requiresVerification) {
+        showRegistrationVerification(body.email || email, false);
+        if (res.status === 429 && body.retryAfter) {
+          startVerificationCooldown(body.retryAfter);
+        }
+        window.authUtils.swalError(
+          res.status === 429 ? 'Verification pending' : 'Email not sent',
+          body.error || 'Use Resend code to try again.'
+        );
       } else if (res.status === 429) {
         window.authUtils.swalError('Too many attempts', 'Please wait a short while and try again.', { reload: true });
       } else {

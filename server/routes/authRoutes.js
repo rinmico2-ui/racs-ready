@@ -10,7 +10,7 @@ router.post(
   "/register",
   [
     body("email")
-      .isLength({ max: 30 })
+      .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
       .isEmail()
@@ -75,6 +75,45 @@ router.post(
       .trim(),
   ],
   authController.register,
+);
+
+router.post(
+  "/verify-register-otp",
+  [
+    body("email")
+      .trim()
+      .isLength({ min: 3, max: 254 })
+      .isEmail()
+      .withMessage("Invalid email format")
+      .normalizeEmail({
+        gmail_remove_dots: false,
+        gmail_remove_subaddress: false,
+        all_lowercase: true,
+      }),
+    body("otp")
+      .trim()
+      .isNumeric()
+      .isLength({ min: 6, max: 6 })
+      .withMessage("Invalid verification code"),
+  ],
+  authController.verifyRegisterOTP,
+);
+
+router.post(
+  "/resend-register-otp",
+  [
+    body("email")
+      .trim()
+      .isLength({ min: 3, max: 254 })
+      .isEmail()
+      .withMessage("Invalid email format")
+      .normalizeEmail({
+        gmail_remove_dots: false,
+        gmail_remove_subaddress: false,
+        all_lowercase: true,
+      }),
+  ],
+  authController.resendRegisterOTP,
 );
 
 // Login - CSRF double submit expected (csrfToken) and generic errors

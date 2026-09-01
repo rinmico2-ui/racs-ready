@@ -237,7 +237,7 @@ exports.login = async (req, res, next) => {
     }
 
     // account locked?
-    if (!isAccountEnabled(user)) {
+    if (user.active === false || user.blocked === true) {
       const msg = "Account locked";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
       return res.status(403).json({ error: msg });
@@ -252,6 +252,14 @@ exports.login = async (req, res, next) => {
       const msg = "Invalid email or password";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
       return res.status(400).json({ error: msg });
+    }
+
+    if (user.emailVerified === false) {
+      return res.status(403).json({
+        error: "Please verify your email before signing in.",
+        requiresEmailVerification: true,
+        email: user.email,
+      });
     }
 
     // successful password auth -> reset rate limiter

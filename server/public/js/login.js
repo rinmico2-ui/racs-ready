@@ -277,6 +277,17 @@
         return;
       }
 
+      if (body && body.requiresEmailVerification) {
+        if (typeof window.showRegistrationVerification === 'function') {
+          window.showRegistrationVerification(body.email || email, false);
+        }
+        window.authUtils.swalError(
+          'Email verification required',
+          body.error || 'Verify your email before signing in. You can request a new code.'
+        );
+        return;
+      }
+
       if (res.status === 429) {
         handleRateLimit(body);
       } else {
@@ -350,6 +361,17 @@
         var u = new URL(window.location.href);
         u.searchParams.delete('registered');
         window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  if (params.get('verified')) {
+    window.authUtils.swalSuccess('Email verified', 'Your account is verified. You can now sign in.');
+    if (window.history && window.history.replaceState) {
+      try {
+        var verifiedUrl = new URL(window.location.href);
+        verifiedUrl.searchParams.delete('verified');
+        window.history.replaceState(null, '', verifiedUrl.pathname + verifiedUrl.search + verifiedUrl.hash);
       } catch (e) { /* ignore */ }
     }
   }

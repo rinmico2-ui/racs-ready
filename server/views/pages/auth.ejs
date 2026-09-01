@@ -194,7 +194,7 @@
             <label class="auth-field-label" for="register-email">Email Address</label>
             <div class="auth-field-input-wrap">
               <input id="register-email" name="email" type="email" class="auth-field-input"
-                placeholder="you@example.com" required autocomplete="off" maxlength="50" />
+                placeholder="you@example.com" required autocomplete="email" maxlength="254" />
               <i class="bi bi-envelope auth-field-icon"></i>
             </div>
           </div>
@@ -297,6 +297,37 @@
           </button>
         </form>
 
+        <section id="registerVerificationPanel" class="d-none" aria-live="polite">
+          <div class="auth-section-label">Verify your email</div>
+          <p class="auth-form-card-subtitle mb-3">
+            Enter the 6-digit code sent to
+            <strong id="registerVerificationEmail"></strong>. The code expires in 10 minutes.
+          </p>
+
+          <div class="auth-field">
+            <label class="auth-field-label" for="register-otp">Verification Code</label>
+            <div class="auth-field-input-wrap">
+              <input id="register-otp" type="text" class="auth-field-input"
+                placeholder="000000" inputmode="numeric" autocomplete="one-time-code"
+                maxlength="6" pattern="[0-9]{6}" aria-describedby="registerOtpHelp" />
+              <i class="bi bi-shield-check auth-field-icon"></i>
+            </div>
+            <small id="registerOtpHelp" class="text-muted">Do not share this code with anyone.</small>
+          </div>
+
+          <button type="button" class="auth-submit" id="verifyRegisterOtpBtn">
+            <span class="btn-text">Verify Email</span>
+          </button>
+
+          <div class="auth-toggle-text mt-3">
+            Didn't receive the code?
+            <button type="button" class="btn btn-link auth-toggle-link p-0" id="resendRegisterOtpBtn">Resend code</button>
+          </div>
+          <div class="auth-toggle-text mt-2">
+            <button type="button" class="btn btn-link auth-toggle-link p-0" id="changeRegistrationEmailBtn">Change registration details</button>
+          </div>
+        </section>
+
         <div class="auth-toggle-text">
           Already have an account? <a class="auth-toggle-link" id="switchToSignIn">Sign In</a>
         </div>
@@ -348,7 +379,7 @@
   function clearSensitive() {
     ['email','password','login-otp','login-math',
      'register-firstName','register-lastName','register-phone','register-email',
-     'register-password','register-confirm','register-math'
+     'register-password','register-confirm','register-math','register-otp'
     ].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
