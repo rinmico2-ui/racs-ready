@@ -24,13 +24,11 @@ services:
         sync: false
       - key: APP_URL
         sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL
         sync: false
+      - key: FROM_NAME
+        value: CALIDRO RACS

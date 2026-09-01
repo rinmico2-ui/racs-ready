@@ -249,6 +249,57 @@
       text-decoration: none;
     }
 
+    .profile-admin-page .profile-feedback {
+      border: 0;
+      border-radius: 12px;
+      box-shadow: var(--pp-shadow);
+    }
+    .profile-admin-page .profile-modal .modal-content {
+      border: 0;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+    }
+    .profile-admin-page .profile-modal .modal-body { padding: 1.5rem; }
+    .profile-admin-page .profile-modal .modal-footer {
+      border-top: 1px solid #eef2f7;
+      padding: 1rem 1.5rem;
+    }
+    .profile-admin-page .profile-modal .form-label {
+      color: #334155;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .profile-admin-page .profile-modal .form-control {
+      border-color: #dbe4ef;
+      border-radius: 10px;
+      min-height: 44px;
+    }
+    .profile-admin-page .profile-modal .form-control:focus {
+      border-color: var(--pp-primary);
+      box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.12);
+    }
+    .profile-admin-page .profile-modal .input-group .form-control {
+      border-radius: 10px 0 0 10px;
+    }
+    .profile-admin-page .profile-modal .password-toggle {
+      border: 1px solid #dbe4ef;
+      border-left: 0;
+      border-radius: 0 10px 10px 0;
+      background: #fff;
+      color: #64748b;
+      min-width: 44px;
+    }
+    .profile-admin-page .password-rules {
+      background: var(--pp-primary-pale);
+      border: 1px solid var(--pp-primary-light);
+      border-radius: 10px;
+      color: #475569;
+      font-size: 0.75rem;
+      line-height: 1.55;
+      padding: 0.7rem 0.85rem;
+    }
+
     /* ─── RESPONSIVE ─── */
     @media (max-width: 768px) {
       .profile-admin-page .action-row { flex-direction: column; }
@@ -256,13 +307,15 @@
     }
   </style>
 
+  <div id="profileFeedback" class="alert profile-feedback d-none mb-4" role="alert" aria-live="polite"></div>
+
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-person-gear"></i></div>
         <div>
           <h1>Admin Profile</h1>
-          <p><%= user && user.email ? user.email : 'admin@system.com' %></p>
+          <p id="profileHeroEmail"><%= user && user.email ? user.email : 'admin@system.com' %></p>
         </div>
       </div>
       <div class="au-hero-actions">
@@ -316,28 +369,28 @@
           <div class="ir-icon"><i class="bi bi-person-fill"></i></div>
           <div class="ir-text">
             <div class="ir-label">First Name</div>
-            <div class="ir-value"><%= user.firstName || 'N/A' %></div>
+            <div class="ir-value" id="profileFirstNameValue"><%= user && user.firstName ? user.firstName : 'N/A' %></div>
           </div>
         </div>
         <div class="irow">
           <div class="ir-icon"><i class="bi bi-person-fill"></i></div>
           <div class="ir-text">
             <div class="ir-label">Last Name</div>
-            <div class="ir-value"><%= user.lastName || 'N/A' %></div>
+            <div class="ir-value" id="profileLastNameValue"><%= user && user.lastName ? user.lastName : 'N/A' %></div>
           </div>
         </div>
         <div class="irow">
           <div class="ir-icon"><i class="bi bi-envelope-at-fill"></i></div>
           <div class="ir-text">
             <div class="ir-label">Email Address</div>
-            <div class="ir-value"><%= user.email || 'N/A' %></div>
+            <div class="ir-value" id="profileEmailValue"><%= user && user.email ? user.email : 'N/A' %></div>
           </div>
         </div>
         <div class="irow">
           <div class="ir-icon"><i class="bi bi-telephone-fill"></i></div>
           <div class="ir-text">
             <div class="ir-label">Phone Number</div>
-            <div class="ir-value"><%= user.phone || 'N/A' %></div>
+            <div class="ir-value" id="profilePhoneValue"><%= user && user.phone ? user.phone : 'N/A' %></div>
           </div>
         </div>
       </div>
@@ -391,11 +444,104 @@
     <a href="/admin/logs" class="btn-act filled">
       <i class="bi bi-activity"></i> View Activity Logs
     </a>
-    <a href="#" class="btn-act outline" onclick="alert('Feature coming soon!'); return false;">
+    <button type="button" class="btn-act outline" id="openEditProfile" data-bs-toggle="modal" data-bs-target="#editProfileModal">
       <i class="bi bi-pencil-square"></i> Edit Profile
-    </a>
-    <a href="#" class="btn-act outline-danger" onclick="alert('Feature coming soon!'); return false;">
+    </button>
+    <button type="button" class="btn-act outline-danger" id="openChangePassword" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
       <i class="bi bi-key-fill"></i> Change Password
-    </a>
+    </button>
+  </div>
+
+  <div class="modal fade profile-modal" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="editProfileForm" novalidate>
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="editProfileTitle"><i class="bi bi-person-lines-fill me-2"></i>Edit Profile</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-danger d-none py-2" id="editProfileError" role="alert"></div>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label" for="adminFirstName">First name</label>
+                <input class="form-control" id="adminFirstName" name="firstName" maxlength="50" autocomplete="given-name" required value="<%= user && user.firstName ? user.firstName : '' %>">
+                <div class="invalid-feedback">Enter a valid first name.</div>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="adminLastName">Last name</label>
+                <input class="form-control" id="adminLastName" name="lastName" maxlength="50" autocomplete="family-name" required value="<%= user && user.lastName ? user.lastName : '' %>">
+                <div class="invalid-feedback">Enter a valid last name.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="adminEmail">Login email</label>
+                <input class="form-control bg-light" id="adminEmail" type="email" value="<%= user && user.email ? user.email : '' %>" readonly aria-describedby="adminEmailHelp">
+                <div class="form-text" id="adminEmailHelp">Your login email is protected and cannot be changed from this page.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="adminPhone">Phone number</label>
+                <input class="form-control" id="adminPhone" name="phone" inputmode="numeric" minlength="7" maxlength="15" autocomplete="tel" required value="<%= user && user.phone ? user.phone : '' %>">
+                <div class="invalid-feedback">Enter 7-15 digits.</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveProfileButton">
+              <span class="spinner-border spinner-border-sm d-none me-1" aria-hidden="true"></span>
+              <span class="button-label">Save changes</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade profile-modal" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="changePasswordForm" novalidate>
+          <div class="modal-header">
+            <h2 class="modal-title fs-5" id="changePasswordTitle"><i class="bi bi-shield-lock-fill me-2"></i>Change Password</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-danger d-none py-2" id="changePasswordError" role="alert"></div>
+            <div class="mb-3">
+              <label class="form-label" for="currentPassword">Current password</label>
+              <div class="input-group">
+                <input class="form-control" id="currentPassword" name="currentPassword" type="password" maxlength="128" autocomplete="current-password" required>
+                <button class="password-toggle" type="button" data-password-toggle="currentPassword" aria-label="Show current password"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="newPassword">New password</label>
+              <div class="input-group">
+                <input class="form-control" id="newPassword" name="newPassword" type="password" minlength="8" maxlength="30" autocomplete="new-password" required>
+                <button class="password-toggle" type="button" data-password-toggle="newPassword" aria-label="Show new password"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="confirmPassword">Confirm new password</label>
+              <div class="input-group">
+                <input class="form-control" id="confirmPassword" name="confirmPassword" type="password" minlength="8" maxlength="30" autocomplete="new-password" required>
+                <button class="password-toggle" type="button" data-password-toggle="confirmPassword" aria-label="Show confirmed password"><i class="bi bi-eye"></i></button>
+              </div>
+              <div class="invalid-feedback">Passwords must match.</div>
+            </div>
+            <div class="password-rules"><i class="bi bi-info-circle me-1"></i>Use 8-30 characters with uppercase, lowercase, number, and special characters. Changing it signs out all active sessions.</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger" id="changePasswordButton">
+              <span class="spinner-border spinner-border-sm d-none me-1" aria-hidden="true"></span>
+              <span class="button-label">Update password</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
+
+<script src="/js/admin-profile.js"></script>

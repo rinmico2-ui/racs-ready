@@ -153,63 +153,6 @@
     </div>
   </div>
 
-  <!-- ── Repair Complexity Labor Rates ─────────────────────────────────── -->
-  <div class="row g-4 mt-2">
-    <div class="col-lg-6">
-      <div class="card p-4 h-100">
-        <h5 class="fw-semibold mb-1"><i class="bi bi-tools me-2 text-danger"></i>Repair Service — Complexity Labor Rates</h5>
-        <p class="small text-muted mb-3">
-          Labor rates for large-scale repair projects based on repair complexity.
-          These are used when the linked booking is a repair service.
-        </p>
-        <div class="mb-3">
-          <label for="repairStdInput" class="form-label fw-semibold">Standard (low complexity)</label>
-          <div class="input-group">
-            <span class="input-group-text">₱</span>
-            <input type="number" id="repairStdInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 350" />
-            <span class="input-group-text">/ day</span>
-          </div>
-        </div>
-        <div class="mb-3">
-          <label for="repairCpxInput" class="form-label fw-semibold">Complex (medium complexity)</label>
-          <div class="input-group">
-            <span class="input-group-text">₱</span>
-            <input type="number" id="repairCpxInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 500" />
-            <span class="input-group-text">/ day</span>
-          </div>
-        </div>
-        <div class="mb-4">
-          <label for="repairMajInput" class="form-label fw-semibold">Major (high complexity)</label>
-          <div class="input-group">
-            <span class="input-group-text">₱</span>
-            <input type="number" id="repairMajInput" class="form-control" min="0" max="100000" step="1" placeholder="e.g. 700" />
-            <span class="input-group-text">/ day</span>
-          </div>
-        </div>
-        <button type="button" id="saveRepairFeesBtn" class="btn btn-primary" style="min-width:140px;">
-          <i class="bi bi-floppy-disk me-1"></i>Save Repair Rates
-        </button>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card p-4 h-100">
-        <h5 class="fw-semibold mb-1"><i class="bi bi-calculator me-2 text-success"></i>Repair Fee Preview</h5>
-        <p class="small text-muted mb-3">
-          How the complexity rates translate for typical durations.
-        </p>
-        <div class="fee-calc-preview p-2">
-          <table class="table table-sm table-borderless table-dense mb-0">
-            <tr><td>Standard × 1 day</td><td class="text-end fw-bold" id="rPrev1">—</td></tr>
-            <tr><td>Complex × 3 days</td><td class="text-end fw-bold" id="rPrev2">—</td></tr>
-            <tr><td>Major × 5 days</td><td class="text-end fw-bold" id="rPrev3">—</td></tr>
-          </table>
-          <div class="mt-2" style="font-size:.75rem;color:#166534;"><b>Note:</b> For repair projects, labor = complexity rate × working days (no crew multiplier).</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="row g-4 mt-2">
     <div class="col-12">
       <div class="card p-4">
@@ -234,9 +177,6 @@
 (function () {
   const inputFare = document.getElementById("farePerKmInput");
   const inputProjLabor = document.getElementById("projLaborInput");
-  const inputRepairStd = document.getElementById("repairStdInput");
-  const inputRepairCpx = document.getElementById("repairCpxInput");
-  const inputRepairMaj = document.getElementById("repairMajInput");
   const customerRepairInputs = {
     minor: document.getElementById('repairLaborMinorInput'), standard: document.getElementById('repairLaborStandardInput'),
     complex: document.getElementById('repairLaborComplexInput'), major: document.getElementById('repairLaborMajorInput')
@@ -244,7 +184,6 @@
   
   const saveBtn = document.getElementById("saveFareBtn");
   const saveProjBtn = document.getElementById("saveProjFeesBtn");
-  const saveRepairBtn = document.getElementById("saveRepairFeesBtn");
   const saveCustomerRepairLaborBtn = document.getElementById('saveCustomerRepairLaborBtn');
   const alertEl = document.getElementById("fareAlert");
 
@@ -270,18 +209,6 @@
     });
   }
 
-  function updateRepairPreview() {
-    const std = parseFloat(inputRepairStd.value) || 0;
-    const cpx = parseFloat(inputRepairCpx.value) || 0;
-    const maj = parseFloat(inputRepairMaj.value) || 0;
-    const el1 = document.getElementById("rPrev1");
-    const el2 = document.getElementById("rPrev2");
-    const el3 = document.getElementById("rPrev3");
-    if (el1) el1.textContent = "₱" + (std * 1).toLocaleString("en-PH", { minimumFractionDigits: 2 });
-    if (el2) el2.textContent = "₱" + (cpx * 3).toLocaleString("en-PH", { minimumFractionDigits: 2 });
-    if (el3) el3.textContent = "₱" + (maj * 5).toLocaleString("en-PH", { minimumFractionDigits: 2 });
-  }
-
   function showAlert(msg, type) {
     alertEl.className = "alert alert-" + type;
     alertEl.textContent = msg;
@@ -297,31 +224,20 @@
   ]).then(([fareData, projData, laborData]) => {
     inputFare.value = fareData.farePerKm ?? 40;
     inputProjLabor.value = projData.laborRatePerDay ?? 0;
-    inputRepairStd.value = projData.repairLaborStandard ?? 0;
-    inputRepairCpx.value = projData.repairLaborComplex ?? 0;
-    inputRepairMaj.value = projData.repairLaborMajor ?? 0;
     Object.entries(customerRepairInputs).forEach(([category, input]) => { input.value = laborData.fees?.[category] ?? ({ minor:300, standard:500, complex:800, major:1500 })[category]; });
     updatePreview();
     updateProjPreview();
-    updateRepairPreview();
   }).catch(() => {
     inputFare.value = 40;
     inputProjLabor.value = 0;
-    inputRepairStd.value = 0;
-    inputRepairCpx.value = 0;
-    inputRepairMaj.value = 0;
     Object.entries(customerRepairInputs).forEach(([category, input]) => { input.value = ({ minor:300, standard:500, complex:800, major:1500 })[category]; });
     updatePreview();
     updateProjPreview();
-    updateRepairPreview();
   });
 
   // Live preview on input
   inputFare.addEventListener("input", updatePreview);
   inputProjLabor.addEventListener("input", updateProjPreview);
-  inputRepairStd.addEventListener("input", updateRepairPreview);
-  inputRepairCpx.addEventListener("input", updateRepairPreview);
-  inputRepairMaj.addEventListener("input", updateRepairPreview);
 
   saveCustomerRepairLaborBtn.addEventListener('click', async () => {
     const fees = Object.fromEntries(Object.entries(customerRepairInputs).map(([category, input]) => [category, Number(input.value)]));
@@ -398,38 +314,5 @@
     }
   });
 
-  // Save repair complexity rates
-  saveRepairBtn.addEventListener("click", async () => {
-    const std = parseFloat(inputRepairStd.value);
-    const cpx = parseFloat(inputRepairCpx.value);
-    const maj = parseFloat(inputRepairMaj.value);
-    
-    for (const [label, val, max] of [["Standard", std, 100000], ["Complex", cpx, 100000], ["Major", maj, 100000]]) {
-      if (!Number.isFinite(val) || val < 0 || val > max) {
-        showAlert(`Please enter a valid ${label} rate between 0 and ${max.toLocaleString()}.`, "danger");
-        return;
-      }
-    }
-    
-    saveRepairBtn.disabled = true;
-    saveRepairBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
-    try {
-      const resp = await fetch("/api/admin/settings/project-fees", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ repairLaborStandard: std, repairLaborComplex: cpx, repairLaborMajor: maj }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "Save failed");
-      showAlert("Repair complexity rates updated successfully.", "success");
-      updateRepairPreview();
-    } catch (err) {
-      showAlert("Error: " + err.message, "danger");
-    } finally {
-      saveRepairBtn.disabled = false;
-      saveRepairBtn.innerHTML = '<i class="bi bi-floppy-disk me-1"></i>Save Repair Rates';
-    }
-  });
 })();
 </script>
