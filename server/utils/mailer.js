@@ -74,6 +74,8 @@ function sendViaBrevo({ to, subject, html, text }) {
     textContent: text || "",
   });
 
+  console.log("[MAILER] (Brevo) Sending from:", FROM_EMAIL, "to:", to);
+
   return new Promise((resolve, reject) => {
     const url = new URL(BREVO_API_URL);
     const req = https.request({
@@ -91,6 +93,8 @@ function sendViaBrevo({ to, subject, html, text }) {
       let body = "";
       res.on("data", (chunk) => { body += chunk; });
       res.on("end", () => {
+        console.log("[MAILER] (Brevo) Response status:", res.statusCode);
+        console.log("[MAILER] (Brevo) Response body:", body);
         if (res.statusCode >= 200 && res.statusCode < 300) {
           const parsed = JSON.parse(body || "{}");
           console.log("[MAILER] (Brevo) Email sent successfully:", parsed.messageId || res.statusCode);
