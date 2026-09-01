@@ -36,6 +36,9 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /data-walkin-mode="aircon"/);
   assert.match(html, /id="waTechnician"/);
   assert.match(html, /id="waCalendar"/);
+  assert.match(html, /id="waCalendarTitle"/);
+  assert.match(html, /id="waTimeSlots"/);
+  assert.match(html, /id="waScheduleSummary"/);
   assert.match(html, /\/api\/walk-in-aircon\/checkout/);
 });
 

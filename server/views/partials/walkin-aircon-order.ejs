@@ -1,9 +1,10 @@
 <style>
-  .wa-shell{max-width:1240px;margin:0 auto}
+  .wa-shell{max-width:1380px;margin:0 auto}
   .wa-hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.5rem 1.65rem;margin-bottom:1rem;border-radius:20px;color:#fff;background:linear-gradient(125deg,#0f172a,#1e3a8a 68%,#2563eb);box-shadow:0 14px 36px rgba(30,58,138,.2)}
   .wa-hero h2{font-size:1.45rem;font-weight:800;margin:0 0 .35rem}.wa-hero p{margin:0;color:#bfdbfe;font-size:.88rem}
   .wa-hero-mark{width:58px;height:58px;display:grid;place-items:center;border-radius:17px;background:rgba(255,255,255,.13);font-size:1.6rem}
-  .wa-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(350px,.85fr);gap:1rem;align-items:start}
+  .wa-flow{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.8rem}.wa-flow span{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .55rem;border-radius:999px;background:rgba(255,255,255,.1);color:#dbeafe;font-size:.66rem;font-weight:700}.wa-flow b{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#fff;color:#1d4ed8;font-size:.6rem}
+  .wa-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(430px,.9fr);gap:1rem;align-items:start}
   .wa-panel{background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 5px 22px rgba(15,23,42,.05);overflow:hidden}
   .wa-toolbar{display:flex;gap:.65rem;padding:1rem;border-bottom:1px solid #edf2f7}.wa-search{position:relative;flex:1}.wa-search i{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#94a3b8}.wa-search input,.wa-toolbar select{width:100%;height:42px;border:1px solid #dbe3ee;border-radius:11px;background:#f8fafc;padding:.65rem .85rem;font-size:.85rem;outline:none}.wa-search input{padding-left:2.4rem}.wa-search input:focus,.wa-toolbar select:focus,.wa-field:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.09);background:#fff}
   .wa-products{padding:1rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem;min-height:260px}
@@ -11,20 +12,22 @@
   .wa-product-image{height:150px;background:linear-gradient(145deg,#f8fafc,#eef4ff);display:grid;place-items:center;padding:1rem}.wa-product-image img{width:100%;height:100%;object-fit:contain}.wa-product-image i{font-size:3rem;color:#93c5fd}
   .wa-product-body{display:flex;flex-direction:column;gap:.55rem;padding:.9rem;flex:1}.wa-brand{text-transform:uppercase;letter-spacing:.08em;color:#2563eb;font-weight:800;font-size:.65rem}.wa-product h3{margin:0;color:#172033;font-size:.94rem;font-weight:750}.wa-chips{display:flex;gap:.35rem;flex-wrap:wrap}.wa-chip{padding:.2rem .45rem;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.65rem;font-weight:700}.wa-product select{width:100%;border:1px solid #dbe3ee;border-radius:9px;padding:.5rem;font-size:.76rem;background:#fff}.wa-price-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:auto}.wa-price{font-weight:850;color:#0f172a}.wa-stock{font-size:.68rem;color:#15803d}.wa-add{border:0;border-radius:9px;padding:.52rem .7rem;background:#2563eb;color:#fff;font-weight:750;font-size:.76rem}.wa-add:hover{background:#1d4ed8}.wa-add:disabled{opacity:.5}
   .wa-empty{grid-column:1/-1;text-align:center;padding:4rem 1rem;color:#64748b}.wa-empty i{display:block;font-size:2rem;color:#cbd5e1;margin-bottom:.5rem}
-  .wa-checkout{position:sticky;top:84px}.wa-checkout-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid #edf2f7}.wa-checkout-head h3{font-size:1rem;font-weight:800;margin:0}.wa-count{display:grid;place-items:center;min-width:27px;height:27px;padding:0 .4rem;border-radius:9px;background:#dbeafe;color:#1d4ed8;font-size:.75rem;font-weight:800}
+  .wa-checkout{position:relative}.wa-checkout-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid #edf2f7;background:linear-gradient(135deg,#fff,#f8fbff)}.wa-checkout-head h3{font-size:1rem;font-weight:800;margin:0}.wa-checkout-sub{display:block;margin-top:.2rem;color:#64748b;font-size:.68rem}.wa-count{display:grid;place-items:center;min-width:30px;height:30px;padding:0 .45rem;border-radius:9px;background:#dbeafe;color:#1d4ed8;font-size:.75rem;font-weight:800}
   .wa-cart{max-height:235px;overflow:auto;padding:.75rem 1rem}.wa-cart-item{display:grid;grid-template-columns:1fr auto;gap:.4rem;padding:.65rem 0;border-bottom:1px solid #f1f5f9}.wa-cart-name{font-size:.78rem;font-weight:750;color:#1e293b}.wa-cart-meta{font-size:.68rem;color:#64748b}.wa-cart-controls{display:flex;align-items:center;gap:.4rem}.wa-cart-controls button{width:25px;height:25px;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155}.wa-cart-controls span{min-width:18px;text-align:center;font-size:.75rem;font-weight:800}.wa-cart-total{font-size:.78rem;font-weight:800;color:#1d4ed8;text-align:right}
-  .wa-form{padding:1rem;border-top:1px solid #edf2f7}.wa-section{margin-bottom:1rem}.wa-section-title{display:flex;align-items:center;gap:.4rem;margin:0 0 .65rem;font-size:.73rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#475569}.wa-fields{display:grid;grid-template-columns:1fr 1fr;gap:.55rem}.wa-wide{grid-column:1/-1}.wa-field{width:100%;border:1px solid #dbe3ee;border-radius:9px;background:#fff;padding:.58rem .68rem;font-size:.76rem;outline:none}.wa-label{display:block;font-size:.67rem;color:#64748b;font-weight:700;margin-bottom:.25rem}.wa-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}.wa-choice button{border:1px solid #dbe3ee;border-radius:9px;padding:.52rem .35rem;background:#fff;color:#64748b;font-size:.68rem;font-weight:750}.wa-choice button.active{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd}
+  .wa-form{padding:1rem;border-top:1px solid #edf2f7;background:#f8fafc}.wa-section{margin-bottom:.85rem;padding:.9rem;border:1px solid #e5eaf2;border-radius:13px;background:#fff}.wa-section-title{display:flex;align-items:center;gap:.45rem;margin:0 0 .7rem;font-size:.72rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#334155}.wa-section-title i{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#eff6ff;color:#2563eb}.wa-fields{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}.wa-wide{grid-column:1/-1}.wa-field{width:100%;min-height:40px;border:1px solid #cfd9e6;border-radius:9px;background:#fff;padding:.6rem .7rem;font-size:.77rem;outline:none}.wa-label{display:block;font-size:.68rem;color:#475569;font-weight:750;margin-bottom:.3rem}.wa-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}.wa-choice button{min-height:68px;border:1px solid #dbe3ee;border-radius:10px;padding:.55rem .35rem;background:#fff;color:#64748b;font-size:.69rem;font-weight:750;transition:.18s ease}.wa-choice button i{font-size:1rem;margin-bottom:.2rem}.wa-choice button small{display:block;margin-top:.15rem;color:#94a3b8;font-size:.57rem;font-weight:600}.wa-choice button:hover{border-color:#93c5fd;background:#f8fbff}.wa-choice button.active{background:#eff6ff;color:#1d4ed8;border-color:#60a5fa;box-shadow:0 0 0 2px rgba(37,99,235,.08)}.wa-choice button.active small{color:#3b82f6}
   .wa-address-wrap{position:relative}.wa-address-results{position:absolute;z-index:30;left:0;right:0;top:100%;max-height:170px;overflow:auto;background:#fff;border:1px solid #dbe3ee;border-radius:9px;box-shadow:0 12px 26px rgba(15,23,42,.16)}.wa-address-results button{width:100%;border:0;border-bottom:1px solid #f1f5f9;background:#fff;padding:.65rem;text-align:left;font-size:.72rem;color:#334155}.wa-address-results button:hover{background:#eff6ff}
-  .wa-quote{display:flex;justify-content:space-between;gap:.5rem;padding:.55rem .65rem;margin-top:.5rem;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:.68rem}.wa-calendar{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem}.wa-date{border:1px solid #dbe3ee;border-radius:9px;background:#fff;padding:.45rem .25rem;text-align:center;color:#475569}.wa-date strong,.wa-date span{display:block}.wa-date strong{font-size:.75rem}.wa-date span{font-size:.62rem}.wa-date.active{background:#2563eb;border-color:#2563eb;color:#fff}.wa-date:disabled{opacity:.45}
+  .wa-quote{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .7rem;margin-top:.15rem;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:.69rem}
+  .wa-schedule-card{overflow:hidden;border:1px solid #dbe5f0;border-radius:12px;background:#fff}.wa-calendar-head{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;gap:.35rem;padding:.65rem .7rem;border-bottom:1px solid #edf2f7;background:#f8fafc}.wa-calendar-head h5{margin:0;text-align:center;font-size:.8rem;font-weight:850;color:#1e293b}.wa-cal-nav{width:32px;height:32px;border:1px solid #d7e0eb;border-radius:9px;background:#fff;color:#334155}.wa-cal-nav:hover:not(:disabled){border-color:#60a5fa;color:#1d4ed8;background:#eff6ff}.wa-cal-nav:disabled{opacity:.35;cursor:not-allowed}.wa-weekdays,.wa-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:0 .55rem}.wa-weekdays{padding-top:.55rem}.wa-weekdays span{text-align:center;color:#94a3b8;font-size:.57rem;font-weight:850;text-transform:uppercase}.wa-calendar{min-height:220px;padding-top:.35rem;padding-bottom:.6rem;align-content:start}.wa-date,.wa-cal-blank{aspect-ratio:1/1;min-width:0}.wa-date{position:relative;border:1px solid transparent;border-radius:9px;background:#f8fafc;padding:.25rem .1rem;text-align:center;color:#334155;transition:.16s ease}.wa-date strong{display:block;font-size:.73rem;line-height:1}.wa-date small{display:block;margin-top:.2rem;color:#16a34a;font-size:.5rem;font-weight:800}.wa-date.available{border-color:#bbf7d0;background:#f0fdf4}.wa-date.available:hover{transform:translateY(-1px);border-color:#4ade80;box-shadow:0 4px 10px rgba(22,163,74,.12)}.wa-date.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 5px 12px rgba(37,99,235,.24)}.wa-date.active small{color:#dbeafe}.wa-date.unavailable{color:#cbd5e1;background:#fafafa;cursor:not-allowed}.wa-date.today:after{content:"";position:absolute;bottom:4px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#f59e0b}.wa-calendar-state{display:flex;align-items:center;justify-content:center;gap:.45rem;min-height:42px;padding:.55rem .7rem;border-top:1px solid #edf2f7;background:#f8fafc;color:#64748b;font-size:.66rem;text-align:center}.wa-calendar-state.error{color:#b91c1c;background:#fef2f2}.wa-calendar-legend{display:flex;gap:.8rem;align-items:center;margin-top:.45rem;color:#64748b;font-size:.6rem}.wa-calendar-legend i{display:inline-block;width:8px;height:8px;margin-right:.25rem;border-radius:3px}.wa-calendar-legend .open{background:#bbf7d0;border:1px solid #4ade80}.wa-calendar-legend .closed{background:#f1f5f9;border:1px solid #cbd5e1}
+  .wa-time-area{margin-top:.75rem}.wa-time-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem}.wa-time-heading strong{font-size:.72rem;color:#334155}.wa-time-heading span{font-size:.61rem;color:#64748b}.wa-time-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}.wa-time-slot{min-height:38px;border:1px solid #dbe3ee;border-radius:9px;background:#fff;color:#334155;font-size:.68rem;font-weight:750;transition:.16s ease}.wa-time-slot:hover{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.wa-time-slot.active{border-color:#2563eb;background:#2563eb;color:#fff;box-shadow:0 4px 10px rgba(37,99,235,.2)}.wa-time-empty{grid-column:1/-1;padding:.7rem;border:1px dashed #cbd5e1;border-radius:9px;background:#f8fafc;color:#64748b;font-size:.67rem;text-align:center}.wa-time-group{grid-column:1/-1;margin-top:.2rem;color:#64748b;font-size:.59rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.wa-schedule-summary{display:flex;gap:.55rem;align-items:flex-start;margin-top:.65rem;padding:.65rem;border-radius:9px;background:#ecfdf5;color:#166534;font-size:.68rem}.wa-schedule-summary i{margin-top:.05rem}.wa-schedule-summary strong{display:block;margin-bottom:.1rem}
   .wa-summary{padding:.75rem 1rem;background:#f8fafc;border-top:1px solid #edf2f7}.wa-sum-row{display:flex;justify-content:space-between;font-size:.74rem;color:#64748b;margin:.25rem 0}.wa-sum-row strong{color:#334155}.wa-sum-total{padding-top:.5rem;margin-top:.5rem;border-top:1px dashed #cbd5e1;font-size:.95rem;font-weight:850;color:#0f172a}.wa-submit{width:100%;border:0;border-radius:11px;padding:.75rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:.83rem;font-weight:800;box-shadow:0 5px 14px rgba(37,99,235,.2)}.wa-submit:disabled{opacity:.55;box-shadow:none}.wa-help{font-size:.66rem;color:#64748b;margin:.35rem 0 0}.wa-hidden{display:none!important}
   @media(max-width:1050px){.wa-layout{grid-template-columns:1fr}.wa-checkout{position:static}.wa-products{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media(max-width:760px){.wa-products{grid-template-columns:1fr 1fr}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}}
-  @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-calendar{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-time-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-calendar{min-height:205px;padding-left:.35rem;padding-right:.35rem}.wa-weekdays{padding-left:.35rem;padding-right:.35rem}}
 </style>
 
 <section class="wa-shell" aria-labelledby="waTitle">
   <header class="wa-hero">
-    <div><h2 id="waTitle">Walk-in Aircon Order</h2><p>Select a unit, collect payment, and assign installation to an available technician in one checkout.</p></div>
+    <div><h2 id="waTitle">Walk-in Aircon Order</h2><p>Select a unit, collect payment, and assign installation to an available technician in one checkout.</p><div class="wa-flow" aria-label="Aircon order steps"><span><b>1</b>Select unit</span><span><b>2</b>Customer</span><span><b>3</b>Schedule</span><span><b>4</b>Payment</span></div></div>
     <div class="wa-hero-mark"><i class="bi bi-snow2"></i></div>
   </header>
   <div class="wa-layout">
@@ -37,7 +40,7 @@
     </section>
 
     <aside class="wa-panel wa-checkout">
-      <div class="wa-checkout-head"><h3><i class="bi bi-cart3 me-2 text-primary"></i>Order cart</h3><span class="wa-count" id="waCartCount">0</span></div>
+      <div class="wa-checkout-head"><div><h3><i class="bi bi-cart3 me-2 text-primary"></i>Order checkout</h3><span class="wa-checkout-sub">Complete the details below, then review the total.</span></div><span class="wa-count" id="waCartCount" aria-label="Cart unit count">0</span></div>
       <div class="wa-cart" id="waCart"><div class="wa-empty" style="padding:1.5rem .5rem"><i class="bi bi-cart"></i><p class="mb-0">Select an aircon to begin.</p></div></div>
       <form class="wa-form" id="waCheckoutForm" novalidate>
         <section class="wa-section">
@@ -51,9 +54,9 @@
         <section class="wa-section">
           <h4 class="wa-section-title"><i class="bi bi-box-seam"></i>Fulfillment</h4>
           <div class="wa-choice" id="waFulfillmentChoices">
-            <button type="button" data-value="delivery_installation" class="active"><i class="bi bi-truck d-block"></i>Deliver + install</button>
-            <button type="button" data-value="customer_pickup"><i class="bi bi-calendar2-check d-block"></i>Pickup later</button>
-            <button type="button" data-value="carry_out"><i class="bi bi-bag-check d-block"></i>Carry out</button>
+            <button type="button" data-value="delivery_installation" class="active" aria-pressed="true"><i class="bi bi-truck d-block"></i>Deliver + install<small>Assign technician</small></button>
+            <button type="button" data-value="customer_pickup" aria-pressed="false"><i class="bi bi-calendar2-check d-block"></i>Pickup later<small>Choose pickup date</small></button>
+            <button type="button" data-value="carry_out" aria-pressed="false"><i class="bi bi-bag-check d-block"></i>Carry out<small>Release today</small></button>
           </div>
         </section>
         <section class="wa-section" id="waDeliverySection">
@@ -62,9 +65,27 @@
             <div class="wa-wide wa-address-wrap"><label class="wa-label" for="waAddress">Search and select installation address</label><input class="wa-field" id="waAddress" autocomplete="off" placeholder="Street, barangay, city"><div id="waAddressResults" class="wa-address-results wa-hidden"></div></div>
             <input type="hidden" id="waLat"><input type="hidden" id="waLng">
             <div class="wa-wide" id="waQuote"><div class="wa-quote"><span>Select an address for the route quote.</span><strong>—</strong></div></div>
-            <div class="wa-wide"><label class="wa-label" for="waTechnician">Technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help">Dates and time slots are calculated specifically for this technician.</p></div>
-            <div class="wa-wide"><label class="wa-label">Available installation dates</label><div class="wa-calendar" id="waCalendar"><p class="wa-help wa-wide">Select a technician and address first.</p></div></div>
-            <div class="wa-wide"><label class="wa-label" for="waTimeSlot">Available time</label><select class="wa-field" id="waTimeSlot"><option value="">Select an available date first</option></select></div>
+            <div class="wa-wide"><label class="wa-label" for="waTechnician">Assign technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help"><i class="bi bi-info-circle me-1"></i>The calendar below is calculated specifically for the selected technician, cart quantity, and travel time.</p></div>
+            <div class="wa-wide">
+              <label class="wa-label">Installation date and time</label>
+              <div class="wa-schedule-card">
+                <div class="wa-calendar-head">
+                  <button class="wa-cal-nav" id="waCalendarPrev" type="button" aria-label="Previous month"><i class="bi bi-chevron-left"></i></button>
+                  <h5 id="waCalendarTitle">Available dates</h5>
+                  <button class="wa-cal-nav" id="waCalendarNext" type="button" aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
+                </div>
+                <div class="wa-weekdays" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+                <div class="wa-calendar" id="waCalendar" role="grid" aria-label="Technician availability calendar"></div>
+                <div class="wa-calendar-state" id="waCalendarState" role="status"><i class="bi bi-person-check"></i>Select a technician and verified address first.</div>
+              </div>
+              <div class="wa-calendar-legend" aria-hidden="true"><span><i class="open"></i>Available</span><span><i class="closed"></i>Unavailable</span><span><i style="background:#2563eb"></i>Selected</span></div>
+              <div class="wa-time-area">
+                <div class="wa-time-heading"><strong>Available start times</strong><span id="waTimeDateLabel">Choose a date first</span></div>
+                <input type="hidden" id="waTimeSlot" value="">
+                <div class="wa-time-slots" id="waTimeSlots" role="group" aria-label="Available installation start times"><div class="wa-time-empty"><i class="bi bi-clock me-1"></i>Choose an available date from the calendar.</div></div>
+                <div class="wa-schedule-summary wa-hidden" id="waScheduleSummary" aria-live="polite"></div>
+              </div>
+            </div>
           </div>
         </section>
         <section class="wa-section wa-hidden" id="waPickupSection"><label class="wa-label" for="waPickupDate">Pickup date</label><input class="wa-field" id="waPickupDate" type="date"></section>
@@ -93,11 +114,21 @@
 
 <script>
 (() => {
-  const state = { products: [], cart: [], fulfillment: "delivery_installation", quote: {}, date: "", loaded: false, checkoutId: "" };
+  const today = new Date();
+  const state = {
+    products: [], cart: [], fulfillment: "delivery_installation", quote: {},
+    date: "", time: "", availableDates: new Map(), availableSlots: [],
+    calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
+    scheduleRequest: 0, slotRequest: 0, loaded: false, checkoutId: "",
+  };
   const $ = (id) => document.getElementById(id);
   const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[ch]);
   const uuid = () => window.crypto?.randomUUID?.().replace(/-/g, "") || `${Date.now()}${Math.random().toString(36).slice(2)}`;
+  const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const localDate = (value) => { const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number); return new Date(year, month - 1, day); };
+  const monthKey = (date) => date.getFullYear() * 12 + date.getMonth();
+  const readableDate = (value) => localDate(value).toLocaleDateString("en-PH", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
   state.checkoutId = uuid();
 
   function toast(message, type = "info") {
@@ -206,14 +237,75 @@
 
   function setFulfillment(value) {
     state.fulfillment = value; state.date = "";
-    document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.classList.toggle("active", button.dataset.value === value));
+    document.querySelectorAll("#waFulfillmentChoices button").forEach(button => { const active = button.dataset.value === value; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
     $("waDeliverySection").classList.toggle("wa-hidden", value !== "delivery_installation"); $("waPickupSection").classList.toggle("wa-hidden", value !== "customer_pickup"); $("waSerialSection").classList.toggle("wa-hidden", value !== "carry_out"); renderTotals(); scheduleInputsChanged();
   }
 
-  function scheduleInputsChanged() { state.date = ""; $("waTimeSlot").innerHTML = '<option value="">Select an available date first</option>'; if (state.fulfillment === "delivery_installation" && $("waTechnician").value && $("waLat").value && state.cart.length) loadDates(); }
+  function setCalendarStatus(message, type = "info", loading = false) {
+    const icon = loading ? '<span class="spinner-border spinner-border-sm"></span>' : `<i class="bi ${type === "error" ? "bi-exclamation-circle" : "bi-info-circle"}"></i>`;
+    $("waCalendarState").className = `wa-calendar-state${type === "error" ? " error" : ""}`;
+    $("waCalendarState").innerHTML = `${icon}<span>${esc(message)}</span>`;
+  }
+
+  function resetTimeSlots(message = "Choose an available date from the calendar.") {
+    state.time = "";
+    state.availableSlots = [];
+    $("waTimeSlot").value = "";
+    $("waTimeDateLabel").textContent = state.date ? readableDate(state.date) : "Choose a date first";
+    $("waTimeSlots").innerHTML = `<div class="wa-time-empty"><i class="bi bi-clock me-1"></i>${esc(message)}</div>`;
+    $("waScheduleSummary").classList.add("wa-hidden");
+    $("waScheduleSummary").innerHTML = "";
+  }
+
+  function renderAvailabilityCalendar() {
+    const month = state.calendarMonth;
+    $("waCalendarTitle").textContent = month.toLocaleDateString("en-PH", { month: "long", year: "numeric" });
+    const firstWeekday = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const todayValue = dateKey(new Date());
+    const cells = Array.from({ length: firstWeekday }, () => '<span class="wa-cal-blank" aria-hidden="true"></span>');
+    for (let day = 1; day <= daysInMonth; day++) {
+      const value = dateKey(new Date(month.getFullYear(), month.getMonth(), day));
+      const availability = state.availableDates.get(value);
+      const open = Number(availability?.availableSlots || 0) > 0;
+      const selected = state.date === value;
+      const past = value <= todayValue;
+      const slotText = open ? `${availability.availableSlots} ${Number(availability.availableSlots) === 1 ? "slot" : "slots"}` : "";
+      const aria = `${readableDate(value)}. ${open ? slotText + " available" : "Unavailable"}${selected ? ". Selected" : ""}`;
+      cells.push(`<button type="button" class="wa-date ${open ? "available" : "unavailable"}${selected ? " active" : ""}${value === todayValue ? " today" : ""}" data-date="${value}" aria-label="${esc(aria)}" aria-pressed="${selected}" ${!open || past ? "disabled" : ""}><strong>${day}</strong>${open ? `<small>${esc(slotText)}</small>` : ""}</button>`);
+    }
+    $("waCalendar").innerHTML = cells.join("");
+    $("waCalendar").querySelectorAll(".wa-date.available").forEach(button => button.addEventListener("click", () => selectDate(button.dataset.date)));
+
+    const keys = [...state.availableDates.keys()].sort();
+    const minMonth = keys.length ? monthKey(localDate(keys[0])) : monthKey(new Date(today.getFullYear(), today.getMonth(), 1));
+    const maxMonth = keys.length ? monthKey(localDate(keys[keys.length - 1])) : minMonth;
+    $("waCalendarPrev").disabled = monthKey(month) <= minMonth;
+    $("waCalendarNext").disabled = monthKey(month) >= maxMonth;
+  }
+
+  function moveCalendarMonth(delta) {
+    const candidate = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + delta, 1);
+    state.calendarMonth = candidate;
+    renderAvailabilityCalendar();
+  }
+
+  function scheduleInputsChanged() {
+    state.scheduleRequest += 1;
+    state.slotRequest += 1;
+    state.date = "";
+    state.availableDates.clear();
+    resetTimeSlots();
+    renderAvailabilityCalendar();
+    if (state.fulfillment !== "delivery_installation") return;
+    if (!state.cart.length) return setCalendarStatus("Add an aircon before checking installation availability.");
+    if (!$("waLat").value) return setCalendarStatus("Search and select a verified installation address.");
+    if (!$("waTechnician").value) return setCalendarStatus("Choose a technician to view their available schedule.");
+    loadDates();
+  }
 
   async function searchAddress() {
-    const query = $("waAddress").value.trim(); $("waLat").value = ""; $("waLng").value = ""; state.quote = {}; scheduleInputsChanged(); renderTotals();
+    const query = $("waAddress").value.trim();
     if (query.length < 5) return $("waAddressResults").classList.add("wa-hidden");
     try {
       const rows = await jsonFetch(`/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`);
@@ -233,23 +325,74 @@
 
   async function loadDates() {
     const technicianId = $("waTechnician").value; if (!technicianId || !state.cart.length || !$("waLat").value) return;
-    $("waCalendar").innerHTML = '<p class="wa-help wa-wide"><span class="spinner-border spinner-border-sm me-1"></span>Checking technician calendar…</p>';
+    const requestId = ++state.scheduleRequest;
+    setCalendarStatus("Checking the technician's latest schedule…", "info", true);
     try {
       const params = new URLSearchParams({ duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId });
       const data = await jsonFetch(`/api/schedule/available-dates?${params}`);
-      const dates = (data.availableDates || []).filter(row => Number(row.availableSlots || 0) > 0).slice(0, 24);
-      $("waCalendar").innerHTML = dates.length ? dates.map(row => { const d = new Date(`${String(row.date).slice(0,10)}T00:00:00`); return `<button type="button" class="wa-date" data-date="${esc(String(row.date).slice(0,10))}"><span>${d.toLocaleDateString("en-PH",{month:"short"})}</span><strong>${d.getDate()}</strong><span>${row.availableSlots} slots</span></button>`; }).join("") : '<p class="wa-help wa-wide text-danger">No available dates for this technician. Choose another technician.</p>';
-      $("waCalendar").querySelectorAll("[data-date]").forEach(button => button.addEventListener("click", () => selectDate(button.dataset.date, button)));
-    } catch (error) { $("waCalendar").innerHTML = `<p class="wa-help wa-wide text-danger">${esc(error.message)}</p>`; }
+      if (requestId !== state.scheduleRequest) return;
+      state.availableDates = new Map((data.availableDates || []).map(row => [String(row.date).slice(0, 10), row]));
+      const openDates = [...state.availableDates.entries()].filter(([, row]) => Number(row.availableSlots || 0) > 0).map(([key]) => key).sort();
+      if (openDates.length && !openDates.some(key => monthKey(localDate(key)) === monthKey(state.calendarMonth))) {
+        const first = localDate(openDates[0]);
+        state.calendarMonth = new Date(first.getFullYear(), first.getMonth(), 1);
+      }
+      renderAvailabilityCalendar();
+      if (openDates.length) setCalendarStatus(`${openDates.length} available day${openDates.length === 1 ? "" : "s"} found. Select a green date.`);
+      else setCalendarStatus("No installation dates are available for this technician. Choose another technician.", "error");
+    } catch (error) {
+      if (requestId !== state.scheduleRequest) return;
+      state.availableDates.clear();
+      renderAvailabilityCalendar();
+      setCalendarStatus(error.message || "Could not load technician availability.", "error");
+    }
   }
 
-  async function selectDate(date, button) {
-    state.date = date; $("waCalendar").querySelectorAll(".wa-date").forEach(row => row.classList.toggle("active", row === button)); $("waTimeSlot").innerHTML = '<option value="">Loading available times…</option>';
+  function renderTimeSlots(slots) {
+    state.availableSlots = slots;
+    if (!slots.length) {
+      $("waTimeSlots").innerHTML = '<div class="wa-time-empty text-danger"><i class="bi bi-calendar-x me-1"></i>No start times remain for this date. Choose another date.</div>';
+      return;
+    }
+    let currentGroup = "";
+    const html = [];
+    slots.forEach(slot => {
+      const hour = Number(String(slot.startTime || "0").split(":")[0]);
+      const group = hour < 12 ? "Morning" : (hour < 17 ? "Afternoon" : "Evening");
+      if (group !== currentGroup) { html.push(`<div class="wa-time-group">${group}</div>`); currentGroup = group; }
+      const label = slot.label || slot.startTime;
+      html.push(`<button type="button" class="wa-time-slot" data-time="${esc(slot.startTime)}" data-label="${esc(label)}" aria-pressed="false">${esc(label)}</button>`);
+    });
+    $("waTimeSlots").innerHTML = html.join("");
+    $("waTimeSlots").querySelectorAll(".wa-time-slot").forEach(button => button.addEventListener("click", () => {
+      state.time = button.dataset.time;
+      $("waTimeSlot").value = state.time;
+      $("waTimeSlots").querySelectorAll(".wa-time-slot").forEach(row => { const active = row === button; row.classList.toggle("active", active); row.setAttribute("aria-pressed", String(active)); });
+      const techName = $("waTechnician").selectedOptions[0]?.textContent?.split(" · ")[0] || "Selected technician";
+      $("waScheduleSummary").innerHTML = `<i class="bi bi-check-circle-fill"></i><div><strong>Schedule selected</strong>${esc(readableDate(state.date))} at ${esc(button.dataset.label)} with ${esc(techName)}</div>`;
+      $("waScheduleSummary").classList.remove("wa-hidden");
+    }));
+  }
+
+  async function selectDate(date) {
+    if (Number(state.availableDates.get(date)?.availableSlots || 0) <= 0) return;
+    state.date = date;
+    state.time = "";
+    $("waTimeSlot").value = "";
+    renderAvailabilityCalendar();
+    resetTimeSlots("Loading the available start times…");
+    $("waTimeDateLabel").textContent = readableDate(date);
+    $("waTimeSlots").innerHTML = '<div class="wa-time-empty"><span class="spinner-border spinner-border-sm me-1"></span>Checking available start times…</div>';
+    const requestId = ++state.slotRequest;
     try {
       const params = new URLSearchParams({ date, duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId:$("waTechnician").value });
       const data = await jsonFetch(`/api/schedule/time-slots?${params}`); const slots = (data.timeSlots || []).filter(slot => slot.available === true);
-      $("waTimeSlot").innerHTML = slots.length ? '<option value="">Choose time</option>' + slots.map(slot => `<option value="${esc(slot.startTime)}">${esc(slot.label || slot.startTime)}</option>`).join("") : '<option value="">No available times</option>';
-    } catch (error) { $("waTimeSlot").innerHTML = `<option value="">${esc(error.message)}</option>`; }
+      if (requestId !== state.slotRequest) return;
+      renderTimeSlots(slots);
+    } catch (error) {
+      if (requestId !== state.slotRequest) return;
+      $("waTimeSlots").innerHTML = `<div class="wa-time-empty text-danger"><i class="bi bi-exclamation-circle me-1"></i>${esc(error.message)}</div>`;
+    }
   }
 
   function validate() {
@@ -277,9 +420,44 @@
     finally { button.disabled = !state.cart.length; button.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Create paid order'; }
   }
 
-  async function initializeAfterCheckout() { state.loaded = false; await initialize(); $("waCalendar").innerHTML = '<p class="wa-help wa-wide">Select a technician and address first.</p>'; $("waTimeSlot").innerHTML = '<option value="">Select an available date first</option>'; }
+  async function initializeAfterCheckout() {
+    state.loaded = false;
+    state.availableDates.clear();
+    state.availableSlots = [];
+    state.time = "";
+    state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    await initialize();
+    renderAvailabilityCalendar();
+    resetTimeSlots();
+    setCalendarStatus("Select a technician and verified address first.");
+  }
 
-  let searchTimer; $("waSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderProducts, 180); }); $("waTypeFilter").addEventListener("change", renderProducts); document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.addEventListener("click", () => setFulfillment(button.dataset.value))); $("waTechnician").addEventListener("change", scheduleInputsChanged); $("waDiscount").addEventListener("input", renderTotals); $("waPayment").addEventListener("change", syncPaymentMode); $("waAddress").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchAddress, 400); }); $("waCheckoutForm").addEventListener("submit", submit);
-  const tomorrow = new Date(Date.now() + 86400000); $("waPickupDate").min = tomorrow.toISOString().slice(0,10); renderCart();
+  let productSearchTimer;
+  let addressSearchTimer;
+  $("waSearch").addEventListener("input", () => { clearTimeout(productSearchTimer); productSearchTimer = setTimeout(renderProducts, 180); });
+  $("waTypeFilter").addEventListener("change", renderProducts);
+  document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.addEventListener("click", () => setFulfillment(button.dataset.value)));
+  $("waTechnician").addEventListener("change", scheduleInputsChanged);
+  $("waDiscount").addEventListener("input", renderTotals);
+  $("waPayment").addEventListener("change", syncPaymentMode);
+  $("waAddress").addEventListener("input", () => {
+    $("waLat").value = "";
+    $("waLng").value = "";
+    state.quote = {};
+    $("waAddressResults").classList.add("wa-hidden");
+    $("waQuote").innerHTML = '<div class="wa-quote"><span>Select an address suggestion to verify the route.</span><strong>—</strong></div>';
+    scheduleInputsChanged();
+    renderTotals();
+    clearTimeout(addressSearchTimer);
+    addressSearchTimer = setTimeout(searchAddress, 400);
+  });
+  $("waCalendarPrev").addEventListener("click", () => moveCalendarMonth(-1));
+  $("waCalendarNext").addEventListener("click", () => moveCalendarMonth(1));
+  $("waCheckoutForm").addEventListener("submit", submit);
+  const tomorrow = new Date(Date.now() + 86400000);
+  $("waPickupDate").min = tomorrow.toISOString().slice(0,10);
+  renderAvailabilityCalendar();
+  resetTimeSlots();
+  renderCart();
 })();
 </script>
