@@ -24,8 +24,6 @@ services:
         sync: false
       - key: APP_URL
         sync: false
-      - key: MAIL_PROVIDER
-        value: resend
       - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL

@@ -2,19 +2,22 @@ const https = require("https");
 const nodemailer = require("nodemailer");
 const logger = require("./logger").create("mailer");
 
-// Hosted environments use Resend by default; localhost uses SMTP/Nodemailer.
-// MAIL_PROVIDER can explicitly override the default with "resend" or "smtp".
+// Render/production always uses Resend. Local development always uses SMTP.
+// Render sets RENDER="true" automatically, so a stale custom provider setting
+// cannot accidentally make the deployed service connect to Gmail SMTP.
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_API_URL = "https://api.resend.com/emails";
-const MAIL_PROVIDER = String(
-  process.env.MAIL_PROVIDER || (process.env.NODE_ENV === "production" ? "resend" : "smtp"),
-).toLowerCase();
+const IS_RENDER =
+  process.env.RENDER === "true" ||
+  Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const MAIL_PROVIDER = IS_RENDER || IS_PRODUCTION ? "resend" : "smtp";
 const FROM_EMAIL = process.env.FROM_EMAIL || "";
 const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
-if (!new Set(["resend", "smtp"]).has(MAIL_PROVIDER)) {
-  throw new Error('MAIL_PROVIDER must be either "resend" or "smtp".');
-}
+console.log(
+  `[MAILER] Provider selected: ${MAIL_PROVIDER} (${IS_RENDER ? "Render" : IS_PRODUCTION ? "production" : "local development"})`,
+);
 
 // Nodemailer SMTP transport (used for localhost/development by default).
 let _smtpTransport = null;
@@ -55,7 +58,7 @@ function sendMail({ to, subject, html, text }) {
     return sendViaResend({ to, subject, html, text });
   }
 
-  // SMTP/Nodemailer for localhost or an explicit MAIL_PROVIDER=smtp override.
+  // SMTP/Nodemailer is used only for local development.
   const transport = getSmtpTransport();
   if (!transport) {
     console.log("[MAILER] No email transport available - email not sent");
