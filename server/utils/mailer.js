@@ -128,7 +128,11 @@ function sendViaBrevo({ to, subject, html, text }) {
         }
         if (res.statusCode >= 200 && res.statusCode < 300) {
           const messageId = parsed.messageId || `brevo-${res.statusCode}`;
+
+          console.log("[MAILER] (Brevo) HTTP status:", res.statusCode);
+          console.log("[MAILER] (Brevo) Response:", parsed);
           console.log("[MAILER] (Brevo) Email accepted:", messageId);
+
           resolve({ messageId, provider: "brevo" });
         } else {
           const detail = parsed.message || parsed.error || body || "Unknown error";
