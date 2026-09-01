@@ -4060,6 +4060,7 @@ router.get(
 // ── Public No-Show Reschedule Page ──────────────────────────────────
 router.get("/reschedule/no-show/:token", async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store, private");
     const BookingService = require("../models/BookingService");
     const token = req.params.token;
     const booking = await BookingService.findOne({
@@ -4072,6 +4073,7 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
     if (!booking) {
       return res.render("pages/noShowReschedule", { 
         title: "Reschedule Service", 
+        layout: "layouts/public-action",
         error: "This reschedule link is invalid or has already been used.", 
         booking: null, 
         token: null 
@@ -4084,6 +4086,7 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
     if (expiry && new Date() > new Date(expiry)) {
       return res.render("pages/noShowReschedule", { 
         title: "Reschedule Service", 
+        layout: "layouts/public-action",
         error: "This reschedule link has expired. Links are only valid for 72 hours.", 
         booking: null, 
         token: null 
@@ -4101,6 +4104,7 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
     if (!accessAllowed || !["reschedule-required", "no-show"].includes(booking.status)) {
       return res.render("pages/noShowReschedule", { 
         title: "Reschedule Service", 
+        layout: "layouts/public-action",
         error: "This booking has already been processed or is no longer available for rescheduling.",
         booking: null, 
         token: null 
@@ -4109,6 +4113,7 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
 
     res.render("pages/noShowReschedule", {
       title: "Reschedule Service",
+      layout: "layouts/public-action",
       booking,
       token,
       error: undefined
@@ -4117,6 +4122,7 @@ router.get("/reschedule/no-show/:token", async (req, res) => {
     console.error(err);
     res.render("pages/noShowReschedule", { 
       title: "Reschedule Service", 
+      layout: "layouts/public-action",
       error: "An unexpected error occurred.", 
       booking: null, 
       token: null 

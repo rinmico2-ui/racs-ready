@@ -7,6 +7,7 @@ const { isAccountEnabled } = require("../middleware/accountState");
 const rateLimiter = require("../middleware/loginRateLimiter");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
+const trustedDevices = require("../utils/trustedDevices");
 
 const FAKE_HASH = bcrypt.hashSync("invalid-password", 12);
 
@@ -191,7 +192,7 @@ async function sendOTPEmail(email, otp, type = "verification") {
   }
 }
 
-// Helper: generate & store a login OTP (used by secureAuthController for admin/secretary flows)
+// Helper: generate and store a login OTP for staff step-up authentication.
 exports.generateLoginOTP = async function (email, userId, rememberMe = false) {
   const emailKey = String(email || "")
     .replace(/[\$\{\}]/g, "")
@@ -200,9 +201,12 @@ exports.generateLoginOTP = async function (email, userId, rememberMe = false) {
   const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
   otpStore.set(emailKey, { userId, otp, expires, type: "login", rememberMe });
   try {
-    await sendOTPEmail(email, otp, "login");
+    const sendResult = await sendOTPEmail(email, otp, "login");
+    if (!sendResult) throw new Error("No email transport accepted the message.");
   } catch (e) {
+    otpStore.delete(emailKey);
     console.warn("generateLoginOTP: failed to send email", e && e.message);
+    throw e;
   }
   return otp;
 };
@@ -212,6 +216,55 @@ function sendGenericError(res, status = 400) {
   return res
     .status(status)
     .json({ error: "Invalid email or password. Please try again." });
+}
+
+function loginRedirectFor(req, user) {
+  if (user.role === "admin") return "/admin";
+  if (user.role === "secretary") return "/secretary";
+  if (user.role === "technician") return "/technician";
+  if (user.role === "customer" && req.body.returnTo) {
+    try {
+      const returnTo = decodeURIComponent(req.body.returnTo);
+      if (returnTo.startsWith("/") && !returnTo.startsWith("//")) return returnTo;
+    } catch (e) {}
+  }
+  return "/";
+}
+
+async function establishJwtLogin(req, res, user, rememberMe) {
+  const sessionId = crypto.randomBytes(24).toString("hex");
+  const defaultMaxAge = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
+  const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : defaultMaxAge;
+
+  user.lastLogin = new Date();
+  user.currentSessionId = sessionId;
+  await user.save();
+
+  const token = jwt.sign(
+    { id: user._id, role: user.role, sessionId, rememberMe: !!rememberMe },
+    process.env.JWT_SECRET,
+    { expiresIn: Math.floor(maxAge / 1000) + "s" },
+  );
+  res.cookie("auth_token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+    maxAge,
+    path: "/",
+  });
+
+  try {
+    await audit.logEvent({
+      actor: user._id,
+      target: user._id,
+      action: "login",
+      module: "auth",
+      req,
+      details: { role: user.role },
+    });
+  } catch (e) {}
+
+  return loginRedirectFor(req, user);
 }
 
 async function createAssessment({
@@ -737,54 +790,31 @@ exports.verifyLoginOTP = async (req, res, next) => {
       return res.status(400).json({ error: "User not found." });
     }
 
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
-
-    // Audit: successful login
-    try {
-      await audit.logEvent({
-        actor: user._id,
-        target: user._id,
-        action: "login",
-        module: "auth",
-        req,
-        details: { role: user.role },
-      });
-    } catch (e) {}
+    let trustedDeviceAdded = false;
+    const trustDeviceRequested =
+      req.body.trustDevice === true || req.body.trustDevice === "true";
+    if (user.role === "technician" && trustDeviceRequested) {
+      try {
+        await trustedDevices.issue(req, res, user);
+        trustedDeviceAdded = true;
+        await audit.logEvent({
+          actor: user._id,
+          target: user._id,
+          action: "auth.trusted_device_added",
+          module: "auth",
+          req,
+          entityType: "TrustedDevice",
+          actorRole: user.role,
+          details: { trustDays: trustedDevices._private.trustDurationMs() / 86400000 },
+        });
+      } catch (e) {
+        console.warn("verifyLoginOTP: unable to trust technician device", e && e.message);
+      }
+    }
 
     // Clean up
     otpStore.delete(emailKey);
-
-    // Establish a server-side session id
-    const sessionId = require("crypto").randomBytes(24).toString("hex");
-    user.currentSessionId = sessionId;
-    await user.save();
-
-    const payload = { id: user._id, role: user.role, sessionId, rememberMe: !!stored.rememberMe };
-    const defaultMaxAge = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
-    const maxAge = stored.rememberMe ? 30 * 24 * 60 * 60 * 1000 : defaultMaxAge; // 30 days if rememberMe, else default
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: Math.floor(maxAge / 1000) + "s",
-    });
-
-    const isProd = process.env.NODE_ENV === "production";
-    res.cookie("auth_token", token, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "Strict",
-      maxAge: maxAge,
-      path: "/",
-    });
-
-    // Role-based redirect server-side where appropriate
-    let redirect = "/";
-    if (user.role === "admin") redirect = "/admin";
-    else if (user.role === "secretary") redirect = "/secretary";
-    else if (user.role === "technician") redirect = "/technician";
-    else if (user.role === "customer") {
-      redirect = req.body.returnTo ? decodeURIComponent(req.body.returnTo) : "/";
-    }
+    const redirect = await establishJwtLogin(req, res, user, stored.rememberMe);
 
     // If the client expects JSON, return JSON with redirect; otherwise perform server redirect
     const acceptsJson =
@@ -795,6 +825,7 @@ exports.verifyLoginOTP = async (req, res, next) => {
       return res.status(200).json({
         message: "Login successful.",
         redirect,
+        trustedDeviceAdded,
         user: { id: user._id, email: user.email, role: user.role },
       });
     }
@@ -1274,21 +1305,35 @@ exports.login = async (req, res, next) => {
     rateLimiter.reset("ip", ip);
     rateLimiter.reset("email", email);
 
-    // Generate OTP for login
-    const otp = generateOTP();
-    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    // Store temporarily
-    const emailKey = email.toLowerCase();
     const rememberMe = !!req.body.rememberMe;
-    otpStore.set(emailKey, { userId: user._id, otp, expires, type: "login", rememberMe });
+    if (user.role === "technician") {
+      try {
+        const trusted = await trustedDevices.validateAndRotate(req, res, user);
+        if (trusted) {
+          const redirect = await establishJwtLogin(req, res, user, rememberMe);
+          return res.status(200).json({
+            message: "Login successful.",
+            redirect,
+            trustedDevice: true,
+            user: { id: user._id, email: user.email, role: user.role },
+          });
+        }
+      } catch (deviceError) {
+        // A device-store failure must require OTP; it must never bypass MFA.
+        console.warn(
+          "login: trusted-device validation failed",
+          user.email,
+          deviceError && deviceError.message,
+        );
+      }
+    }
 
-    // Send OTP email
-    await sendOTPEmail(email, otp, "login");
+    await exports.generateLoginOTP(email, user._id, rememberMe);
 
     res.status(200).json({
       message: "OTP sent to your email. Please verify to complete login.",
       requiresOTP: true,
+      canTrustDevice: user.role === "technician",
     });
   } catch (err) {
     next(err);

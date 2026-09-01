@@ -1,9 +1,11 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const rateLimit = require("express-rate-limit");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
 const User = require("../models/User");
 const audit = require("../utils/audit");
+const trustedDevices = require("../utils/trustedDevices");
 
 const passwordChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -134,6 +136,13 @@ router.patch("/me/password", passwordChangeLimiter, async (req, res, next) => {
     await user.setPassword(newPassword);
     user.currentSessionId = undefined;
     await user.save();
+    try {
+      await trustedDevices.revokeAll(res, user._id);
+    } catch (deviceError) {
+      // Token validation also compares lastPasswordChange, so devices remain
+      // unusable even if this cleanup query is temporarily unavailable.
+      console.warn("trusted-device cleanup failed", deviceError && deviceError.message);
+    }
 
     await audit.logEvent({
       actor: user._id,
@@ -161,6 +170,54 @@ router.patch("/me/password", passwordChangeLimiter, async (req, res, next) => {
     next(err);
   }
 });
+
+router.get(
+  "/me/trusted-devices",
+  auth.requireRole("technician"),
+  async (req, res, next) => {
+    try {
+      const devices = await trustedDevices.list(req, req.user);
+      return res.json({ devices });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.delete(
+  "/me/trusted-devices/:deviceId",
+  auth.requireRole("technician"),
+  async (req, res, next) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.deviceId)) {
+        return res.status(400).json({ error: "Invalid trusted device." });
+      }
+      const revoked = await trustedDevices.revoke(
+        req,
+        res,
+        req.user,
+        req.params.deviceId,
+      );
+      if (!revoked) {
+        return res.status(404).json({ error: "Trusted device not found." });
+      }
+
+      await audit.logEvent({
+        actor: req.user._id,
+        target: req.user._id,
+        action: "auth.trusted_device_revoked",
+        module: "auth",
+        req,
+        entityType: "TrustedDevice",
+        entityId: req.params.deviceId,
+        details: {},
+      });
+      return res.json({ message: "Trusted device revoked." });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // Get users - supports optional email query for existence check
 router.get("/", auth.requireRole(["admin", "secretary"]), async (req, res) => {

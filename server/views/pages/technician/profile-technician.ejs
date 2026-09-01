@@ -129,4 +129,128 @@
       </div>
     </div>
   </div>
+
+  <div class="card shadow-lg border-0 mt-4">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+        <div>
+          <h5 class="fw-bold mb-1"><i class="bi bi-laptop me-2"></i>Trusted Devices</h5>
+          <p class="text-muted small mb-0">Trusted devices can skip technician login OTP for up to 30 days. Your password is always required.</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshTrustedDevices">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="trustedDevicesList" aria-live="polite">
+        <div class="text-muted small">Loading trusted devices...</div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+(function () {
+  'use strict';
+  var list = document.getElementById('trustedDevicesList');
+  var refresh = document.getElementById('refreshTrustedDevices');
+  if (!list) return;
+
+  function formatDate(value) {
+    if (!value) return 'Unknown';
+    var date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString();
+  }
+
+  function render(devices) {
+    list.replaceChildren();
+    if (!devices.length) {
+      var empty = document.createElement('div');
+      empty.className = 'alert alert-light border mb-0 small text-muted';
+      empty.textContent = 'No trusted devices. An OTP will be required on the next technician login.';
+      list.appendChild(empty);
+      return;
+    }
+
+    devices.forEach(function (device) {
+      var row = document.createElement('div');
+      row.className = 'd-flex justify-content-between align-items-center gap-3 border rounded-3 p-3 mb-2 flex-wrap';
+
+      var details = document.createElement('div');
+      var title = document.createElement('div');
+      title.className = 'fw-semibold';
+      title.textContent = device.label || 'Trusted device';
+      if (device.current) {
+        var badge = document.createElement('span');
+        badge.className = 'badge bg-success ms-2';
+        badge.textContent = 'This device';
+        title.appendChild(badge);
+      }
+      var meta = document.createElement('div');
+      meta.className = 'small text-muted mt-1';
+      meta.textContent = 'Last used ' + formatDate(device.lastUsedAt) + ' · Expires ' + formatDate(device.expiresAt);
+      details.appendChild(title);
+      details.appendChild(meta);
+
+      var revoke = document.createElement('button');
+      revoke.type = 'button';
+      revoke.className = 'btn btn-outline-danger btn-sm';
+      revoke.innerHTML = '<i class="bi bi-x-circle me-1"></i>Revoke';
+      revoke.addEventListener('click', function () { revokeDevice(device, revoke); });
+
+      row.appendChild(details);
+      row.appendChild(revoke);
+      list.appendChild(row);
+    });
+  }
+
+  async function load() {
+    list.innerHTML = '<div class="text-muted small">Loading trusted devices...</div>';
+    try {
+      var response = await fetch('/api/users/me/trusted-devices', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(body.error || 'Unable to load trusted devices.');
+      render(Array.isArray(body.devices) ? body.devices : []);
+    } catch (error) {
+      list.innerHTML = '<div class="alert alert-danger mb-0 small"></div>';
+      list.firstElementChild.textContent = error.message || 'Unable to load trusted devices.';
+    }
+  }
+
+  async function revokeDevice(device, button) {
+    var confirmed = await Swal.fire({
+      icon: 'warning',
+      title: 'Revoke trusted device?',
+      text: device.current
+        ? 'This browser will require OTP the next time you sign in.'
+        : 'That device will require OTP on its next sign-in.',
+      showCancelButton: true,
+      confirmButtonText: 'Revoke device',
+      confirmButtonColor: '#dc3545',
+    });
+    if (!confirmed.isConfirmed) return;
+
+    button.disabled = true;
+    try {
+      var response = await fetch('/api/users/me/trusted-devices/' + encodeURIComponent(device.id), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(body.error || 'Unable to revoke device.');
+      await Swal.fire({ icon: 'success', title: 'Device revoked', text: body.message || 'The device was removed.', timer: 1800, showConfirmButton: false });
+      load();
+    } catch (error) {
+      button.disabled = false;
+      Swal.fire({ icon: 'error', title: 'Unable to revoke', text: error.message || 'Please try again.' });
+    }
+  }
+
+  if (refresh) refresh.addEventListener('click', load);
+  load();
+})();
+</script>

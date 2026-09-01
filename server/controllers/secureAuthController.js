@@ -19,6 +19,7 @@ const LoginHistory = require("../models/LoginHistory");
 const FailedLoginAttempt = require("../models/FailedLoginAttempt");
 const AuthSession = require("../models/AuthSession");
 const mailer = require("../utils/mailer");
+const trustedDevices = require("../utils/trustedDevices");
 const rateLimiter = require("../middleware/loginRateLimiter");
 
 // Configuration / policy (tunable)
@@ -279,21 +280,39 @@ exports.login = async (req, res, next) => {
       geo,
     );
 
-    // If user is admin or secretary, require OTP verification before completing session login
-    if (user.role === "admin" || user.role === "secretary") {
+    const alwaysRequireOtp = user.role === "admin" || user.role === "secretary";
+    let technicianRequiresOtp = false;
+    if (user.role === "technician") {
+      try {
+        const trusted = await trustedDevices.validateAndRotate(req, res, user);
+        technicianRequiresOtp = !trusted || suspicious.differentCountry;
+      } catch (e) {
+        console.warn(
+          "secureAuth.login: trusted-device validation failed for technician",
+          user.email,
+          e && e.message,
+        );
+        technicianRequiresOtp = true;
+      }
+    }
+
+    if (alwaysRequireOtp || technicianRequiresOtp) {
       try {
         await authController.generateLoginOTP(user.email, user._id, rememberMe);
         return res.status(200).json({
           message: "OTP sent to your email. Please verify to complete login.",
           requiresOTP: true,
+          canTrustDevice: user.role === "technician",
         });
       } catch (e) {
         console.warn(
-          "secureAuth.login: failed to generate OTP for privileged user",
+          "secureAuth.login: failed to send required staff OTP",
           user.email,
           e && e.message,
         );
-        // fallback to normal behavior if OTP send fails
+        return res.status(503).json({
+          error: "We could not send your verification code. Please try again.",
+        });
       }
     }
 

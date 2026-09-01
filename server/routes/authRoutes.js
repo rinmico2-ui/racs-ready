@@ -170,6 +170,7 @@ router.post(
       .isLength({ min: 6, max: 6 })
       .withMessage("Invalid OTP")
       .trim(),
+    body("trustDevice").optional().isBoolean().withMessage("Invalid device preference"),
   ],
   authController.verifyLoginOTP,
 );

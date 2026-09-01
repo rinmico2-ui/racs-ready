@@ -10,6 +10,8 @@
   var otpBlock = document.getElementById('otpBlock');
   var otpInput = document.getElementById('login-otp');
   var resendBtn = document.getElementById('resendOtpBtn');
+  var trustDeviceOption = document.getElementById('trustTechnicianDeviceOption');
+  var trustDeviceInput = document.getElementById('trustTechnicianDevice');
   var mathInput = document.querySelector('#auth-login-form input[name="mathCaptcha"]');
   var csrfInput = document.querySelector('#auth-login-form input[name="csrfToken"]');
 
@@ -190,7 +192,17 @@
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ email: email, otp: otp, returnTo: returnTo }),
+          body: JSON.stringify({
+            email: email,
+            otp: otp,
+            returnTo: returnTo,
+            trustDevice: Boolean(
+              trustDeviceOption &&
+              !trustDeviceOption.classList.contains('d-none') &&
+              trustDeviceInput &&
+              trustDeviceInput.checked
+            ),
+          }),
         });
         var body = await resp.json().catch(function () { return {}; });
         if (resp.ok && body.redirect) {
@@ -261,6 +273,10 @@
       // OTP required for privileged roles
       if (res.ok && body.requiresOTP) {
         if (otpBlock) otpBlock.classList.remove('d-none');
+        if (trustDeviceOption) {
+          trustDeviceOption.classList.toggle('d-none', !body.canTrustDevice);
+        }
+        if (trustDeviceInput) trustDeviceInput.checked = false;
         if (otpInput) { otpInput.focus(); otpInput.value = ''; }
         window.authUtils.swalSuccess('OTP sent', body.message || 'A verification code was sent to your email.');
         if (resendBtn) startResendCooldown(resendBtn, 60);
