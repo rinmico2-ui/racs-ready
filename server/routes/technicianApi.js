@@ -693,7 +693,7 @@ router.get("/remittances", async (req, res, next) => {
     const ownedBookingIds = ownedLegacyBookings.map((booking) => booking._id);
     const payments = await Payment.find({
       $or: [
-        { collectedBy: tech._id, status: { $in: ["waiting_for_remittance", "remitted", "verified", "rejected"] } },
+        { collectedBy: tech._id, status: { $in: ["waiting_for_remittance", "remitted", "verified", "rejected", "unaccounted"] } },
         { collectedBy: { $exists: false }, bookingId: { $in: ownedBookingIds }, status: "paid" },
         { collectedBy: null, bookingId: { $in: ownedBookingIds }, status: "paid" },
       ],
@@ -733,6 +733,13 @@ router.post("/remittances/:id/submit", async (req, res, next) => {
     if (!["waiting_for_remittance", "paid"].includes(payment.status)) return res.status(409).json({ error: `Payment is already ${String(payment.status).replace(/_/g, " ")}.` });
     const now = new Date();
     payment.status = "remitted";
+    if (payment.resolutionType === "recovery") {
+      payment.resolutionType = null;
+      payment.resolvedBy = undefined;
+      payment.resolvedAt = undefined;
+      payment.resolutionNotes = undefined;
+      payment.recoveryFollowUpDate = undefined;
+    }
     payment.collectedBy = payment.collectedBy || tech._id;
     payment.collectedByName = payment.collectedByName || tech.name;
     payment.collectedAt = payment.collectedAt || payment.completedAt || payment.submittedAt || now;

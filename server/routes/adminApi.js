@@ -612,7 +612,7 @@ router.get("/remittances", async (req, res, next) => {
     const Payment = require("../models/Payment");
     const status = req.query.status;
     const requestedStatus = status && status !== "all" ? status : null;
-    const normalStatuses = requestedStatus ? [requestedStatus] : ["waiting_for_remittance", "remitted", "rejected", "verified"];
+    const normalStatuses = requestedStatus ? [requestedStatus] : ["waiting_for_remittance", "remitted", "rejected", "verified", "unaccounted"];
     const includeLegacyCollections = !requestedStatus || requestedStatus === "waiting_for_remittance";
     const filter = includeLegacyCollections
       ? { $or: [{ status: { $in: normalStatuses } }, { status: "paid", collectedBy: { $exists: false }, bookingId: { $ne: null } }, { status: "paid", collectedBy: null, bookingId: { $ne: null } }] }
@@ -712,19 +712,49 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const Order = require("../models/Order");
     const Project = require("../models/Project");
+    const User = require("../models/User");
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ error: "Payment not found" });
     const action = String(req.body.action || "").toLowerCase();
-    const allowed = { verify: "verified", reject: "rejected", refund: "refunded" };
+    const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted" };
     const nextStatus = allowed[action];
-    if (!nextStatus) return res.status(400).json({ error: "Action must be verify, reject, or refund." });
+    if (!nextStatus) return res.status(400).json({ error: "Action must be verify, reject, override, flag, or refund." });
     if (action === "verify" && payment.status !== "remitted") return res.status(409).json({ error: "The collecting technician must submit the remittance before verification." });
+    if (action === "override" && payment.status !== "waiting_for_remittance") return res.status(409).json({ error: "Override is only available for payments waiting for technician remittance." });
+    if (action === "override" && !String(req.body.notes || "").trim()) return res.status(400).json({ error: "Override notes are required (e.g. cash received in person)." });
+    if (action === "flag" && !["waiting_for_remittance", "remitted"].includes(payment.status)) return res.status(409).json({ error: "Can only flag payments that are pending or submitted." });
+    if (action === "flag" && !String(req.body.reason || "").trim()) return res.status(400).json({ error: "Flag reason is required." });
     if (action === "reject" && !String(req.body.reason || "").trim()) return res.status(400).json({ error: "Rejection reason is required." });
     if (action === "refund" && payment.status !== "verified") return res.status(409).json({ error: "Only verified payments can be refunded." });
     if (action === "refund" && !String(req.body.reason || "").trim()) return res.status(400).json({ error: "Refund reason is required." });
     const now = new Date();
     payment.status = nextStatus;
     if (action === "verify") { payment.verifiedBy = req.user._id; payment.verifiedAt = now; payment.completedAt = now; }
+    if (action === "override") {
+      payment.verifiedBy = req.user._id;
+      payment.verifiedAt = now;
+      payment.completedAt = now;
+      payment.overrideBy = req.user._id;
+      payment.overrideAt = now;
+      payment.overrideNotes = String(req.body.notes).trim();
+    }
+    if (action === "flag") {
+      payment.flaggedBy = req.user._id;
+      payment.flaggedAt = now;
+      payment.flagReason = String(req.body.reason).trim();
+      // Create violation on the technician's linked User account
+      const Technician = require("../models/Technician");
+      const tech = payment.collectedBy ? await Technician.findById(payment.collectedBy) : null;
+      const techUser = tech && tech.user ? await User.findById(tech.user) : null;
+      if (techUser) {
+        const ref = payment.bookingId?.bookingReference || payment.orderId?.orderReference || payment.projectId?.projectReference || String(payment._id).slice(-8);
+        const violationEntry = { type: "remittance_unaccounted", message: `Payment ₱${Number(payment.amount || 0).toLocaleString()} for ${ref} was not remitted. ${String(req.body.reason).trim()}`, createdAt: now };
+        techUser.violations = techUser.violations || [];
+        techUser.violations.push(violationEntry);
+        await techUser.save();
+        payment.violationId = techUser._id;
+      }
+    }
     if (action === "reject") { payment.rejectedBy = req.user._id; payment.rejectedAt = now; payment.rejectionReason = String(req.body.reason).trim(); }
     if (action === "refund") {
       payment.refundedBy = req.user._id;
@@ -753,8 +783,8 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
           booking.balanceCollectedAt = null;
           booking.balanceCollectedBy = null;
         }
-        if (action === "verify") booking.paymentStatus = booking.balanceCollected ? "verified" : "partial";
-        else if (action === "reject") booking.paymentStatus = booking.amountPaid > 0 ? "partial" : "rejected";
+        if (action === "verify" || action === "override") booking.paymentStatus = booking.balanceCollected ? "verified" : "partial";
+        else if (action === "reject" || action === "flag") booking.paymentStatus = booking.amountPaid > 0 ? "partial" : "rejected";
         else booking.paymentStatus = nextStatus;
         await booking.save();
       }
@@ -764,8 +794,114 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
       else await Order.findByIdAndUpdate(payment.orderId, update);
     }
     if (payment.projectId) await Project.findByIdAndUpdate(payment.projectId, { "payment.paymentStatus": nextStatus });
-    await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.${nextStatus}`, module: "payment", req, details: { reason: req.body.reason } }).catch(() => {});
+    await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.${nextStatus}`, module: "payment", req, details: { reason: req.body.reason, notes: req.body.notes } }).catch(() => {});
     res.json({ message: `Payment marked ${nextStatus.replace(/_/g, " ")}.`, payment });
+  } catch (err) { next(err); }
+});
+
+/**
+ * PATCH /api/admin/remittances/:id/resolve
+ * Resolve an unaccounted payment: write-off, deduct from payroll, or recovery.
+ */
+router.patch("/remittances/:id/resolve", async (req, res, next) => {
+  try {
+    const Payment = require("../models/Payment");
+    const Technician = require("../models/Technician");
+    const Payroll = require("../models/Payroll");
+    const EmployeeCompensation = require("../models/EmployeeCompensation");
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    if (payment.status !== "unaccounted") return res.status(409).json({ error: "Only unaccounted payments can be resolved." });
+    const resolutionType = String(req.body.resolutionType || "").toLowerCase();
+    if (!["write_off", "deduct_from_payroll", "recovery"].includes(resolutionType)) {
+      return res.status(400).json({ error: "resolutionType must be write_off, deduct_from_payroll, or recovery." });
+    }
+    const now = new Date();
+    payment.resolutionType = resolutionType;
+    payment.resolvedBy = req.user._id;
+    payment.resolvedAt = now;
+    payment.resolutionNotes = String(req.body.notes || "").trim();
+    payment.events.push({ status: "resolved", actor: req.user._id, actorName: req.user.name || req.user.email, actorRole: req.user.role, note: `Resolved: ${resolutionType.replace(/_/g, " ")}. ${payment.resolutionNotes}`, at: now, metadata: { resolutionType } });
+
+    if (resolutionType === "deduct_from_payroll") {
+      // Find the technician's linked User
+      const tech = payment.collectedBy ? await Technician.findById(payment.collectedBy) : null;
+      if (!tech || !tech.user) return res.status(400).json({ error: "Cannot deduct: no linked user account found for this technician." });
+      const techUserId = tech.user;
+
+      // Find existing draft payroll for this employee in current period
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      let payroll = await Payroll.findOne({ employee: techUserId, periodStart, periodEnd, status: "draft" });
+
+      const deductionName = `Remittance Unaccounted — ${payment.bookingId?.bookingReference || payment.orderId?.orderReference || payment.projectId?.projectReference || String(payment._id).slice(-8)}`;
+      const deductionAmount = Number(payment.amount) || 0;
+
+      if (payroll) {
+        // Add deduction to existing draft
+        payroll.deductions.push({ name: deductionName, amount: deductionAmount });
+        payroll.totalDeductions = payroll.deductions.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+        payroll.netPay = Math.max(0, (payroll.grossPay || 0) - payroll.totalDeductions);
+        await payroll.save();
+      } else {
+        // Find the employee's active compensation
+        const comp = await EmployeeCompensation.findOne({ employee: techUserId, active: true });
+        const baseRate = comp ? Number(comp.baseRate) || 0 : 0;
+        const payType = comp ? comp.payType : "daily";
+        // Create a new draft payroll with this deduction
+        payroll = await Payroll.create({
+          employee: techUserId,
+          employeeRole: "technician",
+          periodStart,
+          periodEnd,
+          payDate: periodEnd,
+          payType,
+          baseRate,
+          overtimeRate: comp ? Number(comp.overtimeRate) || 0 : 0,
+          basicPay: 0,
+          overtimeHours: 0,
+          overtimePay: 0,
+          allowances: [],
+          deductions: [{ name: deductionName, amount: deductionAmount }],
+          grossPay: 0,
+          totalDeductions: deductionAmount,
+          netPay: 0,
+          status: "draft",
+          calculationSource: "remittance_deduction",
+          createdBy: req.user._id,
+        });
+      }
+      payment.payrollDeductionId = payroll._id;
+    }
+
+    // Recovery: reset status to waiting_for_remittance so technician can resubmit
+    if (resolutionType === "recovery") {
+      payment.status = "waiting_for_remittance";
+      payment.resolutionType = "recovery";
+      payment.recoveryFollowUpDate = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
+      console.log(`[REMITTANCE] Recovery: resetting payment ${payment._id} to waiting_for_remittance`);
+      // Notify the technician
+      try {
+        const tech = payment.collectedBy ? await Technician.findById(payment.collectedBy) : null;
+        if (tech && tech.user) {
+          const Notification = require("../models/Notification");
+          await Notification.create({
+            recipient: tech.user,
+            type: "remittance_recovery",
+            title: "Remittance Recovery",
+            message: `Payment of ₱${Number(payment.amount || 0).toLocaleString()} has been flagged for recovery. Please resubmit your remittance.`,
+            link: "/technician/remittances",
+            priority: "high",
+          }).catch(() => {});
+        }
+      } catch (notifyErr) {
+        console.error("[REMITTANCE] Recovery notification failed:", notifyErr.message);
+      }
+    }
+
+    await payment.save();
+    await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.resolved.${resolutionType}`, module: "payment", req, details: { resolutionType, notes: req.body.notes } }).catch(() => {});
+    res.json({ message: `Payment resolved: ${resolutionType.replace(/_/g, " ")}.`, payment });
   } catch (err) { next(err); }
 });
 
