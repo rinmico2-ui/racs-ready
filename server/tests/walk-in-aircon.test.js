@@ -4,12 +4,20 @@ const path = require("node:path");
 const ejs = require("ejs");
 
 const posRoutes = require("../routes/posRoutes");
+const { addMinutesToClock } = require("../utils/clockTime");
 
 function routeLayer(router, pathValue, method) {
   return router.stack.find((layer) => layer.route
     && layer.route.path === pathValue
     && layer.route.methods[method]);
 }
+
+test("walk-in installation booking preserves 12-hour and 24-hour clock formats", () => {
+  assert.equal(addMinutesToClock("1:00 PM", 60), "2:00 PM");
+  assert.equal(addMinutesToClock("11:30 AM", 120), "1:30 PM");
+  assert.equal(addMinutesToClock("13:30", 60), "14:30");
+  assert.equal(addMinutesToClock("invalid", 60), "");
+});
 
 test("walk-in aircon has a dedicated authenticated API surface", () => {
   const router = posRoutes.walkInAirconRouter;
@@ -39,6 +47,9 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /id="waCalendarTitle"/);
   assert.match(html, /id="waTimeSlots"/);
   assert.match(html, /id="waScheduleSummary"/);
+  assert.match(html, /id="waCartDrawer"/);
+  assert.match(html, /id="waVariantBackdrop"/);
+  assert.match(html, /mode:"all"/);
   assert.match(html, /\/api\/walk-in-aircon\/checkout/);
 });
 

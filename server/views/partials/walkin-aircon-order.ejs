@@ -2,17 +2,17 @@
   .wa-shell{max-width:1380px;margin:0 auto}
   .wa-hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.5rem 1.65rem;margin-bottom:1rem;border-radius:20px;color:#fff;background:linear-gradient(125deg,#0f172a,#1e3a8a 68%,#2563eb);box-shadow:0 14px 36px rgba(30,58,138,.2)}
   .wa-hero h2{font-size:1.45rem;font-weight:800;margin:0 0 .35rem}.wa-hero p{margin:0;color:#bfdbfe;font-size:.88rem}
-  .wa-hero-mark{width:58px;height:58px;display:grid;place-items:center;border-radius:17px;background:rgba(255,255,255,.13);font-size:1.6rem}
+  .wa-cart-launch{display:flex;align-items:center;gap:.65rem;flex-shrink:0;padding:.7rem .85rem;border:1px solid rgba(255,255,255,.24);border-radius:13px;background:rgba(255,255,255,.13);color:#fff;font-size:.75rem;font-weight:800;backdrop-filter:blur(8px);transition:.18s ease}.wa-cart-launch:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}.wa-cart-launch i{font-size:1.15rem}.wa-cart-launch span{display:grid;place-items:center;min-width:24px;height:24px;padding:0 .35rem;border-radius:8px;background:#fff;color:#1d4ed8}.wa-cart-launch.bump{animation:waCartBump .35s ease}@keyframes waCartBump{50%{transform:scale(1.08)}}
   .wa-flow{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.8rem}.wa-flow span{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .55rem;border-radius:999px;background:rgba(255,255,255,.1);color:#dbeafe;font-size:.66rem;font-weight:700}.wa-flow b{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#fff;color:#1d4ed8;font-size:.6rem}
-  .wa-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(430px,.9fr);gap:1rem;align-items:start}
+  .wa-layout{display:block}
   .wa-panel{background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 5px 22px rgba(15,23,42,.05);overflow:hidden}
   .wa-toolbar{display:flex;gap:.65rem;padding:1rem;border-bottom:1px solid #edf2f7}.wa-search{position:relative;flex:1}.wa-search i{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#94a3b8}.wa-search input,.wa-toolbar select{width:100%;height:42px;border:1px solid #dbe3ee;border-radius:11px;background:#f8fafc;padding:.65rem .85rem;font-size:.85rem;outline:none}.wa-search input{padding-left:2.4rem}.wa-search input:focus,.wa-toolbar select:focus,.wa-field:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.09);background:#fff}
-  .wa-products{padding:1rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem;min-height:260px}
-  .wa-product{display:flex;flex-direction:column;border:1px solid #e5eaf2;border-radius:15px;overflow:hidden;background:#fff;transition:.2s ease}.wa-product:hover{transform:translateY(-2px);border-color:#bfdbfe;box-shadow:0 10px 24px rgba(37,99,235,.09)}
-  .wa-product-image{height:150px;background:linear-gradient(145deg,#f8fafc,#eef4ff);display:grid;place-items:center;padding:1rem}.wa-product-image img{width:100%;height:100%;object-fit:contain}.wa-product-image i{font-size:3rem;color:#93c5fd}
-  .wa-product-body{display:flex;flex-direction:column;gap:.55rem;padding:.9rem;flex:1}.wa-brand{text-transform:uppercase;letter-spacing:.08em;color:#2563eb;font-weight:800;font-size:.65rem}.wa-product h3{margin:0;color:#172033;font-size:.94rem;font-weight:750}.wa-chips{display:flex;gap:.35rem;flex-wrap:wrap}.wa-chip{padding:.2rem .45rem;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.65rem;font-weight:700}.wa-product select{width:100%;border:1px solid #dbe3ee;border-radius:9px;padding:.5rem;font-size:.76rem;background:#fff}.wa-price-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:auto}.wa-price{font-weight:850;color:#0f172a}.wa-stock{font-size:.68rem;color:#15803d}.wa-add{border:0;border-radius:9px;padding:.52rem .7rem;background:#2563eb;color:#fff;font-weight:750;font-size:.76rem}.wa-add:hover{background:#1d4ed8}.wa-add:disabled{opacity:.5}
+  .wa-products{padding:1.15rem;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;min-height:340px}
+  .wa-product{display:flex;flex-direction:column;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04);transition:all .35s cubic-bezier(.165,.84,.44,1)}.wa-product:hover{transform:translateY(-6px);border-color:#bfdbfe;box-shadow:0 18px 36px rgba(37,99,235,.1)}
+  .wa-product-image{position:relative;aspect-ratio:4/3;background:#f8fafc;overflow:hidden}.wa-product-image img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease}.wa-product:hover .wa-product-image img{transform:scale(1.05)}.wa-product-image>i{width:100%;height:100%;display:grid;place-items:center;font-size:3rem;color:#93c5fd}.wa-product-tag{position:absolute;top:11px;padding:.25rem .55rem;border-radius:999px;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.wa-product-tag.inverter{left:11px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff}.wa-product-tag.stock{right:11px;background:rgba(236,253,245,.94);border:1px solid #a7f3d0;color:#047857}
+  .wa-product-body{display:flex;flex-direction:column;gap:.35rem;padding:1rem 1.05rem 1.1rem;flex:1}.wa-brand{text-transform:uppercase;letter-spacing:.08em;color:#2563eb;font-weight:800;font-size:.66rem}.wa-product h3{margin:0;color:#0f172a;font-size:.95rem;font-weight:750;line-height:1.3}.wa-product-meta{display:flex;gap:.4rem;align-items:center;color:#64748b;font-size:.72rem}.wa-product-dot{color:#cbd5e1}.wa-price-row{display:flex;align-items:flex-end;justify-content:space-between;gap:.5rem;margin-top:auto;padding-top:.75rem}.wa-price{font-weight:850;color:#0f172a;font-size:1rem}.wa-price small{display:block;color:#94a3b8;font-size:.57rem;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.wa-add{display:inline-flex;align-items:center;gap:.35rem;border:1px solid #bfdbfe;border-radius:999px;padding:.5rem .75rem;background:#eff6ff;color:#2563eb;font-weight:800;font-size:.7rem;transition:.18s ease}.wa-add:hover{border-color:#2563eb;background:#2563eb;color:#fff}.wa-add:disabled{opacity:.5}
   .wa-empty{grid-column:1/-1;text-align:center;padding:4rem 1rem;color:#64748b}.wa-empty i{display:block;font-size:2rem;color:#cbd5e1;margin-bottom:.5rem}
-  .wa-checkout{position:relative}.wa-checkout-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid #edf2f7;background:linear-gradient(135deg,#fff,#f8fbff)}.wa-checkout-head h3{font-size:1rem;font-weight:800;margin:0}.wa-checkout-sub{display:block;margin-top:.2rem;color:#64748b;font-size:.68rem}.wa-count{display:grid;place-items:center;min-width:30px;height:30px;padding:0 .45rem;border-radius:9px;background:#dbeafe;color:#1d4ed8;font-size:.75rem;font-weight:800}
+  .wa-drawer-backdrop{position:fixed;inset:0;z-index:1054;background:rgba(15,23,42,.48);backdrop-filter:blur(2px);opacity:0;visibility:hidden;transition:.22s ease}.wa-drawer-backdrop.show{opacity:1;visibility:visible}.wa-checkout{position:fixed;z-index:1055;top:0;right:0;width:min(540px,100vw);height:100vh;border-radius:0;border:0;border-left:1px solid #dbe3ee;overflow-y:auto;transform:translateX(102%);transition:transform .28s cubic-bezier(.16,1,.3,1);box-shadow:-20px 0 55px rgba(15,23,42,.18)}.wa-checkout.show{transform:translateX(0)}.wa-checkout-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid #edf2f7;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}.wa-checkout-head h3{font-size:1rem;font-weight:800;margin:0}.wa-checkout-sub{display:block;margin-top:.2rem;color:#64748b;font-size:.68rem}.wa-checkout-actions{display:flex;align-items:center;gap:.45rem}.wa-count{display:grid;place-items:center;min-width:30px;height:30px;padding:0 .45rem;border-radius:9px;background:#dbeafe;color:#1d4ed8;font-size:.75rem;font-weight:800}.wa-drawer-close{display:grid;place-items:center;width:32px;height:32px;border:1px solid #dbe3ee;border-radius:9px;background:#fff;color:#475569}.wa-drawer-close:hover{background:#f1f5f9;color:#0f172a}
   .wa-cart{max-height:235px;overflow:auto;padding:.75rem 1rem}.wa-cart-item{display:grid;grid-template-columns:1fr auto;gap:.4rem;padding:.65rem 0;border-bottom:1px solid #f1f5f9}.wa-cart-name{font-size:.78rem;font-weight:750;color:#1e293b}.wa-cart-meta{font-size:.68rem;color:#64748b}.wa-cart-controls{display:flex;align-items:center;gap:.4rem}.wa-cart-controls button{width:25px;height:25px;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155}.wa-cart-controls span{min-width:18px;text-align:center;font-size:.75rem;font-weight:800}.wa-cart-total{font-size:.78rem;font-weight:800;color:#1d4ed8;text-align:right}
   .wa-form{padding:1rem;border-top:1px solid #edf2f7;background:#f8fafc}.wa-section{margin-bottom:.85rem;padding:.9rem;border:1px solid #e5eaf2;border-radius:13px;background:#fff}.wa-section-title{display:flex;align-items:center;gap:.45rem;margin:0 0 .7rem;font-size:.72rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#334155}.wa-section-title i{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#eff6ff;color:#2563eb}.wa-fields{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}.wa-wide{grid-column:1/-1}.wa-field{width:100%;min-height:40px;border:1px solid #cfd9e6;border-radius:9px;background:#fff;padding:.6rem .7rem;font-size:.77rem;outline:none}.wa-label{display:block;font-size:.68rem;color:#475569;font-weight:750;margin-bottom:.3rem}.wa-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}.wa-choice button{min-height:68px;border:1px solid #dbe3ee;border-radius:10px;padding:.55rem .35rem;background:#fff;color:#64748b;font-size:.69rem;font-weight:750;transition:.18s ease}.wa-choice button i{font-size:1rem;margin-bottom:.2rem}.wa-choice button small{display:block;margin-top:.15rem;color:#94a3b8;font-size:.57rem;font-weight:600}.wa-choice button:hover{border-color:#93c5fd;background:#f8fbff}.wa-choice button.active{background:#eff6ff;color:#1d4ed8;border-color:#60a5fa;box-shadow:0 0 0 2px rgba(37,99,235,.08)}.wa-choice button.active small{color:#3b82f6}
   .wa-address-wrap{position:relative}.wa-address-results{position:absolute;z-index:30;left:0;right:0;top:100%;max-height:170px;overflow:auto;background:#fff;border:1px solid #dbe3ee;border-radius:9px;box-shadow:0 12px 26px rgba(15,23,42,.16)}.wa-address-results button{width:100%;border:0;border-bottom:1px solid #f1f5f9;background:#fff;padding:.65rem;text-align:left;font-size:.72rem;color:#334155}.wa-address-results button:hover{background:#eff6ff}
@@ -20,15 +20,16 @@
   .wa-schedule-card{overflow:hidden;border:1px solid #dbe5f0;border-radius:12px;background:#fff}.wa-calendar-head{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;gap:.35rem;padding:.65rem .7rem;border-bottom:1px solid #edf2f7;background:#f8fafc}.wa-calendar-head h5{margin:0;text-align:center;font-size:.8rem;font-weight:850;color:#1e293b}.wa-cal-nav{width:32px;height:32px;border:1px solid #d7e0eb;border-radius:9px;background:#fff;color:#334155}.wa-cal-nav:hover:not(:disabled){border-color:#60a5fa;color:#1d4ed8;background:#eff6ff}.wa-cal-nav:disabled{opacity:.35;cursor:not-allowed}.wa-weekdays,.wa-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:0 .55rem}.wa-weekdays{padding-top:.55rem}.wa-weekdays span{text-align:center;color:#94a3b8;font-size:.57rem;font-weight:850;text-transform:uppercase}.wa-calendar{min-height:220px;padding-top:.35rem;padding-bottom:.6rem;align-content:start}.wa-date,.wa-cal-blank{aspect-ratio:1/1;min-width:0}.wa-date{position:relative;border:1px solid transparent;border-radius:9px;background:#f8fafc;padding:.25rem .1rem;text-align:center;color:#334155;transition:.16s ease}.wa-date strong{display:block;font-size:.73rem;line-height:1}.wa-date small{display:block;margin-top:.2rem;color:#16a34a;font-size:.5rem;font-weight:800}.wa-date.available{border-color:#bbf7d0;background:#f0fdf4}.wa-date.available:hover{transform:translateY(-1px);border-color:#4ade80;box-shadow:0 4px 10px rgba(22,163,74,.12)}.wa-date.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 5px 12px rgba(37,99,235,.24)}.wa-date.active small{color:#dbeafe}.wa-date.unavailable{color:#cbd5e1;background:#fafafa;cursor:not-allowed}.wa-date.today:after{content:"";position:absolute;bottom:4px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#f59e0b}.wa-calendar-state{display:flex;align-items:center;justify-content:center;gap:.45rem;min-height:42px;padding:.55rem .7rem;border-top:1px solid #edf2f7;background:#f8fafc;color:#64748b;font-size:.66rem;text-align:center}.wa-calendar-state.error{color:#b91c1c;background:#fef2f2}.wa-calendar-legend{display:flex;gap:.8rem;align-items:center;margin-top:.45rem;color:#64748b;font-size:.6rem}.wa-calendar-legend i{display:inline-block;width:8px;height:8px;margin-right:.25rem;border-radius:3px}.wa-calendar-legend .open{background:#bbf7d0;border:1px solid #4ade80}.wa-calendar-legend .closed{background:#f1f5f9;border:1px solid #cbd5e1}
   .wa-time-area{margin-top:.75rem}.wa-time-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:.45rem}.wa-time-heading strong{font-size:.72rem;color:#334155}.wa-time-heading span{font-size:.61rem;color:#64748b}.wa-time-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}.wa-time-slot{min-height:38px;border:1px solid #dbe3ee;border-radius:9px;background:#fff;color:#334155;font-size:.68rem;font-weight:750;transition:.16s ease}.wa-time-slot:hover{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.wa-time-slot.active{border-color:#2563eb;background:#2563eb;color:#fff;box-shadow:0 4px 10px rgba(37,99,235,.2)}.wa-time-empty{grid-column:1/-1;padding:.7rem;border:1px dashed #cbd5e1;border-radius:9px;background:#f8fafc;color:#64748b;font-size:.67rem;text-align:center}.wa-time-group{grid-column:1/-1;margin-top:.2rem;color:#64748b;font-size:.59rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.wa-schedule-summary{display:flex;gap:.55rem;align-items:flex-start;margin-top:.65rem;padding:.65rem;border-radius:9px;background:#ecfdf5;color:#166534;font-size:.68rem}.wa-schedule-summary i{margin-top:.05rem}.wa-schedule-summary strong{display:block;margin-bottom:.1rem}
   .wa-summary{padding:.75rem 1rem;background:#f8fafc;border-top:1px solid #edf2f7}.wa-sum-row{display:flex;justify-content:space-between;font-size:.74rem;color:#64748b;margin:.25rem 0}.wa-sum-row strong{color:#334155}.wa-sum-total{padding-top:.5rem;margin-top:.5rem;border-top:1px dashed #cbd5e1;font-size:.95rem;font-weight:850;color:#0f172a}.wa-submit{width:100%;border:0;border-radius:11px;padding:.75rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:.83rem;font-weight:800;box-shadow:0 5px 14px rgba(37,99,235,.2)}.wa-submit:disabled{opacity:.55;box-shadow:none}.wa-help{font-size:.66rem;color:#64748b;margin:.35rem 0 0}.wa-hidden{display:none!important}
-  @media(max-width:1050px){.wa-layout{grid-template-columns:1fr}.wa-checkout{position:static}.wa-products{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media(max-width:760px){.wa-products{grid-template-columns:1fr 1fr}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}}
+  .wa-modal-backdrop{position:fixed;inset:0;z-index:1060;display:grid;place-items:center;padding:1rem;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:.2s ease}.wa-modal-backdrop.show{opacity:1;visibility:visible}.wa-variant-modal{width:min(590px,100%);max-height:88vh;overflow:auto;border-radius:18px;background:#fff;box-shadow:0 25px 70px rgba(15,23,42,.28);transform:translateY(12px) scale(.98);transition:.2s ease}.wa-modal-backdrop.show .wa-variant-modal{transform:none}.wa-variant-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.15rem;border-bottom:1px solid #e5eaf2}.wa-variant-head h3{margin:0;font-size:1rem;font-weight:850}.wa-variant-product{display:grid;grid-template-columns:100px 1fr;gap:1rem;align-items:center;padding:1rem 1.15rem;background:#f8fafc}.wa-variant-product img{width:100px;height:76px;border-radius:10px;object-fit:cover;background:#fff}.wa-variant-product .placeholder{width:100px;height:76px;display:grid;place-items:center;border-radius:10px;background:#eff6ff;color:#60a5fa;font-size:1.7rem}.wa-variant-product strong{display:block;color:#0f172a}.wa-variant-product span{font-size:.72rem;color:#64748b}.wa-variant-list{display:grid;gap:.55rem;padding:1rem 1.15rem 1.2rem}.wa-variant-option{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:.8rem;width:100%;padding:.75rem .8rem;border:1px solid #dbe3ee;border-radius:11px;background:#fff;text-align:left;transition:.16s ease}.wa-variant-option:hover{border-color:#60a5fa;background:#f8fbff}.wa-variant-capacity strong{display:block;color:#1e293b;font-size:.8rem}.wa-variant-capacity span{color:#64748b;font-size:.64rem}.wa-variant-price{color:#0f172a;font-size:.82rem;font-weight:850}.wa-variant-option .wa-add{pointer-events:none}
+  @media(max-width:1100px){.wa-products{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:760px){.wa-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;padding:.75rem}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}.wa-hero{align-items:flex-start}.wa-cart-launch{padding:.6rem}.wa-cart-launch .label{display:none}.wa-product-body{padding:.75rem}.wa-product h3{font-size:.82rem}.wa-product-meta{font-size:.63rem}.wa-add{padding:.42rem .58rem}}
   @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-time-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-calendar{min-height:205px;padding-left:.35rem;padding-right:.35rem}.wa-weekdays{padding-left:.35rem;padding-right:.35rem}}
 </style>
 
 <section class="wa-shell" aria-labelledby="waTitle">
   <header class="wa-hero">
     <div><h2 id="waTitle">Walk-in Aircon Order</h2><p>Select a unit, collect payment, and assign installation to an available technician in one checkout.</p><div class="wa-flow" aria-label="Aircon order steps"><span><b>1</b>Select unit</span><span><b>2</b>Customer</span><span><b>3</b>Schedule</span><span><b>4</b>Payment</span></div></div>
-    <div class="wa-hero-mark"><i class="bi bi-snow2"></i></div>
+    <button type="button" class="wa-cart-launch" id="waOpenCart"><i class="bi bi-cart3"></i><span class="label">Review cart</span><span id="waHeroCartCount">0</span></button>
   </header>
   <div class="wa-layout">
     <section class="wa-panel">
@@ -39,8 +40,8 @@
       <div class="wa-products" id="waProducts"><div class="wa-empty"><span class="spinner-border spinner-border-sm"></span><p>Loading aircons…</p></div></div>
     </section>
 
-    <aside class="wa-panel wa-checkout">
-      <div class="wa-checkout-head"><div><h3><i class="bi bi-cart3 me-2 text-primary"></i>Order checkout</h3><span class="wa-checkout-sub">Complete the details below, then review the total.</span></div><span class="wa-count" id="waCartCount" aria-label="Cart unit count">0</span></div>
+    <aside class="wa-panel wa-checkout" id="waCartDrawer" role="dialog" aria-modal="true" aria-labelledby="waCartTitle" aria-hidden="true">
+      <div class="wa-checkout-head"><div><h3 id="waCartTitle"><i class="bi bi-cart3 me-2 text-primary"></i>Order checkout</h3><span class="wa-checkout-sub">Complete the details below, then review the total.</span></div><div class="wa-checkout-actions"><span class="wa-count" id="waCartCount" aria-label="Cart unit count">0</span><button type="button" class="wa-drawer-close" id="waCloseCart" aria-label="Close cart"><i class="bi bi-x-lg"></i></button></div></div>
       <div class="wa-cart" id="waCart"><div class="wa-empty" style="padding:1.5rem .5rem"><i class="bi bi-cart"></i><p class="mb-0">Select an aircon to begin.</p></div></div>
       <form class="wa-form" id="waCheckoutForm" novalidate>
         <section class="wa-section">
@@ -110,6 +111,14 @@
       </form>
     </aside>
   </div>
+  <div class="wa-drawer-backdrop" id="waCartBackdrop" aria-hidden="true"></div>
+
+  <div class="wa-modal-backdrop" id="waVariantBackdrop" aria-hidden="true">
+    <section class="wa-variant-modal" role="dialog" aria-modal="true" aria-labelledby="waVariantTitle">
+      <header class="wa-variant-head"><h3 id="waVariantTitle">Select capacity</h3><button type="button" class="wa-drawer-close" id="waCloseVariant" aria-label="Close capacity selector"><i class="bi bi-x-lg"></i></button></header>
+      <div id="waVariantContent"></div>
+    </section>
+  </div>
 </section>
 
 <script>
@@ -134,6 +143,22 @@
   function toast(message, type = "info") {
     if (window.Swal) return Swal.fire({ icon: type === "danger" ? "error" : type, title: type === "success" ? "Order created" : "Walk-in aircon order", text: message, confirmButtonColor: "#2563eb" });
     window.alert(message);
+  }
+
+  function openCart() {
+    $("waCartDrawer").classList.add("show");
+    $("waCartDrawer").setAttribute("aria-hidden", "false");
+    $("waCartBackdrop").classList.add("show");
+    document.body.style.overflow = "hidden";
+    $("waCloseCart").focus();
+  }
+
+  function closeCart() {
+    $("waCartDrawer").classList.remove("show");
+    $("waCartDrawer").setAttribute("aria-hidden", "true");
+    $("waCartBackdrop").classList.remove("show");
+    if (!$("waVariantBackdrop").classList.contains("show")) document.body.style.overflow = "";
+    $("waOpenCart").focus();
   }
 
   document.querySelectorAll("[data-walkin-mode]").forEach(button => button.addEventListener("click", () => {
@@ -181,15 +206,36 @@
     if (!groups.length) { $("waProducts").innerHTML = '<div class="wa-empty"><i class="bi bi-snow"></i><p>No available aircons match this search.</p></div>'; return; }
     $("waProducts").innerHTML = groups.map(([id, variants]) => {
       const first = variants[0];
-      const options = variants.map(item => `<option value="${esc(item._id)}">${esc(item.capacity)} ${esc(item.capacityUnit)} · ${money(item.sellingPrice)} · ${item.available} left</option>`).join("");
-      return `<article class="wa-product" data-product="${esc(id)}"><div class="wa-product-image">${first.imageUrl ? `<img src="${esc(first.imageUrl)}" alt="${esc(first.modelLine)}" loading="lazy">` : '<i class="bi bi-snow2"></i>'}</div><div class="wa-product-body"><span class="wa-brand">${esc(first.brand || "Air conditioner")}</span><h3>${esc(first.modelLine)}</h3><div class="wa-chips"><span class="wa-chip">${esc(first.type || "Aircon")}</span>${first.inverter ? '<span class="wa-chip">Inverter</span>' : ""}</div><select class="wa-variant">${options}</select><div class="wa-price-row"><div><div class="wa-price">${money(first.sellingPrice)}</div><div class="wa-stock">${first.available} in stock</div></div><button type="button" class="wa-add"><i class="bi bi-plus-lg"></i> Add</button></div></div></article>`;
+      const startingPrice = Math.min(...variants.map(item => Number(item.sellingPrice || 0)));
+      const totalStock = variants.reduce((sum, item) => sum + Number(item.available || 0), 0);
+      const typeLabel = String(first.type || "Aircon").replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+      const capacityLabel = variants.length === 1 ? `${first.capacity} ${first.capacityUnit}` : `${variants.length} capacity options`;
+      return `<article class="wa-product" data-product="${esc(id)}"><div class="wa-product-image">${first.imageUrl ? `<img src="${esc(first.imageUrl)}" alt="${esc(first.brand)} ${esc(first.modelLine)}" loading="lazy" onerror="this.src='/images/products/default.png'">` : '<i class="bi bi-snow2"></i>'}${first.inverter ? '<span class="wa-product-tag inverter">Inverter</span>' : ""}<span class="wa-product-tag stock">${totalStock} in stock</span></div><div class="wa-product-body"><span class="wa-brand">${esc(first.brand || "Air conditioner")}</span><h3>${esc(first.modelLine)}</h3><div class="wa-product-meta"><span>${esc(typeLabel)}</span><span class="wa-product-dot">•</span><span>${esc(capacityLabel)}</span></div><div class="wa-price-row"><div class="wa-price">${variants.length > 1 ? "<small>From</small>" : ""}${money(startingPrice)}</div><button type="button" class="wa-add" data-select-product="${esc(id)}">Select unit <i class="bi bi-arrow-right"></i></button></div></div></article>`;
     }).join("");
-    $("waProducts").querySelectorAll(".wa-product").forEach(card => {
-      const select = card.querySelector(".wa-variant");
-      const sync = () => { const item = state.products.find(row => row._id === select.value); card.querySelector(".wa-price").textContent = money(item?.sellingPrice); card.querySelector(".wa-stock").textContent = `${item?.available || 0} in stock`; };
-      select.addEventListener("change", sync);
-      card.querySelector(".wa-add").addEventListener("click", () => addToCart(select.value));
-    });
+    $("waProducts").querySelectorAll("[data-select-product]").forEach(button => button.addEventListener("click", () => openVariantPicker(button.dataset.selectProduct)));
+  }
+
+  function openVariantPicker(productId) {
+    const variants = state.products.filter(item => String(item.parentHvacId) === String(productId));
+    if (!variants.length) return;
+    const first = variants[0];
+    $("waVariantTitle").textContent = `Select ${first.modelLine} capacity`;
+    $("waVariantContent").innerHTML = `<div class="wa-variant-product">${first.imageUrl ? `<img src="${esc(first.imageUrl)}" alt="${esc(first.modelLine)}" onerror="this.src='/images/products/default.png'">` : '<div class="placeholder"><i class="bi bi-snow2"></i></div>'}<div><span class="wa-brand">${esc(first.brand || "Air conditioner")}</span><strong>${esc(first.modelLine)}</strong><span>${esc(String(first.type || "Aircon").replace(/_/g, " "))}${first.inverter ? " · Inverter" : ""}</span></div></div><div class="wa-variant-list">${variants.map(item => `<button type="button" class="wa-variant-option" data-add-variant="${esc(item._id)}"><span class="wa-variant-capacity"><strong>${esc(item.capacity)} ${esc(item.capacityUnit)}</strong><span>${item.btu ? `${Number(item.btu).toLocaleString("en-PH")} BTU · ` : ""}${item.available} unit${item.available === 1 ? "" : "s"} available</span></span><span class="wa-variant-price">${money(item.sellingPrice)}</span><span class="wa-add"><i class="bi bi-cart-plus"></i>Add</span></button>`).join("")}</div>`;
+    $("waVariantContent").querySelectorAll("[data-add-variant]").forEach(button => button.addEventListener("click", () => {
+      addToCart(button.dataset.addVariant);
+      closeVariantPicker();
+      openCart();
+    }));
+    $("waVariantBackdrop").classList.add("show");
+    $("waVariantBackdrop").setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    $("waCloseVariant").focus();
+  }
+
+  function closeVariantPicker() {
+    $("waVariantBackdrop").classList.remove("show");
+    $("waVariantBackdrop").setAttribute("aria-hidden", "true");
+    if (!$("waCartDrawer").classList.contains("show")) document.body.style.overflow = "";
   }
 
   function addToCart(id) {
@@ -198,6 +244,8 @@
     if (existing) { if (existing.quantity >= item.available) return toast("No more stock is available for this capacity.", "danger"); existing.quantity++; }
     else state.cart.push({ ...item, quantity: 1 });
     scheduleInputsChanged(); renderCart();
+    $("waOpenCart").classList.remove("bump");
+    requestAnimationFrame(() => $("waOpenCart").classList.add("bump"));
   }
 
   function changeQuantity(id, delta) {
@@ -217,7 +265,7 @@
   }
 
   function renderCart() {
-    const units = state.cart.reduce((sum, item) => sum + item.quantity, 0); $("waCartCount").textContent = units;
+    const units = state.cart.reduce((sum, item) => sum + item.quantity, 0); $("waCartCount").textContent = units; $("waHeroCartCount").textContent = units;
     $("waCart").innerHTML = state.cart.length ? state.cart.map(item => `<div class="wa-cart-item"><div><div class="wa-cart-name">${esc(item.brand)} ${esc(item.modelLine)}</div><div class="wa-cart-meta">${esc(item.capacity)} ${esc(item.capacityUnit)} · ${money(item.sellingPrice)}</div><div class="wa-cart-controls mt-1"><button type="button" data-id="${esc(item._id)}" data-delta="-1">−</button><span>${item.quantity}</span><button type="button" data-id="${esc(item._id)}" data-delta="1">+</button></div></div><div class="wa-cart-total">${money(item.sellingPrice * item.quantity)}</div></div>`).join("") : '<div class="wa-empty" style="padding:1.5rem .5rem"><i class="bi bi-cart"></i><p class="mb-0">Select an aircon to begin.</p></div>';
     $("waCart").querySelectorAll("[data-delta]").forEach(button => button.addEventListener("click", () => changeQuantity(button.dataset.id, Number(button.dataset.delta))));
     renderTotals();
@@ -328,9 +376,14 @@
     const requestId = ++state.scheduleRequest;
     setCalendarStatus("Checking the technician's latest schedule…", "info", true);
     try {
-      const params = new URLSearchParams({ duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId });
+      const params = new URLSearchParams({ duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId, mode:"all" });
       const data = await jsonFetch(`/api/schedule/available-dates?${params}`);
       if (requestId !== state.scheduleRequest) return;
+      if (data.blocked) {
+        state.availableDates.clear();
+        renderAvailabilityCalendar();
+        return setCalendarStatus(data.message || "This order cannot fit within one technician workday.", "error");
+      }
       state.availableDates = new Map((data.availableDates || []).map(row => [String(row.date).slice(0, 10), row]));
       const openDates = [...state.availableDates.entries()].filter(([, row]) => Number(row.availableSlots || 0) > 0).map(([key]) => key).sort();
       if (openDates.length && !openDates.some(key => monthKey(localDate(key)) === monthKey(state.calendarMonth))) {
@@ -357,7 +410,10 @@
     let currentGroup = "";
     const html = [];
     slots.forEach(slot => {
-      const hour = Number(String(slot.startTime || "0").split(":")[0]);
+      const timeValue = String(slot.startTime || "0");
+      let hour = Number(timeValue.split(":")[0]);
+      if (/PM$/i.test(timeValue) && hour < 12) hour += 12;
+      if (/AM$/i.test(timeValue) && hour === 12) hour = 0;
       const group = hour < 12 ? "Morning" : (hour < 17 ? "Afternoon" : "Evening");
       if (group !== currentGroup) { html.push(`<div class="wa-time-group">${group}</div>`); currentGroup = group; }
       const label = slot.label || slot.startTime;
@@ -388,6 +444,10 @@
       const params = new URLSearchParams({ date, duration:"60", quantity:String(state.cart.reduce((sum,item)=>sum+item.quantity,0)), travelTime:String(Number(state.quote.durationMin || 0)), technicianId:$("waTechnician").value });
       const data = await jsonFetch(`/api/schedule/time-slots?${params}`); const slots = (data.timeSlots || []).filter(slot => slot.available === true);
       if (requestId !== state.slotRequest) return;
+      if (!slots.length && data.message) {
+        $("waTimeSlots").innerHTML = `<div class="wa-time-empty text-danger"><i class="bi bi-calendar-x me-1"></i>${esc(data.message)}</div>`;
+        return;
+      }
       renderTimeSlots(slots);
     } catch (error) {
       if (requestId !== state.slotRequest) return;
@@ -416,6 +476,7 @@
       const result = await jsonFetch("/api/walk-in-aircon/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const ref = result.order?.orderReference || "Order"; await toast(`${ref} was created and paid.${state.fulfillment === "delivery_installation" ? " The technician was assigned and the calendar was reserved." : ""}`, "success");
       state.cart = []; state.quote = {}; state.date = ""; state.checkoutId = uuid(); $("waCheckoutForm").reset(); setFulfillment("delivery_installation"); renderCart(); await initializeAfterCheckout();
+      closeCart();
     } catch (err) { toast(err.message || "Checkout failed.", "danger"); }
     finally { button.disabled = !state.cart.length; button.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Create paid order'; }
   }
@@ -453,6 +514,16 @@
   });
   $("waCalendarPrev").addEventListener("click", () => moveCalendarMonth(-1));
   $("waCalendarNext").addEventListener("click", () => moveCalendarMonth(1));
+  $("waOpenCart").addEventListener("click", openCart);
+  $("waCloseCart").addEventListener("click", closeCart);
+  $("waCartBackdrop").addEventListener("click", closeCart);
+  $("waCloseVariant").addEventListener("click", closeVariantPicker);
+  $("waVariantBackdrop").addEventListener("click", event => { if (event.target === $("waVariantBackdrop")) closeVariantPicker(); });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    if ($("waVariantBackdrop").classList.contains("show")) closeVariantPicker();
+    else if ($("waCartDrawer").classList.contains("show")) closeCart();
+  });
   $("waCheckoutForm").addEventListener("submit", submit);
   const tomorrow = new Date(Date.now() + 86400000);
   $("waPickupDate").min = tomorrow.toISOString().slice(0,10);

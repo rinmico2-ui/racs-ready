@@ -23,6 +23,7 @@ const {
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
+const { addMinutesToClock } = require("../utils/clockTime");
 
 router.use(auth.authenticate, auth.requireRole("admin"));
 
@@ -96,13 +97,6 @@ function normalizedSerialNumbers(values) {
     throw posOrderError("Every aircon unit must have a unique serial number.", 400, "POS_SERIAL_DUPLICATE");
   }
   return result;
-}
-
-function addMinutesToTime(value, minutes) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
-  if (!match) return "";
-  const total = ((Number(match[1]) * 60 + Number(match[2]) + Math.max(1, Number(minutes) || 60)) % 1440 + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -633,7 +627,7 @@ async function checkoutAirconOrder(req, res) {
         },
         bookingDate: delivery.preferredDate,
         startTime: timeSlot,
-        endTime: addMinutesToTime(timeSlot, serviceDurationMinutes),
+        endTime: addMinutesToClock(timeSlot, serviceDurationMinutes),
         selectedTimeLabel: timeSlot,
         status: "scheduled",
         serviceType: "core",
@@ -660,7 +654,7 @@ async function checkoutAirconOrder(req, res) {
           schedule: {
             date: delivery.preferredDate,
             startTime: timeSlot,
-            endTime: addMinutesToTime(timeSlot, serviceDurationMinutes),
+            endTime: addMinutesToClock(timeSlot, serviceDurationMinutes),
             durationMinutes: serviceDurationMinutes,
             kind: "service",
           },
