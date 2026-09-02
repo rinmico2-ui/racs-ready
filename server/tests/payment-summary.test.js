@@ -2,6 +2,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { summarizeBookingPayments, reconcileBookingPayments } = require("../utils/paymentSummary");
 
+test("remittance evidence exceptions do not reopen the customer's paid balance", () => {
+  for (const status of ["rejected", "unaccounted"]) {
+    const summary = reconcileBookingPayments(
+      { totalPrice: 1000, amountPaid: 1000, balanceAmount: 0, balanceCollected: true, paymentStatus: "waiting_for_remittance" },
+      [{ amount: 1000, type: "final", method: "cash", status }],
+    );
+    assert.equal(summary.ledgerCollected, 1000);
+    assert.equal(summary.outstandingFromLedger, 0);
+  }
+});
+
 test("pending payment is reported as submitted but not refundable", () => {
   const result = summarizeBookingPayments(
     { paymentStatus: "pending", paymentMethod: "cod" },

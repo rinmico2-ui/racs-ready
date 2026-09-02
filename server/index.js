@@ -259,6 +259,11 @@ app.use(
   apiAuth.requireRole(["admin", "secretary"]),
 );
 app.use(
+  "/uploads/remittance-proofs",
+  apiAuth.authenticate,
+  apiAuth.requireRole(["admin", "secretary", "technician"]),
+);
+app.use(
   [
     "/uploads/repairs",
     "/uploads/repair-photos",

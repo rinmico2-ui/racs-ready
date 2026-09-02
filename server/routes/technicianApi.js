@@ -19,9 +19,10 @@ const { dayBounds: dailyKitDayBounds, syncDailyKit, confirmDailyKit } = require(
 const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
 const { getRepairLaborFees, normalizeRepairComplexity } = require('../utils/repairLaborPricing');
 const { isBookingPast } = require('../utils/bookingPolicy');
-const { imageExtensionFor, isAllowedImage } = require('../utils/uploadSecurity');
+const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require('../utils/uploadSecurity');
 const { escapeRegex } = require('../utils/stringSecurity');
 const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
+const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remittancePolicy');
 
 async function configuredBookingWarranty(booking, completedAt) {
   return buildBookingWarrantyCoverage(booking, completedAt);
@@ -75,6 +76,17 @@ const expenseReceiptUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, isAllowedImage(file) || file.mimetype === "application/pdf"),
 }).single("receipt");
+
+const remittanceProofDir = path.join(__dirname, "../public/uploads/remittance-proofs");
+if (!fs.existsSync(remittanceProofDir)) fs.mkdirSync(remittanceProofDir, { recursive: true });
+const remittanceProofUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, remittanceProofDir),
+    filename: (req, file, cb) => cb(null, `remittance-${req.params.id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${imageExtensionFor(file)}`),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, isAllowedImage(file)),
+}).single("proof");
 
 /**
  * Parse a time string to minutes-from-midnight.
@@ -677,6 +689,18 @@ router.put("/appointments/:id/service-items/:itemId/report", async (req, res, ne
 
 // Technician-owned remittance queue. A technician can only view and remit
 // payments they personally collected; verification remains admin-only.
+async function findOwnedRemittance(tech, paymentId) {
+  const Payment = require("../models/Payment");
+  const BookingService = require("../models/BookingService");
+  if (!mongoose.Types.ObjectId.isValid(paymentId)) return null;
+  let payment = await Payment.findOne({ _id: paymentId, collectedBy: tech._id });
+  if (payment) return payment;
+  const legacyPayment = await Payment.findOne({ _id: paymentId, status: "paid", collectedBy: { $in: [null] } });
+  if (!legacyPayment?.bookingId) return null;
+  const ownsBooking = await BookingService.exists({ _id: legacyPayment.bookingId, technicianId: tech._id });
+  return ownsBooking ? legacyPayment : null;
+}
+
 router.get("/remittances", async (req, res, next) => {
   try {
     const Technician = require("../models/Technician");
@@ -712,6 +736,37 @@ router.get("/remittances", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.post("/remittances/:id/proof", async (req, res, next) => {
+  try {
+    const Technician = require("../models/Technician");
+    const tech = await Technician.findOne({ user: req.user._id });
+    if (!tech) return res.status(404).json({ error: "Technician record not found" });
+    const payment = await findOwnedRemittance(tech, req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment collection not found" });
+    if (!["waiting_for_remittance", "rejected", "paid"].includes(payment.status)) {
+      return res.status(409).json({ error: "This remittance is no longer awaiting your submission." });
+    }
+    remittanceProofUpload(req, res, async (error) => {
+      if (error) {
+        const tooLarge = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE";
+        return res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? "Proof image must be 5 MB or smaller." : "Upload a valid JPG, PNG, or WEBP image." });
+      }
+      if (!req.file) return res.status(400).json({ error: "Select a JPG, PNG, or WEBP proof image." });
+      let hasValidSignature = false;
+      try {
+        hasValidSignature = await hasValidStoredImageSignature(req.file);
+      } catch (_validationError) {
+        hasValidSignature = false;
+      }
+      if (!hasValidSignature) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: "The uploaded file content is not a valid JPG, PNG, or WEBP image." });
+      }
+      return res.status(201).json({ proofUrl: `/uploads/remittance-proofs/${req.file.filename}` });
+    });
+  } catch (err) { next(err); }
+});
+
 router.post("/remittances/:id/submit", async (req, res, next) => {
   try {
     const Technician = require("../models/Technician");
@@ -721,18 +776,17 @@ router.post("/remittances/:id/submit", async (req, res, next) => {
     const Project = require("../models/Project");
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-    let payment = await Payment.findOne({ _id: req.params.id, collectedBy: tech._id });
-    if (!payment) {
-      const legacyPayment = await Payment.findOne({ _id: req.params.id, status: "paid" });
-      if (legacyPayment?.bookingId && !legacyPayment.collectedBy) {
-        const ownsBooking = await BookingService.exists({ _id: legacyPayment.bookingId, technicianId: tech._id });
-        if (ownsBooking) payment = legacyPayment;
-      }
-    }
+    const payment = await findOwnedRemittance(tech, req.params.id);
     if (!payment) return res.status(404).json({ error: "Payment collection not found" });
-    if (!["waiting_for_remittance", "paid"].includes(payment.status)) return res.status(409).json({ error: `Payment is already ${String(payment.status).replace(/_/g, " ")}.` });
+    const submission = assertTechnicianSubmission(payment, req.body);
     const now = new Date();
+    const previousStatus = payment.status;
     payment.status = "remitted";
+    if (previousStatus === "rejected") {
+      payment.rejectedBy = undefined;
+      payment.rejectedAt = undefined;
+      payment.rejectionReason = undefined;
+    }
     if (payment.resolutionType === "recovery") {
       payment.resolutionType = null;
       payment.resolvedBy = undefined;
@@ -746,10 +800,13 @@ router.post("/remittances/:id/submit", async (req, res, next) => {
     payment.remittedBy = req.user._id;
     payment.remittedByTechnician = tech._id;
     payment.remittedAt = now;
-    payment.remittanceNotes = String(req.body?.notes || "").trim().slice(0, 1000);
-    payment.remittanceProofUrl = req.body?.proofUrl || undefined;
-    payment.remittanceLocation = req.body?.location || undefined;
-    payment.events.push({ status: "remitted", actor: req.user._id, actorName: tech.name, actorRole: "technician", note: payment.remittanceNotes || "Submitted to admin for verification", at: now, metadata: { proofProvided: Boolean(payment.remittanceProofUrl) } });
+    payment.remittanceMethod = submission.method;
+    payment.remittanceReference = submission.reference || undefined;
+    payment.remittanceNotes = submission.notes;
+    payment.remittanceProofUrl = submission.proofUrl;
+    payment.remittanceLocation = normalizeLocation(req.body?.location);
+    payment.events = payment.events || [];
+    payment.events.push({ status: "remitted", actor: req.user._id, actorName: tech.name, actorRole: "technician", note: payment.remittanceNotes, at: now, metadata: { proofProvided: true, remittanceMethod: submission.method, remittanceReference: submission.reference || undefined, resubmission: previousStatus === "rejected" } });
     await payment.save();
     const update = { paymentStatus: "remitted" };
     if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, update);
@@ -1641,7 +1698,7 @@ router.post("/attendance/checkout", async (req, res, next) => {
     const Payment = require("../models/Payment");
     const waitingRemittances = await Payment.find({
       collectedBy: tech._id,
-      status: "waiting_for_remittance",
+      status: { $in: ["waiting_for_remittance", "rejected"] },
     }).select("amount method").lean();
     if (waitingRemittances.length > 0) {
       const totalAmount = waitingRemittances.reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -2422,9 +2479,9 @@ router.get("/dashboard/overview", async (req, res, next) => {
     const Order = require("../models/Order");
     const todayEnd = new Date(today); todayEnd.setHours(23, 59, 59, 999);
     const [waitingRemittances, remittanceTotalAgg, expensesLoggedToday, activeOrders] = await Promise.all([
-      Payment.countDocuments({ collectedBy: techId, status: "waiting_for_remittance" }),
+      Payment.countDocuments({ collectedBy: techId, status: { $in: ["waiting_for_remittance", "rejected"] } }),
       Payment.aggregate([
-        { $match: { collectedBy: tech._id, status: "waiting_for_remittance" } },
+        { $match: { collectedBy: tech._id, status: { $in: ["waiting_for_remittance", "rejected"] } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       Expense.countDocuments({ technicianId: techId, expenseDate: { $gte: today, $lte: todayEnd } }),

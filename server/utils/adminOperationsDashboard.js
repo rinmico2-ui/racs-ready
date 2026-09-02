@@ -162,6 +162,7 @@ function buildSnapshot(source, now = new Date()) {
   const bookingPipeline = groupCount(source.bookingPipeline);
   const orderPipeline = groupCount(source.orderPipeline);
   const remittance = groupCount(source.remittanceCounts);
+  const overdueRecoveries = source.overdueRecoveries || [];
   const remittanceAmounts = (source.remittanceCounts || []).reduce((map, row) => {
     map[row._id || "unknown"] = money(row.amount);
     return map;
@@ -177,7 +178,7 @@ function buildSnapshot(source, now = new Date()) {
   const reviewTotal = bookingReviewRows.length + actionableOrders.length + Number(source.noShowPending || 0);
   const overdueReviewTotal = overdueBookings.length + overdueOrders.length;
   const remittanceActionCount = Number(remittance.waiting_for_remittance || 0)
-    + Number(remittance.remitted || 0) + Number(remittance.rejected || 0);
+    + Number(remittance.remitted || 0) + Number(remittance.rejected || 0) + Number(remittance.unaccounted || 0);
 
   const priorities = [
     overdueBookings.length && { tone: "danger", label: `${overdueBookings.length} overdue booking review${overdueBookings.length === 1 ? "" : "s"}`, href: "/admin/operations/resolution-center?source=booking" },
@@ -185,6 +186,8 @@ function buildSnapshot(source, now = new Date()) {
     equipment.overdue && { tone: "danger", label: `${equipment.overdue} overdue equipment return${equipment.overdue === 1 ? "" : "s"}`, href: "/admin/inventory/equipment-returns?state=overdue" },
     remittance.waiting_for_remittance && { tone: "warning", label: `${remittance.waiting_for_remittance} collection${remittance.waiting_for_remittance === 1 ? "" : "s"} still held by technicians`, href: "/admin/payments/remittance?status=waiting_for_remittance" },
     remittance.remitted && { tone: "warning", label: `${remittance.remitted} remittance${remittance.remitted === 1 ? "" : "s"} awaiting admin verification`, href: "/admin/payments/remittance?status=remitted" },
+    remittance.unaccounted && { tone: "danger", label: `${remittance.unaccounted} unaccounted payment${remittance.unaccounted === 1 ? "" : "s"} — violation issued`, href: "/admin/payments/remittance?status=unaccounted" },
+    overdueRecoveries.length && { tone: "danger", label: `${overdueRecoveries.length} recovery payment${overdueRecoveries.length === 1 ? "" : "s"} overdue — follow-up past due`, href: "/admin/payments/remittance?status=waiting_for_remittance" },
     attendance.absent && { tone: "warning", label: `${attendance.absent} active technician${attendance.absent === 1 ? "" : "s"} without a valid check-in`, href: "/admin/staff/attendance" },
   ].filter(Boolean);
 
@@ -226,6 +229,9 @@ function buildSnapshot(source, now = new Date()) {
       awaitingAdmin: Number(remittance.remitted || 0),
       awaitingAdminAmount: money(remittanceAmounts.remitted),
       rejected: Number(remittance.rejected || 0),
+      unaccounted: Number(remittance.unaccounted || 0),
+      unaccountedAmount: money(remittanceAmounts.unaccounted),
+      overdueRecoveries: overdueRecoveries.length,
       actionCount: remittanceActionCount,
       recent: source.recentRemittances || [],
     },
@@ -256,7 +262,7 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     bookingsCompletedToday, ordersDueToday, ordersCreatedToday, ordersCompletedToday,
     bookingReviewRows, orderReviewRows, noShowPending,
     cancellations, paymentRows, remittanceCounts, recentRemittanceDocs,
-    equipmentRows, technicians, attendanceRecords, leaves,
+    equipmentRows, technicians, attendanceRecords, leaves, overdueRecoveries,
   ] = await Promise.all([
     BookingService.aggregate([{ $match: independentBookingFilter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
     Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
@@ -282,10 +288,10 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     Payment.find({ status: { $in: [...RECEIVED_PAYMENT_STATUSES] }, ...paymentDateQuery })
       .select("amount status collectedAt verifiedAt completedAt submittedAt refundedAt refundAmount").lean(),
     Payment.aggregate([
-      { $match: { status: { $in: ["waiting_for_remittance", "remitted", "rejected"] } } },
+      { $match: { $or: [{ status: { $in: ["waiting_for_remittance", "remitted", "rejected"] } }, { status: "unaccounted", resolvedAt: null }] } },
       { $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } },
     ]),
-    Payment.find({ status: { $in: ["waiting_for_remittance", "remitted", "rejected"] } })
+    Payment.find({ $or: [{ status: { $in: ["waiting_for_remittance", "remitted", "rejected"] } }, { status: "unaccounted", resolvedAt: null }] })
       .populate("bookingId", "bookingReference customer.name")
       .populate("orderId", "orderReference customer.name")
       .populate("collectedBy", "name")
@@ -295,6 +301,12 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     Technician.find({ active: { $ne: false } }).select("name").lean(),
     TechnicianAttendance.find({ date: day }).lean(),
     LeaveRequest.find({ status: "approved", startDate: { $lte: bounds.endOfDay }, endDate: { $gte: bounds.startOfDay } }).select("technicianId reason").lean(),
+    // Overdue recoveries: payments with recovery follow-up date past due
+    Payment.find({ status: "waiting_for_remittance", resolutionType: "recovery", recoveryFollowUpDate: { $lt: now } })
+      .populate("bookingId", "bookingReference customer.name")
+      .populate("orderId", "orderReference customer.name")
+      .populate("collectedBy", "name")
+      .sort({ recoveryFollowUpDate: 1 }).lean(),
   ]);
 
   const recentRemittances = recentRemittanceDocs.map(payment => ({
@@ -312,7 +324,7 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     bookingsCompletedToday, ordersDueToday, ordersCreatedToday, ordersCompletedToday,
     bookingReviewRows, orderReviewRows, linkedOrderBookingIds, noShowPending,
     cancellations, paymentRows, remittanceCounts, recentRemittances,
-    equipmentRows, technicians, attendanceRecords, leaves,
+    equipmentRows, technicians, attendanceRecords, leaves, overdueRecoveries,
   }, now);
 }
 

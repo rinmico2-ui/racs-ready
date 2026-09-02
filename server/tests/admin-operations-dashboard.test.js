@@ -19,12 +19,13 @@ test("collections use ledger event dates and report gross, refunds, and net sepa
   };
   const summary = summarizeCollections([
     { status: "waiting_for_remittance", amount: 1000, collectedAt: new Date("2026-08-29T09:00:00+08:00") },
+    { status: "unaccounted", amount: 250, collectedAt: new Date("2026-08-29T09:10:00+08:00") },
     { status: "verified", amount: 500, verifiedAt: new Date("2026-08-20T09:00:00+08:00"), refundedAt: new Date("2026-08-29T09:30:00+08:00"), refundAmount: 200 },
     { status: "pending", amount: 9999, submittedAt: new Date("2026-08-29T08:00:00+08:00") },
   ], bounds);
 
-  assert.deepEqual(summary.today, { gross: 1000, refunds: 200, net: 800, transactions: 1 });
-  assert.deepEqual(summary.month, { gross: 1500, refunds: 200, net: 1300, transactions: 2 });
+  assert.deepEqual(summary.today, { gross: 1250, refunds: 200, net: 1050, transactions: 2 });
+  assert.deepEqual(summary.month, { gross: 1750, refunds: 200, net: 1550, transactions: 3 });
 });
 
 test("attendance distinguishes presence, leave, absence, and verification exceptions", () => {
@@ -73,7 +74,8 @@ test("operations snapshot separates source orders from their linked booking proj
     orderReviewRows: [{ status: "preparing_unit", fulfillmentType: "delivery_only", delivery: { preferredDate: new Date("2026-08-28T08:00:00+08:00") } }],
     noShowPending: 1,
     cancellations: [{ jobs: 3, events: 5, escalated: 1 }],
-    remittanceCounts: [{ _id: "waiting_for_remittance", count: 2, amount: 3000 }, { _id: "remitted", count: 1, amount: 700 }],
+    remittanceCounts: [{ _id: "waiting_for_remittance", count: 2, amount: 3000 }, { _id: "remitted", count: 1, amount: 700 }, { _id: "unaccounted", count: 1, amount: 900 }],
+    overdueRecoveries: [{ _id: "recovery-1" }],
     paymentRows: [], equipmentRows: [], technicians: [], attendanceRecords: [], leaves: [],
   };
   const snapshot = buildSnapshot(source, NOW);
@@ -83,7 +85,8 @@ test("operations snapshot separates source orders from their linked booking proj
   assert.equal(snapshot.review.noShow, 1);
   assert.equal(snapshot.review.total, 3);
   assert.equal(snapshot.review.overdue, 2);
-  assert.equal(snapshot.remittance.actionCount, 3);
+  assert.equal(snapshot.remittance.actionCount, 4);
+  assert.equal(snapshot.remittance.overdueRecoveries, 1);
   assert.equal(snapshot.cancellations.events, 5);
   assert.ok(snapshot.priorities.some(row => /overdue booking review/.test(row.label)));
   assert.ok(snapshot.priorities.some(row => /overdue order review/.test(row.label)));

@@ -5,6 +5,11 @@ const RECEIVED_PAYMENT_STATUSES = new Set([
   "payment_collected",
   "partial",
   "waiting_for_remittance",
+  // These are treasury/custody exceptions, not customer-payment reversals.
+  // The customer has still paid even when the technician's handover evidence
+  // is rejected or the collected funds are escalated as unaccounted.
+  "rejected",
+  "unaccounted",
   "refunded",
 ]);
 

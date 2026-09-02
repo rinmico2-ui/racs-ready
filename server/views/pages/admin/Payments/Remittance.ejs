@@ -1,11 +1,10 @@
-<div class="main-content"><div class="admin-dashboard container-fluid py-4 inventory-premium">
+<div class="main-content">
+<div class="admin-dashboard container-fluid py-4 inventory-premium">
   <style>
-    /* KPI cards */
     .inventory-premium .dash-card {
       background: #fff; border-radius: 18px; padding: 1.25rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      border: 1px solid #f1f5f9; transition: transform .2s ease, box-shadow .2s ease;
-      height: 100%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #f1f5f9;
+      transition: transform .2s ease, box-shadow .2s ease; height: 100%;
     }
     .inventory-premium .dash-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
     .inventory-premium .kpi-title { font-size: 0.75rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
@@ -16,9 +15,7 @@
     .inventory-premium .kpi-icon i { color: #fff !important; font-size: 1.3rem; }
     .inventory-premium .kpi-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
     .inventory-premium .kpi-trend i { font-size: 0.7rem; }
-    .inventory-premium .dash-card { display: flex; flex-direction: column; }
 
-    /* Toolbar */
     .inventory-premium .rp-toolbar {
       background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;
       padding: 16px 20px; margin-bottom: 20px;
@@ -31,23 +28,19 @@
     .inventory-premium .rp-filter-group .form-select { background-position: right .6rem center; }
     .inventory-premium .rp-filter-btn { height: 42px; border-radius: 10px; padding: 0 20px; font-weight: 600; }
 
-    /* Subtle badges */
     .inventory-premium .bg-success-subtle { background-color: rgba(16, 185, 129, 0.15); }
     .inventory-premium .bg-info-subtle { background-color: rgba(8, 145, 178, 0.15); }
     .inventory-premium .bg-warning-subtle { background-color: rgba(245, 158, 11, 0.15); }
     .inventory-premium .bg-danger-subtle { background-color: rgba(220, 38, 38, 0.15); }
     .inventory-premium .bg-primary-subtle { background-color: rgba(59, 130, 246, 0.15); }
     .inventory-premium .bg-secondary-subtle { background-color: rgba(100, 116, 139, 0.15); }
+    .inventory-premium .bg-dark-subtle { background-color: rgba(15, 23, 42, 0.15); }
 
-    /* Dense table */
     .inventory-premium .table-dense th, .inventory-premium .table-dense td { padding: 0.65rem 0.85rem; font-size: 0.85rem; vertical-align: middle; }
     .inventory-premium .table-dense thead th { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #475569; }
     .inventory-premium .table-dense .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 
-    /* Pagination */
-    .inv-pagination {
-      display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none;
-    }
+    .inv-pagination { display: flex; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
     .inv-pagination .page-item .page-link {
       padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3);
       background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem;
@@ -55,6 +48,29 @@
     }
     .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
     .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+
+    .rem-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .rem-detail-section { background: #f8fafc; border-radius: 12px; padding: 1rem 1.25rem; border: 1px solid #e2e8f0; }
+    .rem-detail-section h6 { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+    .rem-detail-row { display: flex; justify-content: space-between; padding: 0.35rem 0; font-size: 0.85rem; }
+    .rem-detail-row .label { color: #64748b; font-weight: 500; }
+    .rem-detail-row .value { color: #0f172a; font-weight: 600; }
+
+    .rem-timeline { position: relative; padding-left: 1.5rem; }
+    .rem-timeline::before { content: ''; position: absolute; left: 0.4rem; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
+    .rem-timeline-item { position: relative; margin-bottom: 0.75rem; padding-left: 0.5rem; }
+    .rem-timeline-item::before { content: ''; position: absolute; left: -1.1rem; top: 0.4rem; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; }
+    .rem-timeline-item.tl-collected::before { border-color: #3b82f6; background: #dbeafe; }
+    .rem-timeline-item.tl-remitted::before { border-color: #8b5cf6; background: #ede9fe; }
+    .rem-timeline-item.tl-verified::before { border-color: #10b981; background: #d1fae5; }
+    .rem-timeline-item.tl-rejected::before { border-color: #ef4444; background: #fee2e2; }
+    .rem-timeline-item.tl-override::before { border-color: #f59e0b; background: #fef3c7; }
+    .rem-timeline-item.tl-flagged::before { border-color: #dc2626; background: #fecaca; }
+    .rem-timeline-item .tl-title { font-size: 0.8rem; font-weight: 600; color: #0f172a; }
+    .rem-timeline-item .tl-meta { font-size: 0.72rem; color: #94a3b8; }
+    .rem-timeline-item .tl-note { font-size: 0.78rem; color: #475569; margin-top: 0.2rem; font-style: italic; }
+    .resolve-option { cursor: pointer; transition: all 0.2s; }
+    .resolve-option:hover { border-color: #94a3b8 !important; background: #f8fafc; }
   </style>
 
   <div class="au-hero">
@@ -62,8 +78,8 @@
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-cash-coin"></i></div>
         <div>
-          <h1>Payment Verification &amp; Remittance</h1>
-          <p>Review technician-submitted remittances. No online payment is processed automatically.</p>
+          <h1>Payment Remittance Control</h1>
+          <p>Verify technician remittances, override manual handoffs, and manage unaccounted payments.</p>
         </div>
       </div>
     </div>
@@ -74,76 +90,75 @@
       <div class="dash-card">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Total Remittances</div>
+            <div class="kpi-title">Funds in Workflow</div>
             <div class="d-flex align-items-center gap-2">
-              <span class="inv-kpi-value mb-0" id="kpiTotal">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
-              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
+              <span class="inv-kpi-value mb-0" id="kpiExposure">₱0.00</span>
+              <span class="badge inv-kpi-pill bg-primary-subtle text-primary"><span id="kpiTotal">0</span> records</span>
             </div>
-            <span class="inv-kpi-sub">All remittance records</span>
+            <span class="inv-kpi-sub">Held, under review, or requiring correction</span>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-            <i class="bi bi-cash-coin"></i>
-          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);"><i class="bi bi-cash-coin"></i></div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark1"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Pending Technician</div>
+            <div class="kpi-title">Technician Action</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiPending">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
               <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Pending</span>
             </div>
-            <span class="inv-kpi-sub">Awaiting technician remittance</span>
+            <span class="inv-kpi-sub" id="kpiPendingAmount">₱0.00 awaiting handover</span>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-hourglass-split"></i>
-          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><i class="bi bi-hourglass-split"></i></div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark2"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Verified</div>
+            <div class="kpi-title">Admin Review</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="inv-kpi-value mb-0" id="kpiSubmitted">0</span>
+              <span class="badge inv-kpi-pill bg-info-subtle text-info">Submitted</span>
+            </div>
+            <span class="inv-kpi-sub" id="kpiSubmittedAmount">₱0.00 to reconcile</span>
+          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #0891b2, #0e7490);"><i class="bi bi-inbox-fill"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg col-md-6">
+      <div class="dash-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="kpi-title">Verified &amp; Cleared</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiVerified">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
-              <span class="badge inv-kpi-pill bg-success-subtle text-success">Verified</span>
+              <span class="badge inv-kpi-pill bg-success-subtle text-success">Cleared</span>
             </div>
-            <span class="inv-kpi-sub">Confirmed payments</span>
+            <span class="inv-kpi-sub" id="kpiVerifiedAmount">₱0.00 reconciled</span>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
-            <i class="bi bi-check-circle-fill"></i>
-          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-check-circle-fill"></i></div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark3"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Rejected</div>
+            <div class="kpi-title">Open Exceptions</div>
             <div class="d-flex align-items-center gap-2">
-              <span class="inv-kpi-value mb-0" id="kpiRejected">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
-              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Rejected</span>
+              <span class="inv-kpi-value mb-0" id="kpiExceptions">0</span>
+              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Action</span>
             </div>
-            <span class="inv-kpi-sub">Declined or disputed</span>
+            <span class="inv-kpi-sub" id="kpiExceptionBreakdown">0 corrections · 0 escalated</span>
           </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
-            <i class="bi bi-x-circle-fill"></i>
-          </div>
+          <div class="kpi-icon" style="background: linear-gradient(135deg, #dc2626, #b91c1c);"><i class="bi bi-exclamation-triangle-fill"></i></div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="remitSpark4"></canvas></div>
       </div>
     </div>
   </div>
@@ -156,6 +171,7 @@
         <option value="waiting_for_remittance">Waiting for Technician</option>
         <option value="remitted">Submitted / Remitted</option>
         <option value="verified">Verified</option>
+        <option value="unaccounted">Unaccounted (Flagged)</option>
         <option value="rejected">Rejected</option>
       </select>
     </div>
@@ -182,7 +198,6 @@
               <th><i class="bi bi-cash-coin me-1"></i>Amount</th>
               <th><i class="bi bi-credit-card me-1"></i>Method</th>
               <th><i class="bi bi-calendar me-1"></i>Collected</th>
-              <th><i class="bi bi-paperclip me-1"></i>Evidence</th>
               <th><i class="bi bi-flag me-1"></i>Status</th>
               <th><i class="bi bi-gear me-1"></i>Actions</th>
             </tr>
@@ -193,32 +208,194 @@
     </div>
     <div class="card-footer bg-white py-3 border-top" id="remittanceFooter"></div>
   </div>
-</div></div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="remDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:1.25rem 1.5rem;border:none;">
+        <div>
+          <h5 class="mb-0 fw-bold" id="detailTitle">Payment Details</h5>
+          <small class="opacity-75" id="detailRef"></small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:1.5rem;">
+        <div class="rem-detail-grid" id="detailGrid"></div>
+        <div class="rem-detail-section mt-3" id="detailEvidence"></div>
+        <div class="mt-3">
+          <h6 style="font-size:0.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:0.75rem;">Activity Timeline</h6>
+          <div class="rem-timeline" id="detailTimeline"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:1rem 1.5rem;" id="detailActions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Override Modal -->
+<div class="modal fade" id="overrideModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:1rem 1.25rem;border:none;">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-check-circle me-2"></i>Override Remittance</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3">Confirm that you received this payment in person from the technician. This will mark the payment as verified immediately.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Amount</label>
+          <div class="fs-4 fw-bold text-primary" id="overrideAmount"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Handover Notes <span class="text-danger">*</span></label>
+          <textarea id="overrideNotes" class="form-control" rows="3" placeholder="e.g. Received ₱5,000 cash from Juan Dela Cruz at office, 2:30 PM"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e2e8f0;">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-warning fw-semibold" onclick="confirmOverride()"><i class="bi bi-check-lg me-1"></i>Confirm Override</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flag Modal -->
+<div class="modal fade" id="flagModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:1rem 1.25rem;border:none;">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>Flag Unaccounted Payment</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger d-flex align-items-start gap-2 mb-3" style="border-radius:12px;">
+          <i class="bi bi-shield-exclamation fs-4 mt-1"></i>
+          <div>
+            <strong>This will issue a violation record</strong> to the technician's account. The payment will be marked as unaccounted and the technician's supervisor will be notified.
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Amount</label>
+          <div class="fs-4 fw-bold text-danger" id="flagAmount"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Technician</label>
+          <div id="flagTechnician" class="fw-semibold"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
+          <textarea id="flagReason" class="form-control" rows="3" placeholder="e.g. Technician did not remit payment collected on-site. No handover received."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e2e8f0;">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger fw-semibold" onclick="confirmFlag()"><i class="bi bi-flag me-1"></i>Issue Violation &amp; Flag</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Resolve Modal -->
+<div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;padding:1rem 1.25rem;border:none;">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-check2-all me-2"></i>Resolve Unaccounted Payment</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Amount</label>
+          <div class="fs-4 fw-bold text-danger" id="resolveAmount"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Technician</label>
+          <div id="resolveTechnician" class="fw-semibold"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Resolution Type <span class="text-danger">*</span></label>
+          <div class="d-flex flex-column gap-2">
+            <div class="form-check border rounded-3 p-3 cursor-pointer resolve-option" onclick="selectResolveType('write_off')">
+              <input class="form-check-input" type="radio" name="resolveType" id="resolveWriteOff" value="write_off">
+              <label class="form-check-label fw-semibold" for="resolveWriteOff"><i class="bi bi-x-octagon me-2 text-secondary"></i>Write-Off</label>
+              <div class="small text-muted ms-4">Close as a documented company loss. Use only with management authorization.</div>
+            </div>
+            <div class="form-check border rounded-3 p-3 cursor-pointer resolve-option" onclick="selectResolveType('deduct_from_payroll')">
+              <input class="form-check-input" type="radio" name="resolveType" id="resolveDeduct" value="deduct_from_payroll">
+              <label class="form-check-label fw-semibold" for="resolveDeduct"><i class="bi bi-cash-stack me-2 text-danger"></i>Deduct from Payroll</label>
+              <div class="small text-muted ms-4">Add a traceable deduction to an existing draft payroll for the current period. No placeholder payroll will be created.</div>
+            </div>
+            <div class="form-check border rounded-3 p-3 cursor-pointer resolve-option" onclick="selectResolveType('recovery')">
+              <input class="form-check-input" type="radio" name="resolveType" id="resolveRecovery" value="recovery">
+              <label class="form-check-label fw-semibold" for="resolveRecovery"><i class="bi bi-arrow-repeat me-2 text-info"></i>Recovery In Progress</label>
+              <div class="small text-muted ms-4">Return the case to the technician with a correction deadline and new proof requirement.</div>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Decision record <span class="text-danger">*</span></label>
+          <textarea id="resolveNotes" class="form-control" rows="2" maxlength="1000" placeholder="Reason, authorization, recovery commitment, or payroll basis…"></textarea>
+        </div>
+        <div class="mb-3" id="followUpGroup" style="display:none;">
+          <label class="form-label fw-semibold">Follow-Up Date</label>
+          <input type="date" id="resolveFollowUp" class="form-control" min="">
+          <div class="form-text">Set a date to check back on recovery progress.</div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #e2e8f0;">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark fw-semibold" onclick="confirmResolve()"><i class="bi bi-check2-all me-1"></i>Confirm Resolution</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
 <script>
-const escR=v=>String(v??'—').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-const remStatusColor=s=>({waiting_for_remittance:'warning',remitted:'info',verified:'success',rejected:'danger'}[s]||'secondary');
+const escR=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const safeRHref=value=>/^\/uploads\/[A-Za-z0-9_./-]+$/.test(String(value||''))||/^https:\/\//i.test(String(value||''))?escR(value):'';
+const remStatusColor=s=>({waiting_for_remittance:'warning',remitted:'info',verified:'success',rejected:'secondary',unaccounted:'danger'}[s]||'secondary');
+const remStatusLabel=p=>p.status==='unaccounted'&&p.resolvedAt?'Exception resolved':({waiting_for_remittance:'Technician handover',remitted:'Admin review',verified:'Verified',rejected:'Correction required',unaccounted:'Escalated exception'}[p.status]||p.status);
+const remitMoney=value=>'₱'+Number(value||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const remAge=value=>{if(!value)return '';const hours=Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/3600000));return hours<24?`${hours}h in custody`:`${Math.floor(hours/24)}d in custody`;};
 let currentPayments=[];
 let currentPage=1;
 const pageSize=10;
 let remFiltered=[];
 const remFooter=document.getElementById('remittanceFooter');
+let _overrideId=null;
+let _flagId=null;
+let _resolveId=null;
+let _resolveType=null;
 
 async function loadRemittances(){
   const s=document.getElementById('statusFilter').value;
-  const r=await fetch('/api/admin/remittances?status='+encodeURIComponent(s));
+  document.getElementById('remittanceRows').innerHTML='<tr><td colspan="8" class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Loading the reconciliation queue…</td></tr>';
+  const r=await fetch('/api/admin/remittances?limit=200&status='+encodeURIComponent(s));
   const d=await r.json();
+  if(!r.ok){document.getElementById('remittanceRows').innerHTML=`<tr><td colspan="8" class="text-center text-danger py-5">${escR(d.error||'Unable to load remittances.')}</td></tr>`;return;}
   currentPayments=d.payments||[];
-  updateKPIs(currentPayments);
+  updateKPIs(d.summary||{});
   renderPayments(currentPayments);
 }
 
-function updateKPIs(payments){
-  const counts={waiting_for_remittance:0,remitted:0,verified:0,rejected:0};
-  payments.forEach(p=>{if(counts[p.status]!==undefined)counts[p.status]++;});
-  document.getElementById('kpiTotal').textContent=payments.length.toLocaleString();
-  document.getElementById('kpiPending').textContent=counts.waiting_for_remittance.toLocaleString();
-  document.getElementById('kpiVerified').textContent=counts.verified.toLocaleString();
-  document.getElementById('kpiRejected').textContent=counts.rejected.toLocaleString();
+function updateKPIs(summary){
+  const row=key=>summary[key]||{count:0,amount:0};
+  const pending=row('waiting_for_remittance'),submitted=row('remitted'),verified=row('verified'),rejected=row('rejected'),unaccounted=row('unaccounted');
+  const activeCount=pending.count+submitted.count+rejected.count+unaccounted.count;
+  const activeAmount=pending.amount+submitted.amount+rejected.amount+unaccounted.amount;
+  document.getElementById('kpiTotal').textContent=activeCount.toLocaleString();
+  document.getElementById('kpiExposure').textContent=remitMoney(activeAmount);
+  document.getElementById('kpiPending').textContent=pending.count.toLocaleString();
+  document.getElementById('kpiPendingAmount').textContent=remitMoney(pending.amount)+' awaiting handover';
+  document.getElementById('kpiSubmitted').textContent=submitted.count.toLocaleString();
+  document.getElementById('kpiSubmittedAmount').textContent=remitMoney(submitted.amount)+' to reconcile';
+  document.getElementById('kpiVerified').textContent=verified.count.toLocaleString();
+  document.getElementById('kpiVerifiedAmount').textContent=remitMoney(verified.amount)+' reconciled';
+  document.getElementById('kpiExceptions').textContent=(rejected.count+unaccounted.count).toLocaleString();
+  document.getElementById('kpiExceptionBreakdown').textContent=`${rejected.count} corrections · ${unaccounted.count} escalated`;
 }
 
 function renderPayments(payments){
@@ -240,93 +417,255 @@ function renderPage(page, items){
   const start=(page-1)*pageSize;
   const slice=items.slice(start, start+pageSize);
   if(!slice.length){
-    document.getElementById('remittanceRows').innerHTML='<tr><td colspan="9" class="text-center text-muted py-5">No remittance records found.</td></tr>';
-    remFooter.innerHTML='<nav aria-label="Remittance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
+    document.getElementById('remittanceRows').innerHTML='<tr><td colspan="8" class="text-center text-muted py-5">No remittance records found.</td></tr>';
+    remFooter.innerHTML='<nav aria-label="Remittance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next</a></li></ul></nav>';
     return;
   }
   document.getElementById('remittanceRows').innerHTML=slice.map(p=>{
     const subject=p.bookingId||p.orderId||p.projectId||{};
     const ref=p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||String(p._id).slice(-8);
     const color=remStatusColor(p.status);
-    let actions='<div class="d-flex gap-1">';
-    if(p.status==='waiting_for_remittance') actions+=`<span class="badge bg-warning-subtle text-warning align-self-center">Awaiting technician</span>`;
-    if(p.status==='remitted') actions+=`<button class="btn btn-sm btn-success" onclick="actR('${p._id}','verify')">Verify</button>`;
-    if(['waiting_for_remittance','remitted'].includes(p.status)) actions+=`<button class="btn btn-sm btn-outline-danger" onclick="actR('${p._id}','reject')">Reject</button>`;
-    actions+='</div>';
-    return `<tr><td class="fw-semibold">${escR(ref)}</td><td>${escR(subject.customer?.name)}</td><td>${escR(p.collectedByName||p.collectedBy?.name)}</td><td>₱${Number(p.amount||0).toLocaleString()}</td><td>${escR(p.method).toUpperCase()}<div class="small text-muted">${escR(p.reference)}</div></td><td class="small">${p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'}</td><td>${p.proofUrl?`<a class="btn btn-sm btn-outline-primary" target="_blank" href="${escR(p.proofUrl)}">Receipt</a>`:'—'} ${p.customerSignature?'<span class="badge bg-success">Signed</span>':''} ${p.remittanceProofUrl?`<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${escR(p.remittanceProofUrl)}">Remittance Proof</a>`:''}</td><td><span class="badge bg-${color}-subtle text-${color}">${escR(p.status).replaceAll('_',' ')}</span></td><td>${actions}</td></tr>`;
+    const actions=`<button class="btn btn-sm btn-outline-primary fw-semibold" onclick="openDetail('${p._id}')"><i class="bi bi-clipboard-check me-1"></i>Review</button>`;
+    return `<tr>
+      <td class="fw-semibold">${escR(ref)}</td>
+      <td>${escR(subject.customer?.name)}</td>
+      <td>${escR(p.collectedByName||p.collectedBy?.name)}</td>
+      <td class="fw-bold">₱${Number(p.amount||0).toLocaleString()}</td>
+      <td>${escR(p.method).toUpperCase()}<div class="small text-muted">${escR(p.reference)}</div></td>
+      <td class="small">${p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'}${!['verified'].includes(p.status)&&p.collectedAt?`<div class="${(Date.now()-new Date(p.collectedAt).getTime())>86400000?'text-danger':'text-muted'} fw-semibold mt-1">${escR(remAge(p.collectedAt))}</div>`:''}</td>
+      <td><span class="badge bg-${color}-subtle text-${color}">${remStatusLabel(p)}</span>${p.overrideBy?'<div class="small text-muted mt-1">Admin handover</div>':''}${p.flaggedBy&&!p.resolvedAt?'<div class="small text-danger mt-1">Resolution required</div>':''}</td>
+      <td>${actions}</td>
+    </tr>`;
   }).join('');
   renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);
 }
 
 function renderPagination(page, pages, total){
-  const disabled = total===0;
-  const nav = `<nav aria-label="Remittance pagination">
-  <ul class="inv-pagination justify-content-end mb-0">
-    <li class="page-item ${page<=1||disabled?'disabled':''}">
-      <a class="page-link" href="javascript:void(0)" data-page="${page-1}">‹ Prev</a>
-    </li>
-    <li class="page-item active">
-      <span class="page-link">${disabled ? '1 / 1' : `${page} / ${pages}`}</span>
-    </li>
-    <li class="page-item ${page>=pages||disabled?'disabled':''}">
-      <a class="page-link" href="javascript:void(0)" data-page="${page+1}">Next ›</a>
-    </li>
-  </ul>
-</nav>`;
-  remFooter.innerHTML=nav;
+  const disabled=total===0;
+  remFooter.innerHTML=`<nav aria-label="Remittance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item ${page<=1||disabled?'disabled':''}"><a class="page-link" href="javascript:void(0)" data-page="${page-1}">Prev</a></li><li class="page-item active"><span class="page-link">${disabled?'1 / 1':page+' / '+pages}</span></li><li class="page-item ${page>=pages||disabled?'disabled':''}"><a class="page-link" href="javascript:void(0)" data-page="${page+1}">Next</a></li></ul></nav>`;
   remFooter.querySelectorAll('.page-link[data-page]').forEach(el=>{
     el.addEventListener('click',e=>{
       e.preventDefault();
       const target=e.target.closest('.page-link');
       const newPage=parseInt(target?.dataset.page);
-      if(!target?.closest('.page-item.disabled') && newPage>=1 && newPage<=pages){
-        currentPage=newPage;
-        renderPage(currentPage, remFiltered);
-      }
+      if(!target?.closest('.page-item.disabled')&&newPage>=1&&newPage<=pages){currentPage=newPage;renderPage(currentPage,remFiltered);}
     });
   });
 }
 
 function filterRemittanceRows(){renderPayments(currentPayments);}
 
-async function actR(id,action){let reason='';if(action==='reject'){reason=prompt('Rejection reason:')||'';if(!reason)return;}if(!confirm(`Confirm ${action}? This action is audit logged.`))return;const r=await fetch(`/api/admin/remittances/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,reason})}),d=await r.json();if(!r.ok)return alert(d.error||'Action failed');loadRemittances()}
-function createSparkline(canvasId,data,color){
-  const canvas=document.getElementById(canvasId);
-  if(!canvas || !data || data.length<2) return;
-  const ctx=canvas.getContext('2d');
-  const wrap=canvas.parentElement;
-  const dpr=window.devicePixelRatio||1;
-  const w=(wrap.clientWidth||150);
-  const h=40;
-  canvas.width=Math.floor(w*dpr);
-  canvas.height=Math.floor(h*dpr);
-  canvas.style.width=w+'px';
-  canvas.style.height=h+'px';
-  ctx.scale(dpr,dpr);
-  const min=Math.min(...data), max=Math.max(...data), range=(max-min)||1;
-  const pad=2;
-  const step=(w-2*pad)/(data.length-1);
-  ctx.beginPath();
-  data.forEach((v,i)=>{
-    const x=pad+i*step;
-    const y=h-pad-((v-min)/range)*(h-2*pad);
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+function findPayment(id){return currentPayments.find(p=>p._id===id);}
+
+async function openDetail(id){
+  const p=findPayment(id);
+  if(!p) return;
+  const subject=p.bookingId||p.orderId||p.projectId||{};
+  const ref=p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||String(p._id).slice(-8);
+  document.getElementById('detailTitle').textContent='Payment Details';
+  document.getElementById('detailRef').textContent=ref;
+  const color=remStatusColor(p.status);
+  const rows=[
+    ['Reference',ref],
+    ['Customer',subject.customer?.name||'—'],
+    ['Technician',p.collectedByName||p.collectedBy?.name||'—'],
+    ['Amount','₱'+Number(p.amount||0).toLocaleString()],
+    ['Payment Method',(p.method||'').toUpperCase()],
+    ['Transaction Ref',p.reference||'—'],
+    ['Type',p.type||'final'],
+    ['Status',`<span class="badge bg-${color}-subtle text-${color}">${escR(remStatusLabel(p))}</span>`,true],
+    ['Collected At',p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'],
+    ['Remitted At',p.remittedAt?new Date(p.remittedAt).toLocaleString('en-PH'):'—'],
+    ['Handover Channel',p.remittanceMethod?String(p.remittanceMethod).replace(/_/g,' '):null],
+    ['Handover Reference',p.remittanceReference||null],
+    ['Verified At',p.verifiedAt?new Date(p.verifiedAt).toLocaleString('en-PH'):'—'],
+    ['Override At',p.overrideAt?new Date(p.overrideAt).toLocaleString('en-PH'):null],
+    ['Flagged At',p.flaggedAt?new Date(p.flaggedAt).toLocaleString('en-PH'):null],
+    ['Override Notes',p.overrideNotes||null],
+    ['Flag Reason',p.flagReason||null],
+    ['Rejection Reason',p.rejectionReason||null],
+    ['Remittance Notes',p.remittanceNotes||null],
+    ['Resolution Type',p.resolutionType?p.resolutionType.replace(/_/g,' '):null],
+    ['Resolved At',p.resolvedAt?new Date(p.resolvedAt).toLocaleString('en-PH'):null],
+    ['Resolution Notes',p.resolutionNotes||null],
+    ['Recovery Follow-Up',p.recoveryFollowUpDate?new Date(p.recoveryFollowUpDate).toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):null],
+  ].filter(r=>r[1]!==null);
+  document.getElementById('detailGrid').innerHTML=rows.map(r=>`<div class="rem-detail-row"><span class="label">${escR(r[0])}</span><span class="value">${r[2]?r[1]:escR(r[1])}</span></div>`).join('');
+  const evidence=[];
+  const customerProof=safeRHref(p.proofUrl),remittanceProof=safeRHref(p.remittanceProofUrl);
+  if(customerProof)evidence.push(`<a class="btn btn-sm btn-outline-primary" href="${customerProof}" target="_blank" rel="noopener"><i class="bi bi-receipt me-1"></i>Customer payment proof</a>`);
+  if(remittanceProof)evidence.push(`<a class="btn btn-sm btn-outline-success" href="${remittanceProof}" target="_blank" rel="noopener"><i class="bi bi-paperclip me-1"></i>Handover proof</a>`);
+  if(p.customerSignature)evidence.push('<span class="badge bg-success-subtle text-success"><i class="bi bi-pen me-1"></i>Customer signature recorded</span>');
+  document.getElementById('detailEvidence').innerHTML='<h6>Evidence & custody record</h6>'+(evidence.length?`<div class="d-flex flex-wrap align-items-center gap-2">${evidence.join('')}</div>`:'<div class="small text-danger"><i class="bi bi-exclamation-triangle me-1"></i>No supporting evidence is attached.</div>');
+
+  // Timeline
+  const tl=document.getElementById('detailTimeline');
+  let events=[];
+  if(p.collectedAt) events.push({cls:'tl-collected',title:'Payment Collected',at:p.collectedAt,note:'By '+(p.collectedByName||p.collectedBy?.name||'Technician')});
+  if(p.remittedAt) events.push({cls:'tl-remitted',title:'Remittance Submitted',at:p.remittanceAt||p.remittedAt,note:p.remittanceNotes||'Submitted by technician'});
+  if(p.overrideAt) events.push({cls:'tl-override',title:'Admin Override',at:p.overrideAt,note:p.overrideNotes||'Admin confirmed in-person handover'});
+  if(p.verifiedAt&&!p.overrideAt) events.push({cls:'tl-verified',title:'Payment Verified',at:p.verifiedAt,note:'Verified by admin'});
+  if(p.rejectedAt) events.push({cls:'tl-rejected',title:'Payment Rejected',at:p.rejectedAt,note:p.rejectionReason||'Rejected by admin'});
+  if(p.flaggedAt) events.push({cls:'tl-flagged',title:'Flagged Unaccounted',at:p.flaggedAt,note:p.flagReason||'Violation issued to technician'});
+  if(p.resolvedAt) events.push({cls:'tl-verified',title:'Resolved: '+(p.resolutionType||'').replace(/_/g,' '),at:p.resolvedAt,note:p.resolutionNotes||'Payment resolved by admin'});
+  (p.events||[]).forEach(e=>{
+    if(!events.find(ev=>ev.title.toLowerCase().includes(String(e.status||'')))){
+      const cls=e.status==='collected'?'tl-collected':e.status==='remitted'?'tl-remitted':e.status==='verified'?'tl-verified':e.status==='rejected'?'tl-rejected':e.status==='override'?'tl-override':'tl-flagged';
+      events.push({cls,title:e.status?.replace(/_/g,' ')||'Event',at:e.at,note:e.note||(e.actorName?'By '+e.actorName:'')});
+    }
   });
-  ctx.strokeStyle=color||'#2563eb';
-  ctx.lineWidth=2;
-  ctx.lineJoin='round';
-  ctx.lineCap='round';
-  ctx.stroke();
+  events.sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
+  tl.innerHTML=events.length?events.map(e=>`<div class="rem-timeline-item ${e.cls}"><div class="tl-title">${escR(e.title)}</div><div class="tl-meta">${e.at?new Date(e.at).toLocaleString('en-PH'):''}</div>${e.note?'<div class="tl-note">'+escR(e.note)+'</div>':''}</div>`).join(''):'<div class="text-muted small">No events recorded.</div>';
+
+  // Action buttons
+  const actionsEl=document.getElementById('detailActions');
+  let acts='';
+  if(p.status==='waiting_for_remittance'){
+    acts+=`<button class="btn btn-warning text-white fw-semibold" onclick="openOverride('${p._id}')"><i class="bi bi-check-circle me-1"></i>Record In-Person Handover</button>`;
+    acts+=`<button class="btn btn-outline-danger fw-semibold" onclick="openFlag('${p._id}')"><i class="bi bi-flag me-1"></i>Escalate Exception</button>`;
+  }
+  if(p.status==='remitted'){
+    acts+=`<button class="btn btn-success fw-semibold" onclick="actR('${p._id}','verify')"><i class="bi bi-shield-check me-1"></i>Verify & Clear</button>`;
+    acts+=`<button class="btn btn-outline-warning fw-semibold" onclick="actR('${p._id}','reject')">Request Correction</button>`;
+    acts+=`<button class="btn btn-outline-danger fw-semibold" onclick="openFlag('${p._id}')"><i class="bi bi-flag me-1"></i>Escalate</button>`;
+  }
+  if(p.status==='rejected'){
+    acts+=`<span class="text-muted small me-auto"><i class="bi bi-person-gear me-1"></i>Waiting for technician correction</span>`;
+    acts+=`<button class="btn btn-warning text-white fw-semibold" onclick="openOverride('${p._id}')">Record Handover</button>`;
+    acts+=`<button class="btn btn-outline-danger fw-semibold" onclick="openFlag('${p._id}')">Escalate</button>`;
+  }
+  if(p.status==='unaccounted' && !p.resolvedAt){
+    acts+=`<button class="btn btn-dark fw-semibold" onclick="openResolve('${p._id}')"><i class="bi bi-check2-all me-1"></i>Resolve</button>`;
+  }
+  if(p.status==='unaccounted' && p.resolvedAt){
+    const rLabel={write_off:'Written Off',deduct_from_payroll:'Payroll Deducted',recovery:'Recovery'}[p.resolutionType]||p.resolutionType;
+    acts+=`<span class="badge bg-dark-subtle text-dark fs-6"><i class="bi bi-check2-all me-1"></i>${rLabel}</span>`;
+  }
+  actionsEl.innerHTML=acts||'<span class="text-muted">No actions available for this status.</span>';
+  actionsEl.innerHTML+='<button class="btn btn-outline-secondary ms-auto" data-bs-dismiss="modal">Close</button>';
+  actionsEl.style.display='flex';
+  actionsEl.style.gap='0.5rem';
+
+  new bootstrap.Modal(document.getElementById('remDetailModal')).show();
 }
 
-const remitSparkData=[
-  [10,15,12,18,22,19,25],
-  [8,11,9,14,13,16,14],
-  [5,9,12,15,18,22,24],
-  [3,5,4,7,6,8,6]
-];
-const remitSparkColors=['#2563eb','#f59e0b','#10b981','#ef4444'];
-remitSparkData.forEach((d,i)=>createSparkline('remitSpark'+(i+1),d,remitSparkColors[i]));
+function openOverride(id){
+  const p=findPayment(id);if(!p) return;
+  _overrideId=id;
+  document.getElementById('overrideAmount').textContent='₱'+Number(p.amount||0).toLocaleString();
+  document.getElementById('overrideNotes').value='';
+  bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
+  setTimeout(()=>new bootstrap.Modal(document.getElementById('overrideModal')).show(),300);
+}
 
+async function confirmOverride(){
+  if(!_overrideId) return;
+  const notes=document.getElementById('overrideNotes').value.trim();
+  if(notes.length<10){return Swal.fire('More detail required','Document who received the funds, where, and when.','warning');}
+  const confirmation=await Swal.fire({title:'Record exceptional handover?',text:'This bypasses technician self-submission and immediately verifies the funds. The action is audit logged.',icon:'warning',showCancelButton:true,confirmButtonText:'Record and verify',confirmButtonColor:'#d97706'});
+  if(!confirmation.isConfirmed)return;
+  const r=await fetch('/api/admin/remittances/'+_overrideId+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'override',notes})});
+  const d=await r.json();
+  if(!r.ok){return Swal.fire('Handover not recorded',d.error||'Override failed','error');}
+  bootstrap.Modal.getInstance(document.getElementById('overrideModal'))?.hide();
+  _overrideId=null;
+  await Swal.fire('Funds verified','The in-person handover was recorded in the audit trail.','success');
+  loadRemittances();
+}
+
+function openFlag(id){
+  const p=findPayment(id);if(!p) return;
+  _flagId=id;
+  document.getElementById('flagAmount').textContent='₱'+Number(p.amount||0).toLocaleString();
+  document.getElementById('flagTechnician').textContent=p.collectedByName||p.collectedBy?.name||'Unknown';
+  document.getElementById('flagReason').value='';
+  bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
+  setTimeout(()=>new bootstrap.Modal(document.getElementById('flagModal')).show(),300);
+}
+
+async function confirmFlag(){
+  if(!_flagId) return;
+  const reason=document.getElementById('flagReason').value.trim();
+  if(reason.length<10){return Swal.fire('More detail required','State the custody discrepancy in at least 10 characters.','warning');}
+  const confirmation=await Swal.fire({title:'Escalate as unaccounted?',text:'This opens a formal cash-custody exception and records a technician violation. Use this only after checking the evidence and handover history.',icon:'warning',showCancelButton:true,confirmButtonText:'Open exception',confirmButtonColor:'#dc2626'});
+  if(!confirmation.isConfirmed)return;
+  const r=await fetch('/api/admin/remittances/'+_flagId+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'flag',reason})});
+  const d=await r.json();
+  if(!r.ok){return Swal.fire('Exception not opened',d.error||'Escalation failed','error');}
+  bootstrap.Modal.getInstance(document.getElementById('flagModal'))?.hide();
+  _flagId=null;
+  await Swal.fire('Exception opened','The case now requires a documented recovery, payroll, or write-off resolution.','success');
+  loadRemittances();
+}
+
+function openResolve(id){
+  const p=findPayment(id);if(!p) return;
+  _resolveId=id;
+  _resolveType=null;
+  document.getElementById('resolveAmount').textContent='₱'+Number(p.amount||0).toLocaleString();
+  document.getElementById('resolveTechnician').textContent=p.collectedByName||p.collectedBy?.name||'Unknown';
+  document.getElementById('resolveNotes').value='';
+  document.querySelectorAll('input[name=resolveType]').forEach(r=>r.checked=false);
+  document.querySelectorAll('.resolve-option').forEach(o=>o.style.borderColor='#e2e8f0');
+  document.getElementById('followUpGroup').style.display='none';
+  document.getElementById('resolveFollowUp').value='';
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+  document.getElementById('resolveFollowUp').min=`${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
+  bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
+  setTimeout(()=>new bootstrap.Modal(document.getElementById('resolveModal')).show(),300);
+}
+
+function selectResolveType(type){
+  _resolveType=type;
+  document.querySelectorAll('input[name=resolveType]').forEach(r=>r.checked=(r.value===type));
+  document.querySelectorAll('.resolve-option').forEach(o=>{o.style.borderColor=o.querySelector('input').value===type?'#0f172a':'#e2e8f0';});
+  document.getElementById('followUpGroup').style.display=type==='recovery'?'block':'none';
+}
+
+async function confirmResolve(){
+  if(!_resolveId) return;
+  if(!_resolveType){return Swal.fire('Choose a resolution','Select recovery, payroll deduction, or write-off.','warning');}
+  const notes=document.getElementById('resolveNotes').value.trim();
+  const followUpDate=_resolveType==='recovery'?document.getElementById('resolveFollowUp').value:null;
+  if(notes.length<10){return Swal.fire('More detail required','Document the decision in at least 10 characters.','warning');}
+  if(_resolveType==='recovery' && !followUpDate){return Swal.fire('Follow-up required','Set a future recovery deadline.','warning');}
+  let msg='';
+  if(_resolveType==='write_off') msg='This will write off the payment as a company loss. Continue?';
+  if(_resolveType==='deduct_from_payroll') msg='This will create a deduction on the technician\'s payroll. Continue?';
+  if(_resolveType==='recovery') msg='This will send the payment back to the technician for resubmission. Continue?';
+  const confirmation=await Swal.fire({title:'Confirm exception resolution?',text:msg,icon:'warning',showCancelButton:true,confirmButtonText:'Confirm resolution',confirmButtonColor:'#0f172a'});
+  if(!confirmation.isConfirmed)return;
+  const payload={resolutionType:_resolveType,notes};
+  if(followUpDate) payload.followUpDate=followUpDate;
+  const r=await fetch('/api/admin/remittances/'+_resolveId+'/resolve',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();
+  if(!r.ok){return Swal.fire('Resolution not saved',d.error||'Resolution failed','error');}
+  bootstrap.Modal.getInstance(document.getElementById('resolveModal'))?.hide();
+  _resolveId=null;
+  _resolveType=null;
+  await Swal.fire('Resolution recorded',d.message||'The exception workflow was updated.','success');
+  loadRemittances();
+}
+
+async function actR(id,action){
+  let reason='';
+  if(action==='reject'){
+    const correction=await Swal.fire({title:'Request technician correction',input:'textarea',inputLabel:'What must be corrected?',inputPlaceholder:'Identify the missing, inconsistent, or unreadable evidence…',inputAttributes:{maxlength:'1000'},showCancelButton:true,confirmButtonText:'Send correction request',confirmButtonColor:'#d97706',inputValidator:value=>String(value||'').trim().length<10?'Enter a specific reason of at least 10 characters.':undefined});
+    if(!correction.isConfirmed)return;
+    reason=String(correction.value||'').trim();
+  }else{
+    const confirmation=await Swal.fire({title:'Verify this remittance?',text:'Confirm that the handover evidence and amount match the payment ledger.',icon:'question',showCancelButton:true,confirmButtonText:'Verify and clear',confirmButtonColor:'#16a34a'});
+    if(!confirmation.isConfirmed)return;
+  }
+  const r=await fetch('/api/admin/remittances/'+id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,reason})});
+  const d=await r.json();
+  if(!r.ok)return Swal.fire('Action not completed',d.error||'The record changed. Refresh and try again.','error');
+  bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
+  await Swal.fire(action==='verify'?'Remittance verified':'Correction requested',d.message||'The workflow was updated.','success');
+  loadRemittances();
+}
+
+const initialStatus=new URLSearchParams(location.search).get('status');
+if(initialStatus&&[...document.getElementById('statusFilter').options].some(option=>option.value===initialStatus))document.getElementById('statusFilter').value=initialStatus;
 loadRemittances();
 </script>
