@@ -11,8 +11,23 @@ const {
   separationOfDutiesViolation,
   calendarDayCount,
   payrollTotals,
+  dailyPayrollReadiness,
   periodsOverlap,
 } = require("../utils/payrollPolicy");
+
+test("daily payroll readiness waits for a complete payable shift", () => {
+  assert.deepEqual(dailyPayrollReadiness({ status: "Absent" }), {
+    eligible: false,
+    ready: false,
+    reason: "No payable attendance today.",
+  });
+  assert.equal(dailyPayrollReadiness({ status: "Present", checkInTime: new Date() }).ready, false);
+  assert.deepEqual(dailyPayrollReadiness({ status: "Late", checkInTime: new Date(), checkOutTime: new Date() }), {
+    eligible: true,
+    ready: true,
+    reason: "Attendance is complete and ready for a draft.",
+  });
+});
 
 test("calculates daily and hourly payroll from verified attendance inputs", () => {
   assert.equal(calculateBasicPay(

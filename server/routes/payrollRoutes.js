@@ -13,6 +13,7 @@ const {
   calculateBasicPay,
   calculateOvertimePay,
   attendanceQualityWarnings,
+  dailyPayrollReadiness,
   hasBlockingAttendanceExceptions,
   separationOfDutiesViolation,
   payrollTotals,
@@ -565,7 +566,8 @@ router.get("/due-today", requireAdmin, async (req, res, next) => {
         date: { $gte: today, $lt: tomorrow },
       }).select("status checkInTime checkOutTime").lean();
 
-      if (todayAttendance) {
+      const readiness = dailyPayrollReadiness(todayAttendance);
+      if (readiness.eligible) {
         dueToday.push({
           employee: comp.employee,
           payType: comp.payType,
@@ -575,6 +577,8 @@ router.get("/due-today", requireAdmin, async (req, res, next) => {
             checkIn: todayAttendance.checkInTime,
             checkOut: todayAttendance.checkOutTime,
           },
+          readyForDraft: readiness.ready,
+          readinessReason: readiness.reason,
         });
       }
     }

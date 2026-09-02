@@ -227,6 +227,32 @@
     .pw-due-empty { text-align: center; padding: 12px; font-size: 0.82rem; color: #92400e; }
     .pw-due-create-btn { font-size: 0.72rem; font-weight: 600; padding: 4px 12px; border-radius: 8px; border: 1px solid #f59e0b; background: #fff; color: #d97706; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
     .pw-due-create-btn:hover { background: #f59e0b; color: #fff; }
+    .pw-due-create-btn:disabled { cursor:not-allowed; opacity:.55; border-color:#cbd5e1; color:#64748b; }
+    .pw-process { display:grid; grid-template-columns:repeat(4,1fr); gap:0; background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:18px; margin-bottom:18px; box-shadow:0 2px 12px rgba(15,23,42,.04); }
+    .pw-process-step { display:flex; align-items:flex-start; gap:10px; padding:4px 16px; position:relative; }
+    .pw-process-step:not(:last-child)::after { content:""; position:absolute; right:0; top:10px; bottom:10px; width:1px; background:#e2e8f0; }
+    .pw-process-num { width:30px; height:30px; border-radius:9px; background:#eff6ff; color:#2563eb; display:flex; align-items:center; justify-content:center; font-weight:800; flex:0 0 auto; }
+    .pw-process-step strong { display:block; color:#0f172a; font-size:.78rem; margin-bottom:2px; }
+    .pw-process-step span { display:block; color:#64748b; font-size:.68rem; line-height:1.4; }
+    .pw-readiness { display:flex; justify-content:space-between; align-items:center; gap:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:14px; padding:14px 18px; margin-bottom:18px; }
+    .pw-readiness.warning { border-color:#fde68a; background:#fffbeb; }
+    .pw-readiness-title { font-size:.82rem; font-weight:700; color:#0f172a; margin-bottom:2px; }
+    .pw-readiness-text { font-size:.72rem; color:#64748b; }
+    .pw-cycle-presets { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .pw-preset-btn { border:1px solid #cbd5e1; background:#fff; color:#475569; border-radius:8px; padding:6px 10px; font-size:.7rem; font-weight:700; }
+    .pw-preset-btn:hover { border-color:#3b82f6; color:#2563eb; background:#eff6ff; }
+    .pw-context { border:1px solid #dbeafe; background:#f8fbff; border-radius:10px; padding:10px 12px; font-size:.74rem; color:#475569; margin-top:14px; }
+    .pw-context.success { border-color:#bbf7d0; background:#f0fdf4; color:#166534; }
+    .pw-context.warning { border-color:#fde68a; background:#fffbeb; color:#92400e; }
+    .pw-context.danger { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+    .pw-row-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:5px; min-width:175px; }
+    .pw-row-action { border:1px solid #cbd5e1; background:#fff; color:#475569; border-radius:7px; padding:4px 8px; font-size:.66rem; font-weight:700; white-space:nowrap; }
+    .pw-row-action:hover { border-color:#3b82f6; color:#2563eb; background:#eff6ff; }
+    .pw-row-action.success { border-color:#86efac; color:#15803d; }
+    .pw-row-action.danger { border-color:#fecaca; color:#dc2626; }
+    .pw-muted-note { font-size:.68rem; color:#64748b; line-height:1.45; }
+    @media (max-width: 991px) { .pw-process { grid-template-columns:1fr 1fr; row-gap:16px; } .pw-process-step:nth-child(2)::after { display:none; } }
+    @media (max-width: 575px) { .pw-process { grid-template-columns:1fr; } .pw-process-step::after { display:none !important; } .pw-readiness { align-items:flex-start; flex-direction:column; } }
   </style>
 
   <!-- Header -->
@@ -242,15 +268,27 @@
     </div>
   </div>
 
+  <div class="pw-process" aria-label="Payroll workflow">
+    <div class="pw-process-step"><div class="pw-process-num">1</div><div><strong>Configure pay policy</strong><span>Set an effective-dated daily, hourly, or monthly rate.</span></div></div>
+    <div class="pw-process-step"><div class="pw-process-num">2</div><div><strong>Build a payroll draft</strong><span>Select a completed period; attendance and rates calculate pay.</span></div></div>
+    <div class="pw-process-step"><div class="pw-process-num">3</div><div><strong>Review and approve</strong><span>Resolve attendance warnings and verify additions or deductions.</span></div></div>
+    <div class="pw-process-step"><div class="pw-process-num">4</div><div><strong>Record payment</strong><span>Post the payment method, date, and transaction reference.</span></div></div>
+  </div>
+
+  <div class="pw-readiness" id="payrollReadiness">
+    <div><div class="pw-readiness-title"><i class="bi bi-shield-check me-1"></i>Checking payroll readiness</div><div class="pw-readiness-text" id="payrollReadinessText">Reviewing employee pay policies…</div></div>
+    <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnOpenPolicies">Review Pay Policies</button>
+  </div>
+
   <!-- KPI Cards -->
   <div class="row g-3 mb-4">
     <div class="col-lg-3 col-md-6">
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start">
           <div style="flex:1;">
-            <div class="kpi-title">Total Net Payroll</div>
+            <div class="kpi-title">Net Payroll Value</div>
             <div class="kpi-value" id="kpiNetTotal">--</div>
-            <div class="kpi-sub">Excluding voided</div>
+            <div class="kpi-sub">Current filters · excluding voided</div>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-cash-stack"></i></div>
         </div>
@@ -286,7 +324,7 @@
           <div style="flex:1;">
             <div class="kpi-title">Paid</div>
             <div class="kpi-value" id="kpiPaid">0</div>
-            <div class="kpi-sub">This period</div>
+            <div class="kpi-sub">Paid runs in current filters</div>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);"><i class="bi bi-check-all"></i></div>
         </div>
@@ -300,7 +338,7 @@
       <div class="pw-due-header-left">
         <div class="pw-due-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <div>
-          <h6 class="pw-due-title">Payroll Due Today</h6>
+          <h6 class="pw-due-title">Daily Payroll Readiness</h6>
           <p class="pw-due-sub" id="dueTodayDate">—</p>
         </div>
       </div>
@@ -316,8 +354,8 @@
 
   <!-- Tabs -->
   <div class="d-flex gap-2 mb-4">
-    <button class="tab-btn active" data-tab="records"><i class="bi bi-list-ul me-1"></i>Payroll Records</button>
-    <button class="tab-btn" data-tab="compensation"><i class="bi bi-person-gear me-1"></i>Employee Pay Rates</button>
+    <button class="tab-btn active" data-tab="records"><i class="bi bi-list-ul me-1"></i>Payroll Runs</button>
+    <button class="tab-btn" data-tab="compensation"><i class="bi bi-person-gear me-1"></i>Pay Policies &amp; Rates</button>
   </div>
 
   <!-- ═══ TAB: PAYROLL RECORDS ═══ -->
@@ -353,7 +391,7 @@
         <select id="filterYear" class="form-select-sm-custom filter-input"></select>
       </div>
       <button id="btnRefresh" class="btn btn-outline-secondary filter-btn" title="Refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
-      <button id="btnCreatePayroll" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>Create Payroll</button>
+      <button id="btnCreatePayroll" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>New Payroll Run</button>
     </div>
 
     <!-- Records Table -->
@@ -393,13 +431,14 @@
       <div class="filter-group" style="flex:1;">
         <label class="filter-label">Status</label>
         <select id="compFilterActive" class="form-select-sm-custom filter-input">
-          <option value="">All</option>
-          <option value="true">Active Only</option>
-          <option value="false">Ended</option>
+          <option value="">All effective-dated rates</option>
+          <option value="current">Current</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="ended">Ended</option>
         </select>
       </div>
       <button id="btnRefreshComp" class="btn btn-outline-secondary filter-btn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
-      <button id="btnAddComp" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>Add Pay Rate</button>
+      <button id="btnAddComp" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>Set Pay Policy</button>
     </div>
 
     <div class="table-card">
@@ -439,8 +478,8 @@
         <div class="pw-modal-header-left">
           <div class="pw-modal-icon"><i class="bi bi-wallet2"></i></div>
           <div>
-            <h5 class="pw-modal-title" id="payrollModalTitle">Create Payroll</h5>
-            <p class="pw-modal-sub" id="payrollModalSub">Calculate and create a new payroll record</p>
+            <h5 class="pw-modal-title" id="payrollModalTitle">New Payroll Run</h5>
+            <p class="pw-modal-sub" id="payrollModalSub">Create an internal draft from a pay policy and attendance period</p>
           </div>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -489,7 +528,7 @@
                   </div>
                 </div>
                 <div class="col-md-4">
-                  <label class="pw-label">Pay Date *</label>
+                  <label class="pw-label">Planned Pay Date *</label>
                   <div class="pw-input-wrap">
                     <i class="bi bi-calendar3 pw-input-icon"></i>
                     <input type="date" id="pfPayDate" class="pw-input pw-input-icon-field" required />
@@ -505,6 +544,12 @@
                   <h6 class="pw-section-title">Pay Period</h6>
                   <p class="pw-section-desc">Define the start and end dates for this payroll cycle</p>
                 </div>
+              </div>
+              <div class="pw-cycle-presets" aria-label="Common payroll periods">
+                <button type="button" class="pw-preset-btn" onclick="window._pw.applyCyclePreset('daily')">Today</button>
+                <button type="button" class="pw-preset-btn" onclick="window._pw.applyCyclePreset('seven_days')">Last 7 days</button>
+                <button type="button" class="pw-preset-btn" onclick="window._pw.applyCyclePreset('month_to_date')">Month to date</button>
+                <button type="button" class="pw-preset-btn" onclick="window._pw.applyCyclePreset('previous_month')">Previous month</button>
               </div>
               <div class="row g-3 align-items-end">
                 <div class="col-md-4">
@@ -529,6 +574,7 @@
                   </button>
                 </div>
               </div>
+              <div class="pw-context" id="pfRateContext"><i class="bi bi-info-circle me-1"></i>Select an employee and pay period to check which effective pay rate will be used.</div>
             </div>
 
             <!-- Attendance Summary -->
@@ -537,7 +583,7 @@
                 <div class="pw-section-icon" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="bi bi-clipboard2-check"></i></div>
                 <div>
                   <h6 class="pw-section-title">Attendance Summary</h6>
-                  <p class="pw-section-desc">Auto-calculated from attendance records</p>
+                  <p class="pw-section-desc" id="calcAttendanceDesc">Auto-calculated from attendance records</p>
                 </div>
               </div>
               <div class="pw-att-grid">
@@ -553,7 +599,7 @@
 
             <div class="pw-step-actions">
               <div></div>
-              <button type="button" class="pw-btn-next" onclick="pwGoStep(2)">Continue <i class="bi bi-arrow-right"></i></button>
+              <button type="button" class="pw-btn-next" onclick="pwContinueToBreakdown()">Calculate &amp; Continue <i class="bi bi-arrow-right"></i></button>
             </div>
           </div>
 
@@ -568,6 +614,7 @@
                 </div>
               </div>
               <div class="row g-3">
+                <div class="col-12"><div class="pw-context success" id="pfCalculationBasis"><i class="bi bi-lock-fill me-1"></i>The server will select the effective rate and calculate attendance-based pay.</div></div>
                 <div class="col-md-3">
                   <label class="pw-label">Basic Pay *</label>
                   <div class="pw-input-wrap">
@@ -638,7 +685,7 @@
 
             <div class="pw-step-actions">
               <button type="button" class="pw-btn-back" onclick="pwGoStep(1)"><i class="bi bi-arrow-left"></i> Back</button>
-              <button type="button" class="pw-btn-next" onclick="pwGoStep(3)">Review <i class="bi bi-arrow-right"></i></button>
+              <button type="button" class="pw-btn-next" onclick="pwContinueToReview()">Review Draft <i class="bi bi-arrow-right"></i></button>
             </div>
           </div>
 
@@ -712,7 +759,12 @@
                       <span class="pw-review-info-label">Attendance</span>
                       <span class="pw-review-info-value" id="reviewAtt">—</span>
                     </div>
+                    <div class="pw-review-info-item">
+                      <span class="pw-review-info-label">Rate Basis</span>
+                      <span class="pw-review-info-value" id="reviewRate">—</span>
+                    </div>
                   </div>
+                  <div class="pw-context mt-3"><i class="bi bi-eye-slash me-1"></i>Saving creates an internal draft. The employee sees it only after approval.</div>
                 </div>
               </div>
             </div>
@@ -757,8 +809,8 @@
         <div style="display:flex;align-items:center;gap:0.75rem;">
           <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-check2-circle"></i></div>
           <div>
-            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Approve Payroll</h6>
-            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">This will make the payroll visible to the employee</p>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Review &amp; Approve Draft</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">Approval publishes the payslip but does not record payment</p>
           </div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -767,7 +819,7 @@
         <div id="approveSummary" style="background:#f0fdf4;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:0.85rem;color:#065f46;"></div>
         <div class="d-flex gap-2 justify-content-end">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;font-size:0.82rem;">Cancel</button>
-          <button type="button" id="btnConfirmApprove" class="btn btn-success" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-check-lg me-1"></i>Approve</button>
+          <button type="button" id="btnConfirmApprove" class="btn btn-success" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-check-lg me-1"></i>Approve &amp; Publish</button>
         </div>
       </div>
     </div>
@@ -782,13 +834,14 @@
         <div style="display:flex;align-items:center;gap:0.75rem;">
           <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-credit-card"></i></div>
           <div>
-            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Mark as Paid</h6>
-            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="paidModalSub">Record payment details</p>
+            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Record Payroll Payment</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="paidModalSub">Post the completed disbursement details</p>
           </div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" style="padding:0 1.5rem 1.25rem;">
+        <div class="pw-muted-note mb-3"><i class="bi bi-shield-lock me-1"></i>Record this only after the employee has been paid. Paid payroll runs are final and cannot be voided.</div>
         <form id="paidForm">
           <input type="hidden" id="paidPayrollId" />
           <div class="row g-3 mb-3">
@@ -866,7 +919,7 @@
           <div class="pw-modal-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-person-gear"></i></div>
           <div>
             <h5 class="pw-modal-title" id="compModalTitle">Add Pay Rate</h5>
-            <p class="pw-modal-sub">Configure employee compensation</p>
+            <p class="pw-modal-sub" id="compModalSub">Configure an effective-dated employee pay policy</p>
           </div>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -892,6 +945,7 @@
               </select>
               <i class="bi bi-chevron-down pw-select-arrow"></i>
             </div>
+            <div class="pw-context" id="compEmployeeContext"><i class="bi bi-info-circle me-1"></i>Select an employee to review their current pay policy.</div>
           </div>
 
           <!-- Pay Type -->
@@ -943,7 +997,7 @@
             </div>
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="pw-label">Base Rate *</label>
+                <label class="pw-label" id="compBaseRateLabel">Base Rate *</label>
                 <div class="pw-input-wrap">
                   <span class="pw-input-prefix">₱</span>
                   <input type="number" id="compBaseRate" class="pw-input pw-input-prefix-field" min="0.01" step="0.01" required placeholder="0.00" />
@@ -957,6 +1011,7 @@
                 </div>
               </div>
             </div>
+            <div class="pw-muted-note mt-2" id="compRateHint">Choose a pay type to see how this rate is applied.</div>
           </div>
 
           <!-- Effective Date -->
@@ -973,6 +1028,7 @@
               <i class="bi bi-calendar-event pw-input-icon"></i>
               <input type="date" id="compEffectiveFrom" class="pw-input pw-input-icon-field" required />
             </div>
+            <div class="pw-muted-note mt-2" id="compEffectiveHint">A new rate closes the prior rate on the previous calendar day. Historical payroll remains unchanged.</div>
           </div>
         </form>
       </div>
@@ -989,6 +1045,19 @@
 <script>
 (function() {
   const API = '/api/payroll';
+  const localDateValue = (date) => {
+    const d = new Date(date);
+    const pad = value => String(value).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  };
+  const dateOnlyTime = value => {
+    if (!value) return NaN;
+    const raw = String(value);
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) return new Date(Number(match[1]), Number(match[2])-1, Number(match[3])).getTime();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? NaN : new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime();
+  };
   const fmt = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }); };
 
@@ -996,6 +1065,8 @@
   let allRecords = [];
   let allComp = [];
   let editingId = null;
+  let calculationReady = false;
+  let currentCalculation = null;
 
   // ── Init ──────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
@@ -1003,9 +1074,9 @@
     initYearFilter();
     initTabs();
     initEventListeners();
-    loadRecords();
-    loadCompensation();
-    loadDueToday();
+    await Promise.all([loadRecords(), loadCompensation(), loadDueToday()]);
+    populateStaffDropdowns();
+    renderSetupHealth();
   });
 
   // ── Load Staff ────────────────────────────────────────────────
@@ -1013,26 +1084,79 @@
     try {
       const res = await fetch(API + '/staff', { credentials: 'same-origin' });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load staff.');
       allStaff = data.staff || [];
       populateStaffDropdowns();
     } catch(e) { console.error('Failed to load staff', e); }
   }
 
   function populateStaffDropdowns() {
-    const opts = allStaff
+    const selected = {};
+    ['pfEmployee','compEmployee','filterEmployee','compFilterEmployee'].forEach(id => { selected[id] = document.getElementById(id)?.value || ''; });
+    const plainOpts = allStaff
       .filter(s => s.firstName && s.lastName)
       .map(s => `<option value="${s._id}">${esc(s.firstName)} ${esc(s.lastName)} (${s.role})</option>`)
       .join('');
+    const payrollOpts = allStaff
+      .filter(s => s.firstName && s.lastName)
+      .map(s => {
+        const rate = currentRateFor(s._id);
+        const suffix = rate ? `${rate.payType} ${fmt(rate.baseRate)}/${payUnit(rate.payType)}` : 'pay policy missing today';
+        return `<option value="${s._id}">${esc(s.firstName)} ${esc(s.lastName)} (${s.role}) — ${esc(suffix)}</option>`;
+      }).join('');
     const defaultOpt = '<option value="">Select employee...</option>';
     const allOpt = '<option value="">All Employees</option>';
-    ['pfEmployee', 'compEmployee'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = defaultOpt + opts;
-    });
+    const payrollEmployee = document.getElementById('pfEmployee');
+    if (payrollEmployee) payrollEmployee.innerHTML = defaultOpt + payrollOpts;
+    const compEmployee = document.getElementById('compEmployee');
+    if (compEmployee) compEmployee.innerHTML = defaultOpt + plainOpts;
     ['filterEmployee', 'compFilterEmployee'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = allOpt + opts;
+      if (el) el.innerHTML = allOpt + plainOpts;
     });
+    Object.entries(selected).forEach(([id,value]) => { const el=document.getElementById(id); if(el && [...el.options].some(option=>option.value===value)) el.value=value; });
+  }
+
+  function payUnit(payType) {
+    return payType === 'daily' ? 'day' : payType === 'hourly' ? 'hour' : 'month';
+  }
+
+  function compensationLifecycle(record, now = new Date()) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const from = dateOnlyTime(record.effectiveFrom);
+    const to = record.effectiveTo ? dateOnlyTime(record.effectiveTo) : Infinity;
+    if (from > today) return 'scheduled';
+    if (to < today) return 'ended';
+    return 'current';
+  }
+
+  function currentRateFor(employeeId) {
+    return allComp.find(record => String(record.employee?._id || record.employee) === String(employeeId) && compensationLifecycle(record) === 'current');
+  }
+
+  function rateForPeriod(employeeId, startValue, endValue) {
+    const start = dateOnlyTime(startValue), end = dateOnlyTime(endValue);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    return allComp.find(record => {
+      if (String(record.employee?._id || record.employee) !== String(employeeId)) return false;
+      const from = dateOnlyTime(record.effectiveFrom);
+      const to = record.effectiveTo ? dateOnlyTime(record.effectiveTo) : Infinity;
+      return from <= start && to >= end;
+    }) || null;
+  }
+
+  function renderSetupHealth() {
+    const missing = allStaff.filter(staff => !currentRateFor(staff._id));
+    const box = document.getElementById('payrollReadiness');
+    const text = document.getElementById('payrollReadinessText');
+    if (!box || !text) return;
+    box.classList.toggle('warning', missing.length > 0);
+    if (!missing.length) {
+      text.textContent = `All ${allStaff.length} active staff members have a pay policy covering today. Payroll drafts can be generated for covered periods.`;
+      return;
+    }
+    const names = missing.slice(0,3).map(staff => `${staff.firstName} ${staff.lastName}`).join(', ');
+    text.textContent = `${missing.length} active staff member${missing.length === 1 ? '' : 's'} need a current pay policy${names ? `: ${names}${missing.length > 3 ? ', and others' : ''}` : ''}. Configure rates before creating their payroll.`;
   }
 
   function initYearFilter() {
@@ -1057,6 +1181,10 @@
     });
   }
 
+  function showTab(tabName) {
+    document.querySelector(`.tab-btn[data-tab="${tabName}"]`)?.click();
+  }
+
   // ── Event Listeners ───────────────────────────────────────────
   function initEventListeners() {
     document.getElementById('btnRefresh').addEventListener('click', loadRecords);
@@ -1064,20 +1192,22 @@
     document.getElementById('btnRefreshDue').addEventListener('click', loadDueToday);
     document.getElementById('btnCreatePayroll').addEventListener('click', openCreatePayroll);
     document.getElementById('btnAddComp').addEventListener('click', openAddComp);
+    document.getElementById('btnOpenPolicies').addEventListener('click', () => showTab('compensation'));
     ['filterStatus', 'filterRole', 'filterEmployee', 'filterYear'].forEach(id => {
       document.getElementById(id).addEventListener('change', loadRecords);
     });
     ['compFilterEmployee', 'compFilterActive'].forEach(id => {
-      document.getElementById(id).addEventListener('change', loadCompensation);
+      document.getElementById(id).addEventListener('change', renderCompensationFilter);
     });
 
     // Auto-calculate
     document.getElementById('btnAutoCalc').addEventListener('click', autoCalculate);
-    document.getElementById('pfOvertimeHours').addEventListener('input', syncOvertimeControls);
+    document.getElementById('pfOvertimeHours').addEventListener('input', () => { calculationReady = false; syncOvertimeControls(); });
     document.getElementById('pfOvertimeHours').addEventListener('change', autoCalculate);
     ['pfEmployee', 'pfPeriodStart', 'pfPeriodEnd'].forEach(id => {
-      document.getElementById(id).addEventListener('change', invalidatePayrollCalculation);
+      document.getElementById(id).addEventListener('change', () => { invalidatePayrollCalculation(); renderPayrollRateContext(); });
     });
+    document.getElementById('pfPayDate').addEventListener('change', validatePlannedPayDate);
 
     // Live summary update
     ['pfBasicPay', 'pfOvertimePay'].forEach(id => {
@@ -1100,11 +1230,13 @@
     document.getElementById('btnConfirmVoid').addEventListener('click', confirmVoid);
     // Save compensation
     document.getElementById('btnSaveComp').addEventListener('click', saveCompensation);
+    document.getElementById('compEmployee').addEventListener('change', syncCompEmployeeContext);
 
     // Pay type radio sync
     document.querySelectorAll('input[name="compPayTypeRadio"]').forEach(r => {
       r.addEventListener('change', () => {
         document.getElementById('compPayType').value = r.value;
+        syncCompRateLabels();
       });
     });
   }
@@ -1124,6 +1256,7 @@
     try {
       const res = await fetch(API + '?' + params.toString(), { credentials: 'same-origin' });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load payroll runs.');
       allRecords = data.records || [];
       renderRecords(allRecords);
       renderStats(data.stats || {});
@@ -1159,7 +1292,7 @@
           <div style="font-weight:600;color:#0f172a;">${esc(name)}</div>
           <div style="font-size:0.7rem;color:#94a3b8;">${esc(role)}</div>
         </td>
-        <td style="white-space:nowrap;">${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}</td>
+        <td style="white-space:nowrap;">${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}<div class="pw-muted-note">Planned pay: ${fmtDate(r.payDate)}</div></td>
         <td class="text-end">${fmt(r.basicPay)}</td>
         <td class="text-end">${fmt(r.overtimePay)}</td>
         <td class="text-end">${fmt((r.allowances||[]).reduce((s,i)=>s+i.amount,0))}</td>
@@ -1172,30 +1305,27 @@
   }
 
   function getRecordActions(r) {
-    let html = `<button class="btn-action" title="View" onclick="window._pw.viewRecord('${r._id}')"><i class="bi bi-eye"></i></button> `;
+    let html = `<div class="pw-row-actions"><button class="pw-row-action" onclick="window._pw.viewRecord('${r._id}')"><i class="bi bi-eye me-1"></i>View</button>`;
     if (r.status === 'draft') {
-      html += `<button class="btn-action" title="Edit" onclick="window._pw.editRecord('${r._id}')"><i class="bi bi-pencil"></i></button> `;
-      html += `<button class="btn-action success" title="Approve" onclick="window._pw.openApprove('${r._id}')"><i class="bi bi-check2-circle"></i></button> `;
-      html += `<button class="btn-action danger" title="Void" onclick="window._pw.openVoid('${r._id}')"><i class="bi bi-x-octagon"></i></button>`;
+      html += `<button class="pw-row-action" onclick="window._pw.editRecord('${r._id}')"><i class="bi bi-pencil me-1"></i>Edit</button>`;
+      html += `<button class="pw-row-action success" onclick="window._pw.openApprove('${r._id}')"><i class="bi bi-check2-circle me-1"></i>Review</button>`;
+      html += `<button class="pw-row-action danger" onclick="window._pw.openVoid('${r._id}')"><i class="bi bi-x-octagon me-1"></i>Void</button>`;
     } else if (r.status === 'approved') {
-      html += `<button class="btn-action success" title="Mark Paid" onclick="window._pw.openPaid('${r._id}')"><i class="bi bi-credit-card"></i></button>`;
+      html += `<button class="pw-row-action success" onclick="window._pw.openPaid('${r._id}')"><i class="bi bi-credit-card me-1"></i>Record Payment</button>`;
     }
-    return html;
+    return html + '</div>';
   }
 
   // ── Load Compensation ─────────────────────────────────────────
   async function loadCompensation() {
-    const params = new URLSearchParams();
-    const emp = document.getElementById('compFilterEmployee').value;
-    const active = document.getElementById('compFilterActive').value;
-    if (emp) params.set('employee', emp);
-    if (active) params.set('active', active);
-
     try {
-      const res = await fetch(API + '/compensation?' + params.toString(), { credentials: 'same-origin' });
+      const res = await fetch(API + '/compensation', { credentials: 'same-origin' });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load pay policies.');
       allComp = data.records || [];
-      renderComp(allComp);
+      renderCompensationFilter();
+      populateStaffDropdowns();
+      renderSetupHealth();
     } catch(e) {
       document.getElementById('compBody').innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-exclamation-circle"></i><p>Failed to load compensation records</p></td></tr>';
     }
@@ -1211,23 +1341,26 @@
       const emp = r.employee || {};
       const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
       const role = emp.role || '';
-      const statusBadge = r.active
-        ? '<span class="status-badge status-approved">Active</span>'
-        : '<span class="status-badge status-voided">Ended</span>';
+      const lifecycle = compensationLifecycle(r);
+      const statusBadge = lifecycle === 'current'
+        ? '<span class="status-badge status-approved">Current</span>'
+        : lifecycle === 'scheduled'
+          ? '<span class="status-badge status-draft">Scheduled</span>'
+          : '<span class="status-badge status-voided">Ended</span>';
       return `<tr>
         <td>
           <div style="font-weight:600;color:#0f172a;">${esc(name)}</div>
           <div style="font-size:0.7rem;color:#94a3b8;">${esc(role)}</div>
         </td>
         <td><span class="role-tag role-${role}">${r.payType}</span></td>
-        <td class="text-end" style="font-weight:600;">${fmt(r.baseRate)}</td>
+        <td class="text-end" style="font-weight:600;">${fmt(r.baseRate)}<div class="pw-muted-note">per ${payUnit(r.payType)}</div></td>
         <td class="text-end">${fmt(r.overtimeRate)}</td>
         <td>${fmtDate(r.effectiveFrom)}</td>
         <td>${fmtDate(r.effectiveTo)}</td>
         <td>${statusBadge}</td>
-        <td class="text-center">
-          ${r.active ? `<button class="btn-action" title="Edit" onclick="window._pw.editComp('${r._id}')"><i class="bi bi-pencil"></i></button> <button class="btn-action danger" title="End" onclick="window._pw.endComp('${r._id}')"><i class="bi bi-stop-circle"></i></button>` : ''}
-        </td>
+        <td class="text-center"><div class="pw-row-actions">
+          ${r.active ? `<button class="pw-row-action" onclick="window._pw.editComp('${r._id}')"><i class="bi bi-pencil me-1"></i>Edit</button><button class="pw-row-action" onclick="window._pw.scheduleRateChange('${r._id}')"><i class="bi bi-calendar-plus me-1"></i>New Rate</button><button class="pw-row-action danger" onclick="window._pw.endComp('${r._id}')"><i class="bi bi-stop-circle me-1"></i>End</button>` : ''}
+        </div></td>
       </tr>`;
     }).join('');
   }
@@ -1237,6 +1370,7 @@
     try {
       const res = await fetch(API + '/due-today', { credentials: 'same-origin' });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load daily payroll readiness.');
       renderDueToday(data);
     } catch(e) {
       document.getElementById('dueTodayList').innerHTML = '<div class="pw-due-empty"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
@@ -1256,7 +1390,7 @@
 
     if (!items.length) {
       banner.classList.add('show');
-      list.innerHTML = '<div class="pw-due-empty"><i class="bi bi-check-circle-fill me-1" style="color:#059669;"></i>All daily employees have been covered for today. No payroll pending.</div>';
+      list.innerHTML = '<div class="pw-due-empty"><i class="bi bi-check-circle-fill me-1" style="color:#059669;"></i>No completed daily shifts are waiting for a payroll draft.</div>';
       return;
     }
 
@@ -1269,17 +1403,18 @@
       const attStatus = att.status || 'Unknown';
       const attCls = attStatus === 'Present' ? 'pw-due-att-present' : attStatus === 'Late' ? 'pw-due-att-late' : 'pw-due-att-absent';
       const rate = fmt(item.baseRate) + '/day';
-      const periodStart = new Date(data.date).toISOString().split('T')[0];
+      const periodStart = localDateValue(data.date);
       const periodEnd = periodStart;
+      const ready = item.readyForDraft === true;
       return `<div class="pw-due-card">
         <div class="pw-due-card-left">
           <div class="pw-due-avatar">${esc(initials.toUpperCase())}</div>
           <div>
             <div class="pw-due-name">${esc(name)}</div>
-            <div class="pw-due-meta">${esc(emp.role)} \u2022 ${rate} \u2022 <span class="pw-due-att ${attCls}">${attStatus}</span></div>
+            <div class="pw-due-meta">${esc(emp.role)} \u2022 ${rate} \u2022 <span class="pw-due-att ${attCls}">${attStatus}</span> \u2022 ${esc(item.readinessReason || '')}</div>
           </div>
         </div>
-        <button class="pw-due-create-btn" onclick="window._pw.createDuePayroll('${emp._id}','${esc(name)}','${periodStart}','${periodEnd}')"><i class="bi bi-plus-lg me-1"></i>Create</button>
+        <button class="pw-due-create-btn" ${ready ? `onclick="window._pw.createDuePayroll('${emp._id}','${esc(name)}','${periodStart}','${periodEnd}')"` : 'disabled'}><i class="bi ${ready ? 'bi-plus-lg' : 'bi-hourglass-split'} me-1"></i>${ready ? 'Create Draft' : 'Awaiting Checkout'}</button>
       </div>`;
     }).join('');
   }
@@ -1293,12 +1428,84 @@
       if (ps) ps.value = periodStart;
       const pe = document.getElementById('pfPeriodEnd');
       if (pe) pe.value = periodEnd;
+      document.getElementById('pfPayDate').value = periodEnd;
+      invalidatePayrollCalculation();
+      renderPayrollRateContext();
       pwGoStep(1);
     }, 200);
   }
 
   // ── Create / Edit Payroll ─────────────────────────────────────
   let currentStep = 1;
+
+  function validatePlannedPayDate(showMessage = false) {
+    const end = dateOnlyTime(document.getElementById('pfPeriodEnd').value);
+    const payDate = dateOnlyTime(document.getElementById('pfPayDate').value);
+    const valid = Number.isFinite(end) && Number.isFinite(payDate) && payDate >= end;
+    if (!valid && showMessage) showCalcMsg('Planned pay date must be on or after the period end date.', 'error');
+    return valid;
+  }
+
+  function renderPayrollRateContext() {
+    const employeeId = document.getElementById('pfEmployee').value;
+    const start = document.getElementById('pfPeriodStart').value;
+    const end = document.getElementById('pfPeriodEnd').value;
+    const context = document.getElementById('pfRateContext');
+    context.className = 'pw-context';
+    if (!employeeId || !start || !end) {
+      context.innerHTML = '<i class="bi bi-info-circle me-1"></i>Select an employee and pay period to check which effective pay rate will be used.';
+      return null;
+    }
+    const rate = rateForPeriod(employeeId, start, end);
+    if (rate) {
+      context.classList.add('success');
+      context.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i><strong>${esc(rate.payType.charAt(0).toUpperCase()+rate.payType.slice(1))} policy:</strong> ${fmt(rate.baseRate)} per ${payUnit(rate.payType)}${Number(rate.overtimeRate||0)>0?` · OT ${fmt(rate.overtimeRate)}/hour`:''}. Effective ${fmtDate(rate.effectiveFrom)}${rate.effectiveTo?` to ${fmtDate(rate.effectiveTo)}`:''}.`;
+      return rate;
+    }
+    const intersects = allComp.some(record => String(record.employee?._id || record.employee) === String(employeeId) && dateOnlyTime(record.effectiveFrom) <= dateOnlyTime(end) && (!record.effectiveTo || dateOnlyTime(record.effectiveTo) >= dateOnlyTime(start)));
+    context.classList.add(intersects ? 'warning' : 'danger');
+    context.innerHTML = intersects
+      ? '<i class="bi bi-exclamation-triangle-fill me-1"></i>The pay rate changes inside this period. Split the payroll into separate periods at the rate-change date.'
+      : '<i class="bi bi-x-circle-fill me-1"></i>No pay policy covers this period. Configure an effective-dated rate before continuing.';
+    return null;
+  }
+
+  function applyCyclePreset(type) {
+    const today = new Date();
+    let start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let end = new Date(start);
+    if (type === 'seven_days') start.setDate(end.getDate()-6);
+    if (type === 'month_to_date') start = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (type === 'previous_month') {
+      start = new Date(today.getFullYear(), today.getMonth()-1, 1);
+      end = new Date(today.getFullYear(), today.getMonth(), 0);
+    }
+    document.getElementById('pfPeriodStart').value = localDateValue(start);
+    document.getElementById('pfPeriodEnd').value = localDateValue(end);
+    document.getElementById('pfPayDate').value = localDateValue(today < end ? end : today);
+    invalidatePayrollCalculation();
+    renderPayrollRateContext();
+  }
+
+  async function pwContinueToBreakdown() {
+    const employeeId = document.getElementById('pfEmployee').value;
+    const start = document.getElementById('pfPeriodStart').value;
+    const end = document.getElementById('pfPeriodEnd').value;
+    if (!employeeId || !start || !end || !document.getElementById('pfPayDate').value) {
+      showCalcMsg('Select an employee, a complete pay period, and the planned pay date.', 'error');
+      return;
+    }
+    if (dateOnlyTime(end) < dateOnlyTime(start)) return showCalcMsg('Period end cannot be before period start.', 'error');
+    if (!validatePlannedPayDate(true) || !renderPayrollRateContext()) return;
+    if (await autoCalculate()) pwGoStep(2);
+  }
+
+  function pwContinueToReview() {
+    const overtimeHours = Number(document.getElementById('pfOvertimeHours').value || 0);
+    if (!calculationReady) return showCalcMsg('Recalculate payroll after changing the employee, dates, or overtime hours.', 'error');
+    if (overtimeHours > 0 && document.getElementById('pfOvertimeNote').value.trim().length < 5) return showCalcMsg('Document the overtime authorization before review.', 'error');
+    pwGoStep(3);
+  }
 
   function pwGoStep(step) {
     currentStep = step;
@@ -1325,23 +1532,27 @@
     document.getElementById('reviewPayDate').textContent = fmtDate(document.getElementById('pfPayDate').value);
     const attWrap = document.getElementById('calcAttendanceWrap');
     if (attWrap.style.display !== 'none') {
-      document.getElementById('reviewAtt').textContent =
-        document.getElementById('attPresent').textContent + ' present, ' +
-        document.getElementById('attLate').textContent + ' late, ' +
-        document.getElementById('attAbsent').textContent + ' absent';
+      document.getElementById('reviewAtt').textContent = currentCalculation?.compensation?.payType === 'monthly'
+        ? 'Not used for monthly salary'
+        : document.getElementById('attPresent').textContent + ' present, ' +
+          document.getElementById('attLate').textContent + ' late, ' +
+          document.getElementById('attAbsent').textContent + ' absent';
     } else {
       document.getElementById('reviewAtt').textContent = 'Not calculated';
     }
+    document.getElementById('reviewRate').textContent = currentCalculation?.compensation
+      ? `${currentCalculation.compensation.payType} · ${fmt(currentCalculation.compensation.baseRate)}/${payUnit(currentCalculation.compensation.payType)}`
+      : '—';
   }
 
   function openCreatePayroll() {
     editingId = null;
-    document.getElementById('payrollModalTitle').textContent = 'Create Payroll';
-    document.getElementById('payrollModalSub').textContent = 'Calculate and create a new payroll record';
+    document.getElementById('payrollModalTitle').textContent = 'New Payroll Run';
+    document.getElementById('payrollModalSub').textContent = 'Create an internal draft from a pay policy and attendance period';
     document.getElementById('pfPayrollId').value = '';
     document.getElementById('pfEmployee').value = '';
     document.getElementById('pfEmployee').disabled = false;
-    document.getElementById('pfPayDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pfPayDate').value = localDateValue(new Date());
     document.getElementById('pfPeriodStart').value = '';
     document.getElementById('pfPeriodEnd').value = '';
     document.getElementById('pfBasicPay').value = '';
@@ -1353,6 +1564,10 @@
     clearLineItems('allowancesContainer');
     clearLineItems('deductionsContainer');
     document.getElementById('calcAttendanceWrap').style.display = 'none';
+    document.getElementById('calcAttendanceDesc').textContent = 'Auto-calculated from attendance records';
+    calculationReady = false;
+    currentCalculation = null;
+    document.getElementById('pfCalculationBasis').innerHTML = '<i class="bi bi-lock-fill me-1"></i>The server will select the effective rate and calculate attendance-based pay.';
     renderCalculationWarnings([]);
     syncOvertimeControls();
     updateSummary();
@@ -1373,9 +1588,9 @@
       document.getElementById('pfPayrollId').value = id;
       document.getElementById('pfEmployee').value = r.employee._id;
       document.getElementById('pfEmployee').disabled = true;
-      document.getElementById('pfPayDate').value = r.payDate ? new Date(r.payDate).toISOString().split('T')[0] : '';
-      document.getElementById('pfPeriodStart').value = r.periodStart ? new Date(r.periodStart).toISOString().split('T')[0] : '';
-      document.getElementById('pfPeriodEnd').value = r.periodEnd ? new Date(r.periodEnd).toISOString().split('T')[0] : '';
+      document.getElementById('pfPayDate').value = r.payDate ? localDateValue(r.payDate) : '';
+      document.getElementById('pfPeriodStart').value = r.periodStart ? localDateValue(r.periodStart) : '';
+      document.getElementById('pfPeriodEnd').value = r.periodEnd ? localDateValue(r.periodEnd) : '';
       document.getElementById('pfBasicPay').value = r.basicPay;
       document.getElementById('pfOvertimeHours').value = r.overtimeHours || 0;
       document.getElementById('pfOvertimePay').value = r.overtimePay || 0;
@@ -1390,6 +1605,9 @@
       (r.deductions || []).forEach(d => addLineItem('deductionsContainer', d.name, d.amount));
 
       document.getElementById('calcAttendanceWrap').style.display = 'block';
+      document.getElementById('calcAttendanceDesc').textContent = r.payType === 'monthly'
+        ? 'Monthly salary is prorated by covered calendar days; attendance does not change basic pay.'
+        : 'Verified attendance used by the server calculation.';
       const att = r.attendanceSummary || {};
       document.getElementById('attPresent').textContent = att.present || 0;
       document.getElementById('attLate').textContent = att.late || 0;
@@ -1398,6 +1616,10 @@
       document.getElementById('attSick').textContent = att.sickLeave || 0;
       document.getElementById('attHours').textContent = att.hoursWorked || 0;
       renderCalculationWarnings(r.calculationWarnings || []);
+      calculationReady = true;
+      currentCalculation = { compensation: { payType: r.payType, baseRate: r.baseRate, overtimeRate: r.overtimeRate } };
+      document.getElementById('pfCalculationBasis').innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${esc(r.payType)} policy:</strong> ${fmt(r.baseRate)}/${payUnit(r.payType)}${Number(r.overtimeRate||0)>0?` · OT ${fmt(r.overtimeRate)}/hour`:''}. Saved draft inputs will be recalculated by the server.`;
+      renderPayrollRateContext();
       syncOvertimeControls();
       updateSummary();
       pwGoStep(1);
@@ -1430,13 +1652,14 @@
     const end = document.getElementById('pfPeriodEnd').value;
     if (!emp || !start || !end) {
       showCalcMsg('Please select employee and period dates first.', 'error');
-      return;
+      return false;
     }
 
     const btn = document.getElementById('btnAutoCalc');
     const origHTML = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Calculating...';
     btn.disabled = true;
+    let succeeded = false;
 
     try {
       const res = await fetch(API + '/calculate', {
@@ -1454,7 +1677,7 @@
       const data = await res.json();
       if (!res.ok) {
         showCalcMsg(data.error || 'Calculation failed.', 'error');
-        return;
+        return false;
       }
 
       document.getElementById('pfBasicPay').value = data.basicPay;
@@ -1471,10 +1694,20 @@
       document.getElementById('attHours').textContent = att.hoursWorked || 0;
       document.getElementById('calcAttendanceWrap').style.display = 'block';
       renderCalculationWarnings(data.calculationWarnings || []);
+      calculationReady = true;
+      currentCalculation = data;
+      const basis = document.getElementById('pfCalculationBasis');
+      basis.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${esc(data.compensation.payType)} policy:</strong> ${fmt(data.compensation.baseRate)}/${payUnit(data.compensation.payType)}${Number(data.compensation.overtimeRate||0)>0?` · OT ${fmt(data.compensation.overtimeRate)}/hour`:''}. Attendance and rate inputs were verified by the server.`;
       syncOvertimeControls();
 
       updateSummary();
-      showCalcMsg('Calculated: ' + fmt(data.basicPay) + ' basic pay (' + (att.present || 0) + ' present days)', 'success');
+      const calculationMessage = data.compensation.payType === 'monthly'
+        ? `Calculated ${fmt(data.basicPay)} from the monthly salary and covered calendar days.`
+        : data.compensation.payType === 'hourly'
+          ? `Calculated ${fmt(data.basicPay)} from ${Number(att.hoursWorked||0)} verified hours.`
+          : `Calculated ${fmt(data.basicPay)} from ${Number(att.present||0)+Number(att.late||0)} payable attendance days.`;
+      showCalcMsg(calculationMessage, 'success');
+      succeeded = true;
     } catch(e) {
       console.error('Calc error:', e);
       showCalcMsg('Network error. Check console for details.', 'error');
@@ -1482,6 +1715,17 @@
       btn.innerHTML = origHTML;
       btn.disabled = false;
     }
+    return succeeded;
+  }
+
+  function renderCompensationFilter() {
+    const employeeId = document.getElementById('compFilterEmployee').value;
+    const lifecycle = document.getElementById('compFilterActive').value;
+    const filtered = allComp.filter(record => {
+      const matchesEmployee = !employeeId || String(record.employee?._id || record.employee) === String(employeeId);
+      return matchesEmployee && (!lifecycle || compensationLifecycle(record) === lifecycle);
+    });
+    renderComp(filtered);
   }
 
   function syncOvertimeControls() {
@@ -1494,6 +1738,8 @@
   }
 
   function invalidatePayrollCalculation() {
+    calculationReady = false;
+    currentCalculation = null;
     document.getElementById('pfBasicPay').value = '';
     document.getElementById('pfOvertimePay').value = '0';
     document.getElementById('calcAttendanceWrap').style.display = 'none';
@@ -1579,6 +1825,8 @@
     const end = document.getElementById('pfPeriodEnd').value;
     const payDate = document.getElementById('pfPayDate').value;
     if (!emp || !start || !end || !payDate) { showCalcMsg('Please fill in all required fields.', 'error'); return; }
+    if (!validatePlannedPayDate(true)) { pwGoStep(1); return; }
+    if (!calculationReady) { showCalcMsg('Calculate the payroll again before saving the draft.', 'error'); pwGoStep(1); return; }
 
     const overtimeHours = parseFloat(document.getElementById('pfOvertimeHours').value) || 0;
     const overtimeNote = document.getElementById('pfOvertimeNote').value.trim();
@@ -1617,7 +1865,7 @@
       document.getElementById('pfEmployee').disabled = false;
       editingId = null;
       loadRecords();
-      showCalcMsg(wasEditing ? 'Payroll updated.' : 'Payroll created.', 'success');
+      showCalcMsg(wasEditing ? 'Payroll draft updated.' : 'Payroll draft created. Review and approve it when the inputs are final.', 'success');
     } catch(e) { console.error('Save error:', e); showCalcMsg('Failed to save payroll.', 'error'); }
   }
 
@@ -1715,7 +1963,16 @@
     document.getElementById('approveModal').dataset.id = id;
     const emp = r.employee || {};
     const warnings = (r.calculationWarnings || []).map(item => `<li>${esc(item)}</li>`).join('');
-    document.getElementById('approveSummary').innerHTML = `<strong>${esc((emp.firstName||'') + ' ' + (emp.lastName||''))}</strong> — ${fmt(r.netPay)}<br/>Period: ${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}<br/><small><i class="bi bi-lock-fill me-1"></i>Amounts will be recalculated by the server at approval.</small>${warnings ? `<ul class="mt-2 mb-0">${warnings}</ul>` : ''}`;
+    document.getElementById('approveSummary').innerHTML = `
+      <strong>${esc((emp.firstName||'') + ' ' + (emp.lastName||''))}</strong><br/>
+      <span>Period: ${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}</span>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;">
+        <span><small>Gross</small><br/><strong>${fmt(r.grossPay)}</strong></span>
+        <span><small>Deductions</small><br/><strong>${fmt(r.totalDeductions)}</strong></span>
+        <span><small>Net pay</small><br/><strong>${fmt(r.netPay)}</strong></span>
+      </div>
+      <small><i class="bi bi-lock-fill me-1"></i>Approval recalculates the amounts, locks the run, and publishes the payslip. It does not record payment.</small>
+      ${warnings ? `<ul class="mt-2 mb-0">${warnings}</ul>` : ''}`;
     new bootstrap.Modal(document.getElementById('approveModal')).show();
   }
 
@@ -1741,7 +1998,7 @@
     if (!r) return;
     document.getElementById('paidPayrollId').value = id;
     document.getElementById('paidMethod').value = '';
-    document.getElementById('paidDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('paidDate').value = localDateValue(new Date());
     document.getElementById('paidReference').value = '';
     document.getElementById('paidProof').value = '';
     syncPaymentEvidence();
@@ -1818,6 +2075,7 @@
       r.checked = r.value === val;
     });
     document.getElementById('compPayType').value = val || '';
+    syncCompRateLabels();
   }
 
   function getPayTypeFromRadio() {
@@ -1825,16 +2083,80 @@
     return checked ? checked.value : '';
   }
 
+  function syncCompRateLabels() {
+    const payType = getPayTypeFromRadio();
+    const label = document.getElementById('compBaseRateLabel');
+    const hint = document.getElementById('compRateHint');
+    const unit = payType ? payUnit(payType) : 'period';
+    label.textContent = payType ? `Base Rate (per ${unit}) *` : 'Base Rate *';
+    hint.textContent = payType === 'daily'
+      ? 'Basic pay = completed payable attendance days × daily rate.'
+      : payType === 'hourly'
+        ? 'Basic pay = verified worked hours × hourly rate.'
+        : payType === 'monthly'
+          ? 'Monthly salary is prorated by calendar days covered by the payroll period.'
+          : 'Choose a pay type to see how this rate is applied.';
+  }
+
+  function syncCompEmployeeContext() {
+    const employeeId = document.getElementById('compEmployee').value;
+    const staff = allStaff.find(item => String(item._id) === String(employeeId));
+    const context = document.getElementById('compEmployeeContext');
+    const isEditing = Boolean(document.getElementById('compId').value);
+    document.querySelectorAll('input[name="compPayTypeRadio"]').forEach(radio => { radio.disabled = false; });
+    if (!staff) {
+      context.className = 'pw-context';
+      context.innerHTML = '<i class="bi bi-info-circle me-1"></i>Select an employee to review their current pay policy.';
+      syncCompRateLabels();
+      return;
+    }
+    if (staff.role === 'secretary') {
+      if (getPayTypeFromRadio() !== 'monthly') syncPayTypeRadio('monthly');
+      document.querySelectorAll('input[name="compPayTypeRadio"]').forEach(radio => { radio.disabled = radio.value !== 'monthly'; });
+    }
+    const records = allComp.filter(record => String(record.employee?._id || record.employee) === String(employeeId)).sort((a,b) => dateOnlyTime(b.effectiveFrom)-dateOnlyTime(a.effectiveFrom));
+    const current = records.find(record => compensationLifecycle(record) === 'current');
+    const scheduled = records.find(record => compensationLifecycle(record) === 'scheduled');
+    context.className = 'pw-context ' + (current ? 'success' : scheduled ? 'warning' : 'danger');
+    context.innerHTML = current
+      ? `<i class="bi bi-check-circle-fill me-1"></i>Current policy: <strong>${esc(current.payType)} ${fmt(current.baseRate)}/${payUnit(current.payType)}</strong>, effective ${fmtDate(current.effectiveFrom)}${current.effectiveTo?` to ${fmtDate(current.effectiveTo)}`:''}.`
+      : scheduled
+        ? `<i class="bi bi-calendar-event me-1"></i>A ${esc(scheduled.payType)} rate of ${fmt(scheduled.baseRate)}/${payUnit(scheduled.payType)} is scheduled for ${fmtDate(scheduled.effectiveFrom)}.`
+        : '<i class="bi bi-exclamation-triangle-fill me-1"></i>No policy covers today. Create one before generating current payroll.';
+    if (!isEditing && records.length) {
+      document.getElementById('compModalTitle').textContent = 'Schedule Pay Rate Change';
+      document.getElementById('compModalSub').textContent = 'The prior policy will end immediately before the new effective date';
+    }
+    syncCompRateLabels();
+  }
+
   function openAddComp() {
     document.getElementById('compId').value = '';
-    document.getElementById('compModalTitle').textContent = 'Add Pay Rate';
+    document.getElementById('compModalTitle').textContent = 'Set Pay Policy';
+    document.getElementById('compModalSub').textContent = 'Configure an effective-dated employee pay policy';
     document.getElementById('compEmployee').value = '';
     document.getElementById('compEmployee').disabled = false;
     syncPayTypeRadio('');
     document.getElementById('compBaseRate').value = '';
     document.getElementById('compOTRate').value = '0';
-    document.getElementById('compEffectiveFrom').value = new Date().toISOString().split('T')[0];
+    document.getElementById('compEffectiveFrom').disabled = false;
+    document.getElementById('compEffectiveFrom').value = localDateValue(new Date());
+    document.getElementById('compEffectiveHint').textContent = 'A new rate closes the prior rate on the previous calendar day. Historical payroll remains unchanged.';
+    syncCompEmployeeContext();
     new bootstrap.Modal(document.getElementById('compModal')).show();
+  }
+
+  function scheduleRateChange(id) {
+    const record = allComp.find(item => item._id === id);
+    if (!record?.employee?._id) return;
+    openAddComp();
+    document.getElementById('compEmployee').value = record.employee._id;
+    const today = new Date();
+    const latestEffective = new Date(Math.max(...allComp.filter(item => String(item.employee?._id || item.employee) === String(record.employee._id)).map(item => dateOnlyTime(item.effectiveFrom))));
+    const proposed = latestEffective >= new Date(today.getFullYear(),today.getMonth(),today.getDate()) ? new Date(latestEffective.getFullYear(),latestEffective.getMonth(),latestEffective.getDate()+1) : today;
+    document.getElementById('compEffectiveFrom').value = localDateValue(proposed);
+    syncPayTypeRadio(record.payType);
+    syncCompEmployeeContext();
   }
 
   function editComp(id) {
@@ -1842,12 +2164,16 @@
     if (!r) return;
     document.getElementById('compId').value = id;
     document.getElementById('compModalTitle').textContent = 'Edit Pay Rate';
+    document.getElementById('compModalSub').textContent = 'Correct an unused active policy; use New Rate for a dated change';
     document.getElementById('compEmployee').value = r.employee._id;
     document.getElementById('compEmployee').disabled = true;
     syncPayTypeRadio(r.payType);
     document.getElementById('compBaseRate').value = r.baseRate;
     document.getElementById('compOTRate').value = r.overtimeRate || 0;
-    document.getElementById('compEffectiveFrom').value = r.effectiveFrom ? new Date(r.effectiveFrom).toISOString().split('T')[0] : '';
+    document.getElementById('compEffectiveFrom').value = r.effectiveFrom ? localDateValue(r.effectiveFrom) : '';
+    document.getElementById('compEffectiveFrom').disabled = true;
+    document.getElementById('compEffectiveHint').textContent = 'The effective date is locked while editing. Use New Rate to preserve the existing policy and schedule a change.';
+    syncCompEmployeeContext();
     new bootstrap.Modal(document.getElementById('compModal')).show();
   }
 
@@ -1864,8 +2190,13 @@
       payType,
       baseRate: parseFloat(baseRate),
       overtimeRate: parseFloat(document.getElementById('compOTRate').value) || 0,
-      effectiveFrom,
     };
+    if (!id) body.effectiveFrom = effectiveFrom;
+
+    if (!id && allComp.some(record => String(record.employee?._id || record.employee) === String(emp))) {
+      const confirmation = await Swal.fire({title:'Schedule this pay rate?',text:`The existing rate will end immediately before ${fmtDate(effectiveFrom)}. Finalized payroll history will not change.`,icon:'question',showCancelButton:true,confirmButtonText:'Schedule rate',confirmButtonColor:'#2563eb'});
+      if (!confirmation.isConfirmed) return;
+    }
 
     try {
       const url = id ? API + '/compensation/' + id : API + '/compensation';
@@ -1880,17 +2211,23 @@
       if (!res.ok) { showCalcMsg(data.error || 'Save failed.', 'error'); return; }
       bootstrap.Modal.getInstance(document.getElementById('compModal')).hide();
       document.getElementById('compEmployee').disabled = false;
+      document.getElementById('compEffectiveFrom').disabled = false;
       loadCompensation();
       showCalcMsg(id ? 'Pay rate updated.' : 'Pay rate added.', 'success');
     } catch(e) { showCalcMsg('Failed to save compensation.', 'error'); }
   }
 
   async function endComp(id) {
-    if (!confirm('End this compensation record?')) return;
+    const record = allComp.find(item => item._id === id);
+    if (!record) return;
+    const decision = await Swal.fire({title:'End this pay policy?',text:'Choose the final date this rate remains valid. Payroll periods after that date will require another rate.',input:'date',inputValue:localDateValue(new Date()),inputAttributes:{min:localDateValue(record.effectiveFrom)},icon:'warning',showCancelButton:true,confirmButtonText:'End policy',confirmButtonColor:'#dc2626',inputValidator:value=>!value?'Select the final effective date.':dateOnlyTime(value)<dateOnlyTime(record.effectiveFrom)?'End date cannot be before the effective date.':undefined});
+    if (!decision.isConfirmed) return;
     try {
       const res = await fetch(API + '/compensation/' + id + '/end', {
         method: 'POST',
-        credentials: 'same-origin'
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ effectiveTo: decision.value }),
       });
       const data = await res.json();
       if (!res.ok) { showCalcMsg(data.error || 'Failed.', 'error'); return; }
@@ -1910,12 +2247,16 @@
     openPaid,
     openVoid,
     editComp,
+    scheduleRateChange,
     endComp,
     updateSummary,
     checkEmpty,
     createDuePayroll,
+    applyCyclePreset,
     loadDueToday,
   };
   window.pwGoStep = pwGoStep;
+  window.pwContinueToBreakdown = pwContinueToBreakdown;
+  window.pwContinueToReview = pwContinueToReview;
 })();
 </script>

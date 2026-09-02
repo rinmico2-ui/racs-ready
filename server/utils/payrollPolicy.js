@@ -101,9 +101,23 @@ function periodsOverlap(firstStart, firstEnd, secondStart, secondEnd) {
   return new Date(firstStart) <= new Date(secondEnd) && new Date(firstEnd) >= new Date(secondStart);
 }
 
+function dailyPayrollReadiness(attendance) {
+  if (!attendance || !["Present", "Late"].includes(attendance.status)) {
+    return { eligible: false, ready: false, reason: "No payable attendance today." };
+  }
+  if (!attendance.checkInTime) {
+    return { eligible: true, ready: false, reason: "Waiting for check-in." };
+  }
+  if (!attendance.checkOutTime) {
+    return { eligible: true, ready: false, reason: "Waiting for check-out before payroll calculation." };
+  }
+  return { eligible: true, ready: true, reason: "Attendance is complete and ready for a draft." };
+}
+
 module.exports = {
   calculateBasicPay,
   calculateOvertimePay,
+  dailyPayrollReadiness,
   attendanceQualityWarnings,
   hasBlockingAttendanceExceptions,
   separationOfDutiesViolation,
