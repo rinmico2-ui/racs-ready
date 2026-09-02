@@ -16,6 +16,10 @@ const rateLimit = require("express-rate-limit");
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
 const { isAccountEnabled } = require("./middleware/accountState");
+const { buildMongoConnectionUri } = require("./utils/mongoConnection");
+
+// Apply address ordering before any outbound connection is created.
+dns.setDefaultResultOrder("ipv4first");
 
 // ── Fail-fast: require critical secrets before anything else boots ──────────
 if (!process.env.JWT_SECRET) {
@@ -36,12 +40,21 @@ const ALLOWED_ORIGINS = [
 const app = express();
 
 // Database connection
-const MONGODB_URI =
+const configuredMongoUri =
   process.env.MONGODB_URI ||
   "mongodb://localhost:27017/appointment_scheduler";
+const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
+  directHosts: process.env.MONGODB_DIRECT_HOSTS,
+  replicaSet: process.env.MONGODB_REPLICA_SET,
+  authSource: process.env.MONGODB_AUTH_SOURCE,
+});
+const MONGODB_URI = mongoConnection.uri;
 
 // Never write database credentials from the connection URI to application logs.
 logger.info("Connecting to MongoDB");
+if (mongoConnection.usesDirectHosts) {
+  logger.info("Using direct Atlas hosts because local SRV DNS is unavailable");
+}
 
 const databaseReady = mongoose
   .connect(MONGODB_URI)
@@ -157,9 +170,6 @@ app.use((req, res, next) => {
 });
 // Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
 app.set('trust proxy', 1);
-
-// Force IPv4 for outbound connections (fixes ENETUNREACH on Render)
-dns.setDefaultResultOrder('ipv4first');
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
