@@ -87,6 +87,7 @@ function assertAdminTransition(payment, action, body = {}) {
     reject: ["remitted"],
     override: ["waiting_for_remittance", "rejected", "unaccounted"],
     flag: ["waiting_for_remittance", "remitted", "rejected"],
+    reopen: ["unaccounted"],
     refund: ["verified"],
   };
   if (!allowedFrom[normalizedAction]) {
@@ -99,15 +100,21 @@ function assertAdminTransition(payment, action, body = {}) {
       "REMITTANCE_STATE_CONFLICT",
     );
   }
-  if (current === "unaccounted" && payment?.resolvedAt) {
+  if (current === "unaccounted" && payment?.resolvedAt && normalizedAction !== "reopen") {
     throw new RemittancePolicyError("This exception is already resolved. Refresh the queue to see its final outcome.", 409, "REMITTANCE_STATE_CONFLICT");
+  }
+  if (normalizedAction === "reopen" && !payment?.resolvedAt) {
+    throw new RemittancePolicyError("Only a resolved exception can be reopened for recovery.", 409, "REMITTANCE_STATE_CONFLICT");
+  }
+  if (normalizedAction === "reopen" && payment?.resolutionType === "deduct_from_payroll" && payment?.payrollDeductionId) {
+    throw new RemittancePolicyError("Reverse or adjust the linked payroll deduction before reopening this exception, to prevent collecting the amount twice.", 409, "REMITTANCE_PAYROLL_REVERSAL_REQUIRED");
   }
   if (normalizedAction === "verify" && !isStoredProofUrl(payment?.remittanceProofUrl)) {
     throw new RemittancePolicyError("A stored handover proof is required before verification. Request a corrected submission instead.", 409, "REMITTANCE_EVIDENCE_MISSING");
   }
   const reason = cleanText(body.reason, 1000);
   const notes = cleanText(body.notes, 1000);
-  if (["reject", "flag", "refund"].includes(normalizedAction) && reason.length < 10) {
+  if (["reject", "flag", "reopen", "refund"].includes(normalizedAction) && reason.length < 10) {
     throw new RemittancePolicyError("Enter a specific reason of at least 10 characters.", 400, "REMITTANCE_REASON_REQUIRED");
   }
   if (normalizedAction === "override" && notes.length < 10) {

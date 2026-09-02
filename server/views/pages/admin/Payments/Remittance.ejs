@@ -356,10 +356,14 @@
 <script>
 const escR=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const safeRHref=value=>/^\/uploads\/[A-Za-z0-9_./-]+$/.test(String(value||''))||/^https:\/\//i.test(String(value||''))?escR(value):'';
-const remStatusColor=s=>({waiting_for_remittance:'warning',remitted:'info',verified:'success',rejected:'secondary',unaccounted:'danger'}[s]||'secondary');
-const remStatusLabel=p=>p.status==='unaccounted'&&p.resolvedAt?'Exception resolved':({waiting_for_remittance:'Technician handover',remitted:'Admin review',verified:'Verified',rejected:'Correction required',unaccounted:'Escalated exception'}[p.status]||p.status);
+const remStatusColor=p=>p.status==='unaccounted'&&p.resolvedAt?(p.resolutionType==='recovery'?'success':'secondary'):({waiting_for_remittance:'warning',remitted:'info',verified:'success',rejected:'secondary',unaccounted:'danger'}[p.status]||'secondary');
+const remStatusLabel=p=>{
+  if(p.status==='unaccounted'&&p.resolvedAt)return {recovery:'Recovered & closed',write_off:'Closed · Written off',deduct_from_payroll:'Closed · Payroll deduction'}[p.resolutionType]||'Exception resolved';
+  return {waiting_for_remittance:'Technician handover',remitted:'Admin review',verified:'Verified',rejected:'Correction required',unaccounted:'Escalated exception'}[p.status]||p.status;
+};
 const remitMoney=value=>'₱'+Number(value||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
-const remAge=value=>{if(!value)return '';const hours=Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/3600000));return hours<24?`${hours}h in custody`:`${Math.floor(hours/24)}d in custody`;};
+const remAge=(value,endValue,label='in custody')=>{if(!value)return '';const end=endValue?new Date(endValue).getTime():Date.now();const hours=Math.max(0,Math.floor((end-new Date(value).getTime())/3600000));return hours<24?`${hours}h ${label}`:`${Math.floor(hours/24)}d ${label}`;};
+const remReference=p=>p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||`PAY-${String(p._id).slice(-8).toUpperCase()}`;
 let currentPayments=[];
 let currentPage=1;
 const pageSize=10;
@@ -401,7 +405,7 @@ function updateKPIs(summary){
 function renderPayments(payments){
   const q=(document.getElementById('remSearch')?.value||'').toLowerCase();
   const rows=q?payments.filter(p=>{
-    const ref=String(p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||'').toLowerCase();
+    const ref=String(remReference(p)).toLowerCase();
     const subject=p.bookingId||p.orderId||p.projectId||{};
     const c=String(subject.customer?.name||'').toLowerCase();
     const t=String(p.collectedByName||p.collectedBy?.name||'').toLowerCase();
@@ -423,16 +427,16 @@ function renderPage(page, items){
   }
   document.getElementById('remittanceRows').innerHTML=slice.map(p=>{
     const subject=p.bookingId||p.orderId||p.projectId||{};
-    const ref=p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||String(p._id).slice(-8);
-    const color=remStatusColor(p.status);
+    const ref=remReference(p);
+    const color=remStatusColor(p);
     const actions=`<button class="btn btn-sm btn-outline-primary fw-semibold" onclick="openDetail('${p._id}')"><i class="bi bi-clipboard-check me-1"></i>Review</button>`;
     return `<tr>
       <td class="fw-semibold">${escR(ref)}</td>
-      <td>${escR(subject.customer?.name)}</td>
+      <td>${escR(subject.customer?.name||'Customer unavailable')}</td>
       <td>${escR(p.collectedByName||p.collectedBy?.name)}</td>
       <td class="fw-bold">₱${Number(p.amount||0).toLocaleString()}</td>
       <td>${escR(p.method).toUpperCase()}<div class="small text-muted">${escR(p.reference)}</div></td>
-      <td class="small">${p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'}${!['verified'].includes(p.status)&&p.collectedAt?`<div class="${(Date.now()-new Date(p.collectedAt).getTime())>86400000?'text-danger':'text-muted'} fw-semibold mt-1">${escR(remAge(p.collectedAt))}</div>`:''}</td>
+      <td class="small">${p.collectedAt?new Date(p.collectedAt).toLocaleString('en-PH'):'—'}${p.resolvedAt&&p.collectedAt?`<div class="text-success fw-semibold mt-1">${escR(remAge(p.collectedAt,p.resolvedAt,'to resolution'))}</div>`:!['verified'].includes(p.status)&&p.collectedAt?`<div class="${(Date.now()-new Date(p.collectedAt).getTime())>86400000?'text-danger':'text-muted'} fw-semibold mt-1">${escR(remAge(p.collectedAt))}</div>`:''}</td>
       <td><span class="badge bg-${color}-subtle text-${color}">${remStatusLabel(p)}</span>${p.overrideBy?'<div class="small text-muted mt-1">Admin handover</div>':''}${p.flaggedBy&&!p.resolvedAt?'<div class="small text-danger mt-1">Resolution required</div>':''}</td>
       <td>${actions}</td>
     </tr>`;
@@ -461,10 +465,10 @@ async function openDetail(id){
   const p=findPayment(id);
   if(!p) return;
   const subject=p.bookingId||p.orderId||p.projectId||{};
-  const ref=p.bookingId?.bookingReference||p.orderId?.orderReference||p.projectId?.projectReference||String(p._id).slice(-8);
+  const ref=remReference(p);
   document.getElementById('detailTitle').textContent='Payment Details';
   document.getElementById('detailRef').textContent=ref;
-  const color=remStatusColor(p.status);
+  const color=remStatusColor(p);
   const rows=[
     ['Reference',ref],
     ['Customer',subject.customer?.name||'—'],
@@ -541,6 +545,8 @@ async function openDetail(id){
   if(p.status==='unaccounted' && p.resolvedAt){
     const rLabel={write_off:'Written Off',deduct_from_payroll:'Payroll Deducted',recovery:'Recovery'}[p.resolutionType]||p.resolutionType;
     acts+=`<span class="badge bg-dark-subtle text-dark fs-6"><i class="bi bi-check2-all me-1"></i>${rLabel}</span>`;
+    if(p.resolutionType==='deduct_from_payroll'&&p.payrollDeductionId)acts+=`<span class="text-muted small"><i class="bi bi-lock me-1"></i>Reverse the linked payroll deduction before reopening</span>`;
+    else acts+=`<button class="btn btn-outline-warning fw-semibold" onclick="actR('${p._id}','reopen')"><i class="bi bi-arrow-counterclockwise me-1"></i>Reopen for Recovery</button>`;
   }
   actionsEl.innerHTML=acts||'<span class="text-muted">No actions available for this status.</span>';
   actionsEl.innerHTML+='<button class="btn btn-outline-secondary ms-auto" data-bs-dismiss="modal">Close</button>';
@@ -654,7 +660,11 @@ async function confirmResolve(){
 
 async function actR(id,action){
   let reason='';
-  if(action==='reject'){
+  if(action==='reopen'){
+    const reopening=await Swal.fire({title:'Reopen resolved exception?',input:'textarea',inputLabel:'Why must this case be reopened?',inputPlaceholder:'Explain why the previous resolution is no longer final…',inputAttributes:{maxlength:'1000'},icon:'warning',showCancelButton:true,confirmButtonText:'Reopen for technician recovery',confirmButtonColor:'#d97706',inputValidator:value=>String(value||'').trim().length<10?'Enter a specific reason of at least 10 characters.':undefined});
+    if(!reopening.isConfirmed)return;
+    reason=String(reopening.value||'').trim();
+  }else if(action==='reject'){
     const correction=await Swal.fire({title:'Request technician correction',input:'textarea',inputLabel:'What must be corrected?',inputPlaceholder:'Identify the missing, inconsistent, or unreadable evidence…',inputAttributes:{maxlength:'1000'},showCancelButton:true,confirmButtonText:'Send correction request',confirmButtonColor:'#d97706',inputValidator:value=>String(value||'').trim().length<10?'Enter a specific reason of at least 10 characters.':undefined});
     if(!correction.isConfirmed)return;
     reason=String(correction.value||'').trim();
@@ -666,7 +676,8 @@ async function actR(id,action){
   const d=await r.json();
   if(!r.ok)return Swal.fire('Action not completed',d.error||'The record changed. Refresh and try again.','error');
   bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
-  await Swal.fire(action==='verify'?'Remittance verified':'Correction requested',d.message||'The workflow was updated.','success');
+  const successTitle=action==='verify'?'Remittance verified':action==='reopen'?'Exception reopened':'Correction requested';
+  await Swal.fire(successTitle,d.message||'The workflow was updated.','success');
   loadRemittances();
 }
 

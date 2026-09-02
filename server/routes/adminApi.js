@@ -731,10 +731,16 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     if (!payment) return res.status(404).json({ error: "Payment not found" });
     const transition = assertAdminTransition(payment, req.body.action, req.body);
     const action = transition.action;
-    const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted" };
+    const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted", reopen: "waiting_for_remittance" };
     const nextStatus = allowed[action];
     const now = new Date();
     const closesFlaggedException = Boolean(payment.flaggedAt && !payment.resolvedAt && ["verify", "override"].includes(action));
+    const previousResolution = action === "reopen" ? {
+      type: payment.resolutionType,
+      resolvedAt: payment.resolvedAt,
+      notes: payment.resolutionNotes,
+      payrollDeductionId: payment.payrollDeductionId,
+    } : null;
     payment.status = nextStatus;
     if (action === "verify") { payment.verifiedBy = req.user._id; payment.verifiedAt = now; payment.completedAt = now; }
     if (action === "override") {
@@ -750,6 +756,13 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
       payment.resolvedBy = req.user._id;
       payment.resolvedAt = now;
       payment.resolutionNotes = transition.notes || "Recovered remittance evidence verified by administration.";
+      payment.recoveryFollowUpDate = undefined;
+    }
+    if (action === "reopen") {
+      payment.resolutionType = "recovery";
+      payment.resolvedBy = undefined;
+      payment.resolvedAt = undefined;
+      payment.resolutionNotes = transition.reason;
       payment.recoveryFollowUpDate = undefined;
     }
     if (action === "flag") {
@@ -780,7 +793,7 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
       payment.refundMethod = payment.refundMethod || "original";
     }
     payment.events = payment.events || [];
-    payment.events.push({ status: nextStatus, actor: req.user._id, actorName: req.user.name || req.user.email, actorRole: req.user.role, note: transition.reason || transition.notes, at: now, metadata: { action } });
+    payment.events.push({ status: nextStatus, actor: req.user._id, actorName: req.user.name || req.user.email, actorRole: req.user.role, note: transition.reason || transition.notes, at: now, metadata: { action, ...(previousResolution ? { previousResolution } : {}) } });
     await payment.save();
     const subjectPaymentStatus = ["reject", "flag"].includes(action) ? "waiting_for_remittance" : nextStatus;
     const update = { paymentStatus: subjectPaymentStatus };
@@ -808,7 +821,7 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
       else await Order.findByIdAndUpdate(payment.orderId, update);
     }
     if (payment.projectId) await Project.findByIdAndUpdate(payment.projectId, { "payment.paymentStatus": subjectPaymentStatus });
-    if (payment.collectedBy && ["verify", "reject", "flag", "override"].includes(action)) {
+    if (payment.collectedBy && ["verify", "reject", "flag", "override", "reopen"].includes(action)) {
       const { createNotification } = require("../utils/notify");
       const Technician = require("../models/Technician");
       const technician = await Technician.findById(payment.collectedBy).select("user").lean();
@@ -818,9 +831,10 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
         override: { title: "Cash handover verified", message: `Administration recorded and verified the ₱${Number(payment.amount || 0).toLocaleString()} in-person handover.`, priority: "normal" },
         reject: { title: "Remittance correction required", message: `Your ₱${Number(payment.amount || 0).toLocaleString()} remittance needs correction: ${transition.reason}`, priority: "high" },
         flag: { title: "Remittance escalated", message: `The ₱${Number(payment.amount || 0).toLocaleString()} collection was escalated as unaccounted: ${transition.reason}`, priority: "urgent" },
+        reopen: { title: "Recovery submission required", message: `Administration reopened the ₱${Number(payment.amount || 0).toLocaleString()} exception for recovery: ${transition.reason}`, priority: "high" },
       }[action];
       if (technicianUserId) {
-        await createNotification({ type: `remittance_${action}`, ...notification, userId: technicianUserId, role: "technician", referenceId: payment._id, referenceModel: "Payment", link: "/technician/remittances", io: req.app.get("io") });
+        await createNotification({ type: action === "reopen" ? "remittance_recovery" : `remittance_${action}`, ...notification, userId: technicianUserId, role: "technician", referenceId: payment._id, referenceModel: "Payment", link: "/technician/remittances", io: req.app.get("io") });
       }
     }
     await audit.logEvent({ actor: req.user._id, target: payment._id, action: `payment.${nextStatus}`, module: "payment", req, details: { reason: req.body.reason, notes: req.body.notes } }).catch(() => {});

@@ -42,6 +42,15 @@ test("an unresolved flagged payment can be recovered by either side", () => {
     notes: "Attempted resubmission after final resolution.",
     proofUrl: PROOF,
   }), error => error.code === "REMITTANCE_STATE_CONFLICT");
+  assert.equal(assertAdminTransition({ status: "unaccounted", resolvedAt: new Date() }, "reopen", {
+    reason: "Previous write-off was recorded against the wrong payment.",
+  }).action, "reopen");
+  assert.throws(() => assertAdminTransition({ status: "unaccounted" }, "reopen", {
+    reason: "This exception has not been resolved yet.",
+  }), error => error.code === "REMITTANCE_STATE_CONFLICT");
+  assert.throws(() => assertAdminTransition({ status: "unaccounted", resolvedAt: new Date(), resolutionType: "deduct_from_payroll", payrollDeductionId: "payroll-1" }, "reopen", {
+    reason: "Attempt to recover funds after payroll deduction.",
+  }), error => error.code === "REMITTANCE_PAYROLL_REVERSAL_REQUIRED");
 });
 
 test("technician remittance rejects base64 evidence and missing transfer references", () => {
