@@ -366,6 +366,9 @@
       if (res.ok && body.requiresVerification) {
         showRegistrationVerification(body.email || email, true);
         window.authUtils.swalSuccess('Check your email', body.message || 'Enter the verification code we sent you.');
+      } else if (res.ok && body.requiresVerification === false) {
+        await window.authUtils.swalSuccess('Account created', body.message || 'You can now sign in.');
+        window.location.assign(body.redirect || '/login?registered=1');
       } else if (body && body.requiresVerification) {
         showRegistrationVerification(body.email || email, false);
         if (res.status === 429 && body.retryAfter) {

@@ -8,6 +8,7 @@ const rateLimiter = require("../middleware/loginRateLimiter");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
+const { getSystemConfiguration } = require("../utils/systemConfiguration");
 
 const FAKE_HASH = bcrypt.hashSync("invalid-password", 12);
 
@@ -383,6 +384,15 @@ exports.register = async (req, res, next) => {
         .json({ error: "Registration failed. Please check your input." });
     }
 
+    const systemConfiguration = await getSystemConfiguration();
+    if (!systemConfiguration.application.allowCustomerRegistrations) {
+      return res.status(403).json({
+        error: "New customer registration is temporarily unavailable. Please contact the business for assistance.",
+        registrationDisabled: true,
+      });
+    }
+    const requiresEmailVerification = systemConfiguration.application.requireEmailVerification;
+
     // Verify math captcha
     const mathCaptcha = String(req.body.mathCaptcha || "").trim();
     const mathAnswer = String(req.body.mathAnswer || "");
@@ -449,7 +459,7 @@ exports.register = async (req, res, next) => {
       return res.status(409).json({ error: "Email is already registered." });
     }
 
-    if (existingUser && existingUser.emailVerificationLastSentAt) {
+    if (requiresEmailVerification && existingUser && existingUser.emailVerificationLastSentAt) {
       const elapsed =
         Date.now() - new Date(existingUser.emailVerificationLastSentAt).getTime();
       if (elapsed < REGISTRATION_OTP_RESEND_MS) {
@@ -462,7 +472,7 @@ exports.register = async (req, res, next) => {
       }
     }
 
-    const otp = generateOTP();
+    const otp = requiresEmailVerification ? generateOTP() : null;
     const now = Date.now();
     const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -474,12 +484,16 @@ exports.register = async (req, res, next) => {
     user.lastName = lastName;
     user.phone = phone;
     user.address = address;
-    user.emailVerified = false;
-    user.emailVerifiedAt = undefined;
-    user.emailVerificationOtpHash = hashRegistrationOTP(email, otp);
-    user.emailVerificationExpires = new Date(now + REGISTRATION_OTP_TTL_MS);
-    user.emailVerificationLastSentAt = new Date(now);
-    user.emailVerificationAttempts = 0;
+    user.emailVerified = !requiresEmailVerification;
+    user.emailVerifiedAt = requiresEmailVerification ? undefined : new Date(now);
+    if (requiresEmailVerification) {
+      user.emailVerificationOtpHash = hashRegistrationOTP(email, otp);
+      user.emailVerificationExpires = new Date(now + REGISTRATION_OTP_TTL_MS);
+      user.emailVerificationLastSentAt = new Date(now);
+      user.emailVerificationAttempts = 0;
+    } else {
+      clearRegistrationVerification(user);
+    }
 
     await user.save();
 
@@ -488,13 +502,21 @@ exports.register = async (req, res, next) => {
       await audit.logEvent({
         actor: user._id,
         target: user._id,
-        action: "USER_REGISTRATION_PENDING",
+        action: requiresEmailVerification ? "USER_REGISTRATION_PENDING" : "USER_REGISTER",
         module: "auth",
         req,
         details: { email, role: "customer" },
       });
     } catch (e) {
       console.warn("audit.logEvent failed", e && e.message);
+    }
+
+    if (!requiresEmailVerification) {
+      return res.status(201).json({
+        message: "Account created. You can now sign in.",
+        requiresVerification: false,
+        redirect: "/login?registered=1",
+      });
     }
 
     try {

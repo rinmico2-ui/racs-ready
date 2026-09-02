@@ -145,9 +145,13 @@
           </button>
         </form>
 
-        <div class="auth-toggle-text">
-          Don't have an account? <a class="auth-toggle-link" id="switchToSignUp">Create one</a>
-        </div>
+        <% if (locals.registrationAllowed !== false) { %>
+          <div class="auth-toggle-text">
+            Don't have an account? <a class="auth-toggle-link" id="switchToSignUp">Create one</a>
+          </div>
+        <% } else { %>
+          <div class="alert alert-info py-2 small text-center mt-3 mb-0">New customer registration is temporarily unavailable. Existing users can still sign in.</div>
+        <% } %>
         <div style="text-align:center;">
           <a href="/" class="auth-back-home"><i class="bi bi-arrow-left"></i> Back to home</a>
         </div>

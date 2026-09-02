@@ -8948,10 +8948,16 @@ router.get("/settings/no-show-policy", async (_req, res, next) => {
     ]);
     const waitMinutes = Number(waitDoc?.value ?? 15);
     const policy = policyDoc?.value || { mode: "none", fixedFeeAmount: 0 };
+    const normalizedMinutes = Number.isFinite(waitMinutes) && waitMinutes > 0 ? waitMinutes : 15;
+    const normalizedMode = policy.mode === "travel_fee" || policy.mode === "fixed_fee" ? policy.mode : "none";
+    const normalizedFee = Number(policy.fixedFeeAmount) || 0;
     res.json({
-      waitMinutes: Number.isFinite(waitMinutes) && waitMinutes > 0 ? waitMinutes : 15,
-      mode: policy.mode === "travel_fee" || policy.mode === "fixed_fee" ? policy.mode : "none",
-      fixedFeeAmount: Number(policy.fixedFeeAmount) || 0,
+      noShowWaitMinutes: normalizedMinutes,
+      noShowPolicy: { mode: normalizedMode, fixedFeeAmount: normalizedFee },
+      // Retain the original flat response for older clients.
+      waitMinutes: normalizedMinutes,
+      mode: normalizedMode,
+      fixedFeeAmount: normalizedFee,
     });
   } catch (err) {
     next(err);
@@ -8966,7 +8972,13 @@ router.put("/settings/no-show-policy", async (req, res, next) => {
   try {
     const SiteSetting = require("../models/SiteSetting");
     const audit = require("../utils/audit");
-    const { waitMinutes, mode, fixedFeeAmount } = req.body || {};
+    const supplied = req.body || {};
+    const nestedPolicy = supplied.noShowPolicy && typeof supplied.noShowPolicy === "object"
+      ? supplied.noShowPolicy
+      : {};
+    const waitMinutes = supplied.noShowWaitMinutes ?? supplied.waitMinutes;
+    const mode = nestedPolicy.mode ?? supplied.mode;
+    const fixedFeeAmount = nestedPolicy.fixedFeeAmount ?? supplied.fixedFeeAmount;
 
     const mins = Number(waitMinutes);
     if (!Number.isFinite(mins) || mins < 1) {
@@ -8995,7 +9007,11 @@ router.put("/settings/no-show-policy", async (req, res, next) => {
       details: { waitMinutes: Math.round(mins), mode: finalMode, fixedFeeAmount: Math.max(0, Number(fixedFeeAmount) || 0) },
     }).catch(() => {});
 
-    res.json({ message: "No-show policy updated." });
+    res.json({
+      message: "No-show policy updated.",
+      noShowWaitMinutes: Math.round(mins),
+      noShowPolicy: { mode: finalMode, fixedFeeAmount: Math.max(0, Number(fixedFeeAmount) || 0) },
+    });
   } catch (err) {
     next(err);
   }
@@ -9182,6 +9198,225 @@ router.patch("/daily-kit/resolve-item", async (req, res, next) => {
   } catch (err) {
     console.error("Resolve prep issue error:", err);
     next(err);
+  }
+});
+
+// System settings control plane ------------------------------------------------
+router.get("/settings/system-configuration", async (_req, res, next) => {
+  try {
+    const { getSystemConfiguration } = require("../utils/systemConfiguration");
+    const configuration = await getSystemConfiguration();
+    return res.json({
+      configuration,
+      enforcedSecurity: {
+        strongPasswords: true,
+        adminEmailOtp: true,
+        secretaryEmailOtp: true,
+        progressiveLoginThrottle: true,
+        auditTrail: true,
+        trustedOriginProtection: true,
+      },
+      capabilities: {
+        inAppRealtimeNotifications: true,
+        criticalEmailAlerts: true,
+        smsAlerts: false,
+        browserPush: false,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings/system-configuration", async (req, res, next) => {
+  try {
+    const {
+      getSystemConfiguration,
+      saveSystemConfiguration,
+      normalizeSystemConfiguration,
+    } = require("../utils/systemConfiguration");
+    const current = await getSystemConfiguration({ bypassCache: true });
+    const suppliedApplication = req.body?.application && typeof req.body.application === "object"
+      ? req.body.application
+      : {};
+    const suppliedNotifications = req.body?.notifications && typeof req.body.notifications === "object"
+      ? req.body.notifications
+      : {};
+    const proposed = normalizeSystemConfiguration({
+      ...current,
+      application: { ...current.application, ...suppliedApplication },
+      notifications: { ...current.notifications, ...suppliedNotifications },
+    });
+    if (proposed.notifications.criticalEmailAlerts && !proposed.notifications.adminAlertEmail) {
+      return res.status(400).json({ error: "Enter a valid admin alert email before enabling email alerts." });
+    }
+
+    const configuration = await saveSystemConfiguration(proposed);
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.system_configuration.update",
+      module: "settings",
+      req,
+      details: {
+        application: configuration.application,
+        notifications: configuration.notifications,
+      },
+    });
+    return res.json({ message: "System configuration saved.", configuration });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/settings/system-configuration/test-alert", async (req, res, next) => {
+  try {
+    const { getSystemConfiguration } = require("../utils/systemConfiguration");
+    const configuration = await getSystemConfiguration({ bypassCache: true });
+    if (!configuration.notifications.criticalEmailAlerts || !configuration.notifications.adminAlertEmail) {
+      return res.status(400).json({ error: "Enable critical email alerts and save a destination first." });
+    }
+    const { createNotification } = require("../utils/notify");
+    const notification = await createNotification({
+      type: "system",
+      title: "System alert delivery test",
+      message: "Your CALIDRO RACS critical admin alert channel is working.",
+      role: "admin",
+      priority: configuration.notifications.minimumPriority,
+      link: "/admin/settings/system",
+      io: req.app.get("io"),
+    });
+    if (!notification) return res.status(503).json({ error: "The test notification could not be created." });
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.notification_test.sent",
+      module: "settings",
+      req,
+      details: { priority: configuration.notifications.minimumPriority },
+    });
+    return res.json({ message: "Test alert created and submitted to the configured email channel." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings/maintenance-mode", async (req, res, next) => {
+  try {
+    const { getSystemConfiguration, saveSystemConfiguration } = require("../utils/systemConfiguration");
+    const current = await getSystemConfiguration({ bypassCache: true });
+    const enabled = req.body?.enabled === true;
+    const message = String(req.body?.message || current.maintenance.message || "").trim().slice(0, 300);
+    if (enabled && message.length < 10) {
+      return res.status(400).json({ error: "Enter a customer-facing maintenance message of at least 10 characters." });
+    }
+    const configuration = await saveSystemConfiguration({
+      ...current,
+      maintenance: {
+        enabled,
+        message,
+        enabledAt: enabled ? new Date().toISOString() : null,
+        enabledBy: enabled ? String(req.user?._id || "") : null,
+      },
+    });
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: enabled ? "settings.maintenance.enabled" : "settings.maintenance.disabled",
+      module: "settings",
+      req,
+      riskLevel: enabled ? "high" : "medium",
+      details: { enabled, message },
+    });
+    return res.json({
+      message: enabled ? "Maintenance mode enabled for non-admin users." : "Maintenance mode disabled.",
+      maintenance: configuration.maintenance,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings/system-health", async (_req, res, next) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const os = require("os");
+    const packageJson = require("../../package.json");
+    const startedAt = new Date(Date.now() - process.uptime() * 1000);
+    const pingStarted = Date.now();
+    let databaseStatus = "offline";
+    let databaseLatencyMs = null;
+    if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+      await mongoose.connection.db.admin().ping();
+      databaseStatus = "online";
+      databaseLatencyMs = Date.now() - pingStarted;
+    }
+    const logSize = (name) => {
+      try { return fs.statSync(path.join(__dirname, "..", "logs", name)).size; } catch { return 0; }
+    };
+    const memory = process.memoryUsage();
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      checkedAt: new Date().toISOString(),
+      database: { status: databaseStatus, latencyMs: databaseLatencyMs },
+      server: {
+        uptimeSeconds: Math.floor(process.uptime()),
+        startedAt: startedAt.toISOString(),
+        loadAverage1m: Number(os.loadavg()[0].toFixed(2)),
+        memoryRssBytes: memory.rss,
+        heapUsedBytes: memory.heapUsed,
+        heapTotalBytes: memory.heapTotal,
+      },
+      logs: { combinedBytes: logSize("combined.log"), errorBytes: logSize("error.log") },
+      platform: {
+        applicationVersion: packageJson.version,
+        nodeVersion: process.version,
+        mongooseVersion: mongoose.version,
+        environment: process.env.NODE_ENV || "development",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings/system-logs", async (_req, res, next) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const logPath = path.join(__dirname, "..", "logs", "combined.log");
+    const stats = await fs.promises.stat(logPath);
+    const maxBytes = 5 * 1024 * 1024;
+    const start = Math.max(0, stats.size - maxBytes);
+    res.set({
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": `attachment; filename="calidro-racs-${new Date().toISOString().slice(0, 10)}.log"`,
+      "Cache-Control": "no-store",
+      ...(start > 0 ? { "X-Log-Truncated": "true" } : {}),
+    });
+    return fs.createReadStream(logPath, { start }).pipe(res);
+  } catch (error) {
+    if (error && error.code === "ENOENT") return res.status(404).json({ error: "No application log is available yet." });
+    next(error);
+  }
+});
+
+router.post("/settings/runtime-cache/clear", async (req, res, next) => {
+  try {
+    require("../utils/systemConfiguration").invalidateSystemConfiguration();
+    require("../utils/bookingPolicy").invalidateCache();
+    require("../utils/publicBusinessStats").invalidatePublicBusinessStats();
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.runtime_cache.cleared",
+      module: "settings",
+      req,
+    });
+    return res.json({ message: "Runtime configuration and reporting caches cleared." });
+  } catch (error) {
+    next(error);
   }
 });
 

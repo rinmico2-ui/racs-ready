@@ -132,6 +132,9 @@
       content: ''; width: 6px; height: 6px; border-radius: 50%;
       background: #10b981; display: inline-block;
     }
+    .settings-system-page .online-badge.offline { background: rgba(225,29,72,0.1); color:#be123c; }
+    .settings-system-page .online-badge.offline::before { background:#e11d48; }
+    .settings-system-page .form-check-input:disabled { opacity: 0.75; cursor: not-allowed; }
 
     /* ── Buttons ── */
     .settings-system-page .btn-ss {
@@ -324,6 +327,7 @@
           <h3>App Configuration</h3>
         </div>
         <div class="ss-card-body">
+          <div id="appConfigAlert" class="alert d-none" role="alert"></div>
 
           <div class="toggle-item">
             <div class="d-flex align-items-center gap-3">
@@ -334,7 +338,7 @@
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="cfgAllowRegistrations">
             </div>
           </div>
 
@@ -343,11 +347,11 @@
               <div class="ti-icon"><i class="bi bi-envelope-check-fill"></i></div>
               <div>
                 <h6>Require Email Verification</h6>
-                <p>Force users to verify their email before booking services.</p>
+                <p>Require new customers to verify a one-time email code before their account is activated.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="cfgRequireVerification">
             </div>
           </div>
 
@@ -355,12 +359,12 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-shield-lock-fill"></i></div>
               <div>
-                <h6>Two-Factor Authentication (Admin)</h6>
-                <p>Require 2FA via SMS/Email for all admin accounts.</p>
+                <h6>Staff Email OTP</h6>
+                <p>Admins and secretaries must complete an email OTP challenge at every sign-in.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="secStaffOtp" checked disabled>
             </div>
           </div>
 
@@ -368,12 +372,12 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-bell-fill"></i></div>
               <div>
-                <h6>Push Notifications</h6>
-                <p>Allow the system to send real-time push notifications to users.</p>
+                <h6>Real-Time In-App Notifications</h6>
+                <p>Socket-based alerts are delivered to signed-in users and role inboxes.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="secRealtimeNotifications" checked disabled>
             </div>
           </div>
 
@@ -381,13 +385,16 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-clock-history"></i></div>
               <div>
-                <h6>Auto-Logout Idle Sessions</h6>
-                <p>Automatically log users out after 30 minutes of inactivity.</p>
+                <h6>Sliding Session Expiration</h6>
+                <p>Standard sessions expire after 30 minutes and are renewed only during authenticated activity.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="secSessionExpiration" checked disabled>
             </div>
+          </div>
+          <div class="text-end mt-3">
+            <button type="button" class="btn-ss primary" id="appConfigSaveBtn"><i class="bi bi-floppy"></i> Save App Configuration</button>
           </div>
 
         </div>
@@ -400,17 +407,18 @@
           <h3>Security &amp; Access Control</h3>
         </div>
         <div class="ss-card-body">
+          <div class="alert alert-info py-2 small"><i class="bi bi-shield-check me-1"></i>These safeguards reflect active backend enforcement and cannot be weakened from the dashboard.</div>
 
           <div class="toggle-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-braces-asterisk"></i></div>
               <div>
-                <h6>Enforce Strong Passwords</h6>
-                <p>Require minimum 8 characters with uppercase, number, and symbol.</p>
+                <h6>Registration Password Policy</h6>
+                <p>New customer passwords receive server-side complexity and bounded-length validation.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="secStrongPasswords" checked disabled>
             </div>
           </div>
 
@@ -419,11 +427,11 @@
               <div class="ti-icon"><i class="bi bi-ban"></i></div>
               <div>
                 <h6>Rate Limit Login Attempts</h6>
-                <p>Lock out users after 5 failed attempts for 5 minutes.</p>
+                <p>Progressive lockouts increase from 3 to 30 minutes after repeated failures.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="secLoginThrottle" checked disabled>
             </div>
           </div>
 
@@ -432,11 +440,11 @@
               <div class="ti-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
               <div>
                 <h6>Audit Logging</h6>
-                <p>Record all admin actions for compliance and auditing.</p>
+                <p>Record critical administrative, financial, settings, and security actions for review.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked>
+              <input class="form-check-input" type="checkbox" role="switch" id="secAuditTrail" checked disabled>
             </div>
           </div>
 
@@ -444,12 +452,12 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-globe"></i></div>
               <div>
-                <h6>IP Whitelist (Admin Panel)</h6>
-                <p>Restrict admin panel access to specific IP addresses.</p>
+                <h6>Trusted-Origin Protection</h6>
+                <p>Reject state-changing browser requests that do not originate from this application.</p>
               </div>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="secTrustedOrigin" checked disabled>
             </div>
           </div>
 
@@ -463,35 +471,35 @@
           <h3>Notification Preferences</h3>
         </div>
         <div class="ss-card-body">
+          <div id="notificationAlert" class="alert d-none" role="alert"></div>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Admin Alert Email</label>
-              <input type="email" class="form-control" value="alerts@kooltech.com">
+              <label class="form-label" for="notificationEmail">Admin Alert Email</label>
+              <input type="email" class="form-control" id="notificationEmail" maxlength="254" placeholder="alerts@example.com">
             </div>
             <div class="col-md-6">
-              <label class="form-label">SMS Alert Number</label>
-              <input type="text" class="form-control" value="+63 917 555 1234">
+              <label class="form-label d-block">Critical Email Alerts</label>
+              <div class="form-check form-switch pt-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="notificationEmailEnabled">
+                <label class="form-check-label" for="notificationEmailEnabled">Email high-priority admin notifications</label>
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Digest Frequency</label>
-              <select class="form-select">
-                <option>Real-Time</option>
-                <option selected>Daily Summary</option>
-                <option>Weekly Summary</option>
-                <option>Disabled</option>
+              <label class="form-label" for="notificationPriority">Minimum Email Priority</label>
+              <select class="form-select" id="notificationPriority">
+                <option value="urgent">Urgent only</option>
+                <option value="high">High and urgent</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Critical Alert Channel</label>
-              <select class="form-select">
-                <option selected>Email + SMS</option>
-                <option>Email Only</option>
-                <option>SMS Only</option>
-              </select>
+              <label class="form-label">Active Channels</label>
+              <input type="text" class="form-control" value="In-app real time + configured email" readonly>
             </div>
-            <div class="col-12 text-end mt-3">
-              <button type="button" class="btn-ss primary"><i class="bi bi-floppy"></i> Save Notifications</button>
+            <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+              <button type="button" class="btn-ss outline" id="notificationTestBtn"><i class="bi bi-send-check"></i> Send Test Alert</button>
+              <button type="button" class="btn-ss primary" id="notificationSaveBtn"><i class="bi bi-floppy"></i> Save Notifications</button>
             </div>
+            <div class="col-12"><div class="form-text">The system always stores in-app notifications. Email delivery uses the configured local SMTP or production Brevo provider.</div></div>
           </div>
         </div>
       </div>
@@ -510,31 +518,31 @@
         <div class="ss-card-body">
           <div class="status-row">
             <span class="sr-label"><i class="bi bi-database-fill"></i> Database</span>
-            <span class="online-badge">Online</span>
+            <span class="online-badge" id="healthDatabase">Checking</span>
           </div>
           <div class="status-row">
-            <span class="sr-label"><i class="bi bi-hdd-stack-fill"></i> Storage</span>
-            <span class="sr-value">45% (4.5 GB)</span>
+            <span class="sr-label"><i class="bi bi-speedometer2"></i> Database Latency</span>
+            <span class="sr-value" id="healthDbLatency">—</span>
           </div>
           <div class="status-row">
-            <span class="sr-label"><i class="bi bi-cloud-check-fill"></i> Last Backup</span>
-            <span class="sr-value">Today, 2:00 AM</span>
+            <span class="sr-label"><i class="bi bi-memory"></i> Process Memory</span>
+            <span class="sr-value" id="healthMemory">—</span>
           </div>
           <div class="status-row">
             <span class="sr-label"><i class="bi bi-cpu-fill"></i> Server Load</span>
-            <span class="sr-value">12% CPU</span>
+            <span class="sr-value" id="healthLoad">—</span>
           </div>
           <div class="status-row">
-            <span class="sr-label"><i class="bi bi-memory"></i> Memory Usage</span>
-            <span class="sr-value">1.2 / 4 GB</span>
+            <span class="sr-label"><i class="bi bi-file-earmark-text"></i> Application Logs</span>
+            <span class="sr-value" id="healthLogs">—</span>
           </div>
           <div class="status-row">
             <span class="sr-label"><i class="bi bi-arrow-repeat"></i> Uptime</span>
-            <span class="sr-value">32 days</span>
+            <span class="sr-value" id="healthUptime">—</span>
           </div>
           <div class="mt-3 d-flex gap-2">
-            <button class="btn-ss outline flex-fill"><i class="bi bi-cloud-download"></i> Export Logs</button>
-            <button class="btn-ss outline flex-fill"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+            <a class="btn-ss outline flex-fill justify-content-center" id="healthLogsBtn" href="/api/admin/settings/system-logs"><i class="bi bi-cloud-download"></i> Export Logs</a>
+            <button type="button" class="btn-ss outline flex-fill justify-content-center" id="healthRefreshBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
           </div>
         </div>
       </div>
@@ -548,19 +556,19 @@
         <div class="ss-card-body">
           <div class="status-row">
             <span class="sr-label"><i class="bi bi-code-slash"></i> Version</span>
-            <span class="sr-value">v2.4.1</span>
+            <span class="sr-value" id="platformVersion">—</span>
           </div>
           <div class="status-row">
             <span class="sr-label"><i class="bi bi-node-plus-fill"></i> Node.js</span>
-            <span class="sr-value">v18.17.0</span>
+            <span class="sr-value" id="platformNode">—</span>
           </div>
           <div class="status-row">
-            <span class="sr-label"><i class="bi bi-database"></i> MongoDB</span>
-            <span class="sr-value">v7.0</span>
+            <span class="sr-label"><i class="bi bi-database"></i> ODM Driver</span>
+            <span class="sr-value" id="platformMongoose">—</span>
           </div>
           <div class="status-row">
-            <span class="sr-label"><i class="bi bi-calendar-date"></i> Deployed</span>
-            <span class="sr-value">Mar 1, 2026</span>
+            <span class="sr-label"><i class="bi bi-hdd-network"></i> Environment</span>
+            <span class="sr-value" id="platformEnvironment">—</span>
           </div>
         </div>
       </div>
@@ -574,11 +582,14 @@
         <div class="ss-card-body text-center">
           <i class="bi bi-exclamation-triangle" style="font-size:2.5rem; color:#fb7185; display:block; margin-bottom:0.75rem; opacity:0.7;"></i>
           <h6 style="font-weight:700 !important; color:#0c4a6e; font-size:0.92rem; margin-bottom:0.3rem;">Maintenance Mode</h6>
-          <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:1rem;">Activating maintenance mode will log out all non-admin users and display a maintenance screen.</p>
-          <button class="btn-ss danger w-100"><i class="bi bi-power"></i> Enable Maintenance Mode</button>
+          <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:0.75rem;">Blocks non-admin pages and APIs with a 503 maintenance response. Administrators and sign-in remain available for recovery.</p>
+          <div id="maintenanceStatus" class="alert alert-success py-2 small">Loading maintenance status…</div>
+          <label class="form-label text-start d-block" for="maintenanceMessage">Customer Message</label>
+          <textarea class="form-control mb-3" id="maintenanceMessage" rows="3" maxlength="300" placeholder="Explain when service will resume."></textarea>
+          <button type="button" class="btn-ss danger w-100 justify-content-center" id="maintenanceToggleBtn"><i class="bi bi-power"></i> Enable Maintenance Mode</button>
           <div class="mt-3 pt-3" style="border-top:1px solid #fecdd3;">
-            <button class="btn-ss outline w-100" style="color:#e11d48; border-color:#fecdd3;">
-              <i class="bi bi-trash3"></i> Purge All Cache
+            <button type="button" class="btn-ss outline w-100 justify-content-center" id="cacheClearBtn" style="color:#e11d48; border-color:#fecdd3;">
+              <i class="bi bi-arrow-repeat"></i> Clear Runtime Caches
             </button>
           </div>
         </div>
@@ -771,5 +782,233 @@
         btn.innerHTML = '<i class="bi bi-floppy"></i> Save No-Show Policy';
       });
   });
+})();
+
+(function() {
+  var state = { configuration: null };
+
+  function alertIn(id, message, type) {
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.className = 'alert alert-' + (type || 'info') + ' py-2 small';
+    box.textContent = message;
+    box.classList.remove('d-none');
+  }
+
+  function setBusy(button, busy, label) {
+    if (!button) return;
+    if (busy) {
+      button.dataset.originalHtml = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Working…';
+    } else {
+      button.disabled = false;
+      button.innerHTML = label || button.dataset.originalHtml || button.innerHTML;
+    }
+  }
+
+  async function api(url, options) {
+    var response = await fetch(url, Object.assign({ credentials: 'same-origin' }, options || {}));
+    var data = await response.json().catch(function() { return {}; });
+    if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
+    return data;
+  }
+
+  function applyConfiguration(configuration) {
+    state.configuration = configuration;
+    document.getElementById('cfgAllowRegistrations').checked = configuration.application.allowCustomerRegistrations;
+    document.getElementById('cfgRequireVerification').checked = configuration.application.requireEmailVerification;
+    document.getElementById('notificationEmail').value = configuration.notifications.adminAlertEmail || '';
+    document.getElementById('notificationEmailEnabled').checked = configuration.notifications.criticalEmailAlerts;
+    document.getElementById('notificationPriority').value = configuration.notifications.minimumPriority || 'urgent';
+    document.getElementById('maintenanceMessage').value = configuration.maintenance.message || '';
+    renderMaintenance(configuration.maintenance);
+  }
+
+  function renderMaintenance(maintenance) {
+    var enabled = maintenance && maintenance.enabled;
+    var status = document.getElementById('maintenanceStatus');
+    var button = document.getElementById('maintenanceToggleBtn');
+    status.className = 'alert alert-' + (enabled ? 'danger' : 'success') + ' py-2 small';
+    status.textContent = enabled ? 'Maintenance mode is ACTIVE for non-admin users.' : 'System is available to users.';
+    button.className = 'btn-ss ' + (enabled ? 'outline' : 'danger') + ' w-100 justify-content-center';
+    button.innerHTML = enabled
+      ? '<i class="bi bi-play-circle"></i> Disable Maintenance Mode'
+      : '<i class="bi bi-power"></i> Enable Maintenance Mode';
+  }
+
+  async function loadConfiguration() {
+    try {
+      var data = await api('/api/admin/settings/system-configuration');
+      applyConfiguration(data.configuration);
+    } catch (error) {
+      alertIn('appConfigAlert', error.message, 'danger');
+      alertIn('notificationAlert', error.message, 'danger');
+    }
+  }
+
+  document.getElementById('appConfigSaveBtn').addEventListener('click', async function() {
+    var button = this;
+    var requireVerification = document.getElementById('cfgRequireVerification').checked;
+    if (!requireVerification && window.Swal) {
+      var decision = await Swal.fire({
+        icon: 'warning',
+        title: 'Allow unverified new accounts?',
+        text: 'New customers will be activated immediately without an email OTP. Existing pending accounts remain pending.',
+        showCancelButton: true,
+        confirmButtonText: 'Save configuration',
+        confirmButtonColor: '#0284c7'
+      });
+      if (!decision.isConfirmed) return;
+    }
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/system-configuration', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          application: {
+            allowCustomerRegistrations: document.getElementById('cfgAllowRegistrations').checked,
+            requireEmailVerification: requireVerification
+          }
+        })
+      });
+      applyConfiguration(data.configuration);
+      alertIn('appConfigAlert', 'App configuration saved and now enforced for new registrations.', 'success');
+    } catch (error) {
+      alertIn('appConfigAlert', error.message, 'danger');
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  document.getElementById('notificationSaveBtn').addEventListener('click', async function() {
+    var button = this;
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/system-configuration', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notifications: {
+            adminAlertEmail: document.getElementById('notificationEmail').value,
+            criticalEmailAlerts: document.getElementById('notificationEmailEnabled').checked,
+            minimumPriority: document.getElementById('notificationPriority').value
+          }
+        })
+      });
+      applyConfiguration(data.configuration);
+      alertIn('notificationAlert', 'Notification preferences saved.', 'success');
+    } catch (error) {
+      alertIn('notificationAlert', error.message, 'danger');
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  document.getElementById('notificationTestBtn').addEventListener('click', async function() {
+    var button = this;
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/system-configuration/test-alert', { method: 'POST' });
+      alertIn('notificationAlert', data.message, 'success');
+    } catch (error) {
+      alertIn('notificationAlert', error.message, 'danger');
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  function bytes(value) {
+    var number = Number(value || 0);
+    if (number < 1024) return number + ' B';
+    if (number < 1024 * 1024) return (number / 1024).toFixed(1) + ' KB';
+    return (number / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function duration(seconds) {
+    var total = Math.max(0, Number(seconds || 0));
+    var days = Math.floor(total / 86400);
+    var hours = Math.floor((total % 86400) / 3600);
+    var minutes = Math.floor((total % 3600) / 60);
+    return (days ? days + 'd ' : '') + (hours ? hours + 'h ' : '') + minutes + 'm';
+  }
+
+  async function loadHealth() {
+    var button = document.getElementById('healthRefreshBtn');
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/system-health');
+      var db = document.getElementById('healthDatabase');
+      var online = data.database.status === 'online';
+      db.textContent = online ? 'Online' : 'Offline';
+      db.classList.toggle('offline', !online);
+      document.getElementById('healthDbLatency').textContent = data.database.latencyMs == null ? 'Unavailable' : data.database.latencyMs + ' ms';
+      document.getElementById('healthMemory').textContent = bytes(data.server.memoryRssBytes) + ' RSS';
+      document.getElementById('healthLoad').textContent = data.server.loadAverage1m + ' (1 min avg)';
+      document.getElementById('healthLogs').textContent = bytes(data.logs.combinedBytes + data.logs.errorBytes);
+      document.getElementById('healthUptime').textContent = duration(data.server.uptimeSeconds);
+      document.getElementById('platformVersion').textContent = 'v' + data.platform.applicationVersion;
+      document.getElementById('platformNode').textContent = data.platform.nodeVersion;
+      document.getElementById('platformMongoose').textContent = 'Mongoose ' + data.platform.mongooseVersion;
+      document.getElementById('platformEnvironment').textContent = data.platform.environment;
+    } catch (error) {
+      var db = document.getElementById('healthDatabase');
+      db.textContent = 'Unavailable';
+      db.classList.add('offline');
+    } finally {
+      setBusy(button, false);
+    }
+  }
+  document.getElementById('healthRefreshBtn').addEventListener('click', loadHealth);
+
+  document.getElementById('maintenanceToggleBtn').addEventListener('click', async function() {
+    var button = this;
+    var enable = !(state.configuration && state.configuration.maintenance.enabled);
+    if (window.Swal) {
+      var decision = await Swal.fire({
+        icon: enable ? 'warning' : 'question',
+        title: enable ? 'Enable maintenance mode?' : 'Restore customer access?',
+        text: enable ? 'Non-admin pages and APIs will immediately return a maintenance response.' : 'Customers and staff will regain normal access immediately.',
+        showCancelButton: true,
+        confirmButtonText: enable ? 'Enable maintenance' : 'Disable maintenance',
+        confirmButtonColor: enable ? '#e11d48' : '#059669'
+      });
+      if (!decision.isConfirmed) return;
+    }
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/maintenance-mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enable, message: document.getElementById('maintenanceMessage').value })
+      });
+      state.configuration.maintenance = data.maintenance;
+      renderMaintenance(data.maintenance);
+      if (window.Swal) Swal.fire({ icon: 'success', title: enable ? 'Maintenance enabled' : 'System restored', text: data.message });
+    } catch (error) {
+      if (window.Swal) Swal.fire({ icon: 'error', title: 'Unable to change maintenance mode', text: error.message });
+    } finally {
+      setBusy(button, false);
+      if (state.configuration) renderMaintenance(state.configuration.maintenance);
+    }
+  });
+
+  document.getElementById('cacheClearBtn').addEventListener('click', async function() {
+    var button = this;
+    setBusy(button, true);
+    try {
+      var data = await api('/api/admin/settings/runtime-cache/clear', { method: 'POST' });
+      await loadConfiguration();
+      if (window.Swal) Swal.fire({ icon: 'success', title: 'Caches cleared', text: data.message });
+    } catch (error) {
+      if (window.Swal) Swal.fire({ icon: 'error', title: 'Cache clear failed', text: error.message });
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  loadConfiguration();
+  loadHealth();
 })();
 </script>

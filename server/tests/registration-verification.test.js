@@ -3,10 +3,12 @@ const assert = require("node:assert/strict");
 const crypto = require("crypto");
 
 const User = require("../models/User");
+const SiteSetting = require("../models/SiteSetting");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const authController = require("../controllers/authController");
 const authRoutes = require("../routes/authRoutes");
+const { invalidateSystemConfiguration } = require("../utils/systemConfiguration");
 
 function responseRecorder() {
   return {
@@ -58,6 +60,7 @@ test("registration verification routes are exposed", () => {
 });
 
 test("registration creates a pending account and sends an OTP without storing it in plaintext", async (t) => {
+  invalidateSystemConfiguration();
   const previousSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = "registration-verification-test-secret";
   t.after(() => {
@@ -67,6 +70,7 @@ test("registration creates a pending account and sends an OTP without storing it
 
   let savedUser;
   let sentMessage;
+  t.mock.method(SiteSetting, "findOne", () => ({ lean: async () => null }));
   t.mock.method(User, "findOne", () => ({ select: async () => null }));
   t.mock.method(User.prototype, "save", async function savePendingUser() {
     savedUser = this;
@@ -96,6 +100,55 @@ test("registration creates a pending account and sends an OTP without storing it
   const otpMatch = String(sentMessage.text).match(/\b(\d{6})\b/);
   assert.ok(otpMatch, "expected the email to contain a six-digit OTP");
   assert.notEqual(savedUser.emailVerificationOtpHash, otpMatch[1]);
+});
+
+test("registration policy can disable public account creation", async (t) => {
+  invalidateSystemConfiguration();
+  t.after(invalidateSystemConfiguration);
+  t.mock.method(SiteSetting, "findOne", () => ({
+    lean: async () => ({
+      value: { application: { allowCustomerRegistrations: false, requireEmailVerification: true } },
+    }),
+  }));
+
+  const res = responseRecorder();
+  await authController.register(registrationRequest(), res, (error) => { throw error; });
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.registrationDisabled, true);
+});
+
+test("registration policy can activate new customers without an email OTP", async (t) => {
+  invalidateSystemConfiguration();
+  t.after(invalidateSystemConfiguration);
+  let savedUser;
+  let emailSent = false;
+  t.mock.method(SiteSetting, "findOne", () => ({
+    lean: async () => ({
+      value: { application: { allowCustomerRegistrations: true, requireEmailVerification: false } },
+    }),
+  }));
+  t.mock.method(User, "findOne", () => ({ select: async () => null }));
+  t.mock.method(User.prototype, "save", async function saveActiveUser() {
+    savedUser = this;
+    return this;
+  });
+  t.mock.method(mailer, "sendMail", async () => {
+    emailSent = true;
+    return { messageId: "unexpected" };
+  });
+  t.mock.method(audit, "logEvent", async () => undefined);
+
+  const res = responseRecorder();
+  let forwardedError;
+  await authController.register(registrationRequest({ email: "active.customer@example.com" }), res, (error) => {
+    forwardedError = error;
+  });
+  assert.equal(forwardedError, undefined);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.requiresVerification, false);
+  assert.equal(savedUser.emailVerified, true);
+  assert.ok(savedUser.emailVerifiedAt instanceof Date);
+  assert.equal(emailSent, false);
 });
 
 test("a valid persistent registration OTP verifies the account and clears secrets", async (t) => {

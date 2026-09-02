@@ -53,12 +53,12 @@ const logger = createLogger({
       format: format.combine(format.colorize(), logFormat),
     }),
     new transports.File({
-      filename: path.join("logs", "error.log"),
+      filename: path.join(logsDir, "error.log"),
       level: "error",
       format: logFormat,
     }),
     new transports.File({
-      filename: path.join("logs", "combined.log"),
+      filename: path.join(logsDir, "combined.log"),
       format: logFormat,
     }),
   ],

@@ -1,4 +1,23 @@
 const Notification = require("../models/Notification");
+const { getSystemConfiguration, priorityMeetsThreshold } = require("./systemConfiguration");
+
+async function sendConfiguredAdminEmail({ role, userId, title, message, priority, link }) {
+  if (userId || role !== "admin") return;
+  const configuration = await getSystemConfiguration();
+  const preferences = configuration.notifications;
+  if (!preferences.criticalEmailAlerts || !preferences.adminAlertEmail) return;
+  if (!priorityMeetsThreshold(priority, preferences.minimumPriority)) return;
+
+  const mailer = require("./mailer");
+  const destination = preferences.adminAlertEmail;
+  const baseUrl = String(process.env.APP_BASE_URL || process.env.APP_URL || "").replace(/\/$/, "");
+  const target = link && baseUrl ? `${baseUrl}${link.startsWith("/") ? link : `/${link}`}` : "";
+  await mailer.sendMail({
+    to: destination,
+    subject: `[CALIDRO RACS] ${title}`,
+    text: `${message}${target ? `\n\nReview: ${target}` : ""}`,
+  });
+}
 
 /**
  * Create a notification and optionally emit via Socket.io
@@ -93,6 +112,10 @@ async function createNotification({
         }
       }
     }
+
+    await sendConfiguredAdminEmail({ role, userId, title, message, priority, link }).catch((error) => {
+      console.warn("Failed to send configured admin alert email:", error && error.message);
+    });
 
     return notification;
   } catch (error) {

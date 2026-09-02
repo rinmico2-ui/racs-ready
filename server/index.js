@@ -287,6 +287,10 @@ app.use(
 );
 app.use(express.static(path.join(__dirname, "public")));
 
+// Runtime maintenance gate. Static assets and the sign-in flow remain
+// available; authenticated administrators can always reach the control page.
+app.use(require("./middleware/maintenanceMode"));
+
 // ── Global company info middleware ──────────────────────────────────────────
 // Fetches company profile from SiteSetting so the footer and other public
 // partials have access without each route needing to pass it manually.

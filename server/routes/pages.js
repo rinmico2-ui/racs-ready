@@ -9,6 +9,7 @@ const defaultTechnicianLocation = {
 const auth = require("../middleware/authenticate");
 const pageAuth = require("../middleware/pageAuth");
 const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
+const { getSystemConfiguration } = require("../utils/systemConfiguration");
 
 let farePerKm = 40;
 
@@ -790,6 +791,7 @@ router.get("/login", async (req, res) => {
     mathAnswer: answer,
     active: "sign-in",
     returnTo: req.query.returnTo || null,
+    registrationAllowed: (await getSystemConfiguration()).application.allowCustomerRegistrations,
     companyAddress: await getCompanyAddress(),
     testimonial: await getRandomTestimonial(),
     extraScripts: [
@@ -803,6 +805,8 @@ router.get("/login", async (req, res) => {
 
 // Register page (customers only) -> render combined auth panel, prefer sign-up
 router.get("/register", async (req, res) => {
+  const registrationAllowed = (await getSystemConfiguration()).application.allowCustomerRegistrations;
+  if (!registrationAllowed) return res.redirect("/login?registration=disabled");
   const csrfToken = crypto.randomBytes(24).toString("hex");
   const isProd = process.env.NODE_ENV === "production";
   const { num1, num2, answer } = generateMathCaptcha();
@@ -821,6 +825,7 @@ router.get("/register", async (req, res) => {
     num2,
     mathAnswer: answer,
     active: "sign-up",
+    registrationAllowed,
     companyAddress: await getCompanyAddress(),
     testimonial: await getRandomTestimonial(),
     extraScripts: [
