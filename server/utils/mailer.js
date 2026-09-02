@@ -2,16 +2,60 @@ const https = require("https");
 const nodemailer = require("nodemailer");
 const logger = require("./logger").create("mailer");
 
+function resolveMailProvider(env = process.env) {
+  const isRender = env.RENDER === "true" || Boolean(env.RENDER_SERVICE_ID || env.RENDER_EXTERNAL_HOSTNAME);
+  const isProduction = env.NODE_ENV === "production";
+  return { provider: isRender || isProduction ? "brevo" : "smtp", isRender, isProduction };
+}
+
+function maskEmail(value) {
+  const email = String(value || "").trim();
+  const at = email.indexOf("@");
+  if (at <= 1) return email ? "configured" : "";
+  return `${email.slice(0, 2)}${"*".repeat(Math.min(6, at - 2))}${email.slice(at)}`;
+}
+
+function buildMailerStatus(env = process.env) {
+  const selection = resolveMailProvider(env);
+  const senderEmail = String(env.FROM_EMAIL || "").trim();
+  const senderName = String(env.FROM_NAME || "CALIDRO RACS").trim();
+  const smtpPort = Number.parseInt(env.SMTP_PORT || "587", 10);
+  const issues = [];
+  if (!senderEmail) issues.push("FROM_EMAIL is missing");
+  if (selection.provider === "brevo") {
+    if (!env.BREVO_API_KEY) issues.push("BREVO_API_KEY is missing");
+  } else {
+    if (!env.SMTP_HOST) issues.push("SMTP_HOST is missing");
+    if (!env.SMTP_USER) issues.push("SMTP_USER is missing");
+    if (!env.SMTP_PASS) issues.push("SMTP_PASS is missing");
+  }
+  return {
+    provider: selection.provider,
+    providerLabel: selection.provider === "brevo" ? "Brevo Transactional API" : "Nodemailer SMTP",
+    environment: selection.isRender ? "Render" : selection.isProduction ? "Production" : "Local development",
+    configured: issues.length === 0,
+    issues,
+    sender: { name: senderName, email: senderEmail },
+    smtp: {
+      host: String(env.SMTP_HOST || ""),
+      port: Number.isFinite(smtpPort) ? smtpPort : 587,
+      encryption: smtpPort === 465 ? "TLS" : "STARTTLS",
+      username: maskEmail(env.SMTP_USER),
+      passwordConfigured: Boolean(env.SMTP_PASS),
+    },
+    brevo: { apiKeyConfigured: Boolean(env.BREVO_API_KEY) },
+  };
+}
+
 // Render/production always uses Brevo. Local development always uses SMTP.
 // Render sets RENDER="true" automatically, so a stale custom provider setting
 // cannot accidentally make the deployed service connect to Gmail SMTP.
+const MAILER_SELECTION = resolveMailProvider(process.env);
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
-const IS_RENDER =
-  process.env.RENDER === "true" ||
-  Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
-const MAIL_PROVIDER = IS_RENDER || IS_PRODUCTION ? "brevo" : "smtp";
+const IS_RENDER = MAILER_SELECTION.isRender;
+const IS_PRODUCTION = MAILER_SELECTION.isProduction;
+const MAIL_PROVIDER = MAILER_SELECTION.provider;
 const FROM_EMAIL = process.env.FROM_EMAIL || "";
 const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
@@ -41,47 +85,56 @@ function getSmtpTransport() {
   return _smtpTransport;
 }
 
-function sendMail({ to, subject, html, text }) {
+async function recordDeliveryAttempt({ to, subject, status, messageId = "", error = "", source = "application" }) {
+  try {
+    const mongoose = require("mongoose");
+    if (mongoose.connection.readyState !== 1) return;
+    const EmailDeliveryLog = require("../models/EmailDeliveryLog");
+    const recipient = (Array.isArray(to) ? to.join(", ") : String(to || "")).slice(0, 500);
+    await EmailDeliveryLog.create({
+      provider: MAIL_PROVIDER,
+      recipient,
+      subject: String(subject || "").slice(0, 300),
+      status,
+      messageId: String(messageId || "").slice(0, 300),
+      error: String(error || "").slice(0, 500),
+      source: String(source || "application").slice(0, 80),
+    });
+  } catch (logError) {
+    logger.warn("Email delivery log failed %s", logError && logError.message);
+  }
+}
+
+async function sendMail({ to, subject, html, text, source = "application" }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
-
-  if (MAIL_PROVIDER === "brevo") {
-    if (!BREVO_API_KEY) {
-      const error = new Error("Brevo is selected but BREVO_API_KEY is not configured.");
-      logger.error(error.message);
-      return Promise.reject(error);
-    }
-    if (!FROM_EMAIL) {
-      const error = new Error("Brevo is selected but FROM_EMAIL is not configured.");
-      logger.error(error.message);
-      return Promise.reject(error);
-    }
-    return sendViaBrevo({ to, subject, html, text });
-  }
-
-  // SMTP/Nodemailer is used only for local development.
-  const transport = getSmtpTransport();
-  if (!transport) {
-    console.log("[MAILER] No email transport available - email not sent");
-    logger.warn("No email transport available; emails will not be sent.");
-    return Promise.resolve(false);
-  }
-  return transport
-    .sendMail({
+  try {
+    let result;
+    if (MAIL_PROVIDER === "brevo") {
+      if (!BREVO_API_KEY) throw new Error("Brevo is selected but BREVO_API_KEY is not configured.");
+      if (!FROM_EMAIL) throw new Error("Brevo is selected but FROM_EMAIL is not configured.");
+      result = await sendViaBrevo({ to, subject, html, text });
+    } else {
+      // SMTP/Nodemailer is used only for local development.
+      const transport = getSmtpTransport();
+      if (!transport) throw new Error("SMTP credentials are not configured.");
+      const info = await transport.sendMail({
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to,
       subject,
       html,
       text: text || "",
-    })
-    .then((info) => {
+      });
       console.log("[MAILER] (SMTP) Email sent successfully:", info.messageId);
-      return { messageId: info.messageId };
-    })
-    .catch((err) => {
-      console.log("[MAILER] (SMTP) Send failed:", err.message);
-      logger.warn("SMTP send failed %s", err.message);
-      throw err;
-    });
+      result = { messageId: info.messageId, provider: "smtp" };
+    }
+    await recordDeliveryAttempt({ to, subject, status: "accepted", messageId: result && result.messageId, source });
+    return result;
+  } catch (error) {
+    console.log(`[MAILER] (${MAIL_PROVIDER}) Send failed:`, error.message);
+    logger.warn("%s send failed %s", MAIL_PROVIDER, error.message);
+    await recordDeliveryAttempt({ to, subject, status: "failed", error: error.message, source });
+    throw error;
+  }
 }
 
 function sendViaBrevo({ to, subject, html, text }) {
