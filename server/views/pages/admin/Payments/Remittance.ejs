@@ -239,11 +239,11 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:18px;overflow:hidden;">
       <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:1rem 1.25rem;border:none;">
-        <h6 class="mb-0 fw-bold"><i class="bi bi-check-circle me-2"></i>Override Remittance</h6>
+        <h6 class="mb-0 fw-bold" id="overrideTitle"><i class="bi bi-check-circle me-2"></i>Record In-Person Handover</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted mb-3">Confirm that you received this payment in person from the technician. This will mark the payment as verified immediately.</p>
+        <p class="text-muted mb-3" id="overrideDescription">Confirm that you received this payment in person from the technician. This will mark the payment as verified immediately.</p>
         <div class="mb-3">
           <label class="form-label fw-semibold">Amount</label>
           <div class="fs-4 fw-bold text-primary" id="overrideAmount"></div>
@@ -255,7 +255,7 @@
       </div>
       <div class="modal-footer" style="border-top:1px solid #e2e8f0;">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-warning fw-semibold" onclick="confirmOverride()"><i class="bi bi-check-lg me-1"></i>Confirm Override</button>
+        <button class="btn btn-warning fw-semibold" id="overrideConfirmButton" onclick="confirmOverride()"><i class="bi bi-check-lg me-1"></i>Record and Verify</button>
       </div>
     </div>
   </div>
@@ -535,7 +535,8 @@ async function openDetail(id){
     acts+=`<button class="btn btn-outline-danger fw-semibold" onclick="openFlag('${p._id}')">Escalate</button>`;
   }
   if(p.status==='unaccounted' && !p.resolvedAt){
-    acts+=`<button class="btn btn-dark fw-semibold" onclick="openResolve('${p._id}')"><i class="bi bi-check2-all me-1"></i>Resolve</button>`;
+    acts+=`<button class="btn btn-success fw-semibold" onclick="openOverride('${p._id}')"><i class="bi bi-cash-coin me-1"></i>Record Recovered Funds</button>`;
+    acts+=`<button class="btn btn-dark fw-semibold" onclick="openResolve('${p._id}')"><i class="bi bi-check2-all me-1"></i>Other Resolution</button>`;
   }
   if(p.status==='unaccounted' && p.resolvedAt){
     const rLabel={write_off:'Written Off',deduct_from_payroll:'Payroll Deducted',recovery:'Recovery'}[p.resolutionType]||p.resolutionType;
@@ -554,6 +555,10 @@ function openOverride(id){
   _overrideId=id;
   document.getElementById('overrideAmount').textContent='₱'+Number(p.amount||0).toLocaleString();
   document.getElementById('overrideNotes').value='';
+  const isRecovery=p.status==='unaccounted';
+  document.getElementById('overrideTitle').innerHTML=isRecovery?'<i class="bi bi-cash-coin me-2"></i>Record Recovered Funds':'<i class="bi bi-check-circle me-2"></i>Record In-Person Handover';
+  document.getElementById('overrideDescription').textContent=isRecovery?'Confirm that the previously flagged funds have now been received. This closes the exception as recovered and verifies the remittance.':'Confirm that you received this payment in person from the technician. This will mark the payment as verified immediately.';
+  document.getElementById('overrideConfirmButton').innerHTML=isRecovery?'<i class="bi bi-check-lg me-1"></i>Close as Recovered':'<i class="bi bi-check-lg me-1"></i>Record and Verify';
   bootstrap.Modal.getInstance(document.getElementById('remDetailModal'))?.hide();
   setTimeout(()=>new bootstrap.Modal(document.getElementById('overrideModal')).show(),300);
 }

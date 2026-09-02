@@ -743,7 +743,7 @@ router.post("/remittances/:id/proof", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
     const payment = await findOwnedRemittance(tech, req.params.id);
     if (!payment) return res.status(404).json({ error: "Payment collection not found" });
-    if (!["waiting_for_remittance", "rejected", "paid"].includes(payment.status)) {
+    if (!["waiting_for_remittance", "rejected", "paid"].includes(payment.status) && !(payment.status === "unaccounted" && !payment.resolvedAt)) {
       return res.status(409).json({ error: "This remittance is no longer awaiting your submission." });
     }
     remittanceProofUpload(req, res, async (error) => {
@@ -782,7 +782,7 @@ router.post("/remittances/:id/submit", async (req, res, next) => {
     const now = new Date();
     const previousStatus = payment.status;
     payment.status = "remitted";
-    if (previousStatus === "rejected") {
+    if (["rejected", "unaccounted"].includes(previousStatus)) {
       payment.rejectedBy = undefined;
       payment.rejectedAt = undefined;
       payment.rejectionReason = undefined;
@@ -806,14 +806,14 @@ router.post("/remittances/:id/submit", async (req, res, next) => {
     payment.remittanceProofUrl = submission.proofUrl;
     payment.remittanceLocation = normalizeLocation(req.body?.location);
     payment.events = payment.events || [];
-    payment.events.push({ status: "remitted", actor: req.user._id, actorName: tech.name, actorRole: "technician", note: payment.remittanceNotes, at: now, metadata: { proofProvided: true, remittanceMethod: submission.method, remittanceReference: submission.reference || undefined, resubmission: previousStatus === "rejected" } });
+    payment.events.push({ status: "remitted", actor: req.user._id, actorName: tech.name, actorRole: "technician", note: payment.remittanceNotes, at: now, metadata: { proofProvided: true, remittanceMethod: submission.method, remittanceReference: submission.reference || undefined, resubmission: previousStatus === "rejected", recoveryFromFlag: previousStatus === "unaccounted" } });
     await payment.save();
     const update = { paymentStatus: "remitted" };
     if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, update);
     if (payment.orderId) await Order.findByIdAndUpdate(payment.orderId, update);
     if (payment.projectId) await Project.findByIdAndUpdate(payment.projectId, { "payment.paymentStatus": "remitted" });
     const { createNotification } = require("../utils/notify");
-    await createNotification({ type: "payment_remitted", title: "Payment remitted by technician", message: `${tech.name} submitted a ${payment.method} remittance of ₱${Number(payment.amount).toLocaleString()}.`, role: "admin", referenceId: payment._id, referenceModel: "Payment", link: "/admin/payments/remittance", priority: "high", io: req.app.get("io") }).catch(() => {});
+    await createNotification({ type: "payment_remitted", title: previousStatus === "unaccounted" ? "Flagged payment recovery submitted" : "Payment remitted by technician", message: `${tech.name} submitted a ${payment.method} remittance of ₱${Number(payment.amount).toLocaleString()}${previousStatus === "unaccounted" ? " for exception review" : ""}.`, role: "admin", referenceId: payment._id, referenceModel: "Payment", link: "/admin/payments/remittance", priority: "high", io: req.app.get("io") }).catch(() => {});
     await audit.logEvent({ actor: req.user._id, target: payment._id, action: "payment.remitted", module: "payment", req, details: { technicianId: tech._id, notes: payment.remittanceNotes } }).catch(() => {});
     res.json({ message: "Remittance submitted to admin for verification.", payment });
   } catch (err) { next(err); }

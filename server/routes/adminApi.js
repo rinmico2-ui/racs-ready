@@ -734,6 +734,7 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted" };
     const nextStatus = allowed[action];
     const now = new Date();
+    const closesFlaggedException = Boolean(payment.flaggedAt && !payment.resolvedAt && ["verify", "override"].includes(action));
     payment.status = nextStatus;
     if (action === "verify") { payment.verifiedBy = req.user._id; payment.verifiedAt = now; payment.completedAt = now; }
     if (action === "override") {
@@ -743,6 +744,13 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
       payment.overrideBy = req.user._id;
       payment.overrideAt = now;
       payment.overrideNotes = transition.notes;
+    }
+    if (closesFlaggedException) {
+      payment.resolutionType = "recovery";
+      payment.resolvedBy = req.user._id;
+      payment.resolvedAt = now;
+      payment.resolutionNotes = transition.notes || "Recovered remittance evidence verified by administration.";
+      payment.recoveryFollowUpDate = undefined;
     }
     if (action === "flag") {
       payment.flaggedBy = req.user._id;

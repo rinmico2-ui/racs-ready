@@ -50,7 +50,8 @@ function normalizeLocation(value) {
 
 function assertTechnicianSubmission(payment, body = {}) {
   const status = String(payment?.status || "");
-  if (!["waiting_for_remittance", "rejected", "paid"].includes(status)) {
+  const recoverableFlag = status === "unaccounted" && !payment?.resolvedAt;
+  if (!["waiting_for_remittance", "rejected", "paid"].includes(status) && !recoverableFlag) {
     throw new RemittancePolicyError(
       `This collection is already ${status.replace(/_/g, " ") || "processed"}. Refresh the queue before trying again.`,
       409,
@@ -84,7 +85,7 @@ function assertAdminTransition(payment, action, body = {}) {
   const allowedFrom = {
     verify: ["remitted"],
     reject: ["remitted"],
-    override: ["waiting_for_remittance", "rejected"],
+    override: ["waiting_for_remittance", "rejected", "unaccounted"],
     flag: ["waiting_for_remittance", "remitted", "rejected"],
     refund: ["verified"],
   };
@@ -97,6 +98,9 @@ function assertAdminTransition(payment, action, body = {}) {
       409,
       "REMITTANCE_STATE_CONFLICT",
     );
+  }
+  if (current === "unaccounted" && payment?.resolvedAt) {
+    throw new RemittancePolicyError("This exception is already resolved. Refresh the queue to see its final outcome.", 409, "REMITTANCE_STATE_CONFLICT");
   }
   if (normalizedAction === "verify" && !isStoredProofUrl(payment?.remittanceProofUrl)) {
     throw new RemittancePolicyError("A stored handover proof is required before verification. Request a corrected submission instead.", 409, "REMITTANCE_EVIDENCE_MISSING");
@@ -139,7 +143,7 @@ function queueState(payment) {
   if (status === "waiting_for_remittance") return { owner: "technician", stage: "handover_required", terminal: false };
   if (status === "rejected") return { owner: "technician", stage: "correction_required", terminal: false };
   if (status === "remitted") return { owner: "admin", stage: "verification_required", terminal: false };
-  if (status === "unaccounted" && !payment?.resolvedAt) return { owner: "admin", stage: "exception_resolution", terminal: false };
+  if (status === "unaccounted" && !payment?.resolvedAt) return { owner: "shared", stage: "recovery_required", terminal: false };
   if (status === "unaccounted") return { owner: "none", stage: "exception_resolved", terminal: true };
   return { owner: "none", stage: status || "unknown", terminal: ["verified", "refunded"].includes(status) };
 }

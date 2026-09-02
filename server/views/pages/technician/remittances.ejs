@@ -2459,7 +2459,7 @@ async function loadTechRemittances(){
   const r=await fetch('/api/technician/remittances'), d=await r.json();
   if(!r.ok) return Swal.fire('Unable to load remittances',d.error||'Please refresh and try again.','error');
   TECH_REMIT=d.payments||[];
-  document.getElementById('trWaiting').textContent=TECH_REMIT.filter(p=>['waiting_for_remittance','rejected'].includes(p.status)).length;
+  document.getElementById('trWaiting').textContent=TECH_REMIT.filter(p=>['waiting_for_remittance','rejected'].includes(p.status)||(p.status==='unaccounted'&&!p.resolvedAt)).length;
   document.getElementById('trSubmitted').textContent=TECH_REMIT.filter(p=>p.status==='remitted').length;
   document.getElementById('trVerified').textContent=TECH_REMIT.filter(p=>p.status==='verified').length;
   document.getElementById('trFlagged').textContent=TECH_REMIT.filter(p=>p.status==='unaccounted'&&!p.resolvedAt).length;
@@ -2484,8 +2484,9 @@ async function loadTechRemittances(){
     const status=cardStatusLabel(p.status,p.resolutionType,p.resolvedAt);
     const [bg,color]=statusStyle(p.status,p.resolutionType);
     let action='';
-    if(['waiting_for_remittance','rejected'].includes(p.status)){
-      action='<button class="tjc-view" onclick="event.stopPropagation();submitRemittance(\''+p._id+'\')"><i class="bi bi-send"></i> '+(p.status==='rejected'?'Correct & Resubmit':'Document Handover')+'</button>';
+    if(['waiting_for_remittance','rejected'].includes(p.status)||(p.status==='unaccounted'&&!p.resolvedAt)){
+      const actionLabel=p.status==='rejected'?'Correct & Resubmit':p.status==='unaccounted'?'Submit Recovered Funds':'Document Handover';
+      action='<button class="tjc-view" onclick="event.stopPropagation();submitRemittance(\''+p._id+'\')"><i class="bi bi-send"></i> '+actionLabel+'</button>';
     }
     let flagAlert='';
     if(p.status==='unaccounted'){
@@ -2493,7 +2494,7 @@ async function loadTechRemittances(){
         const rColor=p.resolutionType==='write_off'?'secondary':p.resolutionType==='deduct_from_payroll'?'danger':'info';
         flagAlert='<div class="alert alert-'+rColor+' d-flex align-items-start gap-2 mb-0 mt-2" style="border-radius:10px;padding:10px 14px;font-size:0.8rem;"><i class="bi bi-check2-all fs-5"></i><div><strong>'+resolutionLabel(p.resolutionType)+'</strong> '+tre(p.resolutionNotes||'')+'</div></div>';
       } else {
-        flagAlert='<div class="alert alert-danger d-flex align-items-start gap-2 mb-0 mt-2" style="border-radius:10px;padding:10px 14px;font-size:0.8rem;"><i class="bi bi-exclamation-triangle-fill fs-5"></i><div><strong>Payment flagged by admin.</strong> '+tre(p.flagReason||'This payment was not remitted.')+'</div></div>';
+        flagAlert='<div class="alert alert-danger d-flex align-items-start gap-2 mb-0 mt-2" style="border-radius:10px;padding:10px 14px;font-size:0.8rem;"><i class="bi bi-exclamation-triangle-fill fs-5"></i><div><strong>Recovery action required.</strong> '+tre(p.flagReason||'This payment was not remitted.')+' Upload new handover evidence using <strong>Submit Recovered Funds</strong>.</div></div>';
       }
     }
     if(p.status==='waiting_for_remittance' && p.resolutionType==='recovery'){
@@ -2514,7 +2515,7 @@ async function loadTechRemittances(){
     h+='</div>';
     const submittedDone=Boolean(p.remittedAt)||['remitted','verified'].includes(p.status);
     const verifiedDone=p.status==='verified';
-    h+='<div class="tr-progress" aria-label="Remittance progress"><span class="tr-progress-step done"><i class="bi bi-check"></i>Collected</span><i class="tr-progress-line"></i><span class="tr-progress-step '+(submittedDone?'done':(['waiting_for_remittance','rejected'].includes(p.status)?'current':''))+'"><i class="bi '+(submittedDone?'bi-check':'bi-2-circle')+'"></i>Submitted</span><i class="tr-progress-line"></i><span class="tr-progress-step '+(verifiedDone?'done':(p.status==='remitted'?'current':''))+'"><i class="bi '+(verifiedDone?'bi-check':'bi-3-circle')+'"></i>Verified</span></div>';
+    h+='<div class="tr-progress" aria-label="Remittance progress"><span class="tr-progress-step done"><i class="bi bi-check"></i>Collected</span><i class="tr-progress-line"></i><span class="tr-progress-step '+(submittedDone?'done':(['waiting_for_remittance','rejected','unaccounted'].includes(p.status)?'current':''))+'"><i class="bi '+(submittedDone?'bi-check':'bi-2-circle')+'"></i>Submitted</span><i class="tr-progress-line"></i><span class="tr-progress-step '+(verifiedDone?'done':(p.status==='remitted'?'current':''))+'"><i class="bi '+(verifiedDone?'bi-check':'bi-3-circle')+'"></i>Verified</span></div>';
     const handoverProof=trProofHref(p.remittanceProofUrl);
     if(handoverProof) h+='<a class="tr-evidence mt-2" href="'+handoverProof+'" target="_blank" rel="noopener"><i class="bi bi-paperclip"></i>View handover proof</a>';
     if(flagAlert) h+=flagAlert;
@@ -2536,11 +2537,12 @@ async function submitRemittance(id){
   const payment=TECH_REMIT.find(row=>row._id===id);
   if(!payment)return;
   const result=await Swal.fire({
-    title:payment.status==='rejected'?'Correct remittance submission':'Document fund handover',
+    title:payment.status==='rejected'?'Correct remittance submission':payment.status==='unaccounted'?'Submit recovered funds':'Document fund handover',
     width:600,
     html:`<div class="text-start">
       <div class="alert alert-light border small"><strong>${tre(payment.bookingId?.bookingReference||payment.orderId?.orderReference||payment.projectId?.projectReference||String(payment._id).slice(-8))}</strong> · ₱${Number(payment.amount||0).toLocaleString('en-PH',{minimumFractionDigits:2})}</div>
       ${payment.status==='rejected'?`<div class="alert alert-warning small"><strong>Admin correction:</strong> ${tre(payment.rejectionReason||'Update the handover evidence and submit again.')}</div>`:''}
+      ${payment.status==='unaccounted'?`<div class="alert alert-danger small"><strong>Flag reason:</strong> ${tre(payment.flagReason||'Administration requires recovery evidence for this payment.')}</div>`:''}
       <label class="form-label fw-semibold" for="trMethod">Handover channel <span class="text-danger">*</span></label>
       <select id="trMethod" class="form-select mb-3"><option value="cash_handover">Cash handed to admin/cashier</option><option value="gcash_transfer">GCash transfer</option><option value="bank_deposit">Bank deposit or transfer</option></select>
       <label class="form-label fw-semibold" for="trReference">Transfer reference</label>

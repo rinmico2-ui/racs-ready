@@ -28,6 +28,22 @@ test("technician can correct a rejected remittance with stored evidence", () => 
   }), error => error.code === "REMITTANCE_PROOF_REQUIRED");
 });
 
+test("an unresolved flagged payment can be recovered by either side", () => {
+  assert.equal(assertTechnicianSubmission({ _id: PAYMENT_ID, status: "unaccounted" }, {
+    remittanceMethod: "cash_handover",
+    notes: "Recovered cash handed to the office cashier.",
+    proofUrl: PROOF,
+  }).method, "cash_handover");
+  assert.equal(assertAdminTransition({ status: "unaccounted" }, "override", {
+    notes: "Recovered cash received by the office cashier.",
+  }).action, "override");
+  assert.throws(() => assertTechnicianSubmission({ _id: PAYMENT_ID, status: "unaccounted", resolvedAt: new Date() }, {
+    remittanceMethod: "cash_handover",
+    notes: "Attempted resubmission after final resolution.",
+    proofUrl: PROOF,
+  }), error => error.code === "REMITTANCE_STATE_CONFLICT");
+});
+
 test("technician remittance rejects base64 evidence and missing transfer references", () => {
   assert.throws(() => assertTechnicianSubmission({ status: "waiting_for_remittance" }, {
     remittanceMethod: "cash_handover",
@@ -67,6 +83,7 @@ test("exception resolution requires notes and a future recovery deadline", () =>
 test("queue ownership distinguishes correction, verification, and resolved exceptions", () => {
   assert.deepEqual(queueState({ status: "rejected" }), { owner: "technician", stage: "correction_required", terminal: false });
   assert.deepEqual(queueState({ status: "remitted" }), { owner: "admin", stage: "verification_required", terminal: false });
+  assert.deepEqual(queueState({ status: "unaccounted" }), { owner: "shared", stage: "recovery_required", terminal: false });
   assert.deepEqual(queueState({ status: "unaccounted", resolvedAt: new Date() }), { owner: "none", stage: "exception_resolved", terminal: true });
 });
 
