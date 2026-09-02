@@ -68,7 +68,8 @@ let _smtpTransport = null;
 function getSmtpTransport() {
   if (_smtpTransport) return _smtpTransport;
   const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const parsedPort = Number.parseInt(process.env.SMTP_PORT || "587", 10);
+  const port = Number.isFinite(parsedPort) ? parsedPort : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   if (!host || !user || !pass) {
@@ -118,11 +119,11 @@ async function sendMail({ to, subject, html, text, source = "application" }) {
       const transport = getSmtpTransport();
       if (!transport) throw new Error("SMTP credentials are not configured.");
       const info = await transport.sendMail({
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-      to,
-      subject,
-      html,
-      text: text || "",
+        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+        to,
+        subject,
+        html,
+        text: text || "",
       });
       console.log("[MAILER] (SMTP) Email sent successfully:", info.messageId);
       result = { messageId: info.messageId, provider: "smtp" };
@@ -212,6 +213,43 @@ function sendViaBrevo({ to, subject, html, text }) {
     req.write(payload);
     req.end();
   });
+}
+
+function verifyBrevoAccount() {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: "api.brevo.com",
+      port: 443,
+      path: "/v3/account",
+      method: "GET",
+      headers: { accept: "application/json", "api-key": BREVO_API_KEY },
+      timeout: 10_000,
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          return resolve({ ok: true, provider: "brevo", statusCode: res.statusCode });
+        }
+        let detail = "Brevo rejected the connection check.";
+        try { detail = JSON.parse(body || "{}").message || detail; } catch (_) { /* ignore */ }
+        return reject(new Error(`Brevo API ${res.statusCode}: ${detail}`));
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("Brevo connection check timed out.")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function verifyMailerConfiguration() {
+  const status = buildMailerStatus(process.env);
+  if (!status.configured) throw new Error(status.issues.join(". "));
+  if (MAIL_PROVIDER === "brevo") return verifyBrevoAccount();
+  const transport = getSmtpTransport();
+  if (!transport) throw new Error("SMTP transport is not configured.");
+  await transport.verify();
+  return { ok: true, provider: "smtp" };
 }
 
 // ─── Booking Confirmation Email (to customer) ───────────────────────────────
@@ -1199,6 +1237,9 @@ async function sendRescheduleNotificationEmail({
 
 module.exports = {
   sendMail,
+  buildMailerStatus,
+  resolveMailProvider,
+  verifyMailerConfiguration,
   sendEmail,
   sendResetEmail,
   sendBookingConfirmationEmail,

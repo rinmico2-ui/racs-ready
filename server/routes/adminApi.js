@@ -9201,6 +9201,120 @@ router.patch("/daily-kit/resolve-item", async (req, res, next) => {
   }
 });
 
+// Email delivery operations ----------------------------------------------------
+const emailTestCooldown = new Map();
+
+router.get("/settings/email-status", async (_req, res, next) => {
+  try {
+    const mailer = require("../utils/mailer");
+    const EmailDeliveryLog = require("../models/EmailDeliveryLog");
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [summary, latest] = await Promise.all([
+      EmailDeliveryLog.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      EmailDeliveryLog.findOne().sort({ createdAt: -1 }).lean(),
+    ]);
+    const counts = Object.fromEntries(summary.map((row) => [row._id, row.count]));
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      configuration: mailer.buildMailerStatus(process.env),
+      last24Hours: { accepted: counts.accepted || 0, failed: counts.failed || 0 },
+      latestAttempt: latest ? {
+        status: latest.status,
+        provider: latest.provider,
+        createdAt: latest.createdAt,
+      } : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/settings/email-verify", async (req, res, next) => {
+  try {
+    const result = await require("../utils/mailer").verifyMailerConfiguration();
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.email_connection.verified",
+      module: "settings",
+      req,
+      details: { provider: result.provider },
+    });
+    return res.json({ message: `${result.provider === "brevo" ? "Brevo API" : "SMTP"} credentials and network connection verified.`, provider: result.provider });
+  } catch (error) {
+    return res.status(502).json({ error: String(error.message || "Email provider verification failed.").slice(0, 500) });
+  }
+});
+
+router.post("/settings/email-test", async (req, res, next) => {
+  try {
+    const recipient = String(req.body?.recipient || "").trim().toLowerCase();
+    if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      return res.status(400).json({ error: "Enter a valid recipient email address." });
+    }
+    const actorKey = String(req.user?._id || req.ip || "admin");
+    const lastSent = emailTestCooldown.get(actorKey) || 0;
+    const cooldownMs = 15_000;
+    if (Date.now() - lastSent < cooldownMs) {
+      return res.status(429).json({ error: "Wait 15 seconds before sending another test email." });
+    }
+    emailTestCooldown.set(actorKey, Date.now());
+
+    const mailer = require("../utils/mailer");
+    const result = await mailer.sendMail({
+      to: recipient,
+      subject: "CALIDRO RACS email delivery test",
+      text: `This test was requested from the administrator email operations page at ${new Date().toISOString()}. If you received it, the selected provider can deliver messages to this address.`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;"><h2 style="color:#0369a1;">Email delivery test</h2><p>This test was requested from the CALIDRO RACS administrator email operations page.</p><p><strong>Requested at:</strong> ${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</p><p style="color:#64748b;">Provider acceptance confirms the API/SMTP handoff. Inbox delivery can still be affected by sender verification, spam filtering, or recipient rules.</p></div>`,
+      source: "admin_test",
+    });
+    if (!result) throw new Error("No email transport accepted the test message.");
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "settings.email_test.accepted",
+      module: "settings",
+      req,
+      details: { provider: result.provider || "unknown", recipient },
+    });
+    return res.json({
+      message: "The provider accepted the test email. Check the recipient inbox and spam folder.",
+      provider: result.provider || null,
+      messageId: result.messageId || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings/email-logs", async (req, res, next) => {
+  try {
+    const EmailDeliveryLog = require("../models/EmailDeliveryLog");
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+    const filter = ["accepted", "failed"].includes(req.query.status) ? { status: req.query.status } : {};
+    const records = await EmailDeliveryLog.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      records: records.map((record) => ({
+        id: record._id,
+        provider: record.provider,
+        recipient: record.recipient,
+        subject: record.subject,
+        status: record.status,
+        messageId: record.messageId,
+        error: record.error,
+        source: record.source,
+        createdAt: record.createdAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // System settings control plane ------------------------------------------------
 router.get("/settings/system-configuration", async (_req, res, next) => {
   try {

@@ -1,103 +1,252 @@
-<div class="admin-dashboard container-fluid py-4 settings-email-page">
+<div class="admin-dashboard container-fluid py-4 email-ops-page">
   <%- include('../../../partials/dashboard-styles') %>
+  <style>
+    .email-ops-page { --em-blue:#0284c7; --em-sky:#e0f2fe; --em-border:#e2e8f0; --em-text:#0f172a; --em-muted:#64748b; }
+    .email-ops-page .em-card { background:#fff; border:1px solid var(--em-border); border-radius:16px; box-shadow:0 4px 18px rgba(15,23,42,.05); overflow:hidden; }
+    .email-ops-page .em-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--em-border); }
+    .email-ops-page .em-card-title { margin:0; font:700 .92rem 'Outfit',sans-serif; color:var(--em-text); }
+    .email-ops-page .em-card-sub { margin:3px 0 0; color:#94a3b8; font-size:.74rem; }
+    .email-ops-page .em-card-body { padding:20px; }
+    .email-ops-page .em-provider { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:999px; background:var(--em-sky); color:#0369a1; font-size:.73rem; font-weight:700; }
+    .email-ops-page .em-provider::before { content:''; width:7px; height:7px; border-radius:50%; background:#0ea5e9; }
+    .email-ops-page .em-provider.ready { background:#ecfdf5; color:#047857; }
+    .email-ops-page .em-provider.ready::before { background:#10b981; }
+    .email-ops-page .em-provider.blocked { background:#fef2f2; color:#be123c; }
+    .email-ops-page .em-provider.blocked::before { background:#e11d48; }
+    .email-ops-page .em-label { display:block; margin-bottom:5px; color:#64748b; font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+    .email-ops-page .em-readonly { min-height:42px; display:flex; align-items:center; padding:9px 12px; border:1px solid var(--em-border); border-radius:10px; background:#f8fafc; color:#334155; font-size:.84rem; word-break:break-word; }
+    .email-ops-page .em-secret { display:flex; align-items:center; gap:7px; color:#475569; }
+    .email-ops-page .em-secret i { color:#10b981; }
+    .email-ops-page .em-note { padding:12px 14px; border:1px solid #bae6fd; border-radius:11px; background:#f0f9ff; color:#075985; font-size:.76rem; line-height:1.55; }
+    .email-ops-page .em-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:0; border-radius:10px; padding:10px 15px; font-size:.8rem; font-weight:700; transition:.2s; }
+    .email-ops-page .em-btn:disabled { opacity:.65; cursor:not-allowed; }
+    .email-ops-page .em-btn-primary { background:linear-gradient(135deg,#0284c7,#38bdf8); color:#fff; box-shadow:0 5px 14px rgba(2,132,199,.2); }
+    .email-ops-page .em-btn-outline { background:#fff; color:#0369a1; border:1px solid #bae6fd; }
+    .email-ops-page .em-btn-success { background:#059669; color:#fff; }
+    .email-ops-page .em-metric { padding:16px; border:1px solid var(--em-border); border-radius:13px; background:#fff; }
+    .email-ops-page .em-metric-label { color:#94a3b8; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+    .email-ops-page .em-metric-value { margin-top:4px; color:var(--em-text); font-size:1.45rem; font-weight:800; }
+    .email-ops-page .em-check { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+    .email-ops-page .em-check:last-child { border-bottom:0; }
+    .email-ops-page .em-check-icon { width:25px; height:25px; display:grid; place-items:center; border-radius:7px; background:#f1f5f9; color:#94a3b8; flex:none; }
+    .email-ops-page .em-check-icon.ok { background:#ecfdf5; color:#059669; }
+    .email-ops-page .em-check strong { display:block; color:#334155; font-size:.78rem; }
+    .email-ops-page .em-check span { color:#94a3b8; font-size:.7rem; }
+    .email-ops-page .table { margin:0; font-size:.77rem; }
+    .email-ops-page .table th { color:#64748b; background:#f8fafc; font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; white-space:nowrap; }
+    .email-ops-page .em-status { display:inline-flex; padding:3px 8px; border-radius:999px; font-size:.66rem; font-weight:800; }
+    .email-ops-page .em-status.accepted { background:#ecfdf5; color:#047857; }
+    .email-ops-page .em-status.failed { background:#fef2f2; color:#be123c; }
+    .email-ops-page .em-empty { padding:34px; text-align:center; color:#94a3b8; }
+  </style>
 
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-envelope-fill"></i></div>
-        <div>
-          <h1>Email / SMTP</h1>
-          <p>Configure SMTP, send test messages, and manage templates & delivery logs.</p>
-        </div>
+        <div class="au-hero-icon"><i class="bi bi-envelope-check-fill"></i></div>
+        <div><h1>Email Delivery Operations</h1><p>Inspect the active provider, verify connectivity, send a controlled test, and review delivery handoffs.</p></div>
       </div>
+      <span class="em-provider" id="providerBadge">Loading provider…</span>
     </div>
   </div>
 
-  <div class="row g-4">
-    <!-- SMTP Configuration Form -->
-    <div class="col-lg-8">
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3 border-bottom">
-          <h6 class="mb-0 fw-bold"><i class="bi bi-hdd-network me-2 text-primary"></i>SMTP Server Configuration</h6>
+  <div id="emailPageAlert" class="alert d-none" role="alert"></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-8">
+      <section class="em-card h-100">
+        <div class="em-card-head">
+          <div><h2 class="em-card-title"><i class="bi bi-diagram-3 me-2 text-primary"></i>Active Delivery Path</h2><p class="em-card-sub">Read from the running process environment. Secrets are never returned to this page.</p></div>
+          <button type="button" class="em-btn em-btn-outline" id="verifyConnectionBtn"><i class="bi bi-plug"></i> Verify Connection</button>
         </div>
-        <div class="card-body">
-          <form class="row g-3">
-            <div class="col-md-8">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">SMTP Host</label>
-              <input type="text" class="form-control" placeholder="smtp.example.com" value="smtp.gmail.com" />
-            </div>
-            <div class="col-md-4">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Port</label>
-              <input type="number" class="form-control" placeholder="587" value="587" />
-            </div>
-            
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Encryption</label>
-              <select class="form-select">
-                <option value="tls" selected>TLS (STARTTLS)</option>
-                <option value="ssl">SSL / TLS</option>
-                <option value="none">None</option>
-              </select>
-            </div>
-            
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Enable Authentication</label>
-              <div class="form-check form-switch mt-2">
-                <input class="form-check-input" type="checkbox" id="authSwitch" checked>
-                <label class="form-check-label text-micro" for="authSwitch">Require username and password</label>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Username</label>
-              <input type="text" class="form-control" placeholder="email@example.com" value="admin@racs.com" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Password</label>
-              <input type="password" class="form-control" placeholder="••••••••" value="password123" />
-            </div>
-
-            <hr class="my-4 text-muted" />
-
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Sender Name</label>
-              <input type="text" class="form-control" placeholder="RACS Notifications" value="RACS Service Center" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label text-micro fw-bold text-muted text-uppercase">Sender Email (From)</label>
-              <input type="email" class="form-control" placeholder="noreply@racs.com" value="noreply@racs.com" />
-            </div>
-
-            <div class="col-12 mt-4 text-end">
-              <button type="button" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-floppy-disk me-2"></i>Save Configuration</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Actions & Status -->
-    <div class="col-lg-4">
-      <div class="card shadow-sm border-0 mb-4 bg-primary-subtle text-primary border border-primary-subtle">
-        <div class="card-body">
-          <h6 class="fw-bold mb-2"><i class="bi bi-check-circle-fill me-2"></i>Service Online</h6>
-          <p class="mb-0 text-micro text-dark">The SMTP service is currently configured and successfully sending outbound notifications.</p>
-        </div>
-      </div>
-
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3 border-bottom">
-          <h6 class="mb-0 fw-bold"><i class="bi bi-send-check me-2 text-success"></i>Test Connection</h6>
-        </div>
-        <div class="card-body">
-          <p class="text-micro text-muted mb-3">Send a test email to verify that your SMTP credentials and network configurations are functioning properly before applying them to production traffic.</p>
-          <div class="mb-3">
-            <label class="form-label text-micro fw-bold text-muted text-uppercase">Recipient Email</label>
-            <input type="email" class="form-control" placeholder="test@address.com" />
+        <div class="em-card-body">
+          <div class="em-note mb-3"><i class="bi bi-shield-lock me-1"></i>Provider credentials are deployment secrets. Change them in local <code>.env</code> or Render Environment, then restart/redeploy. This prevents database users and browser code from reading mail credentials.</div>
+          <div class="row g-3">
+            <div class="col-md-6"><span class="em-label">Selected Provider</span><div class="em-readonly" id="providerName">—</div></div>
+            <div class="col-md-6"><span class="em-label">Runtime Environment</span><div class="em-readonly" id="providerEnvironment">—</div></div>
+            <div class="col-md-6"><span class="em-label">Sender Name</span><div class="em-readonly" id="senderName">—</div></div>
+            <div class="col-md-6"><span class="em-label">Sender Email</span><div class="em-readonly" id="senderEmail">—</div></div>
           </div>
-          <button type="button" class="btn btn-outline-success w-100"><i class="bi bi-send me-2"></i>Send Test Message</button>
+
+          <div id="smtpConfiguration" class="mt-4 d-none">
+            <h3 class="em-card-title mb-3">Local SMTP Configuration</h3>
+            <div class="row g-3">
+              <div class="col-md-6"><span class="em-label">SMTP Host</span><div class="em-readonly" id="smtpHost">—</div></div>
+              <div class="col-md-3"><span class="em-label">Port</span><div class="em-readonly" id="smtpPort">—</div></div>
+              <div class="col-md-3"><span class="em-label">Encryption</span><div class="em-readonly" id="smtpEncryption">—</div></div>
+              <div class="col-md-6"><span class="em-label">Username</span><div class="em-readonly" id="smtpUsername">—</div></div>
+              <div class="col-md-6"><span class="em-label">Password Secret</span><div class="em-readonly em-secret" id="smtpPasswordStatus">—</div></div>
+            </div>
+          </div>
+
+          <div id="brevoConfiguration" class="mt-4 d-none">
+            <h3 class="em-card-title mb-3">Production Brevo Configuration</h3>
+            <div class="row g-3">
+              <div class="col-md-6"><span class="em-label">API Endpoint</span><div class="em-readonly">api.brevo.com/v3/smtp/email</div></div>
+              <div class="col-md-6"><span class="em-label">API Key Secret</span><div class="em-readonly em-secret" id="brevoKeyStatus">—</div></div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+    </div>
+
+    <div class="col-xl-4">
+      <section class="em-card h-100">
+        <div class="em-card-head"><div><h2 class="em-card-title"><i class="bi bi-send-check me-2 text-success"></i>Send Test Email</h2><p class="em-card-sub">Uses the exact provider selected by the running server.</p></div></div>
+        <div class="em-card-body">
+          <form id="testEmailForm">
+            <label class="em-label" for="testRecipient">Recipient Email</label>
+            <input type="email" class="form-control mb-3" id="testRecipient" maxlength="254" required placeholder="recipient@gmail.com" value="<%= locals.user && user.email ? user.email : '' %>">
+            <button type="submit" class="em-btn em-btn-success w-100" id="sendTestBtn"><i class="bi bi-send"></i> Send Real Test Message</button>
+          </form>
+          <div class="em-note mt-3">A successful result means SMTP/Brevo accepted the message. It does not guarantee inbox placement; also check spam and the provider’s transactional log.</div>
+          <div id="testResult" class="alert d-none mt-3 mb-0 small"></div>
+        </div>
+      </section>
     </div>
   </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Accepted · Last 24 Hours</div><div class="em-metric-value text-success" id="acceptedCount">0</div></div></div>
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Failed · Last 24 Hours</div><div class="em-metric-value text-danger" id="failedCount">0</div></div></div>
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Latest Provider Attempt</div><div class="em-metric-value" style="font-size:1rem" id="latestAttempt">No attempts recorded</div></div></div>
+  </div>
+
+  <section class="em-card mb-3">
+    <div class="em-card-head"><div><h2 class="em-card-title"><i class="bi bi-list-check me-2 text-primary"></i>Configuration Readiness</h2><p class="em-card-sub">Required variables for the currently selected environment.</p></div></div>
+    <div class="em-card-body py-2" id="configurationChecklist"><div class="em-empty">Loading configuration…</div></div>
+  </section>
+
+  <section class="em-card">
+    <div class="em-card-head">
+      <div><h2 class="em-card-title"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Delivery Attempts</h2><p class="em-card-sub">Provider handoffs are retained for 90 days. Email bodies and credentials are not stored.</p></div>
+      <button type="button" class="em-btn em-btn-outline" id="refreshEmailBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>Time</th><th>Status</th><th>Provider</th><th>Recipient</th><th>Subject</th><th>Message ID / Error</th></tr></thead>
+        <tbody id="deliveryLogBody"><tr><td colspan="6" class="em-empty">Loading delivery attempts…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
 </div>
+
+<script>
+(function() {
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char];
+    });
+  }
+  function busy(button, active, text) {
+    if (!button) return;
+    if (active) { button.dataset.html = button.innerHTML; button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + text; }
+    else { button.disabled = false; button.innerHTML = button.dataset.html || button.innerHTML; }
+  }
+  function show(boxId, message, type) {
+    var box = document.getElementById(boxId);
+    box.className = 'alert alert-' + (type || 'info') + ' mt-3 mb-0 small';
+    box.textContent = message;
+    box.classList.remove('d-none');
+  }
+  async function api(url, options) {
+    var response = await fetch(url, Object.assign({ credentials:'same-origin' }, options || {}));
+    var data = await response.json().catch(function() { return {}; });
+    if (!response.ok) throw new Error(data.error || 'Request failed.');
+    return data;
+  }
+  function secretStatus(configured) {
+    return configured ? '<i class="bi bi-check-circle-fill"></i> Configured (hidden)' : '<i class="bi bi-x-circle-fill text-danger"></i> Missing';
+  }
+  function checklistItem(name, ok, detail) {
+    return '<div class="em-check"><div class="em-check-icon ' + (ok ? 'ok' : '') + '"><i class="bi ' + (ok ? 'bi-check-lg' : 'bi-exclamation-lg') + '"></i></div><div><strong>' + esc(name) + '</strong><span>' + esc(detail) + '</span></div></div>';
+  }
+  function renderStatus(data) {
+    var config = data.configuration;
+    var badge = document.getElementById('providerBadge');
+    badge.textContent = config.configured ? config.providerLabel + ' · Configured' : config.providerLabel + ' · Incomplete';
+    badge.className = 'em-provider ' + (config.configured ? 'ready' : 'blocked');
+    document.getElementById('providerName').textContent = config.providerLabel;
+    document.getElementById('providerEnvironment').textContent = config.environment;
+    document.getElementById('senderName').textContent = config.sender.name || 'Missing FROM_NAME';
+    document.getElementById('senderEmail').textContent = config.sender.email || 'Missing FROM_EMAIL';
+    document.getElementById('smtpConfiguration').classList.toggle('d-none', config.provider !== 'smtp');
+    document.getElementById('brevoConfiguration').classList.toggle('d-none', config.provider !== 'brevo');
+    document.getElementById('smtpHost').textContent = config.smtp.host || 'Missing';
+    document.getElementById('smtpPort').textContent = config.smtp.port;
+    document.getElementById('smtpEncryption').textContent = config.smtp.encryption;
+    document.getElementById('smtpUsername').textContent = config.smtp.username || 'Missing';
+    document.getElementById('smtpPasswordStatus').innerHTML = secretStatus(config.smtp.passwordConfigured);
+    document.getElementById('brevoKeyStatus').innerHTML = secretStatus(config.brevo.apiKeyConfigured);
+    document.getElementById('acceptedCount').textContent = data.last24Hours.accepted;
+    document.getElementById('failedCount').textContent = data.last24Hours.failed;
+    document.getElementById('latestAttempt').textContent = data.latestAttempt ? data.latestAttempt.status.toUpperCase() + ' · ' + new Date(data.latestAttempt.createdAt).toLocaleString('en-PH') : 'No attempts recorded';
+
+    var checklist = [];
+    checklist.push(checklistItem('FROM_EMAIL', Boolean(config.sender.email), config.sender.email || 'Set a verified sender address.'));
+    checklist.push(checklistItem('FROM_NAME', Boolean(config.sender.name), config.sender.name || 'Set the public sender name.'));
+    if (config.provider === 'smtp') {
+      checklist.push(checklistItem('SMTP_HOST and SMTP_PORT', Boolean(config.smtp.host && config.smtp.port), config.smtp.host ? config.smtp.host + ':' + config.smtp.port : 'SMTP server is missing.'));
+      checklist.push(checklistItem('SMTP_USER', Boolean(config.smtp.username), config.smtp.username || 'SMTP username is missing.'));
+      checklist.push(checklistItem('SMTP_PASS', config.smtp.passwordConfigured, config.smtp.passwordConfigured ? 'Secret exists and remains hidden.' : 'Google App Password is missing.'));
+    } else {
+      checklist.push(checklistItem('BREVO_API_KEY', config.brevo.apiKeyConfigured, config.brevo.apiKeyConfigured ? 'Secret exists and remains hidden.' : 'Set the API key in Render Environment.'));
+      checklist.push(checklistItem('Verified Brevo sender', Boolean(config.sender.email), 'The FROM_EMAIL domain/address must also be verified inside Brevo.'));
+    }
+    document.getElementById('configurationChecklist').innerHTML = checklist.join('');
+    if (!config.configured) {
+      var mainAlert = document.getElementById('emailPageAlert');
+      mainAlert.className = 'alert alert-danger';
+      mainAlert.textContent = 'Email provider configuration is incomplete: ' + config.issues.join(', ') + '.';
+      mainAlert.classList.remove('d-none');
+    }
+  }
+  function renderLogs(records) {
+    var body = document.getElementById('deliveryLogBody');
+    if (!records.length) { body.innerHTML = '<tr><td colspan="6" class="em-empty">No email delivery attempts have been recorded yet.</td></tr>'; return; }
+    body.innerHTML = records.map(function(record) {
+      var detail = record.status === 'accepted' ? (record.messageId || 'Accepted without message ID') : (record.error || 'Provider rejected the message');
+      return '<tr><td class="text-nowrap">' + esc(new Date(record.createdAt).toLocaleString('en-PH')) + '</td><td><span class="em-status ' + esc(record.status) + '">' + esc(record.status.toUpperCase()) + '</span></td><td>' + esc(record.provider.toUpperCase()) + '</td><td>' + esc(record.recipient) + '</td><td>' + esc(record.subject) + '</td><td style="max-width:300px;word-break:break-word" title="' + esc(detail) + '">' + esc(detail) + '</td></tr>';
+    }).join('');
+  }
+  async function refresh() {
+    var button = document.getElementById('refreshEmailBtn');
+    busy(button, true, 'Refreshing…');
+    try {
+      var results = await Promise.all([api('/api/admin/settings/email-status'), api('/api/admin/settings/email-logs?limit=25')]);
+      renderStatus(results[0]);
+      renderLogs(results[1].records || []);
+    } catch (error) {
+      var alert = document.getElementById('emailPageAlert');
+      alert.className = 'alert alert-danger'; alert.textContent = error.message; alert.classList.remove('d-none');
+    } finally { busy(button, false); }
+  }
+  document.getElementById('verifyConnectionBtn').addEventListener('click', async function() {
+    var button = this;
+    busy(button, true, 'Verifying…');
+    try {
+      var data = await api('/api/admin/settings/email-verify', { method:'POST' });
+      var alert = document.getElementById('emailPageAlert');
+      alert.className = 'alert alert-success'; alert.textContent = data.message; alert.classList.remove('d-none');
+    } catch (error) {
+      var alert = document.getElementById('emailPageAlert');
+      alert.className = 'alert alert-danger'; alert.textContent = error.message; alert.classList.remove('d-none');
+    } finally { busy(button, false); }
+  });
+  document.getElementById('testEmailForm').addEventListener('submit', async function(event) {
+    event.preventDefault();
+    var button = document.getElementById('sendTestBtn');
+    var recipient = document.getElementById('testRecipient');
+    if (!recipient.checkValidity()) { recipient.reportValidity(); return; }
+    busy(button, true, 'Sending…');
+    try {
+      var data = await api('/api/admin/settings/email-test', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ recipient:recipient.value }) });
+      show('testResult', data.message + (data.messageId ? ' Message ID: ' + data.messageId : ''), 'success');
+      await refresh();
+    } catch (error) { show('testResult', error.message, 'danger'); }
+    finally { busy(button, false); }
+  });
+  document.getElementById('refreshEmailBtn').addEventListener('click', refresh);
+  refresh();
+})();
+</script>
