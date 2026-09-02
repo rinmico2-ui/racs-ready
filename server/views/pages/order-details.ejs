@@ -63,7 +63,9 @@
   const coordinates = order.delivery && order.delivery.coordinates && Array.isArray(order.delivery.coordinates.coordinates)
     ? order.delivery.coordinates.coordinates : [];
   const hasCoordinates = coordinates.length === 2 && Number.isFinite(Number(coordinates[0])) && Number.isFinite(Number(coordinates[1]));
-  const trackable = ['technician_assigned','technician_accepted','out_for_delivery','arrived','installing'].includes(order.status);
+  // Do not expose a technician's current position merely because an order was
+  // assigned. Customer tracking begins only when field travel has started.
+  const trackable = ['out_for_delivery','arrived','installing'].includes(order.status);
   const maintenanceSchedules = (order.maintenanceAssets || []).map(asset => asset.maintenanceSchedule).filter(Boolean);
   const nextMaintenance = maintenanceSchedules.slice().sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
   const peso = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

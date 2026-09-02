@@ -1052,6 +1052,8 @@ document.addEventListener("DOMContentLoaded", function () {
               <div class="pm-row"><span class="pm-lbl">Name</span><span class="pm-val">${esc((o.customer&&o.customer.name)||"-")}</span></div>
               <div class="pm-row"><span class="pm-lbl">Email</span><span class="pm-val">${esc((o.customer&&o.customer.email)||"—")}</span></div>
               <div class="pm-row"><span class="pm-lbl">Phone</span><span class="pm-val">${esc((o.customer&&o.customer.phone)||"—")}</span></div>
+              ${o.customerAccount ? `<div class="pm-row"><span class="pm-lbl">Online Account</span><span class="pm-val"><span class="badge ${o.customerAccount.state === 'active' ? 'bg-success' : 'bg-warning text-dark'}">${esc(String(o.customerAccount.state).replace(/_/g,' ').toUpperCase())}</span></span></div>` : ''}
+              ${o.customerAccount?.invitationLastSentAt ? `<div class="pm-row"><span class="pm-lbl">Activation sent</span><span class="pm-val">${new Date(o.customerAccount.invitationLastSentAt).toLocaleString('en-PH')}</span></div>` : ''}
             </div>
           </div>
 
@@ -1176,6 +1178,9 @@ document.addEventListener("DOMContentLoaded", function () {
       if (canAssign(o)) {
         footerBtns += assignBtn(o);
       }
+      if (o.customerAccount?.state === 'invited' && o.customerAccount?.canManageInvitation) {
+        footerBtns += `<button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="window._aoResendCustomerActivation('${esc(o._id)}')"><i class="bi bi-envelope-arrow-up me-1"></i>Resend Activation</button>`;
+      }
       modalFooter.innerHTML = footerBtns;
       modalFooter.style.display = footerBtns ? '' : 'none';
     } catch(err) {
@@ -1184,6 +1189,18 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   // ═══ ADMIN RESCHEDULE ═══════════════════════════════════════════════════════
+  window._aoResendCustomerActivation = async function(orderId) {
+    try {
+      const response = await fetch(`/api/walk-in-aircon/orders/${encodeURIComponent(orderId)}/resend-invitation`, { method:'POST', credentials:'same-origin' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Activation email could not be resent.');
+      await Swal.fire({ icon:'success', title:'Activation email resent', text:data.message, confirmButtonColor:'#2563eb' });
+      window._aoViewOrder(orderId);
+    } catch (error) {
+      Swal.fire({ icon:'error', title:'Unable to resend activation', text:error.message, confirmButtonColor:'#2563eb' });
+    }
+  };
+
   window._aoRescheduleOrder = async function(orderId, ref, currentDate, currentTime) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

@@ -392,6 +392,17 @@
     }
   }
 
+  if (params.get('activated')) {
+    window.authUtils.swalSuccess('Account activated', 'Your email is verified and your walk-in order is ready to track. Sign in to continue.');
+    if (window.history && window.history.replaceState) {
+      try {
+        var activatedUrl = new URL(window.location.href);
+        activatedUrl.searchParams.delete('activated');
+        window.history.replaceState(null, '', activatedUrl.pathname + activatedUrl.search + activatedUrl.hash);
+      } catch (e) { /* ignore */ }
+    }
+  }
+
   if (params.get('msg')) {
     try {
       window.authUtils.swalError('Please sign in', params.get('msg'));

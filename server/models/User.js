@@ -53,6 +53,27 @@ const userSchema = new mongoose.Schema({
   emailVerificationExpires: { type: Date, select: false },
   emailVerificationLastSentAt: { type: Date, select: false },
   emailVerificationAttempts: { type: Number, default: 0, select: false },
+  // Accounts provisioned by staff for walk-in customers remain unusable until
+  // the customer proves control of the email address and chooses a password.
+  accountOrigin: {
+    type: String,
+    enum: ["legacy", "self_registration", "walk_in_service", "walk_in_order", "admin"],
+    default: "legacy",
+    index: true,
+  },
+  accountStatus: {
+    type: String,
+    enum: ["active", "invited"],
+    default: "active",
+    index: true,
+  },
+  invitationTokenHash: { type: String, select: false },
+  invitationExpiresAt: { type: Date, select: false },
+  invitationInvitedAt: Date,
+  invitationLastSentAt: Date,
+  invitationInvitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  invitationConsentAt: Date,
+  invitationActivatedAt: Date,
   // Admin / policy fields
   blocked: { type: Boolean, default: false },
   vip: { type: Boolean, default: false },
@@ -100,6 +121,24 @@ userSchema.methods.clearPasswordReset = function () {
   this.resetPasswordExpires = undefined;
 };
 
+userSchema.methods.createAccountInvitationToken = function () {
+  const crypto = require("crypto");
+  const token = crypto.randomBytes(32).toString("hex");
+  this.invitationTokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const defaultMs = 24 * 60 * 60 * 1000;
+  const configuredMs = Number(process.env.ACCOUNT_INVITATION_EXPIRES_MS);
+  const ttlMs = Number.isFinite(configuredMs) && configuredMs >= 15 * 60 * 1000
+    ? configuredMs
+    : defaultMs;
+  this.invitationExpiresAt = new Date(Date.now() + ttlMs);
+  return token;
+};
+
+userSchema.methods.clearAccountInvitation = function () {
+  this.invitationTokenHash = undefined;
+  this.invitationExpiresAt = undefined;
+};
+
 userSchema.methods.setPassword = async function (password) {
   const saltRounds = 12;
   this.passwordHash = await bcrypt.hash(password, saltRounds);
@@ -126,6 +165,8 @@ userSchema.methods.toJSON = function () {
   delete obj.emailVerificationExpires;
   delete obj.emailVerificationLastSentAt;
   delete obj.emailVerificationAttempts;
+  delete obj.invitationTokenHash;
+  delete obj.invitationExpiresAt;
   delete obj.currentSessionId;
   return obj;
 };

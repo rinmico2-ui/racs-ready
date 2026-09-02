@@ -29,6 +29,11 @@
   @media(max-width:760px){.wa-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;padding:.75rem}.wa-toolbar{flex-direction:column}.wa-fields{grid-template-columns:1fr}.wa-wide{grid-column:auto}.wa-hero{align-items:flex-start}.wa-cart-launch{padding:.6rem}.wa-cart-launch .label{display:none}.wa-product-body{padding:.75rem}.wa-product h3{font-size:.82rem}.wa-product-meta{font-size:.63rem}.wa-add{padding:.42rem .58rem}}
   @media(max-width:520px){.wa-products{grid-template-columns:1fr}.wa-choice{grid-template-columns:1fr}.wa-time-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-calendar{min-height:205px;padding-left:.35rem;padding-right:.35rem}.wa-weekdays{padding-left:.35rem;padding-right:.35rem}.wa-map-toolbar{align-items:flex-start;flex-direction:column}.wa-map-actions{width:100%}.wa-map-action{flex:1}.wa-map-action span{display:none}.wa-map{height:250px}.wa-map-card.expanded .wa-map{height:350px}.wa-map-selection{grid-template-columns:1fr}.wa-map-coordinate{padding:.55rem 0 0 38px;border-left:0;border-top:1px solid #f1f5f9;text-align:left}}
 </style>
+<style>
+  .wa-account-consent{display:flex;align-items:flex-start;gap:.7rem;padding:.85rem;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#334155;font-size:.76rem;line-height:1.5;cursor:pointer}.wa-account-consent input{width:17px;height:17px;margin-top:2px;accent-color:#2563eb;flex:none}.wa-account-consent strong{display:block;color:#1e3a8a;font-size:.78rem}.wa-account-consent small{display:block;color:#64748b;margin-top:2px}
+  .wa-receipt-modal{width:min(650px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow:auto;border-radius:18px;background:#fff;box-shadow:0 24px 80px rgba(15,23,42,.28)}.wa-receipt-head{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0}.wa-receipt-head h3{margin:0;font-size:1rem;font-weight:800}.wa-receipt-body{padding:1.3rem}.wa-receipt-brand{text-align:center;padding-bottom:1rem;border-bottom:2px dashed #cbd5e1}.wa-receipt-brand h4{margin:0;color:#1e3a8a;font-weight:900}.wa-receipt-brand p{margin:.2rem 0 0;color:#64748b;font-size:.72rem}.wa-receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1rem;padding:1rem 0;font-size:.78rem}.wa-receipt-grid span{display:block;color:#94a3b8;font-size:.65rem;text-transform:uppercase}.wa-receipt-items{width:100%;font-size:.75rem}.wa-receipt-items th{padding:.55rem .35rem;border-bottom:1px solid #cbd5e1;color:#64748b;text-transform:uppercase;font-size:.62rem}.wa-receipt-items td{padding:.6rem .35rem;border-bottom:1px solid #f1f5f9}.wa-receipt-items th:last-child,.wa-receipt-items td:last-child{text-align:right}.wa-receipt-total{display:flex;justify-content:space-between;margin-top:1rem;padding-top:1rem;border-top:2px solid #0f172a;font-size:1rem;font-weight:900}.wa-account-result{margin-top:1rem;padding:.8rem;border-radius:11px;background:#eff6ff;color:#1e40af;font-size:.75rem;line-height:1.45}.wa-receipt-actions{display:flex;justify-content:flex-end;gap:.55rem;padding:1rem 1.2rem;border-top:1px solid #e2e8f0}.wa-receipt-actions button{padding:.65rem .9rem;border-radius:9px;border:1px solid #cbd5e1;background:#fff;font-size:.74rem;font-weight:800}.wa-receipt-actions .primary{border-color:#2563eb;background:#2563eb;color:#fff}
+  @media print{body.wa-printing *{visibility:hidden!important}body.wa-printing #waReceiptContent,body.wa-printing #waReceiptContent *{visibility:visible!important}body.wa-printing #waReceiptContent{position:absolute;left:0;top:0;width:100%;padding:20px;background:#fff}}
+</style>
 
 <section class="wa-shell" aria-labelledby="waTitle">
   <header class="wa-hero">
@@ -54,6 +59,7 @@
             <div class="wa-wide"><label class="wa-label" for="waCustomerName">Full name</label><input class="wa-field" id="waCustomerName" maxlength="160" required></div>
             <div><label class="wa-label" for="waCustomerEmail">Email</label><input class="wa-field" id="waCustomerEmail" type="email" maxlength="254" required></div>
             <div><label class="wa-label" for="waCustomerPhone">Phone</label><input class="wa-field" id="waCustomerPhone" inputmode="tel" maxlength="20" required></div>
+            <div class="wa-wide"><label class="wa-account-consent" for="waAccountConsent"><input id="waAccountConsent" type="checkbox" required><span><strong>Customer consent for online account access</strong>I confirm the customer authorized this order to be linked to their email and to receive account and order messages.<small>An existing account will be reused. Otherwise, the customer must verify their email and choose their own password.</small></span></label></div>
           </div>
         </section>
         <section class="wa-section">
@@ -142,6 +148,14 @@
       <div id="waVariantContent"></div>
     </section>
   </div>
+
+  <div class="wa-modal-backdrop" id="waReceiptBackdrop" aria-hidden="true">
+    <section class="wa-receipt-modal" role="dialog" aria-modal="true" aria-labelledby="waReceiptTitle">
+      <header class="wa-receipt-head"><h3 id="waReceiptTitle"><i class="bi bi-receipt me-2 text-primary"></i>Walk-in order receipt</h3><button type="button" class="wa-drawer-close" id="waCloseReceipt" aria-label="Close receipt"><i class="bi bi-x-lg"></i></button></header>
+      <div class="wa-receipt-body" id="waReceiptContent"></div>
+      <footer class="wa-receipt-actions"><button type="button" id="waResendInvitation" class="d-none"><i class="bi bi-envelope-arrow-up me-1"></i>Resend activation</button><button type="button" class="primary" id="waPrintReceipt"><i class="bi bi-printer me-1"></i>Print receipt</button></footer>
+    </section>
+  </div>
 </section>
 
 <script>
@@ -154,6 +168,7 @@
     scheduleRequest: 0, slotRequest: 0, loaded: false, checkoutId: "",
     map: null, deliveryMarker: null, companyMarker: null, routeLayer: null,
     company: null, companyPromise: null, quoteRequest: 0, reverseRequest: 0,
+    lastReceipt: null,
   };
   const $ = (id) => document.getElementById(id);
   const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -679,6 +694,7 @@
   function validate() {
     if (!state.cart.length) return "Add at least one aircon.";
     if ($("waCustomerName").value.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("waCustomerEmail").value.trim()) || $("waCustomerPhone").value.replace(/\D/g,"").length < 7) return "Enter the customer's complete name, email, and phone number.";
+    if (!$("waAccountConsent").checked) return "Confirm the customer's consent to create or link their online account.";
     if (state.fulfillment === "delivery_installation" && (!$("waLat").value || !$("waTechnician").value || !state.date || !$("waTimeSlot").value)) return "Select a verified address, technician, available date, and time.";
     if (state.fulfillment === "customer_pickup" && !$("waPickupDate").value) return "Choose the customer pickup date.";
     const units = state.cart.reduce((sum,item)=>sum+item.quantity,0), serials = $("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean);
@@ -692,14 +708,51 @@
   async function submit(event) {
     event.preventDefault(); const error = validate(); if (error) return toast(error, "danger");
     const button = $("waSubmit"); button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating stock and schedule…';
-    const payload = { checkoutRequestId:state.checkoutId, customer:{name:$("waCustomerName").value.trim(),email:$("waCustomerEmail").value.trim(),phone:$("waCustomerPhone").value.trim(),address:$("waAddress").value.trim()}, items:state.cart.map(item=>({toolId:item._id,quantity:item.quantity})), fulfillmentType:state.fulfillment, pickupDate:$("waPickupDate").value, technicianId:state.fulfillment === "delivery_installation" ? $("waTechnician").value : null, delivery:state.fulfillment === "delivery_installation" ? {address:$("waAddress").value.trim(),preferredDate:state.date,coordinates:{lat:$("waLat").value,lng:$("waLng").value}} : null, timeSlot:state.fulfillment === "delivery_installation" ? $("waTimeSlot").value : null, serialNumbers:$("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean), paymentMethod:$("waPayment").value, paymentReference:$("waReference").value.trim(), amountPaid:Number($("waAmountPaid").value), discount:Number($("waDiscount").value || 0) };
+    const payload = { checkoutRequestId:state.checkoutId, accountConsent:$("waAccountConsent").checked, customer:{name:$("waCustomerName").value.trim(),email:$("waCustomerEmail").value.trim(),phone:$("waCustomerPhone").value.trim(),address:$("waAddress").value.trim()}, items:state.cart.map(item=>({toolId:item._id,quantity:item.quantity})), fulfillmentType:state.fulfillment, pickupDate:$("waPickupDate").value, technicianId:state.fulfillment === "delivery_installation" ? $("waTechnician").value : null, delivery:state.fulfillment === "delivery_installation" ? {address:$("waAddress").value.trim(),preferredDate:state.date,coordinates:{lat:$("waLat").value,lng:$("waLng").value}} : null, timeSlot:state.fulfillment === "delivery_installation" ? $("waTimeSlot").value : null, serialNumbers:$("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean), paymentMethod:$("waPayment").value, paymentReference:$("waReference").value.trim(), amountPaid:Number($("waAmountPaid").value), discount:Number($("waDiscount").value || 0) };
     try {
       const result = await jsonFetch("/api/walk-in-aircon/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      const ref = result.order?.orderReference || "Order"; await toast(`${ref} was created and paid.${state.fulfillment === "delivery_installation" ? " The technician was assigned and the calendar was reserved." : ""}`, "success");
+      showReceipt(result);
       state.cart = []; state.quote = {}; state.date = ""; state.checkoutId = uuid(); $("waCheckoutForm").reset(); setFulfillment("delivery_installation"); renderCart(); await initializeAfterCheckout();
       closeCart();
     } catch (err) { toast(err.message || "Checkout failed.", "danger"); }
     finally { button.disabled = !state.cart.length; button.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Create paid order'; }
+  }
+
+  function accountResultText(account) {
+    if (!account) return "The order was linked to the customer record.";
+    if (account.state === "active") return account.invitationDelivery === "accepted" ? "Existing verified account reused. The order confirmation was accepted by the email provider." : "Existing verified account reused. The confirmation email could not be delivered; the order is still visible after sign-in.";
+    if (account.state === "invited") return account.invitationDelivery === "accepted" ? "A secure activation email was accepted by the email provider. The customer must choose a password before tracking." : "The invited account and order were created, but the activation email failed. Use Resend activation below.";
+    return "The order is linked to an existing registration that still requires email verification.";
+  }
+
+  function showReceipt(result) {
+    const order = result.order || {};
+    state.lastReceipt = result;
+    const items = Array.isArray(order.items) ? order.items : [];
+    const createdAt = order.createdAt ? new Date(order.createdAt) : new Date();
+    $("waReceiptContent").innerHTML = `<div class="wa-receipt-brand"><h4>CALIDRO RACS</h4><p>Official walk-in aircon order receipt</p></div><div class="wa-receipt-grid"><div><span>Order reference</span><strong>${esc(order.orderReference || "Pending reference")}</strong></div><div><span>Date issued</span><strong>${esc(createdAt.toLocaleString("en-PH"))}</strong></div><div><span>Customer</span><strong>${esc(order.customer?.name || "Customer")}</strong></div><div><span>Payment</span><strong>${esc(String(order.paymentMethod || "paid").replace(/_/g," ").toUpperCase())} · PAID</strong></div><div><span>Fulfillment</span><strong>${esc(String(order.fulfillmentType || "").replace(/_/g," ").toUpperCase())}</strong></div><div><span>Schedule</span><strong>${esc(order.delivery?.preferredDate ? `${new Date(order.delivery.preferredDate).toLocaleDateString("en-PH")} ${order.timeSlot || ""}` : (order.pickupDate ? new Date(order.pickupDate).toLocaleDateString("en-PH") : "Released"))}</strong></div></div><table class="wa-receipt-items"><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${items.map(item=>`<tr><td>${esc(`${item.brand || ""} ${item.modelLine || "Aircon"} ${item.capacity || ""}${item.capacityUnit || ""}`.trim())}</td><td>${Number(item.quantity || 0)}</td><td>${money(item.totalPrice)}</td></tr>`).join("")}</tbody></table><div class="wa-receipt-total"><span>Total paid</span><span>${money(order.total)}</span></div>${Number(result.change || 0) > 0 ? `<div class="wa-sum-row mt-2"><span>Change</span><strong>${money(result.change)}</strong></div>` : ""}<div class="wa-account-result"><i class="bi bi-person-check me-1"></i>${esc(accountResultText(result.customerAccount))}</div>`;
+    $("waResendInvitation").classList.toggle("d-none", result.customerAccount?.state !== "invited");
+    $("waReceiptBackdrop").classList.add("show");
+    $("waReceiptBackdrop").setAttribute("aria-hidden", "false");
+  }
+
+  function closeReceipt() {
+    $("waReceiptBackdrop").classList.remove("show");
+    $("waReceiptBackdrop").setAttribute("aria-hidden", "true");
+    state.lastReceipt = null;
+  }
+
+  async function resendInvitation() {
+    const orderId = state.lastReceipt?.order?._id;
+    if (!orderId) return;
+    const button = $("waResendInvitation");
+    button.disabled = true;
+    try {
+      const result = await jsonFetch(`/api/walk-in-aircon/orders/${encodeURIComponent(orderId)}/resend-invitation`, { method:"POST" });
+      button.classList.add("d-none");
+      toast(result.message, "success");
+    } catch (error) { toast(error.message, "danger"); }
+    finally { button.disabled = false; }
   }
 
   async function initializeAfterCheckout() {
@@ -748,9 +801,14 @@
   $("waCartBackdrop").addEventListener("click", closeCart);
   $("waCloseVariant").addEventListener("click", closeVariantPicker);
   $("waVariantBackdrop").addEventListener("click", event => { if (event.target === $("waVariantBackdrop")) closeVariantPicker(); });
+  $("waCloseReceipt").addEventListener("click", closeReceipt);
+  $("waReceiptBackdrop").addEventListener("click", event => { if (event.target === $("waReceiptBackdrop")) closeReceipt(); });
+  $("waPrintReceipt").addEventListener("click", () => { document.body.classList.add("wa-printing"); window.print(); window.setTimeout(() => document.body.classList.remove("wa-printing"), 250); });
+  $("waResendInvitation").addEventListener("click", resendInvitation);
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
-    if ($("waVariantBackdrop").classList.contains("show")) closeVariantPicker();
+    if ($("waReceiptBackdrop").classList.contains("show")) closeReceipt();
+    else if ($("waVariantBackdrop").classList.contains("show")) closeVariantPicker();
     else if ($("waCartDrawer").classList.contains("show")) closeCart();
   });
   $("waCheckoutForm").addEventListener("submit", submit);

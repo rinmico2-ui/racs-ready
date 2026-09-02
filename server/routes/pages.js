@@ -1486,6 +1486,28 @@ router.get("/admin/inventory", pageAuth.requireRole("admin"), (req, res) => {
     layout: "layouts/admin",
   });
 });
+
+router.get("/activate-account", (req, res) => {
+  const csrfToken = require("crypto").randomBytes(24).toString("hex");
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("XSRF-TOKEN", csrfToken, {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: "Strict",
+    path: "/",
+  });
+  res.set("Cache-Control", "no-store");
+  res.set("Referrer-Policy", "no-referrer");
+  res.render("pages/account-activation", {
+    title: "Activate your CALIDRO RACS account",
+    csrfToken,
+    token: String(req.query.token || "").slice(0, 256),
+    layout: "layouts/auth",
+    fullWidth: true,
+    recaptchaSiteKey: "",
+    extraScripts: ["/js/account-activation.js"],
+  });
+});
 router.get("/admin/inventory/equipment-returns", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Inventory/EquipmentReturns", {
     title: "Equipment Returns Queue",

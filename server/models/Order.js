@@ -121,6 +121,24 @@ const orderSchema = new mongoose.Schema(
       phone: String,
     },
 
+    // Staff attestation and delivery state for account access created during a
+    // walk-in checkout. This is evidence, not an authentication credential.
+    customerAccountAccess: {
+      consentedAt: { type: Date, default: null },
+      capturedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      stateAtCheckout: {
+        type: String,
+        enum: ["active", "invited", "pending_verification"],
+        default: "active",
+      },
+      invitationDelivery: {
+        type: String,
+        enum: ["not_sent", "accepted", "failed", "pending_registration"],
+        default: "not_sent",
+      },
+      invitationSentAt: { type: Date, default: null },
+    },
+
     items: { type: [orderItemSchema], default: [], validate: v => v.length > 0 },
 
     fulfillmentType: {

@@ -480,6 +480,68 @@ td{vertical-align:top;font-size:14px;}
   return sendMail({ to, subject, html, text });
 }
 
+// Walk-in order account access. New customers receive a one-time activation
+// link; existing customers receive a direct authenticated order link.
+async function sendWalkInOrderAccountEmail({
+  to,
+  customerName,
+  orderReference,
+  activationUrl,
+  trackingUrl,
+  fulfillmentLabel,
+  scheduleLabel,
+  totalLabel,
+}) {
+  if (!to) return false;
+  const escapeHtml = (value) => String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  const safeName = escapeHtml(customerName || "Customer");
+  const safeReference = escapeHtml(orderReference || "Order");
+  const safeFulfillment = escapeHtml(fulfillmentLabel || "Aircon order");
+  const safeSchedule = escapeHtml(scheduleLabel || "See your order for schedule details");
+  const safeTotal = escapeHtml(totalLabel || "");
+  const targetUrl = activationUrl || trackingUrl || `${process.env.APP_BASE_URL || ""}/my-orders`;
+  const safeTargetUrl = escapeHtml(targetUrl);
+  const needsActivation = Boolean(activationUrl);
+  const subject = needsActivation
+    ? `Activate your account to track ${orderReference || "your order"} | CALIDRO RACS`
+    : `Walk-in aircon order confirmed – ${orderReference || "Order"} | CALIDRO RACS`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles("#2563eb", "#1d4ed8")}</head><body>
+<div class="wrap">
+  <div class="header"><h1>${needsActivation ? "Activate Your Customer Account" : "Walk-in Order Confirmed"}</h1><div class="ref-badge">${safeReference}</div></div>
+  <div class="body">
+    <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${safeName}</strong>,</p>
+    <p style="color:#475569;line-height:1.65;">${needsActivation
+      ? "You authorized CALIDRO RACS to create a customer account for your walk-in purchase. Choose your password to verify your email and start tracking the order."
+      : "Your walk-in aircon purchase is linked to your existing customer account and is ready to track online."}</p>
+    <div class="section-title">Order Details</div>
+    <table>
+      <tr class="detail-row"><td>Reference</td><td style="font-weight:700;color:#2563eb;">${safeReference}</td></tr>
+      <tr class="detail-row"><td>Fulfillment</td><td>${safeFulfillment}</td></tr>
+      <tr class="detail-row"><td>Schedule</td><td>${safeSchedule}</td></tr>
+      ${safeTotal ? `<tr class="detail-row"><td>Paid Total</td><td style="font-weight:700;">${safeTotal}</td></tr>` : ""}
+    </table>
+    ${needsActivation ? '<div class="info-box"><p style="margin:0;font-size:13px;color:#475569;">This is a single-use account activation link and expires in 24 hours. CALIDRO RACS will never email you a temporary password.</p></div>' : ""}
+    <a href="${safeTargetUrl}" class="btn">${needsActivation ? "Verify Email & Choose Password" : "Track My Order"}</a>
+  </div>
+  ${premiumFooter()}
+</div></body></html>`;
+  const text = `Hi ${customerName || "Customer"},\n\n${needsActivation
+    ? "Verify your email and choose a password to activate your CALIDRO RACS customer account."
+    : "Your walk-in aircon purchase is linked to your CALIDRO RACS customer account."}\nOrder: ${orderReference || "Order"}\nFulfillment: ${fulfillmentLabel || "Aircon order"}\nSchedule: ${scheduleLabel || "See your order"}${totalLabel ? `\nPaid total: ${totalLabel}` : ""}\n\n${needsActivation ? "Activate account" : "Track order"}: ${targetUrl}`;
+  return sendMail({
+    to,
+    subject,
+    html,
+    text,
+    source: needsActivation ? "walk_in_account_invitation" : "walk_in_order_confirmation",
+  });
+}
+
 // ─── Technician New-Job Notification Email ───────────────────────────────────
 async function sendTechnicianNotificationEmail({
   to,
@@ -1246,6 +1308,7 @@ module.exports = {
   sendRepairRequestSubmittedEmail,
   sendTechnicianNotificationEmail,
   sendWalkInCredentialsEmail,
+  sendWalkInOrderAccountEmail,
   sendTechArrivalNotificationEmail,
   sendBookingAcceptedEmail,
   sendBookingExpiredEmail,

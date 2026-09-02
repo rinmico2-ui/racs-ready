@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
-const crypto = require("crypto");
 const Tool = require("../models/Tool");
 const HVACProduct = require("../models/HVACProduct");
 const Inventory = require("../models/Inventory");
@@ -24,6 +23,10 @@ const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { addMinutesToClock } = require("../utils/clockTime");
+const {
+  CustomerInvitationError,
+  provisionWalkInCustomer,
+} = require("../utils/customerAccountInvitation");
 
 router.use(auth.authenticate, auth.requireRole("admin"));
 
@@ -55,25 +58,6 @@ function normalizedCustomer(value = {}) {
     lastName: parts.join(" ") || "Customer",
     address: String(value.address || "").trim().slice(0, 500),
   };
-}
-
-async function findOrCreatePosCustomer(customer, session) {
-  const existing = await User.findOne({ email: customer.email }).session(session);
-  if (existing) {
-    if (existing.role !== "customer") throw posOrderError("That email belongs to a staff account. Use the customer's own email.", 409, "POS_CUSTOMER_EMAIL_CONFLICT");
-    return { user: existing, created: false };
-  }
-  const user = new User({
-    email: customer.email,
-    firstName: customer.firstName,
-    lastName: customer.lastName,
-    phone: customer.phone,
-    role: "customer",
-    active: true,
-  });
-  await user.setPassword(crypto.randomBytes(18).toString("base64url"));
-  await user.save({ session });
-  return { user, created: true };
 }
 
 function paymentMapping(method) {
@@ -379,6 +363,7 @@ async function checkoutAirconOrder(req, res) {
   let session;
   try {
     const customer = normalizedCustomer(req.body?.customer);
+    const accountConsent = req.body?.accountConsent === true;
     const payment = paymentMapping(req.body?.paymentMethod);
     const checkoutRequestId = String(req.body?.checkoutRequestId || "").trim();
     if (!/^[A-Za-z0-9_-]{16,80}$/.test(checkoutRequestId)) {
@@ -523,7 +508,15 @@ async function checkoutAirconOrder(req, res) {
 
     session = await mongoose.startSession();
     session.startTransaction();
-    const { user: customerUser, created: customerAccountCreated } = await findOrCreatePosCustomer(customer, session);
+    const customerAccount = await provisionWalkInCustomer({
+      customer,
+      consent: accountConsent,
+      invitedBy: req.user._id,
+      origin: "walk_in_order",
+      session,
+    });
+    const customerUser = customerAccount.user;
+    const customerAccountCreated = customerAccount.created;
     const duplicate = await Order.findOne({ userId: customerUser._id, checkoutRequestId }).session(session);
     if (duplicate) {
       await session.abortTransaction();
@@ -562,6 +555,12 @@ async function checkoutAirconOrder(req, res) {
       createdBy: req.user._id,
       checkoutRequestId,
       customer: { name: customer.name, email: customer.email, phone: customer.phone },
+      customerAccountAccess: {
+        consentedAt: new Date(),
+        capturedBy: req.user._id,
+        stateAtCheckout: customerAccount.state,
+        invitationDelivery: "not_sent",
+      },
       items: enrichedItems,
       fulfillmentType,
       pickupDate,
@@ -704,6 +703,47 @@ async function checkoutAirconOrder(req, res) {
     await order.save({ session });
     await session.commitTransaction();
 
+    let accountEmailDelivery = customerAccount.state === "pending_verification" ? "pending_registration" : "not_sent";
+    if (customerAccount.state === "active" || customerAccount.activationToken) {
+      try {
+        const baseUrl = `${req.protocol}://${req.get("host")}`;
+        const activationUrl = customerAccount.activationToken
+          ? `${baseUrl}/activate-account?token=${encodeURIComponent(customerAccount.activationToken)}`
+          : null;
+        const scheduleLabel = fulfillmentChoice === "carry_out"
+          ? "Released at the store counter"
+          : (fulfillmentType === "customer_pickup"
+              ? `Pickup on ${new Date(pickupDate).toLocaleDateString("en-PH")}`
+              : `${new Date(delivery.preferredDate).toLocaleDateString("en-PH")} at ${timeSlot}`);
+        const mailResult = await require("../utils/mailer").sendWalkInOrderAccountEmail({
+          to: customer.email,
+          customerName: customer.name,
+          orderReference: order.orderReference,
+          activationUrl,
+          trackingUrl: `${baseUrl}/my-orders/${order._id}`,
+          fulfillmentLabel: fulfillmentChoice === "delivery_installation"
+            ? "Delivery and installation"
+            : (fulfillmentChoice === "customer_pickup" ? "Customer pickup" : "Carry-out purchase"),
+          scheduleLabel,
+          totalLabel: `₱${Number(order.total || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
+        });
+        accountEmailDelivery = mailResult ? "accepted" : "failed";
+        if (customerAccount.activationToken && mailResult) {
+          await User.updateOne({ _id: customerUser._id }, { $set: { invitationLastSentAt: new Date() } });
+        }
+      } catch (mailError) {
+        accountEmailDelivery = "failed";
+        console.error("[POS] Walk-in account/order email failed:", mailError.message);
+      }
+    }
+    await Order.updateOne(
+      { _id: order._id },
+      { $set: {
+        "customerAccountAccess.invitationDelivery": accountEmailDelivery,
+        ...(accountEmailDelivery === "accepted" ? { "customerAccountAccess.invitationSentAt": new Date() } : {}),
+      } },
+    ).catch((trackingError) => console.warn("[POS] Account delivery status update failed:", trackingError.message));
+
     if (selectedTechnician?.user?._id) {
       try {
         const { createNotification } = require("../utils/notify");
@@ -739,7 +779,14 @@ async function checkoutAirconOrder(req, res) {
       actor: req.user._id,
       action: "pos.aircon_order.create",
       module: "Order",
-      details: { orderReference: order.orderReference, total: order.total, fulfillmentChoice, customerEmail: customer.email },
+      details: {
+        orderReference: order.orderReference,
+        total: order.total,
+        fulfillmentChoice,
+        customerEmail: customer.email,
+        customerAccountState: customerAccount.state,
+        accountEmailDelivery,
+      },
       entityId: order._id,
       entityType: "Order",
       category: "order",
@@ -752,18 +799,82 @@ async function checkoutAirconOrder(req, res) {
       success: true,
       order: order.toObject(),
       customerAccountCreated,
+      customerAccount: {
+        state: customerAccount.state,
+        email: customer.email,
+        invitationDelivery: accountEmailDelivery,
+      },
       amountPaid,
       change: payment.source === "cash" ? Math.max(0, amountPaid - order.total) : 0,
     });
   } catch (error) {
     if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
     console.error("POS aircon checkout error:", error);
-    return res.status(Number(error.status) || 400).json({ error: error.message || "Aircon checkout failed", code: error.code });
+    const operational = error instanceof CustomerInvitationError || error instanceof OrderCheckoutError;
+    return res.status(Number(error.status) || (operational ? 400 : 500)).json({
+      error: operational ? error.message : "Aircon checkout failed. Please try again.",
+      ...(operational && error.code ? { code: error.code } : {}),
+    });
   } finally {
     if (session) await session.endSession();
   }
 }
 router.post("/aircon-checkout", checkoutAirconOrder);
+
+async function resendWalkInAccountInvitation(req, res) {
+  try {
+    if (!mongoose.isValidObjectId(req.params.orderId)) return res.status(404).json({ error: "Order not found." });
+    const order = await Order.findOne({ _id: req.params.orderId, salesChannel: "walk_in" }).lean();
+    if (!order) return res.status(404).json({ error: "Walk-in order not found." });
+    const customerUser = await User.findById(order.userId);
+    if (!customerUser || customerUser.role !== "customer") return res.status(404).json({ error: "Customer account not found." });
+    if (customerUser.emailVerified !== false || customerUser.accountStatus !== "invited") {
+      return res.status(409).json({ error: "This customer account is already active or uses another verification flow." });
+    }
+    const lastSent = customerUser.invitationLastSentAt ? new Date(customerUser.invitationLastSentAt).getTime() : 0;
+    if (Date.now() - lastSent < 60_000) {
+      return res.status(429).json({ error: "Wait one minute before resending the activation email." });
+    }
+    const activationToken = customerUser.createAccountInvitationToken();
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const result = await require("../utils/mailer").sendWalkInOrderAccountEmail({
+      to: customerUser.email,
+      customerName: `${customerUser.firstName || ""} ${customerUser.lastName || ""}`.trim(),
+      orderReference: order.orderReference,
+      activationUrl: `${baseUrl}/activate-account?token=${encodeURIComponent(activationToken)}`,
+      trackingUrl: `${baseUrl}/my-orders/${order._id}`,
+      fulfillmentLabel: order.fulfillmentType === "delivery_installation" ? "Delivery and installation" : "Customer pickup",
+      scheduleLabel: order.delivery?.preferredDate
+        ? `${new Date(order.delivery.preferredDate).toLocaleDateString("en-PH")} at ${order.timeSlot || "scheduled time"}`
+        : "See the order after activation",
+      totalLabel: `₱${Number(order.total || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`,
+    });
+    if (!result) throw new Error("No email provider accepted the activation message.");
+    customerUser.invitationLastSentAt = new Date();
+    await customerUser.save();
+    await Order.updateOne({ _id: order._id }, { $set: {
+      "customerAccountAccess.invitationDelivery": "accepted",
+      "customerAccountAccess.invitationSentAt": new Date(),
+    } });
+    await require("../utils/audit").logEvent({
+      actor: req.user._id,
+      target: customerUser._id,
+      action: "CUSTOMER_INVITATION_RESENT",
+      module: "Order",
+      req,
+      entityId: order._id,
+      entityType: "Order",
+      actorRole: req.user.role,
+      actorName: req.user.name || req.user.email || "Admin",
+      outcome: "success",
+      details: { orderReference: order.orderReference, customerEmail: customerUser.email },
+    }).catch((auditError) => console.warn("[POS] Invitation resend audit failed:", auditError.message));
+    return res.json({ message: "A new activation email was accepted by the email provider." });
+  } catch (error) {
+    console.error("[POS] Resend customer activation failed:", error.message);
+    return res.status(Number(error.status) || 500).json({ error: error.message || "Activation email could not be resent." });
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pos/checkout — Process a walk-in sale
@@ -1115,6 +1226,7 @@ walkInAirconRouter.use(auth.authenticate, auth.requireRole("admin"));
 walkInAirconRouter.get("/products", listAircons);
 walkInAirconRouter.post("/quote", quoteAirconOrder);
 walkInAirconRouter.post("/checkout", checkoutAirconOrder);
+walkInAirconRouter.post("/orders/:orderId/resend-invitation", resendWalkInAccountInvitation);
 
 router.walkInAirconRouter = walkInAirconRouter;
 module.exports = router;

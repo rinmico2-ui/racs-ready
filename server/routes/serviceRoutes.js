@@ -195,8 +195,7 @@ router.get("/technician-location", auth.authenticate, async (req, res) => {
         "in-progress", "ongoing", "repair_scheduled", "repair_in_progress",
       ];
       const activeOrderStatuses = [
-        "technician_assigned", "technician_accepted", "out_for_delivery",
-        "arrived", "installing",
+        "out_for_delivery", "arrived", "installing",
       ];
       const [booking, order] = await Promise.all([
         BookingService.exists({

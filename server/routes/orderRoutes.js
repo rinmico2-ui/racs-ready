@@ -13,6 +13,7 @@ const Technician = require("../models/Technician");
 const TechnicianSchedule = require("../models/TechnicianSchedule");
 const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
+const User = require("../models/User");
 const {
   recordOrderConsumableUsage,
   syncDailyKit,
@@ -1117,6 +1118,24 @@ router.get("/:id", authenticate, async (req, res) => {
     }
     if (!isOwner && !isStaff && !isAssignedTechnician) {
       return res.status(403).json({ error: "Forbidden" });
+    }
+
+    if (isStaff && order.salesChannel === "walk_in") {
+      const account = await User.findById(order.userId)
+        .select("email emailVerified accountStatus invitationLastSentAt invitationActivatedAt +invitationExpiresAt")
+        .lean();
+      if (account) {
+        order.customerAccount = {
+          state: account.emailVerified !== false
+            ? "active"
+            : (account.accountStatus === "invited" ? "invited" : "pending_verification"),
+          email: account.email,
+          invitationLastSentAt: account.invitationLastSentAt || null,
+          invitationExpiresAt: account.invitationExpiresAt || null,
+          activatedAt: account.invitationActivatedAt || null,
+          canManageInvitation: req.user.role === "admin",
+        };
+      }
     }
 
     res.json({ order: withOrderAttentionState(order) });

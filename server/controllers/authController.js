@@ -9,6 +9,7 @@ const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
+const { hashInvitationToken } = require("../utils/customerAccountInvitation");
 
 const FAKE_HASH = bcrypt.hashSync("invalid-password", 12);
 
@@ -479,6 +480,12 @@ exports.register = async (req, res, next) => {
     // Refresh an existing unverified registration instead of leaving a
     // duplicate account that can never complete verification.
     const user = existingUser || new User({ email, role: "customer" });
+    if (!existingUser) user.accountOrigin = "self_registration";
+    if (user.accountStatus === "invited") {
+      user.accountStatus = "active";
+      user.invitationActivatedAt = new Date(now);
+      user.clearAccountInvitation();
+    }
     user.passwordHash = hashedPassword;
     user.firstName = firstName;
     user.lastName = lastName;
@@ -619,6 +626,11 @@ exports.verifyRegisterOTP = async (req, res, next) => {
 
     user.emailVerified = true;
     user.emailVerifiedAt = new Date();
+    if (user.accountStatus === "invited") {
+      user.accountStatus = "active";
+      user.invitationActivatedAt = new Date();
+      user.clearAccountInvitation();
+    }
     clearRegistrationVerification(user);
     await user.save();
 
@@ -1159,6 +1171,68 @@ exports.resetPassword = async (req, res, next) => {
     res.json({ message: "Password reset successful. Please log in." });
   } catch (err) {
     next(err);
+  }
+};
+
+// Complete a staff-provisioned walk-in customer invitation. The invitation
+// token proves email control; the customer chooses the only usable password.
+exports.activateInvitedAccount = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: "Invalid account activation request." });
+
+    const token = String(req.body.token || "");
+    const password = String(req.body.password || "");
+    const csrfToken = String(req.body.csrfToken || "");
+    const cookies = parseCookies(req);
+    if (!csrfToken || !cookies["XSRF-TOKEN"] || csrfToken !== cookies["XSRF-TOKEN"]) {
+      return res.status(400).json({ error: "Activation session expired. Refresh the page and try again." });
+    }
+    if (!/^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]{8,30}$/.test(password)) {
+      return res.status(400).json({
+        error: "Password must be 8–30 characters with exactly one uppercase letter; letters, numbers, !, @, #, and $ are allowed.",
+      });
+    }
+
+    const user = await User.findOne({
+      invitationTokenHash: hashInvitationToken(token),
+      accountStatus: "invited",
+      emailVerified: false,
+    }).select("+invitationTokenHash +invitationExpiresAt");
+    if (!user || !user.invitationExpiresAt || user.invitationExpiresAt.getTime() <= Date.now()) {
+      return res.status(400).json({ error: "This activation link is invalid or has expired. Ask CALIDRO RACS to resend it." });
+    }
+
+    await user.setPassword(password);
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.accountStatus = "active";
+    user.invitationActivatedAt = new Date();
+    user.clearAccountInvitation();
+    user.currentSessionId = undefined;
+    await user.save();
+
+    await audit.logEvent({
+      actor: user._id,
+      target: user._id,
+      action: "CUSTOMER_INVITATION_ACTIVATED",
+      module: "auth",
+      req,
+      entityId: user._id,
+      entityType: "User",
+      actorRole: "customer",
+      actorName: user.email,
+      outcome: "success",
+      details: { origin: user.accountOrigin, emailVerified: true, sessionsRevoked: true },
+    }).catch((error) => console.warn("account activation audit failed", error.message));
+
+    res.clearCookie("auth_token", { path: "/" });
+    return res.json({
+      message: "Your email is verified and your account is ready.",
+      redirect: "/login?activated=1&returnTo=%2Fmy-orders",
+    });
+  } catch (error) {
+    next(error);
   }
 };
 

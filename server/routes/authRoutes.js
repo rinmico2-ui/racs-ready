@@ -259,6 +259,16 @@ router.post(
   authController.resetPassword,
 );
 
+router.post(
+  "/activate-invited-account",
+  [
+    body("token").isString().isLength({ min: 64, max: 64 }).isHexadecimal(),
+    body("password").isString().isLength({ min: 8, max: 30 }),
+    body("csrfToken").isString().isLength({ min: 16, max: 128 }),
+  ],
+  authController.activateInvitedAccount,
+);
+
 // Logout
 router.post("/logout", authController.logout);
 

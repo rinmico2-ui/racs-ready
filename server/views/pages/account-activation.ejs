@@ -1,0 +1,43 @@
+<style>
+  .invite-page{min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(circle at top left,#dbeafe,transparent 36%),linear-gradient(145deg,#f8fafc,#eef2ff)}
+  .invite-card{width:min(960px,100%);display:grid;grid-template-columns:.9fr 1.1fr;overflow:hidden;border:1px solid #dbe3ee;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.14)}
+  .invite-aside{padding:48px 40px;color:#fff;background:linear-gradient(145deg,#0f172a,#1e40af)}
+  .invite-mark{width:52px;height:52px;display:grid;place-items:center;border-radius:16px;background:rgba(255,255,255,.15);font-size:1.5rem}
+  .invite-aside h1{margin:28px 0 12px;font-size:2rem;font-weight:800}.invite-aside p{color:#bfdbfe;line-height:1.65}
+  .invite-point{display:flex;gap:10px;margin-top:18px;color:#dbeafe;font-size:.86rem}.invite-point i{color:#86efac}
+  .invite-main{padding:48px 44px}.invite-eyebrow{color:#2563eb;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .invite-main h2{margin:8px 0;color:#0f172a;font-size:1.55rem;font-weight:800}.invite-sub{color:#64748b;font-size:.88rem;line-height:1.55}
+  .invite-label{display:block;margin:20px 0 6px;color:#334155;font-size:.75rem;font-weight:750}.invite-input{width:100%;padding:12px 14px;border:1px solid #cbd5e1;border-radius:11px;outline:none}.invite-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  .invite-rules{margin:12px 0 20px;padding:12px 14px;border-radius:11px;background:#f8fafc;color:#64748b;font-size:.75rem;line-height:1.55}
+  .invite-submit{width:100%;padding:12px;border:0;border-radius:11px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-weight:800}.invite-submit:disabled{opacity:.65}
+  .invite-alert{margin-top:16px;padding:12px 14px;border-radius:10px;font-size:.8rem}.invite-alert.error{background:#fef2f2;color:#b91c1c}.invite-alert.success{background:#ecfdf5;color:#047857}
+  @media(max-width:760px){.invite-card{grid-template-columns:1fr}.invite-aside{padding:30px}.invite-main{padding:32px 26px}.invite-aside h1{font-size:1.45rem}}
+</style>
+<section class="invite-page">
+  <div class="invite-card">
+    <aside class="invite-aside">
+      <div class="invite-mark"><i class="bi bi-shield-check"></i></div>
+      <h1>Your walk-in order, now online</h1>
+      <p>Verify your email and choose a private password. Your order, schedule, technician progress, receipt, and warranty stay connected to this account.</p>
+      <div class="invite-point"><i class="bi bi-check-circle-fill"></i><span>No temporary password was created or emailed.</span></div>
+      <div class="invite-point"><i class="bi bi-check-circle-fill"></i><span>The activation link can be used only once.</span></div>
+      <div class="invite-point"><i class="bi bi-check-circle-fill"></i><span>Technician location is shown only during active service travel.</span></div>
+    </aside>
+    <main class="invite-main">
+      <div class="invite-eyebrow">Customer account activation</div>
+      <h2>Choose your password</h2>
+      <p class="invite-sub">After activation, sign in using the email address provided during walk-in checkout.</p>
+      <form id="accountActivationForm" novalidate>
+        <input type="hidden" id="activationToken" value="<%= token %>">
+        <input type="hidden" id="activationCsrf" value="<%= csrfToken %>">
+        <label class="invite-label" for="activationPassword">New password</label>
+        <input class="invite-input" id="activationPassword" type="password" minlength="8" maxlength="30" autocomplete="new-password" required>
+        <label class="invite-label" for="activationConfirm">Confirm password</label>
+        <input class="invite-input" id="activationConfirm" type="password" minlength="8" maxlength="30" autocomplete="new-password" required>
+        <div class="invite-rules"><strong>Password rules:</strong> 8–30 characters, exactly one uppercase letter, and only letters, numbers, !, @, #, or $. Each symbol may be used at most once.</div>
+        <button class="invite-submit" id="activationSubmit" type="submit"><i class="bi bi-person-check me-1"></i> Verify email and activate</button>
+        <div id="activationAlert" class="invite-alert d-none" role="alert"></div>
+      </form>
+    </main>
+  </div>
+</section>

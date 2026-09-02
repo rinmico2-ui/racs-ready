@@ -25,6 +25,7 @@ test("walk-in aircon has a dedicated authenticated API surface", () => {
   assert.ok(routeLayer(router, "/products", "get"));
   assert.ok(routeLayer(router, "/quote", "post"));
   assert.ok(routeLayer(router, "/checkout", "post"));
+  assert.ok(routeLayer(router, "/orders/:orderId/resend-invitation", "post"));
 
   const checkoutSource = routeLayer(router, "/checkout", "post").route.stack.at(-1).handle.toString();
   assert.match(checkoutSource, /technicianId/);
@@ -49,6 +50,9 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /id="waScheduleSummary"/);
   assert.match(html, /id="waCartDrawer"/);
   assert.match(html, /id="waVariantBackdrop"/);
+  assert.match(html, /id="waAccountConsent"/);
+  assert.match(html, /id="waReceiptBackdrop"/);
+  assert.match(html, /id="waPrintReceipt"/);
   assert.match(html, /id="waMap"/);
   assert.match(html, /id="waLocateMe"/);
   assert.match(html, /id="waFitRoute"/);
@@ -58,6 +62,10 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /scheduleInputsChanged\(\);\s*refreshDeliveryQuote/);
   assert.match(html, /mode:"all"/);
   assert.match(html, /\/api\/walk-in-aircon\/checkout/);
+  assert.match(html, /accountConsent:\$\("waAccountConsent"\)\.checked/);
+  assert.match(html, /resend-invitation/);
+  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
+  scripts.forEach((script) => assert.doesNotThrow(() => new Function(script)));
 });
 
 test("inventory POS no longer offers an aircon sales tab or barcode fallback", async () => {
