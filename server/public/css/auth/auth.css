@@ -695,19 +695,341 @@
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* SweetAlert2 overrides */
-.swal2-popup.swal2-theme-enterprise {
-  border-radius: var(--radius-md) !important;
-  font-family: var(--font) !important;
-  box-shadow: var(--shadow-lg) !important;
+/* ================================================================
+   Calidro RACS — Enterprise SweetAlert2 Design System
+   ================================================================ */
+
+/* --- Global popup shell --- */
+.calidro-swal-popup {
+  border-radius: 20px !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  border: 1px solid rgba(226, 232, 240, 0.35) !important;
+  box-shadow:
+    0 32px 80px rgba(2, 6, 23, .18),
+    0 12px 32px rgba(2, 6, 23, .10),
+    0 0 0 1px rgba(255,255,255,.6) inset,
+    0 1px 0 rgba(255,255,255,.9) inset !important;
+  padding: 2.5rem 2rem 2rem !important;
+  background: rgba(255,255,255,.97) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  max-width: 400px !important;
+  position: relative;
+  overflow: hidden;
 }
-.swal2-popup.swal2-theme-enterprise .swal2-title {
-  font-size: 18px !important; font-weight: 700 !important; color: var(--clr-text);
+
+/* Top accent stripe */
+.calidro-swal-popup::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #06b6d4, #22d3ee);
+  border-radius: 20px 20px 0 0;
 }
-.swal2-popup.swal2-theme-enterprise .swal2-html-container {
-  font-size: 14px !important; color: var(--clr-text-secondary);
+
+/* Frost shimmer overlay */
+.calidro-swal-popup::after {
+  content: '';
+  position: absolute;
+  top: 0; right: -40%; bottom: 0; left: 0;
+  background: radial-gradient(ellipse at 70% 20%, rgba(34,211,238,.06) 0%, transparent 60%);
+  pointer-events: none;
 }
-.swal2-popup.swal2-theme-enterprise .swal2-styled.swal2-confirm {
-  background: linear-gradient(135deg, var(--clr-primary), #7c3aed) !important;
-  border-radius: var(--radius-sm) !important; font-weight: 700 !important;
+
+/* --- Close button (top right) --- */
+.calidro-swal-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(241,245,249,.8);
+  color: #64748b;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: .2s ease;
+  z-index: 10;
+  padding: 0 !important;
+  line-height: 1;
+}
+.calidro-swal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  transform: scale(1.1);
+}
+.swal2-close { display: none !important; }
+
+/* --- Logo area --- */
+.calidro-swal-brand {
+  text-align: center;
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+.calidro-swal-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.calidro-swal-logo-img {
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(37,99,235,.15));
+}
+
+/* --- Icon circle --- */
+.calidro-swal-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Pulse ring */
+.calidro-swal-icon-circle::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: .25;
+  animation: calidro-pulse 1.8s ease-out infinite;
+}
+
+.calidro-swal-icon-error {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  color: #dc2626;
+  box-shadow: 0 4px 16px rgba(239,68,68,.18);
+}
+.calidro-swal-icon-error::before { border-color: #dc2626; }
+
+.calidro-swal-icon-success {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  color: #16a34a;
+  box-shadow: 0 4px 16px rgba(34,197,94,.18);
+}
+.calidro-swal-icon-success::before { border-color: #16a34a; }
+
+@keyframes calidro-pulse {
+  0%   { transform: scale(1); opacity: .3; }
+  50%  { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+/* Hide default SweetAlert icon */
+.calidro-swal-popup .swal2-icon { display: none !important; }
+
+/* --- Title / text --- */
+.calidro-swal-title-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.calidro-swal-heading {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--clr-text, #0f172a);
+  margin: 0 0 6px;
+  line-height: 1.35;
+  letter-spacing: -.015em;
+}
+
+.calidro-swal-text {
+  font-size: .875rem;
+  color: var(--clr-text-secondary, #475569);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hide default SweetAlert title — we render our own via html option */
+.calidro-swal-popup .swal2-title {
+  display: none !important;
+}
+
+/* --- Actions area --- */
+.calidro-swal-actions {
+  position: relative;
+  z-index: 1;
+  margin-top: .75rem;
+}
+
+/* --- Buttons --- */
+.calidro-swal-confirm {
+  background: linear-gradient(135deg, #2563eb, #0891b2) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  font-size: .875rem !important;
+  padding: .65rem 2rem !important;
+  letter-spacing: .01em !important;
+  box-shadow: 0 4px 14px rgba(37,99,235,.28) !important;
+  transition: .25s cubic-bezier(.4,0,.2,1) !important;
+  position: relative;
+  overflow: hidden;
+}
+.calidro-swal-confirm::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -70%; width: 50%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.25), transparent);
+  transform: skewX(-20deg);
+  transition: left .5s ease;
+}
+.calidro-swal-confirm:hover::before { left: 120%; }
+.calidro-swal-confirm:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(37,99,235,.38) !important;
+}
+.calidro-swal-confirm:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 8px rgba(37,99,235,.3) !important;
+}
+
+/* Cancel button */
+.calidro-swal-cancel {
+  background: transparent !important;
+  color: var(--clr-text-secondary, #475569) !important;
+  border: 1.5px solid rgba(226,232,240,.7) !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: .875rem !important;
+  padding: .6rem 1.75rem !important;
+  transition: .2s ease !important;
+  box-shadow: none !important;
+}
+.calidro-swal-cancel:hover {
+  background: rgba(241,245,249,.8) !important;
+  border-color: #cbd5e1 !important;
+  color: var(--clr-text, #0f172a) !important;
+}
+
+/* --- Enter / exit animation overrides --- */
+@keyframes calidro-swal-enter {
+  0% {
+    opacity: 0;
+    transform: scale(.92) translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes calidro-swal-exit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(.94) translateY(8px);
+  }
+}
+.calidro-swal-enter {
+  animation: calidro-swal-enter .35s cubic-bezier(.4,0,.2,1) both !important;
+}
+.calidro-swal-exit {
+  animation: calidro-swal-exit .25s cubic-bezier(.4,0,.2,1) both !important;
+}
+
+/* --- Backdrop blur --- */
+.swal2-backdrop-show {
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+/* --- Toast variant --- */
+.calidro-swal-popup--toast {
+  border-radius: 12px !important;
+  padding: .75rem 1rem !important;
+  box-shadow:
+    0 8px 32px rgba(2,6,23,.12),
+    0 2px 8px rgba(2,6,23,.06),
+    inset 0 1px 0 rgba(255,255,255,.9) !important;
+  max-width: 360px !important;
+  border: 1px solid rgba(226,232,240,.4) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.calidro-swal-popup--toast::before { display: none; }
+.calidro-swal-popup--toast::after { display: none; }
+
+.calidro-swal-title--toast {
+  font-size: .85rem !important;
+  font-weight: 600 !important;
+}
+
+/* Toast progress bar (left accent) */
+.swal2-timer-progress-bar {
+  background: linear-gradient(90deg, #2563eb, #0891b2) !important;
+  height: 3px !important;
+}
+
+/* --- Timer progress bar global --- */
+.swal2-timer-progress-bar-container {
+  padding: 0 !important;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 0 0 20px 20px;
+  overflow: hidden;
+}
+
+/* --- Error variant accent --- */
+.calidro-swal-popup--error {
+  border-color: rgba(239,68,68,.15) !important;
+}
+.calidro-swal-popup--error::before {
+  background: linear-gradient(90deg, #dc2626, #ef4444, #f87171) !important;
+}
+
+/* --- Success variant accent --- */
+.calidro-swal-popup--success {
+  border-color: rgba(34,197,94,.15) !important;
+}
+.calidro-swal-popup--success::before {
+  background: linear-gradient(90deg, #16a34a, #22c55e, #4ade80) !important;
+}
+
+/* --- Loading spinner (when showLoading used) --- */
+.swal2-loading .swal2-styled.swal2-confirm {
+  background: linear-gradient(135deg, #2563eb, #0891b2) !important;
+}
+
+/* --- Responsive --- */
+@media (max-width: 480px) {
+  .calidro-swal-popup {
+    width: calc(100vw - 2rem) !important;
+    padding: 1.75rem 1.25rem 1.25rem !important;
+    border-radius: 16px !important;
+  }
+  .calidro-swal-logo-img { height: 42px; }
+  .calidro-swal-heading { font-size: 1.05rem; }
+  .calidro-swal-icon-circle { width: 52px; height: 52px; font-size: 22px; }
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .calidro-swal-enter,
+  .calidro-swal-exit,
+  .calidro-swal-icon-circle::before {
+    animation: none !important;
+  }
 }

@@ -48,7 +48,9 @@ const ProjectIssue = require("../models/ProjectIssue");
 const PartsRequest = require("../models/PartsRequest");
 const ProjectResourcePurchase = require("../models/ProjectResourcePurchase");
 const StockAdjustment = require("../models/StockAdjustment");
+const ServiceToolUsage = require("../models/ServiceToolUsage");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
+const DailyKit = require("../models/DailyKit");
 const ProjectWorkSubmission = require("../models/ProjectWorkSubmission");
 const { evaluateProjectResources, cleanType, VALID_RULES, VALID_STATES } = require("../utils/projectResourcePlanning");
 const { projectUnits, validateWorkOrderPlan, resourcesForWorkOrder, hasCycle } = require("../utils/projectWorkOrderPlanning");
@@ -76,6 +78,7 @@ const {
   riskStatus: recoveryRiskStatus,
 } = require("../utils/projectScheduleRecovery");
 const { deriveProjectScheduleHealth, summarizeScheduleHealth } = require("../utils/projectScheduleHealth");
+const { addProjectItemsToDailyKit, syncDailyKit } = require("../utils/dailyKitService");
 
 function escapeRecoveryHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
@@ -4245,7 +4248,7 @@ router.get("/projects/:id/submission-consumables", auth.authenticate, auth.requi
     if (!isCrewMember) return res.status(403).json({ error: "You are not on this project team." });
 
     const assignments = await EquipmentAssignment.find({
-      projectId: project._id,
+      $or: [{ projectId: project._id }, { projectIds: project._id }],
       technicianId: technician._id,
       consumable: true,
       status: { $in: ["checked_out", "in_use"] },
@@ -4257,7 +4260,7 @@ router.get("/projects/:id/submission-consumables", auth.authenticate, auth.requi
       unit: item.equipmentId?.unit || "pcs",
       quantityIssued: Number(item.quantity || 0),
       quantityUsed: Number(item.consumableUsed || 0),
-      quantityRemaining: Math.max(0, Number(item.quantity || 0) - Number(item.consumableUsed || 0)),
+      quantityRemaining: Math.max(0, Number(item.quantity || 0) - Number(item.consumableUsed || 0) - Number(item.consumableReturned || 0)),
       workDate: item.workDate,
     })).filter(item => item.quantityRemaining > 0);
     res.json({ consumables });
@@ -4360,7 +4363,7 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
           const assignmentIds = payload.consumables.map(row => row.assignmentId);
           const assignments = await EquipmentAssignment.find({
             _id: { $in: assignmentIds },
-            projectId: project._id,
+            $or: [{ projectId: project._id }, { projectIds: project._id }],
             technicianId: technician._id,
             consumable: true,
             status: { $in: ["checked_out", "in_use"] },
@@ -4373,34 +4376,64 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
             const assignment = byAssignmentId.get(line.assignmentId);
             const issued = Number(assignment.quantity || 0);
             const usedBefore = Number(assignment.consumableUsed || 0);
-            const remaining = Math.max(0, issued - usedBefore);
+            const remaining = Math.max(0, issued - usedBefore - Number(assignment.consumableReturned || 0));
             if (line.quantityUsed > remaining) {
               throw Object.assign(new Error(`${assignment.equipmentName}: only ${remaining} of ${issued} issued remain unreported.`), { status: 409 });
             }
             const tool = await Tool.findById(assignment.equipmentId).session(session);
             if (!tool) throw Object.assign(new Error(`${assignment.equipmentName} is no longer linked to inventory.`), { status: 409 });
-            if (Number(tool.quantity || 0) < line.quantityUsed) {
-              throw Object.assign(new Error(`${assignment.equipmentName}: inventory has only ${Number(tool.quantity || 0)} remaining.`), { status: 409 });
+            const issuedByDailyKit = Boolean(assignment.dailyKitId);
+            if (!issuedByDailyKit) {
+              if (Number(tool.quantity || 0) < line.quantityUsed) {
+                throw Object.assign(new Error(`${assignment.equipmentName}: inventory has only ${Number(tool.quantity || 0)} remaining.`), { status: 409 });
+              }
+              const quantityBefore = Number(tool.quantity || 0);
+              tool.quantity = quantityBefore - line.quantityUsed;
+              tool.reservedQuantity = Math.max(0, Number(tool.reservedQuantity || 0) - line.quantityUsed);
+              await tool.save({ session });
+              await StockAdjustment.create([{
+                toolId: tool._id,
+                type: "job_usage",
+                quantityBefore,
+                quantityAfter: Number(tool.quantity),
+                delta: -line.quantityUsed,
+                notes: `Large-scale project work submission for ${project._id}`,
+                referenceId: project.bookingId || undefined,
+                adjustedBy: req.user._id,
+              }], { session });
             }
-
-            const quantityBefore = Number(tool.quantity || 0);
-            tool.quantity = quantityBefore - line.quantityUsed;
-            tool.reservedQuantity = Math.max(0, Number(tool.reservedQuantity || 0) - line.quantityUsed);
-            await tool.save({ session });
             const cumulativeQuantityUsed = usedBefore + line.quantityUsed;
             assignment.consumableUsed = cumulativeQuantityUsed;
             assignment.status = cumulativeQuantityUsed >= issued ? "consumed" : "in_use";
             await assignment.save({ session });
-            await StockAdjustment.create([{
-              toolId: tool._id,
-              type: "job_usage",
-              quantityBefore,
-              quantityAfter: Number(tool.quantity),
-              delta: -line.quantityUsed,
-              notes: `Large-scale project work submission for ${project._id}`,
-              referenceId: project.bookingId || undefined,
-              adjustedBy: req.user._id,
-            }], { session });
+            if (issuedByDailyKit) {
+              const kit = await DailyKit.findById(assignment.dailyKitId).session(session);
+              const kitItem = kit?.items?.find(item =>
+                String(item.equipmentAssignmentId || "") === String(assignment._id) ||
+                (String(item.toolId || "") === String(assignment.equipmentId) && (item.projectIds || []).some(id => String(id) === String(project._id)))
+              );
+              if (!kitItem) throw Object.assign(new Error(`${assignment.equipmentName} is no longer linked to the shared Daily Kit.`), { status: 409 });
+              const kitRemaining = Number(kitItem.quantityIssued || 0) - Number(kitItem.quantityUsed || 0) - Number(kitItem.quantityReturned || 0);
+              if (line.quantityUsed > kitRemaining) throw Object.assign(new Error(`${assignment.equipmentName}: only ${kitRemaining} remain in the shared Daily Kit.`), { status: 409 });
+              kitItem.quantityUsed = Number(kitItem.quantityUsed || 0) + line.quantityUsed;
+              await kit.save({ session });
+              await ServiceToolUsage.create([{
+                projectId: project._id,
+                workOrderId: assignment.workOrderId || undefined,
+                dailyAssignmentId: assignment.dailyAssignmentIds?.[0] || undefined,
+                technicianId: technician._id,
+                toolItemId: tool._id,
+                inventoryItemId: tool._id,
+                itemName: assignment.equipmentName || tool.itemName,
+                itemType: "consumable",
+                unit: tool.unit || "pcs",
+                quantityUsed: line.quantityUsed,
+                unitPrice: Number(tool.costPrice || 0),
+                deductedFromInventory: true,
+                notes: "Actual project usage from shared Daily Kit issuance",
+                recordedBy: req.user._id,
+              }], { session });
+            }
             consumableRecords.push({
               equipmentAssignmentId: assignment._id,
               toolId: tool._id,
@@ -4751,6 +4784,7 @@ function woTransition(allowedFrom, newStatus, tsField) {
         if (proj && ["pending_project_scheduling", "planning", "pending", "assigned"].includes(proj.status)) {
           return res.status(400).json({ error: "Admin planning is not yet complete — cannot proceed" });
         }
+        await assertProjectDailyKitsReady(workOrder.projectId, [technician._id]);
       }
       workOrder.status = newStatus;
       if (tsField) workOrder[tsField] = new Date();
@@ -4786,7 +4820,7 @@ function woTransition(allowedFrom, newStatus, tsField) {
       res.json({ workOrder });
     } catch (error) {
       console.error(`Error on work order ${newStatus}:`, error);
-      res.status(500).json({ error: "Failed to update work order" });
+      res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to update work order", code: error.code });
     }
   };
 }
@@ -4900,6 +4934,37 @@ async function scheduledWorkOrdersForDay(projectId, statuses, value = new Date()
   return hasAnyPlan ? [] : WorkOrder.find({ projectId, status: { $in: statuses } });
 }
 
+async function assertProjectDailyKitsReady(projectId, technicianIds = null, value = new Date()) {
+  const start = new Date(value); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const filter = {
+    projectId,
+    date: { $gte: start, $lt: end },
+    planningOnly: { $ne: true },
+    status: { $in: ["pending", "in_progress"] },
+  };
+  if (technicianIds?.length) filter.technicianId = { $in: technicianIds };
+  const rows = await DailyAssignment.find(filter).select("technicianId").lean();
+  const ids = [...new Set(rows.map(row => String(row.technicianId)))];
+  if (!ids.length) return;
+
+  const notReady = [];
+  for (const technicianId of ids) {
+    const kit = await syncDailyKit(technicianId, start);
+    const unresolvedDelta = kit.hasDelta && (kit.deltaItems || []).some(item =>
+      !item.resolution?.status && !item.exception?.approved
+    );
+    if (!["confirmed", "in_progress"].includes(kit.status) || unresolvedDelta) notReady.push(technicianId);
+  }
+  if (!notReady.length) return;
+  const technicians = await Technician.find({ _id: { $in: notReady } }).select("name").lean();
+  const names = technicians.map(row => row.name).filter(Boolean);
+  throw Object.assign(new Error(`Daily Preparation is incomplete for ${names.join(", ") || `${notReady.length} technician(s)`}. Confirm the shared kit before mobilizing.`), {
+    status: 409,
+    code: "DAILY_KIT_REQUIRED",
+  });
+}
+
 async function openNextDayAcceptance(req, project) {
   const nextDate = nextWorkingDay(new Date());
   project.dailyAcceptance = {
@@ -4967,12 +5032,13 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     }
     const wos = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "arrived", "partially_completed"]);
     if (wos.length === 0) return res.status(400).json({ error: "No active work to mobilize today" });
+    await assertProjectDailyKitsReady(project._id);
     for (const w of wos) { w.status = "en_route"; w.enRouteAt = new Date(); await w.save(); }
     emitProjectPhase(req, project, "en_route");
     res.json({ phase: "en_route", message: "Team is en route" });
   } catch (e) {
     console.error("mobilize en-route error:", e);
-    res.status(500).json({ error: "Failed to mobilize team" });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to mobilize team", code: e.code });
   }
 });
 
@@ -6289,7 +6355,9 @@ router.get("/projects/:id/equipment", auth.authenticate, auth.requireRole(["admi
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
-    const assignments = await EquipmentAssignment.find({ projectId: id }).sort({ workDate: -1 }).lean();
+    const assignments = await EquipmentAssignment.find({
+      $or: [{ projectId: id }, { projectIds: id }],
+    }).sort({ workDate: -1 }).lean();
     // Group by technician+date for the frontend
     const groups = {};
     assignments.forEach(a => {
@@ -6316,28 +6384,21 @@ router.post("/projects/:id/equipment/request", auth.authenticate, auth.requireRo
     if (!tech) return res.status(404).json({ error: "Technician profile not found" });
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    // Remove any previous pending requests for today
-    await EquipmentAssignment.deleteMany({ projectId: id, technicianId: tech._id, workDate: today, status: "reserved" });
-
-    const created = [];
-    for (const item of items) {
-      const eq = await EquipmentAssignment.create({
-        projectId: id,
-        technicianId: tech._id,
-        workDate: today,
-        equipmentId: item.equipmentId,
-        equipmentName: item.equipmentName,
-        equipmentCode: item.equipmentCode,
-        quantity: item.quantity || 1,
-        consumable: !!item.consumable,
-        status: "reserved",
-      });
-      created.push(eq);
-    }
-    res.json({ message: `${created.length} item(s) requested`, assignments: created });
+    const kit = await addProjectItemsToDailyKit({
+      technicianId: tech._id,
+      projectId: id,
+      date: today,
+      items,
+    });
+    res.json({
+      message: `${items.length} item(s) added to the shared Daily Preparation`,
+      dailyKitId: kit._id,
+      kitStatus: kit.status,
+      hasDelta: kit.hasDelta,
+    });
   } catch (error) {
     console.error("Error requesting equipment:", error);
-    res.status(500).json({ error: "Failed to request equipment" });
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to request equipment" });
   }
 });
 
@@ -6349,11 +6410,32 @@ router.put("/projects/:id/equipment/issue", auth.authenticate, auth.requireRole(
     if (!assignmentIds || !assignmentIds.length) return res.status(400).json({ error: "No assignments specified" });
 
     const now = new Date();
-    await EquipmentAssignment.updateMany(
-      { _id: { $in: assignmentIds }, projectId: id, status: "reserved" },
-      { $set: { status: "checked_out", issuedBy: issuedBy || "Admin", issuedAt: now } }
-    );
-    const updated = await EquipmentAssignment.find({ _id: { $in: assignmentIds } }).lean();
+    const reservations = await EquipmentAssignment.find({
+      _id: { $in: assignmentIds },
+      $or: [{ projectId: id }, { projectIds: id }],
+      status: "reserved",
+      dailyKitId: null,
+    });
+    const updated = [];
+    for (const assignment of reservations) {
+      const tool = await Tool.findOneAndUpdate({
+        _id: assignment.equipmentId,
+        quantity: { $gte: assignment.quantity },
+        assignable: { $ne: false },
+        assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] },
+      }, {
+        $inc: assignment.consumable
+          ? { quantity: -assignment.quantity }
+          : { quantity: -assignment.quantity, checkedOutQuantity: assignment.quantity },
+        ...(!assignment.consumable ? { $set: { assetStatus: "checked_out" } } : {}),
+      }, { returnDocument: "after" });
+      if (!tool) continue;
+      assignment.status = assignment.consumable ? "consumed" : "checked_out";
+      assignment.issuedBy = issuedBy || "Admin";
+      assignment.issuedAt = now;
+      await assignment.save();
+      updated.push(assignment.toObject());
+    }
     res.json({ message: `${updated.length} item(s) issued`, assignments: updated });
   } catch (error) {
     console.error("Error issuing equipment:", error);
@@ -6369,11 +6451,41 @@ router.put("/projects/:id/equipment/return", auth.authenticate, auth.requireRole
     if (!assignmentIds || !assignmentIds.length) return res.status(400).json({ error: "No assignments specified" });
 
     const now = new Date();
-    await EquipmentAssignment.updateMany(
-      { _id: { $in: assignmentIds }, projectId: id, technicianId: { $exists: true } },
-      { $set: { status: "returned", condition: condition || "good", returnedAt: now } }
-    );
-    const updated = await EquipmentAssignment.find({ _id: { $in: assignmentIds } }).lean();
+    const assignments = await EquipmentAssignment.find({
+      _id: { $in: assignmentIds },
+      $or: [{ projectId: id }, { projectIds: id }],
+      technicianId: req.technician?._id || { $exists: true },
+      status: { $in: ["checked_out", "in_use"] },
+    });
+    const managedIds = assignments.map(item => item._id);
+    const referencedByKit = managedIds.length && await DailyKit.exists({
+      technicianId: req.technician?._id,
+      status: { $in: ["confirmed", "in_progress"] },
+      $or: [
+        { "items.equipmentAssignmentId": { $in: managedIds } },
+        { "items.custodyAssignmentIds": { $in: managedIds } },
+      ],
+    });
+    if (assignments.some(item => item.dailyKitId) || referencedByKit) {
+      return res.status(409).json({ error: "Shared Daily Kit equipment must be returned from Daily Preparation after all scheduled jobs are finished." });
+    }
+    const updated = [];
+    for (const assignment of assignments) {
+      if (!assignment.consumable) {
+        const tool = await Tool.findById(assignment.equipmentId);
+        if (tool) {
+          tool.quantity = Number(tool.quantity || 0) + assignment.quantity;
+          tool.checkedOutQuantity = Math.max(0, Number(tool.checkedOutQuantity || 0) - assignment.quantity);
+          tool.assetStatus = tool.checkedOutQuantity > 0 ? "checked_out" : "available";
+          await tool.save();
+        }
+      }
+      assignment.status = "returned";
+      assignment.condition = condition || "good";
+      assignment.returnedAt = now;
+      await assignment.save();
+      updated.push(assignment.toObject());
+    }
     res.json({ message: `${updated.length} item(s) returned`, assignments: updated });
   } catch (error) {
     console.error("Error returning equipment:", error);
@@ -6389,11 +6501,22 @@ router.put("/projects/:id/equipment/damage", auth.authenticate, auth.requireRole
     if (!assignmentId) return res.status(400).json({ error: "No assignment specified" });
 
     const updated = await EquipmentAssignment.findOneAndUpdate(
-      { _id: assignmentId, projectId: id },
+      { _id: assignmentId, $or: [{ projectId: id }, { projectIds: id }], technicianId: req.technician?._id },
       { $set: { status: "damaged", damageDescription: description || "", condition: "damaged" } },
       { returnDocument: "after" }
     );
     if (!updated) return res.status(404).json({ error: "Equipment assignment not found" });
+    const damagedTool = await Tool.findById(updated.equipmentId);
+    if (damagedTool) {
+      damagedTool.checkedOutQuantity = Math.max(0, Number(damagedTool.checkedOutQuantity || 0) - Number(updated.quantity || 1));
+      damagedTool.assetStatus = "damaged";
+      damagedTool.assetCondition = "damaged";
+      await damagedTool.save();
+    }
+    const kitItemMatch = updated.dailyKitId
+      ? { _id: updated.dailyKitId, "items.equipmentAssignmentId": updated._id }
+      : { technicianId: updated.technicianId, "items.custodyAssignmentIds": updated._id };
+    await DailyKit.updateOne(kitItemMatch, { $set: { "items.$.checkoutStatus": "damaged" } });
     res.json({ message: "Damage reported", assignment: updated });
   } catch (error) {
     console.error("Error reporting damage:", error);
@@ -6413,7 +6536,17 @@ router.get("/technician/equipment/today", auth.authenticate, auth.requireRole("t
     const items = await EquipmentAssignment.find({
       technicianId: tech._id,
       workDate: { $gte: today, $lt: tomorrow },
-    }).populate("projectId", "customer.name service.name isLargeScale").sort({ createdAt: -1 }).lean();
+    }).populate("projectId", "customer.name service.name isLargeScale")
+      .populate("projectIds", "customer.name service.name isLargeScale")
+      .sort({ createdAt: -1 }).lean();
+    const kit = await DailyKit.findOne({ technicianId: tech._id, workDate: { $gte: today, $lt: tomorrow } })
+      .select("items.equipmentAssignmentId items.custodyAssignmentIds status")
+      .lean();
+    const managedIds = new Set((kit?.items || []).flatMap(item => [
+      item.equipmentAssignmentId,
+      ...(item.custodyAssignmentIds || []),
+    ]).filter(Boolean).map(String));
+    for (const item of items) item.managedByDailyKit = Boolean(item.dailyKitId || managedIds.has(String(item._id)));
 
     res.json({ items, technician: { _id: tech._id, name: tech.name } });
   } catch (error) {
@@ -6425,7 +6558,21 @@ router.get("/technician/equipment/today", auth.authenticate, auth.requireRole("t
 // GET /api/projects/:id/equipment/available-tools — list inventory tools not already reserved for this project today
 router.get("/projects/:id/equipment/available-tools", auth.authenticate, auth.requireRole(["admin", "secretary", "technician"]), async (req, res) => {
   try {
-    const tools = await Tool.find({ status: "available" }).select("name code category brand").lean();
+    const rows = await Tool.find({
+      active: { $ne: false },
+      status: { $in: ["in_stock", "low_stock"] },
+      quantity: { $gt: 0 },
+      assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] },
+    }).select("itemName assetCode barcode category type unit quantity reservedQuantity assignable inventoryClass").sort({ itemName: 1 }).lean();
+    const tools = rows.filter(tool => tool.type === "consumable" || tool.type === "part" || (Tool.effectiveInventoryClass(tool) === "operational_asset" && tool.assignable !== false))
+      .map(tool => ({
+        _id: tool._id,
+        name: tool.itemName,
+        code: tool.assetCode || tool.barcode || "",
+        category: tool.type === "consumable" ? "Consumable" : tool.type === "part" ? "Part" : "Equipment",
+        unit: tool.unit || "pcs",
+        available: Math.max(0, Number(tool.quantity || 0) - Number(tool.reservedQuantity || 0)),
+      })).filter(tool => tool.available > 0);
     res.json({ tools });
   } catch (error) {
     console.error("Error fetching available tools:", error);

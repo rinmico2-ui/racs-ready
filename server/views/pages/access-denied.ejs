@@ -1,5 +1,9 @@
-<div class="container py-5 text-center">
-  <h1>Access Denied</h1>
-  <p>You do not have permission to view this page.</p>
-  <a href="/" class="btn btn-primary">Return to Home</a>
+<div class="container py-5 text-center" style="max-width:680px">
+  <div class="display-5 text-warning mb-3"><i class="bi bi-shield-lock"></i></div>
+  <h1 class="h2 fw-bold">Access Denied</h1>
+  <p class="text-muted">Your current role policy does not allow this action. If this access is required for your work, contact an administrator.</p>
+  <% if (typeof requiredPermission !== 'undefined' && requiredPermission) { %>
+    <div class="alert alert-light border d-inline-flex align-items-center gap-2"><span class="text-muted small">Required permission</span><code><%= requiredPermission %></code></div>
+  <% } %>
+  <div class="mt-3"><button type="button" class="btn btn-outline-secondary me-2" onclick="history.back()">Go Back</button><a href="/" class="btn btn-primary">Return to Home</a></div>
 </div>

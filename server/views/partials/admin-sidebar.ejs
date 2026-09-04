@@ -236,51 +236,36 @@
       <span class="section-line"></span>
     </div>
 
-    <!-- Customers -->
     <li class="nav-item">
       <a href="/admin/customers/list" class="nav-link">
         <i class="bi bi-people nav-icon"></i>
         <span class="nav-label">Customers</span>
       </a>
     </li>
-
-    <!-- Technicians -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#technicians-collapse"
-        aria-expanded="false">
+      <a href="/admin/technicians" class="nav-link">
         <i class="bi bi-person-workspace nav-icon"></i>
-        <span class="nav-label">Technicians</span>
-        <i class="bi bi-chevron-down ms-auto"></i>
-      </button>
-      <div class="collapse" id="technicians-collapse">
-        <ul class="btn-toggle-nav list-unstyled">
-          <li><a href="/admin/technicians" class="nav-link"><i class="bi bi-people-fill nav-icon"></i><span class="nav-label">Technician List</span></a></li>
-          <li><a href="/admin/technicians/schedules" class="nav-link"><i class="bi bi-calendar3 nav-icon"></i><span class="nav-label">Schedules</span></a></li>
-          <li>
-            <a href="/admin/technicians/leaves" class="nav-link">
-              <i class="bi bi-calendar-x nav-icon"></i>
-              <span class="nav-label">Leave Requests</span>
-              <span class="nav-badge badge bg-warning text-dark ms-auto" id="leavesBadge" style="display:none;">0</span>
-            </a>
-          </li>
-        </ul>
-      </div>
+        <span class="nav-label">Technician List</span>
+      </a>
     </li>
-
-    <!-- Staff -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#staff-collapse"
-        aria-expanded="false">
+      <a href="/admin/technicians/leaves" class="nav-link">
+        <i class="bi bi-calendar-x nav-icon"></i>
+        <span class="nav-label">Leave Requests</span>
+        <span class="nav-badge badge bg-warning text-dark ms-auto" id="leavesBadge" style="display:none;">0</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a href="/admin/staff/list" class="nav-link">
         <i class="bi bi-person-badge nav-icon"></i>
-        <span class="nav-label">Staff</span>
-        <i class="bi bi-chevron-down ms-auto"></i>
-      </button>
-      <div class="collapse" id="staff-collapse">
-        <ul class="btn-toggle-nav list-unstyled">
-          <li><a href="/admin/staff/list" class="nav-link"><i class="bi bi-people-fill nav-icon"></i><span class="nav-label">Staff List</span></a></li>
-          <li><a href="/admin/staff/attendance" class="nav-link"><i class="bi bi-qr-code-scan nav-icon"></i><span class="nav-label">Attendance</span></a></li>
-        </ul>
-      </div>
+        <span class="nav-label">Staff List</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a href="/admin/staff/attendance" class="nav-link">
+        <i class="bi bi-qr-code-scan nav-icon"></i>
+        <span class="nav-label">Attendance</span>
+      </a>
     </li>
 
     <!-- ═══ FINANCE ═══ -->

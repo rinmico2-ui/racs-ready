@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { isAccountEnabled } = require("./accountState");
+const { hasPermission, requiredPermissionForRequest } = require("./requirePermission");
 
 // Sliding session: keep relatively short expiry and rotate on activity
 const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000; // 30 minutes
@@ -95,6 +96,14 @@ module.exports = {
       }
 
       req.user = user;
+      const requiredPermission = requiredPermissionForRequest(user, req);
+      if (requiredPermission && !(await hasPermission(user, requiredPermission))) {
+        return res.status(403).json({
+          error: "Forbidden: insufficient permission",
+          code: "INSUFFICIENT_PERMISSION",
+          requiredPermission,
+        });
+      }
       res.set("Cache-Control", "no-store, private");
       // expose to templates
       try {

@@ -25,7 +25,7 @@
     <!-- Dashboard -->
     <li class="nav-section-label">Main</li>
     <li class="nav-item">
-      <a href="/technician" class="nav-link">
+      <a href="/technician" class="nav-link" data-permission="dashboard.view">
         <i class="bi bi-grid-1x2 nav-icon"></i>
         <span class="nav-label">Dashboard</span>
         <span class="nav-tooltip">Dashboard</span>
@@ -35,7 +35,7 @@
     <!-- My Work (Assignments + Schedule merged) -->
     <li class="nav-section-label">Work</li>
     <li class="nav-item">
-      <a href="/technician/assignments" class="nav-link">
+      <a href="/technician/assignments" class="nav-link" data-permission="assignments.self.view">
         <i class="bi bi-clipboard-check nav-icon"></i>
         <span class="nav-label">Bookings</span>
         <span class="nav-badge" id="pendingBadge" style="display:none;">0</span>
@@ -43,7 +43,7 @@
       </a>
     </li>
     <li class="nav-item">
-      <a href="/technician/orders" class="nav-link">
+      <a href="/technician/orders" class="nav-link" data-permission="assignments.self.view">
         <i class="bi bi-box-seam nav-icon"></i>
         <span class="nav-label">Orders</span>
         <span class="nav-badge" id="ordersBadge" style="display:none;">0</span>
@@ -51,14 +51,14 @@
       </a>
     </li>
     <li class="nav-item">
-      <a href="/technician/warranty-claims" class="nav-link">
+      <a href="/technician/warranty-claims" class="nav-link" data-permission="warranties.self.manage">
         <i class="bi bi-shield-check nav-icon"></i>
         <span class="nav-label">Warranty Inspections</span>
         <span class="nav-tooltip">Assigned warranty inspections</span>
       </a>
     </li>
     <li class="nav-item">
-      <a href="/technician/remittances" class="nav-link">
+      <a href="/technician/remittances" class="nav-link" data-permission="remittances.self.manage">
         <i class="bi bi-cash-stack nav-icon"></i>
         <span class="nav-label">My Remittances</span>
         <span class="nav-tooltip">Submit collected payments</span>
@@ -68,14 +68,14 @@
     <!-- Attendance -->
     <li class="nav-section-label">Attendance</li>
     <li class="nav-item">
-      <a href="/technician/attendance" class="nav-link">
+      <a href="/technician/attendance" class="nav-link" data-permission="attendance.self.manage">
         <i class="bi bi-qr-code-scan nav-icon"></i>
         <span class="nav-label">Check In / Out</span>
         <span class="nav-tooltip">Check In / Out</span>
       </a>
     </li>
     <li class="nav-item">
-      <a href="/technician/payroll" class="nav-link">
+      <a href="/technician/payroll" class="nav-link" data-permission="payroll.self.view">
         <i class="bi bi-wallet2 nav-icon"></i>
         <span class="nav-label">My Payroll</span>
         <span class="nav-tooltip">Payslips and pay history</span>
@@ -85,7 +85,7 @@
     <!-- Inventory & Expenses -->
     <li class="nav-section-label">Expenses</li>
     <li class="nav-item">
-      <a href="/technician/expenses" class="nav-link">
+      <a href="/technician/expenses" class="nav-link" data-permission="expenses.self.manage">
         <i class="bi bi-receipt-cutoff nav-icon"></i>
         <span class="nav-label">Expenses</span>
         <span class="nav-badge" id="expenseBadge" style="display:none;">0</span>
@@ -93,7 +93,7 @@
       </a>
     </li>
     <li class="nav-item">
-      <a href="/technician/tools" class="nav-link">
+      <a href="/technician/tools" class="nav-link" data-permission="tools.self.manage">
         <i class="bi bi-tools nav-icon"></i>
         <span class="nav-label">My Tools</span>
         <span class="nav-tooltip">My Tools</span>
@@ -103,7 +103,7 @@
     <!-- Live Tracking -->
     <li class="nav-section-label">Tracking</li>
     <li class="nav-item">
-      <a href="/technician/tracking" class="nav-link">
+      <a href="/technician/tracking" class="nav-link" data-permission="tracking.self.manage">
         <i class="bi bi-geo-alt nav-icon"></i>
         <span class="nav-label">Live Tracking</span>
         <span class="nav-tooltip">Live Tracking</span>
@@ -112,7 +112,7 @@
 
     <!-- Analytics -->
     <li class="nav-item">
-      <a href="/technician/analytics" class="nav-link">
+      <a href="/technician/analytics" class="nav-link" data-permission="dashboard.view">
         <i class="bi bi-bar-chart-line nav-icon"></i>
         <span class="nav-label">Analytics</span>
         <span class="nav-tooltip">Analytics</span>
@@ -162,6 +162,14 @@
 </style>
 
 <script>
+  const technicianAllowedPermissions = new Set(<%- JSON.stringify(typeof effectivePermissions !== 'undefined' ? effectivePermissions : []).replace(/</g, '\\u003c') %>);
+  document.querySelectorAll('#sidebar [data-permission]').forEach(function(link) {
+    if (!technicianAllowedPermissions.has(link.dataset.permission)) {
+      const item = link.closest('li');
+      if (item) item.remove();
+    }
+  });
+
   // Fetch all sidebar badge counts
   (async function () {
     try {

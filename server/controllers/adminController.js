@@ -2355,12 +2355,13 @@ const Role = require("../models/Role");
 const {
   PERMISSION_CATALOG,
   ALL_PERMISSION_KEYS,
+  allowedPermissionsForRole,
 } = require("../middleware/requirePermission");
 
 // GET /api/admin/roles — list all roles with user counts
 exports.listRoles = async (req, res, next) => {
   try {
-    const roles = await Role.find({}).lean();
+    const roles = await Role.find({}).sort({ name: 1 }).lean();
     // attach user counts
     const counts = await User.aggregate([
       { $match: { role: { $in: roles.map((r) => r.name) } } },
@@ -2379,6 +2380,29 @@ exports.listRoles = async (req, res, next) => {
   }
 };
 
+function normalizedPermissionChange(body) {
+  const permissions = body && body.permissions;
+  if (!Array.isArray(permissions)) {
+    const error = new Error("permissions must be an array");
+    error.status = 400;
+    throw error;
+  }
+  const normalized = Array.from(new Set(permissions.map((item) => String(item).trim()).filter(Boolean)));
+  const invalid = normalized.filter((permission) => !ALL_PERMISSION_KEYS.includes(permission));
+  if (invalid.length) {
+    const error = new Error(`Unknown permissions: ${invalid.join(", ")}`);
+    error.status = 400;
+    throw error;
+  }
+  const changeReason = String((body && body.changeReason) || "").trim();
+  if (changeReason.length < 8 || changeReason.length > 500) {
+    const error = new Error("A change reason between 8 and 500 characters is required.");
+    error.status = 400;
+    throw error;
+  }
+  return { permissions: normalized, changeReason };
+}
+
 // GET /api/admin/roles/:id — get a single role
 exports.getRole = async (req, res, next) => {
   try {
@@ -2389,6 +2413,7 @@ exports.getRole = async (req, res, next) => {
     if (!role) return res.status(404).json({ error: "Role not found" });
     const userCount = await User.countDocuments({ role: role.name });
     role.userCount = userCount;
+    role.allowedPermissions = allowedPermissionsForRole(role.name);
     return res.json({ role });
   } catch (err) {
     next(err);
@@ -2401,22 +2426,40 @@ exports.updateRolePermissions = async (req, res, next) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
-    const { permissions, description } = req.body || {};
-    if (!Array.isArray(permissions))
-      return res.status(400).json({ error: "permissions must be an array" });
-    // Validate every key
-    const invalid = permissions.filter((p) => !ALL_PERMISSION_KEYS.includes(p));
-    if (invalid.length)
-      return res
-        .status(400)
-        .json({ error: `Unknown permissions: ${invalid.join(", ")}` });
+    const { permissions, changeReason } = normalizedPermissionChange(req.body || {});
+    const { description } = req.body || {};
+    const expectedRevision = Number.parseInt(req.body && req.body.revision, 10);
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+      return res.status(400).json({ error: "A valid role revision is required." });
+    }
+    const existing = await Role.findById(id).lean();
+    if (!existing) return res.status(404).json({ error: "Role not found" });
+    if (["admin", "customer"].includes(existing.name)) {
+      return res.status(409).json({ error: `${existing.label || existing.name} is an immutable system access profile.` });
+    }
+    const roleAllowlist = allowedPermissionsForRole(existing.name);
+    const unsupported = permissions.filter((permission) => !roleAllowlist.includes(permission));
+    if (unsupported.length) {
+      return res.status(400).json({ error: `Permissions not applicable to ${existing.name}: ${unsupported.join(", ")}` });
+    }
     const updates = { permissions };
     if (typeof description === "string") updates.description = description.trim();
-    const role = await Role.findByIdAndUpdate(id, updates, { returnDocument: "after" }).lean();
-    if (!role) return res.status(404).json({ error: "Role not found" });
+    const role = await Role.findOneAndUpdate(
+      { _id: id, revision: expectedRevision },
+      { $set: updates, $inc: { revision: 1 } },
+      { returnDocument: "after", runValidators: true },
+    ).lean();
+    if (!role) {
+      return res.status(409).json({ error: "This role changed in another session. Reload it before saving again." });
+    }
     await logAction(req.user._id, role._id, "role.updatePermissions", req, {
       roleName: role.name,
       permissionCount: permissions.length,
+      before: existing.permissions || [],
+      after: permissions,
+      changeReason,
+      previousRevision: expectedRevision,
+      revision: role.revision,
     });
     return res.json({ role, message: "Role permissions updated" });
   } catch (err) {
@@ -2433,7 +2476,8 @@ exports.listRoleUsers = async (req, res, next) => {
     const role = await Role.findById(id).lean();
     if (!role) return res.status(404).json({ error: "Role not found" });
     const users = await User.find({ role: role.name })
-      .select("_id email firstName lastName role active permissions")
+      .select("_id email firstName lastName role active permissions permissionsOverridden")
+      .sort({ lastName: 1, firstName: 1 })
       .lean();
     return res.json({ users, roleName: role.name });
   } catch (err) {
@@ -2447,24 +2491,29 @@ exports.setUserPermissions = async (req, res, next) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
-    const { permissions } = req.body || {};
-    if (!Array.isArray(permissions))
-      return res.status(400).json({ error: "permissions must be an array" });
-    const invalid = permissions.filter((p) => !ALL_PERMISSION_KEYS.includes(p));
-    if (invalid.length)
-      return res
-        .status(400)
-        .json({ error: `Unknown permissions: ${invalid.join(", ")}` });
+    const { permissions, changeReason } = normalizedPermissionChange(req.body || {});
+    const existing = await User.findById(id).select("role permissions permissionsOverridden").lean();
+    if (!existing) return res.status(404).json({ error: "User not found" });
+    if (!["secretary", "technician"].includes(existing.role)) {
+      return res.status(409).json({ error: "Only secretary and technician accounts support permission overrides." });
+    }
+    const roleAllowlist = allowedPermissionsForRole(existing.role);
+    const unsupported = permissions.filter((permission) => !roleAllowlist.includes(permission));
+    if (unsupported.length) {
+      return res.status(400).json({ error: `Permissions not applicable to ${existing.role}: ${unsupported.join(", ")}` });
+    }
     const user = await User.findByIdAndUpdate(
       id,
-      { permissions },
-      { returnDocument: "after" },
+      { $set: { permissions, permissionsOverridden: true } },
+      { returnDocument: "after", runValidators: true },
     )
-      .select("_id email firstName lastName role permissions")
+      .select("_id email firstName lastName role permissions permissionsOverridden")
       .lean();
-    if (!user) return res.status(404).json({ error: "User not found" });
     await logAction(req.user._id, user._id, "user.setPermissions", req, {
       permissionCount: permissions.length,
+      before: existing.permissionsOverridden ? (existing.permissions || []) : null,
+      after: permissions,
+      changeReason,
     });
     return res.json({ user, message: "User permissions updated" });
   } catch (err) {
@@ -2478,15 +2527,27 @@ exports.clearUserPermissions = async (req, res, next) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
+    const changeReason = String((req.body && req.body.changeReason) || "").trim();
+    if (changeReason.length < 8 || changeReason.length > 500) {
+      return res.status(400).json({ error: "A change reason between 8 and 500 characters is required." });
+    }
+    const existing = await User.findById(id).select("role permissions permissionsOverridden").lean();
+    if (!existing) return res.status(404).json({ error: "User not found" });
+    if (!["secretary", "technician"].includes(existing.role)) {
+      return res.status(409).json({ error: "Only secretary and technician accounts support permission overrides." });
+    }
     const user = await User.findByIdAndUpdate(
       id,
-      { $unset: { permissions: 1 } },
+      { $unset: { permissions: 1 }, $set: { permissionsOverridden: false } },
       { returnDocument: "after" },
     )
-      .select("_id email firstName lastName role permissions")
+      .select("_id email firstName lastName role permissions permissionsOverridden")
       .lean();
-    if (!user) return res.status(404).json({ error: "User not found" });
-    await logAction(req.user._id, user._id, "user.clearPermissions", req, {});
+    await logAction(req.user._id, user._id, "user.clearPermissions", req, {
+      before: existing.permissionsOverridden ? (existing.permissions || []) : null,
+      after: null,
+      changeReason,
+    });
     return res.json({ user, message: "User permissions reset to role defaults" });
   } catch (err) {
     next(err);

@@ -247,14 +247,82 @@
     .pw-btn.primary { color:#fff; background:#1d4ed8; border-color:#1d4ed8; }
     .pw-btn.primary:hover { background:#1e40af; border-color:#1e40af; }
     .pw-btn:disabled { opacity:.5; cursor:not-allowed; pointer-events:none; }
-    .recovery-kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.625rem; }
+    .project-recovery-dialog { width:min(1040px,96vw); max-height:min(92vh,920px); padding:0; overflow:hidden; display:flex; flex-direction:column; border-radius:18px; }
+    .recovery-header { flex:0 0 auto; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.1rem 1.25rem; border-bottom:1px solid #e2e8f0; background:linear-gradient(135deg,#f8fafc 0%,#fff 55%,#eff6ff 100%); }
+    .recovery-header-main { display:flex; align-items:flex-start; gap:.8rem; min-width:0; }
+    .recovery-header-icon { width:42px; height:42px; flex:0 0 42px; display:inline-flex; align-items:center; justify-content:center; border-radius:12px; background:#dbeafe; color:#1d4ed8; font-size:1.05rem; box-shadow:inset 0 0 0 1px #bfdbfe; }
+    .recovery-eyebrow { color:#2563eb; font-size:.62rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+    .recovery-title { margin:.12rem 0 .18rem; color:#0f172a; font-size:1.05rem; font-weight:800; letter-spacing:-.015em; }
+    .recovery-subtitle { margin:0; max-width:650px; color:#64748b; font-size:.72rem; line-height:1.5; }
+    .recovery-header-status { display:inline-flex; align-items:center; gap:.35rem; margin-top:.1rem; padding:.32rem .55rem; border:1px solid #fecaca; border-radius:999px; background:#fff1f2; color:#b91c1c; font-size:.62rem; font-weight:800; white-space:nowrap; }
+    .recovery-scroll { flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain; padding:1rem 1.25rem 1.25rem; background:#f8fafc; }
+    .recovery-kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; }
+    .recovery-kpi { position:relative; min-width:0; padding:.75rem .8rem .72rem 2.75rem; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.03); }
+    .recovery-kpi-icon { position:absolute; left:.75rem; top:.75rem; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; background:#f1f5f9; color:#475569; }
+    .recovery-kpi.is-alert .recovery-kpi-icon { background:#fee2e2; color:#dc2626; }
+    .recovery-kpi-label { display:block; color:#94a3b8; font-size:.58rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .recovery-kpi-value { display:block; overflow:hidden; margin-top:.2rem; color:#0f172a; font-size:.91rem; font-weight:800; line-height:1.15; text-overflow:ellipsis; white-space:nowrap; }
     .recovery-mode-grid, .recovery-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
+    .recovery-step { border:1px solid #dbe3ed; border-radius:14px; padding:1rem; background:#fff; margin-top:.8rem; box-shadow:0 1px 3px rgba(15,23,42,.035); }
+    .recovery-step-head { display:flex; align-items:flex-start; gap:.7rem; margin-bottom:.85rem; padding-bottom:.7rem; border-bottom:1px solid #f1f5f9; }
+    .recovery-step-no { width:26px; height:26px; flex:0 0 26px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:#1d4ed8; color:#fff; font-size:.67rem; font-weight:800; box-shadow:0 4px 10px rgba(29,78,216,.2); }
+    .recovery-step-head strong { display:block; color:#0f172a; font-size:.79rem; }
+    .recovery-step-head span { display:block; color:#64748b; font-size:.68rem; line-height:1.45; margin-top:.1rem; }
+    .recovery-overdue-note { display:flex; align-items:flex-start; gap:.7rem; margin-top:.8rem; padding:.78rem .85rem; border:1px solid #fecaca; border-left:4px solid #dc2626; border-radius:10px; background:#fff7f7; color:#991b1b; font-size:.7rem; line-height:1.5; }
+    .recovery-overdue-note > i { margin-top:.1rem; font-size:.9rem; }
+    .project-recovery-dialog .rec-action { position:relative; min-height:88px; padding:.8rem .85rem; margin:0; align-items:flex-start; justify-content:flex-start; border-radius:11px; transition:border-color .15s,box-shadow .15s,background .15s; }
+    .project-recovery-dialog .rec-action:hover { transform:none; border-color:#93c5fd; background:#f8fbff; box-shadow:0 0 0 3px rgba(59,130,246,.08); }
+    .project-recovery-dialog .rec-action:has(input:checked) { border-color:#2563eb; background:#eff6ff; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+    .project-recovery-dialog .rec-action input { flex:0 0 auto; accent-color:#2563eb; }
+    .project-recovery-dialog .rec-action.is-disabled { cursor:not-allowed !important; opacity:.62; background:#f8fafc; box-shadow:none; }
+    .project-recovery-dialog .rec-action.is-disabled:hover { border-color:#e2e8f0; background:#f8fafc; box-shadow:none; }
+    .project-recovery-dialog .rec-action.is-disabled input { cursor:not-allowed; }
+    .recovery-field { display:flex; flex-direction:column; min-width:0; color:#334155; font-size:.69rem; font-weight:750; }
+    .recovery-field > span { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.32rem; }
+    .recovery-field .required { color:#dc2626; }
+    .recovery-field .form-control,.recovery-field .form-select { min-height:38px; border-color:#cbd5e1; border-radius:8px; font-size:.75rem; }
+    .recovery-field .form-control:focus,.recovery-field .form-select:focus { border-color:#60a5fa; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
+    .recovery-time-grid { display:grid; grid-template-columns:1fr 1fr; gap:.55rem; }
+    .recovery-days { display:flex; flex-wrap:wrap; gap:.42rem; }
+    .recovery-day { position:relative; margin:0; cursor:pointer; }
+    .recovery-day input { position:absolute; opacity:0; pointer-events:none; }
+    .recovery-day span { min-width:42px; display:inline-flex; align-items:center; justify-content:center; padding:.38rem .48rem; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#475569; font-size:.65rem; font-weight:800; }
+    .recovery-day input:checked + span { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; box-shadow:inset 0 0 0 1px #2563eb; }
+    .recovery-notify { display:flex; align-items:flex-start; gap:.65rem; margin-top:.8rem; padding:.7rem .75rem; border:1px solid #bfdbfe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:.72rem; }
+    .recovery-notify input { margin-top:.15rem; accent-color:#2563eb; }
+    .recovery-notify small { display:block; margin-top:.08rem; color:#64748b; font-size:.65rem; line-height:1.45; }
+    .recovery-check-empty { padding:.78rem; border:1px dashed #94a3b8; border-radius:10px; background:#f8fafc; color:#64748b; font-size:.7rem; line-height:1.5; }
+    .recovery-check-result { padding:.82rem; border:1px solid; border-radius:11px; }
+    .recovery-check-result.is-ready { border-color:#86efac; background:#f0fdf4; }
+    .recovery-check-result.is-blocked { border-color:#fca5a5; background:#fef2f2; }
+    .recovery-check-head { display:flex; justify-content:space-between; align-items:center; gap:.6rem; }
+    .recovery-check-head strong { font-size:.76rem; }
+    .recovery-check-result.is-ready .recovery-check-head strong { color:#166534; }
+    .recovery-check-result.is-blocked .recovery-check-head strong { color:#991b1b; }
+    .recovery-quality { padding:.24rem .48rem; border:1px solid rgba(148,163,184,.35); border-radius:999px; background:#fff; color:#475569; font-size:.6rem; font-weight:800; }
+    .recovery-check-conflicts { display:grid; gap:.28rem; margin-top:.65rem; padding-top:.6rem; border-top:1px solid #fecaca; color:#991b1b; font-size:.67rem; }
+    .recovery-footer { flex:0 0 auto; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.75rem; padding:.85rem 1.25rem; border-top:1px solid #dbe3ed; background:#fff; box-shadow:0 -8px 20px rgba(15,23,42,.04); }
+    .recovery-gate-state { max-width:500px; font-size:.68rem; color:#64748b; line-height:1.4; }
+    .recovery-gate-state.is-ready { color:#166534; font-weight:700; }
+    .recovery-footer-actions { display:flex; gap:.5rem; }
+    .project-recovery-dialog .pw-btn { min-height:38px; padding:.48rem .8rem; }
+    .project-recovery-dialog .pw-btn.primary { min-width:145px; }
     @keyframes adminModalFade { from { opacity:0; } to { opacity:1; } }
     @keyframes adminModalRise { from { opacity:0; transform:translateY(10px) scale(.99); } to { opacity:1; transform:none; } }
     @media(max-width:700px){
       .pw-modal-overlay { padding:.5rem; align-items:flex-end; }
       .pw-modal { width:100%; max-height:94vh; border-radius:16px 16px 8px 8px; padding:1rem; }
+      .project-recovery-dialog { width:100%; max-height:96vh; padding:0; border-radius:18px 18px 8px 8px; }
+      .recovery-header { padding:.9rem 1rem; }
+      .recovery-header-status { display:none; }
+      .recovery-scroll { padding:.8rem; }
       .recovery-kpi-grid, .recovery-mode-grid, .recovery-form-grid { grid-template-columns:1fr; }
+      .recovery-kpi-grid { gap:.45rem; }
+      .recovery-kpi { padding:.62rem .7rem .62rem 2.6rem; }
+      .recovery-step { padding:.8rem; }
+      .recovery-footer { padding:.75rem .8rem; }
+      .recovery-footer-actions { width:100%; }
+      .recovery-footer-actions .pw-btn { flex:1; }
     }
 
     /* ══ WORK ORDERS ══ */
@@ -2677,9 +2745,13 @@
     const governance = p.scheduleGovernance || {};
     const commitment = approvedCompletionDate(p);
     const earliestRecovery = new Date(recoveryDefaultStart());
-    if (initialMode === 'recover' && commitment && new Date(commitment) < earliestRecovery) initialMode = 'extend';
+    const commitmentExpired = Boolean(commitment && new Date(commitment) < earliestRecovery);
+    if (commitmentExpired) initialMode = 'extend';
     const baseline = governance.originalBaselineCompletionDate || p.schedulePlan?.targetEndDate || commitment;
-    const forecast = governance.currentForecastCompletionDate || p.schedulePlan?.estimatedEndDate || dm.estCompletionDate;
+    // Use the same live estimate shown on the dashboard. Stored governance
+    // dates describe the last approved calculation and may be stale after
+    // planned work is missed.
+    const forecast = dm.estCompletionDate || governance.currentForecastCompletionDate || p.schedulePlan?.estimatedEndDate;
     const currentDays = projectWorkingDays(p);
     const workingHours = p.schedulePlan?.workingHours || p.preferredWorkingHours || {};
     const history = Array.isArray(governance.history) ? governance.history.slice(-3).reverse() : [];
@@ -2693,69 +2765,88 @@
     const modal = document.createElement('div');
     modal.className = 'pw-modal-overlay project-recovery-modal';
     modal.innerHTML = `
-      <div class="pw-modal" style="max-width:920px;max-height:92vh;overflow:auto;" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle" tabindex="-1">
-        <div class="d-flex justify-content-between align-items-start gap-3">
-          <div>
-            <div style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#2563eb;">Controlled schedule revision</div>
-            <h5 id="recoveryTitle" style="font-size:1.1rem;font-weight:800;margin:.15rem 0;">Review Project Recovery Plan</h5>
-            <p style="font-size:.76rem;color:#64748b;margin:0;">Preview live capacity before any future assignment is changed. Completed work and historical assignments stay locked.</p>
+      <div class="pw-modal project-recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle" tabindex="-1">
+        <div class="recovery-header">
+          <div class="recovery-header-main">
+            <span class="recovery-header-icon"><i class="bi bi-calendar2-range"></i></span>
+            <div>
+            <div class="recovery-eyebrow">Controlled schedule revision</div>
+            <h5 id="recoveryTitle" class="recovery-title">${commitmentExpired ? 'Resolve Past-Due Project Schedule' : 'Review Project Recovery Plan'}</h5>
+            <p class="recovery-subtitle">Set the proposed schedule, verify live operational capacity, then authorize the revision. Nothing is rescheduled during validation.</p>
+            </div>
           </div>
-          <button class="pw-modal-close recovery-close" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+          <div class="d-flex align-items-center gap-2">
+            <span class="recovery-header-status"><i class="bi bi-exclamation-diamond-fill"></i>${commitmentExpired ? 'PAST DUE' : 'SCHEDULE RISK'}</span>
+            <button class="pw-modal-close recovery-close" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+          </div>
         </div>
 
-        <div class="recovery-kpi-grid" style="margin:1rem 0;">
-          <div class="sh-item"><span class="shk">Original baseline</span><span class="shv">${fmtDate(baseline)}</span></div>
-          <div class="sh-item"><span class="shk">Current approved date</span><span class="shv">${fmtDate(commitment)}</span></div>
-          <div class="sh-item"><span class="shk">Current forecast</span><span class="shv" style="color:${dm.delayDays > 0 ? '#dc2626' : '#0f172a'};">${fmtDate(forecast)}</span></div>
+        <div class="recovery-scroll">
+        <div class="recovery-kpi-grid">
+          <div class="recovery-kpi"><span class="recovery-kpi-icon"><i class="bi bi-flag"></i></span><span class="recovery-kpi-label">Original baseline</span><span class="recovery-kpi-value">${fmtDate(baseline)}</span></div>
+          <div class="recovery-kpi"><span class="recovery-kpi-icon"><i class="bi bi-calendar-check"></i></span><span class="recovery-kpi-label">Current approved date</span><span class="recovery-kpi-value">${fmtDate(commitment)}</span></div>
+          <div class="recovery-kpi ${dm.delayDays > 0 ? 'is-alert' : ''}"><span class="recovery-kpi-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="recovery-kpi-label">Live completion estimate</span><span class="recovery-kpi-value" style="color:${dm.delayDays > 0 ? '#dc2626' : '#0f172a'};">${fmtDate(forecast)}</span></div>
         </div>
+
+        ${commitmentExpired ? `<div class="recovery-overdue-note"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>The approved date of ${fmtDate(commitment)} has passed.</strong><br>Choose a new completion date. Recovery without an extension is unavailable because future work cannot be scheduled against an expired commitment.</div></div>` : ''}
 
         <form id="recoveryPlanForm">
-          <div class="recovery-mode-grid" style="gap:.625rem;margin-bottom:.875rem;">
-            <label class="rec-action" style="cursor:pointer;margin:0;align-items:flex-start;">
-              <input type="radio" name="mode" value="recover" ${initialMode !== 'extend' ? 'checked' : ''} style="margin-top:.2rem;">
-              <span><strong style="font-size:.8rem;">Recover without extension</strong><span style="display:block;font-size:.7rem;color:#64748b;margin-top:.15rem;">Keep ${fmtDate(commitment)} as the approved commitment and re-plan remaining work.</span></span>
-            </label>
-            <label class="rec-action" style="cursor:pointer;margin:0;align-items:flex-start;">
-              <input type="radio" name="mode" value="extend" ${initialMode === 'extend' ? 'checked' : ''} style="margin-top:.2rem;">
-              <span><strong style="font-size:.8rem;">Approve an extension</strong><span style="display:block;font-size:.7rem;color:#64748b;margin-top:.15rem;">Move the customer commitment with an approval record and notification.</span></span>
-            </label>
+          <div class="recovery-step">
+            <div class="recovery-step-head"><span class="recovery-step-no">1</span><div><strong>Choose the schedule decision</strong><span>A past-due commitment requires an extension. Recovery is available only while the approved date can still be met.</span></div></div>
+            <div class="recovery-mode-grid" style="gap:.625rem;">
+              <label class="rec-action ${commitmentExpired ? 'is-disabled' : ''}" style="cursor:pointer;margin:0;align-items:flex-start;">
+                <input type="radio" name="mode" value="recover" ${initialMode !== 'extend' ? 'checked' : ''} ${commitmentExpired ? 'disabled' : ''} style="margin-top:.2rem;">
+                <span><strong style="font-size:.8rem;">Recover within approved date</strong><span style="display:block;font-size:.7rem;color:#64748b;margin-top:.15rem;">${commitmentExpired ? `Unavailable — ${fmtDate(commitment)} has already passed.` : `Keep ${fmtDate(commitment)} and re-plan remaining work.`}</span></span>
+              </label>
+              <label class="rec-action" style="cursor:pointer;margin:0;align-items:flex-start;">
+                <input type="radio" name="mode" value="extend" ${initialMode === 'extend' ? 'checked' : ''} style="margin-top:.2rem;">
+                <span><strong style="font-size:.8rem;">Approve a new completion date</strong><span style="display:block;font-size:.7rem;color:#64748b;margin-top:.15rem;">Create an audited extension, reschedule remaining work, and notify the customer.</span></span>
+              </label>
+            </div>
           </div>
 
+          <div class="recovery-step">
+            <div class="recovery-step-head"><span class="recovery-step-no">2</span><div><strong>Define the revised plan</strong><span>Explain the delay and set the earliest realistic working window.</span></div></div>
           <div class="recovery-form-grid">
-            <label style="font-size:.72rem;font-weight:700;color:#475569;">Recovery starts *
-              <input class="form-control form-control-sm mt-1" type="date" name="recoveryStartDate" min="${recoveryDefaultStart()}" value="${recoveryDefaultStart()}" required>
+            <label class="recovery-field"><span>Recovery starts <b class="required">Required</b></span>
+              <input class="form-control form-control-sm" type="date" name="recoveryStartDate" min="${recoveryDefaultStart()}" value="${recoveryDefaultStart()}" required>
             </label>
-            <label id="revisedDateField" style="font-size:.72rem;font-weight:700;color:#475569;">Revised approved completion *
-              <input class="form-control form-control-sm mt-1" type="date" name="revisedCompletionDate" min="${recoveryDefaultStart()}" value="${initialExtension}">
+            <label id="revisedDateField" class="recovery-field"><span>New approved completion <b class="required">Required</b></span>
+              <input class="form-control form-control-sm" type="date" name="revisedCompletionDate" min="${recoveryDefaultStart()}" value="${initialExtension}">
             </label>
-            <label style="font-size:.72rem;font-weight:700;color:#475569;">Reason category *
-              <select class="form-select form-select-sm mt-1" name="reasonCategory" required>
+            <label class="recovery-field"><span>Delay category <b class="required">Required</b></span>
+              <select class="form-select form-select-sm" name="reasonCategory" required>
                 <option value="">Select reason</option><option value="weather">Weather</option><option value="material_delay">Material delay</option><option value="customer_change">Customer change</option><option value="access_constraint">Access constraint</option><option value="staffing">Staffing / capacity</option><option value="technical_complexity">Technical complexity</option><option value="safety">Safety</option><option value="external_dependency">External dependency</option><option value="other">Other</option>
               </select>
             </label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
-              <label style="font-size:.72rem;font-weight:700;color:#475569;">Daily start *<input class="form-control form-control-sm mt-1" type="time" name="startTime" value="${escHtml(workingHours.start || '09:00')}" required></label>
-              <label style="font-size:.72rem;font-weight:700;color:#475569;">Daily end *<input class="form-control form-control-sm mt-1" type="time" name="endTime" value="${escHtml(workingHours.end || '17:00')}" required></label>
+            <div class="recovery-time-grid">
+              <label class="recovery-field"><span>Daily start <b class="required">Required</b></span><input class="form-control form-control-sm" type="time" name="startTime" value="${escHtml(workingHours.start || '09:00')}" required></label>
+              <label class="recovery-field"><span>Daily end <b class="required">Required</b></span><input class="form-control form-control-sm" type="time" name="endTime" value="${escHtml(workingHours.end || '17:00')}" required></label>
             </div>
           </div>
           <div style="margin-top:.75rem;">
-            <div style="font-size:.72rem;font-weight:700;color:#475569;margin-bottom:.35rem;">Approved working days *</div>
-            <div class="d-flex flex-wrap gap-2">${dayLabels.map((label, day) => `<label class="cap-pill" style="cursor:pointer;"><input type="checkbox" name="workingDays" value="${day}" ${currentDays.has(day) ? 'checked' : ''}> ${label}</label>`).join('')}</div>
+            <div style="font-size:.69rem;font-weight:750;color:#334155;margin-bottom:.4rem;">Approved working days <span style="color:#dc2626;float:right;">Required</span></div>
+            <div class="recovery-days">${dayLabels.map((label, day) => `<label class="recovery-day"><input type="checkbox" name="workingDays" value="${day}" ${currentDays.has(day) ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
           </div>
-          <label style="display:block;font-size:.72rem;font-weight:700;color:#475569;margin-top:.75rem;">Delay and recovery rationale *
-            <textarea class="form-control form-control-sm mt-1" name="reason" rows="2" minlength="10" maxlength="1500" required placeholder="State what changed, operational cause, and the recovery decision."></textarea>
+          <label class="recovery-field" style="margin-top:.8rem;"><span>Delay and recovery rationale <b class="required">Required</b></span>
+            <textarea class="form-control form-control-sm" name="reason" rows="3" minlength="10" maxlength="1500" required placeholder="Document what caused the delay and why this revised schedule is achievable."></textarea>
           </label>
-          <label style="display:block;font-size:.72rem;font-weight:700;color:#475569;margin-top:.75rem;">Customer / operational impact
-            <textarea class="form-control form-control-sm mt-1" name="impactSummary" rows="2" maxlength="1500" placeholder="Affected access, dependencies, costs, or customer expectations."></textarea>
+          <label class="recovery-field" style="margin-top:.8rem;"><span>Customer and operational impact <small style="color:#94a3b8;font-weight:600;">Optional</small></span>
+            <textarea class="form-control form-control-sm" name="impactSummary" rows="2" maxlength="1500" placeholder="Record affected access, dependencies, costs, or customer expectations."></textarea>
           </label>
-          <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.75rem;color:#334155;margin-top:.75rem;"><input type="checkbox" name="notifyCustomer" checked style="margin-top:.2rem;"><span><strong>Notify customer after approval</strong><span style="display:block;color:#64748b;font-size:.68rem;">Uses in-app notification and email when available; approval is still recorded if one channel fails.</span></span></label>
+          <label class="recovery-notify"><input type="checkbox" name="notifyCustomer" checked><span><strong>Notify the customer after approval</strong><small>Sends an in-app update and email when available. A delivery failure will not roll back the approved schedule revision.</small></span></label>
+          </div>
         </form>
 
-        <div id="recoveryPreview" style="display:none;margin-top:1rem;"></div>
+        <div class="recovery-step">
+          <div class="recovery-step-head"><span class="recovery-step-no">3</span><div><strong>Check capacity, then approve</strong><span>The check is read-only. It verifies technicians, leave, bookings, equipment, and the resulting finish date before any future assignment is changed.</span></div></div>
+          <div id="recoveryPreview" role="status" aria-live="polite"><div class="recovery-check-empty"><i class="bi bi-shield-check me-1"></i><strong>Approval is locked.</strong> Run the schedule check to verify live capacity and enable the final authorization button.</div></div>
+        </div>
         ${history.length ? `<details style="margin-top:.875rem;"><summary style="font-size:.74rem;font-weight:700;color:#475569;cursor:pointer;">Recent schedule revisions (${governance.history.length})</summary><div style="margin-top:.5rem;">${history.map(item => `<div style="font-size:.7rem;color:#475569;padding:.45rem .55rem;border:1px solid #e2e8f0;border-radius:7px;margin-bottom:.35rem;"><strong>Revision ${Number(item.revisionNumber || 0)}</strong> · ${escHtml(String(item.action || '').replace('_',' '))} · ${fmtDate(item.approvedAt)}<br><span style="color:#64748b;">${escHtml(item.reason || '')}</span></div>`).join('')}</div></details>` : ''}
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
-          <div style="font-size:.68rem;color:#64748b;"><i class="bi bi-shield-lock me-1"></i>Approval creates an immutable revision and audit event.</div>
-          <div class="d-flex gap-2"><button class="pw-btn recovery-close" type="button">Cancel</button><button class="pw-btn" id="previewRecovery" type="button"><i class="bi bi-calculator me-1"></i>Preview Plan</button><button class="pw-btn primary" id="approveRecovery" type="button" disabled><i class="bi bi-check2-circle me-1"></i>Approve Plan</button></div>
+        </div>
+        <div class="recovery-footer">
+          <div id="recoveryGateState" class="recovery-gate-state" role="status" aria-live="polite"><i class="bi bi-shield-lock me-1"></i>No changes yet — check the schedule before approval.</div>
+          <div class="recovery-footer-actions"><button class="pw-btn recovery-close" type="button">Cancel</button><button class="pw-btn" id="previewRecovery" type="button"><i class="bi bi-calendar2-check me-1"></i>Check Schedule</button><button class="pw-btn primary" id="approveRecovery" type="button" disabled><i class="bi bi-check2-circle me-1"></i>Approve Change</button></div>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -2764,9 +2855,10 @@
     const previewButton = modal.querySelector('#previewRecovery');
     const approveButton = modal.querySelector('#approveRecovery');
     const revisedField = modal.querySelector('#revisedDateField');
+    const gateState = modal.querySelector('#recoveryGateState');
     let approvedPreview = null;
 
-    const selectedMode = () => form.querySelector('[name="mode"]:checked')?.value || 'recover';
+    const selectedMode = () => form.querySelector('[name="mode"]:checked')?.value || (commitmentExpired ? 'extend' : 'recover');
     const syncMode = () => {
       const extension = selectedMode() === 'extend';
       revisedField.style.display = extension ? 'block' : 'none';
@@ -2788,13 +2880,23 @@
     const invalidatePreview = () => {
       approvedPreview = null;
       approveButton.disabled = true;
-      if (previewBox.style.display !== 'none') previewBox.innerHTML = '<div style="font-size:.72rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.6rem;"><i class="bi bi-exclamation-circle me-1"></i>Inputs changed. Preview the plan again before approval.</div>';
+      previewBox.innerHTML = '<div style="font-size:.72rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.6rem;"><i class="bi bi-exclamation-circle me-1"></i>The proposed schedule changed. Run the schedule check again before approval.</div>';
+      gateState.classList.remove('is-ready');
+      gateState.innerHTML = '<i class="bi bi-shield-lock me-1"></i>No changes yet — check the revised schedule before approval.';
       syncMode();
+    };
+    const closeRecoveryModal = () => {
+      document.removeEventListener('keydown', handleRecoveryKeydown);
+      modal.remove();
+    };
+    const handleRecoveryKeydown = event => {
+      if (event.key === 'Escape') closeRecoveryModal();
     };
     form.addEventListener('input', invalidatePreview);
     form.addEventListener('change', invalidatePreview);
-    modal.querySelectorAll('.recovery-close').forEach(button => button.addEventListener('click', () => modal.remove()));
-    modal.addEventListener('click', event => { if (event.target === modal) modal.remove(); });
+    modal.querySelectorAll('.recovery-close').forEach(button => button.addEventListener('click', closeRecoveryModal));
+    modal.addEventListener('click', event => { if (event.target === modal) closeRecoveryModal(); });
+    document.addEventListener('keydown', handleRecoveryKeydown);
     syncMode();
 
     previewButton.addEventListener('click', async () => {
@@ -2803,6 +2905,8 @@
       if (!request.workingDays.length) { toast('Select at least one working day', 'error'); return; }
       previewButton.disabled = true;
       previewButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking capacity';
+      gateState.classList.remove('is-ready');
+      gateState.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking live operational capacity…';
       previewBox.style.display = 'block';
       previewBox.innerHTML = '<div style="font-size:.74rem;color:#64748b;padding:.75rem;"><span class="spinner-border spinner-border-sm me-2"></span>Validating remaining work against live capacity…</div>';
       try {
@@ -2815,18 +2919,24 @@
         const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
         approvedPreview = result.viable ? request : null;
         approveButton.disabled = !result.viable;
-        previewBox.innerHTML = `<div style="border:1px solid ${result.viable ? '#bbf7d0' : '#fecaca'};background:${result.viable ? '#f0fdf4' : '#fef2f2'};border-radius:10px;padding:.8rem;">
-          <div class="d-flex justify-content-between align-items-center gap-2"><strong style="font-size:.8rem;color:${result.viable ? '#166534' : '#991b1b'};"><i class="bi ${result.viable ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} me-1"></i>${result.viable ? 'Plan is ready for approval' : 'Plan has blocking conflicts'}</strong><span class="cap-pill">Quality ${Number(result.qualityScore || 0)}%</span></div>
-          <div class="recovery-kpi-grid" style="gap:.5rem;margin-top:.65rem;"><div class="sh-item"><span class="shk">Forecast after</span><span class="shv">${fmtDate(result.forecastAfter)}</span></div><div class="sh-item"><span class="shk">Affected work orders</span><span class="shv">${Number(result.affectedWorkOrders || 0)}</span></div><div class="sh-item"><span class="shk">Scheduled workdays</span><span class="shv">${Number(result.workingDays || 0)}</span></div></div>
-          ${conflicts.length ? `<div style="margin-top:.65rem;font-size:.7rem;color:#991b1b;">${conflicts.slice(0, 5).map(conflict => `<div><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(conflict.message || conflict.type || 'Schedule conflict')}</div>`).join('')}</div>` : ''}
+        gateState.classList.toggle('is-ready', result.viable);
+        gateState.innerHTML = result.viable
+          ? '<i class="bi bi-check-circle-fill me-1"></i>Schedule check passed — approval is now enabled.'
+          : '<i class="bi bi-exclamation-triangle-fill me-1"></i>Resolve the blocking conflicts, then check again.';
+        previewBox.innerHTML = `<div class="recovery-check-result ${result.viable ? 'is-ready' : 'is-blocked'}">
+          <div class="recovery-check-head"><strong><i class="bi ${result.viable ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} me-1"></i>${result.viable ? 'Schedule check passed' : 'Schedule has blocking conflicts'}</strong><span class="recovery-quality">QUALITY ${Number(result.qualityScore || 0)}%</span></div>
+          <div class="recovery-kpi-grid" style="gap:.5rem;margin-top:.65rem;"><div class="recovery-kpi"><span class="recovery-kpi-icon"><i class="bi bi-calendar-event"></i></span><span class="recovery-kpi-label">Forecast after</span><span class="recovery-kpi-value">${fmtDate(result.forecastAfter)}</span></div><div class="recovery-kpi"><span class="recovery-kpi-icon"><i class="bi bi-list-task"></i></span><span class="recovery-kpi-label">Affected work orders</span><span class="recovery-kpi-value">${Number(result.affectedWorkOrders || 0)}</span></div><div class="recovery-kpi"><span class="recovery-kpi-icon"><i class="bi bi-calendar-week"></i></span><span class="recovery-kpi-label">Scheduled workdays</span><span class="recovery-kpi-value">${Number(result.workingDays || 0)}</span></div></div>
+          ${conflicts.length ? `<div class="recovery-check-conflicts">${conflicts.slice(0, 5).map(conflict => `<div><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(conflict.message || conflict.type || 'Schedule conflict')}</div>`).join('')}</div>` : ''}
         </div>`;
       } catch (error) {
         approvedPreview = null;
         approveButton.disabled = true;
+        gateState.classList.remove('is-ready');
+        gateState.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>The schedule could not be cleared for approval.';
         previewBox.innerHTML = `<div style="font-size:.74rem;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.7rem;"><i class="bi bi-x-circle me-1"></i>${escHtml(error.message)}</div>`;
       } finally {
         previewButton.disabled = false;
-        previewButton.innerHTML = '<i class="bi bi-calculator me-1"></i>Preview Plan';
+        previewButton.innerHTML = '<i class="bi bi-calendar2-check me-1"></i>Check Schedule';
       }
     });
 
@@ -2842,7 +2952,7 @@
         });
         const result = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(result.error || 'Failed to approve recovery plan');
-        modal.remove();
+        closeRecoveryModal();
         const notificationNote = result.customerNotification?.status === 'failed' ? ' Customer notification failed; the revision is still recorded.' : '';
         toast(`${result.message || 'Recovery plan approved'}${notificationNote}`, result.customerNotification?.status === 'failed' ? 'warning' : 'success');
         await loadProject();

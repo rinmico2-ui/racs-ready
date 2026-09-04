@@ -85,6 +85,8 @@ const userSchema = new mongoose.Schema({
   currentSessionId: { type: String },
   // Per-user permission overrides — when set, these take precedence over role defaults
   permissions: { type: [String], default: undefined },
+  // Distinguishes "inherit role defaults" from an explicit empty deny-all set.
+  permissionsOverridden: { type: Boolean, default: false },
 });
 
 // computed fields for convenient display

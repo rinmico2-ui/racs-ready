@@ -5,6 +5,9 @@ const admin = require("../controllers/adminController");
 const auth = require("../middleware/authenticate");
 const audit = require("../utils/audit");
 const Inventory = require("../models/Inventory");
+const SecretaryAttendance = require("../models/SecretaryAttendance");
+const SiteSetting = require("../models/SiteSetting");
+const { attendanceDay } = require("../utils/attendanceTime");
 const {
 	listToolUsage,
 	summarizeToolUsage,
@@ -16,6 +19,130 @@ const {
 // only authenticated secretaries should be able to hit these endpoints
 router.use(auth.authenticate);
 router.use(auth.requireRole("secretary"));
+
+// Secretary timekeeping uses the same rotating QR shown by the administrator,
+// but does not inherit technician-only availability, expense, or remittance rules.
+router.get("/attendance/status", async (req, res, next) => {
+	try {
+		const day = attendanceDay();
+		const record = await SecretaryAttendance.findOne({
+			userId: req.user._id,
+			date: day.start,
+		}).lean();
+
+		return res.json({
+			date: day.key,
+			attendanceStatus: record
+				? (record.checkOutTime ? "Checked Out" : record.status)
+				: "Not Checked In",
+			record,
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.post("/attendance/scan", async (req, res, next) => {
+	try {
+		const token = String(req.body.token || "").trim();
+		if (!token) return res.status(400).json({ error: "QR token is required." });
+
+		const now = new Date();
+		const day = attendanceDay(now);
+		const tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
+		const configuredToken = tokenSetting && tokenSetting.value;
+		if (!configuredToken || configuredToken.date !== day.key || configuredToken.token !== token) {
+			return res.status(400).json({ error: "This attendance QR code is invalid or expired." });
+		}
+
+		const existing = await SecretaryAttendance.findOne({ userId: req.user._id, date: day.start });
+		if (existing && existing.checkInTime) {
+			return res.status(409).json({ error: "You have already checked in today." });
+		}
+
+		const status = now > day.lateCutoff ? "Late" : "Present";
+		const record = await SecretaryAttendance.findOneAndUpdate(
+			{ userId: req.user._id, date: day.start },
+			{
+				$set: {
+					status,
+					checkInTime: now,
+					checkOutTime: null,
+					qrVerified: true,
+					method: "qr_scan",
+					token,
+					updatedBy: req.user._id,
+				},
+			},
+			{ upsert: true, returnDocument: "after", runValidators: true },
+		);
+
+		await audit.logEvent({
+			actor: req.user._id,
+			target: req.user._id,
+			action: "attendance.secretary.checkin",
+			module: "secretary",
+			req,
+			entityId: record._id,
+			entityType: "SecretaryAttendance",
+			details: { status, checkInTime: now },
+		}).catch(() => {});
+
+		return res.json({ message: `Checked in as ${status}.`, attendanceStatus: status, record });
+	} catch (error) {
+		if (error && error.code === 11000) {
+			return res.status(409).json({ error: "Attendance has already been recorded for today." });
+		}
+		next(error);
+	}
+});
+
+router.post("/attendance/checkout", async (req, res, next) => {
+	try {
+		const now = new Date();
+		const day = attendanceDay(now);
+		const record = await SecretaryAttendance.findOne({ userId: req.user._id, date: day.start });
+		if (!record || !record.checkInTime || !["Present", "Late"].includes(record.status)) {
+			return res.status(409).json({ error: "Check in before checking out." });
+		}
+		if (record.checkOutTime) {
+			return res.status(409).json({ error: "You have already checked out today." });
+		}
+
+		record.checkOutTime = now;
+		record.updatedBy = req.user._id;
+		await record.save();
+		const hoursWorked = Math.round(((now - record.checkInTime) / 3600000) * 100) / 100;
+
+		await audit.logEvent({
+			actor: req.user._id,
+			target: req.user._id,
+			action: "attendance.secretary.checkout",
+			module: "secretary",
+			req,
+			entityId: record._id,
+			entityType: "SecretaryAttendance",
+			details: { checkOutTime: now, hoursWorked },
+		}).catch(() => {});
+
+		return res.json({ message: "Checked out successfully.", hoursWorked, record });
+	} catch (error) {
+		next(error);
+	}
+});
+
+router.get("/attendance/history", async (req, res, next) => {
+	try {
+		const records = await SecretaryAttendance.find({ userId: req.user._id })
+			.sort({ date: -1 })
+			.limit(90)
+			.select("date status checkInTime checkOutTime qrVerified method remarks")
+			.lean();
+		return res.json({ records, count: records.length });
+	} catch (error) {
+		next(error);
+	}
+});
 
 // Dashboard KPI summary (counts used by secretary dashboard)
 router.get("/analytics/summary", admin.analyticsSummary);

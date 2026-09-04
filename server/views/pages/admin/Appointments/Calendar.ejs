@@ -712,6 +712,7 @@
         allOrders: [],
         selectedDateKey: toDateKey(new Date()),
         activeFilters: new Set(),
+        showBookings: true,
         showOrders: true,
         schedules: {},
         workingDaysMap: {},
@@ -767,7 +768,12 @@
         return TECH_COLORS[0];
       }
 
-      function toDateKey(input) { const d = new Date(input); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+      function toDateKey(input) {
+        if (!input) return "";
+        var d = new Date(input);
+        if (isNaN(d.getTime())) return "";
+        return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+      }
       function toPrettyDate(input) { return new Date(input).toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" }); }
       function escHtml(value) { return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]); }
       function prettyStatus(value) { return String(value || "pending").replace(/[_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
@@ -885,6 +891,7 @@
         state.activeFilters.clear();
         state.selectedTechIds = [];
         state.query = "";
+        state.showBookings = true;
         state.showOrders = true;
         if (dom.searchInput) dom.searchInput.value = "";
         if (dom.searchWrap) dom.searchWrap.classList.remove("has-value");
@@ -1061,6 +1068,7 @@
         if (!dom.filterChips) return;
         const counts = {};
         state.allAppointments.forEach(a => { const s = String(a.status || "pending").toLowerCase(); counts[s] = (counts[s] || 0) + 1; });
+        const bookingCount = state.allAppointments.length;
         const orderCount = state.allOrders.length;
 
         let html = '<span class="filter-label">Filter</span>';
@@ -1070,10 +1078,11 @@
           html += `<button class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`;
         });
 
+        html += `<button class="cal-filter-chip ${state.showBookings ? 'active' : ''}" id="calToggleBookings"><i class="bi bi-calendar2-check"></i> Bookings<span class="chip-count">${bookingCount}</span></button>`;
         html += `<div class="cal-filter-divider"></div>`;
         html += `<button class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders"><i class="bi bi-truck"></i> Orders<span class="chip-count">${orderCount}</span></button>`;
 
-        const hasFilters = state.activeFilters.size > 0 || state.selectedTechIds.length > 0 || Boolean(state.query) || !state.showOrders;
+        const hasFilters = state.activeFilters.size > 0 || state.selectedTechIds.length > 0 || Boolean(state.query) || !state.showBookings || !state.showOrders;
         if (hasFilters) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Reset all</button>`;
         html += `<span class="cal-filter-summary"><i class="bi bi-eye"></i>${state.appointments.length + (state.showOrders ? state.orders.length : 0)} visible</span>`;
 
@@ -1095,6 +1104,8 @@
         dom.filterChips.querySelectorAll('.cal-filter-chip[data-status]').forEach(chip => {
           chip.addEventListener('click', () => { const s = chip.dataset.status; if (state.activeFilters.has(s)) state.activeFilters.delete(s); else state.activeFilters.add(s); applyFilters(); buildFilterBar(); });
         });
+        const toggleBookingsBtn = dom.filterChips.querySelector('#calToggleBookings');
+        if (toggleBookingsBtn) toggleBookingsBtn.addEventListener('click', () => { state.showBookings = !state.showBookings; applyFilters(); buildFilterBar(); });
         const toggleOrdersBtn = dom.filterChips.querySelector('#calToggleOrders');
         if (toggleOrdersBtn) toggleOrdersBtn.addEventListener('click', () => { state.showOrders = !state.showOrders; applyFilters(); buildFilterBar(); });
         const clearBtn = dom.filterChips.querySelector('#calClearFilters');
@@ -1124,12 +1135,12 @@
           });
         }
 
-        state.appointments = filtered;
+        state.appointments = state.showBookings ? filtered : [];
         state.orders = filteredOrders;
         calendar.removeAllEvents();
 
         // Add appointment events
-        if (filtered.length > 0) {
+        if (state.showBookings && filtered.length > 0) {
           calendar.addEventSource(filtered.map(a => {
             const id = String(a._id || a.id || "");
             const s = String(a.status || "pending").toLowerCase();
@@ -1177,12 +1188,15 @@
 
       /* ── Sidebar List ───────────────────────────────────────────── */
       function renderDateList() {
-        const dayItems = state.appointments.filter(a => toDateKey(a.bookingDate || a.date || a.start || new Date()) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
-        const orderItems = state.showOrders ? state.orders.filter(o => {
+        const source = (state.appointments.length > 0 ? state.appointments : state.allAppointments);
+        const dayItems = source.filter(a => toDateKey(a.bookingDate || a.date || a.start) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
+        const orderSource = (state.orders.length > 0 ? state.orders : state.allOrders);
+        const orderItems = state.showOrders ? orderSource.filter(o => {
           const d = orderScheduledDate(o);
           return d && toDateKey(d) === state.selectedDateKey;
         }).sort((a, b) => orderEventStart(a).getTime() - orderEventStart(b).getTime()) : [];
         const totalItems = dayItems.length + orderItems.length;
+        console.log("[Calendar] renderDateList:", state.selectedDateKey, "→", dayItems.length, "bookings,", orderItems.length, "orders (source:", source.length, "appts,", orderSource.length, "orders)");
 
         dom.selectedDateLabel.textContent = toPrettyDate(state.selectedDateKey);
         dom.selectedDateSub.textContent = totalItems > 0 ? "Bookings and orders scheduled for this date" : "No scheduled work for this date";
@@ -1331,10 +1345,17 @@
         eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
 
         dayCellClassNames(info) { return toDateKey(info.date) === state.selectedDateKey ? ["cal-selected-day"] : []; },
-        dateClick(info) { state.selectedDateKey = toDateKey(info.date); calendar.rerenderDates(); renderDateList(); },
+        dateClick(info) {
+          state.selectedDateKey = toDateKey(info.date);
+          console.log("[Calendar] dateClick:", state.selectedDateKey, "appointments:", state.allAppointments.length, "filtered:", state.appointments.length);
+          if (state.allAppointments.length > 0) {
+            const sample = state.allAppointments[0];
+            console.log("[Calendar] sample bookingDate:", sample.bookingDate, "→ key:", toDateKey(sample.bookingDate));
+          }
+          renderDateList();
+        },
         eventClick(info) {
           state.selectedDateKey = toDateKey(info.event.start || new Date());
-          calendar.rerenderDates();
           renderDateList();
           const id = info.event.id;
           const type = info.event.extendedProps.type || 'appt';
@@ -1402,8 +1423,10 @@
               state.workingDaysMap = computeWorkingDaysMap(schedules);
               state.allAppointments = appts;
               state.allOrders = orders.filter(o => o.status !== "cancelled" && o.status !== "completed" && orderScheduledDate(o));
+              console.log("[Calendar] loaded", state.allAppointments.length, "appointments,", state.allOrders.length, "orders for range", start, "to", end);
               applyFilters();
               buildFilterBar();
+              renderDateList();
             } catch (err) {
               console.error(err);
               dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load appointments.</div>';

@@ -3663,9 +3663,12 @@
       const d = await r.json();
       const byPid = {};
       (d.items || []).forEach(item => {
-        const pid = item.projectId?._id || item.projectId;
-        if (!byPid[pid]) byPid[pid] = [];
-        byPid[pid].push(item);
+        const projectIds = [item.projectId, ...(item.projectIds || [])]
+          .map(project => project?._id || project).filter(Boolean);
+        [...new Set(projectIds.map(String))].forEach(pid => {
+          if (!byPid[pid]) byPid[pid] = [];
+          byPid[pid].push(item);
+        });
       });
       placeholders.forEach(el => {
         const pid = el.id.replace('pwEq-', '');
@@ -3677,7 +3680,7 @@
 
   function equipmentHtml(pid, items, tech) {
     if (!items.length) {
-      return `<div class="pw-eq"><div class="pw-eq-head"><div class="t"><i class="bi bi-tools"></i> Equipment</div></div><div class="pw-eq-empty">No equipment checked out yet. <button class="pw-eq-btn mt-2" onclick="pwRequestEquipment('${pid}')"><i class="bi bi-plus-lg"></i> Request Equipment</button></div></div>`;
+      return `<div class="pw-eq"><div class="pw-eq-head"><div class="t"><i class="bi bi-tools"></i> Shared Daily Kit</div></div><div class="pw-eq-empty">Project resources are prepared with today's bookings and installation orders.<div class="d-flex gap-2 justify-content-center mt-2"><button class="pw-eq-btn success" onclick="openDailyKitModal()"><i class="bi bi-briefcase"></i> Open Daily Preparation</button><button class="pw-eq-btn" onclick="pwRequestEquipment('${pid}')"><i class="bi bi-plus-lg"></i> Add Item</button></div></div></div>`;
     }
     const checkedOut = items.filter(i => i.status === 'checked_out' || i.status === 'in_use');
     const returned = items.filter(i => i.status === 'returned');
@@ -3689,7 +3692,7 @@
 
     const eqItems = checkedOut.length ? checkedOut : (returned.length ? returned : items);
 
-    let html = `<div class="pw-eq"><div class="pw-eq-head"><div class="t"><i class="bi bi-tools"></i> Equipment</div><span class="badge ${topStatus}">${topLabel}</span></div><div class="pw-eq-list">`;
+    let html = `<div class="pw-eq"><div class="pw-eq-head"><div class="t"><i class="bi bi-tools"></i> Shared Daily Kit</div><span class="badge ${topStatus}">${topLabel}</span></div><div class="pw-eq-list">`;
     eqItems.forEach(item => {
       const st = item.status;
       const label = { reserved:'Ready', checked_out:'Issued', in_use:'In Use', returned:'Returned', damaged:'Damaged', lost:'Lost' }[st] || st;
@@ -3712,11 +3715,14 @@
       html += `</div></div>`;
     }
     // Action buttons
-    if (checkedOut.length) {
+    const independentlyCheckedOut = checkedOut.filter(item => !item.managedByDailyKit);
+    if (independentlyCheckedOut.length) {
       html += `<div class="pw-eq-actions">
         <button class="pw-eq-btn success" onclick="pwReturnEquipment('${pid}')"><i class="bi bi-box2-check"></i> Return All</button>
         <button class="pw-eq-btn danger" onclick="pwDamageEquipment('${pid}')"><i class="bi bi-exclamation-triangle"></i> Report Damage</button>
       </div>`;
+    } else if (checkedOut.length) {
+      html += `<div class="pw-eq-actions"><button class="pw-eq-btn success" onclick="openDailyKitModal()"><i class="bi bi-briefcase"></i> Managed in Daily Preparation</button><button class="pw-eq-btn danger" onclick="pwDamageEquipment('${pid}')"><i class="bi bi-exclamation-triangle"></i> Report Damage</button></div>`;
     } else if (!items.length || items.every(i => i.status === 'returned' || i.status === 'damaged')) {
       html += `<div class="pw-eq-actions">
         <button class="pw-eq-btn" onclick="pwRequestEquipment('${pid}')"><i class="bi bi-plus-lg"></i> Request Equipment</button>
@@ -3737,7 +3743,7 @@
       overlay.innerHTML = `
         <div class="pw-modal">
           <h5><i class="bi bi-tools me-2" style="color:var(--pw-brand);"></i>Request Equipment</h5>
-          <p style="font-size:.78rem;color:var(--pw-muted);margin-bottom:.75rem;">Select tools and consumables needed for today.</p>
+          <p style="font-size:.78rem;color:var(--pw-muted);margin-bottom:.75rem;">Add project tools or materials to today's shared Daily Preparation.</p>
           <div style="max-height:300px;overflow-y:auto;border:1px solid var(--pw-line-2);border-radius:var(--pw-radius-xs);padding:.35rem;" id="eqToolList">
             ${td.tools.map(t => `
               <label style="display:flex;align-items:center;gap:.5rem;padding:.3rem .4rem;cursor:pointer;border-radius:4px;font-size:.78rem;transition:background .15s;" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
@@ -3758,8 +3764,9 @@
         if (!items.length) { toast('Select at least one item', 'error'); return; }
         try {
           await api(`/api/projects/${pid}/equipment/request`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ items }) });
-          toast('Equipment requested — awaiting issue from admin');
+          toast('Item added to shared Daily Preparation');
           overlay.remove();
+          if (typeof openDailyKitModal === 'function') openDailyKitModal();
           window.__loadProjectWork();
         } catch (e) { toast(e.message, 'error'); }
       });
@@ -3772,7 +3779,7 @@
       const r = await fetch(`/api/projects/${pid}/equipment`);
       if (!r.ok) throw new Error('Failed to load');
       const d = await r.json();
-      const active = d.assignments.filter(a => a.status === 'checked_out' || a.status === 'in_use');
+      const active = d.assignments.filter(a => (a.status === 'checked_out' || a.status === 'in_use') && !a.managedByDailyKit);
       if (!active.length) { toast('No equipment to return', 'error'); return; }
 
       const overlay = document.createElement('div'); overlay.className = 'pw-modal-overlay';

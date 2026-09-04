@@ -17,6 +17,27 @@ const serviceToolUsageSchema = new mongoose.Schema(
       index: true,
       set: (v) => (v === "" || v === null ? undefined : v),
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      required: false,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
+    workOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "WorkOrder",
+      required: false,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
+    dailyAssignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DailyAssignment",
+      required: false,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
     serviceItemId: {
       type: mongoose.Schema.Types.ObjectId,
       index: true,
@@ -103,6 +124,7 @@ const serviceToolUsageSchema = new mongoose.Schema(
 
 serviceToolUsageSchema.index({ bookingId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ orderId: 1, usedAt: -1 });
+serviceToolUsageSchema.index({ projectId: 1, workOrderId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ bookingId: 1, serviceItemId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ technicianId: 1, usedAt: -1 });
 

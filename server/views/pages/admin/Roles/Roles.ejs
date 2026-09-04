@@ -22,6 +22,7 @@
     }
     .role-card:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(15, 23, 42, .1); }
     .role-card.active { border-color: var(--dash-primary) !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, .13) !important; }
+    .role-card.locked { background: #f8fafc; }
     .role-card .role-icon {
       width: 56px; height: 56px; border-radius: 18px;
       display: flex; align-items: center; justify-content: center;
@@ -130,13 +131,18 @@
       </div>
     </div>
 
+    <div class="alert alert-primary border-0 shadow-sm d-flex gap-3 align-items-start" role="status">
+      <i class="bi bi-shield-lock-fill fs-4"></i>
+      <div><strong>Server-enforced access control</strong><div class="small mt-1">Changes apply to protected pages and APIs on the employee's next request. Admin and customer system profiles are immutable; secretary and technician access can be governed here.</div></div>
+    </div>
+
     <!-- Role Cards -->
     <div class="row g-3 mb-3" id="roleCards">
       <% const colors = { admin: ['#2563eb','#1d4ed8'], secretary: ['#14b8a6','#0f766e'], technician: ['#f59e0b','#d97706'], customer: ['#8b5cf6','#6d28d9'] }; %>
       <% const icons  = { admin: 'bi-person-fill-gear', secretary: 'bi-person-badge', technician: 'bi-tools', customer: 'bi-person' }; %>
       <% (roles || []).forEach(function(r) { %>
         <div class="col-12 col-md-6 col-xl-3">
-          <div class="role-card dash-card h-100" data-role-id="<%= r._id %>" data-role-name="<%= r.name %>">
+          <div class="role-card dash-card h-100 <%= ['admin','customer'].includes(r.name) ? 'locked' : '' %>" data-role-id="<%= r._id %>" data-role-name="<%= r.name %>" data-role-editable="<%= ['secretary','technician'].includes(r.name) ? 'true' : 'false' %>">
             <div class="d-flex align-items-start gap-3">
               <div class="kpi-icon" style="background: linear-gradient(135deg, <%= (colors[r.name]||['#6b7280','#4b5563'])[0] %>, <%= (colors[r.name]||['#6b7280','#4b5563'])[1] %>)">
                 <i class="bi <%= icons[r.name] || 'bi-person' %>"></i>
@@ -177,6 +183,11 @@
             </div>
           </div>
           <div class="card-body p-3">
+            <div id="roleGovernance" class="rounded-3 border bg-light p-3 mb-3">
+              <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><label class="form-label small fw-bold mb-0" for="roleChangeReason">Change reason</label><span class="badge text-bg-secondary" id="roleRevisionBadge">Revision --</span></div>
+              <input class="form-control form-control-sm" id="roleChangeReason" maxlength="500" placeholder="Required: explain why access is changing (minimum 8 characters)">
+              <div class="small text-muted mt-2" id="rolePolicyNotice">Select a role to review its governance status.</div>
+            </div>
             <div id="permMatrix" style="max-height: 520px; overflow-y: auto;"></div>
           </div>
         </div>
@@ -211,6 +222,11 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body" id="userPermBody"></div>
+          <div class="px-3 pb-3">
+            <label class="form-label small fw-bold" for="userChangeReason">Change reason</label>
+            <textarea class="form-control form-control-sm" id="userChangeReason" rows="2" maxlength="500" placeholder="Required for the audit trail (minimum 8 characters)"></textarea>
+            <div class="form-text" id="userOverrideNotice">Saving creates an explicit user-level override. An empty selection intentionally denies all configurable permissions.</div>
+          </div>
           <div class="modal-footer">
             <button class="btn btn-outline-secondary btn-sm" id="btnResetUserPerms"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Role Defaults</button>
             <button class="btn btn-primary btn-sm" id="btnSaveUserPerms"><i class="bi bi-floppy me-1"></i>Save Overrides</button>
@@ -229,13 +245,17 @@
   "use strict";
 
   /* ── Server-injected data ─────────────────────────────── */
-  const ROLES   = <%- JSON.stringify(roles || []) %>;
-  const CATALOG = <%- JSON.stringify(catalog || []) %>;
+  const ROLES   = <%- JSON.stringify(roles || []).replace(/</g, '\\u003c') %>;
+  const CATALOG = <%- JSON.stringify(catalog || []).replace(/</g, '\\u003c') %>;
   const API     = "/api/admin";
 
   let selectedRoleId   = null;
   let selectedRoleName = null;
+  let selectedRoleRevision = null;
+  let selectedRoleEditable = false;
+  let selectedAllowedPermissions = [];
   let userPermUserId   = null;
+  let userPermHasOverride = false;
 
   /* ── Toast helper ─────────────────────────────────────── */
   function toast(msg, isError) {
@@ -247,6 +267,12 @@
     setTimeout(() => el.remove(), 3200);
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (char) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char];
+    });
+  }
+
   /* ── Role colors for avatars ──────────────────────────── */
   function roleGradient(name) {
     const c = { admin: ['#2563eb','#1d4ed8'], secretary: ['#14b8a6','#0f766e'], technician: ['#f59e0b','#d97706'], customer: ['#8b5cf6','#6d28d9'] }[name];
@@ -256,14 +282,18 @@
   }
 
   /* ── Permission matrix builder ────────────────────────── */
-  function renderPermMatrix(activePerms, containerId, prefix) {
+  function renderPermMatrix(activePerms, containerId, prefix, allowedPerms) {
     const container = document.getElementById(containerId);
     container.innerHTML = "";
     CATALOG.forEach(function (group) {
+      const visiblePermissions = group.permissions.filter(function (permission) {
+        return !Array.isArray(allowedPerms) || allowedPerms.includes(permission.key);
+      });
+      if (!visiblePermissions.length) return;
       const div = document.createElement("div");
       div.className = "perm-group";
       let html = '<div class="perm-group-title">' + group.group + "</div>";
-      group.permissions.forEach(function (p) {
+      visiblePermissions.forEach(function (p) {
         const checked = activePerms.includes(p.key) ? "checked" : "";
         const id = prefix + "-" + p.key.replace(/\./g, "-");
         html +=
@@ -296,6 +326,7 @@
     card.classList.add("active");
     selectedRoleId   = card.dataset.roleId;
     selectedRoleName = card.dataset.roleName;
+    selectedRoleEditable = card.dataset.roleEditable === "true";
     loadRoleDetails(selectedRoleId);
   });
 
@@ -305,11 +336,22 @@
       var data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Failed");
       var role = data.role;
+      selectedRoleRevision = Number(role.revision || 1);
+      selectedRoleEditable = ["secretary", "technician"].includes(role.name);
+      selectedAllowedPermissions = role.allowedPermissions || [];
 
       // permission panel
       document.getElementById("permPanelTitle").textContent = role.label || role.name;
       document.getElementById("permPanelDesc").textContent  = role.description || "Configure permissions for this role.";
-      renderPermMatrix(role.permissions || [], "permMatrix", "rp");
+      renderPermMatrix(role.permissions || [], "permMatrix", "rp", selectedAllowedPermissions);
+      document.querySelectorAll("#permMatrix input[data-perm]").forEach(function (input) { input.disabled = !selectedRoleEditable; });
+      ["btnSelectAll", "btnDeselectAll", "btnSavePerms"].forEach(function (id) { document.getElementById(id).disabled = !selectedRoleEditable; });
+      document.getElementById("roleChangeReason").disabled = !selectedRoleEditable;
+      document.getElementById("roleChangeReason").value = "";
+      document.getElementById("roleRevisionBadge").textContent = "Revision " + selectedRoleRevision;
+      document.getElementById("rolePolicyNotice").innerHTML = selectedRoleEditable
+        ? '<i class="bi bi-info-circle me-1"></i>Changes require a reason and are protected against concurrent edits.'
+        : '<i class="bi bi-lock-fill me-1"></i>This system access profile is immutable.';
       document.getElementById("permPanel").style.display = "";
 
       // users panel
@@ -332,20 +374,21 @@
     } else {
       slice.forEach(function (u) {
         var initials = ((u.firstName || "")[0] || "") + ((u.lastName || "")[0] || "");
-        var hasCustom = Array.isArray(u.permissions) && u.permissions.length > 0;
+        var hasCustom = u.permissionsOverridden === true || (Array.isArray(u.permissions) && u.permissions.length > 0);
         var fullName = ((u.firstName || "") + " " + (u.lastName || "")).trim();
         var bg = roleGradient(selectedRoleName);
+        var canOverride = ["secretary", "technician"].includes(u.role);
         html +=
           '<div class="user-row" data-user-id="' + u._id + '">' +
-            '<div class="user-avatar" style="background: ' + bg + '">' + (initials || '<i class="bi bi-person"></i>') + '</div>' +
+            '<div class="user-avatar" style="background: ' + bg + '">' + (escapeHtml(initials) || '<i class="bi bi-person"></i>') + '</div>' +
             '<div class="flex-grow-1 min-width-0">' +
-              '<div class="user-name text-truncate">' + fullName + '</div>' +
-              '<div class="user-email text-truncate text-micro">' + (u.email || "") + '</div>' +
+              '<div class="user-name text-truncate">' + escapeHtml(fullName) + '</div>' +
+              '<div class="user-email text-truncate text-micro">' + escapeHtml(u.email || "") + '</div>' +
             '</div>' +
             '<span class="user-badge ' + (hasCustom ? 'badge-custom' : 'badge-default') + ' me-2">' +
-              (hasCustom ? 'Custom' : 'Default') +
+              (hasCustom ? ((u.permissions || []).length ? 'Custom' : 'Deny all') : 'Inherited') +
             '</span>' +
-            '<button class="btn btn-sm btn-outline-primary btn-edit-user-perms" data-user-id="' + u._id + '" data-user-name="' + fullName + '" data-user-perms=\'' + JSON.stringify(u.permissions || []) + '\' title="Edit permissions">' +
+            '<button class="btn btn-sm btn-outline-primary btn-edit-user-perms" ' + (canOverride ? '' : 'disabled ') + 'data-user-id="' + u._id + '" data-user-name="' + escapeHtml(fullName) + '" data-user-override="' + (hasCustom ? 'true' : 'false') + '" data-user-perms=\'' + JSON.stringify(u.permissions || []) + '\' title="Edit permissions">' +
               '<i class="bi bi-sliders"></i>' +
             '</button>' +
           '</div>';
@@ -416,17 +459,23 @@
 
   /* ── Save role permissions ────────────────────────────── */
   document.getElementById("btnSavePerms").addEventListener("click", async function () {
-    if (!selectedRoleId) return;
+    if (!selectedRoleId || !selectedRoleEditable) return;
     var perms = getCheckedPerms("permMatrix");
+    var changeReason = document.getElementById("roleChangeReason").value.trim();
+    if (changeReason.length < 8) return toast("Enter a change reason of at least 8 characters", true);
+    if (!confirm("Apply this permission policy now? Affected users will receive it on their next request.")) return;
     try {
       var resp = await fetch(API + "/roles/" + selectedRoleId, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: perms }),
+        body: JSON.stringify({ permissions: perms, revision: selectedRoleRevision, changeReason: changeReason }),
       });
       var data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Failed to save");
       toast("Permissions saved for " + (data.role.label || data.role.name));
+      selectedRoleRevision = Number(data.role.revision || selectedRoleRevision + 1);
+      document.getElementById("roleRevisionBadge").textContent = "Revision " + selectedRoleRevision;
+      document.getElementById("roleChangeReason").value = "";
       // update the card permission count
       var countEl = document.getElementById('role-' + selectedRoleId + '-perms');
       if (countEl) {
@@ -444,12 +493,17 @@
     userPermUserId = btn.dataset.userId;
     var userName   = btn.dataset.userName;
     var userPerms  = JSON.parse(btn.dataset.userPerms || "[]");
+    userPermHasOverride = btn.dataset.userOverride === "true";
 
     document.getElementById("userPermModalTitle").textContent = "Permissions — " + userName.trim();
 
     // If user has custom overrides, use those; otherwise use the role's current perms as starting point
-    var permsToRender = userPerms.length > 0 ? userPerms : getCheckedPerms("permMatrix");
-    renderPermMatrix(permsToRender, "userPermBody", "up");
+    var permsToRender = userPermHasOverride ? userPerms : getCheckedPerms("permMatrix");
+    renderPermMatrix(permsToRender, "userPermBody", "up", selectedAllowedPermissions);
+    document.getElementById("userChangeReason").value = "";
+    document.getElementById("userOverrideNotice").textContent = userPermHasOverride
+      ? "This employee currently has an explicit override. An empty selection means deny all."
+      : "This employee currently inherits the role policy. Saving creates an explicit override.";
 
     var modal = new bootstrap.Modal(document.getElementById("userPermModal"));
     modal.show();
@@ -459,11 +513,13 @@
   document.getElementById("btnSaveUserPerms").addEventListener("click", async function () {
     if (!userPermUserId) return;
     var perms = getCheckedPerms("userPermBody");
+    var changeReason = document.getElementById("userChangeReason").value.trim();
+    if (changeReason.length < 8) return toast("Enter a change reason of at least 8 characters", true);
     try {
       var resp = await fetch(API + "/users/" + userPermUserId + "/permissions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: perms }),
+        body: JSON.stringify({ permissions: perms, changeReason: changeReason }),
       });
       var data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Failed to save");
@@ -479,10 +535,14 @@
   /* ── Reset user to role defaults ──────────────────────── */
   document.getElementById("btnResetUserPerms").addEventListener("click", async function () {
     if (!userPermUserId) return;
+    var changeReason = document.getElementById("userChangeReason").value.trim();
+    if (changeReason.length < 8) return toast("Enter a change reason of at least 8 characters", true);
     if (!confirm("Reset this user to the role's default permissions?")) return;
     try {
       var resp = await fetch(API + "/users/" + userPermUserId + "/permissions", {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changeReason: changeReason }),
       });
       var data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Failed");

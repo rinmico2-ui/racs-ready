@@ -34,6 +34,15 @@ test("extension must move the approved commitment forward", () => {
   }, project, new Date("2026-08-30T00:00:00.000Z")), /later than the current approved/);
 });
 
+test("expired commitments require a governed extension", () => {
+  assert.throws(() => normalizeRecoveryRequest({
+    mode: "recover",
+    reasonCategory: "technical_complexity",
+    reason: "Additional field work remains after the approved completion date.",
+    recoveryStartDate: "2026-09-07",
+  }, project, new Date("2026-09-06T00:00:00.000Z")), /already passed.*Approve a new completion date/);
+});
+
 test("daily-summary replacement preserves historical days", () => {
   const merged = mergeDailySummaries(
     [{ date: "2026-08-29", allocations: [1] }, { date: "2026-09-02", allocations: [2] }],

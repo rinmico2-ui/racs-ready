@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { isAccountEnabled } = require("./accountState");
+const { getEffectivePermissions, requiredPermissionForRequest } = require("./requirePermission");
 
 const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
 const ROTATE_THRESHOLD_MS =
@@ -97,6 +98,18 @@ function refreshTokenIfNeeded(authResult, res) {
   });
 }
 
+async function attachPermissionContext(user, req, res) {
+  const permissions = await getEffectivePermissions(user);
+  const permissionSet = new Set(permissions);
+  res.locals.effectivePermissions = permissions;
+  res.locals.can = (permission) => user.role === "admin" || permissionSet.has(permission);
+  const requiredPermission = requiredPermissionForRequest(user, req);
+  return {
+    allowed: !requiredPermission || user.role === "admin" || permissionSet.has(requiredPermission),
+    requiredPermission,
+  };
+}
+
 module.exports = {
   requireLogin: async function (req, res, next) {
     const authResult = await getUserFromRequest(req);
@@ -113,6 +126,10 @@ module.exports = {
     refreshTokenIfNeeded(authResult, res);
     req.user = authResult.user;
     res.locals.user = authResult.user;
+    const authorization = await attachPermissionContext(authResult.user, req, res);
+    if (!authorization.allowed) {
+      return res.redirect(`/access-denied?required=${encodeURIComponent(authorization.requiredPermission)}`);
+    }
     next();
   },
 
@@ -141,6 +158,10 @@ module.exports = {
       refreshTokenIfNeeded(authResult, res);
       req.user = user;
       res.locals.user = user;
+      const authorization = await attachPermissionContext(user, req, res);
+      if (!authorization.allowed) {
+        return res.redirect(`/access-denied?required=${encodeURIComponent(authorization.requiredPermission)}`);
+      }
       next();
     };
   },

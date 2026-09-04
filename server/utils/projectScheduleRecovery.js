@@ -80,6 +80,9 @@ function normalizeRecoveryRequest(body = {}, project = {}, now = new Date()) {
   if (!commitment) throw Object.assign(new Error("The project has no committed completion date to recover or extend."), { status: 409 });
   const revisedCompletionDate = mode === "extend" ? startOfDay(body.revisedCompletionDate) : commitment;
   if (!revisedCompletionDate) throw Object.assign(new Error("A valid revised completion date is required."), { status: 400 });
+  if (mode === "recover" && startOfDay(commitment) < recoveryStartDate) {
+    throw Object.assign(new Error("The approved completion date has already passed. Approve a new completion date instead of attempting recovery against an expired commitment."), { status: 409 });
+  }
   if (mode === "extend" && revisedCompletionDate <= startOfDay(commitment)) {
     throw Object.assign(new Error("An extension date must be later than the current approved completion date."), { status: 400 });
   }

@@ -1,0 +1,119 @@
+<% const isEdit = !!technician; %>
+<div class="container-fluid py-4 px-4 inventory-premium" style="max-width:960px;">
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-3">
+      <a href="/admin/technicians" class="btn btn-light border shadow-sm" style="width:38px;height:38px;border-radius:10px;padding:0;display:flex;align-items:center;justify-content:center;"><i class="bi bi-arrow-left"></i></a>
+      <div>
+        <h5 class="mb-0 fw-bold"><%= isEdit ? 'Edit Technician' : 'Add Technician' %></h5>
+        <p class="text-muted small mb-0"><%= isEdit ? 'Update technician information' : 'Fill in the details to add a new technician' %></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card border-0 shadow-sm" style="border-radius:16px;">
+    <div class="card-body p-4">
+      <form id="techForm" novalidate>
+        <!-- Basic Information -->
+        <div class="mb-4">
+          <h6 class="fw-bold text-muted small text-uppercase mb-3" style="letter-spacing:0.05em;"><i class="bi bi-person me-1"></i> Basic Information</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Full Name *</label>
+              <input type="text" class="form-control" id="techName" name="name" required placeholder="e.g. Juan Dela Cruz" value="<%= isEdit ? (technician.name || '') : '' %>">
+              <div class="invalid-feedback">Name is required.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Email</label>
+              <input type="email" class="form-control" id="techEmail" name="userEmail" placeholder="technician@example.com" value="<%= isEdit ? (technician.userEmail || '') : '' %>">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Phone</label>
+              <input type="text" class="form-control" id="techPhone" name="phone" placeholder="09XXXXXXXXX" value="<%= isEdit ? (technician.phone || '') : '' %>">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Status</label>
+              <select class="form-select" id="techActive" name="active">
+                <option value="true" <%= isEdit && technician.active !== false ? 'selected' : (!isEdit ? 'selected' : '') %>>Active</option>
+                <option value="false" <%= isEdit && technician.active === false ? 'selected' : '' %>>Inactive</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div class="mb-4">
+          <h6 class="fw-bold text-muted small text-uppercase mb-3" style="letter-spacing:0.05em;"><i class="bi bi-geo-alt me-1"></i> Location</h6>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Address / Location</label>
+              <input type="text" class="form-control" id="techLocation" name="locationText" placeholder="e.g. Quezon City, Metro Manila" value="<%= isEdit ? (technician.locationText || '') : '' %>">
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+          <a href="/admin/technicians" class="btn btn-light border px-4" style="border-radius:10px;font-weight:600;">Cancel</a>
+          <button type="submit" class="btn btn-primary px-4" style="border-radius:10px;font-weight:600;background:#2563eb;border-color:#2563eb;" id="btnSubmit">
+            <i class="bi bi-check-lg me-1"></i><%= isEdit ? 'Save Changes' : 'Add Technician' %>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .form-control, .form-select { border-radius:10px; border:1.5px solid #e2e8f0; padding:10px 14px; font-size:0.88rem; transition: all 0.2s; }
+  .form-control:focus, .form-select:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.1); }
+  .form-label { font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; color:#64748b; margin-bottom:6px; }
+</style>
+
+<script>
+(function() {
+  const isEdit = <%= isEdit ? 'true' : 'false' %>;
+  const techId = '<%= isEdit && technician ? technician._id : "" %>';
+  const form = document.getElementById('techForm');
+  const btnSubmit = document.getElementById('btnSubmit');
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    form.classList.add('was-validated');
+
+    const name = document.getElementById('techName').value.trim();
+    if (!name) { document.getElementById('techName').focus(); return; }
+
+    const payload = {
+      name: name,
+      userEmail: document.getElementById('techEmail').value.trim() || undefined,
+      phone: document.getElementById('techPhone').value.trim() || undefined,
+      active: document.getElementById('techActive').value === 'true',
+      locationText: document.getElementById('techLocation').value.trim() || undefined,
+    };
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+    try {
+      const url = isEdit ? '/api/admin/technicians/' + techId : '/api/admin/technicians';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save technician');
+
+      window.location.href = '/admin/technicians';
+    } catch(err) {
+      alert(err.message || 'Something went wrong');
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (isEdit ? 'Save Changes' : 'Add Technician');
+    }
+  });
+})();
+</script>

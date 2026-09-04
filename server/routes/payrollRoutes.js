@@ -7,8 +7,10 @@ const Payroll = require("../models/Payroll");
 const User = require("../models/User");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
+const SecretaryAttendance = require("../models/SecretaryAttendance");
 const EmployeeCompensation = require("../models/EmployeeCompensation");
 const { createNotification } = require("../utils/notify");
+const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
 const {
   calculateBasicPay,
   calculateOvertimePay,
@@ -181,13 +183,25 @@ async function attendanceFor(employeeId, periodStart, periodEnd) {
     manualEntries: 0,
     unverifiedEntries: 0,
   };
-  const technician = await Technician.findOne({ user: employeeId }).select("_id").lean();
-  if (!technician) return summary;
-
-  const records = await TechnicianAttendance.find({
-    technicianId: technician._id,
-    date: { $gte: periodStart, $lte: periodEnd },
-  }).select("status checkInTime checkOutTime qrVerified method").lean();
+  const [technician, employee] = await Promise.all([
+    Technician.findOne({ user: employeeId }).select("_id").lean(),
+    User.findById(employeeId).select("role").lean(),
+  ]);
+  const attendanceWindow = attendanceRange(periodStart, periodEnd);
+  let records = [];
+  if (technician) {
+    records = await TechnicianAttendance.find({
+      technicianId: technician._id,
+      date: { $gte: attendanceWindow.start, $lte: attendanceWindow.end },
+    }).select("status checkInTime checkOutTime qrVerified method").lean();
+  } else if (employee?.role === "secretary") {
+    records = await SecretaryAttendance.find({
+      userId: employeeId,
+      date: { $gte: attendanceWindow.start, $lte: attendanceWindow.end },
+    }).select("status checkInTime checkOutTime qrVerified method").lean();
+  } else {
+    return summary;
+  }
 
   records.forEach((record) => {
     summary.recordedDays += 1;
@@ -300,9 +314,6 @@ router.post("/compensation", requireAdmin, async (req, res, next) => {
       active: { $ne: false },
     }).lean();
     if (!emp) return res.status(404).json({ error: "Employee not found." });
-    if (emp.role === "secretary" && payType !== "monthly") {
-      return res.status(400).json({ error: "Secretary payroll must use a monthly rate because secretary attendance is not tracked." });
-    }
 
     const from = parseDate(effectiveFrom, "Effective from");
     from.setHours(0, 0, 0, 0);
@@ -387,10 +398,6 @@ router.patch("/compensation/:id", requireAdmin, async (req, res, next) => {
         return res.status(400).json({ error: "Pay type must be daily, hourly, or monthly." });
       }
       record.payType = req.body.payType;
-    }
-    const employee = await User.findById(record.employee).select("role").lean();
-    if (employee?.role === "secretary" && record.payType !== "monthly") {
-      return res.status(400).json({ error: "Secretary payroll must use a monthly rate because secretary attendance is not tracked." });
     }
     if (req.body.baseRate !== undefined) {
       const baseRate = money(req.body.baseRate, "Base rate");
@@ -530,10 +537,9 @@ router.get("/staff", requireAdmin, async (req, res, next) => {
 
 router.get("/due-today", requireAdmin, async (req, res, next) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const day = attendanceDay();
+    const today = day.start;
+    const tomorrow = day.next;
 
     // Resolve rates by effective dates so future rate changes do not replace today's rate.
     const dailyEmployees = await EmployeeCompensation.find({
@@ -559,12 +565,17 @@ router.get("/due-today", requireAdmin, async (req, res, next) => {
 
       // Check if this employee has attendance today
       const technician = await Technician.findOne({ user: comp.employee._id }).select("_id").lean();
-      if (!technician) continue;
-
-      const todayAttendance = await TechnicianAttendance.findOne({
-        technicianId: technician._id,
-        date: { $gte: today, $lt: tomorrow },
-      }).select("status checkInTime checkOutTime").lean();
+      const todayAttendance = technician
+        ? await TechnicianAttendance.findOne({
+          technicianId: technician._id,
+          date: { $gte: today, $lt: tomorrow },
+        }).select("status checkInTime checkOutTime").lean()
+        : comp.employee.role === "secretary"
+          ? await SecretaryAttendance.findOne({
+            userId: comp.employee._id,
+            date: { $gte: today, $lt: tomorrow },
+          }).select("status checkInTime checkOutTime").lean()
+          : null;
 
       const readiness = dailyPayrollReadiness(todayAttendance);
       if (readiness.eligible) {

@@ -1528,6 +1528,7 @@ router.delete("/tool-usage/:usageId", async (req, res, next) => {
 const SiteSetting = require("../models/SiteSetting");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
+const { attendanceDay } = require("../utils/attendanceTime");
 
 /**
  * GET /api/technician/attendance/status
@@ -1541,8 +1542,7 @@ router.get("/attendance/status", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const startOfToday = attendanceDay().start;
 
     // Check for approved leave covering today
     const activeLeave = await LeaveRequest.findOne({
@@ -1595,8 +1595,8 @@ router.post("/attendance/checkin", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const day = attendanceDay();
+    const startOfToday = day.start;
 
     // Check for approved leave
     const LeaveRequest = require("../models/LeaveRequest");
@@ -1616,12 +1616,9 @@ router.post("/attendance/checkin", async (req, res, next) => {
       return res.status(400).json({ error: "You have already checked in today." });
     }
 
-    // Determine status (Present vs Late). Cutoff: 9:00 AM local server time.
+    // Determine status against the business timezone, independent of server host.
     const now = new Date();
-    let status = "Present";
-    if (now.getHours() >= 9) {
-      status = "Late";
-    }
+    const status = now > day.lateCutoff ? "Late" : "Present";
 
     // Update technician model
     tech.availabilityStatus = "Available";
@@ -1637,7 +1634,7 @@ router.post("/attendance/checkin", async (req, res, next) => {
         userId: req.user._id,
         status,
         checkInTime: now,
-        method: "button",
+        method: "manual",
         token: "button_" + now.getTime(),
       },
       { upsert: true, returnDocument: "after" }
@@ -1675,8 +1672,8 @@ router.post("/attendance/checkout", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const day = attendanceDay();
+    const startOfToday = day.start;
 
     const record = await TechnicianAttendance.findOne({
       technicianId: tech._id,
@@ -1713,7 +1710,7 @@ router.post("/attendance/checkout", async (req, res, next) => {
 
     const Expense = require("../models/Expense");
     const Assignment = require("../models/Assignment");
-    const endOfToday = new Date(startOfToday); endOfToday.setHours(23, 59, 59, 999);
+    const endOfToday = day.end;
     const [todayExpenseCount, completedJobsToday] = await Promise.all([
       Expense.countDocuments({ technicianId: tech._id, expenseDate: { $gte: startOfToday, $lte: endOfToday } }),
       Assignment.countDocuments({ technicianId: tech._id, status: "completed", completedAt: { $gte: startOfToday, $lte: endOfToday } }),
@@ -1791,8 +1788,8 @@ router.post("/attendance/scan", async (req, res, next) => {
 
     // Check for approved leave — block scanning
     const LeaveRequest = require("../models/LeaveRequest");
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const day = attendanceDay();
+    const startOfToday = day.start;
     const activeLeave = await LeaveRequest.findOne({
       technicianId: tech._id,
       status: "approved",
@@ -1804,7 +1801,7 @@ router.post("/attendance/scan", async (req, res, next) => {
     }
 
     // Validate the token
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = day.key;
     const tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
 
     if (!tokenSetting || !tokenSetting.value || tokenSetting.value.date !== todayStr || tokenSetting.value.token !== token) {
@@ -1817,12 +1814,9 @@ router.post("/attendance/scan", async (req, res, next) => {
       return res.status(400).json({ error: "You have already scanned today's attendance." });
     }
 
-    // Determine status (Present vs Late). Cutoff: 9:00 AM local server time.
+    // Determine status against the business timezone, independent of server host.
     const now = new Date();
-    let status = "Present";
-    if (now.getHours() >= 9) {
-      status = "Late";
-    }
+    const status = now > day.lateCutoff ? "Late" : "Present";
 
     // Update technician model
     // Update technician model availability
@@ -1836,6 +1830,7 @@ router.post("/attendance/scan", async (req, res, next) => {
         userId: req.user._id,
         status,
         checkInTime: now,
+        qrVerified: true,
         method: "qr_scan",
         token
       },
@@ -9599,6 +9594,7 @@ router.get("/daily-kit", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const Assignment = require("../models/Assignment");
+    const DailyAssignment = require("../models/DailyAssignment");
     const Order = require("../models/Order");
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
@@ -9628,6 +9624,23 @@ router.get("/daily-kit", async (req, res, next) => {
         startTime: order.timeSlot || "",
         status: order.status,
         customerName: order.customer?.name || "Customer",
+      });
+    }
+    const projectAssignments = await DailyAssignment.find({ _id: { $in: kit.dailyAssignmentIds || [] } })
+      .populate("projectId", "projectNumber customer.name service.name")
+      .populate("workOrderId", "workOrderNumber title")
+      .sort({ startTime: 1 })
+      .lean();
+    for (const row of projectAssignments) {
+      jobDetails.push({
+        projectId: row.projectId?._id || row.projectId,
+        workOrderId: row.workOrderId?._id || row.workOrderId,
+        dailyAssignmentId: row._id,
+        serviceName: `Project · ${row.workOrderId?.workOrderNumber || row.workOrderId?.title || row.projectId?.projectNumber || "Work Order"}`,
+        serviceType: "project",
+        startTime: row.startTime || "",
+        status: row.status,
+        customerName: row.projectId?.customer?.name || "Project customer",
       });
     }
 
@@ -10063,7 +10076,7 @@ router.post("/daily-kit/consume", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const { itemName, quantityUsed, bookingId, orderId, serviceItemId } = req.body;
+    const { itemName, quantityUsed, bookingId, orderId, projectId, workOrderId, dailyAssignmentId, serviceItemId } = req.body;
     if (!itemName || !quantityUsed) return res.status(400).json({ error: "itemName and quantityUsed required" });
 
     const today = new Date();
@@ -10091,12 +10104,21 @@ router.post("/daily-kit/consume", async (req, res, next) => {
     if (orderId && (!mongoose.Types.ObjectId.isValid(orderId) || !(item.orderIds || []).some(id => String(id) === String(orderId)))) {
       return res.status(403).json({ error: "Order is not covered by this Daily Kit" });
     }
+    if (projectId && (!mongoose.Types.ObjectId.isValid(projectId) || !(item.projectIds || []).some(id => String(id) === String(projectId)))) {
+      return res.status(403).json({ error: "Project is not covered by this Daily Kit" });
+    }
+    if (workOrderId && (!mongoose.Types.ObjectId.isValid(workOrderId) || !(item.workOrderIds || []).some(id => String(id) === String(workOrderId)))) {
+      return res.status(403).json({ error: "Work order is not covered by this Daily Kit" });
+    }
     item.quantityUsed += used;
     await kit.save();
-    if ((bookingId || orderId) && item.toolId) {
+    if ((bookingId || orderId || projectId) && item.toolId) {
       const ServiceToolUsage = require("../models/ServiceToolUsage");
       const tool = await Tool.findById(item.toolId).select("costPrice").lean();
-      await ServiceToolUsage.create({ bookingId: bookingId || undefined, orderId: orderId || undefined, serviceItemId: mongoose.Types.ObjectId.isValid(serviceItemId) ? serviceItemId : undefined,
+      await ServiceToolUsage.create({ bookingId: bookingId || undefined, orderId: orderId || undefined, projectId: projectId || undefined,
+        workOrderId: mongoose.Types.ObjectId.isValid(workOrderId) ? workOrderId : undefined,
+        dailyAssignmentId: mongoose.Types.ObjectId.isValid(dailyAssignmentId) ? dailyAssignmentId : undefined,
+        serviceItemId: mongoose.Types.ObjectId.isValid(serviceItemId) ? serviceItemId : undefined,
         technicianId: tech._id, toolItemId: item.toolId, inventoryItemId: item.toolId, itemName: item.name,
         itemType: "consumable", unit: item.unit || "pcs", quantityUsed: used, unitPrice: Number(tool?.costPrice || 0),
         deductedFromInventory: true, notes: "Actual usage from Daily Kit issuance", recordedBy: req.user._id });
@@ -10143,10 +10165,13 @@ router.post("/daily-kit/return", async (req, res, next) => {
 
     // Return equipment assignments
     const eqAssignments = await EquipmentAssignment.find({
-      dailyKitId: kit._id,
       technicianId: tech._id,
       equipmentName: itemName,
       status: { $in: ["checked_out", "in_use"] },
+      $or: [
+        { dailyKitId: kit._id },
+        { _id: { $in: item.custodyAssignmentIds || [] } },
+      ],
     });
 
     const now = new Date();
@@ -10158,9 +10183,13 @@ router.post("/daily-kit/return", async (req, res, next) => {
 
     // Return to inventory
     if (item.toolId) {
-      await Tool.findByIdAndUpdate(item.toolId, {
-        $inc: { quantity: item.quantity, checkedOutQuantity: -item.quantity },
-      });
+      const tool = await Tool.findById(item.toolId);
+      if (tool) {
+        tool.quantity = Number(tool.quantity || 0) + item.quantity;
+        tool.checkedOutQuantity = Math.max(0, Number(tool.checkedOutQuantity || 0) - item.quantity);
+        tool.assetStatus = tool.checkedOutQuantity > 0 ? "checked_out" : "available";
+        await tool.save();
+      }
     }
 
     item.checkoutStatus = "returned";
@@ -10192,6 +10221,23 @@ router.post("/daily-kit/return-consumable", async (req, res, next) => {
     const tool = await Tool.findOneAndUpdate({ _id: item.toolId }, { $inc: { quantity } }, { returnDocument: "after" });
     if (!tool) return res.status(404).json({ error: "Inventory item not found" });
     item.quantityReturned += quantity;
+    let remainingReturn = quantity;
+    const projectLedgers = await EquipmentAssignment.find({
+      dailyKitId: kit._id,
+      technicianId: tech._id,
+      equipmentId: item.toolId,
+      consumable: true,
+      status: { $in: ["checked_out", "in_use"] },
+    }).sort({ createdAt: 1 });
+    for (const ledger of projectLedgers) {
+      if (remainingReturn <= 0) break;
+      const ledgerReturnable = Math.max(0, Number(ledger.quantity || 0) - Number(ledger.consumableUsed || 0) - Number(ledger.consumableReturned || 0));
+      const applied = Math.min(remainingReturn, ledgerReturnable);
+      ledger.consumableReturned = Number(ledger.consumableReturned || 0) + applied;
+      if (ledger.consumableUsed + ledger.consumableReturned >= ledger.quantity) ledger.status = "returned";
+      await ledger.save();
+      remainingReturn -= applied;
+    }
     if (item.quantityReturned + item.quantityUsed === item.quantityIssued) item.checkoutStatus = "returned";
     await kit.save();
     return res.json({ success: true, item });
@@ -10628,6 +10674,9 @@ router.post("/daily-kit/notify-admin-item", async (req, res, next) => {
       technicianId: tech._id,
       workDate: { $gte: start, $lt: end },
     });
+    if (!eqAssignments.length) {
+      return res.status(409).json({ error: "This equipment is no longer checked out or was already returned." });
+    }
 
     if (!kit) return res.status(404).json({ error: "No daily kit found for the selected date" });
 

@@ -14,12 +14,18 @@ const equipmentAssignmentSchema = new mongoose.Schema({
     ref: "BookingService",
     index: true,
   },
+  // A consolidated Daily Kit checkout can cover several project/work-order
+  // sources at once. Keep projectId/workOrderId for legacy consumers and the
+  // arrays as the complete source-of-truth links.
+  projectIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Project", index: true }],
   orderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order", index: true }],
   dailyKitId: { type: mongoose.Schema.Types.ObjectId, ref: "DailyKit", index: true },
   serviceItemId: { type: mongoose.Schema.Types.ObjectId, index: true },
   bookingReference: { type: String, trim: true },
   technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician", required: true, index: true },
   workOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" },
+  workOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder", index: true }],
+  dailyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "DailyAssignment" }],
 
   workDate: { type: Date, required: true },
 
@@ -30,6 +36,7 @@ const equipmentAssignmentSchema = new mongoose.Schema({
   quantity: { type: Number, default: 1, min: 1 },
   consumable: { type: Boolean, default: false },
   consumableUsed: { type: Number, default: 0 },
+  consumableReturned: { type: Number, default: 0 },
 
   status: { type: String, enum: EQ_STATUSES, default: "reserved" },
 
@@ -85,6 +92,7 @@ equipmentAssignmentSchema.post("save", async function (document) {
 });
 
 equipmentAssignmentSchema.index({ projectId: 1, technicianId: 1, workDate: 1 });
+equipmentAssignmentSchema.index({ projectIds: 1, technicianId: 1, workDate: 1 });
 equipmentAssignmentSchema.index({ bookingId: 1, serviceItemId: 1, workDate: 1 });
 equipmentAssignmentSchema.index({ orderIds: 1, workDate: 1 });
 equipmentAssignmentSchema.index({ status: 1, expectedReturnAt: 1 });

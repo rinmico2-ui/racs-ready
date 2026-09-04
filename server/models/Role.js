@@ -24,6 +24,8 @@ const roleSchema = new mongoose.Schema(
     description: { type: String, trim: true, default: "" },
     permissions: { type: [String], default: [] },
     isSystem: { type: Boolean, default: false },
+    revision: { type: Number, min: 1, default: 1 },
+    permissionSchemaVersion: { type: Number, min: 1, default: 1 },
   },
   { timestamps: true },
 );

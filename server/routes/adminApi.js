@@ -5,6 +5,8 @@ const QRCode = require("qrcode");
 const admin = require("../controllers/adminController");
 const auth = require("../middleware/authenticate");
 const audit = require("../utils/audit");
+const User = require("../models/User");
+const { requirePermission } = require("../middleware/requirePermission");
 const { assertAdminTransition, assertResolution, REMITTANCE_STATUSES } = require("../utils/remittancePolicy");
 const {
   listToolUsage,
@@ -372,6 +374,46 @@ router.post("/technician-schedules", admin.upsertTechnicianSchedule);
 // Technicians list for scheduling UI
 router.get("/technicians", admin.listTechnicians);
 router.get("/technicians/:id/calendar", admin.getTechnicianCalendar);
+
+// Create new technician
+router.post("/technicians", async (req, res) => {
+  try {
+    const Technician = require("../models/Technician");
+    const { name, userEmail, phone, active, locationText } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Name is required." });
+    const tech = await Technician.create({
+      name: name.trim(),
+      userEmail: userEmail ? userEmail.trim().toLowerCase() : undefined,
+      phone: phone ? phone.trim() : undefined,
+      active: active !== false,
+      locationText: locationText ? locationText.trim() : undefined,
+    });
+    res.json({ success: true, technician: tech });
+  } catch (err) {
+    console.error("POST /api/admin/technicians error:", err);
+    res.status(500).json({ error: err.message || "Failed to create technician." });
+  }
+});
+
+// Update technician
+router.put("/technicians/:id", async (req, res) => {
+  try {
+    const Technician = require("../models/Technician");
+    const { name, userEmail, phone, active, locationText } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name.trim();
+    if (userEmail !== undefined) update.userEmail = userEmail ? userEmail.trim().toLowerCase() : null;
+    if (phone !== undefined) update.phone = phone ? phone.trim() : null;
+    if (active !== undefined) update.active = active;
+    if (locationText !== undefined) update.locationText = locationText ? locationText.trim() : null;
+    const tech = await Technician.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!tech) return res.status(404).json({ error: "Technician not found." });
+    res.json({ success: true, technician: tech });
+  } catch (err) {
+    console.error("PUT /api/admin/technicians/:id error:", err);
+    res.status(500).json({ error: err.message || "Failed to update technician." });
+  }
+});
 
 // Core service administration
 router.get("/core-services", admin.listCoreServices);
@@ -1815,13 +1857,13 @@ router.patch("/leave-requests/:id", async (req, res, next) => {
 });
 
 // â”€â”€â”€ Roles & Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-router.get("/roles", admin.listRoles);
-router.get("/roles/:id", admin.getRole);
-router.patch("/roles/:id", admin.updateRolePermissions);
-router.get("/roles/:id/users", admin.listRoleUsers);
-router.patch("/users/:id/permissions", admin.setUserPermissions);
-router.delete("/users/:id/permissions", admin.clearUserPermissions);
-router.get("/permissions/all", admin.listAllPermissions);
+router.get("/roles", requirePermission("roles.view"), admin.listRoles);
+router.get("/roles/:id", requirePermission("roles.view"), admin.getRole);
+router.patch("/roles/:id", requirePermission("roles.manage"), admin.updateRolePermissions);
+router.get("/roles/:id/users", requirePermission("roles.view"), admin.listRoleUsers);
+router.patch("/users/:id/permissions", requirePermission("roles.manage"), admin.setUserPermissions);
+router.delete("/users/:id/permissions", requirePermission("roles.manage"), admin.clearUserPermissions);
+router.get("/permissions/all", requirePermission("roles.view"), admin.listAllPermissions);
 
 // â”€â”€â”€ Combined Admin Dashboard Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/dashboard/overview", async (req, res, next) => {
@@ -3015,10 +3057,12 @@ router.patch("/settings/company-location", async (req, res, next) => {
 const crypto = require("crypto");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
+const SecretaryAttendance = require("../models/SecretaryAttendance");
+const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
 
 // helper to get or create today's QR token
 async function getOrCreateDailyToken() {
-  const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const todayStr = attendanceDay().key;
   let tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
 
   if (tokenSetting) {
@@ -3042,7 +3086,7 @@ async function getOrCreateDailyToken() {
 router.get("/attendance/qr-token", async (req, res, next) => {
   try {
     const token = await getOrCreateDailyToken();
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = attendanceDay().key;
 
     // Generate QR code data URL
     const qrPayload = JSON.stringify({ token: token, date: todayStr });
@@ -3057,7 +3101,7 @@ router.get("/attendance/qr-token", async (req, res, next) => {
 /** POST /api/admin/attendance/regenerate-token */
 router.post("/attendance/regenerate-token", async (req, res, next) => {
   try {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = attendanceDay().key;
     const newToken = crypto.randomBytes(16).toString("hex");
     await SiteSetting.findOneAndUpdate(
       { key: "attendance_qr_token" },
@@ -3083,11 +3127,9 @@ router.post("/attendance/regenerate-token", async (req, res, next) => {
 /** GET /api/admin/attendance/today */
 router.get("/attendance/today", async (req, res, next) => {
   try {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
+    const day = attendanceDay();
+    const startOfToday = day.start;
+    const endOfToday = day.end;
 
     // Get all active technicians (you can filter by role or status if needed)
     const technicians = await Technician.find({}).populate("user", "firstName lastName email").lean();
@@ -3097,7 +3139,7 @@ router.get("/attendance/today", async (req, res, next) => {
       date: { $gte: startOfToday, $lte: endOfToday }
     }).lean();
 
-    const attendanceMap = new Map(attendanceRecords.map(r => [r.technicianId.toString(), r]));
+    const attendanceMap = new Map(attendanceRecords.map(r => [String(r.technicianId), r]));
 
     // Batch-fetch approved leaves for today to resolve availability
     const LeaveRequest = require("../models/LeaveRequest");
@@ -3112,7 +3154,7 @@ router.get("/attendance/today", async (req, res, next) => {
     // Resolve availability for all technicians using centralized logic
     const { resolveAvailabilityStatus, computeAttendanceStatus } = require("../utils/availability");
 
-    const result = await Promise.all(technicians.map(async (tech) => {
+    const technicianResult = await Promise.all(technicians.map(async (tech) => {
       const record = attendanceMap.get(tech._id.toString()) || null;
       const leave = leaveMap.get(tech._id.toString()) || null;
 
@@ -3129,7 +3171,11 @@ router.get("/attendance/today", async (req, res, next) => {
       }
 
       return {
+        staffId: tech._id,
         technicianId: tech._id,
+        userId: tech.user ? tech.user._id : null,
+        staffType: "technician",
+        role: "technician",
         name: tech.name || `${tech.firstName || ""} ${tech.lastName || ""}`.trim() || (tech.user && `${tech.user.firstName || ""} ${tech.user.lastName || ""}`.trim()),
         email: tech.email || (tech.user && tech.user.email),
         attendanceStatus,
@@ -3141,32 +3187,106 @@ router.get("/attendance/today", async (req, res, next) => {
       };
     }));
 
-    return res.json(result);
+    const secretaries = await User.find({ role: "secretary", active: { $ne: false } })
+      .select("firstName lastName email")
+      .lean();
+    const secretaryRecords = await SecretaryAttendance.find({
+      userId: { $in: secretaries.map(item => item._id) },
+      date: { $gte: startOfToday, $lte: endOfToday },
+    }).lean();
+    const secretaryMap = new Map(secretaryRecords.map(record => [String(record.userId), record]));
+    const secretaryResult = secretaries.map((secretary) => {
+      const record = secretaryMap.get(String(secretary._id)) || null;
+      return {
+        staffId: secretary._id,
+        technicianId: null,
+        userId: secretary._id,
+        staffType: "secretary",
+        role: "secretary",
+        name: `${secretary.firstName || ""} ${secretary.lastName || ""}`.trim(),
+        email: secretary.email,
+        attendanceStatus: record ? (record.checkOutTime ? "Checked Out" : record.status) : "Absent",
+        availabilityStatus: null,
+        checkInTime: record ? record.checkInTime : null,
+        checkOutTime: record ? record.checkOutTime : null,
+        method: record ? record.method : null,
+        updatedBy: record ? record.updatedBy : null,
+      };
+    });
+
+    return res.json([...technicianResult, ...secretaryResult].sort((a, b) => a.name.localeCompare(b.name)));
   } catch (err) {
     next(err);
   }
 });
 
-/** PATCH /api/admin/attendance/:technicianId */
-router.patch("/attendance/:technicianId", async (req, res, next) => {
+/** PATCH /api/admin/attendance/:staffId */
+router.patch("/attendance/:staffId", async (req, res, next) => {
   try {
-    const { technicianId } = req.params;
-    const { status, availabilityStatus } = req.body;
+    const { staffId } = req.params;
+    const { status, availabilityStatus, staffType } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-      return res.status(400).json({ error: "Invalid technician ID" });
+    if (!mongoose.Types.ObjectId.isValid(staffId)) {
+      return res.status(400).json({ error: "Invalid staff ID" });
     }
 
-    const tech = await Technician.findById(technicianId);
+    const validStatuses = ["Absent", "Present", "Late", "On Leave", "Sick Leave", "Checked Out"];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid attendance status" });
+    }
+
+    if (staffType === "secretary") {
+      const secretary = await User.findOne({ _id: staffId, role: "secretary", active: { $ne: false } }).lean();
+      if (!secretary) return res.status(404).json({ error: "Secretary not found" });
+      if (availabilityStatus) {
+        return res.status(400).json({ error: "Operational availability only applies to technicians." });
+      }
+      if (!status) return res.status(400).json({ error: "Attendance status is required." });
+
+      const day = attendanceDay();
+      const now = new Date();
+      const current = await SecretaryAttendance.findOne({ userId: secretary._id, date: day.start }).lean();
+      const storedStatus = status === "Checked Out"
+        ? (["Present", "Late"].includes(current?.status) ? current.status : "Present")
+        : status;
+      const update = {
+        $set: {
+          status: storedStatus,
+          method: "manual",
+          qrVerified: false,
+          updatedBy: req.user._id,
+          ...(status === "Checked Out" ? { checkOutTime: now } : { checkOutTime: null }),
+          ...(["Absent", "On Leave", "Sick Leave"].includes(status) ? { checkInTime: null } : {}),
+        },
+      };
+      if (["Present", "Late", "Checked Out"].includes(status) && !current?.checkInTime) {
+        update.$set.checkInTime = now;
+      }
+      const record = await SecretaryAttendance.findOneAndUpdate(
+        { userId: secretary._id, date: day.start },
+        update,
+        { upsert: true, returnDocument: "after", runValidators: true },
+      );
+
+      await audit.logEvent({
+        actor: req.user._id,
+        target: secretary._id,
+        action: "attendance.manual.update",
+        module: "admin",
+        req,
+        entityId: record._id,
+        entityType: "SecretaryAttendance",
+        details: { status, staffType: "secretary" },
+      }).catch(() => {});
+      return res.json({ message: "Secretary attendance updated", attendance: record });
+    }
+
+    const tech = await Technician.findById(staffId);
     if (!tech) return res.status(404).json({ error: "Technician not found" });
 
     const updates = {};
 
     if (status) {
-      const validStatuses = ["Absent", "Present", "Late", "On Leave", "Sick Leave", "Checked Out"];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({ error: "Invalid attendance status" });
-      }
       updates.attendanceStatus = status;
 
       // Availability auto-update based on attendance status
@@ -3181,8 +3301,7 @@ router.patch("/attendance/:technicianId", async (req, res, next) => {
       }
 
       // Upsert daily attendance record
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+      const startOfToday = attendanceDay().start;
 
       const updateData = {
         method: "manual",
@@ -3231,6 +3350,117 @@ router.patch("/attendance/:technicianId", async (req, res, next) => {
     next(err);
   }
 });
+
+/** GET /api/admin/attendance/history */
+router.get("/attendance/history", async (req, res, next) => {
+  try {
+    const requestedTo = req.query.to ? new Date(`${req.query.to}T12:00:00+08:00`) : new Date();
+    const requestedFrom = req.query.from
+      ? new Date(`${req.query.from}T12:00:00+08:00`)
+      : new Date(requestedTo.getTime() - 29 * 24 * 60 * 60 * 1000);
+    if (Number.isNaN(requestedFrom.getTime()) || Number.isNaN(requestedTo.getTime())) {
+      return res.status(400).json({ error: "Use valid from and to dates." });
+    }
+    if (requestedFrom > requestedTo) {
+      return res.status(400).json({ error: "From date cannot be after to date." });
+    }
+    if (requestedTo - requestedFrom > 366 * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: "Attendance history is limited to 366 days per request." });
+    }
+
+    const { start, end } = attendanceRange(requestedFrom, requestedTo);
+    const role = ["technician", "secretary"].includes(req.query.role) ? req.query.role : "all";
+    const status = validAttendanceHistoryStatus(req.query.status);
+    const search = String(req.query.search || "").trim().toLowerCase();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(10, Number.parseInt(req.query.limit, 10) || 25));
+
+    const rows = [];
+    if (role !== "secretary") {
+      const techRecords = await TechnicianAttendance.find({ date: { $gte: start, $lte: end } })
+        .populate({ path: "technicianId", select: "name email firstName lastName user", populate: { path: "user", select: "firstName lastName email" } })
+        .lean();
+      techRecords.forEach((record) => {
+        const tech = record.technicianId;
+        if (!tech) return;
+        rows.push(attendanceHistoryRow(record, {
+          staffId: tech._id,
+          role: "technician",
+          name: tech.name || `${tech.firstName || ""} ${tech.lastName || ""}`.trim() || `${tech.user?.firstName || ""} ${tech.user?.lastName || ""}`.trim(),
+          email: tech.email || tech.user?.email || "",
+        }));
+      });
+    }
+    if (role !== "technician") {
+      const secretaryRecords = await SecretaryAttendance.find({ date: { $gte: start, $lte: end } })
+        .populate("userId", "firstName lastName email role")
+        .lean();
+      secretaryRecords.forEach((record) => {
+        const employee = record.userId;
+        if (!employee) return;
+        rows.push(attendanceHistoryRow(record, {
+          staffId: employee._id,
+          role: "secretary",
+          name: `${employee.firstName || ""} ${employee.lastName || ""}`.trim(),
+          email: employee.email || "",
+        }));
+      });
+    }
+
+    const filtered = rows
+      .filter(row => !status || (status === "Checked Out" ? row.shiftState === "Checked Out" : row.attendanceStatus === status))
+      .filter(row => !search || `${row.name} ${row.email}`.toLowerCase().includes(search))
+      .sort((a, b) => new Date(b.date) - new Date(a.date) || a.name.localeCompare(b.name));
+    const summary = filtered.reduce((totals, row) => {
+      totals.records += 1;
+      totals.hoursWorked += row.hoursWorked;
+      if (row.attendanceStatus === "Late") totals.late += 1;
+      if (row.attendanceStatus === "Present") totals.present += 1;
+      return totals;
+    }, { records: 0, present: 0, late: 0, hoursWorked: 0 });
+    summary.hoursWorked = Math.round(summary.hoursWorked * 100) / 100;
+    const pages = Math.max(1, Math.ceil(filtered.length / limit));
+    const safePage = Math.min(page, pages);
+    const items = filtered.slice((safePage - 1) * limit, safePage * limit);
+
+    return res.json({
+      items,
+      summary,
+      pagination: { page: safePage, pages, limit, total: filtered.length },
+      filters: { from: attendanceDay(requestedFrom).key, to: attendanceDay(requestedTo).key, role, status: status || "all", search },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+function validAttendanceHistoryStatus(value) {
+  const normalized = String(value || "");
+  return ["Present", "Late", "Absent", "On Leave", "Sick Leave", "Checked Out"].includes(normalized)
+    ? normalized
+    : "";
+}
+
+function attendanceHistoryRow(record, staff) {
+  const checkIn = record.checkInTime ? new Date(record.checkInTime) : null;
+  const checkOut = record.checkOutTime ? new Date(record.checkOutTime) : null;
+  const hoursWorked = checkIn && checkOut && checkOut > checkIn
+    ? Math.round(((checkOut - checkIn) / 3600000) * 100) / 100
+    : 0;
+  return {
+    ...staff,
+    date: record.date,
+    attendanceStatus: record.status,
+    shiftState: checkOut ? "Checked Out" : (checkIn ? "Checked In" : "No Shift"),
+    recordedStatus: record.status,
+    checkInTime: record.checkInTime || null,
+    checkOutTime: record.checkOutTime || null,
+    hoursWorked,
+    method: record.method,
+    qrVerified: Boolean(record.qrVerified),
+    remarks: record.remarks || "",
+  };
+}
 
 // â”€â”€â”€ Repair Queue Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BookingService = require("../models/BookingService");

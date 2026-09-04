@@ -12420,10 +12420,12 @@ function preparationEscapeHtml(value) {
       const jobByAssignment = new Map();
       const jobByBooking = new Map();
       const jobByOrder = new Map();
+      const jobByDailyAssignment = new Map();
       (data.jobDetails || []).forEach(j => {
         if (j.assignmentId) jobByAssignment.set(String(j.assignmentId), j);
         if (j.bookingId) jobByBooking.set(String(j.bookingId), j);
         if (j.orderId) jobByOrder.set(String(j.orderId), j);
+        if (j.dailyAssignmentId) jobByDailyAssignment.set(String(j.dailyAssignmentId), j);
       });
 
       // Date label
@@ -12462,6 +12464,11 @@ function preparationEscapeHtml(value) {
           if (!itemsByAssignment.has(k)) itemsByAssignment.set(k, []);
           itemsByAssignment.get(k).push(item);
         });
+        (item.dailyAssignmentIds || []).forEach(dailyAssignmentId => {
+          const k = String(dailyAssignmentId);
+          if (!itemsByAssignment.has(k)) itemsByAssignment.set(k, []);
+          itemsByAssignment.get(k).push(item);
+        });
       });
       const KIT_CAT_META = {
         equipment: { icon: 'bi-tools', color: '#2563eb' },
@@ -12474,7 +12481,7 @@ function preparationEscapeHtml(value) {
         if (rs === 'confirmed_available') return '<span style="font-size:0.6rem;color:#94a3b8;">Alternative In Use</span>';
         if (rs === 'admin_notified') return '<span style="font-size:0.6rem;color:#d97706;">Reported to Admin</span>';
         if (item.checkoutStatus === 'unavailable') return '<span style="font-size:0.6rem;color:#dc2626;font-weight:600;">Unavailable</span>';
-        if (['checked_out', 'issued', 'reserved', 'standard_kit'].includes(item.checkoutStatus)) return '<span style="font-size:0.6rem;color:#059669;">✓ Ready</span>';
+        if (['checked_out', 'issued', 'reserved', 'standard_kit', 'in_custody'].includes(item.checkoutStatus)) return '<span style="font-size:0.6rem;color:#059669;">✓ Ready</span>';
         return '';
       }
       window.kitToggleJobItems = function (aid) {
@@ -12489,7 +12496,7 @@ function preparationEscapeHtml(value) {
 
         // Determine per-job readiness: a job needs attention if any of its required items are unresolved unavailable
         const jobHasIssues = new Map();
-        data.jobDetails.forEach(j => jobHasIssues.set(String(j.assignmentId || j.orderId), false));
+        data.jobDetails.forEach(j => jobHasIssues.set(String(j.assignmentId || j.orderId || j.dailyAssignmentId), false));
         unavailable.forEach(item => {
           if (item.resolution?.status) return; // resolved
           (item.assignmentIds || []).forEach(aid => {
@@ -12498,19 +12505,22 @@ function preparationEscapeHtml(value) {
           (item.orderIds || []).forEach(orderId => {
             if (jobHasIssues.has(String(orderId))) jobHasIssues.set(String(orderId), true);
           });
+          (item.dailyAssignmentIds || []).forEach(dailyAssignmentId => {
+            if (jobHasIssues.has(String(dailyAssignmentId))) jobHasIssues.set(String(dailyAssignmentId), true);
+          });
         });
 
         let jhtml = '';
         let readyCount = 0;
         data.jobDetails.forEach((j, i) => {
           const timeLabel = j.startTime ? j.startTime + ' — ' : '';
-          const typeBadge = j.serviceType === 'repair' ? '<span class="badge bg-warning text-dark" style="font-size:0.6rem;padding:2px 5px;">REPAIR</span>' : j.serviceType === 'order_installation' ? '<span class="badge bg-info-subtle text-info-emphasis" style="font-size:0.6rem;padding:2px 5px;">ORDER INSTALL</span>' : '<span class="badge bg-primary-subtle text-primary" style="font-size:0.6rem;padding:2px 5px;">CORE</span>';
-          const hasIssue = jobHasIssues.get(String(j.assignmentId || j.orderId));
+          const typeBadge = j.serviceType === 'repair' ? '<span class="badge bg-warning text-dark" style="font-size:0.6rem;padding:2px 5px;">REPAIR</span>' : j.serviceType === 'order_installation' ? '<span class="badge bg-info-subtle text-info-emphasis" style="font-size:0.6rem;padding:2px 5px;">ORDER INSTALL</span>' : j.serviceType === 'project' ? '<span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-size:0.6rem;padding:2px 5px;">PROJECT</span>' : '<span class="badge bg-primary-subtle text-primary" style="font-size:0.6rem;padding:2px 5px;">CORE</span>';
+          const hasIssue = jobHasIssues.get(String(j.assignmentId || j.orderId || j.dailyAssignmentId));
           const statusIcon = hasIssue
             ? '<i class="bi bi-exclamation-triangle" style="color:#d97706;font-size:0.72rem;"></i>'
             : '<i class="bi bi-check-circle-fill" style="color:#059669;font-size:0.72rem;"></i>';
           if (!hasIssue) readyCount++;
-          const aid = String(j.assignmentId || j.orderId);
+          const aid = String(j.assignmentId || j.orderId || j.dailyAssignmentId);
           const jItems = itemsByAssignment.get(aid) || [];
           const eqN = jItems.filter(x => x.category === 'equipment').length;
           const coN = jItems.filter(x => x.category === 'consumable').length;
@@ -12569,7 +12579,11 @@ function preparationEscapeHtml(value) {
           const j = jobByOrder.get(String(orderId));
           if (j) names.push(j.serviceName);
         });
-        return names;
+        (item.dailyAssignmentIds || []).forEach(dailyAssignmentId => {
+          const j = jobByDailyAssignment.get(String(dailyAssignmentId));
+          if (j) names.push(j.serviceName);
+        });
+        return [...new Set(names)];
       }
 
       // Equipment — expandable items showing which jobs require each
@@ -12584,6 +12598,8 @@ function preparationEscapeHtml(value) {
           let statusCls, statusText, icon;
           if (item.checkoutStatus === 'checked_out') {
             statusCls = 'border-success'; statusText = 'Checked Out'; icon = 'bi-check-circle-fill';
+          } else if (item.checkoutStatus === 'in_custody') {
+            statusCls = 'border-success'; statusText = 'Already in Custody'; icon = 'bi-check-circle-fill';
           } else if (item.source === 'standard') {
             statusCls = 'border-info'; statusText = 'Standard Kit'; icon = 'bi-star';
           } else if (item.checkoutStatus === 'unavailable') {

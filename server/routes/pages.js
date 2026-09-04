@@ -887,7 +887,10 @@ router.get("/reset-password", (req, res) => {
 
 // Access denied
 router.get("/access-denied", (req, res) => {
-  res.status(403).render("pages/access-denied", { title: "Access Denied" });
+  const requiredPermission = /^[a-z_]+(?:\.[a-z_]+)+$/.test(String(req.query.required || ""))
+    ? String(req.query.required)
+    : "";
+  res.status(403).render("pages/access-denied", { title: "Access Denied", requiredPermission });
 });
 
 // Profile (authenticated users)
@@ -1671,6 +1674,13 @@ router.get("/secretary/payroll", pageAuth.requireRole("secretary"), (req, res) =
   });
 });
 
+router.get("/secretary/attendance", pageAuth.requireRole("secretary"), (req, res) => {
+  res.render("pages/secretary/Attendance", {
+    title: "My Attendance",
+    layout: "layouts/secretary",
+  });
+});
+
 // Admin - Finance
 router.get("/admin/payments", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Payments/Payments", { title: "Payments", layout: "layouts/admin" });
@@ -1793,6 +1803,29 @@ router.get("/admin/technicians", pageAuth.requireRole("admin"), (req, res) => {
     title: "Technicians",
     layout: "layouts/admin",
   });
+});
+
+router.get("/admin/technicians/new", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Technicians/TechnicianForm", {
+    title: "Add Technician",
+    layout: "layouts/admin",
+    technician: null,
+  });
+});
+
+router.get("/admin/technicians/:id/edit", pageAuth.requireRole("admin"), async (req, res) => {
+  try {
+    const Technician = require("../models/Technician");
+    const technician = await Technician.findById(req.params.id).lean();
+    if (!technician) return res.status(404).send("Technician not found");
+    res.render("pages/admin/Technicians/TechnicianForm", {
+      title: "Edit Technician",
+      layout: "layouts/admin",
+      technician,
+    });
+  } catch (e) {
+    res.status(500).send("Server error");
+  }
 });
 
 // Admin - Ratings Management

@@ -1,0 +1,202 @@
+<div class="container-fluid py-3 secretary-attendance">
+  <style>
+    .secretary-attendance { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#2563eb; }
+    .secretary-attendance .att-hero { background:linear-gradient(120deg,#0f172a,#1d4ed8); color:#fff; border-radius:20px; padding:1.5rem; box-shadow:0 16px 38px rgba(30,64,175,.18); }
+    .secretary-attendance .att-hero p { color:#bfdbfe; margin:0; }
+    .secretary-attendance .att-card { background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:0 5px 18px rgba(15,23,42,.05); height:100%; }
+    .secretary-attendance .att-card-head { padding:1rem 1.15rem; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+    .secretary-attendance .att-card-body { padding:1.15rem; }
+    .secretary-attendance .status-orb { width:74px; height:74px; border-radius:22px; display:grid; place-items:center; background:#eff6ff; color:var(--brand); font-size:2rem; }
+    .secretary-attendance .status-pill { display:inline-flex; align-items:center; gap:.4rem; border-radius:999px; padding:.35rem .7rem; font-size:.78rem; font-weight:700; background:#f1f5f9; color:#475569; }
+    .secretary-attendance .status-pill.present { background:#dcfce7; color:#15803d; }
+    .secretary-attendance .status-pill.late { background:#fef3c7; color:#b45309; }
+    .secretary-attendance .status-pill.out { background:#e0e7ff; color:#4338ca; }
+    .secretary-attendance .time-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; }
+    .secretary-attendance .time-box { background:#f8fafc; border:1px solid var(--line); border-radius:12px; padding:.75rem; }
+    .secretary-attendance .time-box small { display:block; color:var(--muted); margin-bottom:.2rem; }
+    .secretary-attendance .time-box strong { color:var(--ink); }
+    .secretary-attendance #reader { overflow:hidden; border-radius:14px; border:1px solid var(--line); }
+    .secretary-attendance .scan-placeholder { min-height:260px; border:2px dashed #bfdbfe; border-radius:14px; display:grid; place-items:center; text-align:center; color:var(--muted); background:#f8fbff; padding:1rem; }
+    .secretary-attendance .history-table th { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+    .secretary-attendance .history-table td { vertical-align:middle; white-space:nowrap; }
+    @media (max-width:575.98px) { .secretary-attendance .time-grid { grid-template-columns:1fr; } }
+  </style>
+
+  <section class="att-hero mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <div class="small text-uppercase fw-bold mb-1" style="letter-spacing:.08em;color:#93c5fd">Secretary workspace</div>
+        <h1 class="h3 fw-bold mb-1">My Attendance</h1>
+        <p>Scan the office QR to create a verified daily time record.</p>
+      </div>
+      <div class="text-lg-end">
+        <div id="currentDate" class="fw-semibold"></div>
+        <div id="currentClock" class="fs-4 fw-bold"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="attendanceAlert" class="alert d-none" role="alert"></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-xl-5">
+      <section class="att-card">
+        <div class="att-card-head">
+          <div><strong>Today's record</strong><div class="small text-muted">Asia/Manila time</div></div>
+          <span id="statusPill" class="status-pill"><i class="bi bi-circle-fill"></i> Loading</span>
+        </div>
+        <div class="att-card-body">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <div class="status-orb"><i class="bi bi-person-check"></i></div>
+            <div><div class="text-muted small">Attendance status</div><div id="statusTitle" class="h4 fw-bold mb-0">Loading...</div></div>
+          </div>
+          <div class="time-grid mb-3">
+            <div class="time-box"><small>Check in</small><strong id="checkInTime">--</strong></div>
+            <div class="time-box"><small>Check out</small><strong id="checkOutTime">--</strong></div>
+            <div class="time-box"><small>Hours</small><strong id="hoursWorked">--</strong></div>
+          </div>
+          <button id="checkoutBtn" type="button" class="btn btn-outline-primary w-100 d-none">
+            <i class="bi bi-box-arrow-right me-1"></i> Check out
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-7">
+      <section class="att-card">
+        <div class="att-card-head">
+          <div><strong>QR check-in</strong><div class="small text-muted">The QR changes daily and is managed by an administrator.</div></div>
+          <span class="badge text-bg-light" id="scannerBadge">Ready</span>
+        </div>
+        <div class="att-card-body">
+          <div id="scannerPlaceholder" class="scan-placeholder">
+            <div><i class="bi bi-qr-code-scan fs-1 text-primary"></i><h2 class="h6 fw-bold mt-2">Scan today's attendance QR</h2><p class="small mb-3">Allow camera access, then point the camera at the QR displayed in the office.</p><button id="startScanBtn" class="btn btn-primary"><i class="bi bi-camera me-1"></i> Start scanner</button></div>
+          </div>
+          <div id="reader" class="d-none"></div>
+          <button id="stopScanBtn" class="btn btn-outline-secondary w-100 mt-2 d-none">Stop scanner</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="att-card">
+    <div class="att-card-head">
+      <div><strong>Attendance history</strong><div class="small text-muted">Your latest 90 daily time records.</div></div>
+      <span id="historyCount" class="badge rounded-pill text-bg-light">0 records</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover history-table mb-0">
+        <thead class="table-light"><tr><th class="ps-3">Date</th><th>Status</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Source</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="6" class="text-center text-muted py-4">Loading history...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(() => {
+  let scanner = null;
+  let currentRecord = null;
+  const $ = id => document.getElementById(id);
+  const time = value => value ? new Date(value).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' }) : '--';
+  const hours = record => record?.checkInTime && record?.checkOutTime
+    ? Math.max(0, (new Date(record.checkOutTime) - new Date(record.checkInTime)) / 3600000).toFixed(2) + ' h'
+    : '--';
+
+  function showAlert(message, type = 'danger') {
+    const el = $('attendanceAlert');
+    el.className = `alert alert-${type}`;
+    el.textContent = message;
+    el.classList.remove('d-none');
+    window.setTimeout(() => el.classList.add('d-none'), 5000);
+  }
+
+  function updateClock() {
+    const now = new Date();
+    $('currentDate').textContent = now.toLocaleDateString('en-PH', { timeZone:'Asia/Manila', weekday:'long', month:'long', day:'numeric', year:'numeric' });
+    $('currentClock').textContent = now.toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+
+  function renderStatus(data) {
+    currentRecord = data.record || null;
+    const status = data.attendanceStatus || 'Not Checked In';
+    const pill = $('statusPill');
+    pill.className = 'status-pill ' + (status === 'Present' ? 'present' : status === 'Late' ? 'late' : status === 'Checked Out' ? 'out' : '');
+    pill.innerHTML = `<i class="bi bi-circle-fill"></i> ${status}`;
+    $('statusTitle').textContent = status;
+    $('checkInTime').textContent = time(currentRecord?.checkInTime);
+    $('checkOutTime').textContent = time(currentRecord?.checkOutTime);
+    $('hoursWorked').textContent = hours(currentRecord);
+    const canCheckout = currentRecord?.checkInTime && !currentRecord?.checkOutTime && ['Present','Late'].includes(currentRecord.status);
+    $('checkoutBtn').classList.toggle('d-none', !canCheckout);
+    $('scannerPlaceholder').classList.toggle('d-none', Boolean(currentRecord?.checkInTime));
+  }
+
+  async function loadStatus() {
+    try {
+      const response = await fetch('/api/secretary/attendance/status');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load attendance.');
+      renderStatus(data);
+    } catch (error) { showAlert(error.message); }
+  }
+
+  async function loadHistory() {
+    try {
+      const response = await fetch('/api/secretary/attendance/history');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load history.');
+      $('historyCount').textContent = `${data.count || 0} record${data.count === 1 ? '' : 's'}`;
+      $('historyBody').innerHTML = data.records?.length ? data.records.map(record => {
+        const statusClass = record.status === 'Present' ? 'text-bg-success' : record.status === 'Late' ? 'text-bg-warning' : 'text-bg-secondary';
+        return `<tr><td class="ps-3 fw-semibold">${new Date(record.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' })}</td><td><span class="badge ${statusClass}">${record.status}</span></td><td>${time(record.checkInTime)}</td><td>${time(record.checkOutTime)}</td><td>${hours(record)}</td><td>${record.method === 'qr_scan' ? '<i class="bi bi-qr-code me-1"></i>Verified QR' : '<i class="bi bi-pencil-square me-1"></i>Admin'}</td></tr>`;
+      }).join('') : '<tr><td colspan="6" class="text-center text-muted py-4">No attendance records yet.</td></tr>';
+    } catch (error) { $('historyBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${error.message}</td></tr>`; }
+  }
+
+  async function stopScanner() {
+    if (scanner) { try { await scanner.stop(); await scanner.clear(); } catch (_) {} scanner = null; }
+    $('reader').classList.add('d-none');
+    $('stopScanBtn').classList.add('d-none');
+    if (!currentRecord?.checkInTime) $('scannerPlaceholder').classList.remove('d-none');
+    $('scannerBadge').textContent = 'Ready';
+  }
+
+  async function submitToken(raw) {
+    await stopScanner();
+    let token = raw;
+    try { const parsed = JSON.parse(raw); token = parsed.token || raw; } catch (_) {}
+    try {
+      const response = await fetch('/api/secretary/attendance/scan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ token }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Check-in failed.');
+      showAlert(data.message, 'success');
+      await Promise.all([loadStatus(), loadHistory()]);
+    } catch (error) { showAlert(error.message); }
+  }
+
+  $('startScanBtn').addEventListener('click', async () => {
+    if (!window.Html5Qrcode) return showAlert('QR scanner failed to load. Refresh the page and try again.');
+    $('scannerPlaceholder').classList.add('d-none'); $('reader').classList.remove('d-none'); $('stopScanBtn').classList.remove('d-none'); $('scannerBadge').textContent = 'Scanning';
+    scanner = new Html5Qrcode('reader');
+    try { await scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:230, height:230 } }, submitToken, () => {}); }
+    catch (_) { await stopScanner(); showAlert('Camera access was not available. Check browser permission and try again.'); }
+  });
+  $('stopScanBtn').addEventListener('click', stopScanner);
+  $('checkoutBtn').addEventListener('click', async () => {
+    if (!window.confirm('Finish today\'s shift and check out?')) return;
+    const button = $('checkoutBtn'); button.disabled = true;
+    try {
+      const response = await fetch('/api/secretary/attendance/checkout', { method:'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Check-out failed.');
+      showAlert(`${data.message} Total: ${Number(data.hoursWorked || 0).toFixed(2)} hours.`, 'success');
+      await Promise.all([loadStatus(), loadHistory()]);
+    } catch (error) { showAlert(error.message); } finally { button.disabled = false; }
+  });
+
+  updateClock(); window.setInterval(updateClock, 1000);
+  Promise.all([loadStatus(), loadHistory()]);
+})();
+</script>

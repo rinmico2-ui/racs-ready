@@ -22,6 +22,13 @@ const orderAllocationSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 1 },
 }, { _id: false });
 
+const projectAllocationSchema = new mongoose.Schema({
+  projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
+  workOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder", default: null },
+  dailyAssignmentId: { type: mongoose.Schema.Types.ObjectId, ref: "DailyAssignment", default: null },
+  quantity: { type: Number, required: true, min: 1 },
+}, { _id: false });
+
 const dailyKitItemSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   quantity: { type: Number, default: 1, min: 1 },
@@ -50,7 +57,7 @@ const dailyKitItemSchema = new mongoose.Schema({
   // For equipment: checkout/return tracking
   checkoutStatus: {
     type: String,
-    enum: ["pending", "reserved", "checked_out", "issued", "standard_kit", "returned", "unavailable", "exception"],
+    enum: ["pending", "reserved", "checked_out", "issued", "standard_kit", "in_custody", "returned", "damaged", "unavailable", "exception"],
     default: "pending",
   },
   checkedOutAt: { type: Date },
@@ -73,6 +80,16 @@ const dailyKitItemSchema = new mongoose.Schema({
   // Per-order demand remains explicit even when identical requirements are
   // consolidated into one technician-day inventory row.
   orderAllocations: [orderAllocationSchema],
+  // Confirmed project schedule rows participate in the same technician/day
+  // kit as service bookings and installation orders. These links keep one
+  // physical checkout auditable from every originating workflow.
+  projectIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Project" }],
+  workOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
+  dailyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "DailyAssignment" }],
+  projectAllocations: [projectAllocationSchema],
+  // Legacy project equipment may already be in this technician's custody.
+  // Referencing it prevents the consolidated kit from deducting it again.
+  custodyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "EquipmentAssignment" }],
 
   // Conflict info (if equipment unavailable)
   conflict: {
@@ -135,6 +152,9 @@ const dailyKitSchema = new mongoose.Schema({
   assignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Assignment" }],
   bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "BookingService" }],
   orderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
+  projectIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Project" }],
+  workOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
+  dailyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "DailyAssignment" }],
 
   // Tracking
   generatedAt: { type: Date, default: Date.now },
