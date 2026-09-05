@@ -261,6 +261,14 @@ body {
   }
 }
 
+/* ── Mobile topbar brand adjustments ── */
+@media (max-width: 767px) {
+  .navbar-brand-logo {
+    width: 30px;
+    height: 30px;
+  }
+}
+
 .bg-admin-topbar .btn-outline-light {
   border-color: rgba(37, 99, 235, 0.12);
 }
@@ -577,6 +585,7 @@ body {
   .admin-content {
     margin-left: 0;
     padding: 16px;
+    padding-top: var(--admin-topbar-height, 56px) !important;
   }
 
   /* backdrop shown when sidebar slides in on small screens */

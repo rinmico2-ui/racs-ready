@@ -86,12 +86,17 @@ body.admin-layout strong {
 }
 
 .admin-topbar .container-fluid {
-  padding-left: clamp(1.75rem, 2vw, 2.75rem);
+  padding-left: clamp(1rem, 2vw, 2.75rem);
+  padding-right: clamp(0.75rem, 2vw, 1.5rem);
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .admin-topbar .navbar-brand {
-  gap: 1.15rem;
-  padding-left: 1.25rem;
+  gap: 0.75rem;
+  padding-left: 0.5rem;
+  margin-right: auto;
 }
 
 .admin-topbar .navbar-brand .brand-text {
@@ -102,6 +107,50 @@ body.admin-layout strong {
 .admin-root.sidebar-collapsed .admin-topbar {
   left: 0;
   transition: left .35s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* ── Tablet (≤991px): tighter brand spacing ── */
+@media (max-width: 991px) {
+  .admin-topbar .navbar-brand {
+    gap: 0.5rem;
+    padding-left: 0.25rem;
+  }
+}
+
+/* ── Mobile (≤767px): topbar full-width since sidebar overlays ── */
+@media (max-width: 767px) {
+  .admin-topbar {
+    left: 0 !important;
+    height: auto;
+    min-height: var(--admin-topbar-height, 56px);
+  }
+
+  .admin-root.sidebar-collapsed .admin-topbar {
+    left: 0 !important;
+  }
+
+  .admin-topbar .container-fluid {
+    padding-left: 12px;
+    padding-right: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .admin-topbar .navbar-brand {
+    gap: 0.4rem;
+    padding-left: 0;
+  }
+}
+
+/* ── Small mobile (≤480px): further compact ── */
+@media (max-width: 480px) {
+  .admin-topbar .container-fluid {
+    padding-left: 8px;
+    padding-right: 4px;
+  }
+
+  .admin-topbar .navbar-brand {
+    gap: 0.25rem;
+  }
 }
 
 /* push content below fixed topbar */
@@ -126,6 +175,7 @@ body.admin-layout strong {
   .admin-content {
     margin-left: 0 !important;
     width: 100% !important;
+    padding-top: var(--admin-topbar-height, 56px) !important;
   }
 
   .admin-root.sidebar-collapsed .admin-content {
@@ -1188,6 +1238,84 @@ body.admin-layout strong {
   color: #1d4ed8;
 }
 
+/* ── Profile dropdown responsive ── */
+@media (max-width: 767px) {
+  .profile-dropdown-toggle {
+    padding: 5px 12px 5px 6px;
+    gap: 6px;
+    border-radius: 14px;
+  }
+
+  .profile-dropdown-toggle .profile-toggle-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .profile-dropdown-toggle .profile-toggle-details .name {
+    font-size: 0.75rem;
+  }
+
+  .profile-dropdown-toggle .profile-toggle-details .role {
+    font-size: 0.6rem;
+  }
+
+  .profile-dropdown-toggle .chevron {
+    font-size: 0.65rem;
+  }
+
+  .profile-dropdown-menu {
+    width: 200px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .profile-dropdown-header {
+    padding: 10px;
+  }
+
+  .profile-dropdown-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .profile-dropdown-header .details .name {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-dropdown-toggle {
+    padding: 4px 8px 4px 4px;
+    gap: 4px;
+  }
+
+  .profile-dropdown-toggle .profile-toggle-avatar {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* ── Notification bell responsive ── */
+@media (max-width: 767px) {
+  .btn-ghost#notifBtn,
+  #notifBtn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+/* ── Navbar right-side items gap ── */
+@media (max-width: 767px) {
+  .admin-topbar .ms-auto {
+    gap: 4px;
+  }
+
+  .admin-topbar .ms-auto .nav-item.me-3 {
+    margin-right: 0.5rem !important;
+  }
+}
+
 @keyframes dropdownFade {
   from {
     opacity: 0;
@@ -1539,6 +1667,7 @@ button:focus {
 @media (max-width: 767px) {
   .admin-content {
     margin-left: 0 !important;
+    padding-top: var(--admin-topbar-height, 56px) !important;
   }
 
   .admin-root.sidebar-collapsed .admin-content {

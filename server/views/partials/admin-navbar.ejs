@@ -27,7 +27,7 @@
         </button>
 
         <!-- Notification Dropdown Panel -->
-        <div id="notifPanel" class="d-none position-absolute" style="top: calc(100% + 8px); right: 0; width: min(380px, 92vw); max-height: 480px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); z-index: 9999; overflow: hidden;">
+        <div id="notifPanel" class="d-none position-absolute" style="top: calc(100% + 8px); right: 0; width: min(380px, 92vw); max-height: 480px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); z-index: 9999; overflow: hidden; transform-origin: top right;">
           <!-- Header -->
           <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style="background: #f8fafc;">
             <span class="fw-bold" style="font-size: 0.85rem; color: #1e293b;">Notifications</span>
@@ -186,15 +186,16 @@
   @media (max-width: 767px) {
     #notifPanel {
       right: -8px;
-      left: 8px;
-      width: calc(100% - 16px);
+      left: auto;
+      width: min(340px, 85vw);
       max-height: 70vh;
+      top: calc(100% + 6px);
     }
     #notifList {
       max-height: calc(70vh - 100px);
     }
     .notif-item {
-      padding: 12px 10px;
+      padding: 10px 10px;
     }
     .notif-icon {
       width: 28px;
@@ -215,11 +216,9 @@
   @media (max-width: 480px) {
     #notifPanel {
       right: 0;
-      left: 0;
-      width: 100%;
-      border-radius: 0;
-      border-left: none;
-      border-right: none;
+      left: auto;
+      width: min(300px, 80vw);
+      border-radius: 12px;
     }
     .notif-item {
       padding: 10px 12px;
@@ -230,12 +229,15 @@
   @media (max-width: 767px) {
     #notifModal {
       padding: 8px;
+      align-items: flex-end;
     }
     #notifModal > div {
-      max-height: 90vh;
+      max-height: 85vh;
+      border-radius: 14px 14px 0 0;
+      max-width: 100%;
     }
     #notifModalList {
-      max-height: calc(90vh - 180px);
+      max-height: calc(85vh - 180px);
     }
     .notif-modal-item {
       padding: 10px 12px;
@@ -273,7 +275,7 @@
       max-height: calc(100vh - 200px);
     }
     .notif-modal-item {
-      padding: 12px;
+      padding: 10px 12px;
     }
   }
 </style>
