@@ -393,7 +393,7 @@
   }
 
   if (params.get('activated')) {
-    window.authUtils.swalSuccess('Account activated', 'Your email is verified and your walk-in order is ready to track. Sign in to continue.');
+    window.authUtils.swalSuccess('Account activated', 'Your email is verified and your walk-in activity is ready to track. Sign in to continue.');
     if (window.history && window.history.replaceState) {
       try {
         var activatedUrl = new URL(window.location.href);

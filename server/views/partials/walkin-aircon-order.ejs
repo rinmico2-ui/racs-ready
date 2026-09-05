@@ -31,6 +31,8 @@
 </style>
 <style>
   .wa-account-consent{display:flex;align-items:flex-start;gap:.7rem;padding:.85rem;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#334155;font-size:.76rem;line-height:1.5;cursor:pointer}.wa-account-consent input{width:17px;height:17px;margin-top:2px;accent-color:#2563eb;flex:none}.wa-account-consent strong{display:block;color:#1e3a8a;font-size:.78rem}.wa-account-consent small{display:block;color:#64748b;margin-top:2px}
+  .wa-account-policy{display:flex;align-items:flex-start;gap:.65rem;padding:.75rem;border:1px solid #bfdbfe;border-radius:11px;background:#f0f7ff;color:#334155;font-size:.7rem;line-height:1.45}.wa-account-policy i{color:#2563eb;font-size:1rem}.wa-account-policy strong{display:block;color:#1e3a8a;font-size:.74rem}.wa-account-email-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.45rem}.wa-account-find{min-width:112px;border:1px solid #2563eb;border-radius:9px;padding:.55rem .65rem;background:#2563eb;color:#fff;font-size:.7rem;font-weight:800}.wa-account-find:disabled{opacity:.6}.wa-account-status{display:flex;align-items:flex-start;gap:.4rem;margin-top:.45rem;padding:.55rem .65rem;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:.66rem;line-height:1.4}.wa-account-status.success{background:#ecfdf5;color:#166534}.wa-account-status.warning{background:#fffbeb;color:#92400e}.wa-account-status.danger{background:#fef2f2;color:#b91c1c}.wa-existing-customer{display:flex;align-items:flex-start;gap:.6rem;margin-top:.5rem;padding:.65rem;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#166534}.wa-existing-customer i{font-size:1.05rem}.wa-existing-customer strong,.wa-existing-customer span{display:block}.wa-existing-customer strong{font-size:.73rem}.wa-existing-customer span{margin-top:1px;color:#15803d;font-size:.63rem}.wa-new-customer-heading{display:flex;align-items:center;gap:.45rem;color:#1d4ed8;font-size:.69rem;font-weight:800}
+  @media(max-width:520px){.wa-account-email-row{grid-template-columns:1fr}.wa-account-find{width:100%}}
   .wa-receipt-modal{width:min(650px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow:auto;border-radius:18px;background:#fff;box-shadow:0 24px 80px rgba(15,23,42,.28)}.wa-receipt-head{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0}.wa-receipt-head h3{margin:0;font-size:1rem;font-weight:800}.wa-receipt-body{padding:1.3rem}.wa-receipt-brand{text-align:center;padding-bottom:1rem;border-bottom:2px dashed #cbd5e1}.wa-receipt-brand h4{margin:0;color:#1e3a8a;font-weight:900}.wa-receipt-brand p{margin:.2rem 0 0;color:#64748b;font-size:.72rem}.wa-receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1rem;padding:1rem 0;font-size:.78rem}.wa-receipt-grid span{display:block;color:#94a3b8;font-size:.65rem;text-transform:uppercase}.wa-receipt-items{width:100%;font-size:.75rem}.wa-receipt-items th{padding:.55rem .35rem;border-bottom:1px solid #cbd5e1;color:#64748b;text-transform:uppercase;font-size:.62rem}.wa-receipt-items td{padding:.6rem .35rem;border-bottom:1px solid #f1f5f9}.wa-receipt-items th:last-child,.wa-receipt-items td:last-child{text-align:right}.wa-receipt-total{display:flex;justify-content:space-between;margin-top:1rem;padding-top:1rem;border-top:2px solid #0f172a;font-size:1rem;font-weight:900}.wa-account-result{margin-top:1rem;padding:.8rem;border-radius:11px;background:#eff6ff;color:#1e40af;font-size:.75rem;line-height:1.45}.wa-receipt-actions{display:flex;justify-content:flex-end;gap:.55rem;padding:1rem 1.2rem;border-top:1px solid #e2e8f0}.wa-receipt-actions button{padding:.65rem .9rem;border-radius:9px;border:1px solid #cbd5e1;background:#fff;font-size:.74rem;font-weight:800}.wa-receipt-actions .primary{border-color:#2563eb;background:#2563eb;color:#fff}
   @media print{body.wa-printing *{visibility:hidden!important}body.wa-printing #waReceiptContent,body.wa-printing #waReceiptContent *{visibility:visible!important}body.wa-printing #waReceiptContent{position:absolute;left:0;top:0;width:100%;padding:20px;background:#fff}}
 </style>
@@ -56,10 +58,17 @@
         <section class="wa-section">
           <h4 class="wa-section-title"><i class="bi bi-person"></i>Customer</h4>
           <div class="wa-fields">
-            <div class="wa-wide"><label class="wa-label" for="waCustomerName">Full name</label><input class="wa-field" id="waCustomerName" maxlength="160" required></div>
-            <div><label class="wa-label" for="waCustomerEmail">Email</label><input class="wa-field" id="waCustomerEmail" type="email" maxlength="254" required></div>
-            <div><label class="wa-label" for="waCustomerPhone">Phone</label><input class="wa-field" id="waCustomerPhone" inputmode="tel" maxlength="20" required></div>
-            <div class="wa-wide"><label class="wa-account-consent" for="waAccountConsent"><input id="waAccountConsent" type="checkbox" required><span><strong>Customer consent for online account access</strong>I confirm the customer authorized this order to be linked to their email and to receive account and order messages.<small>An existing account will be reused. Otherwise, the customer must verify their email and choose their own password.</small></span></label></div>
+            <div class="wa-wide wa-account-policy"><i class="bi bi-shield-check"></i><div><strong>Account matching is automatic</strong>Search the customer's email first. An existing customer account is reused; otherwise, the customer profile and consent are required for a secure activation invitation.</div></div>
+            <div class="wa-wide">
+              <label class="wa-label" for="waCustomerEmail">Customer email</label>
+              <div class="wa-account-email-row"><input class="wa-field" id="waCustomerEmail" type="email" maxlength="254" autocomplete="email" placeholder="customer@example.com" required><button class="wa-account-find" id="waFindCustomer" type="button"><i class="bi bi-search me-1"></i>Find customer</button></div>
+              <div class="wa-account-status" id="waCustomerLookupStatus" role="status" aria-live="polite"><i class="bi bi-info-circle"></i><span>No account selected. Search by email before checkout.</span></div>
+              <div class="wa-existing-customer wa-hidden" id="waExistingCustomer" aria-live="polite"><i class="bi bi-person-check-fill"></i><div><strong id="waExistingCustomerName">Existing customer</strong><span id="waExistingCustomerMeta"></span></div></div>
+            </div>
+            <div class="wa-wide wa-new-customer-heading wa-hidden" id="waNewCustomerHeading"><i class="bi bi-person-plus-fill"></i><span>No account exists. Complete the customer profile below.</span></div>
+            <div class="wa-wide wa-hidden" id="waCustomerNameWrap"><label class="wa-label" for="waCustomerName">Full name</label><input class="wa-field" id="waCustomerName" maxlength="160"></div>
+            <div class="wa-wide wa-hidden" id="waCustomerPhoneWrap"><label class="wa-label" for="waCustomerPhone">Phone</label><input class="wa-field" id="waCustomerPhone" inputmode="tel" maxlength="20"></div>
+            <div class="wa-wide wa-hidden" id="waAccountConsentWrap"><label class="wa-account-consent" for="waAccountConsent"><input id="waAccountConsent" type="checkbox"><span><strong id="waAccountConsentTitle">Customer consent for online account access</strong><span id="waAccountConsentText">I confirm the customer authorized this order to be linked to their account.</span><small id="waAccountConsentHelp">Account messages will be sent to the verified email.</small></span></label></div>
           </div>
         </section>
         <section class="wa-section">
@@ -168,7 +177,9 @@
     scheduleRequest: 0, slotRequest: 0, loaded: false, checkoutId: "",
     map: null, deliveryMarker: null, companyMarker: null, routeLayer: null,
     company: null, companyPromise: null, quoteRequest: 0, reverseRequest: 0,
-    lastReceipt: null,
+    lastReceipt: null, customerLookupEmail: "", customerAccountFound: false,
+    customerIsNew: null, customerAccountState: "unchecked", customerProfileRequired: false,
+    customerLookupRequest: 0,
   };
   const $ = (id) => document.getElementById(id);
   const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -215,6 +226,122 @@
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Request failed");
     return data;
+  }
+
+  function setCustomerLookupStatus(message, type = "info", loading = false) {
+    const status = $("waCustomerLookupStatus");
+    status.className = `wa-account-status${type === "info" ? "" : ` ${type}`}`;
+    status.innerHTML = `${loading ? '<span class="spinner-border spinner-border-sm"></span>' : `<i class="bi ${type === "success" ? "bi-check-circle-fill" : type === "danger" ? "bi-exclamation-octagon-fill" : type === "warning" ? "bi-exclamation-triangle-fill" : "bi-info-circle"}"></i>`}<span>${esc(message)}</span>`;
+  }
+
+  function applyCustomerAccountMode() {
+    const resolved = Boolean(state.customerLookupEmail) && state.customerIsNew !== null;
+    const showProfile = resolved && (state.customerIsNew || state.customerProfileRequired);
+    $("waExistingCustomer").classList.toggle("wa-hidden", !state.customerAccountFound);
+    $("waNewCustomerHeading").classList.toggle("wa-hidden", !resolved || !state.customerIsNew);
+    $("waCustomerNameWrap").classList.toggle("wa-hidden", !showProfile);
+    $("waCustomerPhoneWrap").classList.toggle("wa-hidden", !showProfile);
+    $("waAccountConsentWrap").classList.toggle("wa-hidden", !resolved);
+    $("waAccountConsentTitle").textContent = state.customerIsNew
+      ? "Customer consent to create online account access"
+      : "Customer consent to link this order";
+    $("waAccountConsentText").textContent = state.customerIsNew
+      ? "I confirm the customer authorized CALIDRO RACS to create an invited account for this email and link this order."
+      : "I confirm the customer requested this order and authorized it to be linked to the existing account.";
+    $("waAccountConsentHelp").textContent = state.customerIsNew
+      ? "A single-use activation link will be sent. The customer chooses their own password."
+      : "Order and account messages will be sent to the customer's registered email.";
+  }
+
+  function resetCustomerAccountMatch({ clearProfile = true } = {}) {
+    state.customerLookupRequest += 1;
+    state.customerLookupEmail = "";
+    state.customerAccountFound = false;
+    state.customerIsNew = null;
+    state.customerAccountState = "unchecked";
+    state.customerProfileRequired = false;
+    $("waFindCustomer").disabled = false;
+    $("waAccountConsent").checked = false;
+    if (clearProfile) {
+      $("waCustomerName").value = "";
+      $("waCustomerPhone").value = "";
+    }
+    $("waExistingCustomerName").textContent = "Existing customer";
+    $("waExistingCustomerMeta").textContent = "";
+    applyCustomerAccountMode();
+    setCustomerLookupStatus("No account selected. Search by email before checkout.");
+  }
+
+  async function findOrderCustomer() {
+    const email = $("waCustomerEmail").value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setCustomerLookupStatus("Enter a valid customer email before searching.", "danger");
+      return false;
+    }
+    if (state.customerLookupEmail === email && state.customerIsNew !== null) return true;
+
+    resetCustomerAccountMatch();
+    $("waCustomerEmail").value = email;
+    const requestId = ++state.customerLookupRequest;
+    const button = $("waFindCustomer");
+    button.disabled = true;
+    setCustomerLookupStatus("Checking the customer database…", "info", true);
+    try {
+      const response = await fetch(`/api/users?email=${encodeURIComponent(email)}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (requestId !== state.customerLookupRequest) return false;
+      if (!response.ok) throw new Error(result.error || "Customer lookup failed.");
+
+      if (!result.user && result.emailAvailable === false) {
+        setCustomerLookupStatus("This email belongs to a staff account and cannot be used for a customer order.", "danger");
+        return false;
+      }
+      if (result.user && result.accountState === "unavailable") {
+        setCustomerLookupStatus("This customer account is disabled or blocked. Resolve its status before checkout.", "danger");
+        return false;
+      }
+
+      if (result.user) {
+        const customer = result.user;
+        const fullName = `${customer.firstName || ""} ${customer.lastName || ""}`.trim();
+        $("waCustomerName").value = fullName;
+        $("waCustomerPhone").value = customer.phone || "";
+        state.customerLookupEmail = email;
+        state.customerAccountFound = true;
+        state.customerIsNew = false;
+        state.customerAccountState = result.accountState || "active";
+        state.customerProfileRequired = fullName.length < 2 || String(customer.phone || "").replace(/\D/g, "").length < 7;
+        $("waExistingCustomerName").textContent = fullName || customer.email;
+        $("waExistingCustomerMeta").textContent = `${customer.phone || "No phone on file"} · ${state.customerAccountState === "active" ? "Verified account" : state.customerAccountState === "invited" ? "Activation still required" : "Email verification pending"}`;
+        applyCustomerAccountMode();
+        setCustomerLookupStatus(
+          state.customerProfileRequired
+            ? "Existing customer found, but required contact details are incomplete. Complete them before checkout."
+            : "Existing customer found. This order will be linked after consent is confirmed.",
+          state.customerProfileRequired ? "warning" : "success",
+        );
+      } else {
+        state.customerLookupEmail = email;
+        state.customerAccountFound = false;
+        state.customerIsNew = true;
+        state.customerAccountState = "invited";
+        state.customerProfileRequired = true;
+        applyCustomerAccountMode();
+        setCustomerLookupStatus("No customer account found. Complete the profile and capture consent to send a secure activation invitation.", "warning");
+      }
+      return true;
+    } catch (error) {
+      if (requestId === state.customerLookupRequest) {
+        setCustomerLookupStatus(error.message || "Customer lookup failed. Please try again.", "danger");
+      }
+      return false;
+    } finally {
+      if (requestId === state.customerLookupRequest) button.disabled = false;
+    }
   }
 
   function loadCompanyLocation() {
@@ -693,7 +820,10 @@
 
   function validate() {
     if (!state.cart.length) return "Add at least one aircon.";
-    if ($("waCustomerName").value.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("waCustomerEmail").value.trim()) || $("waCustomerPhone").value.replace(/\D/g,"").length < 7) return "Enter the customer's complete name, email, and phone number.";
+    const customerEmail = $("waCustomerEmail").value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return "Enter a valid customer email.";
+    if (state.customerLookupEmail !== customerEmail || state.customerIsNew === null) return "Find the customer account by email before checkout.";
+    if ($("waCustomerName").value.trim().length < 2 || $("waCustomerPhone").value.replace(/\D/g,"").length < 7) return "Enter the customer's complete name and phone number.";
     if (!$("waAccountConsent").checked) return "Confirm the customer's consent to create or link their online account.";
     if (state.fulfillment === "delivery_installation" && (!$("waLat").value || !$("waTechnician").value || !state.date || !$("waTimeSlot").value)) return "Select a verified address, technician, available date, and time.";
     if (state.fulfillment === "customer_pickup" && !$("waPickupDate").value) return "Choose the customer pickup date.";
@@ -712,7 +842,7 @@
     try {
       const result = await jsonFetch("/api/walk-in-aircon/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       showReceipt(result);
-      state.cart = []; state.quote = {}; state.date = ""; state.checkoutId = uuid(); $("waCheckoutForm").reset(); setFulfillment("delivery_installation"); renderCart(); await initializeAfterCheckout();
+      state.cart = []; state.quote = {}; state.date = ""; state.checkoutId = uuid(); $("waCheckoutForm").reset(); resetCustomerAccountMatch({ clearProfile:false }); setFulfillment("delivery_installation"); renderCart(); await initializeAfterCheckout();
       closeCart();
     } catch (err) { toast(err.message || "Checkout failed.", "danger"); }
     finally { button.disabled = !state.cart.length; button.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Create paid order'; }
@@ -772,6 +902,16 @@
   let addressSearchTimer;
   $("waSearch").addEventListener("input", () => { clearTimeout(productSearchTimer); productSearchTimer = setTimeout(renderProducts, 180); });
   $("waTypeFilter").addEventListener("change", renderProducts);
+  $("waFindCustomer").addEventListener("click", findOrderCustomer);
+  $("waCustomerEmail").addEventListener("input", () => {
+    const email = $("waCustomerEmail").value.trim().toLowerCase();
+    if (email !== state.customerLookupEmail) resetCustomerAccountMatch();
+  });
+  $("waCustomerEmail").addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    findOrderCustomer();
+  });
   document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.addEventListener("click", () => setFulfillment(button.dataset.value)));
   $("waTechnician").addEventListener("change", scheduleInputsChanged);
   $("waDiscount").addEventListener("input", renderTotals);
@@ -814,6 +954,7 @@
   $("waCheckoutForm").addEventListener("submit", submit);
   const tomorrow = new Date(Date.now() + 86400000);
   $("waPickupDate").min = tomorrow.toISOString().slice(0,10);
+  resetCustomerAccountMatch({ clearProfile:false });
   renderAvailabilityCalendar();
   resetTimeSlots();
   renderCart();

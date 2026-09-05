@@ -25,6 +25,7 @@ const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercare
 const { addMinutesToClock } = require("../utils/clockTime");
 const {
   CustomerInvitationError,
+  normalizeInvitationEmail,
   provisionWalkInCustomer,
 } = require("../utils/customerAccountInvitation");
 
@@ -362,14 +363,54 @@ router.post("/aircon-quote", quoteAirconOrder);
 async function checkoutAirconOrder(req, res) {
   let session;
   try {
-    const customer = normalizedCustomer(req.body?.customer);
     const accountConsent = req.body?.accountConsent === true;
+    if (!accountConsent) {
+      throw new CustomerInvitationError(
+        "Confirm the customer's consent to link this walk-in order to an online account and send account messages.",
+        422,
+        "CUSTOMER_ACCOUNT_CONSENT_REQUIRED",
+      );
+    }
+    const customerInput = req.body?.customer && typeof req.body.customer === "object"
+      ? { ...req.body.customer }
+      : {};
+    const requestedEmail = normalizeInvitationEmail(customerInput.email);
+    if (!requestedEmail) {
+      throw posOrderError("A valid customer email is required for warranty access.", 400, "POS_CUSTOMER_EMAIL_REQUIRED");
+    }
+    const matchedAccount = await User.findOne({ email: requestedEmail });
+    if (matchedAccount && String(matchedAccount.role || "customer").toLowerCase() !== "customer") {
+      throw new CustomerInvitationError(
+        "That email belongs to a staff account. Use the customer's own email address.",
+        409,
+        "CUSTOMER_EMAIL_STAFF_CONFLICT",
+      );
+    }
+    if (matchedAccount && (matchedAccount.active === false || matchedAccount.blocked === true)) {
+      throw new CustomerInvitationError(
+        "That customer account is disabled or blocked. Resolve the account status before creating a walk-in transaction.",
+        409,
+        "CUSTOMER_ACCOUNT_UNAVAILABLE",
+      );
+    }
+    if (matchedAccount) {
+      const savedName = `${matchedAccount.firstName || ""} ${matchedAccount.lastName || ""}`.trim();
+      if (
+        (String(matchedAccount.firstName || "").trim() && String(matchedAccount.lastName || "").trim())
+        || !String(customerInput.name || "").trim()
+      ) {
+        customerInput.name = savedName || customerInput.name;
+      }
+      customerInput.phone = String(matchedAccount.phone || "").trim() || customerInput.phone;
+    }
+    customerInput.email = requestedEmail;
+    const customer = normalizedCustomer(customerInput);
     const payment = paymentMapping(req.body?.paymentMethod);
     const checkoutRequestId = String(req.body?.checkoutRequestId || "").trim();
     if (!/^[A-Za-z0-9_-]{16,80}$/.test(checkoutRequestId)) {
       throw posOrderError("The checkout request is invalid. Refresh the POS and try again.", 400, "POS_CHECKOUT_ID_INVALID");
     }
-    const existingCustomer = await User.findOne({ email: customer.email, role: "customer" }).select("_id").lean();
+    const existingCustomer = matchedAccount;
     if (existingCustomer) {
       const existingOrder = await Order.findOne({
         userId: existingCustomer._id,

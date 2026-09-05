@@ -14,9 +14,10 @@ const googleCalendarSync = require("../utils/googleCalendarSync");
 const {
   sendBookingConfirmationEmail,
   sendTechnicianNotificationEmail,
-  sendWalkInCredentialsEmail,
+  sendWalkInBookingAccountEmail,
   sendTechArrivalNotificationEmail,
 } = require("../utils/mailer");
+const { provisionWalkInCustomer } = require("../utils/customerAccountInvitation");
 const Payment = require("../models/Payment");
 const fs = require("fs");
 const path = require("path");
@@ -1507,6 +1508,7 @@ router.post(
         customerPhone,
         customerEmail,
         isNewCustomer = false,
+        accountConsent = false,
         address,
         customerLocation,
         serviceId,
@@ -1529,6 +1531,7 @@ router.post(
 
       // coerce isNewCustomer to a strict boolean (handles string "true"/"false" from clients)
       isNewCustomer = isNewCustomer === true || isNewCustomer === "true";
+      accountConsent = accountConsent === true || accountConsent === "true";
 
       firstName = String(firstName || "").trim();
       lastName = String(lastName || "").trim();
@@ -1563,6 +1566,12 @@ router.post(
         return res
           .status(400)
           .json({ error: "Valid customer email is required" });
+      }
+      if (!accountConsent) {
+        return res.status(422).json({
+          error: "Confirm the customer's consent to link this appointment to an online account and send account messages.",
+          code: "CUSTOMER_ACCOUNT_CONSENT_REQUIRED",
+        });
       }
       // The database is authoritative: an existing email always reuses the
       // customer account, while an unknown email creates one after validation.
@@ -1854,54 +1863,21 @@ router.post(
           .json({ error: "Downpayment cannot exceed estimated total fee" });
       }
 
-      let customerResult;
-      
-      if (isNewCustomer) {
-        // New customer: create a User account with generated password
-        customerResult = await findOrCreateCustomerAccount({
+      // Account type is authoritative server state. Unknown addresses create a
+      // consented invitation; existing customer addresses are reused.
+      const customerResult = await provisionWalkInCustomer({
+        customer: {
           firstName,
           lastName,
-          customerEmail,
-          customerPhone,
+          email: normalizedCustomerEmail,
+          phone: customerPhone,
           address,
-        });
-      } else {
-        // Existing customer: look up only, never create
-        const existingUser = existingCustomer;
-        if (existingUser) {
-          // update snapshot fields if they differ
-          let updated = false;
-          const normPhone = normalizePhoneForUser(customerPhone);
-          if (normPhone && normPhone !== existingUser.phone) { existingUser.phone = normPhone; updated = true; }
-          if (firstName && firstName !== existingUser.firstName) { existingUser.firstName = firstName; updated = true; }
-          if (lastName && lastName !== existingUser.lastName) { existingUser.lastName = lastName; updated = true; }
-          if (address) {
-            const oldAddr = existingUser.address || {};
-            const newAddr = {
-              province: address.province || oldAddr.province,
-              city: address.city || oldAddr.city,
-              barangay: address.barangay || oldAddr.barangay,
-              postalCode: address.postalCode || oldAddr.postalCode,
-            };
-            if (newAddr.province !== oldAddr.province || newAddr.city !== oldAddr.city ||
-                newAddr.barangay !== oldAddr.barangay || newAddr.postalCode !== oldAddr.postalCode) {
-              existingUser.address = newAddr;
-              updated = true;
-            }
-          }
-          if (updated) await existingUser.save();
-          customerResult = { user: existingUser, created: false, generatedPassword: null, resetToken: null };
-        } else {
-          // edge-case: admin picked "existing" but user not found — create anyway
-          customerResult = await findOrCreateCustomerAccount({
-            firstName,
-            lastName,
-            customerEmail,
-            customerPhone,
-            address,
-          });
-        }
-      }
+        },
+        consent: accountConsent,
+        invitedBy: req.user._id,
+        origin: "walk_in_service",
+      });
+      isNewCustomer = customerResult.created;
       const customerUser =
         customerResult && customerResult.user ? customerResult.user : null;
       
@@ -1952,6 +1928,14 @@ router.post(
           email: customerSnapshotEmail,
           phone: customerSnapshotPhone,
           address: customerAddressStr,
+        },
+        customerAccountAccess: {
+          consentedAt: new Date(),
+          capturedBy: req.user._id,
+          stateAtCheckout: customerResult.state,
+          invitationDelivery: customerResult.state === "pending_verification"
+            ? "pending_registration"
+            : "not_sent",
         },
         location: locationPayload,
         issueDescription: issueDescription || undefined,
@@ -2127,33 +2111,43 @@ router.post(
         }
       }
 
+      let accountMessageDelivery = customerResult.state === "pending_verification"
+        ? "pending_registration"
+        : "not_sent";
       if (customerSnapshotEmail) {
         try {
-          const resetLink =
-            customerResult && customerResult.resetToken
-              ? `${req.protocol}://${req.get("host")}/reset-password?token=${customerResult.resetToken}`
-              : null;
-          await sendWalkInCredentialsEmail({
+          const baseUrl = String(
+            process.env.APP_BASE_URL ||
+            process.env.APP_URL ||
+            `${req.protocol}://${req.get("host")}`,
+          ).replace(/\/$/, "");
+          const activationUrl = customerResult.activationToken
+            ? `${baseUrl}/activate-account?token=${encodeURIComponent(customerResult.activationToken)}`
+            : null;
+          const mailAccepted = await sendWalkInBookingAccountEmail({
             to: customerSnapshotEmail,
             customerName: customerSnapshotName,
-            email: customerSnapshotEmail,
-            generatedPassword:
-              customerResult && customerResult.created
-                ? customerResult.generatedPassword
-                : null,
-            resetLink,
             bookingReference,
-            serviceName: serviceDoc && serviceDoc.name,
-            date,
-            startTime: selectedTimeLabel,
+            activationUrl,
+            trackingUrl: `${baseUrl}/book-history`,
+            serviceName: resolvedItems.map((item) => item.name).join(", "),
+            scheduleLabel: isLargeScale
+              ? `${date} (project scheduling request)`
+              : `${date} ${selectedTimeLabel}`,
           });
+          accountMessageDelivery = mailAccepted ? "accepted" : "failed";
         } catch (mailErr) {
+          accountMessageDelivery = "failed";
           console.warn(
-            "walk-in credentials email failed",
+            "walk-in account email failed",
             mailErr && mailErr.message,
           );
         }
       }
+      appointment.customerAccountAccess.invitationDelivery = accountMessageDelivery;
+      appointment.customerAccountAccess.invitationSentAt =
+        accountMessageDelivery === "accepted" ? new Date() : null;
+      await appointment.save();
 
       // create payment row aligned with cash mode (status auto-calculated)
       try {
@@ -2200,19 +2194,22 @@ router.post(
           startTime,
           cashPaymentMode: normalizedCashMode,
           downpaymentAmount: effectiveDownpayment,
+          customerAccountState: customerResult.state,
+          customerAccountCreated: customerResult.created,
+          accountConsentCaptured: true,
+          accountMessageDelivery,
         },
       });
 
-      const resetLink =
-        customerResult && customerResult.resetToken
-          ? `${req.protocol}://${req.get("host")}/reset-password?token=${customerResult.resetToken}`
-          : null;
       return res.status(201).json({
         message: "Walk-in appointment created successfully",
         customerAccountCreated: Boolean(
           customerResult && customerResult.created,
         ),
-        resetLink,
+        customerAccount: {
+          state: customerResult.state,
+          invitationDelivery: accountMessageDelivery,
+        },
         appointment,
         assignment,
         customer:
@@ -2228,11 +2225,12 @@ router.post(
       });
     } catch (err) {
       console.error("walk-in create error", err);
-      return res.status(500).json({
+      return res.status(Number(err && err.status) || 500).json({
         error:
           err && err.message
             ? err.message
             : "Failed to create walk-in appointment",
+        ...(err && err.code ? { code: err.code } : {}),
       });
     }
   });

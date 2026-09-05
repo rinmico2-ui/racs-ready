@@ -57,6 +57,7 @@ test("new walk-in provisioning returns only an activation token, never a passwor
       firstName: "New",
       lastName: "Walkin",
       phone: "09171234567",
+      address: { province: "Nueva Ecija", city: "San Leonardo", barangay: "Diversion", postalCode: "3102" },
     },
     consent: true,
     invitedBy: "admin-id",
@@ -68,8 +69,68 @@ test("new walk-in provisioning returns only an activation token, never a passwor
   assert.equal(result.activationToken, "activation-token");
   assert.equal(result.user.emailVerified, false);
   assert.equal(result.user.accountStatus, "invited");
+  assert.equal(result.user.address.city, "San Leonardo");
   assert.equal(Object.hasOwn(result, "password"), false);
   assert.equal(Object.hasOwn(result, "generatedPassword"), false);
+});
+
+test("walk-in provisioning rejects disabled or blocked customer accounts", async () => {
+  const blockedCustomer = {
+    role: "customer",
+    active: true,
+    blocked: true,
+    emailVerified: true,
+  };
+  class FakeUser {
+    static findOne() { return Promise.resolve(blockedCustomer); }
+  }
+  await assert.rejects(
+    provisionWalkInCustomer({
+      customer: { email: "blocked@example.com" },
+      consent: true,
+      UserModel: FakeUser,
+    }),
+    (error) => error instanceof CustomerInvitationError
+      && error.code === "CUSTOMER_ACCOUNT_UNAVAILABLE"
+      && error.status === 409,
+  );
+});
+
+test("walk-in provisioning completes missing existing-customer details without overwriting profile data", async () => {
+  const customer = {
+    role: "customer",
+    active: true,
+    blocked: false,
+    emailVerified: true,
+    firstName: "Existing",
+    lastName: "",
+    phone: "",
+    address: { province: "Bulacan", city: "", barangay: "", postalCode: "" },
+    async save() { this.saved = true; return this; },
+  };
+  class FakeUser {
+    static findOne() { return Promise.resolve(customer); }
+  }
+
+  const result = await provisionWalkInCustomer({
+    customer: {
+      email: "existing@example.com",
+      firstName: "Replacement",
+      lastName: "Customer",
+      phone: "09171234567",
+      address: { province: "Pampanga", city: "Malolos", barangay: "Longos", postalCode: "3000" },
+    },
+    consent: true,
+    UserModel: FakeUser,
+  });
+
+  assert.equal(result.created, false);
+  assert.equal(customer.firstName, "Existing");
+  assert.equal(customer.lastName, "Customer");
+  assert.equal(customer.phone, "09171234567");
+  assert.equal(customer.address.province, "Bulacan");
+  assert.equal(customer.address.city, "Malolos");
+  assert.equal(customer.saved, true);
 });
 
 test("invitation fields are private and tokens expire", () => {
@@ -97,6 +158,25 @@ test("orders retain account-consent evidence without storing invitation credenti
   assert.ok(Order.schema.path("customerAccountAccess.capturedBy"));
   assert.ok(Order.schema.path("customerAccountAccess.stateAtCheckout"));
   assert.equal(Order.schema.path("customerAccountAccess.invitationToken"), undefined);
+});
+
+test("walk-in appointments retain consent evidence without storing invitation credentials", () => {
+  const BookingService = require("../models/BookingService");
+  assert.ok(BookingService.schema.path("customerAccountAccess.consentedAt"));
+  assert.ok(BookingService.schema.path("customerAccountAccess.capturedBy"));
+  assert.ok(BookingService.schema.path("customerAccountAccess.stateAtCheckout"));
+  assert.ok(BookingService.schema.path("customerAccountAccess.invitationDelivery"));
+  assert.equal(BookingService.schema.path("customerAccountAccess.invitationToken"), undefined);
+});
+
+test("walk-in service creation uses the consented invitation contract", () => {
+  const routeSource = fs.readFileSync(path.join(__dirname, "../routes/appointmentRoutes.js"), "utf8");
+  const walkInRoute = routeSource.match(/router\.post\(\s*"\/walk-in"[\s\S]*?router\.get\("\/:id"/);
+  assert.ok(walkInRoute, "expected the walk-in appointment route");
+  assert.match(walkInRoute[0], /CUSTOMER_ACCOUNT_CONSENT_REQUIRED/);
+  assert.match(walkInRoute[0], /provisionWalkInCustomer/);
+  assert.match(walkInRoute[0], /sendWalkInBookingAccountEmail/);
+  assert.doesNotMatch(walkInRoute[0], /sendWalkInCredentialsEmail|generatedPassword|resetToken/);
 });
 
 test("account activation endpoint is exposed", () => {

@@ -32,7 +32,7 @@ async function provisionWalkInCustomer({
 }) {
   if (consent !== true) {
     throw new CustomerInvitationError(
-      "Confirm the customer's consent to link this order to a customer account and send account emails.",
+      "Confirm the customer's consent to link this walk-in transaction to a customer account and send account emails.",
       422,
       "CUSTOMER_ACCOUNT_CONSENT_REQUIRED",
     );
@@ -46,12 +46,54 @@ async function provisionWalkInCustomer({
   const query = UserModel.findOne({ email });
   const existing = session && typeof query.session === "function" ? await query.session(session) : await query;
   if (existing) {
-    if (existing.role !== "customer") {
+    if (String(existing.role || "customer").toLowerCase() !== "customer") {
       throw new CustomerInvitationError(
         "That email belongs to a staff account. Use the customer's own email address.",
         409,
         "CUSTOMER_EMAIL_STAFF_CONFLICT",
       );
+    }
+    if (existing.active === false || existing.blocked === true) {
+      throw new CustomerInvitationError(
+        "That customer account is disabled or blocked. Resolve the account status before creating a walk-in transaction.",
+        409,
+        "CUSTOMER_ACCOUNT_UNAVAILABLE",
+      );
+    }
+
+    // Consent also permits completing fields that are missing from an existing
+    // customer record. Never overwrite established profile data from checkout.
+    let profileChanged = false;
+    const firstName = String(customer?.firstName || "").trim().slice(0, 100);
+    const lastName = String(customer?.lastName || "").trim().slice(0, 100);
+    const phone = String(customer?.phone || "").replace(/\D+/g, "").slice(0, 32);
+    if (!String(existing.firstName || "").trim() && firstName) {
+      existing.firstName = firstName;
+      profileChanged = true;
+    }
+    if (!String(existing.lastName || "").trim() && lastName) {
+      existing.lastName = lastName;
+      profileChanged = true;
+    }
+    if (!String(existing.phone || "").trim() && phone) {
+      existing.phone = phone;
+      profileChanged = true;
+    }
+    if (customer?.address && typeof customer.address === "object") {
+      const savedAddress = existing.address || {};
+      const addressFields = ["province", "city", "barangay", "postalCode"];
+      const completedAddress = {};
+      let addressChanged = false;
+      for (const field of addressFields) {
+        const savedValue = String(savedAddress[field] || "").trim();
+        const suppliedValue = String(customer.address[field] || "").trim().slice(0, field === "postalCode" ? 20 : 100);
+        completedAddress[field] = savedValue || suppliedValue;
+        if (!savedValue && suppliedValue) addressChanged = true;
+      }
+      if (addressChanged) {
+        existing.address = completedAddress;
+        profileChanged = true;
+      }
     }
 
     let activationToken = null;
@@ -59,6 +101,8 @@ async function provisionWalkInCustomer({
       existing.invitationConsentAt = existing.invitationConsentAt || new Date();
       existing.invitationInvitedBy = existing.invitationInvitedBy || invitedBy;
       activationToken = existing.createAccountInvitationToken();
+    }
+    if (profileChanged || activationToken) {
       await existing.save({ ...(session ? { session } : {}) });
     }
     return {
@@ -74,6 +118,14 @@ async function provisionWalkInCustomer({
     firstName: String(customer?.firstName || "Walk-in").trim().slice(0, 100) || "Walk-in",
     lastName: String(customer?.lastName || "Customer").trim().slice(0, 100) || "Customer",
     phone: String(customer?.phone || "").replace(/\D+/g, "").slice(0, 32),
+    address: customer?.address && typeof customer.address === "object"
+      ? {
+          province: String(customer.address.province || "").trim().slice(0, 100),
+          city: String(customer.address.city || "").trim().slice(0, 100),
+          barangay: String(customer.address.barangay || "").trim().slice(0, 100),
+          postalCode: String(customer.address.postalCode || "").trim().slice(0, 20),
+        }
+      : undefined,
     role: "customer",
     active: true,
     emailVerified: false,

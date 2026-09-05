@@ -43,6 +43,11 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
 
   assert.match(html, /data-walkin-mode="services"/);
   assert.match(html, /data-walkin-mode="aircon"/);
+  assert.match(html, /id="accountConsent"/);
+  assert.match(html, /accountConsent: document\.getElementById\("accountConsent"\)\.checked/);
+  assert.match(html, /Account matching is automatic/);
+  assert.doesNotMatch(html, /id="custNew"|id="custExisting"/);
+  assert.doesNotMatch(html, /auto-generated password/i);
   assert.match(html, /id="waTechnician"/);
   assert.match(html, /id="waCalendar"/);
   assert.match(html, /id="waCalendarTitle"/);
@@ -51,6 +56,11 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   assert.match(html, /id="waCartDrawer"/);
   assert.match(html, /id="waVariantBackdrop"/);
   assert.match(html, /id="waAccountConsent"/);
+  assert.match(html, /id="waFindCustomer"/);
+  assert.match(html, /id="waCustomerLookupStatus"/);
+  assert.match(html, /findOrderCustomer/);
+  assert.match(html, /\/api\/users\?email=/);
+  assert.match(html, /state\.customerLookupEmail !== customerEmail/);
   assert.match(html, /id="waReceiptBackdrop"/);
   assert.match(html, /id="waPrintReceipt"/);
   assert.match(html, /id="waMap"/);

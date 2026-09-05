@@ -180,6 +180,19 @@
     .walkin-page .customer-lookup-status .spin{animation:walkinSpin .8s linear infinite}
     @keyframes walkinSpin{to{transform:rotate(360deg)}}
     .walkin-page .customer-detail-field.is-locked .form-control,.walkin-page .customer-detail-field.is-locked .form-select{background:#f8fafc;color:#475569}
+    .walkin-page .customer-account-policy{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;margin-bottom:16px;border:1px solid #bfdbfe;border-radius:14px;background:linear-gradient(135deg,#eff6ff,#f8fafc);color:#334155;font-size:.82rem;line-height:1.5}
+    .walkin-page .customer-account-policy>i{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:#dbeafe;color:#1d4ed8;font-size:1rem}
+    .walkin-page .customer-account-policy strong{display:block;color:#1e3a8a;font-size:.88rem;margin-bottom:2px}
+    .walkin-page .existing-customer-card{display:flex;align-items:center;gap:12px;padding:13px 15px;margin-top:12px;border:1px solid #bbf7d0;border-radius:13px;background:#f0fdf4}
+    .walkin-page .existing-customer-card>i{font-size:1.35rem;color:#15803d}
+    .walkin-page .existing-customer-card strong{display:block;color:#166534;font-size:.86rem}
+    .walkin-page .existing-customer-card span{display:block;color:#3f6212;font-size:.75rem;margin-top:2px}
+    .walkin-page .new-customer-heading{display:flex;align-items:center;gap:9px;margin:16px 0 2px;padding:10px 12px;border-radius:11px;background:#fffbeb;color:#92400e;font-size:.8rem}
+    .walkin-page .account-consent-panel{margin-top:16px;padding:14px 16px;border:1px solid #c7d2fe;border-radius:14px;background:#f5f7ff}
+    .walkin-page .account-consent-panel .form-check{display:flex;align-items:flex-start;gap:10px;margin:0}
+    .walkin-page .account-consent-panel .form-check-input{flex:0 0 auto;margin-top:3px}
+    .walkin-page .account-consent-panel label{font-size:.8rem;line-height:1.45;color:#334155}
+    .walkin-page .account-consent-panel label strong{display:block;color:#1e3a8a;margin-bottom:2px}
 
     /* Nav Tabs */
     .walkin-page .nav-tabs{border-bottom:2px solid #e2e8f0;gap:4px}
@@ -322,7 +335,7 @@
         <div class="ent-trust-badges">
           <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Multi-service support</span>
           <span class="ent-trust-divider"></span>
-          <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Auto account creation</span>
+          <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Consent-based account linking</span>
           <span class="ent-trust-divider"></span>
           <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Smart scheduling</span>
         </div>
@@ -563,70 +576,73 @@
             </div>
           </div>
           <div class="ent-step-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Customer Type</label>
-            <div class="d-flex gap-3">
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="customerType" id="custNew" value="new" checked />
-                <label class="form-check-label" for="custNew">New customer</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="customerType" id="custExisting" value="existing" />
-                <label class="form-check-label" for="custExisting">Existing customer</label>
-              </div>
+          <div class="customer-account-policy">
+            <i class="bi bi-shield-check"></i>
+            <div>
+              <strong>Account matching is automatic</strong>
+              Search the customer's email first. An existing customer account is reused; otherwise, details and customer consent are required before a secure activation invitation is created.
             </div>
-          </div>
-          <div id="existingCustomerNote" class="mb-2 text-muted d-none">
-            Existing account detected. No additional customer details are required.
-          </div>
-          <div id="autoCreateAccountNote" class="mb-2 text-muted">
-            For <strong>new customers</strong> an account will be automatically
-            created when you complete the booking.
           </div>
           <div class="row g-3">
             <div class="col-12">
-              <label class="form-label" for="customerEmail">Email</label>
+              <label class="form-label" for="customerEmail">Customer Email</label>
               <div class="input-group">
-                <input id="customerEmail" name="customerEmail" type="email" class="form-control" maxlength="120" autocomplete="email" required />
-                <button type="button" class="btn btn-outline-primary" id="checkCustomerBtn"><i class="bi bi-search me-1"></i>Check Account</button>
+                <input id="customerEmail" name="customerEmail" type="email" class="form-control" maxlength="254" autocomplete="email" placeholder="customer@example.com" required />
+                <button type="button" class="btn btn-outline-primary" id="checkCustomerBtn"><i class="bi bi-search me-1"></i>Find Customer</button>
               </div>
               <div id="customerLookupStatus" class="customer-lookup-status mt-2" role="status" aria-live="polite">
-                <i class="bi bi-info-circle"></i><span>Enter the customer's email to check for an existing account.</span>
+                <i class="bi bi-info-circle"></i><span>No account selected. Search by email before continuing.</span>
+              </div>
+              <div id="existingCustomerCard" class="existing-customer-card d-none" aria-live="polite">
+                <i class="bi bi-person-check-fill"></i>
+                <div><strong id="existingCustomerName">Existing customer</strong><span id="existingCustomerMeta"></span></div>
               </div>
             </div>
-            <div class="col-md-6 customer-detail-field">
+            <div id="newCustomerHeading" class="col-12 d-none">
+              <div class="new-customer-heading"><i class="bi bi-person-plus-fill"></i><span>No account exists. Complete the customer profile below.</span></div>
+            </div>
+            <div class="col-md-6 customer-detail-field d-none">
               <label class="form-label" for="firstName">First Name</label>
               <input id="firstName" name="firstName" class="form-control" required maxlength="80" />
             </div>
-            <div class="col-md-6 customer-detail-field">
+            <div class="col-md-6 customer-detail-field d-none">
               <label class="form-label" for="lastName">Last Name</label>
               <input id="lastName" name="lastName" class="form-control" required maxlength="80" />
             </div>
-            <div class="col-md-6 customer-detail-field">
+            <div class="col-md-6 customer-detail-field d-none">
               <label class="form-label" for="customerPhone">Phone Number</label>
               <input id="customerPhone" name="customerPhone" class="form-control" required maxlength="40" />
             </div>
-            <div class="col-md-3 customer-detail-field">
+            <div class="col-md-3 customer-detail-field d-none">
               <label class="form-label" for="addrProvince">Province</label>
               <select id="addrProvince" name="addrProvince" class="form-select" required>
                 <option value="">Select Province</option>
               </select>
             </div>
-            <div class="col-md-4 customer-detail-field">
+            <div class="col-md-4 customer-detail-field d-none">
               <label class="form-label" for="addrCity">City</label>
               <select id="addrCity" name="addrCity" class="form-select" disabled required>
                 <option value="">Select City/Municipality</option>
               </select>
             </div>
-            <div class="col-md-3 customer-detail-field">
+            <div class="col-md-3 customer-detail-field d-none">
               <label class="form-label" for="addrBarangay">Barangay</label>
               <select id="addrBarangay" name="addrBarangay" class="form-select" disabled required>
                 <option value="">Select Barangay</option>
               </select>
             </div>
-            <div class="col-md-2 customer-detail-field">
+            <div class="col-md-2 customer-detail-field d-none">
               <label class="form-label" for="addrPostalCode">Postal Code</label>
               <input id="addrPostalCode" name="addrPostalCode" class="form-control" maxlength="20" />
+            </div>
+          </div>
+          <div id="accountConsentPanel" class="account-consent-panel d-none">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="accountConsent" />
+              <label class="form-check-label" for="accountConsent">
+                <strong id="accountConsentTitle">Customer consent for online account access</strong>
+                <span id="accountConsentText">I confirm the customer requested this appointment and authorized CALIDRO RACS to link it to this email and send account and appointment messages.</span>
+              </label>
             </div>
           </div>
           <div class="walkin-actions">
@@ -779,7 +795,6 @@
               </div>
             </div>
           </div>
-
           <div class="service-route-panel mt-3" id="mapInfoPanel">
             <div class="service-route-head">
               <strong><i class="bi bi-signpost-2 me-2"></i>Route &amp; Travel Fare</strong>
@@ -990,9 +1005,10 @@
       technicians: [],
       currentStep: 0, // start at customer type step
       maxReachedStep: 0,
-      isNewCustomer: true,
+      isNewCustomer: null,
       customerLookupEmail: "",
       customerAccountFound: false,
+      customerAccountState: "unchecked",
       enterpriseCalendarSignature: "",
       projectScheduling: null,
       selectedServiceId: "",
@@ -1274,24 +1290,39 @@
       document.getElementById("addrPostalCode").value = address.postalCode || "";
     }
 
-    // Keep all customer details visible. Existing accounts are loaded read-only;
-    // new accounts remain editable so staff can complete registration.
+    // Email lookup is authoritative. Details are progressively disclosed only
+    // when the database confirms that a new customer invitation is needed.
     function adjustCustomerDetailsStep() {
-      const note = document.getElementById("existingCustomerNote");
-      const createNote = document.getElementById("autoCreateAccountNote");
-      if (note) note.classList.toggle("d-none", !state.customerAccountFound);
-      if (createNote) createNote.classList.toggle("d-none", !state.isNewCustomer);
+      const lookupResolved = Boolean(state.customerLookupEmail) && state.isNewCustomer !== null;
+      const existingCard = document.getElementById("existingCustomerCard");
+      const newHeading = document.getElementById("newCustomerHeading");
+      const consentPanel = document.getElementById("accountConsentPanel");
+      if (existingCard) existingCard.classList.toggle("d-none", !state.customerAccountFound);
+      if (newHeading) newHeading.classList.toggle("d-none", !lookupResolved || state.isNewCustomer !== true);
+      if (consentPanel) consentPanel.classList.toggle("d-none", !lookupResolved);
       document.querySelectorAll(".customer-detail-field").forEach((el) => {
-        el.classList.toggle("d-none", !state.isNewCustomer);
+        el.classList.toggle("d-none", !lookupResolved || state.isNewCustomer !== true);
       });
-      setCustomerDetailsLocked(state.customerAccountFound || !state.isNewCustomer);
+      setCustomerDetailsLocked(state.customerAccountFound || state.isNewCustomer !== true);
+
+      const consentTitle = document.getElementById("accountConsentTitle");
+      const consentText = document.getElementById("accountConsentText");
+      if (consentTitle) {
+        consentTitle.textContent = state.isNewCustomer
+          ? "Customer consent to create online account access"
+          : "Customer consent to link this appointment";
+      }
+      if (consentText) {
+        consentText.textContent = state.isNewCustomer
+          ? "I confirm the customer authorized CALIDRO RACS to create an invited account for this email and send a secure activation link. The customer will choose their own password."
+          : "I confirm the customer requested this appointment and authorized CALIDRO RACS to link it to the existing account and send appointment messages.";
+      }
     }
 
     // Reusable async email check: validates email, looks up DB, populates or enables fields.
     // Returns true if navigation should proceed, false to abort.
     async function checkCustomerEmail() {
       const email = document.getElementById("customerEmail").value.trim();
-      const isNew = document.getElementById("custNew").checked;
       if (!email) { showWarn("Email is required."); return false; }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1300,6 +1331,7 @@
         return false;
       }
       if (state.customerLookupEmail === email.toLowerCase()) return true;
+      document.getElementById("accountConsent").checked = false;
 
       try {
         const checkButton = document.getElementById("checkCustomerBtn");
@@ -1316,17 +1348,22 @@
           if (!json.user && json.emailAvailable === false) {
             state.customerLookupEmail = "";
             state.customerAccountFound = false;
+            state.isNewCustomer = null;
+            state.customerAccountState = "unavailable";
+            adjustCustomerDetailsStep();
             setCustomerLookupStatus("This email belongs to a staff account and cannot be used for a customer booking.", "warning");
             return false;
           }
 
           if (json.user) {
-            if (isNew) {
-              document.getElementById("custExisting").checked = true;
-              document.getElementById("custNew").checked = false;
-              state.isNewCustomer = false;
-            } else if (!isNew) {
-              state.isNewCustomer = false;
+            if (json.accountState === "unavailable") {
+              state.customerLookupEmail = "";
+              state.customerAccountFound = false;
+              state.isNewCustomer = null;
+              state.customerAccountState = "unavailable";
+              adjustCustomerDetailsStep();
+              setCustomerLookupStatus("This customer account is disabled or blocked. Resolve the account status before booking.", "warning");
+              return false;
             }
 
             const u = json.user;
@@ -1335,24 +1372,24 @@
             document.getElementById("customerPhone").value = u.phone || "";
             await populateCustomerAddress(u.address);
             state.customerAccountFound = true;
+            state.isNewCustomer = false;
+            state.customerAccountState = json.accountState || "active";
             state.customerLookupEmail = email.toLowerCase();
+            document.getElementById("existingCustomerName").textContent =
+              `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email;
+            document.getElementById("existingCustomerMeta").textContent =
+              `${u.phone || "No phone on file"} · ${state.customerAccountState === "active" ? "Verified account" : state.customerAccountState === "invited" ? "Activation still required" : "Email verification pending"}`;
             adjustCustomerDetailsStep();
-            setCustomerLookupStatus("Existing customer found. Saved details were loaded for verification.", "success");
+            setCustomerLookupStatus("Existing customer found. The appointment will be linked to this account after consent is confirmed.", "success");
           } else {
-            if (!isNew) {
-              document.getElementById("custNew").checked = true;
-              document.getElementById("custExisting").checked = false;
-              state.isNewCustomer = true;
-            } else if (isNew) {
-              state.isNewCustomer = true;
-            }
-
+            clearCustomerDetails();
             state.customerAccountFound = false;
+            state.isNewCustomer = true;
+            state.customerAccountState = "invited";
             state.customerLookupEmail = email.toLowerCase();
             setCustomerDetailsLocked(false);
             adjustCustomerDetailsStep();
-            setCustomerLookupStatus("No existing account found. Complete the details below to create one with this booking.", "warning");
-            if (!isNew) return false;
+            setCustomerLookupStatus("No customer account found. Complete the profile and capture consent to send a secure activation invitation.", "warning");
           }
           return true;
         } else {
@@ -1377,7 +1414,11 @@
         if (!email || !re.test(email))
           return showWarn("Valid customer email is required.");
         if (state.customerLookupEmail !== email.toLowerCase())
-          return showWarn("Check the customer email before continuing.");
+          return showWarn("Find the customer account before continuing.");
+        if (state.isNewCustomer === null)
+          return showWarn("The customer account could not be resolved.");
+        if (!document.getElementById("accountConsent").checked)
+          return showWarn("Confirm the customer's account and appointment consent before continuing.");
         if (state.isNewCustomer) {
           const first = document.getElementById("firstName").value.trim();
           const last = document.getElementById("lastName").value.trim();
@@ -1649,7 +1690,7 @@
       summaryEl.innerHTML = `
       <div class="rv-box">
         <div class="rv-row"><span class="text-muted">Customer:</span> <span class="fw-semibold">${customerName}</span></div>
-        <div class="rv-row"><span class="text-muted">Account:</span> <span class="fw-semibold">${customerEmail} · ${state.customerAccountFound ? "Existing" : "New account"}</span></div>
+        <div class="rv-row"><span class="text-muted">Account:</span> <span class="fw-semibold">${customerEmail} · ${state.customerAccountFound ? (state.customerAccountState === "active" ? "Existing verified account" : "Existing account · activation pending") : state.isNewCustomer === true ? "New invited account" : "Not checked"}</span></div>
         <div class="rv-row"><span class="text-muted">Services:</span> <span class="fw-semibold">${state.selectedServices.length ? state.selectedServices.map(item => `${item.name} ×${item.quantity}`).join(', ') : "—"}</span></div>
         <div class="rv-row"><span class="text-muted">Technician:</span> <span class="fw-semibold">${techLabel}</span></div>
         <div class="rv-row"><span class="text-muted">Schedule:</span> <span class="fw-semibold">${scheduleText}</span></div>
@@ -3177,24 +3218,12 @@
       if (email === state.customerLookupEmail) return;
       state.customerLookupEmail = "";
       state.customerAccountFound = false;
-      if (document.getElementById("custExisting").checked) clearCustomerDetails();
+      state.isNewCustomer = null;
+      state.customerAccountState = "unchecked";
+      document.getElementById("accountConsent").checked = false;
+      clearCustomerDetails();
       adjustCustomerDetailsStep();
-      setCustomerLookupStatus("Email changed. Check the account again before continuing.", "info");
-    });
-
-    // Customer type selection event listeners
-    document.querySelectorAll('input[name="customerType"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        state.isNewCustomer = document.getElementById('custNew').checked;
-        state.customerLookupEmail = '';
-        state.customerAccountFound = false;
-        clearCustomerDetails();
-        setCustomerDetailsLocked(!state.isNewCustomer);
-        setCustomerLookupStatus(state.isNewCustomer
-          ? 'Check the email first, then complete the details for the new account.'
-          : 'Enter an email and select Check Account to load the customer.', 'info');
-        adjustCustomerDetailsStep();
-      });
+      setCustomerLookupStatus("Email changed. Find the customer again before continuing.", "info");
     });
 
     document.querySelectorAll("[data-next-step]").forEach((btn) => {
@@ -3202,8 +3231,6 @@
         const target = Number(btn.getAttribute("data-next-step"));
         if (!validateStep(state.currentStep)) return;
         if (state.currentStep === 0 && target === 1) {
-          state.isNewCustomer = document.getElementById("custNew").checked;
-          adjustCustomerDetailsStep();
           if (!(await checkCustomerEmail())) return;
           if (!validateStep(0)) return;
         }
@@ -3231,8 +3258,6 @@
         if (target > state.currentStep && !validateStep(state.currentStep))
           return;
         if (state.currentStep === 0 && target >= 1) {
-          state.isNewCustomer = document.getElementById("custNew").checked;
-          adjustCustomerDetailsStep();
           if (!(await checkCustomerEmail())) return;
         }
         if (target === 3) {
@@ -3272,6 +3297,7 @@
         customerPhone: document.getElementById("customerPhone").value.trim(),
         customerEmail: customerEmailFieldValue,
         isNewCustomer: state.isNewCustomer,
+        accountConsent: document.getElementById("accountConsent").checked,
         address: {
           province: document.getElementById("addrProvince").value.trim(),
           city: document.getElementById("addrCity").value.trim(),
@@ -3336,10 +3362,16 @@
         let bookingMsg = "";
         
         if (d.customerAccountCreated && d.customer) {
-          accountMsg = ` A new customer account was auto-created for <strong>${d.customer.email}</strong>. An auto-generated password and secure password reset link have been emailed to the customer.`;
-          bookingMsg = ` Booking confirmation and appointment details have been sent to the customer's email.`;
+          accountMsg = ` A secure invited account was created for <strong>${escapeMarkup(d.customer.email)}</strong>. The customer must verify the email and choose their own password.`;
         } else if (!d.customerAccountCreated && d.customer) {
-          bookingMsg = ` Booking confirmation and appointment details have been sent to the existing customer's email at <strong>${d.customer.email}</strong>.`;
+          accountMsg = ` The appointment was linked to the existing customer account for <strong>${escapeMarkup(d.customer.email)}</strong>.`;
+        }
+        if (d.customerAccount?.invitationDelivery === "accepted") {
+          bookingMsg = ` The account and appointment email was accepted by the email provider.`;
+        } else if (d.customerAccount?.invitationDelivery === "failed") {
+          bookingMsg = ` <strong>The appointment was created, but the email could not be delivered.</strong> Verify the address before attempting account recovery.`;
+        } else if (d.customerAccount?.state === "pending_verification") {
+          bookingMsg = ` The existing registration still requires email verification.`;
         }
         
         showAlert("success", `Walk-in appointment created successfully. Reference: <strong>${ref}</strong>.${accountMsg}${bookingMsg}`);
@@ -3352,9 +3384,10 @@
         state.travelFare = 0;
         state.travelTime = 0;
         state.customerCoords = null;
-        state.isNewCustomer = true;
+        state.isNewCustomer = null;
         state.customerLookupEmail = "";
         state.customerAccountFound = false;
+        state.customerAccountState = "unchecked";
         state.maxReachedStep = 0;
         state.selectedServices = [];
         state.enterpriseCalendarSignature = "";
@@ -3386,7 +3419,9 @@
             ),
           );
         state.selectedServiceId = "";
-        setCustomerLookupStatus("Enter the customer's email to check for an existing account.", "info");
+        document.getElementById("accountConsent").checked = false;
+        adjustCustomerDetailsStep();
+        setCustomerLookupStatus("No account selected. Search by email before continuing.", "info");
         locationInputEl.value = "";
         serviceMapSelectionEl?.classList.remove("has-location");
         const selectionStatus = document.getElementById("serviceMapSelectionStatus");

@@ -543,6 +543,67 @@ async function sendWalkInOrderAccountEmail({
 }
 
 // ─── Technician New-Job Notification Email ───────────────────────────────────
+// Walk-in service account access. This intentionally never sends a generated
+// password: invited customers prove email ownership and choose their own.
+async function sendWalkInBookingAccountEmail({
+  to,
+  customerName,
+  bookingReference,
+  activationUrl,
+  trackingUrl,
+  serviceName,
+  scheduleLabel,
+}) {
+  if (!to) return false;
+  const escapeHtml = (value) => String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  const safeName = escapeHtml(customerName || "Customer");
+  const safeReference = escapeHtml(bookingReference || "Appointment");
+  const safeService = escapeHtml(serviceName || "Service appointment");
+  const safeSchedule = escapeHtml(scheduleLabel || "See your booking for schedule details");
+  const targetUrl = activationUrl || trackingUrl || `${process.env.APP_BASE_URL || ""}/book-history`;
+  const safeTargetUrl = escapeHtml(targetUrl);
+  const needsActivation = Boolean(activationUrl);
+  const subject = needsActivation
+    ? `Activate your account for appointment ${bookingReference || "request"} | CALIDRO RACS`
+    : `Walk-in appointment recorded - ${bookingReference || "Appointment"} | CALIDRO RACS`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles("#2563eb", "#1d4ed8")}</head><body>
+<div class="wrap">
+  <div class="header"><h1>${needsActivation ? "Activate Your Customer Account" : "Appointment Request Recorded"}</h1><div class="ref-badge">${safeReference}</div></div>
+  <div class="body">
+    <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${safeName}</strong>,</p>
+    <p style="color:#475569;line-height:1.65;">${needsActivation
+      ? "You authorized CALIDRO RACS to create a customer account for your walk-in service request. Verify your email and choose a password to access appointment updates."
+      : "Your walk-in service request is linked to your existing customer account. The assigned technician must still accept the appointment before it is confirmed."}</p>
+    <div class="section-title">Appointment Details</div>
+    <table>
+      <tr class="detail-row"><td>Reference</td><td style="font-weight:700;color:#2563eb;">${safeReference}</td></tr>
+      <tr class="detail-row"><td>Service</td><td>${safeService}</td></tr>
+      <tr class="detail-row"><td>Requested schedule</td><td>${safeSchedule}</td></tr>
+      <tr class="detail-row"><td>Status</td><td>Waiting for technician acceptance</td></tr>
+    </table>
+    ${needsActivation ? '<div class="info-box"><p style="margin:0;font-size:13px;color:#475569;">This single-use activation link expires in 24 hours. CALIDRO RACS will never email you a temporary password.</p></div>' : ""}
+    <a href="${safeTargetUrl}" class="btn">${needsActivation ? "Verify Email & Choose Password" : "View My Appointments"}</a>
+  </div>
+  ${premiumFooter()}
+</div></body></html>`;
+  const text = `Hi ${customerName || "Customer"},\n\n${needsActivation
+    ? "Verify your email and choose a password to activate your CALIDRO RACS customer account."
+    : "Your walk-in service request is linked to your CALIDRO RACS customer account."}\nAppointment: ${bookingReference || "Appointment"}\nService: ${serviceName || "Service appointment"}\nRequested schedule: ${scheduleLabel || "See your booking"}\nStatus: Waiting for technician acceptance\n\n${needsActivation ? "Activate account" : "View appointments"}: ${targetUrl}`;
+  return sendMail({
+    to,
+    subject,
+    html,
+    text,
+    source: needsActivation ? "walk_in_service_account_invitation" : "walk_in_service_confirmation",
+  });
+}
+
+// Technician new-job notification.
 async function sendTechnicianNotificationEmail({
   to,
   technicianName,
@@ -1309,6 +1370,7 @@ module.exports = {
   sendTechnicianNotificationEmail,
   sendWalkInCredentialsEmail,
   sendWalkInOrderAccountEmail,
+  sendWalkInBookingAccountEmail,
   sendTechArrivalNotificationEmail,
   sendBookingAcceptedEmail,
   sendBookingExpiredEmail,

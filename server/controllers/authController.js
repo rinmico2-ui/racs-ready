@@ -1208,6 +1208,9 @@ exports.activateInvitedAccount = async (req, res, next) => {
     user.emailVerifiedAt = new Date();
     user.accountStatus = "active";
     user.invitationActivatedAt = new Date();
+    const activationDestination = user.accountOrigin === "walk_in_service"
+      ? "/book-history"
+      : "/my-orders";
     user.clearAccountInvitation();
     user.currentSessionId = undefined;
     await user.save();
@@ -1229,7 +1232,7 @@ exports.activateInvitedAccount = async (req, res, next) => {
     res.clearCookie("auth_token", { path: "/" });
     return res.json({
       message: "Your email is verified and your account is ready.",
-      redirect: "/login?activated=1&returnTo=%2Fmy-orders",
+      redirect: `/login?activated=1&returnTo=${encodeURIComponent(activationDestination)}`,
     });
   } catch (error) {
     next(error);

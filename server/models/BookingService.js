@@ -19,6 +19,24 @@ const bookingSchema = new mongoose.Schema({
     address: String,
   },
 
+  // Staff attestation and delivery state for account access linked during a
+  // walk-in appointment. Authentication secrets are never stored here.
+  customerAccountAccess: {
+    consentedAt: { type: Date, default: null },
+    capturedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    stateAtCheckout: {
+      type: String,
+      enum: ["active", "invited", "pending_verification"],
+      default: "active",
+    },
+    invitationDelivery: {
+      type: String,
+      enum: ["not_sent", "accepted", "failed", "pending_registration"],
+      default: "not_sent",
+    },
+    invitationSentAt: { type: Date, default: null },
+  },
+
   technician: {
     _id: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
     name: String,

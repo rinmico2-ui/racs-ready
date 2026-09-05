@@ -234,11 +234,18 @@ router.get("/", auth.requireRole(["admin", "secretary"]), async (req, res) => {
           { role: null },
         ],
       })
-        .select("_id email firstName lastName phone address role isActive")
+        .select("_id email firstName lastName phone address role active blocked emailVerified accountStatus accountOrigin")
         .lean();
       if (customer) {
         customer.role = "customer";
-        return res.json({ user: customer, emailAvailable: false, isCustomer: true });
+        const accountState = customer.blocked === true || customer.active === false
+          ? "unavailable"
+          : customer.emailVerified === false && customer.accountStatus === "invited"
+            ? "invited"
+            : customer.emailVerified === false
+              ? "pending_verification"
+              : "active";
+        return res.json({ user: customer, emailAvailable: false, isCustomer: true, accountState });
       }
       const accountExists = await User.exists({ email: normalizedEmail });
       if (accountExists) {
