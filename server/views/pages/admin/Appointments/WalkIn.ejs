@@ -3038,34 +3038,34 @@
     }
     if (coreCardsEl) coreCardsEl.addEventListener("click", handleServiceCardClick);
     if (repairCardsEl) repairCardsEl.addEventListener("click", handleServiceCardClick);
-    document.getElementById("repair-tab").addEventListener("shown.bs.tab", () => mountInlineRepairConfigurator(false));
+    document.getElementById("repair-tab")?.addEventListener("shown.bs.tab", () => mountInlineRepairConfigurator(false));
 
-    document.getElementById("walkinRepairCategories").addEventListener("click", e => { const button = e.target.closest(".repair-category"); if (button) selectRepairCategory(button.dataset.category); });
-    document.getElementById("coreAirconTypes").addEventListener("click", e => {
+    document.getElementById("walkinRepairCategories")?.addEventListener("click", e => { const button = e.target.closest(".repair-category"); if (button) selectRepairCategory(button.dataset.category); });
+    document.getElementById("coreAirconTypes")?.addEventListener("click", e => {
       const button = e.target.closest(".core-aircon-type"); if (!button) return;
       const types = JSON.parse(document.getElementById("coreAirconTypes").dataset.types || "[]");
       configuredCoreAirconType = types[Number(button.dataset.index)];
       document.querySelectorAll(".core-aircon-type").forEach(el => el.classList.toggle("selected", el === button));
       renderCoreHpOptions(configuredCoreAirconType);
     });
-    document.getElementById("coreBrand").addEventListener("change", () => {
+    document.getElementById("coreBrand")?.addEventListener("change", () => {
       const custom = document.getElementById("coreBrandCustom");
       if (document.getElementById("coreBrand").value === "__custom") {
-        custom.classList.remove("d-none");
-        custom.focus();
+        custom?.classList.remove("d-none");
+        custom?.focus();
       } else {
-        custom.classList.add("d-none");
-        custom.value = "";
+        custom?.classList.add("d-none");
+        if (custom) custom.value = "";
       }
     });
-    document.getElementById("configQuantity").addEventListener("input", updateCoreConfigurationPrice);
-    document.getElementById("configQtyMinus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.max(1, Number(input.value) - 1); updateCoreConfigurationPrice(); });
-    document.getElementById("configQtyPlus").addEventListener("click", () => { const input = document.getElementById("configQuantity"); input.value = Math.min(40, Number(input.value) + 1); updateCoreConfigurationPrice(); });
-    document.getElementById("repairConfigQtyMinus").addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); input.value = Math.max(1, Number(input.value) - 1); updateRepairConfigurationPrice(); });
-    document.getElementById("repairConfigQtyPlus").addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); input.value = Math.min(40, Number(input.value) + 1); updateRepairConfigurationPrice(); });
-    document.getElementById("walkinUnitTypes").addEventListener("click", e => { const button = e.target.closest(".repair-unit-type"); if (!button) return;      configuredRepairUnitType = button.dataset.unitType; document.querySelectorAll(".repair-unit-type").forEach(el => el.classList.toggle("active", el === button)); });
-    document.getElementById("walkinUnitTypes").addEventListener("input", e => { if (e.target.id === "customRepairUnitType") configuredRepairUnitType = e.target.value.trim(); });
-    document.getElementById("walkinSymptomChips").addEventListener("click", event => {
+    document.getElementById("configQuantity")?.addEventListener("input", updateCoreConfigurationPrice);
+    document.getElementById("configQtyMinus")?.addEventListener("click", () => { const input = document.getElementById("configQuantity"); if (input) { input.value = Math.max(1, Number(input.value) - 1); updateCoreConfigurationPrice(); } });
+    document.getElementById("configQtyPlus")?.addEventListener("click", () => { const input = document.getElementById("configQuantity"); if (input) { input.value = Math.min(40, Number(input.value) + 1); updateCoreConfigurationPrice(); } });
+    document.getElementById("repairConfigQtyMinus")?.addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); if (input) { input.value = Math.max(1, Number(input.value) - 1); updateRepairConfigurationPrice(); } });
+    document.getElementById("repairConfigQtyPlus")?.addEventListener("click", () => { const input = document.getElementById("repairConfigQuantity"); if (input) { input.value = Math.min(40, Number(input.value) + 1); updateRepairConfigurationPrice(); } });
+    document.getElementById("walkinUnitTypes")?.addEventListener("click", e => { const button = e.target.closest(".repair-unit-type"); if (!button) return;      configuredRepairUnitType = button.dataset.unitType; document.querySelectorAll(".repair-unit-type").forEach(el => el.classList.toggle("active", el === button)); });
+    document.getElementById("walkinUnitTypes")?.addEventListener("input", e => { if (e.target.id === "customRepairUnitType") configuredRepairUnitType = e.target.value.trim(); });
+    document.getElementById("walkinSymptomChips")?.addEventListener("click", event => {
       const button = event.target.closest(".repair-symptom");
       if (!button) return;
       button.classList.toggle("active");
@@ -3084,17 +3084,17 @@
       document.getElementById("walkinRepairCharCount").textContent = `${textarea.value.length} / 500`;
     });
 
-    document.getElementById("locateCompanyBtn").addEventListener("click", () => {
+    document.getElementById("locateCompanyBtn")?.addEventListener("click", () => {
       if (!state.map || !state.markers.tech) return;
       state.map.setView(state.markers.tech.getLatLng(), 16);
       state.markers.tech.openPopup();
     });
-    document.getElementById("focusCustomerBtn").addEventListener("click", () => {
+    document.getElementById("focusCustomerBtn")?.addEventListener("click", () => {
       if (!state.map || !state.markers.customer) return showWarn("Select the service location first.");
       state.map.setView(state.markers.customer.getLatLng(), 16);
       state.markers.customer.openPopup();
     });
-    document.getElementById("fitServiceRouteBtn").addEventListener("click", () => {
+    document.getElementById("fitServiceRouteBtn")?.addEventListener("click", () => {
       if (!state.map) return;
       if (state.route?.getBounds && state.route.getBounds().isValid()) {
         state.map.fitBounds(state.route.getBounds(), { padding: [50, 50], maxZoom: 16 });
@@ -3102,15 +3102,17 @@
         state.map.fitBounds(L.featureGroup([state.markers.tech, state.markers.customer]).getBounds(), { padding: [50, 50], maxZoom: 16 });
       }
     });
-    document.getElementById("expandServiceMapBtn").addEventListener("click", event => {
+    document.getElementById("expandServiceMapBtn")?.addEventListener("click", event => {
       const card = document.getElementById("serviceCheckoutMapCard");
-      const expanded = card.classList.toggle("map-expanded");
-      event.currentTarget.innerHTML = expanded
-        ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>'
-        : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
-      setTimeout(() => state.map?.invalidateSize(), 280);
+      if (card) {
+        const expanded = card.classList.toggle("map-expanded");
+        event.currentTarget.innerHTML = expanded
+          ? '<i class="bi bi-fullscreen-exit"></i><span>Collapse</span>'
+          : '<i class="bi bi-fullscreen"></i><span>Expand</span>';
+        setTimeout(() => state.map?.invalidateSize(), 280);
+      }
     });
-    document.getElementById("configProblem").addEventListener("input", e => { document.getElementById("walkinRepairCharCount").textContent = `${e.target.value.length} / 500`; });
+    document.getElementById("configProblem")?.addEventListener("input", e => { const el = document.getElementById("walkinRepairCharCount"); if (el) el.textContent = `${e.target.value.length} / 500`; });
     function previewRepairPhotos(fileList) {
       const input = document.getElementById("configRepairPhotos");
       const files = Array.from(fileList || []).slice(0, 5);
@@ -3122,11 +3124,12 @@
     }
     const repairPhotoInput = document.getElementById("configRepairPhotos");
     const repairPhotoZone = document.getElementById("walkinRepairPhotoUploadZone");
-    repairPhotoInput.addEventListener("change", event => previewRepairPhotos(event.target.files));
-    repairPhotoZone.addEventListener("click", event => { if (event.target !== repairPhotoInput) repairPhotoInput.click(); });
-    repairPhotoZone.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); repairPhotoInput.click(); } });
-    repairPhotoZone.addEventListener("dragover", event => { event.preventDefault(); repairPhotoZone.classList.add("dragover"); });
-    repairPhotoZone.addEventListener("dragleave", () => repairPhotoZone.classList.remove("dragover"));
+    if (repairPhotoInput) repairPhotoInput.addEventListener("change", event => previewRepairPhotos(event.target.files));
+    if (repairPhotoZone) {
+      repairPhotoZone.addEventListener("click", event => { if (event.target !== repairPhotoInput) repairPhotoInput?.click(); });
+      repairPhotoZone.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); repairPhotoInput?.click(); } });
+      repairPhotoZone.addEventListener("dragover", event => { event.preventDefault(); repairPhotoZone.classList.add("dragover"); });
+      repairPhotoZone.addEventListener("dragleave", () => repairPhotoZone.classList.remove("dragover"));
     repairPhotoZone.addEventListener("drop", event => {
       event.preventDefault();
       repairPhotoZone.classList.remove("dragover");
@@ -3137,7 +3140,7 @@
       repairPhotoInput.files = transfer.files;
     });
 
-    document.getElementById("saveConfiguredService").addEventListener("click", async () => {
+    document.getElementById("saveConfiguredService")?.addEventListener("click", async () => {
       const id = document.getElementById("configServiceId").value;
       const type = document.getElementById("configServiceType").value;
       const quantityInput = type === "repair" ? document.getElementById("repairConfigQuantity") : document.getElementById("configQuantity");
@@ -3180,7 +3183,7 @@
       if (type === "repair") mountInlineRepairConfigurator(true);
     });
 
-    document.getElementById("selectedServicesList").addEventListener("click", e => {
+    document.getElementById("selectedServicesList")?.addEventListener("click", e => {
       const remove = e.target.closest(".remove-service");
       if (!remove) return;
       state.selectedServices.splice(Number(remove.dataset.index), 1);
@@ -3212,8 +3215,8 @@
       });
     });
 
-    document.getElementById("checkCustomerBtn").addEventListener("click", checkCustomerEmail);
-    document.getElementById("customerEmail").addEventListener("input", () => {
+    document.getElementById("checkCustomerBtn")?.addEventListener("click", checkCustomerEmail);
+    document.getElementById("customerEmail")?.addEventListener("input", () => {
       const email = document.getElementById("customerEmail").value.trim().toLowerCase();
       if (email === state.customerLookupEmail) return;
       state.customerLookupEmail = "";
