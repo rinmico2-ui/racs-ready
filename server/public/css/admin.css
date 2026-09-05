@@ -139,6 +139,22 @@ body.admin-layout strong {
     gap: 0.4rem;
     padding-left: 0;
   }
+
+  /* Show hamburger on mobile */
+  #sidebarToggle.d-lg-none {
+    display: flex !important;
+  }
+
+  #sidebarToggle.d-lg-none:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: #cbd5e1;
+  }
+
+  #sidebarToggle.d-lg-none:active {
+    background: #e2e8f0;
+    transform: scale(0.95);
+  }
 }
 
 /* ── Small mobile (≤480px): further compact ── */
