@@ -81,13 +81,115 @@ section {
 /* Service cards */
 .service-card {
   transition: transform 0.28s cubic-bezier(.2,.9,.2,1), box-shadow 0.28s ease;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(2,6,23,0.04);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(2,6,23,0.05);
+  border: 1px solid rgba(226,232,240,0.7) !important;
+  overflow: hidden;
 }
 
 .service-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 40px rgba(2,6,23,0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(37,99,235,0.10);
+  border-color: rgba(37,99,235,0.25) !important;
+}
+
+/* ── Service card media (image) ── */
+.service-card-media {
+  width: 100%;
+  height: 140px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #eff6ff, #f1f5f9);
+}
+
+.service-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.service-card:hover .service-card-img {
+  transform: scale(1.05);
+}
+
+/* ── Service card icon (fallback when no image) ── */
+.service-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.service-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #2563eb;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  margin: 0 auto;
+}
+
+.service-card:hover .service-icon {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(37,99,235,0.15);
+}
+
+/* ── Service card chip (badges) ── */
+.service-card-chip {
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  padding: 0.3em 0.65em !important;
+  border-radius: 6px !important;
+}
+
+/* ── Price box ── */
+.price-box {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border: 1px solid rgba(37,99,235,0.1);
+}
+
+/* ── Add to Booking button ── */
+.add-service-btn {
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  color: #fff;
+  transition: all 0.25s ease;
+  letter-spacing: 0.01em;
+}
+
+.add-service-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+  transform: translateY(-1px);
+  color: #fff;
+}
+
+.add-service-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+}
+
+/* ── Card title ── */
+.service-card .card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.3;
+  margin-bottom: 0.4rem;
 }
 
 /* Global card softening (applies where .card is used) */
